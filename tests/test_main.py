@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
+import app.database as app_db  # noqa: E402
 import main as app_main  # noqa: E402
 
 
@@ -27,8 +28,8 @@ import main as app_main  # noqa: E402
 def client(tmp_path, monkeypatch):
     """每個測試獨立 DB：切 DB_PATH → 重建 schema → 回傳 TestClient"""
     test_db = tmp_path / "test_inventory.db"
-    monkeypatch.setattr(app_main, "DB_PATH", str(test_db))
-    app_main.init_db()
+    monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
+    app_db.init_db()
 
     with TestClient(app_main.app) as c:
         yield c
@@ -376,7 +377,7 @@ class TestStats:
 
         # 把整組庫存設成 0（缺貨狀態）＋ low_stock=1（低庫存狀態）
         import sqlite3
-        conn = sqlite3.connect(app_main.DB_PATH)
+        conn = sqlite3.connect(app_db.DB_PATH)
         conn.execute("UPDATE items SET qty=0, low_stock=1 WHERE id=?", (kit["item_id"],))
         conn.commit()
         conn.close()
@@ -395,7 +396,7 @@ class TestStats:
         }).json()
 
         import sqlite3
-        conn = sqlite3.connect(app_main.DB_PATH)
+        conn = sqlite3.connect(app_db.DB_PATH)
         conn.execute("UPDATE items SET qty=2, low_stock=5 WHERE id=?", (kit["item_id"],))
         conn.commit()
         conn.close()
