@@ -13,3 +13,4 @@ inventory.db.bak*
 data/stock-items.json
 data/stock-data.js
 scripts/webhook.local.ps1
+*.lnk
