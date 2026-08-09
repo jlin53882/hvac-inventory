@@ -23,9 +23,9 @@ if not exist ".venv\Scripts\python.exe" (
 echo [2/3] 安裝套件...
 uv pip install --python .venv\Scripts\python.exe fastapi "uvicorn[standard]" openpyxl
 
-echo [3/3] 匯入庫存資料...
+echo [3/3] 資料庫初始化...
 set PYTHONPATH=
-".venv\Scripts\python.exe" -c "import json, sqlite3, sys; sys.path.insert(0,'.'); import main; conn=sqlite3.connect('inventory.db'); cur=conn.cursor(); cur.execute('DELETE FROM movements'); cur.execute('DELETE FROM items'); items=json.load(open('data/stock-items.json', encoding='utf-8')); [cur.execute('INSERT INTO items (brand,code,name,qty,unit,location,note) VALUES (?,?,?,?,?,?,?)', (i.get('brand',''),i.get('code',''),i.get('name',''),i.get('qty',0),i.get('unit','個'),i.get('location',''),i.get('note',''))) for i in items]; conn.commit(); print(f'OK 匯入 {len(items)} 筆'); conn.close()"
+".venv\Scripts\python.exe" -c "import sys; sys.path.insert(0,'.'); import main; print('✅ 資料庫已初始化（庫存從空白開始，請用系統介面新增品項）')"
 
 echo.
 echo ✅ 安裝完成！請執行 start.bat 啟動系統
