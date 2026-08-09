@@ -4,7 +4,14 @@
 $ErrorActionPreference = 'Continue'
 
 $CF     = 'C:\Program Files (x86)\cloudflared\cloudflared.exe'
-$WEBHOOK = 'https://discord.com/api/webhooks/1535982814019719219/81TyDqtNuqJfLj5SvXiINQDx3GfoFujpHmQEihQXH8pFkepdbWeQjWBAzmoDcGpdsjUj'
+# Discord webhook：從 gitignored 設定檔讀取（見 webhook.example.ps1 說明）
+# 未設定 → 跳過推播，外網功能不受影響
+$WEBHOOK = $null
+$WEBHOOK_LOCAL = Join-Path $PSScriptRoot 'webhook.local.ps1'
+if (Test-Path $WEBHOOK_LOCAL) { . $WEBHOOK_LOCAL }
+if (-not $WEBHOOK) {
+    Write-Host '⚠️ 未設定 Discord webhook（scripts/webhook.local.ps1）— 跳過推播，外網正常' -ForegroundColor Yellow
+}
 $CURL   = "$env:SystemRoot\System32\curl.exe"
 $LOG    = Join-Path $env:TEMP 'cf_tunnel.log'
 $JSON   = Join-Path $env:TEMP 'cf_webhook.json'
@@ -12,6 +19,7 @@ $JSON   = Join-Path $env:TEMP 'cf_webhook.json'
 if (Test-Path $LOG) { Remove-Item $LOG -Force }
 
 function Send-TunnelUrl([string]$Url) {
+    if (-not $WEBHOOK) { return }  # 未設定 webhook → 跳過推播
     $text = "🌐 振佳空調庫存 外網已開啟！`n📱 手機網址：$Url`n`n(關閉啟動視窗 = 關閉外網，網址每次啟動會更新)"
     $body = @{ content = $text } | ConvertTo-Json -Compress
     [System.IO.File]::WriteAllText($JSON, $body, (New-Object System.Text.UTF8Encoding($false)))
@@ -29,6 +37,7 @@ $watcher = Start-Job -ScriptBlock {
         if (Test-Path $watchLog) {
             $m = Select-String -Path $watchLog -Pattern 'https://[\w-]+\.trycloudflare\.com' -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($m) {
+                if (-not $watchWebhook) { break }  # 未設定 webhook → 不推播
                 $url = $m.Matches[0].Value
                 $text = "🌐 振佳空調庫存 外網已開啟！`n📱 手機網址：$url`n`n(關閉啟動視窗 = 關閉外網，網址每次啟動會更新)"
                 $body = @{ content = $text } | ConvertTo-Json -Compress
