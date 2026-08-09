@@ -158,12 +158,22 @@ def update_item(item_id: int, upd: ItemUpdate):
 
 @router.delete("/api/items/{item_id}")
 def delete_item(item_id: int):
-    """刪除品項（v10：CASCADE 自動刪除位置庫存）"""
+    """刪除品項（v10：手動 CASCADE——movements/stocktakes/kits/kit_items 的 FK 無
+    ON DELETE CASCADE，foreign_keys=ON 下不先刪子表會 FOREIGN KEY 失敗）"""
     conn = get_db()
     row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(404, "品項不存在")
+    # 依序刪子表（子→父），避免 FK 約束擋刪除
+    conn.execute("DELETE FROM movements WHERE item_id=?", (item_id,))       # 異動流水
+    conn.execute("DELETE FROM stocktakes WHERE item_id=?", (item_id,))      # 盤點紀錄
+    conn.execute("DELETE FROM kit_items WHERE item_id=?", (item_id,))        # 當材料被引用
+    kit = conn.execute("SELECT id FROM kits WHERE item_id=?", (item_id,)).fetchone()  # 本身是整組
+    if kit:
+        conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit["id"],))
+        conn.execute("DELETE FROM kits WHERE id=?", (kit["id"],))
+    conn.execute("DELETE FROM item_stocks WHERE item_id=?", (item_id,))     # 位置庫存
     conn.execute("DELETE FROM items WHERE id=?", (item_id,))
     conn.commit()
     conn.close()

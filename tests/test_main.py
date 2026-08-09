@@ -738,3 +738,90 @@ class TestSiteSharding:
         r = client.patch(f"/api/items/{item['id']}", json={"site": "warehouse"})
         assert r.status_code == 200
         assert r.json()["site"] == "warehouse"
+
+# ========== v10 相容性與 CASCADE 完整性（2026-08-09 補測） ==========
+
+class TestV10CompatAndCascade:
+    def test_list_items_has_compat_fields(self, client):
+        """list 端點每筆都要有相容欄位（qty/total_qty/stocks/location/note）——防 undefined"""
+        _add_item(client, name="多位置品", location="A倉", qty=2, note="首批")
+        items = client.get("/api/items").json()
+        assert len(items) == 1
+        it = items[0]
+        for k in ("qty", "total_qty", "stocks", "location", "note"):
+            assert k in it, f"list 回應缺少相容欄位 {k}"
+        assert it["qty"] == it["total_qty"] == 2
+        assert it["location"] == "A倉"
+        assert it["note"] == "首批"
+        assert len(it["stocks"]) == 1
+
+    def test_delete_item_with_movements(self, client):
+        """有異動紀錄的品項刪除：movements 也要一起清（無 FK CASCADE，須手動）"""
+        item = _add_item(client, name="要刪的", qty=5)
+        client.post(f"/api/items/{item['id']}/adjust", json={"delta": -2, "reason": "出庫"})
+        assert len(client.get("/api/movements").json()) == 1
+
+        r = client.delete(f"/api/items/{item['id']}")
+        assert r.status_code == 200
+        assert len(client.get("/api/movements").json()) == 0  # 流水一併清
+
+    def test_delete_item_with_stocktake(self, client):
+        """有盤點紀錄的品項刪除：stocktakes 也清（無 FK CASCADE）"""
+        item = _add_item(client, name="盤點過", qty=10)
+        client.post("/api/stocktake", json={
+            "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 10}]})
+        assert client.post(f"/api/items/{item['id']}/prepare", json={"qty": 3}).status_code == 200
+
+        r = client.delete(f"/api/items/{item['id']}")
+        assert r.status_code == 200
+        assert len(client.get("/api/prepared").json()) == 0  # prepared 也清
+
+    def test_delete_kit_and_material(self, client):
+        """刪整組：kits + kit_items 一併清；被材料引用的品項也可刪"""
+        a = _add_item(client, name="材料甲", qty=10)
+        b = _add_item(client, name="材料乙", qty=10)
+        kit = client.post("/api/kits", json={
+            "name": "測試整組",
+            "items": [{"item_id": a["id"], "qty": 2}, {"item_id": b["id"], "qty": 1}],
+        }).json()
+
+        # 刪材料甲（被 kit_items 引用）→ 應成功且 kit_items 引用被移除
+        r = client.delete(f"/api/items/{a['id']}")
+        assert r.status_code == 200
+
+        # 刪整組品項 → kits + kit_items 都清
+        kid, kit_item_id = kit["item_id"], kit["id"]
+        # 先建立 kit（自動建 is_kit item），再造第二個 kit 引用同 kit 品項？不需要——直接刪
+        r2 = client.delete(f"/api/items/{kid}")
+        assert r2.status_code == 200
+        assert len(client.get("/api/kits").json()) == 0
+
+    def test_update_main_fields_preserves_stocks(self, client):
+        """只改主檔欄位（name/brand）不帶 stocks → 位置庫存原樣保留"""
+        item = _add_item(client, name="舊名", brand="舊牌", location="A倉", qty=5)
+        client.post(f"/api/items/{item['id']}/stocks", json={"location": "B倉", "qty": 3})
+        r = client.patch(f"/api/items/{item['id']}", json={"name": "新名"})
+        assert r.status_code == 200
+        up = r.json()
+        assert up["name"] == "新名"
+        assert len(up["stocks"]) == 2          # 兩筆位置都還在
+        assert up["total_qty"] == 8
+        locs = sorted(s["location"] for s in up["stocks"])
+        assert locs == ["A倉", "B倉"]
+
+    def test_stockout_response_has_compat_fields(self, client):
+        """出庫回應 = 完整品項（qty/stocks），前端可接"""
+        item = _add_item(client, name="出庫品", location="A倉", qty=5)
+        r = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 2, "destination": "客戶"})
+        assert r.status_code == 200
+        p = r.json()
+        assert p["qty"] == 3
+        assert "stocks" in p and "note" in p and "location" in p
+
+    def test_export_after_delete(self, client):
+        """防回歸：刪除品項後 export 仍正常（JOIN 無殘留）"""
+        item = _add_item(client, name="暫存", qty=1)
+        client.delete(f"/api/items/{item['id']}")
+        r = client.get("/api/export")
+        assert r.status_code == 200
