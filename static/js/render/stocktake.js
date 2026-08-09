@@ -65,7 +65,7 @@ async function renderStocktake() {
 
   Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
-    html += `<div class="section-title"><span class="loc">📍 ${loc}</span><span>${locItems.length} 項</span></div>`;
+    html += `<div class="section-title"><span class="loc">位置：${loc}</span><span>${locItems.length} 項</span></div>`;
     html += `<table class="data-table"><thead><tr>
       <th>品項</th><th style="width:130px">系統數量</th><th style="width:110px">實際數量</th>
     </tr></thead><tbody>`;

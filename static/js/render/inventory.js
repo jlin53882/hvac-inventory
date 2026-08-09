@@ -62,20 +62,20 @@ function renderInventory() {
   let html = '';
   Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
-    html += `<div class="section-title"><span class="loc">📍 ${loc}</span><span>${locItems.length} 項</span></div>`;
+    html += `<div class="section-title"><span class="loc">位置：${loc}</span><span>${locItems.length} 項</span></div>`;
     locItems.forEach(i => {
       const delta = pending[i.id] || 0;
       const display = i.qty + delta;
       const isZero = display <= 0;
       const prepared = i.prepared_qty || 0;
-      // 位置（📍 大位置）與備註（📝 具體位置/說明）分開兩行顯示
+      // 位置標籤（位置：文字）與備註（📝 具體位置/說明）分開兩行顯示
       html += `
       <div class="item-card" id="card-${i.id}">
         <button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>
         <div class="item-info" onclick="openEditModal(${i.id})">
           <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>
           <div class="item-code">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
-          <div class="item-loc">📍 ${esc(i.location || '未標示')}</div>
+          <div class="item-loc">位置：${esc(i.location || '未標示')}</div>
           ${i.note ? `<div class="item-note">📝 ${esc(i.note)}</div>` : ''}
           ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
           ${prepared > 0 ? `<div class="prepared-tag">📤 待領出 ${prepared} ${esc(i.unit)}</div>` : ''}
