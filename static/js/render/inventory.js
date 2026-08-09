@@ -40,13 +40,14 @@ function renderInventory() {
   let list = ALL_ITEMS.filter(i => !i.is_kit);
   if (currentBrand !== '全部') list = list.filter(i => i.brand === currentBrand);
   if (kw) {
-    list = list.filter(i =>
-      (i.name || '').toLowerCase().includes(kw) ||
-      (i.code || '').toLowerCase().includes(kw) ||
-      (i.note || '').toLowerCase().includes(kw) ||
-      (i.brand || '').toLowerCase().includes(kw)
-    );
-  }
+      list = list.filter(i =>
+        (i.name || '').toLowerCase().includes(kw) ||
+        (i.code || '').toLowerCase().includes(kw) ||
+        (i.note || '').toLowerCase().includes(kw) ||
+        (i.brand || '').toLowerCase().includes(kw) ||
+        (i.location || '').toLowerCase().includes(kw)
+      );
+    }
 
   const content = document.getElementById('content');
   if (!list.length) {
