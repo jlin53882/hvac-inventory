@@ -541,8 +541,14 @@
 
 /* 使用者表格操作欄：桌面一行、手機垂直堆疊（按鈕文字完整顯示） */
 .user-actions { padding: 8px; text-align: right; white-space: nowrap; }
-.user-actions .btn-ghost { font-size: 12px; margin-left: 4px; }
-.user-actions .btn-ghost.danger { color: #dc2626; }
+.user-actions .btn-ghost {
+  font-size: 12px; margin-left: 4px;
+  color: #1a1a1a;                       /* 黑字（白底 modal 上看得清楚） */
+  background: #fff;
+  border: 1.2px solid #d8dee9;
+}
+.user-actions .btn-ghost:hover { background: #f3f5f8; }
+.user-actions .btn-ghost.danger { color: #dc2626; border-color: #fecaca; }
 @media (max-width: 767px) {
   .user-actions { display: flex; flex-direction: column; align-items: stretch; gap: 5px; text-align: left; }
   .user-actions .btn-ghost { margin-left: 0; }
