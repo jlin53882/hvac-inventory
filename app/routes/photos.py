@@ -29,7 +29,7 @@ router = APIRouter()
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 原始檔上限 10MB（壓縮後約 30-80KB）
-THUMB_WIDTH = 300  # 縮圖寬度 px
+THUMB_WIDTH = 800  # 壓縮寬度 px（卡片顯示 52px 縮圖，點開 lightbox 看 800px 大圖）
 
 
 def _photo_path(item_id: int) -> str:

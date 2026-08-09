@@ -144,8 +144,8 @@ class TestPhotoUpload:
         assert r.status_code == 200
         dest = os.path.join(app_config.UPLOAD_DIR, f"{item['id']}.jpg")
         img = Image.open(dest)
-        assert img.width == 300
-        assert img.height == 150  # 等比例
+        assert img.width == 800
+        assert img.height == 400  # 等比例
 
 
 class TestSimilarLookup:

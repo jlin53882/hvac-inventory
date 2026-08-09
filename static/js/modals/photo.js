@@ -11,7 +11,8 @@ function renderPhotoBox(itemId, hasPhoto) {
   const box = document.getElementById('e-photo-box');
   if (hasPhoto) {
     box.innerHTML = `
-      <img src="/uploads/${itemId}.jpg" alt="品項照片" onerror="this.style.display='none'">
+      <img src="/uploads/${itemId}.jpg" alt="品項照片" onclick="openPhotoLightbox(${itemId})"
+           style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
       <div class="photo-actions">
         <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 更換照片
           <input type="file" accept="image/*" style="display:none"
@@ -64,6 +65,36 @@ async function deleteItemPhoto(itemId) {
     const item = ALL_ITEMS.find(i => i.id === itemId);
     if (item) { item.has_photo = false; renderInventory(); }
   } catch { toast('刪除失敗', 'error'); }
+}
+
+// ========== 大圖檢視（lightbox） ==========
+// 點卡片/編輯 modal 的縮圖 → 全螢幕 overlay 顯示 800px 大圖，點擊或 ESC 關閉
+let photoLightboxEl = null;
+
+function openPhotoLightbox(itemId) {
+  closePhotoLightbox();
+  const overlay = document.createElement('div');
+  overlay.id = 'photo-lightbox';
+  overlay.innerHTML = `
+    <div class="lightbox-content">
+      <img src="/uploads/${itemId}.jpg" alt="品項照片大圖" onclick="event.stopPropagation()">
+      <div class="lightbox-close" onclick="closePhotoLightbox()">✕</div>
+    </div>`;
+  overlay.onclick = closePhotoLightbox;
+  document.body.appendChild(overlay);
+  photoLightboxEl = overlay;
+}
+
+function closePhotoLightbox() {
+  if (photoLightboxEl) { photoLightboxEl.remove(); photoLightboxEl = null; }
+}
+
+// ESC 關閉
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePhotoLightbox(); });
+
+// 編輯 modal 內的照片也可點開（renderPhotoBox 內 img onclick）
+function photoImgClick(itemId) {
+  openPhotoLightbox(itemId);
 }
 
 // ========== 相似品項提示（新增/編輯共用） ==========
