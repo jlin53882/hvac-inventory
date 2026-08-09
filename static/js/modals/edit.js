@@ -15,7 +15,14 @@ function openEditModal(id) {
     ? item.stocks
     : [{ location: item.location || '', qty: item.qty || 0, note: item.note || '' }];
   renderEditStockRows(stocks);
+  // v10.1：照片區塊 + 相似品項提示（排除自己）
+  renderPhotoBox(id, !!item.has_photo);
+  const warnBox = document.getElementById('e-similar-warn');
+  warnBox.style.display = 'none';
+  warnBox.innerHTML = '';
   openModal('edit-modal');
+  // 名稱/型號輸入時即時檢查相似（350ms debounce）
+  bindSimilarCheck('e-name', 'e-code', 'e-similar-warn', id);
 }
 
 // 渲染編輯 modal 的位置清單列

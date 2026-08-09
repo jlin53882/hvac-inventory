@@ -86,6 +86,10 @@ function renderInventory() {
             ${stocks[0].note ? `<div class="item-note">📝 ${esc(stocks[0].note)}</div>` : ''}`;
       html += `
       <div class="item-card" id="card-${i.id}">
+        ${i.has_photo
+          ? `<img class="item-photo" src="/uploads/${i.id}.jpg" alt="${esc(i.name)}" loading="lazy"
+               onerror="this.style.display='none'">`
+          : ''}
         <button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>
         <div class="item-info" onclick="openEditModal(${i.id})">
           <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>

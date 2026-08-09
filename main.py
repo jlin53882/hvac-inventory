@@ -21,9 +21,9 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.config import STATIC_DIR
+from app.config import STATIC_DIR, UPLOAD_DIR
 from app.database import get_db, init_db
-from app.routes import export, items, kits, stats, stockout, stocktake
+from app.routes import export, items, kits, lookup, photos, stats, stockout, stocktake
 
 app = FastAPI(title="振佳空調庫存管理系統", version="8.0.0")
 
@@ -44,6 +44,8 @@ app.include_router(kits.router)
 app.include_router(stocktake.router)
 app.include_router(stats.router)
 app.include_router(export.router)
+app.include_router(photos.router)
+app.include_router(lookup.router)
 
 
 # ---------- 靜態檔案（前端） ----------
@@ -58,6 +60,7 @@ def index():
 
 # 掛載靜態目錄（放在最後，避免吃掉 API 路由）
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 if __name__ == "__main__":

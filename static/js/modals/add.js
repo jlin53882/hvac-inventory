@@ -4,6 +4,11 @@ function openAddModal() {
   openModal('add-modal');
   document.getElementById('f-site').value = currentSite;  // 預設加到目前分片
   document.getElementById('f-brand').focus();
+  // v10.1：相似品項提示（新增 → 不排除任何品項）
+  const warnBox = document.getElementById('f-similar-warn');
+  warnBox.style.display = 'none';
+  warnBox.innerHTML = '';
+  bindSimilarCheck('f-name', 'f-code', 'f-similar-warn', 0);
 }
 
 // 送出新增品項表單（POST /api/items），成功後關閉 Modal、清空表單並重載資料

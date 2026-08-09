@@ -15,12 +15,14 @@
   新增時若已存在 → 400 提示，需改用「新增位置」加到既有品項。
 """
 import datetime
+import os
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
 from app.models import AdjustRequest, ItemCreate, ItemUpdate, StockUpdate
+from app.routes.photos import has_photo
 
 router = APIRouter()
 
@@ -35,6 +37,7 @@ def _item_full(conn, row) -> dict:
     d["total_qty"] = d["qty"]
     d["location"] = d["stocks"][0]["location"] if d["stocks"] else ""
     d["note"] = d["stocks"][0]["note"] if d["stocks"] else ""
+    d["has_photo"] = has_photo(d["id"])  # 前端顯示照片縮圖（無圖→📦）
     return d
 
 
@@ -177,6 +180,14 @@ def delete_item(item_id: int):
     conn.execute("DELETE FROM items WHERE id=?", (item_id,))
     conn.commit()
     conn.close()
+    # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
+    from app.routes.photos import _photo_path
+    try:
+        p = _photo_path(item_id)
+        if os.path.exists(p):
+            os.remove(p)
+    except OSError:
+        pass
     return {"ok": True, "deleted": item_id}
 
 

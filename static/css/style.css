@@ -194,6 +194,25 @@
     transition: all 0.15s;
   }
   .item-card .edit-btn:active { transform: scale(0.92); }
+  /* v10.1：品項照片縮圖（300px 壓縮圖，圓角） */
+  .item-card .item-photo {
+    width: 52px; height: 52px; object-fit: cover;
+    border-radius: 8px; flex-shrink: 0;
+    border: 1px solid #e3e8ef; background: #f7f9fc;
+  }
+  /* v10.1：相似品項警示框（新增/編輯時浮出） */
+  .similar-warn {
+    margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: #fff8e6; border: 1px solid #f0d48a;
+    font-size: 12px; color: #8a6d1a; line-height: 1.6;
+  }
+  .similar-warn .sim-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .similar-warn .sim-row + .sim-row { margin-top: 4px; }
+  .similar-warn a { color: #2d5a8e; font-weight: 600; text-decoration: none; flex-shrink: 0; }
+  /* v10.1：編輯 modal 照片區塊 */
+  .photo-box { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .photo-box img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid #e3e8ef; }
+  .photo-box .photo-actions { display: flex; flex-direction: column; gap: 6px; }
   .item-info { flex: 1; min-width: 0; cursor: pointer; }
   .item-name { font-size: 14px; font-weight: 600; padding-right: 46px; }
   .item-name .edit-hint { font-size: 10px; color: #999; font-weight: 400; margin-left: 4px; }

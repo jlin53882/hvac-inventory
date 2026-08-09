@@ -100,6 +100,8 @@
       <label>品項名稱 *</label>
       <input type="text" id="f-name" placeholder="例如：變頻控制基板">
     </div>
+    <!-- v10.1：新增時相似品項提示（防重複建筆） -->
+    <div id="f-similar-warn" class="similar-warn" style="display:none"></div>
     <div class="form-2col">
       <div class="form-row">
         <label>數量</label>
@@ -155,6 +157,13 @@
     <div class="form-row">
       <label>品項名稱</label>
       <input type="text" id="e-name">
+    </div>
+    <!-- v10.1：編輯時相似品項提示（排除自己） -->
+    <div id="e-similar-warn" class="similar-warn" style="display:none"></div>
+    <!-- v10.1：品項照片（上傳/更換/刪除） -->
+    <div class="form-row">
+      <label>品項照片（手機可直接拍照）</label>
+      <div class="photo-box" id="e-photo-box"></div>
     </div>
     <div class="form-2col">
       <div class="form-row">
@@ -321,6 +330,7 @@
 <script src="/static/js/render/stocktake.js" defer></script>
 <script src="/static/js/render/kits.js" defer></script>
 <script src="/static/js/modals/edit.js" defer></script>
+<script src="/static/js/modals/photo.js" defer></script>
 <script src="/static/js/modals/add.js" defer></script>
 <script src="/static/js/modals/stockout.js" defer></script>
 <script src="/static/js/modals/kit.js" defer></script>
