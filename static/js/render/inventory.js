@@ -75,9 +75,8 @@ function renderInventory() {
         <div class="item-info" onclick="openEditModal(${i.id})">
           <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>
           <div class="item-code">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
-          <div class="item-loc">位置：${esc(i.location || '未標示')}</div>
-          ${i.note ? `<div class="item-note">📝 ${esc(i.note)}</div>` : ''}
-          ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
+          <div class="item-loc">位置：${esc(i.location || '未標示')}${i.note ? `<span class="loc-note"> · ${esc(i.note)}</span>` : ''}</div>
+                    ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
           ${prepared > 0 ? `<div class="prepared-tag">📤 待領出 ${prepared} ${esc(i.unit)}</div>` : ''}
           <div style="margin-top:4px">
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">

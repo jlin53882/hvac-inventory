@@ -206,10 +206,10 @@
   .site-badge.wh { background: #fff3e0; color: #e67e22; }
   .item-code { font-size: 11px; color: #999; margin-top: 1px; }
   .item-loc {
-    font-size: 11px; color: #2d5a8e; background: #eef4fa;
-    border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 4px;
-  }
-  .item-note { font-size: 11px; color: #b8860b; margin-top: 2px; }
+      font-size: 11px; color: #2d5a8e; background: #eef4fa;
+      border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 4px;
+    }
+    .item-loc .loc-note { color: #b8860b; }
 
   .qty-control { display: flex; align-items: center; flex-shrink: 0; }
   .qty-btn {
