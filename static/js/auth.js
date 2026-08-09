@@ -50,7 +50,7 @@ function renderUserMenu(user) {
   menu.innerHTML =
     `<span class="user-chip" title="${user.username}">👤 ${user.display_name || user.username}` +
     (isAdmin ? ' <span class="admin-badge">管理員</span>' : '') + `</span>` +
-    (isAdmin ? `<button class="btn-ghost" onclick="openUsersModal()">👥 使用者</button>` : '') +
-    `<button class="btn-ghost" onclick="logout()">🚪 登出</button>`;
+    (isAdmin ? `<button class="btn-ghost" onclick="openUsersModal()">👥<span class="users-text"> 使用者</span></button>` : '') +
+    `<button class="btn-ghost" onclick="logout()">🚪<span class="logout-text"> 登出</span></button>`;
   menu.style.display = 'flex';
 }

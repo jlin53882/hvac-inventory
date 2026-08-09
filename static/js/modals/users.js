@@ -14,17 +14,17 @@ function openUsersModal() {
         <h3>👥 使用者管理</h3>
         <button class="modal-close" onclick="closeUsersModal()">✕</button>
       </div>
-      <div style="display:flex; gap:8px; margin-bottom:14px">
-        <input type="text" id="newUsername" placeholder="新帳號" style="flex:2; padding:8px; border:1px solid #d8dee9; border-radius:8px">
-        <input type="password" id="newPassword" placeholder="密碼(至少4碼)" style="flex:2; padding:8px; border:1px solid #d8dee9; border-radius:8px">
-        <input type="text" id="newDisplay" placeholder="顯示名稱" style="flex:2; padding:8px; border:1px solid #d8dee9; border-radius:8px">
-        <select id="newRole" style="flex:1; padding:8px; border:1px solid #d8dee9; border-radius:8px">
+      <div class="create-row">
+        <input type="text" id="newUsername" placeholder="新帳號" class="cr-input">
+        <input type="password" id="newPassword" placeholder="密碼(至少4碼)" class="cr-input">
+        <input type="text" id="newDisplay" placeholder="顯示名稱" class="cr-input">
+        <select id="newRole" class="cr-input">
           <option value="user">User</option>
           <option value="admin">Admin</option>
         </select>
-        <button class="btn" style="flex:1" onclick="createUserFromModal()">＋ 新增</button>
+        <button class="btn cr-btn" onclick="createUserFromModal()">＋ 新增</button>
       </div>
-      <table style="width:100%; border-collapse:collapse; font-size:13.5px">
+      <table class="users-table" style="width:100%; border-collapse:collapse; font-size:13.5px">
         <thead><tr style="color:#8a94a6; font-size:12px; text-align:left">
           <th style="padding:6px">帳號</th><th>顯示名稱</th><th>角色</th><th>狀態</th><th></th>
         </tr></thead>
@@ -55,10 +55,10 @@ async function loadUsersTable() {
         <td style="padding:8px">${esc(u.display_name)}</td>
         <td style="padding:8px">${u.role === 'admin' ? '🛡️ 管理員' : '👤 使用者'}</td>
         <td style="padding:8px">${u.is_active ? '✅ 啟用' : '⛔ 停用'}${u.locked_until ? '<br><small style="color:#dc2626">🔒 鎖定至 ' + esc(u.locked_until) + '</small>' : ''}</td>
-        <td style="padding:8px; text-align:right; white-space:nowrap">
-          <button class="btn-ghost" style="font-size:12px" onclick="resetUserPw(${u.id})">🔑 改密碼</button>
-          <button class="btn-ghost" style="font-size:12px" onclick="toggleUserActive(${u.id})">${u.is_active ? '⏸ 停用' : '▶️ 啟用'}</button>
-          ${me ? '' : `<button class="btn-ghost" style="font-size:12px; color:#dc2626" onclick="deleteUser(${u.id})">🗑 刪除</button>`}
+        <td class="user-actions">
+          <button class="btn-ghost" onclick="resetUserPw(${u.id})">🔑 修改密碼</button>
+          <button class="btn-ghost" onclick="toggleUserActive(${u.id})">${u.is_active ? '⏸ 帳號停用' : '▶️ 帳號啟用'}</button>
+          ${me ? '' : `<button class="btn-ghost danger" onclick="deleteUser(${u.id})">🗑 刪除帳號</button>`}
         </td>
       </tr>`;
     }).join('');
