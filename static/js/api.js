@@ -1,4 +1,4 @@
-// 冷凍空調庫存系統 - API 呼叫層（v8 拆分）
+// 振佳空調庫存管理系統 - API 呼叫層（v8 拆分）
 // loadData / updateSubInfo / loadDestinations / saveAll / exportExcel
 async function loadData() {
   try {
@@ -10,10 +10,21 @@ async function loadData() {
     checkReminder();
     updateSubInfo();
     renderInventory();
+    loadPreparedBadge();  // 剛進網頁就要顯示待領出數量小標
   } catch (e) {
     document.getElementById('content').innerHTML =
       `<div class="empty">⚠️ 無法連線伺服器<br><small>${e.message}</small></div>`;
   }
+}
+
+// 抓待領出數量 → 更新底部「📤 待領出」小標（網頁剛進就要顯示）
+async function loadPreparedBadge() {
+  try {
+    const res = await fetch(`/api/prepared?site=${currentSite}`);
+    if (!res.ok) return;
+    const items = await res.json();
+    updatePreparedBadge(items.length);
+  } catch {}
 }
 
 async function updateSubInfo() {

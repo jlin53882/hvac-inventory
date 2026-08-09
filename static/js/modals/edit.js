@@ -1,4 +1,4 @@
-// 冷凍空調庫存系統 - 編輯品項 Modal（v8 拆分）
+// 振佳空調庫存管理系統 - 編輯品項 Modal（v8 拆分）
 // ========== 編輯品項 ==========
 function openEditModal(id) {
   const item = ALL_ITEMS.find(i => i.id === id);

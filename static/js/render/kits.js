@@ -1,4 +1,4 @@
-// 冷凍空調庫存系統 - 整組頁渲染（v8 拆分）
+// 振佳空調庫存管理系統 - 整組頁渲染（v8 拆分）
 // ========== 整組（套件）頁籤 ==========
 async function renderKits() {
   document.getElementById('brand-tabs').style.display = 'none';

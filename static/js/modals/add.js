@@ -1,4 +1,4 @@
-// 冷凍空調庫存系統 - 新增品項 Modal（v8 拆分）
+// 振佳空調庫存管理系統 - 新增品項 Modal（v8 拆分）
 // ========== 新增品項 ==========
 function openAddModal() {
   openModal('add-modal');

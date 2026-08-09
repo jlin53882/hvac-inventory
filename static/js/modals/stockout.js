@@ -1,4 +1,4 @@
-// 冷凍空調庫存系統 - 出庫/待領出 Modal（v8 拆分）
+// 振佳空調庫存管理系統 - 出庫/待領出 Modal（v8 拆分）
 // ========== 出庫 ==========
 function openOutModal(id, ev) {
   if (ev) ev.stopPropagation();

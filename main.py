@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-冷凍空調庫存管理系統 - 後端入口
+振佳空調庫存管理系統 - 後端入口
 ================================
 技術：FastAPI + SQLite（單檔資料庫，免安裝）
 
@@ -25,7 +25,7 @@ from app.config import STATIC_DIR
 from app.database import get_db, init_db
 from app.routes import export, items, kits, stats, stockout, stocktake
 
-app = FastAPI(title="冷凍空調庫存系統", version="8.0.0")
+app = FastAPI(title="振佳空調庫存管理系統", version="8.0.0")
 
 init_db()
 

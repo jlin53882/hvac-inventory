@@ -1,4 +1,4 @@
-// 冷凍空調庫存系統 - 工具函式（v8 拆分）
+// 振佳空調庫存管理系統 - 工具函式（v8 拆分）
 // esc / absNum / todayStr / Modal 開關 / toast
 function esc(s) {
   return (s === null || s === undefined) ? '' :

@@ -1,4 +1,4 @@
-// 冷凍空調庫存系統 - 庫存頁渲染（v8 拆分）
+// 振佳空調庫存管理系統 - 庫存頁渲染（v8 拆分）
 // buildBrandTabs / buildDatalists / renderInventory / 數量增減
 // ========== 廠牌 tab ==========
 function buildBrandTabs() {
@@ -12,7 +12,13 @@ function buildBrandTabs() {
     const tab = document.createElement('div');
     tab.className = 'brand-tab' + (b === currentBrand ? ' active' : '');
     tab.innerHTML = `${b}<span class="count">${counts[b] || ALL_ITEMS.length}</span>`;
-    tab.onclick = () => { currentBrand = b; renderInventory(); };
+    tab.onclick = () => {
+      currentBrand = b;
+      // 更新所有 tab 的 active 樣式（點哪個哪個變深色）
+      document.querySelectorAll('.brand-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      renderInventory();
+    };
     el.appendChild(tab);
   });
   el.style.display = 'flex';
@@ -61,20 +67,18 @@ function renderInventory() {
       const display = i.qty + delta;
       const isZero = display <= 0;
       const prepared = i.prepared_qty || 0;
-      // 具體位置（note 像位置描述時）併入 📍 位置標籤；真正備註才用 📝
-      const noteLikeLoc = i.note && /[層排格右左上櫃門鐵架]/.test(i.note);
-      const locText = (i.location || '未標示') + (noteLikeLoc ? ' · ' + i.note : '');
+      // 位置（📍 大位置）與備註（📝 具體位置/說明）分開兩行顯示
       html += `
       <div class="item-card" id="card-${i.id}">
         <button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>
         <div class="item-info" onclick="openEditModal(${i.id})">
           <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>
           <div class="item-code">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
-          ${i.note && !noteLikeLoc ? `<div class="item-note">📝 ${esc(i.note)}</div>` : ''}
+          <div class="item-loc">📍 ${esc(i.location || '未標示')}</div>
+          ${i.note ? `<div class="item-note">📝 ${esc(i.note)}</div>` : ''}
           ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
           ${prepared > 0 ? `<div class="prepared-tag">📤 待領出 ${prepared} ${esc(i.unit)}</div>` : ''}
           <div style="margin-top:4px">
-            <span class="item-loc">📍 ${esc(locText)}</span>
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
               ${!i.is_kit ? `<button class="btn-prepare" onclick="openPrepareModal(${i.id}, event)">📤 待領出</button>` : ''}
               <button class="btn-out" onclick="openOutModal(${i.id}, event)">🚚 已領出</button>
