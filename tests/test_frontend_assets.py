@@ -23,6 +23,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC = os.path.join(BASE_DIR, "static")
 
 INDEX = os.path.join(STATIC, "index.html")
+LOGIN = os.path.join(STATIC, "login.html")
 CSS = os.path.join(STATIC, "css", "style.css")
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 USERS_JS = os.path.join(STATIC, "js", "modals", "users.js")
@@ -100,6 +101,56 @@ def test_users_js_has_class_names():
     assert "class=\"user-actions\"" in js
     assert "class=\"create-row\"" in js
     assert "class=\"cr-input\"" in js
+
+
+# ---------- login.html（登入頁 v11.1 響應式） ----------
+
+def test_login_has_viewport():
+    assert 'name="viewport"' in read(LOGIN)
+
+
+def test_login_dual_panel_desktop():
+    """桌機雙欄：brand-panel 存在且 ≥768px 才顯示"""
+    html = read(LOGIN)
+    assert 'class="brand-panel"' in html
+    assert 'class="form-panel"' in html
+    assert '@media (min-width: 768px)' in html
+
+
+def test_login_mobile_single_card():
+    """手機維持單卡：卡片 90% + max-width 400px"""
+    html = read(LOGIN)
+    assert "width: 90%; max-width: 400px" in html
+
+
+def test_login_footer_text():
+    """頁尾：版權+系統名+版本號（取代舊的「振佳製冷 2026」）"""
+    html = read(LOGIN)
+    assert "© 2026 振佳空調" in html
+    assert "v11.0" in html
+    assert "振佳製冷 2026" not in html
+
+
+def test_login_input_icons_and_style():
+    """輸入框 icon + 亮藍按鈕 + 高 46px"""
+    html = read(LOGIN)
+    assert "👤" in html and "🔒" in html or "content: '👤'" in html and "content: '🔒'" in html
+    assert "1890FF" in html
+    assert "height: 46px" in html
+
+
+def test_login_remember_and_forgot():
+    """記住帳號 checkbox + 忘記密碼連結"""
+    html = read(LOGIN)
+    assert 'id="remember"' in html
+    assert "localStorage" in html
+    assert "inv_username" in html
+    assert 'id="forgotLink"' in html
+
+
+def test_login_announce_banner():
+    """維護公告橫幅（預設 hidden）"""
+    assert 'id="announce"' in read(LOGIN)
 
 
 # ---------- JS 語法（node --check） ----------

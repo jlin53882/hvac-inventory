@@ -11,51 +11,63 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
     min-height: 100vh;
     background: linear-gradient(150deg, #16283f 0%, #1e3a5f 45%, #2d5a8e 100%);
-    display: flex; align-items: center; justify-content: center;
-    padding: 20px; color: #1a1a1a;
+    color: #1a1a1a;
   }
   /* 背景裝飾 */
-  .bg-blob {
-    position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.35; z-index: 0;
-  }
+  .bg-blob { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.35; z-index: 0; }
   .blob1 { width: 340px; height: 340px; background: #3a7bd5; top: -80px; left: -80px; }
   .blob2 { width: 260px; height: 260px; background: #17a2b8; bottom: -60px; right: -60px; }
 
-  /* ═══ 登入卡片 ═══ */
-  .login-card {
+  /* ═══ 主容器（手機：單卡；桌機：雙欄） ═══ */
+  .login-wrap {
     position: relative; z-index: 1;
-    width: 100%; max-width: 400px;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 20px 70px;   /* 底部預留頁尾空間 */
+  }
+
+  /* ═══ 登入卡片（手機版為主樣式） ═══ */
+  .login-card {
+    width: 90%; max-width: 400px;
     background: #fff; border-radius: 16px;
     box-shadow: 0 18px 50px rgba(0,0,0,0.35);
-    padding: 36px 32px 30px;
+    padding: 32px 28px 28px;
     animation: pop-in 0.35s ease;
+    position: relative;
   }
   @keyframes pop-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-  /* 系統標題區 */
-  .brand { text-align: center; margin-bottom: 26px; }
+  /* 系統標題區（手機顯示在卡片內） */
+  .brand { text-align: center; margin-bottom: 24px; }
   .brand .logo {
-    width: 62px; height: 62px; margin: 0 auto 12px;
-    background: linear-gradient(135deg, #1e3a5f, #2d5a8e);
-    border-radius: 16px; color: #fff; font-size: 30px;
+    width: 58px; height: 58px; margin: 0 auto 10px;
+    background: linear-gradient(135deg, #1890FF, #2d5a8e);
+    border-radius: 16px; color: #fff; font-size: 28px;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 6px 14px rgba(29,58,95,0.35);
+    box-shadow: 0 6px 14px rgba(24,144,255,0.35);
   }
-  .brand h1 { font-size: 18px; font-weight: 700; color: #16283f; }
-  .brand .sub { font-size: 12px; color: #8a94a6; margin-top: 3px; }
+  .brand h1 { font-size: 20px; font-weight: 700; color: #16283f; }
+  .brand .sub { font-size: 12.5px; color: #666666; margin-top: 4px; }
 
   /* 表單 */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12.5px; font-weight: 700; color: #4a5568; margin-bottom: 6px; }
   .field .wrap { position: relative; }
   .field input {
-    width: 100%; padding: 11px 14px;
+    width: 100%; height: 46px; padding: 0 40px 0 38px;
     border: 1.5px solid #d8dee9; border-radius: 10px;
     font-size: 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
     background: #fafbfc;
   }
-  .field input:focus { border-color: #2d5a8e; background: #fff; box-shadow: 0 0 0 3px rgba(45,90,142,0.12); }
+  .field input:focus { border-color: #1890FF; background: #fff; box-shadow: 0 0 0 3px rgba(24,144,255,0.18); }
   .field input.err { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
+  /* 左側 icon（帳號👤 / 密碼🔒） */
+  .field .wrap::before {
+    content: '👤';
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    font-size: 15px; opacity: 0.55; pointer-events: none; z-index: 1;
+  }
+  .field.pw-field .wrap::before { content: '🔒'; }
 
   .password-toggle {
     position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
@@ -64,21 +76,31 @@
   }
   .password-toggle:hover { opacity: 0.9; }
 
-  /* 登入按鈕 */
+  /* 表單附加列：記住帳號 + 忘記密碼 */
+  .form-extra {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 4px 0 14px; font-size: 13px;
+  }
+  .form-extra .remember { display: flex; align-items: center; gap: 6px; color: #4a5568; cursor: pointer; }
+  .form-extra .remember input { width: 15px; height: 15px; accent-color: #1890FF; cursor: pointer; }
+  .form-extra .forgot { color: #1890FF; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .form-extra .forgot:hover { text-decoration: underline; }
+
+  /* 登入按鈕（亮藍漸層） */
   .login-btn {
-    width: 100%; padding: 12px;
-    background: linear-gradient(135deg, #1e3a5f, #2d5a8e);
+    width: 100%; height: 46px;
+    background: linear-gradient(135deg, #1890FF, #36a3ff);
     color: #fff; border: none; border-radius: 10px;
     font-size: 15px; font-weight: 700; cursor: pointer;
     transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
-    box-shadow: 0 5px 14px rgba(29,58,95,0.35);
+    box-shadow: 0 5px 14px rgba(24,144,255,0.35);
     display: flex; align-items: center; justify-content: center; gap: 8px;
   }
-  .login-btn:hover { filter: brightness(1.12); box-shadow: 0 7px 18px rgba(29,58,95,0.4); }
+  .login-btn:hover { filter: brightness(1.08); box-shadow: 0 7px 18px rgba(24,144,255,0.45); }
   .login-btn:active { transform: scale(0.98); }
   .login-btn:disabled { opacity: 0.65; cursor: not-allowed; }
 
-  /* 錯誤提示 */
+  /* 錯誤 / 資訊提示 */
   .error-box {
     display: none;
     background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
@@ -86,13 +108,14 @@
     margin-bottom: 14px; align-items: center; gap: 8px;
   }
   .error-box.show { display: flex; animation: shake 0.4s ease; }
+  .error-box.info { background: #eef6ff; border-color: #bcd9f5; color: #1e5f9e; animation: none; }
   @keyframes shake {
     0%,100% { transform: translateX(0); }
     20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
     60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
   }
 
-  /* 登入成功覆蓋層（登入成功後短暫顯示再跳轉） */
+  /* 登入成功覆蓋層 */
   .success-overlay {
     position: absolute; inset: 0; z-index: 10;
     background: linear-gradient(150deg, #16283f, #1e3a5f 60%, #2d5a8e);
@@ -106,11 +129,74 @@
   .success-overlay h2 { font-size: 20px; margin-bottom: 8px; }
   .success-overlay p { font-size: 13px; color: #b8cbe0; }
 
-  /* 頁尾 */
+  /* 頁尾（fixed 置底半透明白字） */
   .footer-note {
-    position: relative; z-index: 1;
-    text-align: center; margin-top: 18px;
-    font-size: 12px; color: #8fa6bd;
+    position: fixed; bottom: 16px; left: 0; right: 0;
+    text-align: center; z-index: 1;
+    font-size: 12px; color: rgba(255,255,255,0.55);
+    pointer-events: none;
+  }
+
+  /* 系統狀態（右下角） */
+  .sys-status {
+    position: fixed; bottom: 16px; right: 16px; z-index: 1;
+    font-size: 11px; color: rgba(255,255,255,0.65);
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
+    padding: 4px 10px; border-radius: 14px;
+  }
+
+  /* 維護公告橫幅（預設隱藏，需要時移除 hidden） */
+  .announce {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+    background: #fff7e6; color: #ad6800; border-bottom: 1px solid #ffe1a8;
+    font-size: 13px; font-weight: 600; text-align: center;
+    padding: 8px 16px;
+  }
+
+  /* ═══ 電腦端（≥768px）：雙欄 ═══ */
+  .brand-panel { display: none; }   /* 手機隱藏 */
+  @media (min-width: 768px) {
+    .login-wrap { padding: 40px 6vw 90px; }
+    .login-panels {
+      display: flex; width: 100%; max-width: 960px;
+      background: #fff; border-radius: 20px; overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+      min-height: 540px;
+    }
+    /* 左：品牌形象區 */
+    .brand-panel {
+      display: flex; flex: 55%;
+      background: linear-gradient(155deg, #16283f 0%, #1e3a5f 55%, #2d5a8e 100%);
+      color: #fff; position: relative; overflow: hidden;
+      align-items: center; justify-content: center;
+    }
+    .brand-panel::before, .brand-panel::after {
+      content: ''; position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+    }
+    .brand-panel::before { width: 380px; height: 380px; top: -120px; right: -120px; }
+    .brand-panel::after { width: 300px; height: 300px; bottom: -100px; left: -80px; }
+    .brand-panel-inner { position: relative; z-index: 1; text-align: center; padding: 40px; }
+    .brand-panel-inner .big-logo {
+      width: 84px; height: 84px; margin: 0 auto 18px;
+      background: linear-gradient(135deg, #1890FF, #36a3ff);
+      border-radius: 22px; color: #fff; font-size: 42px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 10px 24px rgba(24,144,255,0.45);
+    }
+    .brand-panel-inner h2 { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+    .brand-panel-inner p { font-size: 14px; color: #b8cbe0; line-height: 1.8; }
+    .brand-panel-inner .geo {
+      margin-top: 26px; font-size: 40px; opacity: 0.35; letter-spacing: 10px;
+    }
+    /* 右：表單操作區 */
+    .form-panel { flex: 45%; display: flex; align-items: center; justify-content: center; padding: 40px 30px; }
+    .login-card { width: 100%; max-width: 400px; box-shadow: none; background: transparent; padding: 0; }
+    .brand { display: none; }   /* 桌機卡片內不重複品牌（左邊已有） */
+  }
+
+  @media (max-width: 767px) {
+    .sys-status { display: none; }   /* 手機不顯示系統狀態，避免與頁尾擠 */
   }
 </style>
 </head>
@@ -118,43 +204,71 @@
   <div class="bg-blob blob1"></div>
   <div class="bg-blob blob2"></div>
 
-  <div class="login-card">
-    <div class="brand">
-      <div class="logo">🧊</div>
-      <h1>振佳空調庫存管理系統</h1>
-      <div class="sub">請登入以繼續</div>
-    </div>
+  <!-- 維護公告橫幅（需要時移除 hidden） -->
+  <div class="announce" id="announce" hidden>⚠️ 系統維護通知：<span id="announceText"></span></div>
 
-    <div class="error-box" id="errorBox">⚠️ <span id="errorMsg"></span></div>
-
-    <form id="loginForm" autocomplete="on" novalidate>
-      <div class="field">
-        <label for="username">帳號</label>
-        <input type="text" id="username" placeholder="請輸入帳號" autocomplete="username" required>
-      </div>
-
-      <div class="field">
-        <label for="password">密碼</label>
-        <div class="wrap">
-          <input type="password" id="password" placeholder="請輸入密碼" autocomplete="current-password" required>
-          <button type="button" class="password-toggle" id="pwToggle" tabindex="-1">👁️</button>
+  <div class="login-wrap">
+    <div class="login-panels">
+      <!-- 左：品牌形象區（桌機） -->
+      <div class="brand-panel">
+        <div class="brand-panel-inner">
+          <div class="big-logo">🧊</div>
+          <h2>振佳空調庫存管理系統</h2>
+          <p>冷凍空調材料庫存管理<br>單一材料・整組・位置追蹤・盤點</p>
+          <div class="geo">▣ ▤ ▦</div>
         </div>
       </div>
 
-      <button type="submit" class="login-btn" id="loginBtn">
-        <span id="btnText">🔓 登入</span>
-      </button>
-    </form>
+      <!-- 右：表單操作區 -->
+      <div class="form-panel">
+        <div class="login-card">
+          <div class="brand">
+            <div class="logo">🧊</div>
+            <h1>振佳空調庫存管理系統</h1>
+            <div class="sub">請登入以繼續</div>
+          </div>
 
-    <!-- 登入成功覆蓋層 -->
-    <div class="success-overlay" id="successOverlay">
-      <div class="ok-icon">✅</div>
-      <h2>登入成功！</h2>
-      <p>即將進入庫存管理系統…</p>
+          <div class="error-box" id="errorBox">⚠️ <span id="errorMsg"></span></div>
+
+          <form id="loginForm" autocomplete="on" novalidate>
+            <div class="field">
+              <label for="username">帳號</label>
+              <div class="wrap">
+                <input type="text" id="username" placeholder="請輸入帳號" autocomplete="username" required>
+              </div>
+            </div>
+
+            <div class="field pw-field">
+              <label for="password">密碼</label>
+              <div class="wrap">
+                <input type="password" id="password" placeholder="請輸入密碼" autocomplete="current-password" required>
+                <button type="button" class="password-toggle" id="pwToggle" tabindex="-1">👁️</button>
+              </div>
+            </div>
+
+            <div class="form-extra">
+              <label class="remember"><input type="checkbox" id="remember"> 記住帳號</label>
+              <a class="forgot" id="forgotLink" href="#">忘記密碼？</a>
+            </div>
+
+            <button type="submit" class="login-btn" id="loginBtn">
+              <span id="btnText">🔓 登入</span>
+            </button>
+          </form>
+
+          <!-- 登入成功覆蓋層 -->
+          <div class="success-overlay" id="successOverlay">
+            <div class="ok-icon">✅</div>
+            <h2>登入成功！</h2>
+            <p>即將進入庫存管理系統…</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="footer-note">振佳製冷 2026</div>
+  <div class="footer-note">© 2026 振佳空調 ・ 庫存管理系統 v11.0</div>
+  <div class="sys-status">🟢 系統狀態：運作正常 ・ v11.0</div>
 
 <script>
 (function () {
@@ -173,6 +287,14 @@
   const errorBox   = document.getElementById('errorBox');
   const errorMsg   = document.getElementById('errorMsg');
   const successOv  = document.getElementById('successOverlay');
+  const rememberEl = document.getElementById('remember');
+  const forgotLink = document.getElementById('forgotLink');
+
+  // 記住帳號：載入時回填（只存帳號，不存密碼）
+  try {
+    const saved = localStorage.getItem('inv_username');
+    if (saved) { usernameEl.value = saved; rememberEl.checked = true; }
+  } catch (e) { /* localStorage 不可用就略過 */ }
 
   // 密碼顯示/隱藏
   const toggleBtn = document.getElementById('pwToggle');
@@ -182,14 +304,23 @@
     toggleBtn.textContent = show ? '🙈' : '👁️';
   });
 
-  function showError(msg) {
+  function showError(msg, info) {
     errorMsg.textContent = msg;
-    errorBox.classList.remove('show');
+    errorBox.classList.remove('show', 'info');
     void errorBox.offsetWidth;  // 重新觸發 shake 動畫
+    if (info) errorBox.classList.add('info');
     errorBox.classList.add('show');
-    passwordEl.classList.add('err');
-    setTimeout(() => passwordEl.classList.remove('err'), 1500);
+    if (!info) {
+      passwordEl.classList.add('err');
+      setTimeout(() => passwordEl.classList.remove('err'), 1500);
+    }
   }
+
+  // 忘記密碼：系統無信箱機制 → 提示聯絡管理員
+  forgotLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    showError('請聯絡系統管理員重設密碼', true);
+  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -200,7 +331,7 @@
     if (!p) { showError('請輸入密碼'); passwordEl.focus(); return; }
 
     loginBtn.disabled = true;
-    document.getElementById('btnText').textContent = '⏳ 登入中…';
+    btnText.textContent = '⏳ 登入中…';
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -213,6 +344,12 @@
       if (res.status === 403) { showError('帳號已被停用，請聯絡管理員'); return; }
       if (!res.ok) { showError('帳號或密碼錯誤'); passwordEl.value = ''; passwordEl.focus(); return; }
 
+      // 記住帳號（只存帳號）
+      try {
+        if (rememberEl.checked) localStorage.setItem('inv_username', u);
+        else localStorage.removeItem('inv_username');
+      } catch (err) {}
+
       // ✅ 成功：顯示覆蓋層 → 跳轉主頁
       successOv.classList.add('show');
       setTimeout(() => { window.location.href = '/'; }, 900);
@@ -220,7 +357,7 @@
       showError('無法連線伺服器，請稍後再試');
     } finally {
       loginBtn.disabled = false;
-      document.getElementById('btnText').textContent = '🔓 登入';
+      btnText.textContent = '🔓 登入';
     }
   });
 
