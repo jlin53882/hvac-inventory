@@ -31,6 +31,7 @@ function renderEditStockRows(stocks) {
   `).join('');
 }
 
+// 在編輯 Modal 新增一列位置庫存輸入列，並自動 focus 位置欄位方便連續輸入
 function addEditStockRow() {
   const box = document.getElementById('edit-stock-rows');
   const idx = box.children.length;
@@ -48,12 +49,14 @@ function addEditStockRow() {
   row.querySelector('.stock-loc').focus();
 }
 
+// 刪除編輯 Modal 中指定按鈕所在的庫存列（至少保留一列）
 function deleteEditStockRow(btn) {
   const box = document.getElementById('edit-stock-rows');
   if (box.querySelectorAll('.stock-row').length <= 1) return;
   btn.closest('.stock-row').remove();
 }
 
+// 送出編輯表單（PATCH /api/items/{id}，位置庫存全量替換），成功後關閉 Modal 並重載資料
 async function submitEdit() {
   const nameVal = document.getElementById('e-name').value.trim();
   const payload = {

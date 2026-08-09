@@ -77,6 +77,7 @@ def _add_item(client, **kw):
 
 class TestHealth:
     def test_health_ok(self, client):
+        """驗證 GET /health 回傳 200 且 status 為 ok"""
         r = client.get("/health")
         assert r.status_code == 200
         assert r.json()["status"] == "ok"
@@ -84,6 +85,7 @@ class TestHealth:
 
 class TestItemsCRUD:
     def test_create_item(self, client):
+        """驗證新增品項回傳完整欄位（相容欄位 qty/total_qty/location 與 stocks 陣列）"""
         item = _add_item(client, name="冷媒管", qty=5, location="A倉")
         assert item["name"] == "冷媒管"
         assert item["qty"] == 5          # 相容欄位：總量 = SUM(stocks)
@@ -114,6 +116,7 @@ class TestItemsCRUD:
         assert item["location"] == "A櫃"  # 第一筆為主要位置
 
     def test_list_items(self, client):
+        """驗證 GET /api/items 列出全部品項"""
         _add_item(client, name="一", brand="三菱")
         _add_item(client, name="二", brand="大金")
         r = client.get("/api/items")
@@ -121,6 +124,7 @@ class TestItemsCRUD:
         assert len(r.json()) == 2
 
     def test_list_items_filter_brand(self, client):
+        """驗證以 brand 參數篩選品項"""
         _add_item(client, name="一", brand="三菱")
         _add_item(client, name="二", brand="大金")
         r = client.get("/api/items", params={"brand": "三菱"})
@@ -129,6 +133,7 @@ class TestItemsCRUD:
         assert items[0]["brand"] == "三菱"
 
     def test_list_items_search(self, client):
+        """驗證以 search 參數依品名搜尋品項"""
         _add_item(client, name="變頻風扇馬達", code="B4025397")
         r = client.get("/api/items", params={"search": "風扇"})
         items = r.json()
@@ -159,10 +164,12 @@ class TestItemsCRUD:
         assert updated["name"] == "舊名"  # 沒傳的欄位不變
 
     def test_update_item_not_found(self, client):
+        """驗證更新不存在的品項回傳 404"""
         r = client.patch("/api/items/99999", json={"stocks": [{"location": "X", "qty": 1}]})
         assert r.status_code == 404
 
     def test_update_item_empty_fields(self, client):
+        """驗證 PATCH 空 body（無任何欄位）回傳 400"""
         item = _add_item(client)
         r = client.patch(f"/api/items/{item['id']}", json={})
         assert r.status_code == 400
@@ -222,6 +229,7 @@ class TestDedup:
 
 class TestStocksCRUD:
     def test_add_stock(self, client):
+        """驗證新增位置庫存後總量自動加總"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         r = client.post(f"/api/items/{item['id']}/stocks",
                         json={"location": "B倉", "qty": 3})
@@ -238,6 +246,7 @@ class TestStocksCRUD:
         assert r.status_code == 400
 
     def test_update_stock(self, client):
+        """驗證更新位置庫存數量與備註"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         sid = item["stocks"][0]["id"]
         r = client.patch(f"/api/stocks/{sid}", json={"qty": 8, "note": "補貨"})
@@ -246,6 +255,7 @@ class TestStocksCRUD:
         assert updated["total_qty"] == 8
 
     def test_delete_stock(self, client):
+        """驗證刪除位置庫存後總量同步扣減"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         client.post(f"/api/items/{item['id']}/stocks",
                     json={"location": "B倉", "qty": 3})
@@ -257,6 +267,7 @@ class TestStocksCRUD:
         assert updated["total_qty"] == 5
 
     def test_delete_item_cascades_stocks(self, client):
+        """驗證刪除品項會一併刪除其位置庫存"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         client.post(f"/api/items/{item['id']}/stocks",
                     json={"location": "B倉", "qty": 3})
@@ -270,6 +281,7 @@ class TestStocksCRUD:
 
 class TestAdjustQty:
     def test_adjust_plus(self, client):
+        """驗證正向調整庫存（進貨）"""
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": 5, "reason": "進貨"})
         assert r.status_code == 200
@@ -277,6 +289,7 @@ class TestAdjustQty:
         assert _get_item(client, item["id"])["total_qty"] == 15
 
     def test_adjust_minus_with_destination(self, client):
+        """驗證負向調整庫存（出貨）並記錄去向"""
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post(f"/api/items/{item['id']}/adjust",
                         json={"delta": -3, "reason": "出貨", "destination": "台北案場"})
@@ -291,11 +304,13 @@ class TestAdjustQty:
         assert mov[0]["after_qty"] == 7
 
     def test_adjust_not_below_zero(self, client):
+        """驗證庫存不足時調整回傳 400"""
         item = _add_item(client, name="冷媒", qty=2)
         r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": -10})
         assert r.status_code == 400  # 庫存不足
 
     def test_adjust_item_not_found(self, client):
+        """驗證調整不存在的品項回傳 404"""
         r = client.post("/api/items/99999/adjust", json={"delta": 1})
         assert r.status_code == 404
 
@@ -303,6 +318,17 @@ class TestAdjustQty:
 # ========== 兩階段出庫（待領出 → 已領出） ==========
 
 class TestTwoStageStockOut:
+    def test_prepared_list_has_qty_field(self, client):
+        """防回歸：待領出清單必須帶 qty 總量欄位（undefined bug）"""
+        item = _add_item(client, name="銅管", qty=10)
+        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 3})
+        prepared = client.get("/api/prepared").json()
+        assert len(prepared) == 1
+        assert prepared[0]["prepared_qty"] == 3
+        assert prepared[0]["qty"] == 10     # 不能是 undefined/缺欄位
+        assert prepared[0]["total_qty"] == 10
+        assert "location" in prepared[0]
+
     def test_prepare_does_not_deduct_qty(self, client):
         """待領出：prepared_qty 增加，但總量不變"""
         item = _add_item(client, name="銅管", qty=10)
@@ -318,11 +344,13 @@ class TestTwoStageStockOut:
         assert prepared[0]["id"] == item["id"]
 
     def test_prepare_insufficient(self, client):
+        """驗證可領出數量不足時回傳 400"""
         item = _add_item(client, name="銅管", qty=2)
         r = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 5})
         assert r.status_code == 400  # 可領出數量不足
 
     def test_prepare_zero_qty(self, client):
+        """驗證待領出數量為 0 時回傳 400"""
         item = _add_item(client, name="銅管", qty=10)
         r = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 0})
         assert r.status_code == 400
@@ -348,6 +376,7 @@ class TestTwoStageStockOut:
         assert outs[0]["after_qty"] == 6
 
     def test_confirm_out_exceeds_prepared(self, client):
+        """驗證確認出庫數量超過待領出數量時回傳 400"""
         item = _add_item(client, name="銅管", qty=10)
         client.post(f"/api/items/{item['id']}/prepare", json={"qty": 2})
         r = client.post(f"/api/items/{item['id']}/prepared-out", json={"qty": 5})
@@ -405,6 +434,7 @@ class TestStockOutLocation:
         assert updated["total_qty"] == 2
 
     def test_stockout_insufficient(self, client):
+        """驗證庫存不足時出庫回傳 400"""
         item = _add_item(client, name="冷媒", qty=2)
         r = client.post("/api/stockout", json={
             "item_id": item["id"], "qty": 5, "destination": "客戶家",
@@ -416,6 +446,7 @@ class TestStockOutLocation:
 
 class TestKits:
     def test_create_kit(self, client):
+        """驗證建立整組（套件）並自動建立 is_kit 品項"""
         a = _add_item(client, name="銅管", qty=10)
         b = _add_item(client, name="接頭", qty=20)
         r = client.post("/api/kits", json={
@@ -433,10 +464,12 @@ class TestKits:
         assert len(kits[0]["components"]) == 2
 
     def test_create_kit_requires_items(self, client):
+        """驗證整組沒有元件時回傳 400"""
         r = client.post("/api/kits", json={"name": "空套件", "items": []})
         assert r.status_code == 400
 
     def test_assemble_deducts_materials(self, client):
+        """驗證組裝整組會扣減材料庫存並增加整組庫存"""
         a = _add_item(client, name="銅管", qty=10)
         b = _add_item(client, name="接頭", qty=20)
         kit = client.post("/api/kits", json={
@@ -458,6 +491,7 @@ class TestKits:
         assert kits[0]["stock_qty"] == 3
 
     def test_assemble_insufficient_material(self, client):
+        """驗證材料不足時組裝回傳 400"""
         a = _add_item(client, name="銅管", qty=1)
         b = _add_item(client, name="接頭", qty=20)
         kit = client.post("/api/kits", json={
@@ -469,6 +503,7 @@ class TestKits:
         assert r.status_code == 400  # 銅管要 2 但只剩 1
 
     def test_disassemble_returns_materials(self, client):
+        """驗證拆解整組會將材料加回庫存並扣減整組庫存"""
         a = _add_item(client, name="銅管", qty=10)
         b = _add_item(client, name="接頭", qty=20)
         kit = client.post("/api/kits", json={
@@ -491,6 +526,7 @@ class TestKits:
         assert kits[0]["stock_qty"] == 1
 
     def test_disassemble_insufficient_kit(self, client):
+        """驗證整組庫存不足時拆解回傳 400"""
         a = _add_item(client, name="銅管", qty=10)
         b = _add_item(client, name="接頭", qty=20)
         kit = client.post("/api/kits", json={
@@ -506,6 +542,7 @@ class TestKits:
 
 class TestStocktake:
     def test_submit_stocktake(self, client):
+        """驗證提交盤點後庫存更新為實際數量且 diff 正確"""
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post("/api/stocktake", json={
             "items": [{"item_id": item["id"], "location": "測試位置",
@@ -535,6 +572,7 @@ class TestStocktake:
         assert updated["total_qty"] == 17  # A10 + B7
 
     def test_submit_stocktake_negative_diff(self, client):
+        """驗證盤點數量少於庫存時 diff 為負數"""
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post("/api/stocktake", json={
             "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 8}],
@@ -543,6 +581,7 @@ class TestStocktake:
         assert r.json()["results"][0]["diff"] == -2
 
     def test_stocktake_dates(self, client):
+        """驗證盤點日期紀錄與總 diff"""
         item = _add_item(client, name="冷媒", qty=10)
         client.post("/api/stocktake", json={
             "take_date": "2026-08-25",
@@ -558,6 +597,7 @@ class TestStocktake:
 
 class TestStats:
     def test_stats_basic(self, client):
+        """驗證統計 API 回傳總品項數、總數量與缺貨數"""
         _add_item(client, name="品一", qty=5)
         _add_item(client, name="品二", qty=0)  # 缺貨
         s = client.get("/api/stats").json()
@@ -611,6 +651,7 @@ class TestStats:
 
 class TestFrontend:
     def test_index_served(self, client):
+        """驗證前端首頁可存取且包含庫存內容"""
         r = client.get("/")
         assert r.status_code == 200
         assert "庫存" in r.text  # 前端頁面有內容

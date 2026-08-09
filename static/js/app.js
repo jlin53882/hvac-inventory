@@ -23,6 +23,7 @@ function switchTab(tab) {
   else if (tab === 'kit') renderKits();
 }
 
+// 檢查今天日期，每月 25 號（含）後顯示「月底記得盤點」提醒橫幅
 function checkReminder() {
   const now = new Date();
   const day = now.getDate();

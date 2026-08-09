@@ -22,6 +22,7 @@ router = APIRouter()
 
 
 def _total(conn, item_id) -> float:
+    """計算單一品項的位置庫存總量，回傳 float"""
     return conn.execute("SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=?",
                         (item_id,)).fetchone()[0]
 

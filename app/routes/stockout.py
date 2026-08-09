@@ -26,6 +26,7 @@ router = APIRouter()
 
 
 def _total_qty(conn, item_id) -> float:
+    """計算單一品項的位置庫存總量，回傳 float"""
     return conn.execute("SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=?",
                         (item_id,)).fetchone()[0]
 
@@ -94,8 +95,9 @@ def stock_out(req: StockOutRequest):
     )
     conn.commit()
     updated = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
+    payload = _item_payload(conn, updated)
     conn.close()
-    return dict(updated)
+    return payload
 
 
 @router.get("/api/stockouts")
@@ -220,5 +222,6 @@ def list_prepared(site: Optional[str] = None):
     rows = conn.execute(f"""
         SELECT * FROM items WHERE prepared_qty > 0{where} ORDER BY brand COLLATE NOCASE, name
     """, params).fetchall()
+    payloads = [_item_payload(conn, r) for r in rows]  # 補 total_qty/location/stocks 相容欄位
     conn.close()
-    return [dict(r) for r in rows]
+    return payloads

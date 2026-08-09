@@ -8,16 +8,19 @@ function openKitModal() {
   openModal('kit-modal');
 }
 
+// 在整組 Modal 新增一列材料選擇（加入 kitModalCompRows 後重繪）
 function addKitCompRow() {
   kitModalCompRows.push({});
   renderKitCompRows();
 }
 
+// 移除整組 Modal 中指定索引的材料列後重繪
 function removeKitCompRow(idx) {
   kitModalCompRows.splice(idx, 1);
   renderKitCompRows();
 }
 
+// 送出新增整組表單（POST /api/kits），成功後關閉 Modal 並重載資料
 async function submitKit() {
   const name = document.getElementById('k-name').value.trim();
   if (!name) { toast('請輸入整組名稱', 'error'); return; }

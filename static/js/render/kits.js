@@ -50,6 +50,7 @@ async function renderKits() {
   }
 }
 
+// 渲染整組 Modal 的材料選擇列（材料下拉 + 數量 + 刪除鈕）
 function renderKitCompRows() {
   const wrap = document.getElementById('kit-comps');
   wrap.innerHTML = '';
@@ -68,6 +69,7 @@ function renderKitCompRows() {
   });
 }
 
+// 組裝整組：輸入組數 → POST /api/kits/{id}/assemble 扣材料、加整組庫存
 async function assembleKit(kitId) {
   const qty = prompt('要組裝幾組？', 1);
   if (qty === null) return;
@@ -91,6 +93,7 @@ async function assembleKit(kitId) {
   }
 }
 
+// 拆解整組：輸入組數 → POST /api/kits/{id}/disassemble 還材料、扣整組庫存
 async function disassembleKit(kitId) {
   const qty = prompt('要拆解幾組？', 1);
   if (qty === null) return;

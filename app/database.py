@@ -11,6 +11,7 @@ from app.config import DB_PATH
 
 
 def get_db():
+    """開啟 SQLite 連線（row_factory=Row + 啟用外鍵），回傳連線物件"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -18,6 +19,7 @@ def get_db():
 
 
 def init_db():
+    """建立所有資料表與索引，並執行舊資料庫（v10 前）的欄位遷移"""
     conn = get_db()
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS items (

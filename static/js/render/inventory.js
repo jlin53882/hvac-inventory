@@ -24,6 +24,7 @@ function buildBrandTabs() {
   el.style.display = 'flex';
 }
 
+// 從 ALL_ITEMS 建立廠牌與位置的 datalist 建議清單，並載入去向建議
 function buildDatalists() {
   const brands = [...new Set(ALL_ITEMS.map(i => i.brand))].sort();
   const locs = [...new Set(ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
@@ -123,6 +124,7 @@ function changeQty(id, delta) {
   renderInventory();
 }
 
+// 點卡片數量數字 → prompt 輸入新數量，差異寫入 pending 暫存後重繪
 function quickSet(id) {
   const item = ALL_ITEMS.find(i => i.id === id);
   if (!item) return;
@@ -137,6 +139,7 @@ function quickSet(id) {
   renderInventory();
 }
 
+// 依 pending 是否有未儲存變更，顯示/隱藏底部「儲存變更」列
 function updateSaveBar() {
   const n = Object.keys(pending).length;
   const bar = document.getElementById('save-bar');

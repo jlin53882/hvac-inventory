@@ -19,6 +19,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.join(BASE, "inventory.db")
 
 def main():
+    """執行 v10 資料庫遷移：備份 DB、建立 items_v10 與 item_stocks 新表、搬移舊資料、驗證總量後換表。"""
     shutil.copy(DB, DB + ".bak-v10-pre-migration")
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row

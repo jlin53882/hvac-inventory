@@ -33,6 +33,7 @@ init_db()
 # ---------- 健康檢查 ----------
 @app.get("/health")
 def health():
+    """健康檢查：回傳服務狀態與目前時間"""
     return {"status": "ok", "time": datetime.datetime.now().isoformat()}
 
 
@@ -48,6 +49,7 @@ app.include_router(export.router)
 # ---------- 靜態檔案（前端） ----------
 @app.get("/")
 def index():
+    """回傳前端 index.html；不存在時回傳提示 HTML"""
     idx = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(idx):
         return FileResponse(idx)

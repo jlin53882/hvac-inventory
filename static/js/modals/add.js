@@ -6,6 +6,7 @@ function openAddModal() {
   document.getElementById('f-brand').focus();
 }
 
+// 送出新增品項表單（POST /api/items），成功後關閉 Modal、清空表單並重載資料
 async function submitAdd() {
   const name = document.getElementById('f-name').value.trim();
   if (!name) { toast('品項名稱必填', 'error'); return; }

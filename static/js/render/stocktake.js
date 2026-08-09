@@ -148,6 +148,7 @@ function showStocktakeList(type) {
   content.innerHTML = html;
 }
 
+// 盤點輸入值與系統數量不同時加上 changed 樣式（黃底），相同則移除
 function markChanged(input, key) {
   // key = "itemId:location"
   const parts = key.split(':');
@@ -157,6 +158,7 @@ function markChanged(input, key) {
   else input.classList.remove('changed');
 }
 
+// 收集所有有差異的盤點值 → POST /api/stocktake 更新庫存並記錄盤點結果
 async function submitStocktake() {
   const items = [];
   for (const key of Object.keys(stocktakeValues)) {

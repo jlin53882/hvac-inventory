@@ -18,6 +18,7 @@ function openOutModal(id, ev) {
   openModal('out-modal');
 }
 
+// 送出「已領出」表單（POST /api/stockout）：驗證數量與去向、扣庫存並記錄
 async function submitStockOut() {
   const qty = parseFloat(document.getElementById('o-qty').value);
   const dest = document.getElementById('o-dest').value.trim();
@@ -63,6 +64,7 @@ function openPrepareModal(id, ev) {
   openModal('prepare-modal');
 }
 
+// 送出「待領出」表單（POST /api/items/{id}/prepare）：只標記待領出，不扣庫存
 async function submitPrepare() {
   const qty = parseFloat(document.getElementById('p-qty').value);
   const note = document.getElementById('p-note').value.trim();
@@ -86,6 +88,7 @@ async function submitPrepare() {
   }
 }
 
+// 開啟「待領出轉已領出」Modal，帶入品項名稱與已準備數量
 function openPreparedOutModal(id) {
   const item = ALL_ITEMS.find(i => i.id === id);
   if (!item) return;
@@ -97,6 +100,7 @@ function openPreparedOutModal(id) {
   openModal('prepared-out-modal');
 }
 
+// 送出「待領出轉已領出」表單（POST /api/items/{id}/prepared-out），此時才真正扣庫存
 async function submitPreparedOut() {
   const qty = parseFloat(document.getElementById('po-qty').value);
   const dest = document.getElementById('po-dest').value.trim();
@@ -121,6 +125,7 @@ async function submitPreparedOut() {
   }
 }
 
+// 退回指定品項的全部待領出數量（POST /api/items/{id}/prepared-return），先 confirm 確認
 async function returnPrepared(id) {
   const item = ALL_ITEMS.find(i => i.id === id);
   if (!item) return;

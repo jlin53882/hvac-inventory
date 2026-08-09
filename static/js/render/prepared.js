@@ -46,6 +46,7 @@ async function renderPrepared() {
   }
 }
 
+// 更新底部「待領出」小標：有數量時顯示數字，沒有則隱藏
 function updatePreparedBadge(n) {
   const badge = document.getElementById('prepared-badge');
   if (n > 0) {

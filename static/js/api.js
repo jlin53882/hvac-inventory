@@ -27,6 +27,7 @@ async function loadPreparedBadge() {
   } catch {}
 }
 
+// 更新頂部統計資訊（單一材料/整組/廠牌/缺貨數 + 分片按鈕數字）
 async function updateSubInfo() {
   try {
     const res = await fetch(`/api/stats?site=${currentSite}`);
@@ -51,6 +52,7 @@ async function updateSubInfo() {
   } catch {}
 }
 
+// 載入最近 100 筆出庫紀錄的去向 → 建立 destination 下拉建議清單（DESTINATIONS）
 async function loadDestinations() {
   try {
     const res = await fetch(`/api/stockouts?limit=100&site=${currentSite}`);
@@ -61,6 +63,7 @@ async function loadDestinations() {
   } catch {}
 }
 
+// 將 pending 暫存的所有數量調整逐筆送出（POST /api/items/{id}/adjust），成功後重載資料
 async function saveAll() {
   const ids = Object.keys(pending);
   if (!ids.length) return;
@@ -81,6 +84,7 @@ async function saveAll() {
   else toast(`⚠️ ${ok} 成功，${fail} 失敗`, 'error');
 }
 
+// 向 /api/export 索取 Excel 報表並觸發瀏覽器下載，成功/失敗各顯示 toast
 function exportExcel() {
   toast('⏳ 產生報表中…');
   fetch('/api/export').then(r => {

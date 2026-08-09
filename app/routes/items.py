@@ -46,6 +46,7 @@ def list_items(
     sort: str = "brand",
     site: Optional[str] = None,
 ):
+    """查詢品項清單（支援 brand/search/location/sort/site 篩選），回傳完整品項物件列表"""
     conn = get_db()
     sql = """SELECT i.*, COALESCE(SUM(s.qty),0) AS total_qty,
                     COUNT(s.id) AS stock_count
@@ -83,6 +84,7 @@ def list_items(
 
 @router.post("/api/items", status_code=201)
 def create_item(item: ItemCreate):
+    """新增品項主檔 + 位置庫存（v10 去重：同鍵已存在則 400 拒絕）"""
     conn = get_db()
     # ===== v10 去重規則 =====
     exists = conn.execute(
@@ -118,6 +120,7 @@ def create_item(item: ItemCreate):
 
 @router.patch("/api/items/{item_id}")
 def update_item(item_id: int, upd: ItemUpdate):
+    """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
     conn = get_db()
     row0 = conn.execute("SELECT id FROM items WHERE id=?", (item_id,)).fetchone()
     if not row0:
@@ -170,6 +173,7 @@ def delete_item(item_id: int):
 # ============ 位置庫存 CRUD ============
 @router.post("/api/items/{item_id}/stocks", status_code=201)
 def add_stock(item_id: int, st: StockUpdate):
+    """新增位置庫存（同位置重複 → 400 拒絕），回傳該品項全部位置清單"""
     conn = get_db()
     item = conn.execute("SELECT id FROM items WHERE id=?", (item_id,)).fetchone()
     if not item:
@@ -197,6 +201,7 @@ def add_stock(item_id: int, st: StockUpdate):
 
 @router.patch("/api/stocks/{stock_id}")
 def update_stock(stock_id: int, st: StockUpdate):
+    """修改位置庫存（數量/位置/備註）；改位置時檢查同品項內重複"""
     conn = get_db()
     fields = {k: v for k, v in st.model_dump().items() if v is not None}
     row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
@@ -222,6 +227,7 @@ def update_stock(stock_id: int, st: StockUpdate):
 
 @router.delete("/api/stocks/{stock_id}")
 def delete_stock(stock_id: int):
+    """刪除指定位置庫存"""
     conn = get_db()
     conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
     conn.commit()
@@ -315,6 +321,7 @@ def import_items(items: list):
 
 @router.get("/api/movements")
 def list_movements(limit: int = 50):
+    """異動紀錄（含品項名稱/品牌），依 id 倒序回傳最近 limit 筆"""
     conn = get_db()
     rows = conn.execute(
         """SELECT m.*, i.name, i.brand FROM movements m

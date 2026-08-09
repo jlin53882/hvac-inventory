@@ -47,6 +47,7 @@ THIN_BORDER = Border(
 # 工作表 1：品項主檔 (parts)
 # ============================================================
 def build_parts_sheet(wb):
+    """建立「品項主檔」工作表：寫入欄位標題、分類/單位下拉選單、範例資料與使用說明。"""
     ws = wb.active
     ws.title = "品項主檔"
 
@@ -170,6 +171,7 @@ def build_parts_sheet(wb):
 # 工作表 2：倉位表 (locations)
 # ============================================================
 def build_locations_sheet(wb):
+    """建立「倉位表」工作表：寫入倉位欄位、樓層下拉選單、範例倉位與使用說明。"""
     ws = wb.create_sheet("倉位表")
 
     # 欄位定義
@@ -277,6 +279,7 @@ def build_locations_sheet(wb):
 # 工作表 3：位置庫存 (location_stock) - 品項與位置的對應
 # ============================================================
 def build_location_stock_sheet(wb):
+    """建立「位置庫存」工作表：寫入品項↔位置對應的範例資料與使用說明（支援一品項多位置）。"""
     ws = wb.create_sheet("位置庫存")
 
     headers = [
@@ -351,6 +354,7 @@ def build_location_stock_sheet(wb):
 # 主程式
 # ============================================================
 def main():
+    """主程式：依序建立品項主檔、倉位表、位置庫存三個工作表，儲存到 OUTPUT_PATH 並顯示檔案資訊。"""
     wb = Workbook()
 
     # 1. 品項主檔
