@@ -133,7 +133,7 @@ class TestPhotoUpload:
         assert not os.path.exists(os.path.join(app_config.UPLOAD_DIR, f"{item['id']}.jpg"))
 
     def test_photo_gets_compressed(self, client):
-        """大圖（1000px 寬）上傳後壓縮到 300px 寬"""
+        """大圖（1000px 寬）上傳後壓縮到 800px 寬（lightbox 大圖需求）"""
         # 用 Pillow 直接生一張 1000x500 PNG
         from PIL import Image
         buf = io.BytesIO()
@@ -146,6 +146,35 @@ class TestPhotoUpload:
         img = Image.open(dest)
         assert img.width == 800
         assert img.height == 400  # 等比例
+
+    def test_photo_small_not_upscaled(self, client):
+        """小圖（400px 寬）不放大 → 保持 原尺寸（不模糊）"""
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (400, 300), (10, 120, 200)).save(buf, "PNG")
+        item = _add_item(client, name="小圖品")
+        r = client.post(f"/api/items/{item['id']}/photo",
+                        files={"file": ("small.png", buf.getvalue(), "image/png")})
+        assert r.status_code == 200
+        dest = os.path.join(app_config.UPLOAD_DIR, f"{item['id']}.jpg")
+        img = Image.open(dest)
+        assert img.width == 400   # 沒被放大
+        assert img.height == 300
+
+    def test_photo_tall_proportional(self, client):
+        """直立長圖（500x1500）壓縮後仍等比例（寬不超過 800 維持原尺寸）"""
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (500, 1500), (30, 180, 90)).save(buf, "PNG")
+        item = _add_item(client, name="直立長圖品")
+        r = client.post(f"/api/items/{item['id']}/photo",
+                        files={"file": ("tall.png", buf.getvalue(), "image/png")})
+        assert r.status_code == 200
+        dest = os.path.join(app_config.UPLOAD_DIR, f"{item['id']}.jpg")
+        img = Image.open(dest)
+        # 寬 500 < 800 → 不縮放，維持 500x1500
+        assert img.width == 500
+        assert img.height == 1500
 
 
 class TestSimilarLookup:
