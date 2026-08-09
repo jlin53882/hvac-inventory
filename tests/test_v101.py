@@ -24,14 +24,25 @@ import app.config as app_config  # noqa: E402
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    """每個測試獨立 DB + 獨立 uploads 目錄（不污染正式 static/uploads/）"""
+    """每個測試獨立 DB + 獨立 uploads 目錄（不污染正式 static/uploads/）+ 登入 admin"""
     test_db = tmp_path / "test_v101.db"
     monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
     test_upload = tmp_path / "uploads"
     test_upload.mkdir()
     monkeypatch.setattr("app.config.UPLOAD_DIR", str(test_upload))
     app_db.init_db()
+
+    # v11：全 API 需登入 → 建 admin + 登入
+    from app.services.auth import init_admin_if_missing
+    _conn = app_db.get_db()
+    try:
+        init_admin_if_missing(_conn)
+    finally:
+        _conn.close()
+
     with TestClient(app_main.app) as c:
+        r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+        assert r.status_code == 200, f"測試 admin 登入失敗: {r.status_code} {r.text}"
         yield c
 
 

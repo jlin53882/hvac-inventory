@@ -17,17 +17,25 @@
 import datetime
 import os
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.config import STATIC_DIR, UPLOAD_DIR
 from app.database import get_db, init_db
-from app.routes import export, items, kits, lookup, photos, stats, stockout, stocktake
+from app.routes import auth, export, items, kits, lookup, photos, stats, stockout, stocktake, users
+from app.services.auth import init_admin_if_missing, require_login
 
 app = FastAPI(title="振佳空調庫存管理系統", version="8.0.0")
 
 init_db()
+
+# 首次啟動建立 admin（已存在則跳過）
+_conn = get_db()
+try:
+    init_admin_if_missing(_conn)
+finally:
+    _conn.close()
 
 
 # ---------- 健康檢查 ----------
@@ -38,14 +46,13 @@ def health():
 
 
 # ---------- 掛載各功能路由 ----------
-app.include_router(items.router)
-app.include_router(stockout.router)
-app.include_router(kits.router)
-app.include_router(stocktake.router)
-app.include_router(stats.router)
-app.include_router(export.router)
-app.include_router(photos.router)
-app.include_router(lookup.router)
+# auth：不需全域鎖（login 公開；me/logout 內部自行驗證）
+app.include_router(auth.router)
+
+# 其餘全部上鎖：未登入一律 401
+for _r in (items.router, stockout.router, kits.router, stocktake.router,
+           stats.router, export.router, photos.router, lookup.router, users.router):
+    app.include_router(_r, dependencies=[Depends(require_login)])
 
 
 # ---------- 靜態檔案（前端） ----------
@@ -56,6 +63,15 @@ def index():
     if os.path.exists(idx):
         return FileResponse(idx)
     return Response("<h1>庫存系統 API</h1><p>前端尚未建立，請先將 index.html 放到 static/</p>", media_type="text/html")
+
+
+@app.get("/login.html")
+def login_page():
+    """登入頁（未登入時導向至此）"""
+    idx = os.path.join(STATIC_DIR, "login.html")
+    if os.path.exists(idx):
+        return FileResponse(idx)
+    return Response("<h1>登入頁不存在</h1>", media_type="text/html")
 
 
 # 掛載靜態目錄（放在最後，避免吃掉 API 路由）

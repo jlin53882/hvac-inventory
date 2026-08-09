@@ -42,5 +42,11 @@ document.getElementById('search-input').addEventListener('input', () => {
   if (currentTab === 'inventory') renderInventory();
 });
 
-// 啟動
-loadData();
+// 啟動：先檢查登入，過關才載資料
+(async () => {
+  const user = await checkAuth();
+  if (user) {
+    renderUserMenu(user);
+    loadData();
+  }
+})();

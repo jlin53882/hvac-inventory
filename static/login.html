@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔐 登入｜振佳空調庫存管理系統</title>
+<style>
+  /* ============ 全域 ============ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(150deg, #16283f 0%, #1e3a5f 45%, #2d5a8e 100%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; color: #1a1a1a;
+  }
+  /* 背景裝飾 */
+  .bg-blob {
+    position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.35; z-index: 0;
+  }
+  .blob1 { width: 340px; height: 340px; background: #3a7bd5; top: -80px; left: -80px; }
+  .blob2 { width: 260px; height: 260px; background: #17a2b8; bottom: -60px; right: -60px; }
+
+  /* ═══ 登入卡片 ═══ */
+  .login-card {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 400px;
+    background: #fff; border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+    padding: 36px 32px 30px;
+    animation: pop-in 0.35s ease;
+  }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* 系統標題區 */
+  .brand { text-align: center; margin-bottom: 26px; }
+  .brand .logo {
+    width: 62px; height: 62px; margin: 0 auto 12px;
+    background: linear-gradient(135deg, #1e3a5f, #2d5a8e);
+    border-radius: 16px; color: #fff; font-size: 30px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 14px rgba(29,58,95,0.35);
+  }
+  .brand h1 { font-size: 18px; font-weight: 700; color: #16283f; }
+  .brand .sub { font-size: 12px; color: #8a94a6; margin-top: 3px; }
+
+  /* 表單 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: #4a5568; margin-bottom: 6px; }
+  .field .wrap { position: relative; }
+  .field input {
+    width: 100%; padding: 11px 14px;
+    border: 1.5px solid #d8dee9; border-radius: 10px;
+    font-size: 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    background: #fafbfc;
+  }
+  .field input:focus { border-color: #2d5a8e; background: #fff; box-shadow: 0 0 0 3px rgba(45,90,142,0.12); }
+  .field input.err { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
+
+  .password-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.55;
+    padding: 4px; line-height: 1;
+  }
+  .password-toggle:hover { opacity: 0.9; }
+
+  /* 登入按鈕 */
+  .login-btn {
+    width: 100%; padding: 12px;
+    background: linear-gradient(135deg, #1e3a5f, #2d5a8e);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
+    box-shadow: 0 5px 14px rgba(29,58,95,0.35);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .login-btn:hover { filter: brightness(1.12); box-shadow: 0 7px 18px rgba(29,58,95,0.4); }
+  .login-btn:active { transform: scale(0.98); }
+  .login-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  /* 錯誤提示 */
+  .error-box {
+    display: none;
+    background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+    border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600;
+    margin-bottom: 14px; align-items: center; gap: 8px;
+  }
+  .error-box.show { display: flex; animation: shake 0.4s ease; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+  }
+
+  /* 登入成功覆蓋層（登入成功後短暫顯示再跳轉） */
+  .success-overlay {
+    position: absolute; inset: 0; z-index: 10;
+    background: linear-gradient(150deg, #16283f, #1e3a5f 60%, #2d5a8e);
+    border-radius: 16px; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; text-align: center; padding: 30px;
+  }
+  .success-overlay.show { display: flex; animation: fade-in 0.3s ease; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .success-overlay .ok-icon { font-size: 52px; margin-bottom: 14px; }
+  .success-overlay h2 { font-size: 20px; margin-bottom: 8px; }
+  .success-overlay p { font-size: 13px; color: #b8cbe0; }
+
+  /* 頁尾 */
+  .footer-note {
+    position: relative; z-index: 1;
+    text-align: center; margin-top: 18px;
+    font-size: 12px; color: #8fa6bd;
+  }
+</style>
+</head>
+<body>
+  <div class="bg-blob blob1"></div>
+  <div class="bg-blob blob2"></div>
+
+  <div class="login-card">
+    <div class="brand">
+      <div class="logo">🧊</div>
+      <h1>振佳空調庫存管理系統</h1>
+      <div class="sub">請登入以繼續</div>
+    </div>
+
+    <div class="error-box" id="errorBox">⚠️ <span id="errorMsg"></span></div>
+
+    <form id="loginForm" autocomplete="on" novalidate>
+      <div class="field">
+        <label for="username">帳號</label>
+        <input type="text" id="username" placeholder="請輸入帳號" autocomplete="username" required>
+      </div>
+
+      <div class="field">
+        <label for="password">密碼</label>
+        <div class="wrap">
+          <input type="password" id="password" placeholder="請輸入密碼" autocomplete="current-password" required>
+          <button type="button" class="password-toggle" id="pwToggle" tabindex="-1">👁️</button>
+        </div>
+      </div>
+
+      <button type="submit" class="login-btn" id="loginBtn">
+        <span id="btnText">🔓 登入</span>
+      </button>
+    </form>
+
+    <!-- 登入成功覆蓋層 -->
+    <div class="success-overlay" id="successOverlay">
+      <div class="ok-icon">✅</div>
+      <h2>登入成功！</h2>
+      <p>即將進入庫存管理系統…</p>
+    </div>
+  </div>
+
+  <div class="footer-note">振佳製冷 2026</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // 已登入（有 session）就直接進主頁
+  fetch('/api/auth/me').then(r => {
+    if (r.ok) window.location.href = '/';
+  }).catch(() => {});
+
+  const form       = document.getElementById('loginForm');
+  const usernameEl = document.getElementById('username');
+  const passwordEl = document.getElementById('password');
+  const loginBtn   = document.getElementById('loginBtn');
+  const btnText    = document.getElementById('btnText');
+  const errorBox   = document.getElementById('errorBox');
+  const errorMsg   = document.getElementById('errorMsg');
+  const successOv  = document.getElementById('successOverlay');
+
+  // 密碼顯示/隱藏
+  const toggleBtn = document.getElementById('pwToggle');
+  toggleBtn.addEventListener('click', () => {
+    const show = passwordEl.type === 'password';
+    passwordEl.type = show ? 'text' : 'password';
+    toggleBtn.textContent = show ? '🙈' : '👁️';
+  });
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorBox.classList.remove('show');
+    void errorBox.offsetWidth;  // 重新觸發 shake 動畫
+    errorBox.classList.add('show');
+    passwordEl.classList.add('err');
+    setTimeout(() => passwordEl.classList.remove('err'), 1500);
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const u = usernameEl.value.trim();
+    const p = passwordEl.value;
+
+    if (!u) { showError('請輸入帳號'); usernameEl.focus(); return; }
+    if (!p) { showError('請輸入密碼'); passwordEl.focus(); return; }
+
+    loginBtn.disabled = true;
+    document.getElementById('btnText').textContent = '⏳ 登入中…';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p }),
+      });
+
+      if (res.status === 429) { showError('嘗試次數過多，請 15 分鐘後再試'); return; }
+      if (res.status === 403) { showError('帳號已被停用，請聯絡管理員'); return; }
+      if (!res.ok) { showError('帳號或密碼錯誤'); passwordEl.value = ''; passwordEl.focus(); return; }
+
+      // ✅ 成功：顯示覆蓋層 → 跳轉主頁
+      successOv.classList.add('show');
+      setTimeout(() => { window.location.href = '/'; }, 900);
+    } catch (err) {
+      showError('無法連線伺服器，請稍後再試');
+    } finally {
+      loginBtn.disabled = false;
+      document.getElementById('btnText').textContent = '🔓 登入';
+    }
+  });
+
+  // 預先聚焦帳號欄
+  usernameEl.focus();
+})();
+</script>
+</body>
+</html>

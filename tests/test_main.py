@@ -27,12 +27,22 @@ import main as app_main  # noqa: E402
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    """每個測試獨立 DB：切 DB_PATH → 重建 schema → 回傳 TestClient"""
+    """每個測試獨立 DB：切 DB_PATH → 重建 schema → 建立 admin → 自動登入 → 回傳帶 session 的 TestClient"""
     test_db = tmp_path / "test_inventory.db"
     monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
     app_db.init_db()
 
+    # 建 admin + 登入（v11：全 API 需登入）
+    from app.services.auth import init_admin_if_missing
+    _conn = app_db.get_db()
+    try:
+        init_admin_if_missing(_conn)
+    finally:
+        _conn.close()
+
     with TestClient(app_main.app) as c:
+        r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+        assert r.status_code == 200, f"測試 admin 登入失敗: {r.status_code} {r.text}"
         yield c
 
     # 測試後清掉測試 DB（Windows 上可能仍被連線鎖住，失敗不影響）

@@ -80,6 +80,27 @@ def init_db():
         qty         REAL NOT NULL DEFAULT 1,
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS users (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        username        TEXT NOT NULL UNIQUE,
+        password_hash   TEXT NOT NULL,
+        display_name    TEXT DEFAULT '',
+        role            TEXT NOT NULL DEFAULT 'user',
+        is_active       INTEGER NOT NULL DEFAULT 1,
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        locked_until    TIMESTAMP,
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_items_brand ON items(brand);
     CREATE INDEX IF NOT EXISTS idx_stocks_item ON item_stocks(item_id);
     CREATE INDEX IF NOT EXISTS idx_stocks_location ON item_stocks(location);

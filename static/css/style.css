@@ -515,3 +515,17 @@
     .modal { border-radius: 16px; margin-bottom: 20px; }
     .modal-overlay { align-items: center; }
   }
+
+/* v11 登入：topbar 使用者選單 */
+.top-actions { align-items: center; }
+.user-menu { display: flex; align-items: center; gap: 8px; margin-left: 6px; }
+.user-chip {
+  font-size: 13px; font-weight: 700; color: #fff;
+  background: rgba(255,255,255,0.12);
+  padding: 5px 10px; border-radius: 20px; white-space: nowrap;
+}
+.admin-badge {
+  font-size: 10.5px; font-weight: 800; color: #ffd76a;
+  background: rgba(255,215,106,0.15);
+  padding: 1px 7px; border-radius: 10px; margin-left: 3px;
+}
