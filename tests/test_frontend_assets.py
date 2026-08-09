@@ -103,6 +103,20 @@ def test_users_js_has_class_names():
     assert "class=\"cr-input\"" in js
 
 
+def test_users_js_close_button_has_text():
+    """關閉按鈕必須是「✕ 關閉」文字（不能退化成純 ✕ 符號）"""
+    js = read(USERS_JS)
+    assert "✕ 關閉" in js
+
+
+def test_users_js_close_methods():
+    """三種關閉方式：按鈕 / 背景點擊 / Esc"""
+    js = read(USERS_JS)
+    assert "closeUsersModal()" in js
+    assert "e.target === overlay" in js
+    assert "Escape" in js
+
+
 # ---------- login.html（登入頁 v11.1 響應式） ----------
 
 def test_login_has_viewport():

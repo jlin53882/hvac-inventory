@@ -3,6 +3,11 @@
 // openUsersModal() 由 auth.js 的 topbar「👥 使用者」按鈕觸發
 var usersModalData = [];  // [{id, username, display_name, role, is_active, ...}]
 
+// Esc 鍵關閉使用者管理 modal（桌機習慣）
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeUsersModal();
+});
+
 function openUsersModal() {
   if (document.getElementById('usersModal')) return;
   const overlay = document.createElement('div');
@@ -12,7 +17,7 @@ function openUsersModal() {
     <div class="modal" style="max-width:560px">
       <div class="modal-header">
         <h3>👥 使用者管理</h3>
-        <button class="modal-close" onclick="closeUsersModal()">✕</button>
+        <button class="modal-close" onclick="closeUsersModal()">✕ 關閉</button>
       </div>
       <div class="create-row">
         <input type="text" id="newUsername" placeholder="新帳號" class="cr-input">
@@ -32,6 +37,10 @@ function openUsersModal() {
       </table>
     </div>`;
   document.body.appendChild(overlay);
+  // 點 modal 外背景關閉（手機/桌機直覺操作）
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) closeUsersModal();
+  });
   loadUsersTable();
 }
 
