@@ -209,7 +209,7 @@
       font-size: 11px; color: #2d5a8e; background: #eef4fa;
       border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 4px;
     }
-    .item-loc .loc-note { color: #b8860b; }
+    .item-note { font-size: 11px; color: #b8860b; margin-top: 2px; }
 
   .qty-control { display: flex; align-items: center; flex-shrink: 0; }
   .qty-btn {
