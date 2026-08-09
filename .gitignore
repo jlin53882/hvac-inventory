@@ -7,3 +7,7 @@ __pycache__/
 *.bak-*
 sketches/
 static/uploads/
+google-sheet-raw.xlsx
+inventory.db.bak-*
+data/stock-items.json
+data/stock-data.js
