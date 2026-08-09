@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 編輯品項 Modal（v8 拆分）
+// 振佳空調庫存管理系統 - 編輯品項 Modal（v10：多位置 stocks）
 // ========== 編輯品項 ==========
 function openEditModal(id) {
   const item = ALL_ITEMS.find(i => i.id === id);
@@ -8,11 +8,50 @@ function openEditModal(id) {
   document.getElementById('e-code').value = item.code || '';
   document.getElementById('e-name').value = item.name || '';
   document.getElementById('e-unit').value = item.unit || '個';
-  document.getElementById('e-location').value = item.location || '';
-  document.getElementById('e-note').value = item.note || '';
   document.getElementById('e-lowstock').value = item.low_stock || 0;
   document.getElementById('e-site').value = item.site || 'office';
+  // v10：位置清單（從 stocks 展開，每列一個位置）
+  const stocks = item.stocks && item.stocks.length
+    ? item.stocks
+    : [{ location: item.location || '', qty: item.qty || 0, note: item.note || '' }];
+  renderEditStockRows(stocks);
   openModal('edit-modal');
+}
+
+// 渲染編輯 modal 的位置清單列
+function renderEditStockRows(stocks) {
+  const box = document.getElementById('edit-stock-rows');
+  box.innerHTML = stocks.map((s, idx) => `
+    <div class="stock-row" data-idx="${idx}">
+      <input type="text" class="stock-loc" value="${esc(s.location || '')}" list="location-list" placeholder="位置">
+      <input type="number" class="stock-qty" value="${s.qty ?? 0}" min="0" step="any" placeholder="數量">
+      <input type="text" class="stock-note" value="${esc(s.note || '')}" placeholder="備註（選填）">
+      <button type="button" class="btn-cancel stock-del" onclick="deleteEditStockRow(this)" ${stocks.length <= 1 ? 'disabled' : ''}>✕</button>
+    </div>
+  `).join('');
+}
+
+function addEditStockRow() {
+  const box = document.getElementById('edit-stock-rows');
+  const idx = box.children.length;
+  const row = document.createElement('div');
+  row.className = 'stock-row';
+  row.dataset.idx = idx;
+  row.innerHTML = `
+    <input type="text" class="stock-loc" list="location-list" placeholder="位置">
+    <input type="number" class="stock-qty" value="0" min="0" step="any" placeholder="數量">
+    <input type="text" class="stock-note" placeholder="備註（選填）">
+    <button type="button" class="btn-cancel stock-del" onclick="this.closest('.stock-row').remove()">✕</button>
+  `;
+  // 新增後第一個 input（位置）自動 focus，方便連續輸入
+  box.appendChild(row);
+  row.querySelector('.stock-loc').focus();
+}
+
+function deleteEditStockRow(btn) {
+  const box = document.getElementById('edit-stock-rows');
+  if (box.querySelectorAll('.stock-row').length <= 1) return;
+  btn.closest('.stock-row').remove();
 }
 
 async function submitEdit() {
@@ -23,10 +62,14 @@ async function submitEdit() {
     // 名稱空白時不更新（保留原值），避免把原名覆蓋成空白
     ...(nameVal ? { name: nameVal } : {}),
     unit: document.getElementById('e-unit').value,
-    location: document.getElementById('e-location').value.trim(),
-    note: document.getElementById('e-note').value.trim(),
     low_stock: parseFloat(document.getElementById('e-lowstock').value) || 0,
     site: document.getElementById('e-site').value,
+    // v10：完整位置清單（全量替換）
+    stocks: [...document.querySelectorAll('#edit-stock-rows .stock-row')].map(row => ({
+      location: row.querySelector('.stock-loc').value.trim(),
+      qty: parseFloat(row.querySelector('.stock-qty').value) || 0,
+      note: row.querySelector('.stock-note').value.trim(),
+    })),
   };
   try {
     const res = await fetch(`/api/items/${editItemId}`, {
@@ -34,7 +77,12 @@ async function submitEdit() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error();
+    if (!res.ok) {
+      let msg = '儲存失敗';
+      try { const err = await res.json(); if (err.detail) msg = err.detail; } catch {}
+      toast('⚠️ ' + msg, 'error');
+      return;
+    }
     closeModal('edit-modal');
     toast('✅ 已儲存修改', 'success');
     await loadData();

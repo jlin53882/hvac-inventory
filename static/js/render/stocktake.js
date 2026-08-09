@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 盤點頁渲染（v8 拆分）
+// 振佳空調庫存管理系統 - 盤點頁渲染（v10：以位置庫存為單位對帳）
 // ========== 盤點頁 ==========
 async function renderStocktake() {
   document.getElementById('brand-tabs').style.display = 'none';
@@ -11,7 +11,7 @@ async function renderStocktake() {
     takeDates = await res.json();
   } catch {}
 
-  // 統計卡片（缺貨只算單一材料；低庫存整組與單一都算）
+  // 統計卡片（缺貨只算單一材料；低庫存整組與單一都算）— 以總量判斷
   const zeroItems = ALL_ITEMS.filter(i => !i.is_kit && i.qty <= 0);
   const lowItems = ALL_ITEMS.filter(i => i.low_stock > 0 && i.qty <= i.low_stock);
   const zero = zeroItems.length;
@@ -51,7 +51,7 @@ async function renderStocktake() {
     html += '</tbody></table>';
   }
 
-  // 盤點輸入表
+  // 盤點輸入表（v10：展開每個位置 = 一列）
   html += `<div class="section-title" style="margin-top:18px"><span class="loc">✏️ 本次盤點（${todayStr()}）</span>
     <span>共 ${ALL_ITEMS.length} 項</span></div>`;
   html += `<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;color:#555">
@@ -59,26 +59,39 @@ async function renderStocktake() {
     沒填的品項維持原數量不變。
   </div>`;
 
-  // 依位置分組列出
+  // 依位置分組列出（同品項放多處 → 每個位置各一列）
+  const rows = [];
+  ALL_ITEMS.forEach(i => {
+    const stocks = i.stocks && i.stocks.length ? i.stocks : [{ location: i.location || '', qty: i.qty }];
+    stocks.forEach(s => {
+      rows.push({ item: i, stock: s });
+    });
+  });
   const byLoc = {};
-  ALL_ITEMS.forEach(i => { (byLoc[i.location || '未標示'] = byLoc[i.location || '未標示'] || []).push(i); });
+  rows.forEach(r => {
+    const loc = r.stock.location || '未標示';
+    (byLoc[loc] = byLoc[loc] || []).push(r);
+  });
 
   Object.keys(byLoc).sort().forEach(loc => {
-    const locItems = byLoc[loc];
-    html += `<div class="section-title"><span class="loc">位置：${loc}</span><span>${locItems.length} 項</span></div>`;
+    const locRows = byLoc[loc];
+    html += `<div class="section-title"><span class="loc">位置：${loc}</span><span>${locRows.length} 項</span></div>`;
     html += `<table class="data-table"><thead><tr>
       <th>品項</th><th style="width:130px">系統數量</th><th style="width:110px">實際數量</th>
     </tr></thead><tbody>`;
-    locItems.forEach(i => {
-      const val = stocktakeValues[i.id] !== undefined ? stocktakeValues[i.id] : '';
+    locRows.forEach(r => {
+      const i = r.item, s = r.stock;
+      const key = `${i.id}:${s.location}`;
+      const val = stocktakeValues[key] !== undefined ? stocktakeValues[key] : '';
+      const displayLoc = s.location ? `位置：${esc(s.location)}` : '';
       html += `<tr>
-        <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">庫存 ${i.qty} ${esc(i.unit)}</small></td>
-        <td style="text-align:center;font-weight:700">${i.qty} ${esc(i.unit)}</td>
+        <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${displayLoc || '未標示'}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></td>
+        <td style="text-align:center;font-weight:700">${s.qty} ${esc(i.unit)}</td>
         <td><div class="count-row">
           <input type="number" step="any" min="0" value="${val}"
-            oninput="stocktakeValues[${i.id}] = this.value"
-            onchange="stocktakeValues[${i.id}] = this.value; markChanged(this, ${i.id})"
-            data-id="${i.id}">
+            oninput="stocktakeValues['${key.replace(/'/g, "\\'")}'] = this.value"
+            onchange="stocktakeValues['${key.replace(/'/g, "\\'")}'] = this.value; markChanged(this, '${key.replace(/'/g, "\\'")}')"
+            data-key="${key.replace(/'/g, "\\'")}">
         </div></td>
       </tr>`;
     });
@@ -123,10 +136,11 @@ function showStocktakeList(type) {
   </tr></thead><tbody>`;
 
   items.sort((a, b) => a.qty - b.qty).forEach(i => {
+    const locStr = (i.stocks || []).map(s => s.location || '未標示').join('、');
     html += `<tr style="cursor:pointer" onclick="openEditModal(${i.id})">
-      <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
+      <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${esc(locStr || '未標示')}</small></td>
       <td style="text-align:center"><b style="color:${i.qty <= 0 ? '#dc2626' : '#f59e0b'}">${i.qty}</b> ${esc(i.unit)}</td>
-      <td style="text-align:center;color:#999">${isLow ? (i.low_stock || 0) : esc(i.location || '—')}</td>
+      <td style="text-align:center;color:#999">${isLow ? (i.low_stock || 0) : esc(locStr || '—')}</td>
     </tr>`;
   });
 
@@ -134,20 +148,27 @@ function showStocktakeList(type) {
   content.innerHTML = html;
 }
 
-function markChanged(input, id) {
-  const orig = ALL_ITEMS.find(i => i.id === id);
-  if (orig && parseFloat(input.value) !== orig.qty) input.classList.add('changed');
+function markChanged(input, key) {
+  // key = "itemId:location"
+  const parts = key.split(':');
+  const item = ALL_ITEMS.find(i => i.id === parseInt(parts[0]));
+  const stock = (item && item.stocks || []).find(s => s.location === parts[1]);
+  if (stock && parseFloat(input.value) !== stock.qty) input.classList.add('changed');
   else input.classList.remove('changed');
 }
 
 async function submitStocktake() {
   const items = [];
-  for (const id of Object.keys(stocktakeValues)) {
-    const v = parseFloat(stocktakeValues[id]);
+  for (const key of Object.keys(stocktakeValues)) {
+    const v = parseFloat(stocktakeValues[key]);
     if (isNaN(v)) continue;
-    const item = ALL_ITEMS.find(i => i.id == id);
-    if (item && v !== item.qty) {
-      items.push({ item_id: item.id, actual_qty: v });
+    const parts = key.split(':');
+    const itemId = parseInt(parts[0]);
+    const location = parts[1];
+    const item = ALL_ITEMS.find(i => i.id === itemId);
+    const stock = (item && item.stocks || []).find(s => s.location === location);
+    if (item && stock && v !== stock.qty) {
+      items.push({ item_id: item.id, location: location, actual_qty: v });
     }
   }
 

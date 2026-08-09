@@ -26,7 +26,7 @@ function buildBrandTabs() {
 
 function buildDatalists() {
   const brands = [...new Set(ALL_ITEMS.map(i => i.brand))].sort();
-  const locs = [...new Set(ALL_ITEMS.map(i => i.location))].sort();
+  const locs = [...new Set(ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
   document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${b}">`).join('');
   document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${l}">`).join('');
   loadDestinations();
@@ -40,13 +40,14 @@ function renderInventory() {
   let list = ALL_ITEMS.filter(i => !i.is_kit);
   if (currentBrand !== '全部') list = list.filter(i => i.brand === currentBrand);
   if (kw) {
-      list = list.filter(i =>
-        (i.name || '').toLowerCase().includes(kw) ||
+      list = list.filter(i => {
+        // 品項本身 + 每個位置的 location/note 都列入搜尋
+        const stockStr = (i.stocks || []).map(s => `${s.location} ${s.note}`).join(' ');
+        return (i.name || '').toLowerCase().includes(kw) ||
         (i.code || '').toLowerCase().includes(kw) ||
-        (i.note || '').toLowerCase().includes(kw) ||
         (i.brand || '').toLowerCase().includes(kw) ||
-        (i.location || '').toLowerCase().includes(kw)
-      );
+        stockStr.toLowerCase().includes(kw);
+      });
     }
 
   const content = document.getElementById('content');
@@ -57,7 +58,11 @@ function renderInventory() {
   }
 
   const byLoc = {};
-  list.forEach(i => { (byLoc[i.location || '未標示'] = byLoc[i.location || '未標示'] || []).push(i); });
+  // 多位置品項：以「第一個位置」為主分組（卡片上會列出全部位置）
+  list.forEach(i => {
+    const mainLoc = (i.stocks && i.stocks.length && i.stocks[0].location) || '未標示';
+    (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
+  });
 
   let html = '';
   Object.keys(byLoc).sort().forEach(loc => {
@@ -69,15 +74,23 @@ function renderInventory() {
       const isZero = display <= 0;
       const prepared = i.prepared_qty || 0;
       // 位置標籤（位置：文字）與備註（📝 具體位置/說明）分開兩行顯示
+      // v10：多位置品項列出所有位置行；單一位置維持原本兩行樣式
+      const stocks = i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '', qty: i.qty, note: i.note || ''}];
+      const locHtml = stocks.length > 1
+        ? stocks.map(s => `
+            <div class="item-loc">位置：${esc(s.location || '未標示')} <span class="loc-qty">×${s.qty}</span></div>
+            ${s.note ? `<div class="item-note">📝 ${esc(s.note)}</div>` : ''}`).join('')
+        : `
+            <div class="item-loc">位置：${esc(stocks[0].location || '未標示')}</div>
+            ${stocks[0].note ? `<div class="item-note">📝 ${esc(stocks[0].note)}</div>` : ''}`;
       html += `
       <div class="item-card" id="card-${i.id}">
         <button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>
         <div class="item-info" onclick="openEditModal(${i.id})">
           <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>
           <div class="item-code">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
-          <div class="item-loc">位置：${esc(i.location || '未標示')}</div>
-                    ${i.note ? `<div class="item-note">📝 ${esc(i.note)}</div>` : ''}
-                    ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
+          ${locHtml}
+          ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
           ${prepared > 0 ? `<div class="prepared-tag">📤 待領出 ${prepared} ${esc(i.unit)}</div>` : ''}
           <div style="margin-top:4px">
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">

@@ -7,6 +7,11 @@ function openOutModal(id, ev) {
   outItemId = id;
   document.getElementById('o-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
   document.getElementById('o-item-stock').value = `${item.qty} ${item.unit}`;
+  // v10：位置下拉（空白 = 依序扣全部位置）
+  const sel = document.getElementById('o-location');
+  const stocks = item.stocks && item.stocks.length ? item.stocks : [{ location: item.location || '' }];
+  sel.innerHTML = '<option value="">全部位置（自動依序扣）</option>' +
+    stocks.map(s => `<option value="${esc(s.location || '')}">${s.location || '未標示'}（剩 ${s.qty}）</option>`).join('');
   document.getElementById('o-qty').value = '';
   document.getElementById('o-dest').value = '';
   document.getElementById('o-note').value = '';
@@ -17,17 +22,21 @@ async function submitStockOut() {
   const qty = parseFloat(document.getElementById('o-qty').value);
   const dest = document.getElementById('o-dest').value.trim();
   const note = document.getElementById('o-note').value.trim();
+  const location = document.getElementById('o-location').value;
   const item = ALL_ITEMS.find(i => i.id === outItemId);
 
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
-  if (qty > item.qty) { toast(`庫存不足！只剩 ${item.qty} ${item.unit}`, 'error'); return; }
+  if (location) {
+    const st = (item.stocks || []).find(s => s.location === location);
+    if (st && qty > st.qty) { toast(`「${location}」庫存不足！只剩 ${st.qty} ${item.unit}`, 'error'); return; }
+  } else if (qty > item.qty) { toast(`庫存不足！只剩 ${item.qty} ${item.unit}`, 'error'); return; }
 
   try {
     const res = await fetch('/api/stockout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: outItemId, qty: qty, destination: dest, note: note })
+      body: JSON.stringify({ item_id: outItemId, qty: qty, destination: dest, note: note, location: location })
     });
     if (!res.ok) {
       const err = await res.json();

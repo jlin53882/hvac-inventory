@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-整組（套件）路由：BOM 定義 + 組裝/拆解
-=====================================
+整組（套件）路由（v10 正規化）：BOM 定義 + 組裝/拆解
+=================================================
 - GET   /api/kits                套件清單（含組成材料）
 - POST  /api/kits                新增套件定義
 - POST  /api/kits/{id}/assemble  組裝（扣材料 + 整組庫存增加）
 - POST  /api/kits/{id}/disassemble  拆解（整組扣掉 + 材料加回）
+
+v10 數量語意：材料庫存 = SUM(item_stocks.qty)
+套件品項本身也配一筆空位置 stock（維持總量語意）
 """
 import datetime
 from typing import Optional
@@ -18,6 +21,11 @@ from app.models import KitAssemble, KitCreate
 router = APIRouter()
 
 
+def _total(conn, item_id) -> float:
+    return conn.execute("SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=?",
+                        (item_id,)).fetchone()[0]
+
+
 @router.get("/api/kits")
 def list_kits(site: Optional[str] = None):
     """套件清單（含組成材料）"""
@@ -27,16 +35,24 @@ def list_kits(site: Optional[str] = None):
     if site and site != "all":
         where = " WHERE i.site = ?"
         params = (site,)
-    kits = conn.execute(f"SELECT k.*, i.qty as stock_qty, i.unit, i.brand FROM kits k JOIN items i ON i.id = k.item_id{where} ORDER BY k.name", params).fetchall()
+    kits = conn.execute(
+        f"SELECT k.*, i.unit, i.brand, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} ORDER BY k.name",
+        params).fetchall()
     result = []
     for k in kits:
         items = conn.execute("""
-            SELECT ki.item_id, ki.qty as need_qty, i.name, i.brand, i.code, i.unit, i.qty as stock
+            SELECT ki.item_id, ki.qty as need_qty, i.name, i.brand, i.code, i.unit
             FROM kit_items ki JOIN items i ON i.id = ki.item_id
             WHERE ki.kit_id = ?
         """, (k["id"],)).fetchall()
         d = dict(k)
-        d["components"] = [dict(x) for x in items]
+        d["stock_qty"] = _total(conn, k["item_id"])
+        comps = []
+        for x in items:
+            cx = dict(x)
+            cx["stock"] = _total(conn, x["item_id"])
+            comps.append(cx)
+        d["components"] = comps
         result.append(d)
     conn.close()
     return result
@@ -48,12 +64,14 @@ def create_kit(kit: KitCreate):
     if not kit.name or not kit.items:
         raise HTTPException(400, "套件名稱與材料都不能空白")
     conn = get_db()
-    # 建立套件品項
+    # 建立套件品項（v10：主檔 + 一筆空位置 stock）
     cur = conn.execute(
-        "INSERT INTO items (brand, name, qty, unit, note, is_kit) VALUES (?,?,?,?,?,1)",
-        ("", kit.name, 0, "組", kit.note),
+        "INSERT INTO items (brand, name, unit, is_kit, site) VALUES (?,?,?,1,?)",
+        ("", kit.name, "組", "office"),
     )
     kit_item_id = cur.lastrowid
+    conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                 (kit_item_id, "", 0, kit.note))
     # 建立套件定義
     cur2 = conn.execute(
         "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
@@ -68,6 +86,45 @@ def create_kit(kit: KitCreate):
     conn.commit()
     conn.close()
     return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
+
+
+def _deduct_total(conn, item_id, need, reason):
+    """從位置庫存由後往前扣 need，記錄 movements。不足則拋錯。"""
+    stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
+                          (item_id,)).fetchall()
+    before = sum(s["qty"] for s in stocks)
+    remaining = need
+    for s in reversed(stocks):
+        if remaining <= 0:
+            break
+        take = min(s["qty"], remaining)
+        conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=?",
+                     (take, datetime.datetime.now().isoformat(), s["id"]))
+        remaining -= take
+    if remaining > 0:
+        raise HTTPException(400, f"庫存不足！剩 {before}")
+    conn.execute(
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+        (item_id, -need, before, before - need, reason, ""),
+    )
+
+
+def _add_total(conn, item_id, add, reason):
+    """加入第一筆位置庫存，記錄 movements。"""
+    stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
+                          (item_id,)).fetchall()
+    before = sum(s["qty"] for s in stocks)
+    target = stocks[0] if stocks else None
+    if target:
+        conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+                     (add, datetime.datetime.now().isoformat(), target["id"]))
+    else:
+        conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                     (item_id, "", add, ""))
+    conn.execute(
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+        (item_id, add, before, before + add, reason, ""),
+    )
 
 
 @router.post("/api/kits/{kit_id}/assemble")
@@ -86,32 +143,19 @@ def assemble_kit(kit_id: int, req: KitAssemble):
     for c in comps:
         mat = conn.execute("SELECT * FROM items WHERE id=?", (c["item_id"],)).fetchone()
         need = c["qty"] * req.qty
-        if mat["qty"] < need:
-            short.append(f"{mat['name']}（需要 {need}，剩 {mat['qty']}）")
+        stock = _total(conn, c["item_id"])
+        if stock < need:
+            short.append(f"{mat['name']}（需要 {need}，剩 {stock}）")
     if short:
         conn.close()
         raise HTTPException(400, "材料不足：" + "、".join(short))
 
     # 扣材料
     for c in comps:
-        mat = conn.execute("SELECT * FROM items WHERE id=?", (c["item_id"],)).fetchone()
         need = c["qty"] * req.qty
-        new_qty = mat["qty"] - need
-        conn.execute("UPDATE items SET qty=?, updated_at=? WHERE id=?",
-                     (new_qty, datetime.datetime.now().isoformat(), c["item_id"]))
-        conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (c["item_id"], -need, mat["qty"], new_qty, f"組裝套件:{kit['name']}", ""),
-        )
+        _deduct_total(conn, c["item_id"], need, f"組裝套件:{kit['name']}")
     # 加整組庫存
-    kit_item = conn.execute("SELECT * FROM items WHERE id=?", (kit["item_id"],)).fetchone()
-    new_kit_qty = kit_item["qty"] + req.qty
-    conn.execute("UPDATE items SET qty=?, updated_at=? WHERE id=?",
-                 (new_kit_qty, datetime.datetime.now().isoformat(), kit["item_id"]))
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (kit["item_id"], req.qty, kit_item["qty"], new_kit_qty, f"組裝完成:{kit['name']}", ""),
-    )
+    _add_total(conn, kit["item_id"], req.qty, f"組裝完成:{kit['name']}")
     conn.commit()
     conn.close()
     return {"ok": True, "kit": kit["name"], "qty": req.qty}
@@ -126,31 +170,18 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
     kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
     if not kit:
         raise HTTPException(404, "套件不存在")
-    kit_item = conn.execute("SELECT * FROM items WHERE id=?", (kit["item_id"],)).fetchone()
-    if kit_item["qty"] < req.qty:
+    kit_stock = _total(conn, kit["item_id"])
+    if kit_stock < req.qty:
         conn.close()
-        raise HTTPException(400, f"整組庫存不足！只剩 {kit_item['qty']} 組")
+        raise HTTPException(400, f"整組庫存不足！只剩 {kit_stock} 組")
 
     # 扣整組
-    new_kit_qty = kit_item["qty"] - req.qty
-    conn.execute("UPDATE items SET qty=?, updated_at=? WHERE id=?",
-                 (new_kit_qty, datetime.datetime.now().isoformat(), kit["item_id"]))
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (kit["item_id"], -req.qty, kit_item["qty"], new_kit_qty, f"拆解:{kit['name']}", ""),
-    )
+    _deduct_total(conn, kit["item_id"], req.qty, f"拆解:{kit['name']}")
     # 加回材料
     comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
     for c in comps:
-        mat = conn.execute("SELECT * FROM items WHERE id=?", (c["item_id"],)).fetchone()
         add = c["qty"] * req.qty
-        new_qty = mat["qty"] + add
-        conn.execute("UPDATE items SET qty=?, updated_at=? WHERE id=?",
-                     (new_qty, datetime.datetime.now().isoformat(), c["item_id"]))
-        conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (c["item_id"], add, mat["qty"], new_qty, f"拆解套件:{kit['name']}", ""),
-        )
+        _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}")
     conn.commit()
     conn.close()
     return {"ok": True, "kit": kit["name"], "qty": req.qty}

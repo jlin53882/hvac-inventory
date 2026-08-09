@@ -3,7 +3,7 @@
 資料庫層
 ========
 - get_db()：開啟 SQLite 連線
-- init_db()：建立資料表 + 舊庫欄位遷移（ALTER TABLE）
+- init_db()：建立資料表（items 主檔 + item_stocks 位置庫存）
 """
 import sqlite3
 
@@ -25,16 +25,23 @@ def init_db():
         brand       TEXT NOT NULL DEFAULT '',
         code        TEXT DEFAULT '',
         name        TEXT NOT NULL,
-        qty         REAL NOT NULL DEFAULT 0,
         prepared_qty REAL NOT NULL DEFAULT 0,
         unit        TEXT NOT NULL DEFAULT '個',
-        location    TEXT DEFAULT '',
-        note        TEXT DEFAULT '',
         low_stock   REAL DEFAULT 0,
         is_kit      INTEGER NOT NULL DEFAULT 0,
         site        TEXT NOT NULL DEFAULT 'office',
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS item_stocks (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id     INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+        location    TEXT DEFAULT '',
+        qty         REAL NOT NULL DEFAULT 0,
+        note        TEXT DEFAULT '',
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(item_id, location)
     );
     CREATE TABLE IF NOT EXISTS movements (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +57,7 @@ def init_db():
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         take_date   TEXT NOT NULL,
         item_id     INTEGER NOT NULL REFERENCES items(id),
+        location    TEXT DEFAULT '',
         system_qty  REAL NOT NULL DEFAULT 0,
         actual_qty  REAL NOT NULL DEFAULT 0,
         diff        REAL NOT NULL DEFAULT 0,
@@ -71,12 +79,15 @@ def init_db():
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_items_brand ON items(brand);
-    CREATE INDEX IF NOT EXISTS idx_items_location ON items(location);
+    CREATE INDEX IF NOT EXISTS idx_stocks_item ON item_stocks(item_id);
+    CREATE INDEX IF NOT EXISTS idx_stocks_location ON item_stocks(location);
     CREATE INDEX IF NOT EXISTS idx_movements_item ON movements(item_id);
     """)
 
-    # 舊資料庫遷移：補上新增欄位
+    # 舊資料庫遷移（v10 前）：items 若有 qty/location/note 欄位 → 需跑 scripts/migrate_v10.py
     item_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
+    if "qty" in item_cols:
+        print("[migrate] items 仍含舊欄位 qty — 請執行 scripts/migrate_v10.py 後再啟動！")
     if "prepared_qty" not in item_cols:
         conn.execute("ALTER TABLE items ADD COLUMN prepared_qty REAL NOT NULL DEFAULT 0")
         print("[migrate] items.prepared_qty 欄位已新增")

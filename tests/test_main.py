@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-振佳空調庫存管理系統 - 單元測試
+振佳空調庫存管理系統 - 單元測試（v10：items 主檔 + item_stocks 位置庫存）
 ============================
 執行方式（必須清 PYTHONPATH 避免 hermes 污染）：
     cd C:\\Users\\admin\\workspace\\hvac-inventory
@@ -9,6 +9,7 @@
 重點：
   - 每個測試用 tmp_path 建立獨立測試 DB，不會污染 inventory.db 正式資料
   - fixture `client` 自動：切 DB 路徑 → init_db() → TestClient
+  - v10 語義：數量存在 item_stocks（位置庫存），品項主檔只有名稱/廠牌等
 """
 import os
 import sys
@@ -43,7 +44,7 @@ def client(tmp_path, monkeypatch):
 
 
 def _get_item(client, item_id):
-    """Helper：查單筆品項（後端無 GET /api/items/{id}，用 list 過濾）"""
+    """查單筆品項（含 total_qty/location 相容欄位）"""
     items = client.get("/api/items").json()
     for i in items:
         if i["id"] == item_id:
@@ -52,17 +53,20 @@ def _get_item(client, item_id):
 
 
 def _add_item(client, **kw):
-    """Helper：新增品項並回傳 dict"""
+    """Helper：新增品項（v10：stocks[] 陣列）並回傳 dict"""
     payload = {
         "brand": kw.get("brand", "測試牌"),
         "code": kw.get("code", ""),
         "name": kw.get("name", "測試品項"),
-        "qty": kw.get("qty", 10),
         "unit": kw.get("unit", "個"),
-        "location": kw.get("location", "測試位置"),
-        "note": kw.get("note", ""),
         "low_stock": kw.get("low_stock", 0),
         "site": kw.get("site", "office"),
+        # v10：位置庫存清單（qty/location/note 參數轉成第一筆位置）
+        "stocks": [{
+            "location": kw.get("location", "測試位置"),
+            "qty": kw.get("qty", 10),
+            "note": kw.get("note", ""),
+        }],
     }
     r = client.post("/api/items", json=payload)
     assert r.status_code == 201, r.text
@@ -82,21 +86,43 @@ class TestItemsCRUD:
     def test_create_item(self, client):
         item = _add_item(client, name="冷媒管", qty=5, location="A倉")
         assert item["name"] == "冷媒管"
-        assert item["qty"] == 5
-        assert item["location"] == "A倉"
+        assert item["qty"] == 5          # 相容欄位：總量 = SUM(stocks)
+        assert item["total_qty"] == 5
+        assert item["location"] == "A倉"  # 相容欄位：第一筆位置
         assert item["prepared_qty"] == 0
         assert item["is_kit"] == 0
+        assert len(item["stocks"]) == 1
+        assert item["stocks"][0]["location"] == "A倉"
+        assert item["stocks"][0]["qty"] == 5
+
+    def test_create_item_multi_stocks(self, client):
+        """v10 核心：一個品項可放多個位置"""
+        r = client.post("/api/items", json={
+            "brand": "大金",
+            "code": "ARC-A",
+            "name": "遙控器",
+            "stocks": [
+                {"location": "A櫃", "qty": 1},
+                {"location": "B櫃", "qty": 2},
+            ],
+        })
+        assert r.status_code == 201
+        item = r.json()
+        assert len(item["stocks"]) == 2
+        assert item["total_qty"] == 3  # 總量自動加總
+        assert item["qty"] == 3
+        assert item["location"] == "A櫃"  # 第一筆為主要位置
 
     def test_list_items(self, client):
-        _add_item(client, name="品項一", brand="三菱")
-        _add_item(client, name="品項二", brand="大金")
+        _add_item(client, name="一", brand="三菱")
+        _add_item(client, name="二", brand="大金")
         r = client.get("/api/items")
         assert r.status_code == 200
         assert len(r.json()) == 2
 
     def test_list_items_filter_brand(self, client):
-        _add_item(client, name="品項一", brand="三菱")
-        _add_item(client, name="品項二", brand="大金")
+        _add_item(client, name="一", brand="三菱")
+        _add_item(client, name="二", brand="大金")
         r = client.get("/api/items", params={"brand": "三菱"})
         items = r.json()
         assert len(items) == 1
@@ -109,17 +135,31 @@ class TestItemsCRUD:
         assert len(items) == 1
         assert "風扇" in items[0]["name"]
 
+    def test_list_items_search_location(self, client):
+        """搜尋涵蓋位置（v10：stocks 的 location/note）"""
+        _add_item(client, name="冷媒", location="編號A")
+        r = client.get("/api/items", params={"search": "編號A"})
+        items = r.json()
+        assert len(items) == 1
+
     def test_update_item(self, client):
-        item = _add_item(client, name="舊名", location="A倉")
-        r = client.patch(f"/api/items/{item['id']}", json={"location": "B倉", "note": "新備註"})
+        """v10：更新位置用 stocks 全量替換"""
+        item = _add_item(client, name="舊名", qty=5, location="A倉")
+        r = client.patch(f"/api/items/{item['id']}", json={
+            "stocks": [
+                {"location": "B倉", "qty": 3},
+                {"location": "C倉", "qty": 2},
+            ],
+        })
         assert r.status_code == 200
         updated = r.json()
+        assert updated["total_qty"] == 5
         assert updated["location"] == "B倉"
-        assert updated["note"] == "新備註"
+        assert len(updated["stocks"]) == 2
         assert updated["name"] == "舊名"  # 沒傳的欄位不變
 
     def test_update_item_not_found(self, client):
-        r = client.patch("/api/items/99999", json={"location": "X"})
+        r = client.patch("/api/items/99999", json={"stocks": [{"location": "X", "qty": 1}]})
         assert r.status_code == 404
 
     def test_update_item_empty_fields(self, client):
@@ -128,19 +168,120 @@ class TestItemsCRUD:
         assert r.status_code == 400
 
 
+# ========== v10 新增：去重防護 ==========
+
+class TestDedup:
+    def test_duplicate_create_rejected(self, client):
+        """相同 (brand, code, name, unit, site) 重複新增 → 400"""
+        _add_item(client, brand="大金", code="K031224", name="控制基板")
+        r = client.post("/api/items", json={
+            "brand": "大金", "code": "K031224", "name": "控制基板",
+            "unit": "個", "site": "office",
+            "stocks": [{"location": "B倉", "qty": 1}],
+        })
+        assert r.status_code == 400
+        assert "已存在" in r.json()["detail"]
+
+    def test_same_name_different_code_allowed(self, client):
+        """同品名不同型號 → 允許（不是重複）"""
+        _add_item(client, brand="大金", code="K031", name="控制基板")
+        r = client.post("/api/items", json={
+            "brand": "大金", "code": "K999", "name": "控制基板",
+            "unit": "個", "site": "office",
+            "stocks": [{"location": "B倉", "qty": 1}],
+        })
+        assert r.status_code == 201
+
+    def test_same_name_different_site_allowed(self, client):
+        """不同分片（辦公/倉庫）同品同型號 → 允許（兩辦公室各放一份）"""
+        _add_item(client, brand="大金", code="K031", name="面板", site="office")
+        r = client.post("/api/items", json={
+            "brand": "大金", "code": "K031", "name": "面板",
+            "unit": "個", "site": "warehouse",
+            "stocks": [{"location": "倉庫區", "qty": 2}],
+        })
+        assert r.status_code == 201
+
+    def test_duplicate_stock_location_merged_on_edit(self, client):
+        """編輯送重複位置 → 全量替換後不產生重複位置（最後一筆勝出）"""
+        item = _add_item(client, name="冷媒", location="A倉", qty=5)
+        r = client.patch(f"/api/items/{item['id']}", json={
+            "stocks": [
+                {"location": "A倉", "qty": 3},
+                {"location": "A倉", "qty": 4},
+            ],
+        })
+        assert r.status_code == 200
+        updated = r.json()
+        locs = [s["location"] for s in updated["stocks"]]
+        assert locs.count("A倉") == 1  # 無重複位置
+        assert updated["total_qty"] == 4
+
+
+# ========== 位置庫存 CRUD ==========
+
+class TestStocksCRUD:
+    def test_add_stock(self, client):
+        item = _add_item(client, name="冷媒", location="A倉", qty=5)
+        r = client.post(f"/api/items/{item['id']}/stocks",
+                        json={"location": "B倉", "qty": 3})
+        assert r.status_code == 201
+        updated = _get_item(client, item["id"])
+        assert len(updated["stocks"]) == 2
+        assert updated["total_qty"] == 8
+
+    def test_add_stock_duplicate_location_rejected(self, client):
+        """同品項同位置重複加 → 400（UNIQUE(item_id, location)）"""
+        item = _add_item(client, name="冷媒", location="A倉", qty=5)
+        r = client.post(f"/api/items/{item['id']}/stocks",
+                        json={"location": "A倉", "qty": 3})
+        assert r.status_code == 400
+
+    def test_update_stock(self, client):
+        item = _add_item(client, name="冷媒", location="A倉", qty=5)
+        sid = item["stocks"][0]["id"]
+        r = client.patch(f"/api/stocks/{sid}", json={"qty": 8, "note": "補貨"})
+        assert r.status_code == 200
+        updated = _get_item(client, item["id"])
+        assert updated["total_qty"] == 8
+
+    def test_delete_stock(self, client):
+        item = _add_item(client, name="冷媒", location="A倉", qty=5)
+        client.post(f"/api/items/{item['id']}/stocks",
+                    json={"location": "B倉", "qty": 3})
+        sid = _get_item(client, item["id"])["stocks"][1]["id"]
+        r = client.delete(f"/api/stocks/{sid}")
+        assert r.status_code == 200
+        updated = _get_item(client, item["id"])
+        assert len(updated["stocks"]) == 1
+        assert updated["total_qty"] == 5
+
+    def test_delete_item_cascades_stocks(self, client):
+        item = _add_item(client, name="冷媒", location="A倉", qty=5)
+        client.post(f"/api/items/{item['id']}/stocks",
+                    json={"location": "B倉", "qty": 3})
+        r = client.delete(f"/api/items/{item['id']}")
+        assert r.status_code == 200
+        items = client.get("/api/items").json()
+        assert len(items) == 0
+
+
+# ========== 加減庫存 ==========
+
 class TestAdjustQty:
     def test_adjust_plus(self, client):
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": 5, "reason": "進貨"})
         assert r.status_code == 200
-        assert r.json()["qty"] == 15
+        assert r.json()["after"] == 15
+        assert _get_item(client, item["id"])["total_qty"] == 15
 
     def test_adjust_minus_with_destination(self, client):
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post(f"/api/items/{item['id']}/adjust",
                         json={"delta": -3, "reason": "出貨", "destination": "台北案場"})
         assert r.status_code == 200
-        assert r.json()["qty"] == 7
+        assert r.json()["after"] == 7
 
         # 異動紀錄有去向
         mov = client.get("/api/movements").json()
@@ -152,8 +293,7 @@ class TestAdjustQty:
     def test_adjust_not_below_zero(self, client):
         item = _add_item(client, name="冷媒", qty=2)
         r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": -10})
-        assert r.status_code == 200
-        assert r.json()["qty"] == 0  # 下限 0，不會變負
+        assert r.status_code == 400  # 庫存不足
 
     def test_adjust_item_not_found(self, client):
         r = client.post("/api/items/99999/adjust", json={"delta": 1})
@@ -164,7 +304,7 @@ class TestAdjustQty:
 
 class TestTwoStageStockOut:
     def test_prepare_does_not_deduct_qty(self, client):
-        """待領出：prepared_qty 增加，但 qty 不變"""
+        """待領出：prepared_qty 增加，但總量不變"""
         item = _add_item(client, name="銅管", qty=10)
         r = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 3})
         assert r.status_code == 200
@@ -214,7 +354,7 @@ class TestTwoStageStockOut:
         assert r.status_code == 400  # 準備中只有 2
 
     def test_prepare_then_return(self, client):
-        """待領出 → 退回：清 prepared_qty，庫存不變"""
+        """待領出 → 退回：清 prepared_qty，總量不變"""
         item = _add_item(client, name="銅管", qty=10)
         client.post(f"/api/items/{item['id']}/prepare", json={"qty": 3})
         r = client.post(f"/api/items/{item['id']}/prepared-return", json={"qty": 3})
@@ -226,6 +366,50 @@ class TestTwoStageStockOut:
         # 待領出清單空了
         prepared = client.get("/api/prepared").json()
         assert len(prepared) == 0
+
+
+# ========== 出庫（指定位置） ==========
+
+class TestStockOutLocation:
+    def test_stockout_specific_location(self, client):
+        """v10：指定從哪個位置出"""
+        item = _add_item(client, name="冷媒", location="A倉", qty=5)
+        client.post(f"/api/items/{item['id']}/stocks",
+                    json={"location": "B倉", "qty": 3})
+        r = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 2, "destination": "中山路案場",
+            "location": "A倉",
+        })
+        assert r.status_code == 200
+        updated = _get_item(client, item["id"])
+        a = [s for s in updated["stocks"] if s["location"] == "A倉"][0]
+        b = [s for s in updated["stocks"] if s["location"] == "B倉"][0]
+        assert a["qty"] == 3  # A倉 5-2=3
+        assert b["qty"] == 3   # B倉 不動
+        assert updated["total_qty"] == 6
+
+    def test_stockout_no_location_deducts_all(self, client):
+        """不指定位置：依序扣（先扣第一筆）"""
+        item = _add_item(client, name="明細", location="A倉", qty=5)
+        client.post(f"/api/items/{item['id']}/stocks",
+                    json={"location": "B倉", "qty": 3})
+        r = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 6, "destination": "板橋案場",
+        })
+        assert r.status_code == 200
+        updated = _get_item(client, item["id"])
+        a = [s for s in updated["stocks"] if s["location"] == "A倉"][0]
+        b = [s for s in updated["stocks"] if s["location"] == "B倉"][0]
+        assert a["qty"] == 0      # A倉扣完 5
+        assert b["qty"] == 2      # 剩下 1 從 B 扣 3-1=2
+        assert updated["total_qty"] == 2
+
+    def test_stockout_insufficient(self, client):
+        item = _add_item(client, name="冷媒", qty=2)
+        r = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 5, "destination": "客戶家",
+        })
+        assert r.status_code == 400
 
 
 # ========== 整組（套件） ==========
@@ -266,8 +450,8 @@ class TestKits:
         # 材料被扣：銅管 10-6=4、接頭 20-3=17
         ia = _get_item(client, a["id"])
         ib = _get_item(client, b["id"])
-        assert ia["qty"] == 4
-        assert ib["qty"] == 17
+        assert ia["total_qty"] == 4
+        assert ib["total_qty"] == 17
 
         # 整組庫存 +3
         kits = client.get("/api/kits").json()
@@ -299,8 +483,8 @@ class TestKits:
         # 材料加回：銅管 6+2=8、接頭 18+1=19
         ia = _get_item(client, a["id"])
         ib = _get_item(client, b["id"])
-        assert ia["qty"] == 8
-        assert ib["qty"] == 19
+        assert ia["total_qty"] == 8
+        assert ib["total_qty"] == 19
 
         # 整組庫存 2-1=1
         kits = client.get("/api/kits").json()
@@ -324,7 +508,8 @@ class TestStocktake:
     def test_submit_stocktake(self, client):
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post("/api/stocktake", json={
-            "items": [{"item_id": item["id"], "actual_qty": 12, "note": "多找到2罐"}],
+            "items": [{"item_id": item["id"], "location": "測試位置",
+                       "actual_qty": 12, "note": "多找到2罐"}],
         })
         assert r.status_code == 200
         res = r.json()
@@ -333,12 +518,26 @@ class TestStocktake:
 
         # 庫存更新為實際數量
         updated = _get_item(client, item["id"])
-        assert updated["qty"] == 12
+        assert updated["total_qty"] == 12
+
+    def test_submit_stocktake_specific_location(self, client):
+        """v10：盤點指定位置的實際數量"""
+        item = _add_item(client, name="冷媒", location="A倉", qty=10)
+        client.post(f"/api/items/{item['id']}/stocks",
+                    json={"location": "B倉", "qty": 5})
+        r = client.post("/api/stocktake", json={
+            "items": [{"item_id": item["id"], "location": "B倉", "actual_qty": 7}],
+        })
+        assert r.status_code == 200
+        res = r.json()
+        assert res["results"][0]["diff"] == 2  # B倉 5→7
+        updated = _get_item(client, item["id"])
+        assert updated["total_qty"] == 17  # A10 + B7
 
     def test_submit_stocktake_negative_diff(self, client):
         item = _add_item(client, name="冷媒", qty=10)
         r = client.post("/api/stocktake", json={
-            "items": [{"item_id": item["id"], "actual_qty": 8}],
+            "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 8}],
         })
         assert r.status_code == 200
         assert r.json()["results"][0]["diff"] == -2
@@ -347,7 +546,7 @@ class TestStocktake:
         item = _add_item(client, name="冷媒", qty=10)
         client.post("/api/stocktake", json={
             "take_date": "2026-08-25",
-            "items": [{"item_id": item["id"], "actual_qty": 11}],
+            "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 11}],
         })
         dates = client.get("/api/stocktake/dates").json()
         assert len(dates) == 1
@@ -355,12 +554,12 @@ class TestStocktake:
         assert dates[0]["total_diff"] == 1
 
 
-# ========== 統計（缺貨只列單一 / 低庫存含整組） ==========
+# ========== 統計（缺貨只列單一 / 低量含整組） ==========
 
 class TestStats:
     def test_stats_basic(self, client):
-        _add_item(client, name="品項一", qty=5)
-        _add_item(client, name="品項二", qty=0)  # 缺貨
+        _add_item(client, name="品一", qty=5)
+        _add_item(client, name="品二", qty=0)  # 缺貨
         s = client.get("/api/stats").json()
         assert s["total_items"] == 2
         assert s["total_qty"] == 5
@@ -368,27 +567,29 @@ class TestStats:
 
     def test_stats_zero_stock_excludes_kit(self, client):
         """缺貨只列單一材料：整組 qty=0 不算缺貨"""
-        _add_item(client, name="單一材料", qty=0)  # 單一缺貨
+        _add_item(client, name="單一材料", qty=0)
         a = _add_item(client, name="材料A", qty=10)
         kit = client.post("/api/kits", json={
             "name": "整組套件",
             "items": [{"item_id": a["id"], "qty": 1}],
         }).json()
+        _get_item(client, kit["item_id"])  # 確保 kit item 建立
 
-        # 把整組庫存設成 0（缺貨狀態）＋ low_stock=1（低庫存狀態）
+        # 把整組的庫存全扣掉（缺貨狀態）＋ low_stock=1（低庫存狀態）
         import sqlite3
         conn = sqlite3.connect(app_db.DB_PATH)
-        conn.execute("UPDATE items SET qty=0, low_stock=1 WHERE id=?", (kit["item_id"],))
+        conn.execute("UPDATE item_stocks SET qty=0 WHERE item_id=?", (kit["item_id"],))
+        conn.execute("UPDATE items SET low_stock=1 WHERE id=?", (kit["item_id"],))
         conn.commit()
         conn.close()
 
         s = client.get("/api/stats").json()
         assert s["zero_stock"] == 1    # 整組 qty=0 不列入缺貨（只有單一材料那 1 筆）
-        assert s["low_stock"] == 1     # 低庫存整組也算（整組 low_stock=1 且 qty<=1）
+        assert s["low_stock"] == 1     # 低庫存：整組 low_stock=1 且 qty=0<=1（材料A low_stock=0 不計）
 
     def test_stats_low_stock_includes_kit_and_single(self, client):
         """低庫存列整組及單一"""
-        _add_item(client, name="單一低庫存", qty=1, low_stock=3)
+        _add_item(client, name="單一低", qty=1, low_stock=3)
         a = _add_item(client, name="材料A", qty=10)
         kit = client.post("/api/kits", json={
             "name": "整組套件",
@@ -397,7 +598,8 @@ class TestStats:
 
         import sqlite3
         conn = sqlite3.connect(app_db.DB_PATH)
-        conn.execute("UPDATE items SET qty=2, low_stock=5 WHERE id=?", (kit["item_id"],))
+        conn.execute("UPDATE item_stocks SET qty=2 WHERE item_id=?", (kit["item_id"],))
+        conn.execute("UPDATE items SET low_stock=5 WHERE id=?", (kit["item_id"],))
         conn.commit()
         conn.close()
 
@@ -429,7 +631,7 @@ class TestSiteSharding:
 
     def test_list_items_site_filter(self, client):
         """site 篩選：只回該分片品項"""
-        _add_item(client, name="辦公室品項")  # site=office（預設）
+        _add_item(client, name="辦公室品項")
         _add_item(client, name="倉庫品項", site="warehouse")
 
         office = client.get("/api/items", params={"site": "office"}).json()
@@ -448,9 +650,9 @@ class TestSiteSharding:
 
     def test_stats_site_separated(self, client):
         """統計分片分開：辦公室/倉庫各自統計"""
-        _add_item(client, name="辦公室品項A", qty=5)
-        _add_item(client, name="辦公室品項B", qty=3)
-        _add_item(client, name="倉庫品項", qty=10, site="warehouse")
+        _add_item(client, name="辦公室A", qty=5)
+        _add_item(client, name="辦公室B", qty=3)
+        _add_item(client, name="倉庫品", qty=10, site="warehouse")
 
         office = client.get("/api/stats", params={"site": "office"}).json()
         warehouse = client.get("/api/stats", params={"site": "warehouse"}).json()

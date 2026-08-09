@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-盤點路由
-========
+盤點路由（v10 正規化：以位置庫存為單位對帳）
+============================================
 - POST /api/stocktake          提交盤點（逐項實際數量 → 更新庫存 + 記差異）
 - GET  /api/stocktakes         盤點紀錄
 - GET  /api/stocktake/dates    盤點日期清單（含差異統計）
+
+v10 語意：盤點對象 = item_stocks（某品項在某位置），
+system_qty = 該位置數量，更新也寫回該位置。
 """
 import datetime
 
@@ -24,26 +27,32 @@ def submit_stocktake(req: StocktakeSubmit):
     results = []
 
     for it in req.items:
-        row = conn.execute("SELECT * FROM items WHERE id=?", (it["item_id"],)).fetchone()
-        if not row:
+        # v10：item_id + location 定位到一筆 stock
+        location = it.get("location", "")
+        stock = conn.execute(
+            "SELECT * FROM item_stocks WHERE item_id=? AND location=?",
+            (it["item_id"], location),
+        ).fetchone()
+        if not stock:
             continue
-        system_qty = row["qty"]
+        item = conn.execute("SELECT * FROM items WHERE id=?", (it["item_id"],)).fetchone()
+        system_qty = stock["qty"]
         actual_qty = float(it.get("actual_qty", system_qty))
         diff = round(actual_qty - system_qty, 3)
         note = it.get("note", "")
 
-        conn.execute("UPDATE items SET qty=?, updated_at=? WHERE id=?",
-                     (actual_qty, datetime.datetime.now().isoformat(), row["id"]))
+        conn.execute("UPDATE item_stocks SET qty=?, updated_at=? WHERE id=?",
+                     (actual_qty, datetime.datetime.now().isoformat(), stock["id"]))
         conn.execute(
             "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (row["id"], diff, system_qty, actual_qty, "盤點調整", ""),
+            (it["item_id"], diff, system_qty, actual_qty, "盤點調整", location),
         )
         conn.execute(
-            "INSERT INTO stocktakes (take_date, item_id, system_qty, actual_qty, diff, note) VALUES (?,?,?,?,?,?)",
-            (take_date, row["id"], system_qty, actual_qty, diff, note),
+            "INSERT INTO stocktakes (take_date, item_id, location, system_qty, actual_qty, diff, note) VALUES (?,?,?,?,?,?,?)",
+            (take_date, it["item_id"], location, system_qty, actual_qty, diff, note),
         )
-        results.append({"item_id": row["id"], "name": row["name"], "system_qty": system_qty,
-                        "actual_qty": actual_qty, "diff": diff})
+        results.append({"item_id": it["item_id"], "name": item["name"], "location": location,
+                        "system_qty": system_qty, "actual_qty": actual_qty, "diff": diff})
 
     conn.commit()
     conn.close()

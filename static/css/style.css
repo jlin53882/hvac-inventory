@@ -210,6 +210,14 @@
       border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 4px;
     }
     .item-note { font-size: 11px; color: #b8860b; margin-top: 2px; }
+    .loc-qty { color: #2d5a8e; font-weight: 700; }
+
+  /* v10：編輯 modal 位置清單列 */
+  .stock-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .stock-row .stock-loc { flex: 2; }
+  .stock-row .stock-qty { flex: 1; min-width: 60px; }
+  .stock-row .stock-note { flex: 2; }
+  .stock-row .stock-del { flex-shrink: 0; padding: 6px 10px; font-size: 12px; }
 
   .qty-control { display: flex; align-items: center; flex-shrink: 0; }
   .qty-btn {

@@ -4,22 +4,26 @@ Pydantic 請求模型
 =================
 所有 API 的請求 body 定義集中管理。
 """
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
 
-# ---------- 品項 ----------
+# ---------- 品項（v10 正規化：主檔 + 位置庫存） ----------
+class StockItem(BaseModel):
+    location: str = ""
+    qty: float = 0
+    note: str = ""
+
+
 class ItemCreate(BaseModel):
     brand: str = ""
     code: str = ""
     name: str
-    qty: float = 0
     unit: str = "個"
-    location: str = ""
-    note: str = ""
     low_stock: float = 0
     site: str = "office"  # office=辦公室 / warehouse=倉庫
+    stocks: List[StockItem] = []  # 位置庫存清單（第一筆為預設位置）
 
 
 class ItemUpdate(BaseModel):
@@ -27,10 +31,15 @@ class ItemUpdate(BaseModel):
     code: Optional[str] = None
     name: Optional[str] = None
     unit: Optional[str] = None
-    location: Optional[str] = None
-    note: Optional[str] = None
     low_stock: Optional[float] = None
     site: Optional[str] = None
+    stocks: Optional[List[StockItem]] = None  # v10：完整位置清單全量替換
+
+
+class StockUpdate(BaseModel):
+    location: Optional[str] = None
+    qty: Optional[float] = None
+    note: Optional[str] = None
 
 
 class AdjustRequest(BaseModel):
@@ -45,11 +54,13 @@ class StockOutRequest(BaseModel):
     qty: float
     destination: str = ""
     note: str = ""
+    location: str = ""  # v10：可指定從哪個位置出（空白=依庫存順序扣）
 
 
 class PrepareRequest(BaseModel):
     qty: float
     note: str = ""
+    location: str = ""  # v10：可指定位置（空白=不限）
 
 
 # ---------- 整組（套件） ----------
@@ -66,4 +77,4 @@ class KitAssemble(BaseModel):
 # ---------- 盤點 ----------
 class StocktakeSubmit(BaseModel):
     take_date: str = ""  # 預設今天
-    items: list  # [{item_id, actual_qty, note}]
+    items: list  # [{item_id, location, actual_qty, note}]
