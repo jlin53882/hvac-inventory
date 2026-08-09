@@ -14,7 +14,7 @@ function renderPhotoBox(itemId, hasPhoto) {
       <img src="/uploads/${itemId}.jpg" alt="品項照片" onerror="this.style.display='none'">
       <div class="photo-actions">
         <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 更換照片
-          <input type="file" accept="image/*" capture="environment" style="display:none"
+          <input type="file" accept="image/*" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
         <button class="btn-cancel" onclick="deleteItemPhoto(${itemId})">🗑 刪除照片</button>
@@ -23,15 +23,15 @@ function renderPhotoBox(itemId, hasPhoto) {
     box.innerHTML = `
       <div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
       <div class="photo-actions">
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照/上傳
-          <input type="file" accept="image/*" capture="environment" style="display:none"
+        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照 / 🖼 從相簿選
+          <input type="file" accept="image/*" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
       </div>`;
   }
 }
 
-// 上傳照片（手機可直接拍照；capture="environment" 會開後鏡頭）
+// 上傳照片（手機：無 capture 屬性 → 系統彈「拍照/相簿」選擇器，兩者皆可）
 async function uploadItemPhoto(itemId, input) {
   const file = input.files && input.files[0];
   if (!file) return;
