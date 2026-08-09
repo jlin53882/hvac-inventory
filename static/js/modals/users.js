@@ -6,7 +6,7 @@ var usersModalData = [];  // [{id, username, display_name, role, is_active, ...}
 function openUsersModal() {
   if (document.getElementById('usersModal')) return;
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
+  overlay.className = 'modal-overlay show';  // .show 才會 display:flex
   overlay.id = 'usersModal';
   overlay.innerHTML = `
     <div class="modal" style="max-width:560px">
