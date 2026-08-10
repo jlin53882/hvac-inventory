@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>庫存管理系統</title>
+<!-- ============================================================
+     資源版本號（?v=N）統一說明：
+     本檔所有「static 目錄下的資源」（CSS / JS / 圖片）帶的 ?v=13
+     只是底稿預設值，目的是「直接開檔也有版本參數」。
+     對外服務時，後端 main.py 的 _versioned_html() 會把每個資源的
+     ?v=N 動態取代成該檔案最後修改時間（mtime）——
+     因此改 JS / CSS / 圖片「不需要」手動改版本號，存檔即自動生效。
+     多 PR 並行也不衝突：每個資源各自獨立計算 mtime。
+     ============================================================ -->
 <link rel="stylesheet" href="/static/css/style.css?v=13">
 </head>
 <body>
