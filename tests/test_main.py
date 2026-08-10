@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-振佳空調庫存管理系統 - 單元測試（v10：items 主檔 + item_stocks 位置庫存）
+庫存管理系統 - 單元測試（v10：items 主檔 + item_stocks 位置庫存）
 ============================
 執行方式（必須清 PYTHONPATH 避免 hermes 污染）：
     cd C:\\Users\\admin\\workspace\\hvac-inventory

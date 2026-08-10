@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 使用者管理（v11，僅 admin）
+// 庫存管理系統 - 使用者管理（v11，僅 admin）
 // ==================================================
 // openUsersModal() 由 auth.js 的 topbar「👥 使用者」按鈕觸發
 var usersModalData = [];  // [{id, username, display_name, role, is_active, ...}]

@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 待領出頁渲染（v8 拆分）
+// 庫存管理系統 - 待領出頁渲染（v8 拆分）
 // ========== 待領出頁籤 ==========
 async function renderPrepared() {
   document.getElementById('brand-tabs').style.display = 'none';

@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 整組頁渲染（v8 拆分）
+// 庫存管理系統 - 整組頁渲染（v8 拆分）
 // ========== 整組（套件）頁籤 ==========
 async function renderKits() {
   document.getElementById('brand-tabs').style.display = 'none';
@@ -50,24 +50,72 @@ async function renderKits() {
   }
 }
 
-// 渲染整組 Modal 的材料選擇列（材料下拉 + 數量 + 刪除鈕）
+// 渲染整組 Modal 的材料選擇列（可搜尋輸入 + 數量 + 刪除鈕）
 function renderKitCompRows() {
   const wrap = document.getElementById('kit-comps');
   wrap.innerHTML = '';
+  if (!kitModalCompRows.length) {
+    wrap.innerHTML = '<div class="kit-empty">尚未加入材料</div>';
+    return;
+  }
   kitModalCompRows.forEach((row, idx) => {
-    const options = ALL_ITEMS
-      .filter(i => !i.is_kit)
-      .map(i => `<option value="${i.id}" ${row.item_id == i.id ? 'selected' : ''}>${esc(i.brand)} ${esc(i.name)}（庫存 ${i.qty} ${esc(i.unit)}）</option>`)
-      .join('');
-    wrap.innerHTML += `<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
-      <select style="flex:1;padding:8px;border:1.5px solid #d0d5dd;border-radius:8px;font-size:13px" onchange="kitModalCompRows[${idx}].item_id = this.value">
-        <option value="">選擇材料…</option>${options}
-      </select>
-      <input type="number" style="width:60px;padding:8px;border:1.5px solid #d0d5dd;border-radius:8px;font-size:13px;text-align:center" min="1" step="any" value="${row.qty || 1}" placeholder="數量" onchange="kitModalCompRows[${idx}].qty = parseFloat(this.value) || 1">
-      <button class="btn-cancel" style="padding:7px 10px" onclick="removeKitCompRow(${idx})">✕</button>
+    const sel = row.item_id ? ALL_ITEMS.find(i => i.id == row.item_id) : null;
+    const disp = sel ? `${sel.brand} ${sel.name}` : '';
+    wrap.innerHTML += `<div class="kit-comp-row">
+      <div class="kit-search">
+        <input type="text" id="kit-sel-${idx}" class="kit-search-input" value="${esc(disp)}"
+          placeholder="搜尋材料想加的 (名稱/型號/廠牌) ..." autocomplete="off"
+          onfocus="openKitSearch(${idx})" oninput="filterKitSearch(${idx}, this.value)">
+        ${sel ? `<div class="kit-sel-info">庫存 ${sel.qty} ${esc(sel.unit || '個')}</div>` : ''}
+        <span class="kit-caret">▼</span>
+        <div class="kit-dropdown" id="kit-drop-${idx}"></div>
+      </div>
+      <input type="number" class="kit-qty" min="1" step="any" value="${row.qty || 1}" placeholder="數量" onchange="kitModalCompRows[${idx}].qty = parseFloat(this.value) || 1">
+      <button class="btn-cancel kit-rm" onclick="removeKitCompRow(${idx})">✕</button>
     </div>`;
   });
 }
+
+// 開啟第 idx 列的材料候選清單（顯示前 15 筆）
+function openKitSearch(idx) {
+  filterKitSearch(idx, document.getElementById(`kit-sel-${idx}`).value);
+}
+
+// 依關鍵字過濾材料（名稱/型號/廠牌）並渲染候選清單
+function filterKitSearch(idx, kw) {
+  const drop = document.getElementById(`kit-drop-${idx}`);
+  const q = (kw || '').trim().toLowerCase();
+  let list = ALL_ITEMS.filter(i => !i.is_kit);
+  if (q) list = list.filter(i => (i.brand + ' ' + i.name + ' ' + (i.code || '')).toLowerCase().includes(q));
+  list = list.slice(0, 15);
+  if (!list.length) {
+    drop.innerHTML = '<div class="kit-drop-empty">找不到符合的材料</div>';
+  } else {
+    drop.innerHTML = list.map(it => `
+      <div class="kit-drop-opt" onclick="pickKitItem(${idx}, ${it.id})">
+        <div><div class="nm">${esc(it.brand)} ${esc(it.name)}</div><div class="bd">${esc(it.unit || '')}</div></div>
+        <span class="stk">庫存 ${it.qty}</span>
+      </div>`).join('');
+  }
+  drop.classList.add('open');
+}
+
+// 選中候選材料：寫入列資料、更新輸入框顯示、收合候選清單
+function pickKitItem(idx, itemId) {
+  const it = ALL_ITEMS.find(i => i.id === itemId);
+  if (!it) return;
+  kitModalCompRows[idx].item_id = itemId;
+  kitModalCompRows[idx].qty = kitModalCompRows[idx].qty || 1;
+  const input = document.getElementById(`kit-sel-${idx}`);
+  input.value = `${it.brand} ${it.name}`;
+  document.getElementById(`kit-drop-${idx}`).classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+  const inSearch = e.target.closest('.kit-search');
+  document.querySelectorAll('.kit-dropdown.open').forEach(d => {
+    if (!inSearch || !inSearch.contains(d)) d.classList.remove('open');
+  });
+});
 
 // 組裝整組：輸入組數 → POST /api/kits/{id}/assemble 扣材料、加整組庫存
 async function assembleKit(kitId) {

@@ -3,20 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔐 登入｜振佳空調庫存管理系統</title>
+<title>🔐 登入｜庫存管理系統</title>
 <style>
   /* ============ 全域 ============ */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
     min-height: 100vh;
-    background: linear-gradient(150deg, #16283f 0%, #1e3a5f 45%, #2d5a8e 100%);
-    color: #1a1a1a;
+    background: #0F172A;
+    color: #F8FAFC;
   }
   /* 背景裝飾 */
-  .bg-blob { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.35; z-index: 0; }
-  .blob1 { width: 340px; height: 340px; background: #3a7bd5; top: -80px; left: -80px; }
-  .blob2 { width: 260px; height: 260px; background: #17a2b8; bottom: -60px; right: -60px; }
+  .bg-blob { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.28; z-index: 0; }
+  .blob1 { width: 340px; height: 340px; background: #1d4ed8; top: -80px; left: -80px; }
+  .blob2 { width: 260px; height: 260px; background: #0e7490; bottom: -60px; right: -60px; }
 
   /* ═══ 主容器（手機：單卡；桌機：雙欄） ═══ */
   .login-wrap {
@@ -29,8 +29,12 @@
   /* ═══ 登入卡片（手機版為主樣式） ═══ */
   .login-card {
     width: 90%; max-width: 400px;
-    background: #fff; border-radius: 16px;
-    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+    background: rgba(30, 41, 59, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
     padding: 32px 28px 28px;
     animation: pop-in 0.35s ease;
     position: relative;
@@ -40,27 +44,31 @@
   /* 系統標題區（手機顯示在卡片內） */
   .brand { text-align: center; margin-bottom: 24px; }
   .brand .logo {
-    width: 58px; height: 58px; margin: 0 auto 10px;
-    background: linear-gradient(135deg, #1890FF, #2d5a8e);
-    border-radius: 16px; color: #fff; font-size: 28px;
+    width: 64px; height: 64px; margin: 0 auto 10px;
+    background: #fff;
+    border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 6px 14px rgba(24,144,255,0.35);
+    box-shadow: 0 0 0 5px rgba(255,255,255,0.06), 0 0 24px rgba(255,255,255,0.20), 0 8px 18px rgba(0,0,0,0.4);
+    overflow: hidden;
   }
-  .brand h1 { font-size: 20px; font-weight: 700; color: #16283f; }
-  .brand .sub { font-size: 12.5px; color: #666666; margin-top: 4px; }
+  .brand .logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .brand h1 { font-size: 20px; font-weight: 700; color: #F8FAFC; }
+  .brand .sub { font-size: 12.5px; color: #94A3B8; margin-top: 4px; }
 
   /* 表單 */
   .field { margin-bottom: 14px; }
-  .field label { display: block; font-size: 12.5px; font-weight: 700; color: #4a5568; margin-bottom: 6px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: #94A3B8; margin-bottom: 6px; }
   .field .wrap { position: relative; }
   .field input {
     width: 100%; height: 46px; padding: 0 40px 0 38px;
-    border: 1.5px solid #d8dee9; border-radius: 10px;
+    border: 1.5px solid #334155; border-radius: 10px;
     font-size: 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-    background: #fafbfc;
+    background: rgba(15, 23, 42, 0.75);
+    color: #F8FAFC;
   }
-  .field input:focus { border-color: #1890FF; background: #fff; box-shadow: 0 0 0 3px rgba(24,144,255,0.18); }
-  .field input.err { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
+  .field input::placeholder { color: #64748B; }
+  .field input:focus { border-color: #60A5FA; background: rgba(15, 23, 42, 0.95); box-shadow: 0 0 0 3px rgba(96,165,250,0.22), 0 0 12px rgba(96,165,250,0.15); }
+  .field input.err { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
   /* 左側 icon（帳號👤 / 密碼🔒） */
   .field .wrap::before {
     content: '👤';
@@ -81,34 +89,34 @@
     display: flex; justify-content: space-between; align-items: center;
     margin: 4px 0 14px; font-size: 13px;
   }
-  .form-extra .remember { display: flex; align-items: center; gap: 6px; color: #4a5568; cursor: pointer; }
+  .form-extra .remember { display: flex; align-items: center; gap: 6px; color: #94A3B8; cursor: pointer; }
   .form-extra .remember input { width: 15px; height: 15px; accent-color: #1890FF; cursor: pointer; }
-  .form-extra .forgot { color: #1890FF; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .form-extra .forgot { color: #60A5FA; font-weight: 600; text-decoration: none; cursor: pointer; }
   .form-extra .forgot:hover { text-decoration: underline; }
 
   /* 登入按鈕（亮藍漸層） */
   .login-btn {
     width: 100%; height: 46px;
-    background: linear-gradient(135deg, #1890FF, #36a3ff);
+    background: linear-gradient(135deg, #3B82F6, #60A5FA);
     color: #fff; border: none; border-radius: 10px;
     font-size: 15px; font-weight: 700; cursor: pointer;
     transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
-    box-shadow: 0 5px 14px rgba(24,144,255,0.35);
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
     display: flex; align-items: center; justify-content: center; gap: 8px;
   }
-  .login-btn:hover { filter: brightness(1.08); box-shadow: 0 7px 18px rgba(24,144,255,0.45); }
+  .login-btn:hover { filter: brightness(1.1); box-shadow: 0 10px 26px rgba(59,130,246,0.5); }
   .login-btn:active { transform: scale(0.98); }
   .login-btn:disabled { opacity: 0.65; cursor: not-allowed; }
 
   /* 錯誤 / 資訊提示 */
   .error-box {
     display: none;
-    background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+    background: rgba(127, 29, 29, 0.35); border: 1px solid rgba(248, 113, 113, 0.4); color: #fca5a5;
     border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600;
     margin-bottom: 14px; align-items: center; gap: 8px;
   }
   .error-box.show { display: flex; animation: shake 0.4s ease; }
-  .error-box.info { background: #eef6ff; border-color: #bcd9f5; color: #1e5f9e; animation: none; }
+  .error-box.info { background: rgba(30, 64, 175, 0.35); border-color: rgba(96, 165, 250, 0.4); color: #93c5fd; animation: none; }
   @keyframes shake {
     0%,100% { transform: translateX(0); }
     20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
@@ -118,7 +126,7 @@
   /* 登入成功覆蓋層 */
   .success-overlay {
     position: absolute; inset: 0; z-index: 10;
-    background: linear-gradient(150deg, #16283f, #1e3a5f 60%, #2d5a8e);
+    background: linear-gradient(150deg, #0f1e33, #16283f 60%, #1d3a5f);
     border-radius: 16px; display: none;
     flex-direction: column; align-items: center; justify-content: center;
     color: #fff; text-align: center; padding: 30px;
@@ -127,13 +135,13 @@
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
   .success-overlay .ok-icon { font-size: 52px; margin-bottom: 14px; }
   .success-overlay h2 { font-size: 20px; margin-bottom: 8px; }
-  .success-overlay p { font-size: 13px; color: #b8cbe0; }
+  .success-overlay p { font-size: 13px; color: #94A3B8; }
 
   /* 頁尾（fixed 置底半透明白字） */
   .footer-note {
     position: fixed; bottom: 16px; left: 0; right: 0;
     text-align: center; z-index: 1;
-    font-size: 12px; color: rgba(255,255,255,0.55);
+    font-size: 12px; color: #94A3B8;
     pointer-events: none;
   }
 
@@ -148,7 +156,7 @@
   /* 維護公告橫幅（預設隱藏，需要時移除 hidden） */
   .announce {
     position: fixed; top: 0; left: 0; right: 0; z-index: 20;
-    background: #fff7e6; color: #ad6800; border-bottom: 1px solid #ffe1a8;
+    background: rgba(120, 83, 0, 0.75); color: #fde68a; border-bottom: 1px solid rgba(253, 230, 138, 0.3);
     font-size: 13px; font-weight: 600; text-align: center;
     padding: 8px 16px;
   }
@@ -159,8 +167,12 @@
     .login-wrap { padding: 40px 6vw 90px; }
     .login-panels {
       display: flex; width: 100%; max-width: 960px;
-      background: #fff; border-radius: 20px; overflow: hidden;
-      box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+      background: rgba(30, 41, 59, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 20px; overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
       min-height: 540px;
     }
     /* 左：品牌形象區 */
@@ -172,26 +184,28 @@
     }
     .brand-panel::before, .brand-panel::after {
       content: ''; position: absolute; border-radius: 50%;
-      background: rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.05);
     }
     .brand-panel::before { width: 380px; height: 380px; top: -120px; right: -120px; }
     .brand-panel::after { width: 300px; height: 300px; bottom: -100px; left: -80px; }
     .brand-panel-inner { position: relative; z-index: 1; text-align: center; padding: 40px; }
     .brand-panel-inner .big-logo {
-      width: 84px; height: 84px; margin: 0 auto 18px;
-      background: linear-gradient(135deg, #1890FF, #36a3ff);
-      border-radius: 22px; color: #fff; font-size: 42px;
+      width: 96px; height: 96px; margin: 0 auto 18px;
+      background: #fff;
+      border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 10px 24px rgba(24,144,255,0.45);
+      box-shadow: 0 0 0 6px rgba(255,255,255,0.06), 0 0 30px rgba(255,255,255,0.20), 0 10px 24px rgba(0,0,0,0.4);
+      overflow: hidden;
     }
+    .brand-panel-inner .big-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
     .brand-panel-inner h2 { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
-    .brand-panel-inner p { font-size: 14px; color: #b8cbe0; line-height: 1.8; }
+    .brand-panel-inner p { font-size: 14px; color: #94A3B8; line-height: 1.8; }
     .brand-panel-inner .geo {
       margin-top: 26px; font-size: 40px; opacity: 0.35; letter-spacing: 10px;
     }
     /* 右：表單操作區 */
     .form-panel { flex: 45%; display: flex; align-items: center; justify-content: center; padding: 40px 30px; }
-    .login-card { width: 100%; max-width: 400px; box-shadow: none; background: transparent; padding: 0; }
+    .login-card { width: 100%; max-width: 400px; box-shadow: none; background: transparent; padding: 0; border: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
     .brand { display: none; }   /* 桌機卡片內不重複品牌（左邊已有） */
   }
 
@@ -212,8 +226,8 @@
       <!-- 左：品牌形象區（桌機） -->
       <div class="brand-panel">
         <div class="brand-panel-inner">
-          <div class="big-logo">🧊</div>
-          <h2>振佳空調庫存管理系統</h2>
+          <div class="big-logo"><img src="/static/img/logo-zhenjia.png" alt="振佳空調"></div>
+          <h2>庫存管理系統</h2>
           <p>冷凍空調材料庫存管理<br>單一材料・整組・位置追蹤・盤點</p>
           <div class="geo">▣ ▤ ▦</div>
         </div>
@@ -223,8 +237,8 @@
       <div class="form-panel">
         <div class="login-card">
           <div class="brand">
-            <div class="logo">🧊</div>
-            <h1>振佳空調庫存管理系統</h1>
+            <div class="logo"><img src="/static/img/logo-zhenjia.png" alt="振佳空調"></div>
+            <h1>庫存管理系統</h1>
             <div class="sub">請登入以繼續</div>
           </div>
 

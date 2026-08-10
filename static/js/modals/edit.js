@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 編輯品項 Modal（v10：多位置 stocks）
+// 庫存管理系統 - 編輯品項 Modal（v10：多位置 stocks）
 // ========== 編輯品項 ==========
 function openEditModal(id) {
   const item = ALL_ITEMS.find(i => i.id === id);

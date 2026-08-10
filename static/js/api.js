@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - API 呼叫層（v8 拆分）
+// 庫存管理系統 - API 呼叫層（v8 拆分）
 // loadData / updateSubInfo / loadDestinations / saveAll / exportExcel
 async function loadData() {
   try {

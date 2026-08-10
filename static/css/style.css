@@ -18,7 +18,8 @@
     z-index: 100;
   }
   .topbar-row { display: flex; justify-content: space-between; align-items: center; }
-  .topbar h1 { font-size: 18px; font-weight: 700; }
+  .topbar h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .topbar h1 .topbar-logo { width: 24px; height: 24px; border-radius: 50%; object-fit: contain; background: #fff; }
   .topbar .sub { font-size: 12px; opacity: 0.75; margin-top: 2px; }
   .top-actions { display: flex; gap: 8px; }
   .btn-ghost {
@@ -470,6 +471,43 @@
   }
   .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: #2d5a8e; }
   .form-row textarea { resize: vertical; min-height: 50px; }
+  /* 可搜尋材料選擇（整組 Modal） */
+  .kit-empty { font-size: 12.5px; color: #999; padding: 4px 0 8px; }
+  .kit-comp-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-start; }
+  .kit-search { position: relative; flex: 1; min-width: 0; }
+  .kit-search-input {
+    width: 100%; height: 40px; padding: 0 30px 0 10px;
+    border: 1.5px solid #d0d5dd; border-radius: 8px;
+    font-size: 13.5px; outline: none; background: #fff;
+  }
+  .kit-search-input:focus { border-color: #1890FF; box-shadow: 0 0 0 3px rgba(24,144,255,0.12); }
+  .kit-sel-info { font-size: 11px; color: #16a34a; font-weight: 600; padding: 2px 0 0 2px; }
+  .kit-caret {
+      position: absolute; right: 9px; top: 20px; transform: translateY(-50%);
+      font-size: 11px; color: #94a3b8; pointer-events: none;
+    }
+  .kit-dropdown {
+    display: none; position: absolute; left: 0; right: 0; top: calc(100% + 3px);
+    background: #fff; border: 1.5px solid #d0d5dd; border-radius: 8px;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.14);
+    max-height: 240px; overflow-y: auto; z-index: 60;
+  }
+  .kit-dropdown.open { display: block; }
+  .kit-drop-opt {
+    padding: 9px 10px; cursor: pointer; display: flex;
+    justify-content: space-between; align-items: center; gap: 8px;
+    border-bottom: 1px solid #f2f4f8;
+  }
+  .kit-drop-opt:active { background: #e8f2ff; }
+  .kit-drop-opt .nm { font-size: 13px; color: #1a1a1a; }
+  .kit-drop-opt .bd { font-size: 11px; color: #888; margin-top: 1px; }
+  .kit-drop-opt .stk { flex: none; font-size: 12px; color: #16a34a; font-weight: 700; white-space: nowrap; }
+  .kit-drop-empty { padding: 12px 10px; font-size: 12.5px; color: #999; text-align: center; }
+  .kit-qty {
+    width: 62px; flex: none; height: 40px; text-align: center;
+    border: 1.5px solid #d0d5dd; border-radius: 8px; font-size: 13.5px; outline: none;
+  }
+  .kit-rm { flex: none; width: 40px; height: 40px; padding: 0 !important; }
   .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
   .modal-actions button { flex: 1; padding: 11px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; }

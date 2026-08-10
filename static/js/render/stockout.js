@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 已領出紀錄頁渲染（v8 拆分）
+// 庫存管理系統 - 已領出紀錄頁渲染（v8 拆分）
 // ========== 出庫紀錄頁 ==========
 async function renderStockOuts() {
   document.getElementById('brand-tabs').style.display = 'none';

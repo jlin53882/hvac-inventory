@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 整組 Modal（v8 拆分）
+// 庫存管理系統 - 整組 Modal（v8 拆分）
 function openKitModal() {
   kitModalSelections = [];
   kitModalCompRows = [];

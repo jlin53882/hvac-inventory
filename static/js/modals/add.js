@@ -1,4 +1,4 @@
-// 振佳空調庫存管理系統 - 新增品項 Modal（v10：多位置 stocks）
+// 庫存管理系統 - 新增品項 Modal（v10：多位置 stocks）
 // ========== 新增品項 ==========
 function openAddModal() {
   openModal('add-modal');
