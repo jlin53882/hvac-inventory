@@ -144,3 +144,63 @@ async function returnPrepared(id) {
     toast('退回失敗', 'error');
   }
 }
+
+// ========== 已領出：退回 / 編輯（v11） ==========
+
+// 退回一筆已領出記錄（POST /api/stockouts/{id}/return）：數量加回庫存
+async function returnStockout(movementId) {
+  const rec = (stockoutRecords || []).find(r => r.id === movementId);
+  const label = rec ? `${rec.brand} ${rec.item_name} ${Math.abs(rec.delta)} ${rec.unit}` : `這筆已領出（#${movementId}）`;
+  if (!confirm(`退回已領出「${label}」？數量會加回庫存`)) return;
+  try {
+    const res = await fetch(`/api/stockouts/${movementId}/return`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || '退回失敗');
+    }
+    toast('↩️ 已退回，數量已加回庫存', 'success');
+    await loadData();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
+// 開啟「編輯已領出」Modal，帶入原記錄資料
+function openEditStockoutModal(movementId) {
+  const rec = (stockoutRecords || []).find(r => r.id === movementId);
+  if (!rec) return;
+  editStockoutId = movementId;
+  document.getElementById('es-item-name').value = `${rec.brand} ${rec.item_name}${rec.code ? ' (' + rec.code + ')' : ''}`;
+  document.getElementById('es-qty').value = Math.abs(rec.delta);
+  document.getElementById('es-dest').value = rec.destination || '';
+  const dt = (rec.created_at || '').replace(' ', 'T');
+  document.getElementById('es-datetime').value = dt ? dt.slice(0, 16) : '';
+  openModal('edit-stockout-modal');
+}
+
+// 送出「編輯已領出」（PATCH /api/stockouts/{id}）：數量差額自動補/扣庫存
+async function submitEditStockout() {
+  const qty = parseFloat(document.getElementById('es-qty').value);
+  const dest = document.getElementById('es-dest').value.trim();
+  const dt = document.getElementById('es-datetime').value;
+  if (!qty || qty <= 0) { toast('請輸入有效數量', 'error'); return; }
+  const body = { qty: qty };
+  if (dest) body.destination = dest;
+  if (dt) body.created_at = dt.replace('T', ' ') + ':00';
+  try {
+    const res = await fetch(`/api/stockouts/${editStockoutId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || '儲存失敗');
+    }
+    closeModal('edit-stockout-modal');
+    toast('✅ 已更新已領出記錄', 'success');
+    await loadData();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}

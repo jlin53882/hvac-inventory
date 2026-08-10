@@ -18,6 +18,10 @@ var DESTINATIONS = [];
 var prepareItemId = null;
 var preparedOutItemId = null;
 
+// 已領出（出庫記錄）清單與編輯狀態
+var stockoutRecords = [];   // render/stockout.js 填入，退回/編輯 modal 用
+var editStockoutId = null;
+
 // 整組 Modal
 var kitModalSelections = [];  // [{item_id, qty}]
 var kitModalCompRows = [];

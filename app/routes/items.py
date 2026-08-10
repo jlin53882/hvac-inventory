@@ -260,11 +260,24 @@ def delete_stock(stock_id: int):
 def adjust_qty(item_id: int, req: AdjustRequest):
     """加減庫存：正數=盤點補入、負數=扣減"""
     conn = get_db()
+    item_row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    if not item_row:
+        conn.close()
+        raise HTTPException(404, "品項不存在")
     row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
     if not row:
         conn.close()
         raise HTTPException(404, "品項無庫存位置")
     total_before = sum(r["qty"] for r in row)
+    # 負數調整：減少後庫存不得低於待領出數量（避免「可領數量」變負）
+    if req.delta < 0:
+        prepared = item_row["prepared_qty"] or 0
+        if total_before + req.delta < prepared:
+            conn.close()
+            raise HTTPException(
+                400,
+                f"減少後庫存不能低於待領出數量！目前庫存 {total_before}、待領出 {prepared}，請先退回待領出",
+            )
     # 第一筆位置作為調整標的（正數加入第一筆；負數從最後一筆往前扣）
     if req.delta >= 0:
         target = row[0]

@@ -407,6 +407,216 @@ class TestTwoStageStockOut:
         assert len(prepared) == 0
 
 
+# ========== 已領出清單過濾（2026-08-10：手動調整不再誤入已領出） ==========
+
+class TestStockOutsFiltered:
+    def test_manual_adjust_minus_not_in_stockouts(self, client):
+        """手動調整（庫存頁 +/- 儲存）負數 → 不應出現在已領出清單"""
+        item = _add_item(client, name="防蟲罩", qty=5)
+        r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": -2, "reason": "手動調整"})
+        assert r.status_code == 200
+        outs = client.get("/api/stockouts").json()
+        assert all(o["item_id"] != item["id"] for o in outs), "手動調整不應出現在已領出"
+
+    def test_stocktake_negative_not_in_stockouts(self, client):
+        """盤點盤虧（diff<0）→ 不應出現在已領出清單"""
+        item = _add_item(client, name="銅管", qty=5)
+        r = client.post("/api/stocktake", json={
+            "take_date": "2026-08-10",
+            "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 3}],
+        })
+        assert r.status_code == 200
+        outs = client.get("/api/stockouts").json()
+        assert all(o["item_id"] != item["id"] for o in outs), "盤點盤虧不應出現在已領出"
+
+    def test_real_out_still_in_stockouts(self, client):
+        """真正的出庫（reason='出庫'）仍要出現在已領出清單"""
+        item = _add_item(client, name="冷媒", qty=10)
+        client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 3, "destination": "台北案場"})
+        outs = client.get("/api/stockouts").json()
+        match = [o for o in outs if o["item_id"] == item["id"]]
+        assert len(match) == 1
+        assert match[0]["destination"] == "台北案場"
+
+
+# ========== 已領出：退回（2026-08-10 新增） ==========
+
+class TestStockoutReturn:
+    def _out(self, client, item_id, qty=3, dest="台北案場"):
+        """Helper：直接出庫並回傳 movements 記錄 id"""
+        client.post("/api/stockout", json={
+            "item_id": item_id, "qty": qty, "destination": dest})
+        outs = client.get("/api/stockouts").json()
+        return [o for o in outs if o["item_id"] == item_id][0]
+
+    def test_return_adds_back_qty(self, client):
+        """退回已領出：數量加回庫存 + 原記錄標記 reverted_at + 寫反向流水"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)
+        assert _get_item(client, item["id"])["total_qty"] == 7
+
+        r = client.post(f"/api/stockouts/{rec['id']}/return")
+        assert r.status_code == 200
+        assert r.json()["returned_qty"] == 3
+
+        assert _get_item(client, item["id"])["total_qty"] == 10  # 庫存加回
+
+        outs = client.get("/api/stockouts").json()
+        reverted = [o for o in outs if o["id"] == rec["id"]][0]
+        assert reverted["reverted_at"], "原記錄應標記 reverted_at"
+
+        # 反向流水 reason='退回已領出'、delta 正數
+        mov = client.get("/api/movements").json()
+        backs = [m for m in mov if m["reason"] == "退回已領出"]
+        assert len(backs) == 1
+        assert backs[0]["delta"] == 3
+
+    def test_return_twice_rejected(self, client):
+        """同一筆已領出記錄不能重複退回"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)
+        assert client.post(f"/api/stockouts/{rec['id']}/return").status_code == 200
+        r = client.post(f"/api/stockouts/{rec['id']}/return")
+        assert r.status_code == 400  # 已退回過
+        assert _get_item(client, item["id"])["total_qty"] == 10  # 沒有重複加回
+
+    def test_return_non_out_rejected(self, client):
+        """非出庫記錄（如領出準備 delta=0）不能退回"""
+        item = _add_item(client, name="銅管", qty=10)
+        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 3})
+        mov = client.get("/api/movements").json()
+        prep = [m for m in mov if m["reason"] == "領出準備"][0]
+        r = client.post(f"/api/stockouts/{prep['id']}/return")
+        assert r.status_code == 400
+
+    def test_return_not_found(self, client):
+        """退回不存在的記錄 → 404"""
+        r = client.post("/api/stockouts/99999/return")
+        assert r.status_code == 404
+
+    def test_return_manual_adjust_rejected(self, client):
+        """手動調整（非出庫）的負數記錄不能被退回（防止庫存虛增）"""
+        item = _add_item(client, name="防蟲罩", qty=5)
+        client.post(f"/api/items/{item['id']}/adjust", json={"delta": -2, "reason": "手動調整"})
+        mov = client.get("/api/movements").json()
+        adj = [m for m in mov if m["reason"] == "手動調整"][0]
+        r = client.post(f"/api/stockouts/{adj['id']}/return")
+        assert r.status_code == 400
+        assert _get_item(client, item["id"])["total_qty"] == 3  # 庫存沒有被加回
+
+
+# ========== 已領出：編輯（2026-08-10 新增） ==========
+
+class TestStockoutEdit:
+    def _out(self, client, item_id, qty=3, dest="台北案場"):
+        client.post("/api/stockout", json={
+            "item_id": item_id, "qty": qty, "destination": dest})
+        outs = client.get("/api/stockouts").json()
+        return [o for o in outs if o["item_id"] == item_id][0]
+
+    def test_edit_destination(self, client):
+        """編輯去向：只改 destination，數量不變"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3, dest="台北案場")
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"destination": "台中工地"})
+        assert r.status_code == 200
+        assert r.json()["destination"] == "台中工地"
+        assert r.json()["delta"] == -3
+        assert _get_item(client, item["id"])["total_qty"] == 7  # 庫存不變
+
+    def test_edit_qty_up_deducts_more(self, client):
+        """數量調大：差額自動多扣庫存"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)  # 庫存 10→7
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": 5})
+        assert r.status_code == 200
+        assert r.json()["delta"] == -5
+        assert _get_item(client, item["id"])["total_qty"] == 5  # 7-2
+
+        # 差額流水 reason='已領出編輯調整'
+        mov = client.get("/api/movements").json()
+        adj = [m for m in mov if m["reason"] == "已領出編輯調整"]
+        assert len(adj) == 1
+        assert adj[0]["delta"] == -2
+
+    def test_edit_qty_down_adds_back(self, client):
+        """數量調小：差額自動補回庫存"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)  # 庫存 10→7
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": 1})
+        assert r.status_code == 200
+        assert r.json()["delta"] == -1
+        assert _get_item(client, item["id"])["total_qty"] == 9  # 7+2
+
+    def test_edit_qty_insufficient_400(self, client):
+        """數量調大到超過庫存 → 400"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)  # 庫存 7
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": 100})
+        assert r.status_code == 400  # 庫存不足
+
+    def test_edit_reverted_400(self, client):
+        """已退回的記錄不能編輯"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)
+        client.post(f"/api/stockouts/{rec['id']}/return")
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"destination": "台中"})
+        assert r.status_code == 400
+
+    def test_edit_zero_qty_400(self, client):
+        """數量改 0 → 400"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": 0})
+        assert r.status_code == 400
+
+    def test_edit_created_at(self, client):
+        """編輯日期"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"created_at": "2026-08-09 10:00:00"})
+        assert r.status_code == 200
+        assert r.json()["created_at"].startswith("2026-08-09")
+
+    def test_edit_manual_adjust_rejected(self, client):
+        """手動調整（非出庫）的負數記錄不能被編輯"""
+        item = _add_item(client, name="防蟲罩", qty=5)
+        client.post(f"/api/items/{item['id']}/adjust", json={"delta": -2, "reason": "手動調整"})
+        mov = client.get("/api/movements").json()
+        adj = [m for m in mov if m["reason"] == "手動調整"][0]
+        r = client.patch(f"/api/stockouts/{adj['id']}", json={"destination": "台北"})
+        assert r.status_code == 400
+
+
+# ========== 加減庫存 vs 待領出（2026-08-10：防止可領數量變負） ==========
+
+class TestAdjustWithPrepared:
+    def test_adjust_minus_below_prepared_400(self, client):
+        """減少後庫存低於待領出 → 400（堵死可領數量變負）"""
+        item = _add_item(client, name="銅管", qty=10)
+        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 4})  # 待領出 4
+        r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": -7, "reason": "手動調整"})
+        assert r.status_code == 400  # 10-7=3 < 4
+        assert _get_item(client, item["id"])["total_qty"] == 10  # 庫存沒被扣
+
+    def test_adjust_minus_ok_with_prepared(self, client):
+        """減少後庫存仍 ≥ 待領出 → 允許"""
+        item = _add_item(client, name="銅管", qty=10)
+        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 4})
+        r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": -5, "reason": "手動調整"})
+        assert r.status_code == 200  # 10-5=5 ≥ 4
+        assert r.json()["after"] == 5
+
+    def test_adjust_plus_ignores_prepared(self, client):
+        """正向調整不受待領出限制"""
+        item = _add_item(client, name="銅管", qty=10)
+        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 8})
+        r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": 5, "reason": "進貨"})
+        assert r.status_code == 200
+        assert r.json()["after"] == 15
+
+
 # ========== 出庫（指定位置） ==========
 
 class TestStockOutLocation:

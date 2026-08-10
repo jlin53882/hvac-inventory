@@ -53,6 +53,7 @@ def init_db():
         after_qty   REAL NOT NULL DEFAULT 0,
         reason      TEXT DEFAULT '',
         destination TEXT DEFAULT '',
+        reverted_at TIMESTAMP,
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS stocktakes (
@@ -124,5 +125,8 @@ def init_db():
     if "destination" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN destination TEXT DEFAULT ''")
         print("[migrate] movements.destination 欄位已新增")
+    if "reverted_at" not in mov_cols:
+        conn.execute("ALTER TABLE movements ADD COLUMN reverted_at TIMESTAMP")
+        print("[migrate] movements.reverted_at 欄位已新增（退回已領出防重複）")
     conn.commit()
     conn.close()

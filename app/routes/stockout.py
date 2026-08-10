@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
-from app.models import PrepareRequest, StockOutRequest
+from app.models import PrepareRequest, StockOutRequest, StockoutUpdate
 
 router = APIRouter()
 
@@ -107,7 +107,7 @@ def list_stock_outs(limit: int = 100, search: str = "", site: Optional[str] = No
     sql = """
         SELECT m.*, i.name as item_name, i.brand, i.code, i.unit
         FROM movements m JOIN items i ON i.id = m.item_id
-        WHERE m.delta < 0
+        WHERE m.delta < 0 AND m.reason LIKE '出庫%'
     """
     params = []
     if site and site != "all":
@@ -122,6 +122,91 @@ def list_stock_outs(limit: int = 100, search: str = "", site: Optional[str] = No
     rows = conn.execute(sql, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def _add_back_to_first_stock(conn, item_id, qty):
+    """退回/補回：把數量加回第一筆位置庫存（與 adjust_qty 正數邏輯一致）"""
+    stocks = conn.execute(
+        "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
+    if not stocks:
+        raise HTTPException(400, "品項無庫存位置，無法退回")
+    conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+                 (qty, datetime.datetime.now().isoformat(), stocks[0]["id"]))
+
+
+@router.post("/api/stockouts/{movement_id}/return")
+def return_stockout(movement_id: int):
+    """退回已領出：把該筆出庫數量加回庫存 + 標記原記錄（reverted_at）+ 寫反向流水"""
+    conn = get_db()
+    m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+    if not m:
+        conn.close()
+        raise HTTPException(404, "出庫記錄不存在")
+    if m["delta"] >= 0 or not str(m["reason"]).startswith("出庫"):
+        conn.close()
+        raise HTTPException(400, "只有已領出（出庫）記錄可以退回")
+    if m["reverted_at"]:
+        conn.close()
+        raise HTTPException(400, "該記錄已退回過")
+
+    qty = -m["delta"]
+    _add_back_to_first_stock(conn, m["item_id"], qty)
+    now = datetime.datetime.now().isoformat()
+    conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", (now, movement_id))
+    conn.execute(
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+        (m["item_id"], qty, m["after_qty"], m["after_qty"] + qty, "退回已領出", m["destination"]),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "movement_id": movement_id, "returned_qty": qty}
+
+
+@router.patch("/api/stockouts/{movement_id}")
+def update_stockout(movement_id: int, upd: StockoutUpdate):
+    """編輯已領出記錄：去向 / 數量（差額補/扣庫存並記錄流水）/ 日期"""
+    conn = get_db()
+    m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+    if not m:
+        conn.close()
+        raise HTTPException(404, "出庫記錄不存在")
+    if m["delta"] >= 0 or not str(m["reason"]).startswith("出庫"):
+        conn.close()
+        raise HTTPException(400, "只有已領出（出庫）記錄可以編輯")
+    if m["reverted_at"]:
+        conn.close()
+        raise HTTPException(400, "已退回的記錄不能編輯")
+
+    old_qty = -m["delta"]
+    if upd.qty is not None:
+        if upd.qty <= 0:
+            conn.close()
+            raise HTTPException(400, "數量必須大於 0")
+        new_qty = upd.qty
+        diff = new_qty - old_qty  # >0 需多扣庫存；<0 補回庫存
+        if diff > 0:
+            _deduct(conn, m["item_id"], diff, "")  # 庫存不足會 400
+        elif diff < 0:
+            _add_back_to_first_stock(conn, m["item_id"], -diff)
+        before = m["before_qty"]
+        after = before - new_qty
+        conn.execute("UPDATE movements SET delta=?, after_qty=? WHERE id=?",
+                     (-new_qty, after, movement_id))
+        if diff != 0:
+            conn.execute(
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                (m["item_id"], -diff, before, after, "已領出編輯調整", m["destination"]),
+            )
+    if upd.destination is not None:
+        conn.execute("UPDATE movements SET destination=? WHERE id=?",
+                     (upd.destination, movement_id))
+    if upd.created_at is not None:
+        conn.execute("UPDATE movements SET created_at=? WHERE id=?",
+                     (upd.created_at, movement_id))
+    conn.commit()
+    row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+    conn.close()
+    return dict(row)
 
 
 # ---------- 領出準備（兩階段出庫） ----------

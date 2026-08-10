@@ -57,6 +57,13 @@ class StockOutRequest(BaseModel):
     location: str = ""  # v10：可指定從哪個位置出（空白=依庫存順序扣）
 
 
+class StockoutUpdate(BaseModel):
+    """編輯已領出記錄：去向 / 數量（差額補扣庫存）/ 日期"""
+    destination: Optional[str] = None
+    qty: Optional[float] = None
+    created_at: Optional[str] = None
+
+
 class PrepareRequest(BaseModel):
     qty: float
     note: str = ""
