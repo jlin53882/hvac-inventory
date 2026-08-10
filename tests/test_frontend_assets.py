@@ -29,6 +29,8 @@ AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 USERS_JS = os.path.join(STATIC, "js", "modals", "users.js")
 KITS_RENDER_JS = os.path.join(STATIC, "js", "render", "kits.js")
 KIT_MODAL_JS = os.path.join(STATIC, "js", "modals", "kit.js")
+INVENTORY_RENDER_JS = os.path.join(STATIC, "js", "render", "inventory.js")
+PREPARED_RENDER_JS = os.path.join(STATIC, "js", "render", "prepared.js")
 
 
 def read(p):
@@ -123,6 +125,110 @@ def test_users_js_close_methods():
     assert "closeUsersModal()" in js
     assert "e.target === overlay" in js
     assert "Escape" in js
+
+
+def test_users_js_batch_table():
+    """批次新增表格：加列/刪列/批次建立函式 + 表格容器存在"""
+    js = read(USERS_JS)
+    assert "batchTableBody" in js
+    assert "addBatchRow()" in js
+    assert "createUsersBatch()" in js
+    assert "/api/users/batch" in js
+    assert "batch-username" in js
+    assert "batch-password" in js
+    assert "batch-role" in js
+
+
+PERMS_JS = os.path.join(STATIC, "js", "permissions.js")
+
+
+def test_index_loads_permissions_js():
+    """index.html 有載入 permissions.js（權限一覽資料來源，無手動版本號）"""
+    html = read(INDEX)
+    assert 'src="/static/js/permissions.js"' in html
+    assert "permissions.js?v=" not in html  # 版本號由後端自動注入
+
+
+def test_permissions_js_matrix_has_three_roles():
+    """權限矩陣：13 項權限 × 三角色，viewer 唯讀、admin 全權"""
+    js = read(PERMS_JS)
+    assert "PERMISSION_MATRIX" in js
+    assert "ROLE_LABELS" in js
+    assert "getRolePerms" in js
+    # 三角色都在矩陣內
+    assert "admin:" in js and "user:" in js and "viewer:" in js
+    # viewer 不能寫入（品項管理/盤點/使用者管理為 false）
+    assert "item-mgmt" in js
+    assert "user-mgmt" in js
+    # viewer 可匯出
+    assert "export" in js
+    assert "viewer: true" in js
+
+
+def test_users_js_perm_toggle():
+    """使用者表格有「📋 權限」展開按鈕 + toggleUserPerms 函式"""
+    js = read(USERS_JS)
+    assert "toggleUserPerms" in js
+    assert "📋 權限" in js
+    assert "getRolePerms" in js
+    assert "perm-detail-row" in js
+
+
+def test_users_js_role_badge_styles():
+    """角色 badge 樣式（方案 C：角色欄下方權限按鈕）"""
+    js = read(USERS_JS)
+    assert "role-badge" in js
+    assert "role-badge-admin" in js
+    assert "role-badge-viewer" in js
+    assert "perm-btn" in js
+    css = read(CSS)
+    assert ".role-badge-admin" in css
+    assert ".role-badge-viewer" in css
+    assert ".perm-btn" in css
+    assert ".perm-grid" in css
+
+
+def test_users_js_has_viewer_role_option():
+    """角色下拉（單筆 + 批次）都要有檢視者選項"""
+    js = read(USERS_JS)
+    assert 'value="viewer">檢視者</option>' in js
+    assert js.count('value="viewer"') >= 2  # 單筆 select + 批次 select
+
+
+# ---------- viewer 角色前端（唯讀模式） ----------
+
+def test_auth_js_has_apply_role_view():
+    """auth.js 有 applyRoleView：viewer 隱藏新增/盤點/儲存列/提醒；匯出保留"""
+    js = read(AUTH_JS)
+    assert "applyRoleView" in js
+    assert "btn-add" in js
+    assert "btn-export" in js
+    assert "nav-stocktake" in js
+    assert "save-bar" in js
+    assert "檢視者" in js  # viewer chip 文字
+
+
+def test_inventory_js_viewer_mode():
+    """inventory.js 有 viewer 模式：隱藏編輯/操作按鈕、數量唯讀"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "isViewer" in js
+    assert "cursor:default" in js  # 數量唯讀樣式
+    assert "title=\"唯讀\"" in js
+
+
+def test_kits_js_viewer_mode():
+    """kits.js 有 viewer 模式：隱藏新增整組/組裝/拆解按鈕"""
+    js = read(KITS_RENDER_JS)
+    assert "isViewer" in js
+    assert "openKitModal" in js
+
+
+def test_prepared_js_viewer_mode():
+    """prepared.js 有 viewer 模式：隱藏操作欄（已領出/退回按鈕）"""
+    js = read(PREPARED_RENDER_JS)
+    assert "isViewer" in js
+    assert "openPreparedOutModal" in js
+    assert "returnPrepared" in js
 
 
 # ---------- login.html（登入頁 v11.1 響應式） ----------

@@ -24,8 +24,8 @@
       <div class="sub" id="sub-info">載入中…</div>
     </div>
     <div class="top-actions">
-          <button class="btn-ghost" onclick="exportExcel()">⬇️ 匯出</button>
-          <button class="btn-ghost" onclick="openAddModal()">＋ 新增</button>
+          <button class="btn-ghost" id="btn-export" onclick="exportExcel()">⬇️ 匯出</button>
+          <button class="btn-ghost" id="btn-add" onclick="openAddModal()">＋ 新增</button>
           <div class="user-menu" id="userMenu" style="display:none"></div>
         </div>
   </div>
@@ -345,6 +345,7 @@
 <script src="/static/js/modals/add.js" defer></script>
 <script src="/static/js/modals/stockout.js" defer></script>
 <script src="/static/js/modals/kit.js" defer></script>
+<script src="/static/js/permissions.js" defer></script>
 <script src="/static/js/modals/users.js" defer></script>
 <script src="/static/js/app.js" defer></script>
 </body>

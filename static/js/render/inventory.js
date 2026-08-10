@@ -35,6 +35,7 @@ function buildDatalists() {
 
 // ========== 庫存頁渲染 ==========
 function renderInventory() {
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
   document.getElementById('brand-tabs').style.display = 'flex';
   const kw = document.getElementById('search-input').value.trim().toLowerCase();
   // 庫存頁只顯示單一材料（整組在「🔧 整組」頁籤管理）
@@ -91,25 +92,27 @@ function renderInventory() {
                        onclick="openPhotoLightbox(${i.id})" title="點擊看大圖"
                        onerror="this.style.display='none'">`
                   : ''}
-        <button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>
-        <div class="item-info" onclick="openEditModal(${i.id})">
+        ${isViewer ? '' : `<button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>`}
+        <div class="item-info" ${isViewer ? '' : `onclick="openEditModal(${i.id})"`}>
           <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>
           <div class="item-code">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
           ${locHtml}
           ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
           ${prepared > 0 ? `<div class="prepared-tag">📤 待領出 ${prepared} ${esc(i.unit)}</div>` : ''}
-          <div style="margin-top:4px">
+          ${isViewer ? '' : `<div style="margin-top:4px">
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
               ${!i.is_kit ? `<button class="btn-prepare" onclick="openPrepareModal(${i.id}, event)">📤 待領出</button>` : ''}
               <button class="btn-out" onclick="openOutModal(${i.id}, event)">🚚 已領出</button>
             </div>
-          </div>
+          </div>`}
         </div>
-        <div class="qty-control">
+        ${isViewer
+          ? `<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">${display}<span class="unit"> ${esc(i.unit)}</span></div></div>`
+          : `<div class="qty-control">
           <button class="qty-btn qty-minus" onclick="changeQty(${i.id}, -1)" ${isZero && delta <= 0 ? 'disabled' : ''}>−</button>
           <div class="qty-value" onclick="quickSet(${i.id})" title="點數字可輸入">${display}<span class="unit"> ${esc(i.unit)}</span></div>
           <button class="qty-btn qty-plus" onclick="changeQty(${i.id}, 1)">+</button>
-        </div>
+        </div>`}
       </div>`;
     });
   });

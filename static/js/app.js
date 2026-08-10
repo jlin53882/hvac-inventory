@@ -47,6 +47,7 @@ document.getElementById('search-input').addEventListener('input', () => {
   const user = await checkAuth();
   if (user) {
     renderUserMenu(user);
+    applyRoleView(user);  // viewer 唯讀模式：隱藏新增/盤點/儲存列等
     loadData();
   }
 })();

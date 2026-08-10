@@ -4,16 +4,19 @@ async function renderKits() {
   document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入整組清單…</div></div>';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
 
   try {
     const res = await fetch(`/api/kits?site=${currentSite}`);
     const kits = await res.json();
 
     let html = `
-      <div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${kits.length} 個</span></div>
-      <div style="display:flex;gap:8px;margin-bottom:14px">
+      <div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${kits.length} 個</span></div>`;
+    if (!isViewer) {
+      html += `<div style="display:flex;gap:8px;margin-bottom:14px">
         <button class="btn-save" style="flex:1;padding:11px;font-size:13.5px" onclick="openKitModal()">➕ 新增整組</button>
       </div>`;
+    }
 
     if (!kits.length) {
       html += '<div class="empty">🔧 還沒有整組定義<br><small>例如「電磁閥套組」由線圈+本體組成，可一鍵組裝/拆解</small></div>';
@@ -27,8 +30,9 @@ async function renderKits() {
               <span class="kit-tag" style="margin-left:6px">庫存 ${k.stock_qty} ${esc(k.unit || '組')}</span>
             </div>
             <div style="display:flex;gap:6px">
+              ${isViewer ? '' : `
               <button class="btn-prepare" style="margin-top:0" onclick="assembleKit(${k.id})" ${canAssemble ? '' : 'disabled title="材料不足"'}>🛠️ 組裝</button>
-              <button class="btn-out" style="margin-top:0" onclick="disassembleKit(${k.id})" ${k.stock_qty > 0 ? '' : 'disabled title="整組庫存為0"'}>✂️ 拆解</button>
+              <button class="btn-out" style="margin-top:0" onclick="disassembleKit(${k.id})" ${k.stock_qty > 0 ? '' : 'disabled title="整組庫存為0"'}>✂️ 拆解</button>`}
             </div>
           </div>
           <table class="data-table"><thead><tr><th>材料</th><th>需要</th><th>庫存</th></tr></thead><tbody>`;
