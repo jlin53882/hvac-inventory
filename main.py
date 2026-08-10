@@ -27,6 +27,21 @@ from app.routes import auth, export, items, kits, lookup, photos, stats, stockou
 from app.services.auth import init_admin_if_missing, require_login
 
 app = FastAPI(title="庫存管理系統", version="8.0.0")
+# ---------- 快取策略（避免瀏覽器快取舊版 HTML/JS） ----------
+@app.middleware("http")
+async def cache_control_middleware(request, call_next):
+    """HTML 每次重新驗證（no-cache）；static 資源短快取（配合 ?v=N 版本參數）"""
+    response = await call_next(request)
+    path = request.url.path
+    if path in ("/", "/login.html"):
+        # HTML：每次都要重新驗證，確保拿到最新 ?v=N 引用
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    elif path.startswith("/static/"):
+        # JS/CSS：快取 1 小時；內容更新靠版本參數（?v=12）換 URL
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
+
+
 
 init_db()
 
