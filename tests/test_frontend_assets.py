@@ -31,6 +31,8 @@ KITS_RENDER_JS = os.path.join(STATIC, "js", "render", "kits.js")
 KIT_MODAL_JS = os.path.join(STATIC, "js", "modals", "kit.js")
 INVENTORY_RENDER_JS = os.path.join(STATIC, "js", "render", "inventory.js")
 PREPARED_RENDER_JS = os.path.join(STATIC, "js", "render", "prepared.js")
+STOCKTAKE_JS = os.path.join(STATIC, "js", "render", "stocktake.js")
+UTILS_JS = os.path.join(STATIC, "js", "utils.js")
 
 
 def read(p):
@@ -283,7 +285,7 @@ def test_login_announce_banner():
 
 # ---------- JS 語法（node --check） ----------
 
-@pytest.mark.parametrize("js_path", [AUTH_JS, USERS_JS, KITS_RENDER_JS])
+@pytest.mark.parametrize("js_path", [AUTH_JS, USERS_JS, KITS_RENDER_JS, INVENTORY_RENDER_JS, STOCKTAKE_JS, UTILS_JS])
 def test_js_syntax(js_path):
     """JS 檔必須通過 node --check（語法錯誤會讓整支 script 不執行）"""
     try:
@@ -294,6 +296,28 @@ def test_js_syntax(js_path):
     except FileNotFoundError:
         pytest.skip("node 不在 PATH，跳過語法檢查")
     assert r.returncode == 0, f"node --check 失敗:\n{r.stderr}"
+
+
+# ---------- A2：XSS escape 防回歸（品牌/位置/帳號渲染點必須走 esc） ----------
+
+def test_xss_escapes_present():
+    """A2 防回歸：品牌/位置/帳號等使用者輸入渲染點都必須 escape"""
+    inv = read(INVENTORY_RENDER_JS)
+    assert "${esc(b)}" in inv          # 品牌 tab
+    assert 'value="${esc(b)}"' in inv  # brand datalist option
+    assert 'value="${esc(l)}"' in inv  # location datalist option
+    assert "位置：${esc(loc)}" in inv    # 庫存頁位置分組標題
+
+    st = read(STOCKTAKE_JS)
+    assert "位置：${esc(loc)}" in st    # 盤點頁位置分組標題
+    assert "jsStr(key)" in st          # inline handler JS literal escape
+    assert 'data-key="${esc(key)}"' in st
+
+    us = read(USERS_JS)
+    assert "${esc(u.username)}" in us  # 帳號欄位
+
+    utils = read(UTILS_JS)
+    assert "function jsStr(" in utils  # JS literal escape helper 存在
 
 
 def test_kit_modal_searchable_material_picker():

@@ -12,6 +12,7 @@
 - 不能刪除自己 / 不能變更自己的角色或停用自己
 - 系統至少要保留一名啟用的 admin
 """
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -84,8 +85,15 @@ def _active_admin_count(conn, exclude_id: Optional[int] = None) -> int:
 
 
 def _check_pw(pw: str):
-    if len(pw) < 4:
-        raise HTTPException(status_code=400, detail="密碼至少 4 碼")
+    """密碼 policy（B2）：至少 8 碼，且含大寫 / 小寫 / 數字"""
+    if len(pw) < 8:
+        raise HTTPException(status_code=400, detail="密碼至少 8 碼")
+    if not re.search(r"[A-Z]", pw):
+        raise HTTPException(status_code=400, detail="密碼需包含至少一個大寫字母")
+    if not re.search(r"[a-z]", pw):
+        raise HTTPException(status_code=400, detail="密碼需包含至少一個小寫字母")
+    if not re.search(r"\d", pw):
+        raise HTTPException(status_code=400, detail="密碼需包含至少一個數字")
 
 
 def _create_user_single(conn, body: UserCreate) -> dict:
@@ -184,6 +192,9 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_ad
             "UPDATE users SET display_name = ?, role = ?, is_active = ?, updated_at = datetime('now') WHERE id = ?",
             (display_name, role, is_active, user_id),
         )
+        # B3：帳號被停用 → 舊 session 立即失效（避免停用後仍可續用 7 天）
+        if row["is_active"] == 1 and is_active == 0:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.commit()
         return _user_out(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
     finally:
@@ -192,7 +203,7 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_ad
 
 @router.put("/{user_id}/password")
 def reset_password(user_id: int, body: UserPassword, admin: dict = Depends(require_admin)):
-    """重設密碼（admin 免舊密碼）+ 解鎖"""
+    """重設密碼（admin 免舊密碼）+ 解鎖 + 清舊 session（B3：改密碼後舊 session 立即失效）"""
     _check_pw(body.password)
     conn = get_db()
     try:
@@ -201,6 +212,7 @@ def reset_password(user_id: int, body: UserPassword, admin: dict = Depends(requi
             "UPDATE users SET password_hash = ?, failed_attempts = 0, locked_until = NULL, updated_at = datetime('now') WHERE id = ?",
             (hash_password(body.password), user_id),
         )
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.commit()
         return {"ok": True}
     finally:

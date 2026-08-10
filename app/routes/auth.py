@@ -17,12 +17,15 @@ from app.database import get_db
 from app.services.auth import (
     SESSION_DAYS,
     SESSION_COOKIE,
+    check_ip_rate_limit,
     cleanup_expired,
+    clear_ip_fail,
     create_session,
     delete_session,
     get_session_user,
     get_user_by_username,
     is_locked,
+    record_ip_fail,
     update_failed_attempts,
     verify_password,
 )
@@ -46,8 +49,13 @@ class UserOut(BaseModel):
 
 # ---------- API ----------
 @router.post("/login")
-def login(body: LoginRequest, response: Response):
+def login(body: LoginRequest, request: Request, response: Response):
     """帳密登入：成功 → Set-Cookie httponly session；失敗 401；鎖定 429"""
+    # B4：per-IP 失敗 rate limit（在 per-account 鎖定之前擋下大量嘗試）
+    ip = request.client.host if request.client else "unknown"
+    if check_ip_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="嘗試次數過多，請稍後再試")
+
     conn = get_db()
     try:
         cleanup_expired(conn)
@@ -64,18 +72,22 @@ def login(body: LoginRequest, response: Response):
         ok = verify_password(body.password, row["password_hash"])
         update_failed_attempts(conn, row["id"], success=ok)
         if not ok:
+            record_ip_fail(ip)
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
 
+        clear_ip_fail(ip)
         token = create_session(conn, row["id"])
     finally:
         conn.close()
 
+    # B5：HTTPS 連線（外網 tunnel）才設 secure flag；本機 HTTP 不設以免登入失效
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
         max_age=SESSION_DAYS * 24 * 3600,
         httponly=True,
         samesite="lax",
+        secure=(request.url.scheme == "https"),
     )
     return {
         "ok": True,

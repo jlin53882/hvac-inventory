@@ -21,7 +21,7 @@ function openUsersModal() {
       </div>
       <div class="create-row">
         <input type="text" id="newUsername" placeholder="新帳號" class="cr-input">
-        <input type="password" id="newPassword" placeholder="密碼(至少4碼)" class="cr-input">
+        <input type="password" id="newPassword" placeholder="密碼(8碼以上,含大小寫+數字)" class="cr-input">
         <input type="text" id="newDisplay" placeholder="顯示名稱" class="cr-input">
         <select id="newRole" class="cr-input">
           <option value="user">User</option>
@@ -141,7 +141,7 @@ async function loadUsersTable() {
       const roleLabel = ROLE_LABELS[u.role] || (u.role === 'admin' ? '🛡️ 管理員' : u.role === 'viewer' ? '👀 檢視者' : '👤 使用者');
       const roleClass = u.role === 'admin' ? 'role-badge-admin' : u.role === 'viewer' ? 'role-badge-viewer' : 'role-badge-user';
       return `<tr>
-        <td style="padding:8px; font-weight:700">${u.username}${me ? ' <small>(我)</small>' : ''}</td>
+        <td style="padding:8px; font-weight:700">${esc(u.username)}${me ? ' <small>(我)</small>' : ''}</td>
         <td style="padding:8px">${esc(u.display_name)}</td>
         <td style="padding:8px"><span class="role-badge ${roleClass}">${roleLabel}</span><br><button class="perm-btn" onclick="toggleUserPerms(${u.id}, this)">📋 權限</button></td>
         <td style="padding:8px">${u.is_active ? '✅ 啟用' : '⛔ 停用'}${u.locked_until ? '<br><small style="color:#dc2626">🔒 鎖定至 ' + esc(u.locked_until) + '</small>' : ''}</td>
@@ -187,13 +187,23 @@ function esc(s) {
   })[c]);
 }
 
+// B2：密碼 policy 前端檢查（與後端 _check_pw 一致）— 至少 8 碼 + 大寫 + 小寫 + 數字
+function pwPolicyMsg(pw) {
+  if (pw.length < 8) return '密碼至少 8 碼';
+  if (!/[A-Z]/.test(pw)) return '密碼需包含至少一個大寫字母';
+  if (!/[a-z]/.test(pw)) return '密碼需包含至少一個小寫字母';
+  if (!/\d/.test(pw)) return '密碼需包含至少一個數字';
+  return '';
+}
+
 async function createUserFromModal() {
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value;
   const display_name = document.getElementById('newDisplay').value.trim();
   const role = document.getElementById('newRole').value;
   if (!username || !password) { toast('⚠️ 請填帳號與密碼'); return; }
-  if (password.length < 4) { toast('⚠️ 密碼至少 4 碼'); return; }
+  const pwErr = pwPolicyMsg(password);
+  if (pwErr) { toast('⚠️ ' + pwErr); return; }
   try {
     const res = await fetch('/api/users', {
       method: 'POST',
@@ -208,9 +218,10 @@ async function createUserFromModal() {
 }
 
 async function resetUserPw(id) {
-  const pw = prompt('輸入新密碼（至少 4 碼）：');
+  const pw = prompt('輸入新密碼（8碼以上，含大寫/小寫/數字）：');
   if (!pw) return;
-  if (pw.length < 4) { toast('⚠️ 密碼至少 4 碼'); return; }
+  const pwErr = pwPolicyMsg(pw);
+  if (pwErr) { toast('⚠️ ' + pwErr); return; }
   try {
     const res = await fetch(`/api/users/${id}/password`, {
       method: 'PUT',

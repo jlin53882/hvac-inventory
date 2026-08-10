@@ -75,7 +75,7 @@ async function renderStocktake() {
 
   Object.keys(byLoc).sort().forEach(loc => {
     const locRows = byLoc[loc];
-    html += `<div class="section-title"><span class="loc">位置：${loc}</span><span>${locRows.length} 項</span></div>`;
+    html += `<div class="section-title"><span class="loc">位置：${esc(loc)}</span><span>${locRows.length} 項</span></div>`;
     html += `<table class="data-table"><thead><tr>
       <th>品項</th><th style="width:130px">系統數量</th><th style="width:110px">實際數量</th>
     </tr></thead><tbody>`;
@@ -89,9 +89,9 @@ async function renderStocktake() {
         <td style="text-align:center;font-weight:700">${s.qty} ${esc(i.unit)}</td>
         <td><div class="count-row">
           <input type="number" step="any" min="0" value="${val}"
-            oninput="stocktakeValues['${key.replace(/'/g, "\\'")}'] = this.value"
-            onchange="stocktakeValues['${key.replace(/'/g, "\\'")}'] = this.value; markChanged(this, '${key.replace(/'/g, "\\'")}')"
-            data-key="${key.replace(/'/g, "\\'")}">
+            oninput="stocktakeValues['${jsStr(key)}'] = this.value"
+            onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')"
+            data-key="${esc(key)}">
         </div></td>
       </tr>`;
     });

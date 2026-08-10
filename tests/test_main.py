@@ -888,3 +888,46 @@ def test_html_source_has_no_version_params():
         assert refs, f"{name} 找不到資源引用"
         bad = [x for x in refs if "?v=" in x]
         assert not bad, f"{name} 有手動版本號: {bad}"
+
+# ========== B5：cookie secure flag（HTTPS 才設） ==========
+
+class TestCookieSecureFlag:
+    def test_login_cookie_not_secure_on_http(self, client):
+        """本機 HTTP 登入 → cookie 不設 secure（否則 HTTP 直連登入會失效）"""
+        r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+        assert r.status_code == 200
+        set_cookie = r.headers.get("set-cookie", "")
+        assert "hvac_session=" in set_cookie
+        assert "Secure" not in set_cookie.split("hvac_session=")[1].split(";")[0].upper() or "Secure" not in set_cookie
+
+    def test_login_cookie_secure_on_https(self):
+        """HTTPS 登入 → cookie 帶 Secure flag"""
+        from fastapi.testclient import TestClient
+        with TestClient(app_main.app, base_url="https://testserver") as c:
+            r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+            assert r.status_code == 200
+            assert "Secure" in r.headers.get("set-cookie", "")
+
+
+# ========== B6：安全 headers ==========
+
+class TestSecurityHeaders:
+    def test_security_headers_present(self, client):
+        """所有回應都帶 X-Frame-Options / X-Content-Type-Options / Referrer-Policy / CSP"""
+        r = client.get("/")
+        assert r.headers.get("x-frame-options") == "DENY"
+        assert r.headers.get("x-content-type-options") == "nosniff"
+        assert r.headers.get("referrer-policy") == "no-referrer"
+        csp = r.headers.get("content-security-policy", "")
+        assert "default-src 'self'" in csp
+        assert "frame-ancestors 'none'" in csp  # clickjacking 雙保險
+
+    def test_csp_applied_to_api_too(self, client):
+        """API 回應同樣帶 CSP（不因路徑而漏）"""
+        r = client.get("/api/items")
+        assert r.status_code == 200
+        assert "content-security-policy" in r.headers
+
+    def test_health_has_security_headers(self, client):
+        r = client.get("/health")
+        assert r.headers.get("x-frame-options") == "DENY"

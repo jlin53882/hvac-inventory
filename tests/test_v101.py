@@ -227,3 +227,73 @@ class TestLocations:
 
         office = client.get("/api/locations", params={"site": "office"}).json()
         assert office == ["編號A"]
+
+
+# ========== B1：/uploads 需登入才可讀（照片不再公開） ==========
+
+class TestPhotoAccessControl:
+    def test_photo_requires_login(self, client, tmp_path):
+        """未登入 GET /uploads/<id>.jpg → 401；登入後 → 200"""
+        item = _add_item(client, name="受保護照片品")
+        r = client.post(
+            f"/api/items/{item['id']}/photo",
+            files={"file": ("photo.png", _tiny_png(), "image/png")},
+        )
+        assert r.status_code == 200
+
+        with TestClient(app_main.app) as anon:
+            assert anon.get(f"/uploads/{item['id']}.jpg").status_code == 401
+        # 登入後可讀
+        assert client.get(f"/uploads/{item['id']}.jpg").status_code == 200
+
+    def test_photo_path_traversal_blocked(self, client):
+        """非 <數字>.jpg 的檔名（路徑穿越嘗試）→ 404"""
+        for evil in ("../inventory.db", "..%2Fsecret.jpg", "abc.jpg", "1.png", "1.jpg/../../x"):
+            assert client.get(f"/uploads/{evil}").status_code == 404
+
+    def test_photo_upload_dir_stays_in_static(self):
+        """照片維持在 static/uploads（家豪定案：不遷移位置，只封鎖公開讀取）"""
+        # 不帶 client fixture（其 monkeypatch 會換 UPLOAD_DIR），直接讀原始設定
+        import app.config as cfg
+        upload = os.path.abspath(cfg.UPLOAD_DIR)
+        static = os.path.abspath(cfg.STATIC_DIR)
+        assert upload.startswith(static + os.sep), "UPLOAD_DIR 必須維持在 static/ 內"
+
+    def test_public_static_uploads_blocked(self, client):
+        """/static/uploads 公開讀取被擋（即使照片存在也 404；class 層級驗證）"""
+        # 1) 內部邏輯：uploads/ 開頭路徑一律判定為封鎖（與檔案是否存在無關）
+        from main import _is_upload_path
+        assert _is_upload_path("/uploads/1.jpg") is True
+        assert _is_upload_path("uploads/1.jpg") is True
+        assert _is_upload_path("uploads\\1.jpg") is True        # Windows 檔案系統路徑（反斜線）
+        assert _is_upload_path("/static/uploads/1.jpg") is True
+        assert _is_upload_path("static/uploads/1.jpg") is True
+        assert _is_upload_path("/js/app.js") is False
+        assert _is_upload_path("/css/style.css") is False
+
+        # 2) HTTP 層：即使照片真實存在於 static/uploads，/static/uploads/ 仍 404
+        item = _add_item(client, name="封鎖驗證品")
+        r = client.post(
+            f"/api/items/{item['id']}/photo",
+            files={"file": ("photo.png", _tiny_png(), "image/png")},
+        )
+        assert r.status_code == 200
+        # 照片真實存在於 static/uploads
+        dest = os.path.join(app_config.UPLOAD_DIR, f"{item['id']}.jpg")
+        assert os.path.exists(dest)
+        # 但公開路徑讀不到 → 404
+        assert client.get(f"/static/uploads/{item['id']}.jpg").status_code == 404
+        # 靜態其他資源不受影響
+        assert client.get("/static/js/utils.js").status_code == 200
+        # 登入走 /uploads/ 可讀
+        assert client.get(f"/uploads/{item['id']}.jpg").status_code == 200
+
+    def test_upload_dir_gitignored(self, client):
+        """防回歸：照片位置 static/uploads/ 必須被 .gitignore 涵蓋（避免照片 push 上 GitHub）"""
+        import subprocess
+        r = subprocess.run(
+            ["git", "check-ignore", "-v", "static/uploads/1.jpg"],
+            capture_output=True, text=True, cwd=BASE_DIR,
+        )
+        assert r.returncode == 0, f"static/uploads/ 未被 .gitignore 涵蓋！stdout={r.stdout}"
+        assert "uploads/" in r.stdout

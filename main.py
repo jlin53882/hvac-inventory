@@ -18,11 +18,12 @@ import datetime
 import os
 import re
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.config import STATIC_DIR, UPLOAD_DIR
+import app.config as app_config
+from app.config import STATIC_DIR
 from app.database import get_db, init_db
 from app.routes import auth, export, items, kits, lookup, photos, stats, stockout, stocktake, users
 from app.services.auth import init_admin_if_missing, require_login
@@ -40,6 +41,28 @@ async def cache_control_middleware(request, call_next):
     elif path.startswith("/static/"):
         # JS/CSS：快取 1 小時；內容更新靠版本參數（?v=12）換 URL
         response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
+
+
+# B6：安全 headers（防 clickjacking / MIME sniffing / XSS 外傳資料）
+@app.middleware("http")
+async def security_headers_middleware(request, call_next):
+    """回傳附加安全 headers；CSP 保留 'unsafe-inline' 相容既有 inline handler 架構，
+    但限制資源來源為同源（擋外部 script 注入與 XSS 外傳連線）"""
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
     return response
 
 
@@ -114,8 +137,38 @@ def login_page():
 
 
 # 掛載靜態目錄（放在最後，避免吃掉 API 路由）
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+# B1：照片維持在 static/uploads（原本位置），但 /static/uploads/* 一律 404 封鎖公開讀取；
+#     登入者改走 /uploads/<id>.jpg（見下方 read_photo）
+def _is_upload_path(path: str) -> bool:
+    """判定是否為照片路徑（一律封鎖公開讀取）。
+    StaticFiles.get_path 回傳的是檔案系統相對路徑（Windows 為反斜線），
+    且 Mount 前綴資訊在 root_path —— 統一轉正斜線後比對兩種開頭。"""
+    p = path.replace("\\", "/").lstrip("/")
+    return p.startswith("uploads/") or p.startswith("static/uploads/")
+
+
+class _StaticWithoutUploads(StaticFiles):
+    """static/uploads/ 下的照片不對外提供（改由需登入的 /uploads/ endpoint 讀取）"""
+    async def get_response(self, path, scope):
+        if _is_upload_path(path):
+            raise HTTPException(status_code=404, detail="找不到照片")
+        return await super().get_response(path, scope)
+
+
+app.mount("/static", _StaticWithoutUploads(directory=STATIC_DIR), name="static")
+
+
+# B1：品項照片改為需登入才可讀（不再掛公開 StaticFiles）
+# 只允許 <item_id>.jpg（檔名白名單 regex 防路徑穿越 / 防任意檔案讀取）
+@app.get("/uploads/{filename}")
+def read_photo(filename: str, user: dict = Depends(require_login)):
+    """回傳品項照片（僅登入者可讀）；僅接受 <數字>.jpg 格式"""
+    if not re.fullmatch(r"\d+\.jpg", filename):
+        raise HTTPException(status_code=404, detail="找不到照片")
+    path = os.path.join(app_config.UPLOAD_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="找不到照片")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 if __name__ == "__main__":
