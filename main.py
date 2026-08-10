@@ -16,6 +16,7 @@
 """
 import datetime
 import os
+import re
 
 from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse, Response
@@ -71,21 +72,44 @@ for _r in (items.router, stockout.router, kits.router, stocktake.router,
 
 
 # ---------- 靜態檔案（前端） ----------
+_STATIC_RE = re.compile(r'(/static/[^"\'? >]+?)(\?v=[^"\' >]*)?(?=["\' >])')
+
+def _versioned_html(path: str) -> Response:
+    """回傳 HTML，並把 static 資源的 ?v=N 版本參數動態換成「檔案 mtime」。
+
+    方案 A（自動版本號）：開發者改 JS/CSS 存檔後，mtime 變 → 版本號自動變，
+    瀏覽器看到新 URL 就會重新下載，不再需要手動改 ?v=13 → ?v=14。
+    多 PR 並行也不衝突：每個資源獨立算自己的 mtime。
+    """
+    with open(path, encoding="utf-8") as fh:
+        html = fh.read()
+
+    def _swap(m):
+        url = m.group(1)                      # /static/js/app.js
+        fp = os.path.join(STATIC_DIR, url[len("/static/"):])
+        if os.path.exists(fp):
+            return f"{url}?v={int(os.path.getmtime(fp))}"
+        return m.group(0)                     # 檔案不存在（不該發生）→ 原樣保留
+
+    html = _STATIC_RE.sub(_swap, html)
+    return Response(html, media_type="text/html")
+
+
 @app.get("/")
 def index():
-    """回傳前端 index.html；不存在時回傳提示 HTML"""
+    """回傳前端 index.html（static 資源版本號自動化）；不存在時回傳提示 HTML"""
     idx = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(idx):
-        return FileResponse(idx)
+        return _versioned_html(idx)
     return Response("<h1>庫存系統 API</h1><p>前端尚未建立，請先將 index.html 放到 static/</p>", media_type="text/html")
 
 
 @app.get("/login.html")
 def login_page():
-    """登入頁（未登入時導向至此）"""
+    """登入頁（static 資源版本號自動化）"""
     idx = os.path.join(STATIC_DIR, "login.html")
     if os.path.exists(idx):
-        return FileResponse(idx)
+        return _versioned_html(idx)
     return Response("<h1>登入頁不存在</h1>", media_type="text/html")
 
 
