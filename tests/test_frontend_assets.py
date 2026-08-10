@@ -27,6 +27,7 @@ LOGIN = os.path.join(STATIC, "login.html")
 CSS = os.path.join(STATIC, "css", "style.css")
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 USERS_JS = os.path.join(STATIC, "js", "modals", "users.js")
+KITS_RENDER_JS = os.path.join(STATIC, "js", "render", "kits.js")
 
 
 def read(p):
@@ -169,7 +170,7 @@ def test_login_announce_banner():
 
 # ---------- JS 語法（node --check） ----------
 
-@pytest.mark.parametrize("js_path", [AUTH_JS, USERS_JS])
+@pytest.mark.parametrize("js_path", [AUTH_JS, USERS_JS, KITS_RENDER_JS])
 def test_js_syntax(js_path):
     """JS 檔必須通過 node --check（語法錯誤會讓整支 script 不執行）"""
     try:
@@ -180,6 +181,21 @@ def test_js_syntax(js_path):
     except FileNotFoundError:
         pytest.skip("node 不在 PATH，跳過語法檢查")
     assert r.returncode == 0, f"node --check 失敗:\n{r.stderr}"
+
+
+def test_kit_modal_searchable_material_picker():
+    """整組 Modal 材料選擇改成「可搜尋」：render/kits.js 有搜尋/過濾/選中函式，
+    且不再用超過 100 個 option 的長 select（手機上難找）。"""
+    js = read(KITS_RENDER_JS)
+    assert "renderKitCompRows" in js
+    assert "filterKitSearch" in js
+    assert "pickKitItem" in js
+    assert "openKitSearch" in js
+    assert 'class="kit-dropdown"' in js or ".kit-dropdown" in js
+    # 搜尋框 placeholder（名稱/型號/廠牌）
+    assert "搜尋材料" in js
+    # 每列不再塞 247 個 <option>
+    assert ".map(i => `<option" not in js
 
 
 if __name__ == "__main__":
