@@ -50,12 +50,12 @@ def admin_client(tmp_path, monkeypatch):
 def viewer_client(admin_client):
     """admin 建立 viewer 帳號 → viewer 登入（跨 fixture 共享 session？不行，需獨立 TestClient）"""
     r = admin_client.post("/api/users", json={
-        "username": "tracy", "password": "view1234",
+        "username": "tracy", "password": "View1234",
         "display_name": "Tracy", "role": "viewer",
     })
     assert r.status_code == 201
     with TestClient(app_main.app) as c:
-        resp = c.post("/api/auth/login", json={"username": "tracy", "password": "view1234"})
+        resp = c.post("/api/auth/login", json={"username": "tracy", "password": "View1234"})
         assert resp.status_code == 200
         yield c
 
@@ -106,7 +106,7 @@ def test_viewer_write_endpoints_all_403(viewer_client, item):
 def test_viewer_cannot_create_user(viewer_client):
     """viewer 不能建立/管理使用者（require_admin 層）"""
     r = viewer_client.post("/api/users", json={
-        "username": "evil", "password": "pass1234", "display_name": "E", "role": "admin",
+        "username": "evil", "password": "Pass1234", "display_name": "E", "role": "admin",
     })
     assert r.status_code == 403
     assert viewer_client.get("/api/users").status_code == 403
@@ -155,10 +155,10 @@ def test_admin_write_still_works(admin_client, item):
 def test_user_role_write_still_works(admin_client):
     """一般 user 寫入不受影響（回歸）"""
     admin_client.post("/api/users", json={
-        "username": "sarah", "password": "test1234", "display_name": "Sarah", "role": "user",
+        "username": "sarah", "password": "Test1234", "display_name": "Sarah", "role": "user",
     })
     with TestClient(app_main.app) as c:
-        assert c.post("/api/auth/login", json={"username": "sarah", "password": "test1234"}).status_code == 200
+        assert c.post("/api/auth/login", json={"username": "sarah", "password": "Test1234"}).status_code == 200
         r = c.post("/api/items", json={
             "brand": "B", "name": "User 建的", "unit": "個",
             "stocks": [{"location": "L", "qty": 3}],

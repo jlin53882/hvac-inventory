@@ -1,8 +1,18 @@
 // 庫存管理系統 - 工具函式（v8 拆分）
-// esc / absNum / todayStr / Modal 開關 / toast
+// esc / jsStr / absNum / todayStr / Modal 開關 / toast
 function esc(s) {
   return (s === null || s === undefined) ? '' :
     String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// JS 字串 literal escape（用在 inline handler 的 '...' 內，防單引號/反斜線注入 XSS）
+function jsStr(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
 }
 
 // 取絕對值並去掉結尾的 .0（例如 -3.0 → 3），回傳字串

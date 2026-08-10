@@ -13,6 +13,7 @@ Session cookie：前端持 raw token；DB 只存 sha256(token)（外洩不可重
 import hashlib
 import secrets
 import sqlite3
+import time
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException, Request
@@ -25,6 +26,30 @@ SESSION_COOKIE = "hvac_session"
 SESSION_DAYS = 7          # session 有效天數
 MAX_FAILED = 5            # 連續失敗幾次鎖定
 LOCK_MINUTES = 15         # 鎖定幾分鐘
+
+# B4：per-IP 登入失敗 rate limit（補 per-account 鎖定之外的 DoS / 分散嘗試防護）
+IP_FAIL_WINDOW_SEC = 60   # 觀察窗（秒）
+IP_FAIL_MAX = 10          # 視窗內失敗次數上限（超過 → 429）
+# 純 in-memory：單機部署夠用；成功登入即清空該 IP；重啟自動歸零
+_ip_fail_times: dict = {}
+
+
+def check_ip_rate_limit(ip: str) -> bool:
+    """該 IP 是否已超過失敗次數上限（True = 應拒絕）"""
+    now = time.time()
+    times = [t for t in _ip_fail_times.get(ip, []) if now - t < IP_FAIL_WINDOW_SEC]
+    _ip_fail_times[ip] = times
+    return len(times) >= IP_FAIL_MAX
+
+
+def record_ip_fail(ip: str) -> None:
+    """記錄一次該 IP 的登入失敗"""
+    _ip_fail_times.setdefault(ip, []).append(time.time())
+
+
+def clear_ip_fail(ip: str) -> None:
+    """登入成功 → 清空該 IP 的失敗記錄"""
+    _ip_fail_times.pop(ip, None)
 
 # ---------- 密碼處理 ----------
 

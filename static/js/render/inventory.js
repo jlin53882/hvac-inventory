@@ -11,7 +11,7 @@ function buildBrandTabs() {
   brands.forEach(b => {
     const tab = document.createElement('div');
     tab.className = 'brand-tab' + (b === currentBrand ? ' active' : '');
-    tab.innerHTML = `${b}<span class="count">${counts[b] || ALL_ITEMS.length}</span>`;
+    tab.innerHTML = `${esc(b)}<span class="count">${counts[b] || ALL_ITEMS.length}</span>`;
     tab.onclick = () => {
       currentBrand = b;
       // 更新所有 tab 的 active 樣式（點哪個哪個變深色）
@@ -28,8 +28,8 @@ function buildBrandTabs() {
 function buildDatalists() {
   const brands = [...new Set(ALL_ITEMS.map(i => i.brand))].sort();
   const locs = [...new Set(ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
-  document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${b}">`).join('');
-  document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${l}">`).join('');
+  document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
+  document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${esc(l)}">`).join('');
   loadDestinations();
 }
 
@@ -69,7 +69,7 @@ function renderInventory() {
   let html = '';
   Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
-    html += `<div class="section-title"><span class="loc">位置：${loc}</span><span>${locItems.length} 項</span></div>`;
+    html += `<div class="section-title"><span class="loc">位置：${esc(loc)}</span><span>${locItems.length} 項</span></div>`;
     locItems.forEach(i => {
       const delta = pending[i.id] || 0;
       const display = i.qty + delta;
