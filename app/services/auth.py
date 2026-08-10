@@ -154,6 +154,10 @@ def require_login(request: Request) -> dict:
         conn.close()
     if user is None:
         raise HTTPException(status_code=401, detail="登入已過期，請重新登入")
+    # viewer 角色單點封鎖：看得見一切 GET，所有寫入（POST/PUT/PATCH/DELETE）一律 403
+    # 放在 require_login 內 → 全站現在與未來的寫入端點自動被擋，不會有「新端點忘了鎖」的漏洞
+    if user["role"] == "viewer" and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        raise HTTPException(status_code=403, detail="檢視者僅能檢視，無法修改資料")
     return user
 
 

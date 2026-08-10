@@ -47,10 +47,47 @@ function renderUserMenu(user) {
   const menu = document.getElementById('userMenu');
   if (!menu || !user) return;
   const isAdmin = user.role === 'admin';
+  const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
+    : user.role === 'viewer' ? ' <span class="admin-badge" style="background:#6b7280">👀 檢視者</span>'
+    : '';
   menu.innerHTML =
     `<span class="user-chip" title="${user.username}">👤 ${user.display_name || user.username}` +
-    (isAdmin ? ' <span class="admin-badge">管理員</span>' : '') + `</span>` +
+    roleChip + `</span>` +
     (isAdmin ? `<button class="btn-ghost" onclick="openUsersModal()">👥<span class="users-text"> 使用者</span></button>` : '') +
     `<button class="btn-ghost" onclick="logout()">🚪<span class="logout-text"> 登出</span></button>`;
   menu.style.display = 'flex';
+}
+
+// ---------- 角色 UI 控制（viewer 唯讀模式） ----------
+// 前端隱藏 = UX 防呆；真正的防護在後端 require_login 的 method 封鎖（403）。
+function applyRoleView(user) {
+  if (!user) return;
+  const isViewer = user.role === 'viewer';
+  const btnAdd = document.getElementById('btn-add');
+  const btnExport = document.getElementById('btn-export');
+  const navStocktake = document.getElementById('nav-stocktake');
+  const reminder = document.getElementById('reminder');
+  const saveBar = document.getElementById('save-bar');
+
+  if (isViewer) {
+    // 新增按鈕隱藏；匯出保留（家豪已確認 viewer 可匯出）
+    if (btnAdd) btnAdd.style.display = 'none';
+    // 盤點 tab 隱藏（不能盤點就不顯示）；待領出/已領出保留（家豪已確認可看）
+    if (navStocktake) navStocktake.style.display = 'none';
+    // 盤點提醒橫幅隱藏
+    if (reminder) reminder.style.display = 'none';
+    // 儲存列隱藏（數量不可編輯）
+    if (saveBar) saveBar.style.display = 'none';
+    // 若 viewer 停在隱藏的盤點 tab → 強制切回庫存頁
+    if (typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
+      switchTab('inventory');
+    }
+  } else {
+    // 非 viewer：確認該顯示的都顯示（避免前次登入殘留 display:none）
+    if (btnAdd) btnAdd.style.display = '';
+    if (navStocktake) navStocktake.style.display = '';
+    if (saveBar) saveBar.style.display = '';
+  }
+  // 匯出按鈕：admin/user/viewer 全部顯示
+  if (btnExport) btnExport.style.display = '';
 }

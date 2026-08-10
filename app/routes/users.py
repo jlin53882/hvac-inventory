@@ -41,6 +41,13 @@ class UserPassword(BaseModel):
     password: str
 
 
+class UserBatch(BaseModel):
+    users: list[UserCreate]
+
+
+ALLOWED_ROLES = ("admin", "user", "viewer")
+
+
 # ---------- 共用 helpers ----------
 def _user_out(row) -> dict:
     return {
@@ -81,6 +88,26 @@ def _check_pw(pw: str):
         raise HTTPException(status_code=400, detail="密碼至少 4 碼")
 
 
+def _create_user_single(conn, body: UserCreate) -> dict:
+    """單筆建立帳號（共用邏輯：帳號唯一、密碼長度、角色白名單）。成功回傳 user dict，失敗 raise HTTPException。"""
+    username = body.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="帳號不能空白")
+    _check_pw(body.password)
+    if body.role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=400, detail=f"角色只能是 {'、'.join(ALLOWED_ROLES)}")
+    dup = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+    if dup:
+        raise HTTPException(status_code=409, detail="帳號已存在")
+    cur = conn.execute(
+        "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)",
+        (username, hash_password(body.password), body.display_name.strip(), body.role),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return _user_out(row)
+
+
 # ---------- API ----------
 @router.get("")
 def list_users(admin: dict = Depends(require_admin)):
@@ -96,25 +123,32 @@ def list_users(admin: dict = Depends(require_admin)):
 @router.post("", status_code=201)
 def create_user(body: UserCreate, admin: dict = Depends(require_admin)):
     """新增帳號（帳號唯一；密碼長度 >= 4）"""
-    username = body.username.strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="帳號不能空白")
-    _check_pw(body.password)
-    if body.role not in ("admin", "user"):
-        raise HTTPException(status_code=400, detail="角色只能是 admin 或 user")
-
     conn = get_db()
     try:
-        dup = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
-        if dup:
-            raise HTTPException(status_code=409, detail="帳號已存在")
-        cur = conn.execute(
-            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)",
-            (username, hash_password(body.password), body.display_name.strip(), body.role),
-        )
-        conn.commit()
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
-        return _user_out(row)
+        return _create_user_single(conn, body)
+    finally:
+        conn.close()
+
+
+@router.post("/batch", status_code=201)
+def create_users_batch(body: UserBatch, admin: dict = Depends(require_admin)):
+    """批次新增帳號（表格/匯入用）：逐筆建立，每筆獨立回報成功或失敗。
+
+    不回滾——建成功的留著，失敗的列出具體原因（例如第 3 行帳號重複），
+    讓前端表格可以逐列顯示 ✔/✘，方便修正後重送。
+    """
+    conn = get_db()
+    try:
+        results = []
+        created = 0
+        for u in body.users:
+            try:
+                user = _create_user_single(conn, u)
+                created += 1
+                results.append({"username": u.username.strip(), "status": "ok", "detail": "已建立"})
+            except HTTPException as e:
+                results.append({"username": u.username.strip(), "status": "error", "detail": e.detail})
+        return {"results": results, "created": created, "failed": len(results) - created}
     finally:
         conn.close()
 
@@ -130,8 +164,8 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_ad
         role = row["role"] if body.role is None else body.role
         is_active = row["is_active"] if body.is_active is None else body.is_active
 
-        if body.role is not None and body.role not in ("admin", "user"):
-            raise HTTPException(status_code=400, detail="角色只能是 admin 或 user")
+        if body.role is not None and body.role not in ALLOWED_ROLES:
+            raise HTTPException(status_code=400, detail=f"角色只能是 {'、'.join(ALLOWED_ROLES)}")
 
         # 保護 1：不能變更自己的角色或停用自己
         if admin["id"] == user_id:

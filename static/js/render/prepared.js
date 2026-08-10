@@ -4,6 +4,7 @@ async function renderPrepared() {
   document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入待領出清單…</div></div>';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
 
   try {
     const res = await fetch(`/api/prepared?site=${currentSite}`);
@@ -23,7 +24,7 @@ async function renderPrepared() {
       </div>`;
 
     html += `<table class="data-table"><thead><tr>
-      <th>品項</th><th>待領出</th><th>庫存</th><th>操作</th>
+      <th>品項</th><th>待領出</th><th>庫存</th>${isViewer ? '' : '<th>操作</th>'}
     </tr></thead><tbody>`;
 
     items.forEach(i => {
@@ -31,10 +32,10 @@ async function renderPrepared() {
         <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
         <td style="text-align:center"><b style="color:#6d28d9">${i.prepared_qty}</b> ${esc(i.unit)}</td>
         <td style="text-align:center">${i.qty} ${esc(i.unit)}</td>
-        <td style="white-space:nowrap">
+        ${isViewer ? '' : `<td style="white-space:nowrap">
           <button class="btn-out" style="padding:4px 8px" onclick="openPreparedOutModal(${i.id})">🚚 已領出</button>
           <button class="btn-prepare" style="padding:4px 8px;margin-top:0" onclick="returnPrepared(${i.id})">↩️ 退回</button>
-        </td>
+        </td>`}
       </tr>`;
     });
 
