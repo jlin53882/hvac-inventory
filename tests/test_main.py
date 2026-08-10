@@ -835,3 +835,56 @@ class TestV10CompatAndCascade:
         client.delete(f"/api/items/{item['id']}")
         r = client.get("/api/export")
         assert r.status_code == 200
+
+# ---------- 方案 A：自動版本號（server 端） ----------
+
+def test_index_html_auto_version_params(client):
+    """方案 A：server 回傳的 index.html 每個 static 資源自動帶 ?v=檔案mtime。
+    原始檔不寫版本號，此測試守護「對外服務時自動加上」的行為。"""
+    r = client.get("/")
+    assert r.status_code == 200
+    html = r.text
+    # 資源引用存在
+    assert 'src="/static/' in html and 'href="/static/' in html
+    # 每個資源都帶版本號（原始檔不寫，但 server 回傳一定有）
+    import re
+    vers = re.findall(r"/static/([^\"'? >]+?\.[a-z]+)(\?v=\d+)", html)
+    assert len(vers) >= 10, f"版本號資源太少: {len(vers)}"
+    # 版本號 = 檔案實際 mtime
+    import os
+    from app.config import STATIC_DIR
+    for rel, ver in vers:
+        fp = os.path.join(STATIC_DIR, rel)
+        assert os.path.exists(fp), f"資源不存在: {rel}"
+        assert ver == f"?v={int(os.path.getmtime(fp))}", f"{rel} 版本號不是 mtime: {ver}"
+
+
+def test_login_html_auto_version_params(client):
+    """login.html 的 logo 資源也自動帶 mtime 版本號"""
+    r = client.get("/login.html")
+    assert r.status_code == 200
+    html = r.text
+    import re, os
+    from app.config import STATIC_DIR
+    vers = re.findall(r"/static/([^\"'? >]+?\.[a-z]+)(\?v=\d+)", html)
+    assert len(vers) >= 1
+    for rel, ver in vers:
+        fp = os.path.join(STATIC_DIR, rel)
+        assert os.path.exists(fp), f"資源不存在: {rel}"
+        assert ver == f"?v={int(os.path.getmtime(fp))}", f"{rel} 版本號不是 mtime: {ver}"
+
+
+def test_html_source_has_no_version_params():
+    """原始 HTML（未經 server）不應有手動 ?v=N——避免開發者困惑要不要改"""
+    import os
+    for name in ("index.html", "login.html"):
+        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "static", name)
+        with open(p, encoding="utf-8") as fh:
+            src = fh.read()
+        # 註解允許出現「?v=N」說明文字，但資源引用（src=/href=）不得帶版本號
+        import re
+        refs = re.findall(r'(?:src|href)="/static/[^"]+"', src)
+        assert refs, f"{name} 找不到資源引用"
+        bad = [x for x in refs if "?v=" in x]
+        assert not bad, f"{name} 有手動版本號: {bad}"

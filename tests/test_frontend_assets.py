@@ -42,11 +42,17 @@ def test_index_has_viewport():
     assert 'name="viewport"' in read(INDEX)
 
 
-def test_index_has_cache_busters():
-    """靜態檔都掛版本號，避免手機/電腦吃到舊快取"""
+def test_index_has_no_manual_version_params():
+    """原始 index.html 不寫 ?v=N（方案 A：版本號由後端 _versioned_html()
+    依檔案 mtime 動態加上，手動加會被取代——避免開發者困惑要不要改）"""
     html = read(INDEX)
-    assert "style.css?v=" in html
-    assert "users.js?v=" in html
+    assert 'src="/static/' in html and 'href="/static/' in html
+    # 資源引用（src=/href=）不該有手動版本號；註解說明文字可含 ?v=N
+    import re
+    refs = re.findall(r'(?:src|href)="/static/[^"]+"', html)
+    assert refs, "找不到資源引用"
+    bad = [x for x in refs if "?v=" in x]
+    assert not bad, f"資源引用有手動版本號: {bad}"
 
 
 # ---------- style.css ----------
