@@ -50,40 +50,46 @@ async function renderKits() {
   }
 }
 
-// 渲染整組 Modal 的材料選擇列（可搜尋輸入 + 數量 + 刪除鈕）
+// 渲染整組 Modal 的材料選擇（demo 樣式：已選灰卡片列 + 單一可搜尋輸入框）
+// 資料存 kitModalCompRows：[{item_id, qty}...]；選中材料自動 push 新列
 function renderKitCompRows() {
   const wrap = document.getElementById('kit-comps');
-  wrap.innerHTML = '';
+  let html = '';
   if (!kitModalCompRows.length) {
-    wrap.innerHTML = '<div class="kit-empty">尚未加入材料</div>';
-    return;
+    html = '<div class="kit-empty">尚未加入材料</div>';
+  } else {
+    html = kitModalCompRows.map((row, idx) => {
+      const sel = row.item_id ? ALL_ITEMS.find(i => i.id == row.item_id) : null;
+      return `<div class="selected-row">
+        <div class="info">
+          <div class="nm">${sel ? esc(sel.brand) + ' ' + esc(sel.name) : ''}</div>
+          <div class="bd">${sel ? `庫存 ${sel.qty} ${esc(sel.unit || '個')}` : ''}</div>
+        </div>
+        <input type="number" min="1" step="any" value="${row.qty || 1}" onchange="kitModalCompRows[${idx}].qty = parseFloat(this.value) || 1">
+        <button class="rm" onclick="removeKitCompRow(${idx})">✕</button>
+      </div>`;
+    }).join('');
   }
-  kitModalCompRows.forEach((row, idx) => {
-    const sel = row.item_id ? ALL_ITEMS.find(i => i.id == row.item_id) : null;
-    const disp = sel ? `${sel.brand} ${sel.name}` : '';
-    wrap.innerHTML += `<div class="kit-comp-row">
-      <div class="kit-search">
-        <input type="text" id="kit-sel-${idx}" class="kit-search-input" value="${esc(disp)}"
-          placeholder="搜尋材料想加的 (名稱/型號/廠牌) ..." autocomplete="off"
-          onfocus="openKitSearch(${idx})" oninput="filterKitSearch(${idx}, this.value)">
-        ${sel ? `<div class="kit-sel-info">庫存 ${sel.qty} ${esc(sel.unit || '個')}</div>` : ''}
-        <span class="kit-caret">▼</span>
-        <div class="kit-dropdown" id="kit-drop-${idx}"></div>
-      </div>
-      <input type="number" class="kit-qty" min="1" step="any" value="${row.qty || 1}" placeholder="數量" onchange="kitModalCompRows[${idx}].qty = parseFloat(this.value) || 1">
-      <button class="btn-cancel kit-rm" onclick="removeKitCompRow(${idx})">✕</button>
-    </div>`;
-  });
+  // 單一可搜尋輸入框（🔍 搜尋材料想加的…）
+  html += `<div class="mat-search">
+    <div class="input-wrap">
+      <input type="text" id="kit-mat-input" placeholder="🔍 搜尋材料想加的（名稱/型號/廠牌）…" autocomplete="off"
+        onfocus="openKitSearch()" oninput="filterKitSearch(this.value)">
+      <span class="caret">▼</span>
+    </div>
+    <div class="kit-dropdown" id="kit-drop"></div>
+  </div>`;
+  wrap.innerHTML = html;
 }
 
-// 開啟第 idx 列的材料候選清單（顯示前 15 筆）
-function openKitSearch(idx) {
-  filterKitSearch(idx, document.getElementById(`kit-sel-${idx}`).value);
+// 開啟材料候選清單（顯示前 15 筆）
+function openKitSearch() {
+  filterKitSearch(document.getElementById('kit-mat-input').value);
 }
 
 // 依關鍵字過濾材料（名稱/型號/廠牌）並渲染候選清單
-function filterKitSearch(idx, kw) {
-  const drop = document.getElementById(`kit-drop-${idx}`);
+function filterKitSearch(kw) {
+  const drop = document.getElementById('kit-drop');
   const q = (kw || '').trim().toLowerCase();
   let list = ALL_ITEMS.filter(i => !i.is_kit);
   if (q) list = list.filter(i => (i.brand + ' ' + i.name + ' ' + (i.code || '')).toLowerCase().includes(q));
@@ -92,7 +98,7 @@ function filterKitSearch(idx, kw) {
     drop.innerHTML = '<div class="kit-drop-empty">找不到符合的材料</div>';
   } else {
     drop.innerHTML = list.map(it => `
-      <div class="kit-drop-opt" onclick="pickKitItem(${idx}, ${it.id})">
+      <div class="kit-drop-opt" onclick="pickKitItem(${it.id})">
         <div><div class="nm">${esc(it.brand)} ${esc(it.name)}</div><div class="bd">${esc(it.unit || '')}</div></div>
         <span class="stk">庫存 ${it.qty}</span>
       </div>`).join('');
@@ -100,18 +106,25 @@ function filterKitSearch(idx, kw) {
   drop.classList.add('open');
 }
 
-// 選中候選材料：寫入列資料、更新輸入框顯示、收合候選清單
-function pickKitItem(idx, itemId) {
+// 選中候選材料：已加過同材料 → 數量 +1；否則新增一列；清空搜尋框、收合候選清單
+function pickKitItem(itemId) {
   const it = ALL_ITEMS.find(i => i.id === itemId);
   if (!it) return;
-  kitModalCompRows[idx].item_id = itemId;
-  kitModalCompRows[idx].qty = kitModalCompRows[idx].qty || 1;
-  const input = document.getElementById(`kit-sel-${idx}`);
-  input.value = `${it.brand} ${it.name}`;
-  document.getElementById(`kit-drop-${idx}`).classList.remove('open');
+  const exist = kitModalCompRows.findIndex(r => r.item_id == itemId);
+  if (exist >= 0) {
+    kitModalCompRows[exist].qty = (kitModalCompRows[exist].qty || 1) + 1;
+  } else {
+    kitModalCompRows.push({ item_id: itemId, qty: 1 });
+  }
+  const input = document.getElementById('kit-mat-input');
+  if (input) input.value = '';
+  document.getElementById('kit-drop').classList.remove('open');
+  renderKitCompRows();
+  const ni = document.getElementById('kit-mat-input');
+  if (ni) ni.focus();
 }
 document.addEventListener('click', (e) => {
-  const inSearch = e.target.closest('.kit-search');
+  const inSearch = e.target.closest('.mat-search');
   document.querySelectorAll('.kit-dropdown.open').forEach(d => {
     if (!inSearch || !inSearch.contains(d)) d.classList.remove('open');
   });

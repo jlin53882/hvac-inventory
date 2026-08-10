@@ -508,6 +508,48 @@
     border: 1.5px solid #d0d5dd; border-radius: 8px; font-size: 13.5px; outline: none;
   }
   .kit-rm { flex: none; width: 40px; height: 40px; padding: 0 !important; }
+
+  /* ===== 新增整組・材料選擇（demo 樣式移植：selected-row / mat-search / btn-add-row） ===== */
+  .kit-empty { font-size: 12.5px; color: #94a3b8; padding: 4px 0 8px; }
+  .selected-row {
+    display: flex; align-items: center; gap: 8px;
+    background: #f4f7fb; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 9px 12px; margin-bottom: 8px;
+  }
+  .selected-row .info { flex: 1; min-width: 0; }
+  .selected-row .info .nm {
+    font-size: 13.5px; font-weight: 600; color: #16283f;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .selected-row .info .bd { font-size: 11.5px; color: #6b7a90; }
+  .selected-row input[type="number"] {
+    width: 58px; height: 36px; text-align: center;
+    border: 1.5px solid #d8dee9; border-radius: 8px; font-size: 14px; outline: none;
+  }
+  .selected-row .rm {
+    width: 28px; height: 28px; border: none; background: #fee2e2; color: #dc2626;
+    border-radius: 8px; font-size: 13px; cursor: pointer; flex: none;
+  }
+  .mat-search { position: relative; }
+  .mat-search .input-wrap { position: relative; }
+  .mat-search input {
+    width: 100%; height: 46px; padding: 0 34px 0 12px;
+    border: 1.5px solid #d8dee9; border-radius: 10px;
+    font-size: 14px; background: #fafbfc; outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .mat-search input:focus { border-color: #1890FF; box-shadow: 0 0 0 3px rgba(24,144,255,0.18); }
+  .mat-search .caret {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; color: #94a3b8; pointer-events: none;
+  }
+  .btn-add-row {
+    width: 100%; height: 42px; margin-top: 2px;
+    background: #fff; border: 1.5px dashed #1890FF; color: #1890FF;
+    border-radius: 10px; font-size: 13.5px; font-weight: 700; cursor: pointer;
+  }
+  .btn-add-row:hover { background: #f0f7ff; }
+  #kit-modal .btn-confirm { background: linear-gradient(135deg, #1890FF, #36a3ff); }
   .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
   .modal-actions button { flex: 1; padding: 11px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; }

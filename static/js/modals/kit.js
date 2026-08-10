@@ -1,18 +1,17 @@
-// 庫存管理系統 - 整組 Modal（v8 拆分）
+// 庫存管理系統 - 整組 Modal（v8 拆分；材料選擇為 demo 樣式：已選列 + 單一可搜尋框）
 function openKitModal() {
   kitModalSelections = [];
   kitModalCompRows = [];
   document.getElementById('k-name').value = '';
   document.getElementById('k-note').value = '';
-  kitModalCompRows.push({});  // 打開即帶一列可搜尋列（避免「尚未加入材料」空狀態）
-  renderKitCompRows();
+  renderKitCompRows();  // 顯示「尚未加入材料」+ 搜尋框（同 demo）
   openModal('kit-modal');
 }
 
-// 在整組 Modal 新增一列材料選擇（加入 kitModalCompRows 後重繪）
+// 在整組 Modal「＋ 加入另一材料」：聚焦搜尋框（demo 行為：選中即自動加列）
 function addKitCompRow() {
-  kitModalCompRows.push({});
-  renderKitCompRows();
+  const input = document.getElementById('kit-mat-input');
+  if (input) input.focus();
 }
 
 // 移除整組 Modal 中指定索引的材料列後重繪
