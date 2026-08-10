@@ -228,7 +228,6 @@ def test_invalid_role_rejected(admin_client):
     })
     assert r.status_code == 400
     assert "角色" in r.json()["detail"]
-        assert c.post("/api/auth/login", json={"username": "gone", "password": "Pass1234"}).status_code == 401
 
 
 # ========== B2：密碼 policy（至少 8 碼 + 大寫 + 小寫 + 數字） ==========
