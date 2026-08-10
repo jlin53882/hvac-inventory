@@ -4,6 +4,7 @@ function openKitModal() {
   kitModalCompRows = [];
   document.getElementById('k-name').value = '';
   document.getElementById('k-note').value = '';
+  kitModalCompRows.push({});  // 打開即帶一列可搜尋列（避免「尚未加入材料」空狀態）
   renderKitCompRows();
   openModal('kit-modal');
 }
