@@ -25,8 +25,10 @@ from PIL import Image
 import app.config as app_config  # 動態取值：測試可 monkeypatch
 from app.database import get_db
 
+# 照片 API 路由
 router = APIRouter()
 
+# 允許的圖片副檔名
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 原始檔上限 10MB（壓縮後約 30-80KB）
 THUMB_WIDTH = 800  # 壓縮寬度 px（卡片顯示 52px 縮圖，點開 lightbox 看 800px 大圖）

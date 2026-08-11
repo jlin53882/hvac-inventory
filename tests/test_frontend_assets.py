@@ -19,20 +19,34 @@ import sys
 
 import pytest
 
+# 專案根目錄
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 靜態資源目錄
 STATIC = os.path.join(BASE_DIR, "static")
 
+# 待測：index.html
 INDEX = os.path.join(STATIC, "index.html")
+# 待測：login.html
 LOGIN = os.path.join(STATIC, "login.html")
+# 待測：style.css
 CSS = os.path.join(STATIC, "css", "style.css")
+# 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
+# 待測：modals/users.js
 USERS_JS = os.path.join(STATIC, "js", "modals", "users.js")
+# 待測：render/kits.js
 KITS_RENDER_JS = os.path.join(STATIC, "js", "render", "kits.js")
+# 待測：modals/kit.js
 KIT_MODAL_JS = os.path.join(STATIC, "js", "modals", "kit.js")
+# 待測：render/inventory.js
 INVENTORY_RENDER_JS = os.path.join(STATIC, "js", "render", "inventory.js")
+# 待測：render/prepared.js
 PREPARED_RENDER_JS = os.path.join(STATIC, "js", "render", "prepared.js")
+# 待測：render/stockout.js
 STOCKOUT_RENDER_JS = os.path.join(STATIC, "js", "render", "stockout.js")
+# 待測：render/stocktake.js
 STOCKTAKE_JS = os.path.join(STATIC, "js", "render", "stocktake.js")
+# 待測：utils.js
 UTILS_JS = os.path.join(STATIC, "js", "utils.js")
 
 
@@ -148,6 +162,7 @@ def test_users_js_batch_table():
     assert "batch-role" in js
 
 
+# 待測：permissions.js
 PERMS_JS = os.path.join(STATIC, "js", "permissions.js")
 
 

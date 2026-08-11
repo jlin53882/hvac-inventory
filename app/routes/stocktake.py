@@ -16,6 +16,7 @@ from fastapi import APIRouter
 from app.database import get_db
 from app.models import StocktakeSubmit
 
+# 盤點 API 路由
 router = APIRouter()
 
 

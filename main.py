@@ -28,6 +28,7 @@ from app.database import get_db, init_db
 from app.routes import auth, export, items, kits, lookup, photos, stats, stockout, stocktake, users
 from app.services.auth import init_admin_if_missing, require_login
 
+# FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
 app = FastAPI(title="庫存管理系統", version="8.0.0")
 # ---------- 快取策略（避免瀏覽器快取舊版 HTML/JS） ----------
 @app.middleware("http")
@@ -70,6 +71,7 @@ async def security_headers_middleware(request, call_next):
 init_db()
 
 # 首次啟動建立 admin（已存在則跳過）
+# 模組層共用的 DB connection
 _conn = get_db()
 try:
     init_admin_if_missing(_conn)
@@ -95,6 +97,7 @@ for _r in (items.router, stockout.router, kits.router, stocktake.router,
 
 
 # ---------- 靜態檔案（前端） ----------
+# static 資源 URL regex（_versioned_html 版本化用）
 _STATIC_RE = re.compile(r'(/static/[^"\'? >]+?)(\?v=[^"\' >]*)?(?=["\' >])')
 
 def _versioned_html(path: str) -> Response:

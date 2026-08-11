@@ -24,6 +24,7 @@ from app.database import get_db
 from app.models import AdjustRequest, ItemCreate, ItemUpdate, StockUpdate
 from app.routes.photos import has_photo
 
+# 品項 API 路由
 router = APIRouter()
 
 

@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.services.auth import hash_password, require_admin
 
+# 使用者管理 API 路由
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
@@ -46,6 +47,7 @@ class UserBatch(BaseModel):
     users: list[UserCreate]
 
 
+# 可建立的角色（admin/user/viewer）
 ALLOWED_ROLES = ("admin", "user", "viewer")
 
 

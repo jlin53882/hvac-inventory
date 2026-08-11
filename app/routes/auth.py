@@ -22,6 +22,7 @@ from app.services.auth import (
     clear_ip_fail,
     create_session,
     delete_session,
+    # session cookie 名稱
     get_session_user,
     get_user_by_username,
     is_locked,
@@ -31,6 +32,7 @@ from app.services.auth import (
 )
 from app.services.auth import hash_password  # noqa: F401 (init_admin 互用)
 
+# auth API 路由（登入/登出/session）
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 

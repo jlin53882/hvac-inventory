@@ -7,11 +7,15 @@
 var ALL_ITEMS = [];
 var currentBrand = '全部';
 var pending = {};   // itemId -> delta
+// 目前頁籤（inventory/prepared/stockout/stocktake/kit）
 var currentTab = 'inventory';
 var currentSite = 'office';  // office=辦公室 / warehouse=倉庫
+// 正在編輯的品項 id（編輯 modal）
 var editItemId = null;
+// 出庫 modal 的品項 id
 var outItemId = null;
 var stocktakeValues = {};  // itemId -> actual_qty
+// 去向下拉建議清單（loadDestinations 填入）
 var DESTINATIONS = [];
 
 // 兩階段出庫

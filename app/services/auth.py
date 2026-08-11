@@ -22,6 +22,7 @@ from app.database import get_db
 
 # ---------- 常數 ----------
 PBKDF2_ITERATIONS = 600_000
+# session cookie 名稱
 SESSION_COOKIE = "hvac_session"
 SESSION_DAYS = 7          # session 有效天數
 MAX_FAILED = 5            # 連續失敗幾次鎖定

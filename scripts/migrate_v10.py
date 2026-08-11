@@ -15,7 +15,9 @@ import os
 import shutil
 import sqlite3
 
+# 專案根目錄
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# SQLite 資料庫檔路徑
 DB = os.path.join(BASE, "inventory.db")
 
 def main():

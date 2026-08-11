@@ -23,6 +23,7 @@ from app.database import get_db
 from app.models import PrepareRequest, StockOutRequest, StockoutUpdate
 from app.routes.photos import has_photo
 
+# 出庫/待領出 API 路由
 router = APIRouter()
 
 

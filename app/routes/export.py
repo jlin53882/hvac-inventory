@@ -15,8 +15,11 @@ from fastapi.responses import Response
 
 from app.database import get_db
 
+# 匯出 API 路由
 router = APIRouter()
+# Excel 表頭底色（品牌藍）
 HEADER_FILL = "2E5C8A"
+# 匯出天數上限
 MAX_DAYS = 366
 
 
