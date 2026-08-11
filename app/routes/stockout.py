@@ -84,7 +84,7 @@ def stock_out(req: StockOutRequest):
     if req.qty <= 0:
         raise HTTPException(400, "出庫數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)).fetchone()
     if not row:
         raise HTTPException(404, "品項不存在")
     before = _total_qty(conn, req.item_id)
@@ -165,12 +165,13 @@ def return_stockout(movement_id: int):
         raise HTTPException(400, "該記錄已退回過")
 
     qty = -m["delta"]
+    current = _total_qty(conn, m["item_id"])  # M9：before_qty 用當前實際庫存（原用歷史值 m["after_qty"]）
     _add_back_to_first_stock(conn, m["item_id"], qty)
     now = datetime.datetime.now().isoformat()
     conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", (now, movement_id))
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (m["item_id"], qty, m["after_qty"], m["after_qty"] + qty, "退回已領出", m["destination"]),
+        (m["item_id"], qty, current, current + qty, "退回已領出", m["destination"]),
     )
     conn.commit()
     conn.close()
@@ -247,7 +248,7 @@ def prepare_item(item_id: int, req: PrepareRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not row:
         raise HTTPException(404, "品項不存在")
     available = _total_qty(conn, item_id) - row["prepared_qty"]
@@ -277,7 +278,7 @@ def prepared_out(item_id: int, req: PrepareRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not row:
         raise HTTPException(404, "品項不存在")
     if req.qty > row["prepared_qty"]:
@@ -310,7 +311,7 @@ def prepared_return(item_id: int, req: PrepareRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not row:
         raise HTTPException(404, "品項不存在")
     if req.qty > row["prepared_qty"]:
@@ -342,7 +343,7 @@ def list_prepared(site: Optional[str] = None):
         where = " AND site = ?"
         params = (site,)
     rows = conn.execute(f"""
-        SELECT * FROM items WHERE prepared_qty > 0{where} ORDER BY brand COLLATE NOCASE, name
+        SELECT * FROM items WHERE prepared_qty > 0 AND is_deleted = 0{where} ORDER BY brand COLLATE NOCASE, name
     """, params).fetchall()
     payloads = [_item_payload(conn, r) for r in rows]  # 補 total_qty/location/stocks 相容欄位
     conn.close()

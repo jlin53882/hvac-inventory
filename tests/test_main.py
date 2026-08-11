@@ -1054,17 +1054,17 @@ class TestV10CompatAndCascade:
         assert len(it["stocks"]) == 1
 
     def test_delete_item_with_movements(self, client):
-        """有異動紀錄的品項刪除：movements 也要一起清（無 FK CASCADE，須手動）"""
+        """有異動紀錄的品項刪除（M6 soft-delete）：movements 稽核軌跡保留（不再銷毀）"""
         item = _add_item(client, name="要刪的", qty=5)
         client.post(f"/api/items/{item['id']}/adjust", json={"delta": -2, "reason": "出庫"})
         assert len(client.get("/api/movements").json()) == 1
 
         r = client.delete(f"/api/items/{item['id']}")
         assert r.status_code == 200
-        assert len(client.get("/api/movements").json()) == 0  # 流水一併清
+        assert len(client.get("/api/movements").json()) == 1  # soft-delete：流水保留
 
     def test_delete_item_with_stocktake(self, client):
-        """有盤點紀錄的品項刪除：stocktakes 也清（無 FK CASCADE）"""
+        """有盤點紀錄的品項刪除（M6 soft-delete）：已刪品項不再出現在準備清單"""
         item = _add_item(client, name="盤點過", qty=10)
         client.post("/api/stocktake", json={
             "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 10}]})
@@ -1072,7 +1072,7 @@ class TestV10CompatAndCascade:
 
         r = client.delete(f"/api/items/{item['id']}")
         assert r.status_code == 200
-        assert len(client.get("/api/prepared").json()) == 0  # prepared 也清
+        assert len(client.get("/api/prepared").json()) == 0  # 已刪品項不顯示在準備清單
 
     def test_delete_kit_and_material(self, client):
         """刪整組：kits + kit_items 一併清；被材料引用的品項也可刪"""
@@ -1441,5 +1441,103 @@ class TestPhase3Concurrency:
             assert "idx_items_unique" in names, names
         finally:
             conn.close()
+
+# ========== Phase 4（2026-08-11）：審計/資料完整性（M1/M9/M6） ==========
+
+class TestPhase4Audit:
+    def test_edit_item_keeps_stock_id_and_writes_movement(self, client):
+        """M1：編輯品項同位置保留 stock id + qty 變化寫流水（不再 DELETE+INSERT 全量替換）"""
+        item = _add_item(client, name="M1品項", qty=10, location="A倉")
+        sid = item["stocks"][0]["id"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"location": "A倉", "qty": 7, "note": ""}]})
+        assert r.status_code == 200
+        it = _get_item(client, item["id"])
+        assert it["stocks"][0]["id"] == sid, "stock id 應保留"
+        assert it["stocks"][0]["qty"] == 7
+        conn = app_db.get_db()
+        try:
+            last = conn.execute(
+                "SELECT reason, delta, before_qty, after_qty FROM movements WHERE item_id=? ORDER BY id DESC LIMIT 1",
+                (item["id"],)).fetchone()
+        finally:
+            conn.close()
+        assert last and last["reason"] == "編輯品項調整", dict(last) if last else None
+        assert last["before_qty"] == 10 and last["after_qty"] == 7
+
+    def test_edit_item_same_qty_no_movement(self, client):
+        """M1：qty 沒變不寫流水"""
+        item = _add_item(client, name="M1不變", qty=5, location="A倉")
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"location": "A倉", "qty": 5, "note": "改備註"}]})
+        assert r.status_code == 200
+        conn = app_db.get_db()
+        try:
+            cnt = conn.execute("SELECT COUNT(*) FROM movements WHERE item_id=? AND reason='編輯品項調整'",
+                               (item["id"],)).fetchone()[0]
+        finally:
+            conn.close()
+        assert cnt == 0
+
+    def test_return_stockout_before_qty_is_current(self, client):
+        """M9：退回流水 before_qty = 當前庫存（原用歷史值 m["after_qty"]）"""
+        item = _add_item(client, name="M9品項", qty=10, location="A倉")
+        r = client.post("/api/stockout", json={"item_id": item["id"], "qty": 4, "destination": "台北"})
+        assert r.status_code == 200
+        mid = client.get("/api/stockouts?limit=5").json()[0]["id"]  # 最新出庫 = movement id
+        r2 = client.post(f"/api/stockouts/{mid}/return")
+        assert r2.status_code == 200
+        conn = app_db.get_db()
+        try:
+            last = conn.execute(
+                "SELECT before_qty, after_qty FROM movements WHERE item_id=? AND reason='退回已領出' ORDER BY id DESC LIMIT 1",
+                (item["id"],)).fetchone()
+        finally:
+            conn.close()
+        assert last and last["before_qty"] == 6 and last["after_qty"] == 10, dict(last)
+
+    def test_delete_item_soft_delete(self, client):
+        """M6：刪除品項 → 列表消失、movements 保留、已領出歷史仍顯示、後續操作 404"""
+        item = _add_item(client, name="M6品項", qty=8, location="A倉")
+        client.post("/api/stockout", json={"item_id": item["id"], "qty": 3, "destination": "台北"})
+        r = client.delete(f"/api/items/{item['id']}")
+        assert r.status_code == 200
+        # 列表消失
+        ids = [i["id"] for i in client.get("/api/items").json()]
+        assert item["id"] not in ids
+        # movements 保留（稽核軌跡不銷毀）
+        conn = app_db.get_db()
+        try:
+            cnt = conn.execute("SELECT COUNT(*) FROM movements WHERE item_id=?", (item["id"],)).fetchone()[0]
+        finally:
+            conn.close()
+        assert cnt >= 1
+        # 已領出歷史仍顯示品項
+        outs = client.get("/api/stockouts?limit=50").json()
+        assert any(o["item_id"] == item["id"] for o in outs)
+        # 對已刪品項的操作 → 404
+        assert client.post(f"/api/items/{item['id']}/adjust", json={"delta": -1, "reason": "x"}).status_code == 404
+        assert client.post("/api/stockout", json={"item_id": item["id"], "qty": 1, "destination": "x"}).status_code == 404
+        assert client.post(f"/api/items/{item['id']}/prepare", json={"qty": 1}).status_code == 404
+        assert client.post(f"/api/items/{item['id']}/photo",
+                           files={"file": ("t.jpg", b"x" * 100, "image/jpeg")}).status_code == 404
+
+    def test_deleted_item_stats_excluded(self, client):
+        """M6：stats 不含已刪品項"""
+        _add_item(client, name="刪除統計", qty=1, location="A倉")
+        item2 = _add_item(client, name="刪除統計2", qty=1, location="A倉")
+        client.delete(f"/api/items/{item2['id']}")
+        st = client.get("/api/stats").json()
+        assert st["total_items"] == 1, st
+
+    def test_deleted_kit_material_cannot_assemble(self, client):
+        """M6：套件材料已刪除 → 組裝 400"""
+        mat = _add_item(client, name="材料甲", qty=5, location="A倉")
+        r = client.post("/api/kits", json={"name": "測試套件", "items": [{"item_id": mat["id"], "qty": 2}]})
+        assert r.status_code == 201
+        kit_id = r.json()["id"]
+        client.delete(f"/api/items/{mat['id']}")
+        r2 = client.post(f"/api/kits/{kit_id}/assemble", json={"qty": 1})
+        assert r2.status_code == 400
+        assert "已刪除" in r2.json()["detail"]
+
 
 

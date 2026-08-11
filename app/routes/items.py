@@ -55,7 +55,7 @@ def list_items(
     sql = """SELECT i.*, COALESCE(SUM(s.qty),0) AS total_qty,
                     COUNT(s.id) AS stock_count
              FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id
-             WHERE 1=1"""
+             WHERE 1=1 AND i.is_deleted = 0"""
     params = []
     if site and site != "all":
         sql += " AND i.site = ?"
@@ -92,7 +92,7 @@ def create_item(item: ItemCreate):
     conn = get_db()
     # ===== v10 去重規則 =====
     exists = conn.execute(
-        "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=?",
+        "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",
         (item.brand, item.code, item.name, item.unit, item.site),
     ).fetchone()
     if exists:
@@ -126,7 +126,7 @@ def create_item(item: ItemCreate):
 def update_item(item_id: int, upd: ItemUpdate):
     """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
     conn = get_db()
-    row0 = conn.execute("SELECT id FROM items WHERE id=?", (item_id,)).fetchone()
+    row0 = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not row0:
         conn.close()
         raise HTTPException(404, "品項不存在")
@@ -141,18 +141,30 @@ def update_item(item_id: int, upd: ItemUpdate):
         fields["updated_at"] = datetime.datetime.now().isoformat()
         sets = ", ".join(f"{k}=?" for k in fields)
         conn.execute(f"UPDATE items SET {sets} WHERE id=?", (*fields.values(), item_id))
-    # stocks 全量替換（前端編輯直接送完整位置清單；同位置重複 → 最後一筆勝出）
+    # stocks 全量同步（M1：同位置 UPDATE 保留 stock id；新增 INSERT、消失 DELETE；qty 變化寫流水）
     if data.get("stocks") is not None:
-        # 依 location 去重（保留最後一筆）
         dedup = {}
         for s in data["stocks"]:
             dedup[s.get("location") or ""] = s
-        conn.execute("DELETE FROM item_stocks WHERE item_id=?", (item_id,))
+        existing = {r["location"]: r for r in conn.execute(
+            "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
         for loc, s in dedup.items():
-            conn.execute(
-                "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                (item_id, loc, float(s.get("qty") or 0), s.get("note") or ""),
-            )
+            new_qty = float(s.get("qty") or 0)
+            if loc in existing:
+                old = existing[loc]
+                conn.execute("UPDATE item_stocks SET qty=?, note=?, updated_at=? WHERE id=?",
+                             (new_qty, s.get("note") or "", datetime.datetime.now().isoformat(), old["id"]))
+                if abs(new_qty - old["qty"]) > 1e-9:  # qty 變化才寫流水（浮點誤差不算）
+                    conn.execute(
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                        (item_id, round(new_qty - old["qty"], 3), old["qty"], new_qty, "編輯品項調整", loc),
+                    )
+            else:
+                conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                             (item_id, loc, new_qty, s.get("note") or ""))
+        for loc, old in existing.items():
+            if loc not in dedup:
+                conn.execute("DELETE FROM item_stocks WHERE id=?", (old["id"],))
     conn.commit()
     row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
     full = _item_full(conn, row)
@@ -162,23 +174,14 @@ def update_item(item_id: int, upd: ItemUpdate):
 
 @router.delete("/api/items/{item_id}")
 def delete_item(item_id: int):
-    """刪除品項（v10：手動 CASCADE——movements/stocktakes/kits/kit_items 的 FK 無
-    ON DELETE CASCADE，foreign_keys=ON 下不先刪子表會 FOREIGN KEY 失敗）"""
+    """刪除品項（M6 soft-delete：保留 movements/stocktakes 稽核軌跡與 kit 引用，只標 is_deleted=1）"""
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(404, "品項不存在")
-    # 依序刪子表（子→父），避免 FK 約束擋刪除
-    conn.execute("DELETE FROM movements WHERE item_id=?", (item_id,))       # 異動流水
-    conn.execute("DELETE FROM stocktakes WHERE item_id=?", (item_id,))      # 盤點紀錄
-    conn.execute("DELETE FROM kit_items WHERE item_id=?", (item_id,))        # 當材料被引用
-    kit = conn.execute("SELECT id FROM kits WHERE item_id=?", (item_id,)).fetchone()  # 本身是整組
-    if kit:
-        conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit["id"],))
-        conn.execute("DELETE FROM kits WHERE id=?", (kit["id"],))
-    conn.execute("DELETE FROM item_stocks WHERE item_id=?", (item_id,))     # 位置庫存
-    conn.execute("DELETE FROM items WHERE id=?", (item_id,))
+    conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
+                 (datetime.datetime.now().isoformat(), item_id))
     conn.commit()
     conn.close()
     # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
@@ -197,7 +200,7 @@ def delete_item(item_id: int):
 def add_stock(item_id: int, st: StockUpdate):
     """新增位置庫存（同位置重複 → 400 拒絕），回傳該品項全部位置清單"""
     conn = get_db()
-    item = conn.execute("SELECT id FROM items WHERE id=?", (item_id,)).fetchone()
+    item = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not item:
         conn.close()
         raise HTTPException(404, "品項不存在")
@@ -263,7 +266,7 @@ def delete_stock(stock_id: int):
 def adjust_qty(item_id: int, req: AdjustRequest):
     """加減庫存：正數=盤點補入、負數=扣減"""
     conn = get_db()
-    item_row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    item_row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not item_row:
         conn.close()
         raise HTTPException(404, "品項不存在")
@@ -328,7 +331,7 @@ def import_items(items: list):
         location = it.get("location", "")
         note = it.get("note", "")
         exists = conn.execute(
-            "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=?",
+            "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",
             (brand, code, name, unit, site),
         ).fetchone()
         if exists:

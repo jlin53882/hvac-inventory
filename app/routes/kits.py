@@ -38,7 +38,7 @@ def list_kits(site: Optional[str] = None):
         where = " WHERE i.site = ?"
         params = (site,)
     kits = conn.execute(
-        f"SELECT k.*, i.unit, i.brand, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} ORDER BY k.name",
+        f"SELECT k.*, i.unit, i.brand, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} AND i.is_deleted = 0 ORDER BY k.name",
         params).fetchall()
     result = []
     for k in kits:
@@ -121,14 +121,11 @@ def delete_kit(kit_id: int):
         conn.close()
         raise HTTPException(404, "整組不存在")
     item_id = row["item_id"]
-    # 依序刪子表（子→父），避免 FK 約束擋刪除（同 delete_item 的 CASCADE 語義）
     conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
     conn.execute("DELETE FROM kits WHERE id=?", (kit_id,))
-    conn.execute("DELETE FROM movements WHERE item_id=?", (item_id,))
-    conn.execute("DELETE FROM stocktakes WHERE item_id=?", (item_id,))
-    conn.execute("DELETE FROM kit_items WHERE item_id=?", (item_id,))
-    conn.execute("DELETE FROM item_stocks WHERE item_id=?", (item_id,))
-    conn.execute("DELETE FROM items WHERE id=?", (item_id,))
+    # M6：套件品項 soft-delete（保留 movements/stocktakes 稽核軌跡）
+    conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
+                 (datetime.datetime.now().isoformat(), item_id))
     conn.commit()
     conn.close()
     # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
@@ -198,7 +195,9 @@ def assemble_kit(kit_id: int, req: KitAssemble):
     # 檢查材料庫存
     short = []
     for c in comps:
-        mat = conn.execute("SELECT * FROM items WHERE id=?", (c["item_id"],)).fetchone()
+        mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (c["item_id"],)).fetchone()
+        if not mat:  # M6：材料已刪除 → 不可組裝
+            raise HTTPException(400, f"材料 id={c['item_id']} 已刪除，無法組裝")
         need = c["qty"] * req.qty
         stock = _total(conn, c["item_id"])
         if stock < need:

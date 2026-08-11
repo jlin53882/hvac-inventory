@@ -21,10 +21,10 @@ router = APIRouter()
 def stats(site: Optional[str] = None):
     """統計總品項數/總庫存/低庫存/缺貨/品牌數（支援 site 分片篩選），回傳統計 dict"""
     conn = get_db()
-    where = ""
+    where = " WHERE is_deleted = 0"
     params = ()
     if site and site != "all":
-        where = " WHERE site = ?"
+        where += " AND site = ?"
         params = (site,)
     total = conn.execute(f"SELECT COUNT(*) FROM items{where}", params).fetchone()[0]
     total_qty = conn.execute(

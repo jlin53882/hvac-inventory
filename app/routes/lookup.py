@@ -66,7 +66,7 @@ def find_similar(name: str = "", code: str = "", site: str = "all", exclude_id: 
 
     conn = get_db()
     rows = conn.execute(
-        "SELECT * FROM items WHERE is_kit=0 ORDER BY brand, name").fetchall()
+        "SELECT * FROM items WHERE is_kit=0 AND is_deleted=0 ORDER BY brand, name").fetchall()
     conn.close()
 
     hits = []

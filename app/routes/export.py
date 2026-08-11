@@ -74,6 +74,7 @@ def export_excel(days: int = 30):
                    COALESCE(SUM(s.qty) OVER (PARTITION BY i.id), 0) AS total
             FROM items i
             LEFT JOIN item_stocks s ON s.item_id = i.id
+            WHERE i.is_deleted = 0
             ORDER BY i.brand COLLATE NOCASE, i.name, s.id
         """).fetchall()
         for r in rows:
