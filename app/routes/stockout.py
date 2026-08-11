@@ -43,6 +43,7 @@ def _item_payload(conn, row) -> dict:
     d["qty"] = d["total_qty"]
     d["location"] = stocks[0]["location"] if stocks else ""
     d["note"] = stocks[0]["note"] if stocks else ""
+    d["has_photo"] = has_photo(d["id"])  # 待領出/回傳清單顯示品項照片縮圖（與已領出一致）
     return d
 
 

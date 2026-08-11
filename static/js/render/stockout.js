@@ -23,7 +23,37 @@ async function renderStockOuts() {
       (byMonth[m] = byMonth[m] || []).push(o);
     });
 
+    const isM = (typeof isMobileView === 'function') && isMobileView();
     let html = '';
+    if (isM) {
+      // ===== 手機版：卡片式（⋯ 動作選單） =====
+      Object.keys(byMonth).sort().reverse().forEach(m => {
+        const list = byMonth[m];
+        const active = list.filter(o => !o.reverted_at);
+        const totalOut = active.reduce((s, o) => s + Math.abs(o.delta), 0);
+        html += `<div class="section-title"><span class="loc">📅 ${m}</span><span>${list.length} 筆 · 領出 ${totalOut} 件</span></div>`;
+        list.forEach(o => {
+          const reverted = !!o.reverted_at;
+          const thumb = o.has_photo
+            ? `<img src="/uploads/${o.item_id}.jpg" alt="" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">`
+            : '📷';
+          html += `<div class="m-card${reverted ? ' reverted' : ''}">
+            <button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>
+            <div class="card-main">
+              <div class="thumb">${thumb}</div>
+              <div class="info">
+                <div class="nm">${esc(o.brand)} ${esc(o.item_name)}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}</div>
+                <div class="sub">${esc((o.created_at||'').slice(5,16))}${o.code ? ' · 型號 ' + esc(o.code) : ''}</div>
+                <div>${o.destination ? `<span class="loc-tag">🏢 ${esc(o.destination)}</span>` : ''}</div>
+              </div>
+              <div class="qty-col"><div class="qty-num qty-neg">-${absNum(o.delta)}</div><div class="qty-unit">${esc(o.unit)}</div></div>
+            </div>
+          </div>`;
+        });
+      });
+    } else {
+      // ===== 桌面版：原表格 =====
+    html = '';
     Object.keys(byMonth).sort().reverse().forEach(m => {
       const list = byMonth[m];
       // 統計只算「未退回」的出庫（退回的數量已加回庫存）
@@ -36,7 +66,7 @@ async function renderStockOuts() {
       list.forEach(o => {
         const reverted = !!o.reverted_at;
         const soPhoto = o.has_photo
-          ? `<img class="so-photo" src="/uploads/${o.item_id}.jpg" alt="" loading="lazy">`
+          ? `<img class="so-photo" src="/uploads/${o.item_id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">`
           : `<div class="so-photo so-photo-empty">📷</div>`;
         html += `<tr${reverted ? ' style="opacity:0.55"' : ''}>
           <td class="photo-cell">${soPhoto}</td>
@@ -56,6 +86,7 @@ async function renderStockOuts() {
       });
       html += '</tbody></table>';
     });
+    }
     content.innerHTML = html;
   } catch (e) {
     content.innerHTML = `<div class="empty">⚠️ 載入失敗<br><small>${e.message}</small></div>`;
@@ -76,4 +107,22 @@ async function deleteStockoutRecord(movementId) {
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
+}
+
+
+// ========== 手機版 ⋯ 動作選單（已領出卡） ==========
+function openStockoutSheet(movementId) {
+  const rec = (typeof stockoutRecords !== 'undefined' ? stockoutRecords : []).find(r => r.id === movementId);
+  if (!rec) return;
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const reverted = !!rec.reverted_at;
+  const actions = [];
+  if (!isViewer) {
+    if (!reverted) {
+      actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutModal(movementId) });
+      actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnStockout(movementId) });
+    }
+    actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutRecord(movementId) });
+  }
+  openSheet(`${rec.brand} ${rec.item_name}`, actions);
 }

@@ -42,6 +42,11 @@ async function checkAuth() {
 // 登出
 async function logout() {
   try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+  // 清除位置折疊狀態（登出後還原預設展開）
+  try {
+    Object.keys(localStorage).filter(k => k.indexOf('hvac_collapsed_locs_') === 0)
+      .forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
   window.location.href = '/login.html';
 }
 

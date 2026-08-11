@@ -10,7 +10,39 @@ async function renderKits() {
     const res = await fetch(`/api/kits?site=${currentSite}`);
     const kits = await res.json();
 
-    let html = `
+    const isM = (typeof isMobileView === 'function') && isMobileView();
+    let html = '';
+    if (isM) {
+      // ===== 手機版：卡片式（⋯ 動作選單） =====
+      html += `<div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${kits.length} 個</span></div>`;
+      if (!isViewer) {
+        html += `<button class="btn-save" style="width:100%;padding:11px;font-size:13.5px;margin-bottom:12px" onclick="openKitModal()">➕ 新增整組</button>`;
+      }
+      if (!kits.length) {
+        html += '<div class="empty">🔧 還沒有整組定義<br><small>例如「電磁閥套組」由線圈+本體組成，可一鍵組裝/拆解</small></div>';
+      } else {
+        kits.forEach(k => {
+          const canAssemble = k.components.every(c => c.stock >= c.need_qty);
+          html += `<div class="m-card">
+            ${isViewer ? '' : `<button class="more-btn" onclick="openKitSheet(${k.id})">⋯</button>`}
+            <div class="kit-head">
+              <div class="kit-name">🔧 ${esc(k.name)}</div>
+              <span class="kit-stock">庫存 ${k.stock_qty} ${esc(k.unit || '組')}</span>
+            </div>
+            <div class="kit-comps">`;
+          k.components.forEach(c => {
+            const enough = c.stock >= c.need_qty;
+            html += `<div class="kit-comp">
+              <span class="cname">${esc(c.brand)} ${esc(c.name)}${c.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(c.code) + '</small>' : ''}</span>
+              <span class="cneed">需 <b class="${enough ? 'ok' : 'low'}">${c.need_qty}</b> / 有 ${c.stock}</span>
+            </div>`;
+          });
+          html += `</div></div>`;
+        });
+      }
+    } else {
+      // ===== 桌面版：原卡片+表格 =====
+    html = `
       <div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${kits.length} 個</span></div>`;
     if (!isViewer) {
       html += `<div style="display:flex;gap:8px;margin-bottom:14px">
@@ -50,6 +82,7 @@ async function renderKits() {
         html += '</tbody></table>';
         html += '</div>';
       });
+    }
     }
     content.innerHTML = html;
   } catch (e) {
@@ -220,4 +253,18 @@ async function deleteKit(kitId) {
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
+}
+
+
+// ========== 手機版 ⋯ 動作選單（整組卡） ==========
+function openKitSheet(kitId) {
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const actions = [];
+  if (!isViewer) {
+    actions.push({ icon: '🛠️', label: '組裝', cls: 'out', fn: () => assembleKit(kitId) });
+    actions.push({ icon: '✂️', label: '拆解', cls: 'back', fn: () => disassembleKit(kitId) });
+    actions.push({ icon: '✏️', label: '編輯', fn: () => editKit(kitId) });
+    actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteKit(kitId) });
+  }
+  openSheet('整組操作', actions);
 }

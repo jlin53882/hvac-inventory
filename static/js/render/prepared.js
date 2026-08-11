@@ -17,18 +17,46 @@ async function renderPrepared() {
     }
 
     const totalPrepared = items.reduce((s, i) => s + i.prepared_qty, 0);
-    let html = `
+    let html = '';
+    const isM = (typeof isMobileView === 'function') && isMobileView();
+    if (isM) {
+      // ===== 手機版：卡片式（⋯ 動作選單） =====
+      html += `<div class="section-title"><span class="loc">📤 待領出（已拿出未出去）</span><span>${items.length} 項 · ${totalPrepared} 件</span></div>`;
+      items.forEach(i => {
+        const thumb = i.has_photo
+          ? `<img src="/uploads/${i.id}.jpg" alt="${esc(i.name)}" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
+          : '📷';
+        html += `<div class="m-card">
+          ${isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${i.id})">⋯</button>`}
+          <div class="card-main">
+            <div class="thumb">${thumb}</div>
+            <div class="info">
+              <div class="nm">${esc(i.brand)} ${esc(i.name)}<span class="chip green">待領出</span></div>
+              <div class="sub">${esc(i.location || '未標示')}</div>
+              <div><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>
+            </div>
+            <div class="qty-col"><div class="qty-num qty-violet">${i.prepared_qty}</div><div class="qty-unit">${esc(i.unit)}</div></div>
+          </div>
+        </div>`;
+      });
+    } else {
+      // ===== 桌面版：原表格 =====
+    html = `
       <div class="section-title"><span class="loc">📤 待領出（已拿出未出去）</span><span>${items.length} 項 · ${totalPrepared} 件</span></div>
       <div style="background:#f5f3ff;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#6d28d9">
         💡 待領出 <b>不會扣庫存</b>。真正出去時按「已領出」才會扣，也可以「退回」。
       </div>`;
 
     html += `<table class="data-table"><thead><tr>
-      <th>品項</th><th>待領出</th><th>庫存</th>${isViewer ? '' : '<th>操作</th>'}
+      <th>照片</th><th>品項</th><th>待領出</th><th>庫存</th>${isViewer ? '' : '<th>操作</th>'}
     </tr></thead><tbody>`;
 
     items.forEach(i => {
+      const pPhoto = i.has_photo
+        ? `<img class="so-photo" src="/uploads/${i.id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
+        : `<div class="so-photo so-photo-empty">📷</div>`;
       html += `<tr>
+        <td class="photo-cell">${pPhoto}</td>
         <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
         <td style="text-align:center"><b style="color:#6d28d9">${i.prepared_qty}</b> ${esc(i.unit)}</td>
         <td style="text-align:center">${i.qty} ${esc(i.unit)}</td>
@@ -41,6 +69,7 @@ async function renderPrepared() {
     });
 
     html += '</tbody></table>';
+    }
     content.innerHTML = html;
     updatePreparedBadge(items.length);
   } catch (e) {
@@ -78,4 +107,19 @@ async function clearPrepared(itemId, qty) {
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
+}
+
+
+// ========== 手機版 ⋯ 動作選單（待領出卡） ==========
+function openPreparedSheet(itemId) {
+  const item = ALL_ITEMS.find(i => i.id === itemId);
+  if (!item) return;
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const actions = [];
+  if (!isViewer) {
+    actions.push({ icon: '🚚', label: '已領出', cls: 'out', fn: () => openPreparedOutModal(itemId) });
+    actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnPrepared(itemId) });
+    actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => clearPrepared(itemId, item.prepared_qty) });
+  }
+  openSheet(`${item.brand} ${item.name}`, actions);
 }

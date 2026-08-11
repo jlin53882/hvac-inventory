@@ -66,10 +66,68 @@ function renderInventory() {
     (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
   });
 
+  // 位置折疊狀態（localStorage 記住，登出清除；per site 分開存）
+  const collapsedKey = 'hvac_collapsed_locs_' + (typeof currentSite !== 'undefined' ? currentSite : 'office');
+  let collapsedLocs = [];
+  try { collapsedLocs = JSON.parse(localStorage.getItem(collapsedKey) || '[]') || []; } catch (e) { collapsedLocs = []; }
+  const isM = (typeof isMobileView === 'function') && isMobileView();
   let html = '';
-  Object.keys(byLoc).sort().forEach(loc => {
+  if (isM) {
+    // ===== 手機版：卡片式（⋯ 動作選單 + −/＋ 數量列） =====
+    Object.keys(byLoc).sort().forEach(loc => {
+      const locItems = byLoc[loc];
+      const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
+      html += `<div class="section-title${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}" onclick="toggleLoc(this, '${esc(loc)}')">
+        <button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>
+        <span class="loc">位置：${esc(loc)}</span><span>${locItems.length} 項</span>
+      </div>`;
+      html += `<div class="loc-group${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}">`;
+      locItems.forEach(i => {
+        const delta = pending[i.id] || 0;
+        const display = Math.round((i.qty + delta) * 1000) / 1000;
+        const isZero = display <= 0;
+        const prepared = i.prepared_qty || 0;
+        const locs = (i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}]);
+        const locStr = locs.map(s => `<div class="item-loc">位置：${esc(s.location || '未標示')}${s.note ? `｜${esc(s.note)}` : ''}</div>`).join('');
+        const thumb = i.has_photo
+          ? `<img src="/uploads/${i.id}.jpg" alt="${esc(i.name)}" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
+          : '📦';
+        html += `<div class="m-card">
+          ${isViewer ? '' : `<button class="more-btn" onclick="openItemSheet(${i.id})">⋯</button>`}
+          <div class="card-main">
+            <div class="thumb">${thumb}</div>
+            <div class="info">
+              <div class="nm">${esc(i.name)}${i.site === 'warehouse' ? ' 🏭' : ''}${prepared > 0 ? `<span class="chip green">待領出 ${prepared}</span>` : ''}</div>
+              <div class="sub">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
+              ${locStr}
+            </div>
+            <div class="qty-col">${isViewer
+              ? `<div class="qty-num">${display}</div><div class="qty-unit">${esc(i.unit)}</div>`
+              : `<div class="qty-control">
+                  <button class="qty-btn qty-minus" onclick="changeQty(${i.id}, -1)" ${isZero && delta <= 0 ? 'disabled' : ''}>−</button>
+                  <div class="qty-value" onclick="quickSet(${i.id})" title="點數字可輸入">${display}<span class="unit"> ${esc(i.unit)}</span></div>
+                  <button class="qty-btn qty-plus" onclick="changeQty(${i.id}, 1)">+</button>
+                </div>`}
+            </div>
+          </div>
+          ${isViewer ? '' : `<div class="m-card-actions">
+            ${!i.is_kit ? `<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(${i.id}, event)">📤 待領出</button>` : ''}
+            <button class="btn-out" style="margin:0" onclick="openOutModal(${i.id}, event)">🚚 已領出</button>
+          </div>`}
+        </div>`;
+      });
+      html += `</div>`;
+    });
+  } else {
+    // ===== 桌面版：原 item-card =====
+    Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
-    html += `<div class="section-title"><span class="loc">位置：${esc(loc)}</span><span>${locItems.length} 項</span></div>`;
+    const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
+    html += `<div class="section-title${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}" onclick="toggleLoc(this, '${esc(loc)}')">
+      <button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>
+      <span class="loc">位置：${esc(loc)}</span><span>${locItems.length} 項</span>
+    </div>`;
+    html += `<div class="loc-group${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}">`;
     locItems.forEach(i => {
       const delta = pending[i.id] || 0;
       const display = Math.round((i.qty + delta) * 1000) / 1000;
@@ -112,7 +170,9 @@ function renderInventory() {
         </div>`}
       </div>`;
     });
+    html += `</div>`;
   });
+  }
   content.innerHTML = html;
   updateSaveBar();
 }
@@ -169,4 +229,37 @@ async function deleteItem(itemId) {
     }
     await loadData();
   } catch (e) { alert('刪除失敗：' + e.message); }
+}
+
+
+// ========== 手機版 ⋯ 動作選單（庫存卡） ==========
+function openItemSheet(itemId) {
+  const item = ALL_ITEMS.find(i => i.id === itemId);
+  if (!item) return;
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const actions = [];
+  if (!isViewer) {
+    actions.push({ icon: '✏️', label: '編輯品項', fn: () => openEditModal(itemId) });
+    actions.push({ icon: '📷', label: '更換照片', fn: () => openEditModal(itemId) });
+    actions.push({ icon: '🗑', label: '刪除品項', cls: 'del', fn: () => deleteItem(itemId) });
+  }
+  openSheet(`${item.brand} ${item.name}`, actions);
+}
+
+
+// ========== 位置折疊/展開（點位置標題最左邊箭頭） ==========
+// 狀態存 localStorage（per site），登出時清除還原預設展開
+function toggleLoc(titleEl, loc) {
+  const collapsedKey = 'hvac_collapsed_locs_' + (typeof currentSite !== 'undefined' ? currentSite : 'office');
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(collapsedKey) || '[]') || []; } catch (e) { arr = []; }
+  const idx = arr.indexOf(loc);
+  const nowCollapsed = idx < 0;
+  if (nowCollapsed) arr.push(loc); else arr.splice(idx, 1);
+  try { localStorage.setItem(collapsedKey, JSON.stringify(arr)); } catch (e) {}
+  if (titleEl) titleEl.classList.toggle('collapsed', nowCollapsed);
+  try {
+    const groups = document.querySelectorAll('.loc-group[data-loc="' + CSS.escape(loc) + '"]');
+    groups.forEach(g => g.classList.toggle('collapsed', nowCollapsed));
+  } catch (e) {}
 }

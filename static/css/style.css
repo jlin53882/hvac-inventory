@@ -165,8 +165,17 @@
     font-size: 13px; font-weight: 700; color: #888;
     margin: 14px 0 8px;
     display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
   }
-  .section-title .loc { color: #2d5a8e; font-weight: 600; }
+  .section-title .loc { color: #2d5a8e; font-weight: 600; margin-right: auto; }
+  /* 位置折疊按鈕（最左邊箭頭） */
+  .section-title .collapse-btn {
+    background: none; border: none; padding: 0 6px 0 0; margin: 0;
+    font-size: 12px; color: #2d5a8e; cursor: pointer; line-height: 1;
+    transition: transform .15s ease;
+  }
+  .section-title.collapsed .collapse-btn { transform: rotate(-90deg); }
+  .loc-group.collapsed { display: none; }
 
   .item-card {
     background: #fff;
@@ -683,7 +692,8 @@
 
 /* ===== v1.1 已領出照片欄 + 整組材料型號（2026-08-11 Sarah 需求） ===== */
 .data-table .photo-cell { width: 54px; padding: 6px; }
-.so-photo { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; display: block; }
+.so-photo { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; display: block; cursor: zoom-in; transition: transform .12s; }
+.so-photo:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.18); }
 .so-photo-empty { display: flex; align-items: center; justify-content: center; background: #eef2f7; color: #b6c2cf; font-size: 18px; }
 .selected-row .info .bd .model,
 .kit-drop-opt .bd .model { color: #1890FF; font-weight: 600; }
@@ -736,3 +746,137 @@
   border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer;
 }
 .btn-cancel-ghost:hover { background: #e5e8ec; color: #1e3a5f; }
+
+/* ☰ 按鈕：桌面隱藏（手機 media query 顯示） */
+@media (min-width: 768px) { #btn-menu { display: none; } }
+
+/* ===== v1.2 手機版卡片式 UI + ⋯ 動作選單（2026-08-11 家豪需求） ===== */
+
+/* ---------- ⋯ 更多按鈕（卡片右上角） ---------- */
+.more-btn {
+  position: absolute; top: 6px; right: 6px; width: 32px; height: 32px;
+  border-radius: 50%; border: none; background: #f0f2f5; color: #4b5563;
+  font-size: 17px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; z-index: 5;
+  transition: background .12s;
+}
+.more-btn:active { background: #e0e4ea; }
+
+/* ---------- Bottom Sheet 動作選單（點 ⋯ 彈出） ---------- */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(15,18,28,.45); z-index: 3000;
+  display: none; align-items: flex-end; justify-content: center;
+}
+.sheet-overlay.show { display: flex; }
+.sheet {
+  width: 100%; max-width: 560px; background: #fff;
+  border-radius: 16px 16px 0 0; padding: 10px 12px 18px;
+  animation: sheet-up .18s ease;
+}
+@keyframes sheet-up { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+.sheet .sheet-title { font-size: 12px; color: #9ca3af; text-align: center; padding: 4px 0 8px; font-weight: 600; }
+.sheet .s-item {
+  display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; color: #111827; cursor: pointer;
+}
+.sheet .s-item:active { background: #f5f7fa; }
+.sheet .s-item .ic { font-size: 16px; width: 22px; text-align: center; }
+.sheet .s-item.out { color: #2d5a8e; }
+.sheet .s-item.back { color: #b45309; }
+.sheet .s-item.del { color: #dc2626; }
+.sheet .s-divider { height: 6px; background: #f3f4f6; border-radius: 4px; margin: 4px 0; }
+.sheet .s-cancel {
+  display: block; width: 100%; padding: 13px; border: none; background: none;
+  font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer;
+  border-top: 1px solid #f3f4f6; margin-top: 6px; border-radius: 10px;
+}
+
+/* ---------- 手機版卡片（render 手機模板輸出） ---------- */
+.m-card {
+  background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  margin-bottom: 10px; overflow: hidden; border: 1px solid #f0f2f5; position: relative;
+}
+.m-card .card-main { display: flex; gap: 10px; padding: 10px 12px; align-items: center; }
+.m-card .thumb {
+  width: 58px; height: 58px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+  background: #eef2f7; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #b6c2cf; cursor: zoom-in; border: 1px solid #eef0f3;
+}
+.m-card .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+.m-card .info { flex: 1; min-width: 0; padding-right: 30px; }
+.m-card .nm { font-size: 13.5px; font-weight: 600; color: #111827; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card .sub { font-size: 11px; color: #6b7280; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card .loc-tag {
+  display: inline-block; font-size: 10.5px; color: #2d5a8e; background: #eef4fa;
+  border: 1px solid #cfe0f0; border-radius: 6px; padding: 1px 7px; margin-top: 4px;
+  white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.m-card .qty-col { text-align: center; flex-shrink: 0; padding-right: 34px; }
+.m-card .qty-num { font-size: 17px; font-weight: 700; color: #111827; line-height: 1.1; }
+.m-card .qty-unit { font-size: 10px; color: #9ca3af; display: block; }
+.m-card .qty-neg { color: #dc2626; }
+.m-card .qty-violet { color: #6d28d9; }
+.m-card .qty-actions { display: flex; border-top: 1px solid #f3f4f6; background: #fafbfc; }
+.m-card .qty-actions .act {
+  flex: 1; border: none; background: none; padding: 10px 2px; font-size: 13px; font-weight: 700;
+  cursor: pointer; color: #374151; border-right: 1px solid #f0f2f5;
+}
+.m-card .qty-actions .act:last-child { border-right: none; }
+.m-card .qty-actions .act.mn { color: #dc2626; }
+.m-card .qty-actions .act.pl { color: #16a34a; }
+.m-card .qty-actions .act:disabled { color: #c4cbd4; }
+.m-card .qty-actions .act.mid {
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+  font-size: 14px; font-weight: 700; color: #111827; cursor: pointer;
+}
+.m-card .qty-actions .act.mid .unit { font-size: 10px; color: #999; font-weight: 400; }
+.m-card .chip { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 8px; margin-left: 4px; }
+.m-card .chip.green { background: #dcfce7; color: #15803d; }
+.m-card.reverted { opacity: .55; }
+.m-card .reverted-tag { font-size: 10px; color: #9ca3af; margin-left: 4px; }
+
+/* 手機庫存卡：底部 待領出/已領出 按鈕列（還原顯示） */
+.m-card-actions {
+  display: flex; gap: 8px; padding: 0 12px 12px;
+}
+.m-card-actions .btn-prepare, .m-card-actions .btn-out {
+  flex: 1; margin: 0 !important; padding: 10px 4px !important; font-size: 12.5px;
+  border-radius: 9px;
+}
+
+/* 整組卡（手機） */
+.m-card .kit-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px 4px; padding-right: 44px; }
+.m-card .kit-name { font-size: 13.5px; font-weight: 700; color: #111827; }
+.m-card .kit-stock { font-size: 11px; color: #2d5a8e; background: #eef4fa; border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+.m-card .kit-comps { padding: 6px 12px 10px; }
+.m-card .kit-comp { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px dashed #f0f2f5; font-size: 11.5px; }
+.m-card .kit-comp:last-child { border-bottom: none; }
+.m-card .kit-comp .cname { color: #374151; white-space: normal; overflow: hidden; text-overflow: ellipsis; max-width: 170px; line-height: 1.4; }
+.m-card .kit-comp .cneed { color: #6b7280; flex-shrink: 0; }
+.m-card .kit-comp .cneed b { color: #111827; }
+.m-card .kit-comp .cneed b.ok { color: #16a34a; }
+.m-card .kit-comp .cneed b.low { color: #dc2626; }
+
+/* ---------- 手機版（<768px） ---------- */
+@media (max-width: 767px) {
+  /* topbar 手機版：保留 👤 使用者 chip；匯出/改密碼/使用者/登出 按鈕收進 ☰ */
+  .top-actions .btn-ghost { display: none; }
+  .user-menu .btn-ghost { display: none; }
+  .user-menu { display: flex !important; }
+  .topbar .sub { display: none; }
+  /* 手機 ☰ 按鈕（index.html 內建，桌面隱藏） */
+  #btn-menu { display: flex; }
+
+  /* topbar + 搜尋 + 分頁 固定頂部（sticky） */
+  .topbar { position: sticky; top: 0; z-index: 900; }
+
+  /* 內容區留給底部導覽 */
+  .content { padding-bottom: 92px; }
+
+  /* 注意：盤點頁仍用 data-table（手機不修改），故不隱藏 table */
+
+  /* 手機庫存卡：qty-control 縮小（配合 qty-col padding-right 避開 ⋯） */
+  .m-card .qty-control .qty-btn { width: 30px; height: 30px; font-size: 16px; border-radius: 8px; }
+  .m-card .qty-control .qty-value { width: 40px; font-size: 14px; }
+}
+
