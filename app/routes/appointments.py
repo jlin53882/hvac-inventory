@@ -249,11 +249,12 @@ def list_assignable_users():
     conn = get_db()
     try:
         rows = conn.execute(
-            """SELECT id, username, display_name, color FROM users
+            """SELECT id, username, display_name, color, role FROM users
                WHERE is_active=1 AND role != 'viewer' ORDER BY display_name, id""").fetchall()
         return [{"id": r["id"], "username": r["username"],
                  "display_name": r["display_name"] or r["username"],
-                 "color": r["color"] or "#1a73e8"} for r in rows]
+                 "color": r["color"] or "#1a73e8",
+                 "role": r["role"]} for r in rows]
     finally:
         conn.close()
 

@@ -34,15 +34,13 @@ async function renderCalendar() {
   el.innerHTML = `
     <div class="cal-wrap">
       <div class="cal-toolbar">
-        <div>
+        ${isAdmin ? '<button class="cal-tb-btn" onclick="calOpenSettings()">⚙️ 設定</button>' : ''}
+        <div class="cal-toolbar-mid">
           <div class="cal-title">📅 行事曆派工</div>
-          <div class="cal-sub" id="cal-today-str"></div>
         </div>
-        <div class="cal-toolbar-btns">
-          ${isAdmin ? '<button class="btn-sm btn-primary" onclick="calOpenSettings()">⚙️ 設定</button>' : ''}
-          ${isViewer ? '' : '<button class="btn-sm btn-primary" onclick="calOpenAppt()">＋ 新增派工</button>'}
-        </div>
+        ${isViewer ? '' : '<button class="cal-tb-btn cal-tb-btn-primary" onclick="calOpenAppt()">＋ 新增派工</button>'}
       </div>
+      <div class="cal-reminder" id="cal-reminder" style="display:none"></div>
       <div class="card cal-card">
         <div class="cal-month-header">
           <button class="btn-sm" onclick="calChangeMonth(-1)">◀ 上月</button>
@@ -67,6 +65,24 @@ async function renderCalendar() {
   await calLoadData();
   calRenderMonth();
   calRenderDay();
+  calRenderReminder();
+}
+
+// 今日提醒條（同 demo：常駐顯示「今天 … 有 N 筆派工」+ 看今天行程）
+function calRenderReminder() {
+  const todayStr = _iso(new Date());
+  const n = calEvents.filter(e => e.date === todayStr).length;
+  const el = document.getElementById('cal-reminder');
+  el.style.display = 'flex';
+  el.innerHTML = `今天 ${_fmtTW(new Date())} 有 ${n} 筆派工 <button onclick="calGoToday()">看今天行程</button>`;
+}
+
+// 跳到今天
+function calGoToday() {
+  const d = new Date();
+  calSelected = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+  calLoadData().then(() => { calRenderMonth(); calRenderDay(); });
 }
 
 function calModalHtml(isAdmin) {
@@ -157,8 +173,6 @@ async function calLoadData() {
   calEvents = ev;
   calSvc = svc;
   calAssignable = ppl;
-  document.getElementById('cal-today-str').textContent =
-    `${_fmtTW(new Date())} · 今日 ${calEvents.filter(e => e.date === _iso(new Date())).length} 筆派工`;
 }
 
 // ========== 月曆 ==========
@@ -219,22 +233,27 @@ function calRenderDay() {
   const list = document.getElementById('cal-day-list');
   const dayEvents = calEvents.filter(e => e.date === selStr).sort((a, b) => a.start_time.localeCompare(b.start_time));
   if (!dayEvents.length) {
+    list.className = '';
     list.innerHTML = '<div class="empty">這天沒有派工行程' + (isViewer ? '' : '<br>點右上「＋ 新增派工」排一筆') + '</div>';
     return;
   }
+  list.className = 'cal-timeline';
   list.innerHTML = dayEvents.map(e => {
     const who = (e.assignees || []).map(p =>
       `<span class="cal-who"><span class="cal-who-dot" style="background:${p.color || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
     return `
-    <div class="cal-day-card">
-      ${isViewer ? '' : `<div class="cal-card-actions">
-        <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">✏️</button>
-        <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
-      </div>`}
-      <div class="cal-time">⏰ ${e.start_time} - ${e.end_time}　${who}</div>
-      <div class="cal-client">[${esc(e.service_name || '')}] ${esc(e.client_name)}</div>
-      ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
-      <div class="cal-note">${esc(e.note || '無備註')}</div>
+    <div class="cal-tl-row">
+      <span class="cal-tl-dot"></span>
+      <div class="cal-event-card">
+        ${isViewer ? '' : `<div class="cal-card-actions">
+          <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">✏️</button>
+          <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
+        </div>`}
+        <div class="cal-time">⏰ ${e.start_time} - ${e.end_time}　${who}</div>
+        <div class="cal-client">[${esc(e.service_name || '')}] ${esc(e.client_name)}</div>
+        ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
+        <div class="cal-note">${esc(e.note || '無備註')}</div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -355,7 +374,7 @@ async function calExport() {
 // ========== 設定（admin）==========
 function calSetTab(t) {
   ['svc', 'ppl'].forEach(x => {
-    document.getElementById('cal-tab-' + x).style.display = x === t ? 'block' : 'none';
+    // 只切 panel 顯示 + tab 按鈕 active class（按鈕本身不能隱藏，否則切不回來）
     document.getElementById('cal-tab-' + x + '-panel').style.display = x === t ? 'block' : 'none';
     document.getElementById('cal-tab-' + x).className = 'cal-set-tab' + (x === t ? ' active' : '');
   });
@@ -439,10 +458,11 @@ async function calDelSvc(id) {
 function calRenderPplRows() {
   const tb = document.getElementById('cal-ppl-rows');
   tb.innerHTML = '';
+  const roleName = { admin: '管理員', user: '使用者', viewer: '檢視者' };
   calAssignable.forEach(p => {
     tb.innerHTML += `<tr>
       <td>${esc(p.display_name || p.username)}</td>
-      <td>${esc(p.role || '')}</td>
+      <td>${esc(roleName[p.role] || p.role || '')}</td>
       <td><div class="cal-color-dots">${CAL_PALETTE.map(c =>
         `<span style="background:${c}" class="${(p.color || '#1a73e8') === c ? 'sel' : ''}" onclick="calSetColor(${p.id},'${c}')"></span>`).join('')}</div></td>
     </tr>`;
