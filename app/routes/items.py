@@ -319,8 +319,13 @@ def adjust_qty(item_id: int, req: AdjustRequest):
 def import_items(items: list = Body(..., embed=True)):
     """批量匯入（v10：自動去重，重複則合併到既有主檔的庫存）"""
     conn = get_db()
+    # M8：筆數上限（防一次塞爆）
+    if len(items) > 500:
+        raise HTTPException(400, "一次最多匯入 500 筆")
     # M8：逐筆驗證（型別/必填），任一筆錯誤 → 400 且整批不寫入（避免部分成功）
     for i, it in enumerate(items, 1):
+        if not isinstance(it, dict):  # M8：非 dict（字串/數字）→ 400，不 500
+            raise HTTPException(400, f"第 {i} 筆格式錯誤（需為 JSON 物件）")
         if not str(it.get("name", "")).strip():
             raise HTTPException(400, f"第 {i} 筆缺少品項名稱")
         try:

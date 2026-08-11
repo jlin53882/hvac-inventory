@@ -1355,6 +1355,14 @@ class TestPhase3Concurrency:
         assert r.status_code == 400
         assert "待領出" in r.json()["detail"]
 
+    def test_stocktake_deleted_item_400(self, client):
+        """M6：soft-delete 品項不可盤點 → 400（2026-08-11 補漏）"""
+        item = _add_item(client, name="已刪盤點", qty=10, location="A倉")
+        assert client.delete(f"/api/items/{item['id']}").status_code == 200
+        r = client.post("/api/stocktake", json={"items": [{"item_id": item["id"], "location": "A倉", "actual_qty": 5}]})
+        assert r.status_code == 400
+        assert "已刪除" in r.json()["detail"]
+
     def test_adjust_deducts_from_first_stock(self, client):
         """M10：負數調整從頭扣（A=5,B=10 → -8 → A=0,B=7）"""
         item = _add_item(client, name="M10品項", qty=5, location="A倉")
@@ -1558,6 +1566,19 @@ class TestPhase5Robustness:
         r = client.post("/api/import", json={"items": [{"name": "", "qty": 5}]})
         assert r.status_code == 400
         assert "名稱" in r.json()["detail"]
+
+    def test_import_non_dict_400(self, client):
+        """M8：import 含非 dict 元素（字串/數字）→ 400 不是 500"""
+        r = client.post("/api/import", json={"items": [{"name": "正常", "qty": 1}, "garbage", 42]})
+        assert r.status_code == 400
+        assert "格式錯誤" in r.json()["detail"]
+
+    def test_import_over_500_400(self, client):
+        """M8：import 超過 500 筆 → 400"""
+        many = [{"name": f"批量品{i}", "qty": 1} for i in range(501)]
+        r = client.post("/api/import", json={"items": many})
+        assert r.status_code == 400
+        assert "500" in r.json()["detail"]
 
     def test_import_valid_still_works(self, client):
         """M8：正常 import 不受影響"""

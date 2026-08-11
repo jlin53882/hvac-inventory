@@ -29,7 +29,7 @@ from app.routes import auth, export, items, kits, lookup, photos, stats, stockou
 from app.services.auth import init_admin_if_missing, require_login
 
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
-app = FastAPI(title="庫存管理系統", version="8.0.0")
+app = FastAPI(title="庫存管理系統", version="11.0.0")
 # ---------- 快取策略（避免瀏覽器快取舊版 HTML/JS） ----------
 @app.middleware("http")
 async def cache_control_middleware(request, call_next):

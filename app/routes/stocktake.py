@@ -36,7 +36,9 @@ def submit_stocktake(req: StocktakeSubmit):
         ).fetchone()
         if not stock:
             continue
-        item = conn.execute("SELECT * FROM items WHERE id=?", (it["item_id"],)).fetchone()
+        item = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (it["item_id"],)).fetchone()
+        if not item:  # M6：soft-delete 品項不可盤點
+            raise HTTPException(400, f"品項 {it['item_id']} 已刪除，無法盤點")
         system_qty = stock["qty"]
         raw_actual = it.get("actual_qty", system_qty)
         try:

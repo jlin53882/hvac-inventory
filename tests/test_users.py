@@ -354,37 +354,60 @@ def test_login_unknown_user_runs_dummy_hash(admin_client, monkeypatch):
 
 
 def test_login_unknown_user_counts_rate_limit(admin_client):
-    """H3a/H3b：不存在帳號 + 同一 XFF 失敗多次 → 429（XFF 生效 + 不存在帳號也計數）"""
+    """H3a/H3b：不存在帳號也計 rate limit；非信任來源的 XFF 不採信（2026-08-11 信任邊界修正）"""
     from app.services.auth import clear_ip_fail
-    ip = "203.0.113.77"
     try:
         codes = []
-        for _ in range(IP_FAIL_MAX + 2):
+        # 換不同假 XFF 也繞不過：一律以直連 IP（testclient）計數
+        for i in range(IP_FAIL_MAX + 2):
             r = admin_client.post("/api/auth/login",
                                   json={"username": "no_such_user_xyz", "password": "Pass1234"},
-                                  headers={"X-Forwarded-For": ip})
+                                  headers={"X-Forwarded-For": f"203.0.113.{i + 10}"})
             codes.append(r.status_code)
-        assert 429 in codes, f"應該出現 429（XFF rate limit），實際: {codes}"
+        assert 429 in codes, f"應該出現 429（直連 IP 計數），實際: {codes}"
     finally:
-        clear_ip_fail(ip)
+        clear_ip_fail("testclient")
 
 
-def test_login_rate_limit_xff_separate(admin_client):
-    """H3b：不同 XFF 各自計數（共享 proxy IP 不再互相干擾）"""
+def test_login_rate_limit_xff_spoof_cannot_bypass(admin_client):
+    """2026-08-11 信任邊界修正：非信任來源偽造不同 XFF 無法分開計數（防繞過 per-IP rate limit）"""
     from app.services.auth import clear_ip_fail
     ips = ("203.0.113.1", "203.0.113.2")
     try:
-        for ip in ips:
-            codes = []
-            for _ in range(5):
-                r = admin_client.post("/api/auth/login",
-                                      json={"username": "no_such_user_xyz", "password": "Pass1234"},
-                                      headers={"X-Forwarded-For": ip})
-                codes.append(r.status_code)
-            assert 429 not in codes, f"5 次各自計數應未達上限，實際: {codes}"
+        codes = []
+        for i in range(IP_FAIL_MAX + 2):  # 12 次失敗，輪流換假 XFF 也繞不過（共享直連 IP 計數）
+            r = admin_client.post("/api/auth/login",
+                                  json={"username": "no_such_user_xyz", "password": "Pass1234"},
+                                  headers={"X-Forwarded-For": ips[i % 2]})
+            codes.append(r.status_code)
+        assert 429 in codes, f"偽造 XFF 應無法繞過（共享直連 IP 計數），實際: {codes}"
     finally:
-        for ip in ips:
-            clear_ip_fail(ip)
+        clear_ip_fail("testclient")
+
+
+def test_client_ip_trust_boundary():
+    """2026-08-11：_client_ip 信任邊界——非白名單來源忽略 XFF；127.0.0.1（cloudflared）才採信"""
+    from starlette.requests import Request
+    from app.routes.auth import _client_ip
+
+    def _req(client_host: str, xff: str | None = None) -> Request:
+        headers = []
+        if xff:
+            headers.append((b"x-forwarded-for", xff.encode()))
+        return Request({
+            "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+            "method": "POST", "scheme": "http", "path": "/api/auth/login",
+            "raw_path": b"/api/auth/login", "query_string": b"",
+            "root_path": "", "headers": headers,
+            "client": (client_host, 1234), "server": ("test", 80),
+        })
+
+    # 非信任來源（LAN 直連）帶假 XFF → 採直連 IP，XFF 被忽略
+    assert _client_ip(_req("10.0.0.5", "203.0.113.9")) == "10.0.0.5"
+    # 信任來源（本機 cloudflared）帶 XFF → 採信第一段
+    assert _client_ip(_req("127.0.0.1", "203.0.113.9, 10.0.0.1")) == "203.0.113.9"
+    # 無 XFF → 直連 IP
+    assert _client_ip(_req("127.0.0.1")) == "127.0.0.1"
 
 # ========== Phase 2b（2026-08-11）：個人改密碼 + 6 個月過期提示 ==========
 # 注意順序：sarah 密碼會依測試依序被改（Test1234 → NewPass123 → FinalPass456）

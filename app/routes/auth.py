@@ -41,12 +41,20 @@ from app.services.auth import hash_password  # noqa: F401 (init_admin 互用)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+# 信任的 proxy 白名單：僅本機 cloudflared tunnel（127.0.0.1）才採信 X-Forwarded-For，
+# 其餘來源一律用直連 IP——防止攻擊者偽造 XFF 繞過 per-IP rate limit（2026-08-11 補）
+TRUSTED_PROXIES = {"127.0.0.1", "::1"}
+
+
 def _client_ip(request: Request) -> str:
-    """client IP：X-Forwarded-For 第一段優先（Cloudflare tunnel 管理），無則 fallback 直連 IP"""
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """client IP：proxy 白名單來源才採信 X-Forwarded-For 第一段（Cloudflare tunnel 管理）；
+    其餘（LAN 直連/外部）一律用直連 IP，防偽造 XFF 繞 rate limit"""
+    direct = request.client.host if request.client else "unknown"
+    if direct in TRUSTED_PROXIES:
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[0].strip()
+    return direct
 
 
 # ---------- 請求模型 ----------

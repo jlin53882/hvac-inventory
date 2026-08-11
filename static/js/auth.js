@@ -11,6 +11,9 @@
     const res = await _origFetch(url, opts);
     if (res.status === 401 && !window.__authRedirecting) {
       // 登入請求本身不要跳（login.html 沒有載入本檔，不會走到這）
+      // M17：saveAll 迴圈中 session 過期 = 存一半 → 跳轉前先提示
+      const hasUnsaved = typeof pending !== 'undefined' && Object.keys(pending).length > 0;
+      if (hasUnsaved) alert('⚠️ 登入已過期，部分調整可能未儲存。請重新登入。');
       window.__authRedirecting = true;
       window.location.href = '/login.html';
     }

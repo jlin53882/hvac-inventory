@@ -470,6 +470,29 @@ def test_401_redirect_guard_present():
     assert "function jsStr(" in utils  # JS literal escape helper 存在
 
 
+def test_switchsite_pending_guard_present():
+    """M15（2026-08-11 補漏）：切分片 pending 確認 + beforeunload 資產"""
+    app_js = read(os.path.join(STATIC, "js", "app.js"))
+    assert "function hasPending" in app_js
+    assert "Object.keys(pending)" in app_js
+    assert "切換分片將遺失" in app_js  # switchSite confirm 文案
+    assert "beforeunload" in app_js
+
+
+def test_401_unsaved_alert_present():
+    """M17（2026-08-11 補強）：401 跳轉前提示未存變更"""
+    au = read(AUTH_JS)
+    assert "登入已過期，部分調整可能未儲存" in au
+    assert "Object.keys(pending)" in au
+
+
+def test_version_strings_consistent():
+    """L12（2026-08-11）：main.py FastAPI version 與 login.html 頁尾一致（11.0）"""
+    main_src = read(os.path.join(BASE_DIR, "main.py"))
+    assert 'version="11.0.0"' in main_src
+    assert "v11.0" in read(LOGIN)
+
+
 def test_kit_modal_searchable_material_picker():
     """整組 Modal 材料選擇是「可搜尋」demo 樣式：render/kits.js 有搜尋/過濾/選中函式、
     已選列 selected-row 灰卡片、單一 mat-search 搜尋框；且不再用超過 100 個

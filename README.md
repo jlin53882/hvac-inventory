@@ -79,6 +79,9 @@ hvac-inventory/
 | PUT | `/api/auth/password` | 個人改密碼（清其他裝置 session） |
 | POST | `/api/auth/password-ack` | 密碼過期提醒：按「繼續使用」重置 180 天 |
 
+> **保留 API（未接前端）**（G4，2026-08-11）：以下端點目前前端未使用，供外部整合或未來功能，請勿誤刪：
+> `/api/locations`（位置清單）、`/api/movements`（異動紀錄）、`GET /api/stocktakes`（盤點紀錄）、`/api/import`（批次匯入，無 UI）、`/api/stocks/{id}`（PATCH/DELETE）、`/api/items/{id}/stocks`（新增位置）。全 API 需登入，viewer 對寫入端點一律 403。
+
 ## 📊 資料來源
 
 - 2026-08-07 家豪提供的 Google Sheets「庫存材料」
