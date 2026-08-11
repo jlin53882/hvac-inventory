@@ -151,7 +151,7 @@ async function loadUsersTable() {
         <td style="padding:8px"><span class="role-badge ${roleClass}">${roleLabel}</span><br><button class="perm-btn" onclick="toggleUserPerms(${u.id}, this)">📋 權限</button></td>
         <td style="padding:8px">${u.is_active ? '✅ 啟用' : '⛔ 停用'}${u.locked_until ? '<br><small style="color:#dc2626">🔒 鎖定至 ' + esc(u.locked_until) + '</small>' : ''}</td>
         <td class="user-actions">
-          <button class="btn-ghost" onclick="resetUserPw(${u.id})">🔑 修改密碼</button>
+          <button class="btn-ghost" onclick="openResetPwModal(${u.id})">🔑 修改密碼</button>
           <button class="btn-ghost" onclick="toggleUserActive(${u.id})">${u.is_active ? '⏸ 帳號停用' : '▶️ 帳號啟用'}</button>
           ${me ? '' : `<button class="btn-ghost danger" onclick="deleteUser(${u.id})">🗑 刪除帳號</button>`}
         </td>
@@ -219,20 +219,38 @@ async function createUserFromModal() {
   } catch (e) { toast('⚠️ ' + e.message); }
 }
 
-// 重設指定帳號密碼（prompt 輸入，過 policy 檢查）
-async function resetUserPw(id) {
-  const pw = prompt('輸入新密碼（8碼以上，含大寫/小寫/數字）：');
-  if (!pw) return;
+// ========== 重設指定帳號密碼（v11.2：改用與個人改密碼相同的變體 B modal，不再用 prompt） ==========
+let resetPwUserId = null;
+
+function openResetPwModal(id) {
+  resetPwUserId = id;
+  document.getElementById('rpw-new').value = '';
+  document.getElementById('rpw-confirm').value = '';
+  pwStrengthCheck('rpw-new');  // 重設打勾狀態
+  document.getElementById('rpw-mismatch').style.display = 'none';
+  openModal('resetpw-modal');
+  document.getElementById('rpw-new').focus();
+}
+
+async function submitResetPw() {
+  const pw = document.getElementById('rpw-new').value;
+  const confirmPw = document.getElementById('rpw-confirm').value;
   const pwErr = pwPolicyMsg(pw);
   if (pwErr) { toast('⚠️ ' + pwErr); return; }
+  if (pw !== confirmPw) { toast('⚠️ 兩次輸入的密碼不一致'); return; }
   try {
-    const res = await fetch(`/api/users/${id}/password`, {
+    const res = await fetch(`/api/users/${resetPwUserId}/password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pw }),
     });
-    if (!res.ok) { toast('⚠️ 重設失敗 ' + res.status); return; }
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast('⚠️ ' + (d.detail || '重設失敗')); return;
+    }
+    closeModal('resetpw-modal');
     toast('✅ 密碼已重設');
+    loadUsersTable();
   } catch (e) { toast('⚠️ ' + e.message); }
 }
 

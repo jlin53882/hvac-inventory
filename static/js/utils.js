@@ -31,7 +31,10 @@ function todayStr() {
 
 // ========== Modal ==========
 function openModal(id) {
-  document.getElementById(id).classList.add('show');
+  const el = document.getElementById(id);
+  el.classList.add('show');
+  // 移到 DOM 最後：所有 modal 同 z-index（200），後開的必須蓋過先開的（DOM 順序決定覆蓋）
+  document.body.appendChild(el);
 }
 // 關閉指定 id 的 Modal（移除 show class）
 function closeModal(id) {

@@ -427,6 +427,23 @@ def test_changepw_expiry_ui_present():
     assert "function openExpiryModal" in exp
     assert "function ackPasswordExpiry" in exp
 
+
+def test_resetpw_modal_ui_present():
+    """v11.2：重設密碼 modal（同變體 B 樣式）+ z-order 修正 + ghost 取消鈕資產"""
+    idx = read(os.path.join(STATIC, "index.html"))
+    assert 'id="resetpw-modal"' in idx
+    assert 'id="rpw-new"' in idx and 'oninput="pwStrengthCheck(\'rpw-new\')"' in idx
+    assert 'id="rpw-confirm"' in idx
+    assert 'id="rpw-mismatch"' in idx
+    assert "btn-cancel-ghost" in idx  # 取消按鈕 ghost 樣式（與儲存並排）
+    css = read(os.path.join(STATIC, "css", "style.css"))
+    assert ".btn-cancel-ghost" in css
+    us = read(USERS_JS)
+    assert "openResetPwModal(" in us   # 重設改用 modal（不再用瀏覽器 prompt）
+    assert "prompt(" not in us         # 回歸防護：不得改回 prompt
+    ut = read(UTILS_JS)
+    assert "document.body.appendChild(el)" in ut  # openModal z-order 修正（後開 modal 蓋過先開）
+
     utils = read(UTILS_JS)
     assert "function jsStr(" in utils  # JS literal escape helper 存在
 

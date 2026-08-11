@@ -377,8 +377,10 @@
       <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()">
       <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
     </div>
-    <button class="btn-save" onclick="submitChangePw()">💾 儲存新密碼</button>
-    <button class="btn-cancel" onclick="closeModal('changepw-modal')">取消</button>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn-save" style="flex:2;margin-top:0" onclick="submitChangePw()">💾 儲存新密碼</button>
+      <button class="btn-cancel-ghost" style="flex:1;margin-top:0" onclick="closeModal('changepw-modal')">取消</button>
+    </div>
   </div>
 </div>
 
@@ -393,6 +395,32 @@
       <button class="btn-cancel" style="flex:1;margin-top:0" onclick="ackPasswordExpiry()">繼續使用原密碼</button>
     </div>
     <div style="font-size:11px;color:#aaa;margin-top:12px">選擇任一選項後，將再延長 6 個月</div>
+  </div>
+</div>
+
+<!-- 重設密碼 modal（v11.2 變體 B：admin 重設他人密碼，樣式同個人改密碼） -->
+<div class="modal-overlay" id="resetpw-modal">
+  <div class="modal">
+    <h3>🔑 重設密碼</h3>
+    <div class="form-row">
+      <label>新密碼</label>
+      <input type="password" id="rpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="pwStrengthCheck('rpw-new')">
+      <div class="pw-checks" id="rpw-checks">
+        <span class="pw-check" id="rpw-len">⬜ 8 碼以上</span>
+        <span class="pw-check" id="rpw-up">⬜ 含大寫</span>
+        <span class="pw-check" id="rpw-low">⬜ 含小寫</span>
+        <span class="pw-check" id="rpw-digit">⬜ 含數字</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>確認新密碼</label>
+      <input type="password" id="rpw-confirm" placeholder="再輸入一次新密碼" oninput="pwMatchCheck('rpw-new','rpw-confirm','rpw-mismatch')">
+      <div class="cpw-mismatch" id="rpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn-save" style="flex:2;margin-top:0" onclick="submitResetPw()">💾 儲存新密碼</button>
+      <button class="btn-cancel-ghost" style="flex:1;margin-top:0" onclick="closeModal('resetpw-modal')">取消</button>
+    </div>
   </div>
 </div>
 

@@ -18,26 +18,32 @@ function cpwResetChecks() {
   });
 }
 
-// 新密碼輸入時：即時打勾（8 碼以上 / 含大寫 / 含小寫 / 含數字）
-function cpwCheckStrength() {
-  const v = document.getElementById('cpw-new').value;
-  const set = (id, ok) => {
-    const el = document.getElementById(id);
+// 新密碼輸入時：即時打勾（8 碼以上 / 含大寫 / 含小寫 / 含數字）——共用（cpw-* 與 rpw-* modal 皆可用）
+function cpwCheckStrength() { pwStrengthCheck('cpw-new'); }
+
+function pwStrengthCheck(inputId) {
+  const v = document.getElementById(inputId).value;
+  const prefix = inputId.replace(/-new$/, '');
+  const set = (suffix, ok) => {
+    const el = document.getElementById(prefix + '-' + suffix);
+    if (!el) return;
     const label = el.textContent.replace(/^[✅⬜]\s*/, '').trim();
     el.classList.toggle('ok', ok);
     el.innerHTML = (ok ? '✅ ' : '⬜ ') + label;
   };
-  set('cpw-len', v.length >= 8);
-  set('cpw-up', /[A-Z]/.test(v));
-  set('cpw-low', /[a-z]/.test(v));
-  set('cpw-digit', /\d/.test(v));
+  set('len', v.length >= 8);
+  set('up', /[A-Z]/.test(v));
+  set('low', /[a-z]/.test(v));
+  set('digit', /\d/.test(v));
 }
 
-// 確認密碼輸入時：不一致警示
-function cpwCheckMatch() {
-  const a = document.getElementById('cpw-new').value;
-  const b = document.getElementById('cpw-confirm').value;
-  document.getElementById('cpw-mismatch').style.display = (a && b && a !== b) ? 'block' : 'none';
+// 確認密碼輸入時：不一致警示——共用
+function cpwCheckMatch() { pwMatchCheck('cpw-new', 'cpw-confirm', 'cpw-mismatch'); }
+
+function pwMatchCheck(newId, confirmId, warnId) {
+  const a = document.getElementById(newId).value;
+  const b = document.getElementById(confirmId).value;
+  document.getElementById(warnId).style.display = (a && b && a !== b) ? 'block' : 'none';
 }
 
 // 送出（PUT /api/auth/password）：驗證舊密碼 → policy → 清其他 session 保留當前

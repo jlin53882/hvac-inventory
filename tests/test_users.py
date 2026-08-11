@@ -322,16 +322,15 @@ def test_reset_password_clears_existing_sessions(admin_client):
 
 # ========== B4：per-IP 登入失敗 rate limit ==========
 
-def test_login_rate_limit_after_many_failures():
-    """同一 IP 短時間大量失敗登入 → 429（最後用成功登入清空記錄，避免污染其他測試）"""
+def test_login_rate_limit_after_many_failures(admin_client):
+    """同一 IP 短時間大量失敗登入 → 429（2026-08-11 改用 tmp DB fixture——原版直連正式 DB，會把正式 admin 鎖 15 分鐘）"""
     from app.services.auth import clear_ip_fail
     try:
-        with TestClient(fastapi_app) as c:
-            codes = []
-            for _ in range(IP_FAIL_MAX + 2):
-                r = c.post("/api/auth/login", json={"username": "admin", "password": "wrong!"})
-                codes.append(r.status_code)
-            assert 429 in codes, f"應該出現 429，實際: {codes}"
+        codes = []
+        for _ in range(IP_FAIL_MAX + 2):
+            r = admin_client.post("/api/auth/login", json={"username": "admin", "password": "wrong!"})
+            codes.append(r.status_code)
+        assert 429 in codes, f"應該出現 429，實際: {codes}"
     finally:
         clear_ip_fail("testclient")
 
