@@ -11,7 +11,7 @@ system_qty = 該位置數量，更新也寫回該位置。
 """
 import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
 from app.models import StocktakeSubmit
@@ -38,7 +38,16 @@ def submit_stocktake(req: StocktakeSubmit):
             continue
         item = conn.execute("SELECT * FROM items WHERE id=?", (it["item_id"],)).fetchone()
         system_qty = stock["qty"]
-        actual_qty = float(it.get("actual_qty", system_qty))
+        raw_actual = it.get("actual_qty", system_qty)
+        try:
+            actual_qty = float(raw_actual)
+        except (TypeError, ValueError):  # M4/M7b：非數字 → 400（原本 500）
+            raise HTTPException(400, "盤點數量格式錯誤")
+        if actual_qty < 0:  # M4：負數拒絕
+            raise HTTPException(400, "盤點數量不能為負數")
+        prepared = item["prepared_qty"] or 0
+        if actual_qty < prepared:  # M4：盤點後不得低於待領出數量
+            raise HTTPException(400, f"盤點數量不能低於待領出數量 {prepared}")
         diff = round(actual_qty - system_qty, 3)
         note = it.get("note", "")
 

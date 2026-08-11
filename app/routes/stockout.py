@@ -58,16 +58,20 @@ def _deduct(conn, item_id, qty, location=""):
             raise HTTPException(400, f"該品項在「{location}」沒有庫存")
         if target[0]["qty"] < qty:
             raise HTTPException(400, f"「{location}」庫存不足！只剩 {target[0]['qty']}")
-        conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=?",
-                     (qty, datetime.datetime.now().isoformat(), target[0]["id"]))
+        cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+                           (qty, datetime.datetime.now().isoformat(), target[0]["id"], qty))
+        if cur.rowcount == 0:  # H5：併發已被扣走 → 保守拒絕，不超賣
+            raise HTTPException(400, f"「{location}」庫存不足！只剩 {target[0]['qty']}")
     else:
         remaining = qty
         for s in stocks:  # 依序（第一筆先扣）
             if remaining <= 0:
                 break
             take = min(s["qty"], remaining)
-            conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=?",
-                         (take, datetime.datetime.now().isoformat(), s["id"]))
+            cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+                               (take, datetime.datetime.now().isoformat(), s["id"], take))
+            if cur.rowcount == 0:  # H5：併發已被扣走 → 保守拒絕，不超賣
+                raise HTTPException(400, f"庫存不足！只剩 {total_before}")
             remaining -= take
         if remaining > 0:
             raise HTTPException(400, f"庫存不足！只剩 {total_before}")
@@ -86,6 +90,10 @@ def stock_out(req: StockOutRequest):
     before = _total_qty(conn, req.item_id)
     if before < req.qty:
         raise HTTPException(400, f"庫存不足！目前只剩 {before} {row['unit']}")
+    # M3：出庫後剩餘不得低於待領出數量（保留準備量給「確認出庫」；與 adjust_qty 守衛一致）
+    prepared = row["prepared_qty"] or 0
+    if before - req.qty < prepared:
+        raise HTTPException(400, f"出庫後剩餘庫存不能低於待領出數量！目前庫存 {before}、待領出 {prepared}，請從「待領出」確認出庫")
 
     reason = "出庫"
     if req.note:
@@ -243,12 +251,15 @@ def prepare_item(item_id: int, req: PrepareRequest):
     if not row:
         raise HTTPException(404, "品項不存在")
     available = _total_qty(conn, item_id) - row["prepared_qty"]
-    if req.qty > available:
+    # H6：單一原子 UPDATE 累加（併發 prepare 不 lost update）；守衛確保不超過可領數量
+    cur = conn.execute(
+        "UPDATE items SET prepared_qty = prepared_qty + ?, updated_at = ? "
+        "WHERE id = ? AND prepared_qty + ? <= (SELECT COALESCE(SUM(qty), 0) FROM item_stocks WHERE item_id = ?)",
+        (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty, item_id),
+    )
+    if cur.rowcount == 0:
         raise HTTPException(400, f"可領出數量不足！可用 {available} {row['unit']}")
-
     new_prepared = row["prepared_qty"] + req.qty
-    conn.execute("UPDATE items SET prepared_qty=?, updated_at=? WHERE id=?",
-                 (new_prepared, datetime.datetime.now().isoformat(), item_id))
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
         (item_id, 0, row["prepared_qty"], new_prepared, "領出準備", req.location),
@@ -278,8 +289,10 @@ def prepared_out(item_id: int, req: PrepareRequest):
     dest = req.note  # note 欄位當去向用（相容前端）
 
     _deduct(conn, item_id, req.qty, req.location)
-    conn.execute("UPDATE items SET prepared_qty=?, updated_at=? WHERE id=?",
-                 (new_prepared, datetime.datetime.now().isoformat(), item_id))
+    cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
+                       (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
+    if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
+        raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
         (item_id, -req.qty, before, after, "出庫", dest),
@@ -304,8 +317,10 @@ def prepared_return(item_id: int, req: PrepareRequest):
         raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
 
     new_prepared = row["prepared_qty"] - req.qty
-    conn.execute("UPDATE items SET prepared_qty=?, updated_at=? WHERE id=?",
-                 (new_prepared, datetime.datetime.now().isoformat(), item_id))
+    cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
+                       (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
+    if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
+        raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
         (item_id, 0, row["prepared_qty"], new_prepared, "退回準備", ""),

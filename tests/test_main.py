@@ -1315,3 +1315,131 @@ class TestPhase1Validation:
         r = client.delete("/api/stocks/99999")
         assert r.status_code == 404
 
+# ========== Phase 3（2026-08-11）：交易/併發（H5/H6/M3/M4/M5/M10） ==========
+
+class TestPhase3Concurrency:
+    def test_stockout_respects_prepared_qty(self, client):
+        """M3：有待領出數量時一般出庫不得讓 total - prepared 變負"""
+        item = _add_item(client, name="M3品項", qty=10, location="A倉")
+        r = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 8})
+        assert r.status_code == 200
+        r = client.post("/api/stockout", json={"item_id": item["id"], "qty": 5, "destination": "台北"})
+        assert r.status_code == 400
+        assert "待領出" in r.json()["detail"]
+
+    def test_prepare_exceeds_available_400(self, client):
+        """H6：準備量超過可領數量 → 400"""
+        item = _add_item(client, name="H6品項", qty=10)
+        r = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 11})
+        assert r.status_code == 400
+        assert "可領出數量不足" in r.json()["detail"]
+
+    def test_stocktake_negative_400(self, client):
+        """M4：盤點負數 → 400"""
+        item = _add_item(client, name="盤點負數", qty=10, location="A倉")
+        r = client.post("/api/stocktake", json={"items": [{"item_id": item["id"], "location": "A倉", "actual_qty": -5}]})
+        assert r.status_code == 400
+
+    def test_stocktake_bad_float_400(self, client):
+        """M4/M7b：盤點非數字 → 400（不是 500）"""
+        item = _add_item(client, name="盤點亂數", qty=10, location="A倉")
+        r = client.post("/api/stocktake", json={"items": [{"item_id": item["id"], "location": "A倉", "actual_qty": "abc"}]})
+        assert r.status_code == 400
+        assert "格式錯誤" in r.json()["detail"]
+
+    def test_stocktake_below_prepared_400(self, client):
+        """M4：盤點數量低於待領出 → 400"""
+        item = _add_item(client, name="盤點準備", qty=10, location="A倉")
+        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 8})
+        r = client.post("/api/stocktake", json={"items": [{"item_id": item["id"], "location": "A倉", "actual_qty": 3}]})
+        assert r.status_code == 400
+        assert "待領出" in r.json()["detail"]
+
+    def test_adjust_deducts_from_first_stock(self, client):
+        """M10：負數調整從頭扣（A=5,B=10 → -8 → A=0,B=7）"""
+        item = _add_item(client, name="M10品項", qty=5, location="A倉")
+        r = client.post(f"/api/items/{item['id']}/stocks", json={"location": "B倉", "qty": 10, "note": ""})
+        assert r.status_code == 201  # 新增位置庫存回傳 201
+        r = client.post(f"/api/items/{item['id']}/adjust", json={"delta": -8, "reason": "測試"})
+        assert r.status_code == 200
+        it = _get_item(client, item["id"])
+        qty_by_loc = {s["location"]: s["qty"] for s in it["stocks"]}
+        assert qty_by_loc["A倉"] == 0 and qty_by_loc["B倉"] == 7, qty_by_loc
+
+    def test_concurrent_adjust_no_negative(self, client):
+        """H5：兩連線同時扣減超庫存 → 至多一個成功、庫存不為負（守衛式原子扣減）"""
+        import threading
+        item = _add_item(client, name="併發品項", qty=10, location="A倉")
+        results = []
+        barrier = threading.Barrier(2)
+
+        def worker():
+            conn = app_db.get_db()
+            try:
+                barrier.wait()
+                cur = conn.execute("UPDATE item_stocks SET qty=qty-8 WHERE id=? AND qty>=8",
+                                   (item["stocks"][0]["id"],))
+                conn.commit()
+                results.append(cur.rowcount)
+            except Exception as e:
+                results.append(str(e))
+            finally:
+                conn.close()
+
+        ts = [threading.Thread(target=worker) for _ in range(2)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        ok = sum(1 for r in results if r == 1)
+        assert ok == 1, f"應只有一個扣減成功，實際: {results}"
+        conn = app_db.get_db()
+        try:
+            qty = conn.execute("SELECT qty FROM item_stocks WHERE id=?", (item["stocks"][0]["id"],)).fetchone()["qty"]
+        finally:
+            conn.close()
+        assert qty == 2, f"庫存應為 2（10-8），實際 {qty}（不得負庫存）"
+
+    def test_prepare_twice_atomic_no_overshoot(self, client):
+        """H6：併發 prepare 不超可領（兩連線各準備 8，庫存 10 → 至多一個成功）"""
+        import threading
+        item = _add_item(client, name="併發準備", qty=10, location="A倉")
+        results = []
+        barrier = threading.Barrier(2)
+
+        def worker():
+            conn = app_db.get_db()
+            try:
+                barrier.wait()
+                cur = conn.execute(
+                    "UPDATE items SET prepared_qty = prepared_qty + 8 WHERE id = ? "
+                    "AND prepared_qty + 8 <= (SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id = ?)",
+                    (item["id"], item["id"]))
+                conn.commit()
+                results.append(cur.rowcount)
+            except Exception as e:
+                results.append(str(e))
+            finally:
+                conn.close()
+
+        ts = [threading.Thread(target=worker) for _ in range(2)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        ok = sum(1 for r in results if r == 1)
+        assert ok == 1, f"應只有一個 prepare 成功，實際: {results}"
+        conn = app_db.get_db()
+        try:
+            pq = conn.execute("SELECT prepared_qty FROM items WHERE id=?", (item["id"],)).fetchone()["prepared_qty"]
+        finally:
+            conn.close()
+        assert pq == 8, pq
+
+    def test_items_unique_index_exists(self, client):
+        """M5：無重複資料時建立 idx_items_unique（併發重複 DB 層防線）"""
+        conn = app_db.get_db()
+        try:
+            idx = conn.execute("PRAGMA index_list('items')").fetchall()
+            names = [r["name"] for r in idx]
+            assert "idx_items_unique" in names, names
+        finally:
+            conn.close()
+
+

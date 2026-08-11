@@ -284,20 +284,21 @@ def adjust_qty(item_id: int, req: AdjustRequest):
     # 第一筆位置作為調整標的（正數加入第一筆；負數從最後一筆往前扣）
     if req.delta >= 0:
         target = row[0]
-        new_qty = target["qty"] + req.delta
-        conn.execute("UPDATE item_stocks SET qty=?, updated_at=? WHERE id=?",
-                     (new_qty, datetime.datetime.now().isoformat(), target["id"]))
+        conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+                     (req.delta, datetime.datetime.now().isoformat(), target["id"]))
         total_after = total_before + req.delta
     else:
         remaining = -req.delta
         total_after = total_before + req.delta
-        for r in reversed(row):
+        for r in row:  # M10：統一從頭扣（與 stockout._deduct 一致）
             if remaining <= 0:
                 break
             take = min(r["qty"], remaining)
-            new_qty = r["qty"] - take
-            conn.execute("UPDATE item_stocks SET qty=?, updated_at=? WHERE id=?",
-                         (new_qty, datetime.datetime.now().isoformat(), r["id"]))
+            cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+                               (take, datetime.datetime.now().isoformat(), r["id"], take))
+            if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕
+                conn.close()
+                raise HTTPException(400, f"庫存不足！剩 {total_before}")
             remaining -= take
         if remaining > 0:
             conn.close()

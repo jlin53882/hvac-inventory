@@ -149,12 +149,14 @@ def _deduct_total(conn, item_id, need, reason):
                           (item_id,)).fetchall()
     before = sum(s["qty"] for s in stocks)
     remaining = need
-    for s in reversed(stocks):
+    for s in stocks:  # M10：統一從頭扣（與 stockout._deduct 一致）
         if remaining <= 0:
             break
         take = min(s["qty"], remaining)
-        conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=?",
-                     (take, datetime.datetime.now().isoformat(), s["id"]))
+        cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+                           (take, datetime.datetime.now().isoformat(), s["id"], take))
+        if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕，不超賣
+            raise HTTPException(400, f"庫存不足！剩 {before}")
         remaining -= take
     if remaining > 0:
         raise HTTPException(400, f"庫存不足！剩 {before}")
