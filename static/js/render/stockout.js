@@ -34,21 +34,16 @@ async function renderStockOuts() {
         html += `<div class="section-title"><span class="loc">📅 ${m}</span><span>${list.length} 筆 · 領出 ${totalOut} 件</span></div>`;
         list.forEach(o => {
           const reverted = !!o.reverted_at;
-          const thumb = o.has_photo
-            ? `<img src="/uploads/${o.item_id}.jpg" alt="" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">`
-            : '📷';
-          html += `<div class="m-card${reverted ? ' reverted' : ''}">
-            <button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>
-            <div class="card-main">
-              <div class="thumb">${thumb}</div>
-              <div class="info">
-                <div class="nm">${esc(o.brand)} ${esc(o.item_name)}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}</div>
-                <div class="sub">${esc((o.created_at||'').slice(5,16))}${o.code ? ' · 型號 ' + esc(o.code) : ''}</div>
-                <div>${o.destination ? `<span class="loc-tag">🏢 ${esc(o.destination)}</span>` : ''}</div>
-              </div>
-              <div class="qty-col"><div class="qty-num qty-neg">-${absNum(o.delta)}</div><div class="qty-unit">${esc(o.unit)}</div></div>
-            </div>
-          </div>`;
+          html += mobileCardShell({
+            reverted,
+            moreBtnHTML: `<button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>`,
+            thumb: buildThumb(o.item_id, o.has_photo, o.item_name, '📷'),
+            nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}`,
+            subHTML: `${esc((o.created_at||'').slice(5,16))}${o.code ? ' · 型號 ' + esc(o.code) : ''}`,
+            extraHTML: o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : '',
+            qtyHTML: buildQtyNum('-' + absNum(o.delta), o.unit, 'qty-neg'),
+            actionsHTML: ''
+          });
         });
       });
     } else {

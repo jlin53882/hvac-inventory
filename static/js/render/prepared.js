@@ -23,21 +23,16 @@ async function renderPrepared() {
       // ===== 手機版：卡片式（⋯ 動作選單） =====
       html += `<div class="section-title"><span class="loc">📤 待領出（已拿出未出去）</span><span>${items.length} 項 · ${totalPrepared} 件</span></div>`;
       items.forEach(i => {
-        const thumb = i.has_photo
-          ? `<img src="/uploads/${i.id}.jpg" alt="${esc(i.name)}" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
-          : '📷';
-        html += `<div class="m-card">
-          ${isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${i.id})">⋯</button>`}
-          <div class="card-main">
-            <div class="thumb">${thumb}</div>
-            <div class="info">
-              <div class="nm">${esc(i.brand)} ${esc(i.name)}<span class="chip green">待領出</span></div>
-              <div class="sub">${esc(i.location || '未標示')}</div>
-              <div><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>
-            </div>
-            <div class="qty-col"><div class="qty-num qty-violet">${i.prepared_qty}</div><div class="qty-unit">${esc(i.unit)}</div></div>
-          </div>
-        </div>`;
+        html += mobileCardShell({
+          reverted: false,
+          moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${i.id})">⋯</button>`,
+          thumb: buildThumb(i.id, i.has_photo, i.name, '📷'),
+          nameHTML: `${esc(i.brand)} ${esc(i.name)}<span class="chip green">待領出</span>`,
+          subHTML: esc(i.location || '未標示'),
+          extraHTML: `<div><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>`,
+          qtyHTML: buildQtyNum(i.prepared_qty, i.unit, 'qty-violet'),
+          actionsHTML: ''
+        });
       });
     } else {
       // ===== 桌面版：原表格 =====

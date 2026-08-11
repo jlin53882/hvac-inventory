@@ -88,33 +88,20 @@ function renderInventory() {
         const isZero = display <= 0;
         const prepared = i.prepared_qty || 0;
         const locs = (i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}]);
-        const locStr = locs.map(s => `<div class="item-loc">位置：${esc(s.location || '未標示')}${s.note ? `｜${esc(s.note)}` : ''}</div>`).join('');
-        const thumb = i.has_photo
-          ? `<img src="/uploads/${i.id}.jpg" alt="${esc(i.name)}" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
-          : '📦';
-        html += `<div class="m-card">
-          ${isViewer ? '' : `<button class="more-btn" onclick="openItemSheet(${i.id})">⋯</button>`}
-          <div class="card-main">
-            <div class="thumb">${thumb}</div>
-            <div class="info">
-              <div class="nm">${esc(i.name)}${i.site === 'warehouse' ? ' 🏭' : ''}${prepared > 0 ? `<span class="chip green">待領出 ${prepared}</span>` : ''}</div>
-              <div class="sub">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
-              ${locStr}
-            </div>
-            <div class="qty-col">${isViewer
-              ? `<div class="qty-num">${display}</div><div class="qty-unit">${esc(i.unit)}</div>`
-              : `<div class="qty-control">
-                  <button class="qty-btn qty-minus" onclick="changeQty(${i.id}, -1)" ${isZero && delta <= 0 ? 'disabled' : ''}>−</button>
-                  <div class="qty-value" onclick="quickSet(${i.id})" title="點數字可輸入">${display}<span class="unit"> ${esc(i.unit)}</span></div>
-                  <button class="qty-btn qty-plus" onclick="changeQty(${i.id}, 1)">+</button>
-                </div>`}
-            </div>
-          </div>
-          ${isViewer ? '' : `<div class="m-card-actions">
+        const locStr = buildLocHTML(locs);
+        html += mobileCardShell({
+          reverted: false,
+          moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openItemSheet(${i.id})">⋯</button>`,
+          thumb: buildThumb(i.id, i.has_photo, i.name, '📦'),
+          nameHTML: `${esc(i.name)}${i.site === 'warehouse' ? ' 🏭' : ''}${prepared > 0 ? `<span class="chip green">待領出 ${prepared}</span>` : ''}`,
+          subHTML: `${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}`,
+          extraHTML: locStr,
+          qtyHTML: buildQtyControl({id: i.id, display, unit: i.unit, isZero, delta, viewer: isViewer}),
+          actionsHTML: isViewer ? '' : `<div class="m-card-actions">
             ${!i.is_kit ? `<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(${i.id}, event)">📤 待領出</button>` : ''}
             <button class="btn-out" style="margin:0" onclick="openOutModal(${i.id}, event)">🚚 已領出</button>
-          </div>`}
-        </div>`;
+          </div>`
+        });
       });
       html += `</div>`;
     });
