@@ -444,6 +444,28 @@ def test_resetpw_modal_ui_present():
     ut = read(UTILS_JS)
     assert "document.body.appendChild(el)" in ut  # openModal z-order 修正（後開 modal 蓋過先開）
 
+
+def test_unsaved_changes_guard_present():
+    """M15：未存變更保護資產（快照/確認/force 關閉）"""
+    ut = read(UTILS_JS)
+    assert "function _snapshotModal" in ut
+    assert "function _modalDirty" in ut
+    assert "function closeModalForce" in ut
+    assert "有未儲存的變更" in ut  # confirm 文案
+    assert "delete __modalSnapshots[id]" in ut
+    # submit 成功路徑用 force（不彈確認）
+    for f in ("add.js", "edit.js", "kit.js", "stockout.js", "users.js", "photo.js"):
+        src = read(os.path.join(STATIC, "js", "modals", f))
+        assert "closeModalForce(" in src, f"{f} 應使用 closeModalForce"
+
+
+def test_401_redirect_guard_present():
+    """M17：fetch 401 攔截資產（登入頁不載入 auth.js，登入失敗不會誤跳）"""
+    au = read(AUTH_JS)
+    assert "window.fetch" in au
+    assert "401" in au
+    assert "login.html" in au
+
     utils = read(UTILS_JS)
     assert "function jsStr(" in utils  # JS literal escape helper 存在
 

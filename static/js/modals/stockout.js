@@ -43,7 +43,7 @@ async function submitStockOut() {
       const err = await res.json();
       throw new Error(err.detail || '領出失敗');
     }
-    closeModal('out-modal');
+    closeModalForce('out-modal');
     toast(`✅ 已領出 ${qty} ${item.unit} → ${dest}`, 'success');
     await loadData();
   } catch (e) {
@@ -80,7 +80,7 @@ async function submitPrepare() {
       const err = await res.json();
       throw new Error(err.detail || '領出失敗');
     }
-    closeModal('prepare-modal');
+    closeModalForce('prepare-modal');
     toast(`📤 已標記待領出 ${qty} ${item.unit}（庫存未扣）`, 'success');
     await loadData();
   } catch (e) {
@@ -117,7 +117,7 @@ async function submitPreparedOut() {
       const err = await res.json();
       throw new Error(err.detail || '領出失敗');
     }
-    closeModal('prepared-out-modal');
+    closeModalForce('prepared-out-modal');
     toast(`✅ 已領出 ${qty} ${item.unit} → ${dest}（庫存已扣）`, 'success');
     await loadData();
   } catch (e) {
@@ -197,7 +197,7 @@ async function submitEditStockout() {
       const err = await res.json();
       throw new Error(err.detail || '儲存失敗');
     }
-    closeModal('edit-stockout-modal');
+    closeModalForce('edit-stockout-modal');
     toast('✅ 已更新已領出記錄', 'success');
     await loadData();
   } catch (e) {

@@ -159,7 +159,7 @@ function renderSimilarWarn(warnId, hits) {
 
 // 點「去編輯」→ 關閉新增/編輯 modal、開該品項編輯 modal
 function goEditSimilar(id) {
-  closeModal('add-modal');
-  closeModal('edit-modal');
+  closeModalForce('add-modal');
+  closeModalForce('edit-modal');
   openEditModal(id);
 }

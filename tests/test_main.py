@@ -1539,5 +1539,104 @@ class TestPhase4Audit:
         assert r2.status_code == 400
         assert "已刪除" in r2.json()["detail"]
 
+# ========== Phase 5（2026-08-11）：健壯性（M8/G1/L11/M19/M21） ==========
+
+class TestPhase5Robustness:
+    def test_import_bad_qty_400_nothing_written(self, client):
+        """M8：import 任一筆 qty 壞 → 400 且整批不寫入（無部分成功）"""
+        r = client.post("/api/import", json={"items": [
+            {"name": "好筆", "qty": 10},
+            {"name": "壞筆", "qty": "abc"},
+        ]})
+        assert r.status_code == 400
+        assert "格式錯誤" in r.json()["detail"]
+        names = [i["name"] for i in client.get("/api/items").json()]
+        assert "好筆" not in names and "壞筆" not in names, "整批應不寫入"
+
+    def test_import_missing_name_400(self, client):
+        """M8：import 缺名稱 → 400"""
+        r = client.post("/api/import", json={"items": [{"name": "", "qty": 5}]})
+        assert r.status_code == 400
+        assert "名稱" in r.json()["detail"]
+
+    def test_import_valid_still_works(self, client):
+        """M8：正常 import 不受影響"""
+        r = client.post("/api/import", json={"items": [
+            {"name": "正常品", "brand": "B", "qty": 7, "location": "A倉"},
+            {"name": "正常品2", "brand": "B", "qty": 3, "location": "A倉"},
+        ]})
+        assert r.status_code == 200
+        assert r.json()["inserted"] == 2
+
+    def test_similar_coarse_filter_keeps_results(self, client):
+        """G1：SQL 粗篩不改變 similar 結果（含空白/括號的相似品項仍命中）"""
+        _add_item(client, name="大金 冷氣機", qty=5, location="A倉")
+        _add_item(client, name="電風扇", qty=5, location="A倉")
+        r = client.get("/api/items/similar", params={"name": "大金冷氣機"})
+        assert r.status_code == 200
+        names = [h["name"] for h in r.json()]
+        assert "大金 冷氣機" in names, f"粗篩不該漏相似品項: {names}"
+        assert "電風扇" not in names, f"粗篩不該撈無關品項: {names}"
+
+    def test_similar_coarse_filter_code(self, client):
+        """G1：code 相同仍命中"""
+        _add_item(client, name="品項X", code="M-100", qty=3, location="A倉")
+        r = client.get("/api/items/similar", params={"code": "M-100"})
+        assert any(h["name"] == "品項X" for h in r.json())
+
+    def test_limit_capped_422(self, client):
+        """L11：limit 超過上限 → 422（3 端點）"""
+        _add_item(client, name="L11品項", qty=5, location="A倉")
+        client.post("/api/stockout", json={"item_id": client.get("/api/items").json()[0]["id"], "qty": 1})
+        assert client.get("/api/stockouts?limit=999999").status_code == 422
+        assert client.get("/api/movements?limit=999999").status_code == 422
+        assert client.get("/api/stocktakes?limit=999999").status_code == 422
+        # 正常 limit 不受影響
+        assert client.get("/api/stockouts?limit=100").status_code == 200
+
+    def test_photo_pixel_limit_400(self, client):
+        """M19：超過 40MP 像素上限 → 400"""
+        from PIL import Image
+        import io
+        item = _add_item(client, name="照片大圖", qty=1, location="A倉")
+        buf = io.BytesIO()
+        Image.new("RGB", (6500, 6500), "red").save(buf, "JPEG")  # 42.25MP > 40MP
+        buf.seek(0)
+        r = client.post(f"/api/items/{item['id']}/photo",
+                        files={"file": ("big.jpg", buf.getvalue(), "image/jpeg")})
+        assert r.status_code == 400
+        assert "解析度過高" in r.json()["detail"]
+
+    def test_photo_normal_size_ok(self, client):
+        """M19：正常尺寸照片不受影響"""
+        from PIL import Image
+        import io
+        item = _add_item(client, name="照片正常", qty=1, location="A倉")
+        buf = io.BytesIO()
+        Image.new("RGB", (800, 600), "blue").save(buf, "JPEG")
+        buf.seek(0)
+        r = client.post(f"/api/items/{item['id']}/photo",
+                        files={"file": ("ok.jpg", buf.getvalue(), "image/jpeg")})
+        assert r.status_code == 200
+
+    def test_csrf_cross_origin_403(self, client):
+        """M21：跨站 Origin POST → 403"""
+        item = _add_item(client, name="CSRF品項", qty=5, location="A倉")
+        r = client.post("/api/stockout",
+                        json={"item_id": item["id"], "qty": 1, "destination": "x"},
+                        headers={"Origin": "http://evil.com"})
+        assert r.status_code == 403
+
+    def test_csrf_same_origin_ok(self, client):
+        """M21：同源 Origin 與無 Origin（curl）→ 放行"""
+        item = _add_item(client, name="CSRF同源", qty=5, location="A倉")
+        r1 = client.post("/api/stockout",
+                         json={"item_id": item["id"], "qty": 1, "destination": "x"},
+                         headers={"Origin": "http://testserver"})
+        assert r1.status_code == 200
+        r2 = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 1})
+        assert r2.status_code == 200  # 無 Origin（curl/測試）→ 放行
+
+
 
 

@@ -11,7 +11,7 @@ system_qty = 該位置數量，更新也寫回該位置。
 """
 import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.database import get_db
 from app.models import StocktakeSubmit
@@ -70,7 +70,7 @@ def submit_stocktake(req: StocktakeSubmit):
 
 
 @router.get("/api/stocktakes")
-def list_stocktakes(limit: int = 200):
+def list_stocktakes(limit: int = Query(200, ge=1, le=500)):
     """盤點紀錄（含差異）"""
     conn = get_db()
     rows = conn.execute("""

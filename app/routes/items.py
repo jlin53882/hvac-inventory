@@ -18,7 +18,7 @@ import datetime
 import os
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from app.database import get_db
 from app.models import AdjustRequest, ItemCreate, ItemUpdate, StockUpdate
@@ -316,9 +316,21 @@ def adjust_qty(item_id: int, req: AdjustRequest):
 
 
 @router.post("/api/import")
-def import_items(items: list):
+def import_items(items: list = Body(..., embed=True)):
     """批量匯入（v10：自動去重，重複則合併到既有主檔的庫存）"""
     conn = get_db()
+    # M8：逐筆驗證（型別/必填），任一筆錯誤 → 400 且整批不寫入（避免部分成功）
+    for i, it in enumerate(items, 1):
+        if not str(it.get("name", "")).strip():
+            raise HTTPException(400, f"第 {i} 筆缺少品項名稱")
+        try:
+            float(it.get("qty", 0))
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"第 {i} 筆數量「{it.get('qty')}」格式錯誤")
+        try:
+            float(it.get("low_stock", 0))
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"第 {i} 筆低庫存警示「{it.get('low_stock')}」格式錯誤")
     inserted = 0
     merged = 0
     for it in items:
@@ -327,7 +339,7 @@ def import_items(items: list):
         name = it.get("name", "")
         unit = it.get("unit", "個")
         site = it.get("site", "office")
-        qty = it.get("qty", 0)
+        qty = float(it.get("qty", 0))
         location = it.get("location", "")
         note = it.get("note", "")
         exists = conn.execute(
@@ -350,7 +362,7 @@ def import_items(items: list):
         else:
             cur = conn.execute(
                 "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
-                (brand, code, name, unit, it.get("low_stock", 0), site),
+                (brand, code, name, unit, float(it.get("low_stock", 0)), site),
             )
             conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
                          (cur.lastrowid, location, qty, note))
@@ -361,7 +373,7 @@ def import_items(items: list):
 
 
 @router.get("/api/movements")
-def list_movements(limit: int = 50):
+def list_movements(limit: int = Query(50, ge=1, le=500)):
     """異動紀錄（含品項名稱/品牌），依 id 倒序回傳最近 limit 筆"""
     conn = get_db()
     rows = conn.execute(

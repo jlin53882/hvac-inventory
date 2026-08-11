@@ -93,7 +93,7 @@ async function submitEdit() {
       toast('⚠️ ' + msg, 'error');
       return;
     }
-    closeModal('edit-modal');
+    closeModalForce('edit-modal');
     toast('✅ 已儲存修改', 'success');
     await loadData();
   } catch (e) {

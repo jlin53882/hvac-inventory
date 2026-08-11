@@ -65,8 +65,28 @@ def find_similar(name: str = "", code: str = "", site: str = "all", exclude_id: 
         raise HTTPException(400, "至少提供 name 或 code 其一")
 
     conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM items WHERE is_kit=0 AND is_deleted=0 ORDER BY brand, name").fetchall()
+    # G1：SQL 粗篩（code 相等 / sql_norm 相同、雙向包含、前 4 字相同）→ 只撈候選，避免全表進 Python
+    conn.create_function("sql_norm", 1, _norm)  # 註冊 SQL 版正規化（與 Python _norm 同邏輯）
+    n_in = _norm(name)
+    conds = []
+    params = []
+    if code.strip():
+        conds.append("code = ?")
+        params.append(code.strip())
+    if n_in:
+        conds.append("sql_norm(name) = ?")
+        params.append(n_in)
+        conds.append("sql_norm(name) LIKE ?")
+        params.append("%" + n_in + "%")
+        conds.append("? LIKE sql_norm(name)")
+        params.append("%" + n_in + "%")
+        conds.append("SUBSTR(sql_norm(name),1,4) = ?")
+        params.append(n_in[:4])
+    if not conds:
+        conds.append("1=0")
+    sql = ("SELECT * FROM items WHERE is_kit=0 AND is_deleted=0 AND ("
+           + " OR ".join(conds) + ") ORDER BY brand, name")
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
 
     hits = []

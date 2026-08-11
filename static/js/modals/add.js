@@ -45,7 +45,7 @@ async function submitAdd() {
       return;
     }
     toast(`✅ 已新增「${name}」`, 'success');
-    closeModal('add-modal');
+    closeModalForce('add-modal');
     ['f-brand','f-code','f-name','f-qty','f-unit','f-location','f-note'].forEach(id => {
       document.getElementById(id).value = id === 'f-qty' ? '0' : id === 'f-unit' ? '個' : '';
     });

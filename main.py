@@ -45,6 +45,24 @@ async def cache_control_middleware(request, call_next):
     return response
 
 
+# M21：CSRF 防護——跨站寫入請求（帶 Origin/Referer 且與 Host 不符）→ 403
+@app.middleware("http")
+async def csrf_origin_middleware(request, call_next):
+    """瀏覽器跨站寫入請求必帶 Origin（或 Referer）；與 Host 不符 → 403。
+    同源 / 無來源（curl、同源表單）放行。"""
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        from urllib.parse import urlparse
+        host = request.headers.get("host", "")
+        origin = request.headers.get("origin", "")
+        referer = request.headers.get("referer", "")
+        for src in (origin, referer):
+            if src:
+                netloc = urlparse(src).netloc
+                if netloc and netloc != host:
+                    return Response("Forbidden: cross-origin request", status_code=403)
+    return await call_next(request)
+
+
 # B6：安全 headers（防 clickjacking / MIME sniffing / XSS 外傳資料）
 @app.middleware("http")
 async def security_headers_middleware(request, call_next):

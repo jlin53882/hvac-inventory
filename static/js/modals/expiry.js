@@ -7,7 +7,7 @@ function openExpiryModal() {
 
 // 過期提示的「🔑 立即改密碼」→ 關提示、開改密碼 modal
 function expiryGoChangePw() {
-  closeModal('expiry-modal');
+  closeModalForce('expiry-modal');
   openChangePwModal();
 }
 
@@ -16,5 +16,5 @@ async function ackPasswordExpiry() {
   try {
     await fetch('/api/auth/password-ack', { method: 'POST' });
   } catch (e) { /* 網路失敗仍關閉提示，不擋使用 */ }
-  closeModal('expiry-modal');
+  closeModalForce('expiry-modal');
 }

@@ -64,8 +64,8 @@ async function submitChangePw() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { toast('⚠️ ' + (data.detail || '修改失敗'), 'error'); return; }
-    closeModal('changepw-modal');
-    closeModal('expiry-modal');  // 從過期提示進來的也一起關
+    closeModalForce('changepw-modal');
+    closeModalForce('expiry-modal');  // 從過期提示進來的也一起關
     toast('✅ 密碼已更新', 'success');
   } catch (e) {
     toast('⚠️ 修改失敗，請稍後再試', 'error');

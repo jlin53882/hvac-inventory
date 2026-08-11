@@ -35,16 +35,44 @@ function openModal(id) {
   el.classList.add('show');
   // 移到 DOM 最後：所有 modal 同 z-index（200），後開的必須蓋過先開的（DOM 順序決定覆蓋）
   document.body.appendChild(el);
+  _snapshotModal(id);  // M15：開啟時快照初始值（未存變更保護用）
 }
-// 關閉指定 id 的 Modal（移除 show class）
+
+// ---------- 未存變更保護（M15）：開啟快照 → 關閉前比對，有變更先確認 ----------
+var __modalSnapshots = {};
+function _snapshotModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const vals = [];
+  el.querySelectorAll('input, select, textarea').forEach(f => vals.push(f.value));
+  __modalSnapshots[id] = vals.join('\u0001');
+}
+function _modalDirty(id) {
+  const el = document.getElementById(id);
+  if (!el || !(id in __modalSnapshots)) return false;
+  const vals = [];
+  el.querySelectorAll('input, select, textarea').forEach(f => vals.push(f.value));
+  return vals.join('\u0001') !== __modalSnapshots[id];
+}
+// 關閉指定 id 的 Modal（移除 show class）；有未存變更先確認
 function closeModal(id) {
-  document.getElementById(id).classList.remove('show');
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (_modalDirty(id) && !confirm('有未儲存的變更，確定要離開嗎？')) return;
+  el.classList.remove('show');
+  delete __modalSnapshots[id];
+}
+function closeModalForce(id) {  // 儲存成功等明確動作：跳過未存變更確認
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('show');
+  delete __modalSnapshots[id];
 }
 document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+  m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.show').forEach(m => closeModal(m.id));
 });
 
 // ========== toast ==========

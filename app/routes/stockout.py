@@ -17,7 +17,7 @@ v10 數量語意：
 import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.database import get_db
 from app.models import PrepareRequest, StockOutRequest, StockoutUpdate
@@ -111,7 +111,7 @@ def stock_out(req: StockOutRequest):
 
 
 @router.get("/api/stockouts")
-def list_stock_outs(limit: int = 100, search: str = "", site: Optional[str] = None):
+def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[str] = None):
     """出庫紀錄（含去向）"""
     conn = get_db()
     sql = """

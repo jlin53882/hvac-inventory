@@ -248,7 +248,7 @@ async function submitResetPw() {
       const d = await res.json().catch(() => ({}));
       toast('⚠️ ' + (d.detail || '重設失敗')); return;
     }
-    closeModal('resetpw-modal');
+    closeModalForce('resetpw-modal');
     toast('✅ 密碼已重設');
     loadUsersTable();
   } catch (e) { toast('⚠️ ' + e.message); }

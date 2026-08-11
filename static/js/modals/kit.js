@@ -40,7 +40,7 @@ async function submitKit() {
       body: JSON.stringify({ name: name, items: items, note: document.getElementById('k-note').value.trim() })
     });
     if (!res.ok) throw new Error();
-    closeModal('kit-modal');
+    closeModalForce('kit-modal');
     toast(`✅ 已新增整組「${name}」`, 'success');
     await loadData();
     renderKits();
@@ -68,7 +68,7 @@ async function submitKitEdit() {
       const e = await res.json().catch(() => ({}));
       throw new Error(e.detail || '儲存失敗');
     }
-    closeModal('kit-modal');
+    closeModalForce('kit-modal');
     toast('✅ 已更新整組「' + name + '」', 'success');
     await loadData();
     renderKits();

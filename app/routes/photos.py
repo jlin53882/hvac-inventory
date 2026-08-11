@@ -31,6 +31,7 @@ router = APIRouter()
 # 允許的圖片副檔名
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 原始檔上限 10MB（壓縮後約 30-80KB）
+MAX_PIXELS = 40_000_000  # M19：像素上限 40MP（超大圖解碼吃記憶體）
 THUMB_WIDTH = 800  # 壓縮寬度 px（卡片顯示 52px 縮圖，點開 lightbox 看 800px 大圖）
 
 
@@ -74,7 +75,11 @@ def upload_photo(item_id: int, file: UploadFile):
 
     try:
         img = Image.open(io.BytesIO(data))
+        if img.width * img.height > MAX_PIXELS:  # M19：load 前檢查尺寸（不解碼就拒絕超大圖）
+            raise HTTPException(400, f"圖片解析度過高（{img.width}×{img.height}），上限 40 百萬像素")
         img.load()  # 觸發解碼，壞檔會在這裡炸
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(400, "無法解析圖片（可能是損毀或非圖片檔）")
 
