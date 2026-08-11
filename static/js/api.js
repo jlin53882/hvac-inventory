@@ -94,7 +94,9 @@ function exportExcel() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '庫存報表.xlsx';
+    const ts = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    a.download = `庫存報表_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
     toast('✅ 報表已下載', 'success');

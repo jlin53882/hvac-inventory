@@ -1120,6 +1120,63 @@ class TestV10CompatAndCascade:
         r = client.get("/api/export")
         assert r.status_code == 200
 
+    def test_export_workbook_content(self, client):
+        """匯出 workbook 可開、3 sheet 欄位正確、品項×位置展開語意、檔名 RFC 5987 編碼"""
+        _add_item(client, name="冷媒管", qty=5, location="A倉")
+        r = client.get("/api/export")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == \
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert "filename*=UTF-8''" in r.headers["content-disposition"]
+
+        import io as _io
+        from openpyxl import load_workbook
+        wb = load_workbook(_io.BytesIO(r.content))
+        assert wb.sheetnames == ["庫存明細", "異動紀錄", "廠牌統計"]
+
+        ws = wb["庫存明細"]
+        assert [c.value for c in ws[1]] == \
+            ["編號", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "總數量"]
+        # 每列 = 主檔 × 每位置一行：找到冷媒管列，位置/數量/總量正確
+        row = next(rr for rr in ws.iter_rows(min_row=2, values_only=True) if rr[2] == "冷媒管")
+        assert row[5] == "A倉" and row[6] == 5 and row[8] == 5
+
+        ws2 = wb["異動紀錄"]
+        assert [c.value for c in ws2[1]] == ["時間", "品項", "變動", "原本", "現在", "去向", "原因"]
+
+        ws3 = wb["廠牌統計"]
+        assert [c.value for c in ws3[1]] == ["廠牌", "品項數", "總庫存"]
+
+    def test_export_formula_injection_safe(self, client):
+        """公式注入防護：= 開頭的字串以 ' 前綴儲存，開啟 Excel 不會被當公式執行"""
+        _add_item(client, name="=1+1", location="=HYPERLINK(1)")
+        r = client.get("/api/export")
+        assert r.status_code == 200
+
+        import io as _io
+        from openpyxl import load_workbook
+        wb = load_workbook(_io.BytesIO(r.content))
+        ws = wb["庫存明細"]
+        values = [v for row in ws.iter_rows(min_row=2, values_only=True) for v in row]
+        assert "'=1+1" in values        # 防護：撇號前綴
+        assert "'=HYPERLINK(1)" in values
+        assert "=1+1" not in values     # 沒有裸公式
+
+    def test_export_days_clamped(self, client):
+        """days 負數 / 超界不會 500：clamp 到 0~366"""
+        for days in (-5, 99999, 0, 30, 366):
+            r = client.get("/api/export", params={"days": days})
+            assert r.status_code == 200, f"days={days} 失敗"
+
+    def test_export_writes_no_file(self, client):
+        """記憶體回傳：匯出後 exports/ 不新增任何檔案（零留檔）"""
+        export_dir = os.path.join(BASE_DIR, "exports")
+        before = set(os.listdir(export_dir)) if os.path.isdir(export_dir) else set()
+        r = client.get("/api/export")
+        assert r.status_code == 200
+        after = set(os.listdir(export_dir)) if os.path.isdir(export_dir) else set()
+        assert after == before
+
 # ---------- 方案 A：自動版本號（server 端） ----------
 
 def test_index_html_auto_version_params(client):
