@@ -64,24 +64,34 @@ async function loadDestinations() {
 }
 
 // 將 pending 暫存的所有數量調整逐筆送出（POST /api/items/{id}/adjust），成功後重載資料
+let savingAll = false;  // in-flight 旗標：防止連點「全部儲存」重複送出同一批調整
 async function saveAll() {
+  if (savingAll) return;
   const ids = Object.keys(pending);
   if (!ids.length) return;
+  savingAll = true;
+  const btn = document.getElementById('btn-save');
+  if (btn) btn.disabled = true;
   let ok = 0, fail = 0;
-  for (const id of ids) {
-    try {
-      const res = await fetch(`/api/items/${id}/adjust`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delta: pending[id], reason: '手動調整' })
-      });
-      if (res.ok) ok++; else fail++;
-    } catch (e) { fail++; }
+  try {
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/items/${id}/adjust`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delta: pending[id], reason: '手動調整' })
+        });
+        if (res.ok) ok++; else fail++;
+      } catch (e) { fail++; }
+    }
+    pending = {};
+    await loadData();
+    if (fail === 0) toast(`✅ 已儲存 ${ok} 項變更`, 'success');
+    else toast(`⚠️ ${ok} 成功，${fail} 失敗`, 'error');
+  } finally {
+    savingAll = false;
+    if (btn) btn.disabled = false;
   }
-  pending = {};
-  await loadData();
-  if (fail === 0) toast(`✅ 已儲存 ${ok} 項變更`, 'success');
-  else toast(`⚠️ ${ok} 成功，${fail} 失敗`, 'error');
 }
 
 // 向 /api/export 索取 Excel 報表並觸發瀏覽器下載，成功/失敗各顯示 toast

@@ -1283,3 +1283,35 @@ class TestSecurityHeaders:
         """驗證健康檢查回應帶安全 headers"""
         r = client.get("/health")
         assert r.headers.get("x-frame-options") == "DENY"
+
+
+# ---------- Phase 1 驗證（2026-08-11：負數 qty 422 / delete_stock 404） ----------
+
+class TestPhase1Validation:
+    def test_create_item_negative_qty_422(self, client):
+        """M7：位置庫存 qty 不得為負（pydantic ge=0）"""
+        r = client.post("/api/items", json={
+            "brand": "測試牌", "code": "", "name": "負數品項", "unit": "個",
+            "low_stock": 0, "site": "office",
+            "stocks": [{"location": "A倉", "qty": -5, "note": ""}],
+        })
+        assert r.status_code == 422
+
+    def test_update_stock_negative_qty_422(self, client):
+        """M7：PATCH /api/stocks qty 不得為負"""
+        item = _add_item(client, name="庫存位置", qty=5, location="A倉")
+        sid = item["stocks"][0]["id"]
+        r = client.patch(f"/api/stocks/{sid}", json={"qty": -1})
+        assert r.status_code == 422
+
+    def test_stockout_negative_qty_422(self, client):
+        """M7：出庫 qty 不得為負"""
+        item = _add_item(client, name="出庫品項", qty=5)
+        r = client.post("/api/stockout", json={"item_id": item["id"], "qty": -3, "destination": "台北"})
+        assert r.status_code == 422
+
+    def test_delete_stock_not_found_404(self, client):
+        """M11：刪除不存在的庫存位置回 404（原本假成功 ok:True）"""
+        r = client.delete("/api/stocks/99999")
+        assert r.status_code == 404
+

@@ -186,12 +186,7 @@ function toggleUserPerms(uid, btn) {
   btn.textContent = '📋 收起';
 }
 
-// HTML 跳脫（含單引號，users 表格渲染用）
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  })[c]);
-}
+// HTML 跳脫統一用 utils.js 的 esc()（2026-08-11 整併：含單引號 escape 已併入 utils.js）
 
 // B2：密碼 policy 前端檢查（與後端 _check_pw 一致）— 至少 8 碼 + 大寫 + 小寫 + 數字
 function pwPolicyMsg(pw) {

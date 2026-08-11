@@ -251,9 +251,11 @@ def update_stock(stock_id: int, st: StockUpdate):
 def delete_stock(stock_id: int):
     """刪除指定位置庫存"""
     conn = get_db()
-    conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
+    cur = conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
     conn.commit()
     conn.close()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "找不到該庫存位置")
     return {"ok": True}
 
 

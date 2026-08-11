@@ -11,7 +11,7 @@ function openOutModal(id, ev) {
   const sel = document.getElementById('o-location');
   const stocks = item.stocks && item.stocks.length ? item.stocks : [{ location: item.location || '' }];
   sel.innerHTML = '<option value="">全部位置（自動依序扣）</option>' +
-    stocks.map(s => `<option value="${esc(s.location || '')}">${s.location || '未標示'}（剩 ${s.qty}）</option>`).join('');
+    stocks.map(s => `<option value="${esc(s.location || '')}">${esc(s.location || '未標示')}（剩 ${s.qty}）</option>`).join('');
   document.getElementById('o-qty').value = '';
   document.getElementById('o-dest').value = '';
   document.getElementById('o-note').value = '';

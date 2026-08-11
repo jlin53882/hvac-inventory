@@ -1,6 +1,7 @@
 // 庫存管理系統 - 已領出紀錄頁渲染（v8 拆分）
 // ========== 出庫紀錄頁 ==========
 async function renderStockOuts() {
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
   document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入紀錄…</div></div>';
@@ -45,11 +46,11 @@ async function renderStockOuts() {
           <td>${o.destination ? `<span class="dest-chip">🏢 ${esc(o.destination)}</span>` : '<span style="color:#ccc">—</span>'}
               ${reverted ? '<br><span style="color:#999;font-size:11px">↩️ 已退回</span>' : ''}</td>
           <td style="white-space:nowrap">
-            ${reverted
+            ${isViewer ? '' : (reverted
               ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`
               : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button>
                  <button class="btn-out" style="padding:4px 8px" onclick="returnStockout(${o.id})">↩️ 退回</button>
-                 <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`}
+                 <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`)}
           </td>
         </tr>`;
       });

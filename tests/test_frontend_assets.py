@@ -397,6 +397,16 @@ def test_xss_escapes_present():
 
     us = read(USERS_JS)
     assert "${esc(u.username)}" in us  # 帳號欄位
+    assert "function esc(" not in us   # L1：esc 單一來源（users.js 不再自行定義，統一用 utils.js）
+
+    # Phase 1（2026-08-11）：已領出 modal 位置選項顯示文字 + topbar 帳號名 escape
+    so = read(os.path.join(STATIC, "js", "modals", "stockout.js"))
+    assert "esc(s.location || '未標示')" in so  # H1：option 顯示文字也走 esc
+    au = read(AUTH_JS)
+    assert "esc(user.display_name || user.username)" in au  # M16：topbar 帳號名 escape
+    assert 'title="${esc(user.username)}"' in au
+    ut = read(UTILS_JS)
+    assert "&#39;" in ut  # L1：utils esc 補單引號
 
     utils = read(UTILS_JS)
     assert "function jsStr(" in utils  # JS literal escape helper 存在

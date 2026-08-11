@@ -104,6 +104,13 @@ function photoImgClick(itemId) {
 //   - warnId：警示框 id
 //   - excludeId：排除的品項 id（編輯時排除自己；新增傳 null）
 function bindSimilarCheck(nameId, codeId, warnId, excludeId) {
+  const nameEl = document.getElementById(nameId);
+  const codeEl = document.getElementById(codeId);
+  if (!nameEl || !codeEl) return;
+  // dataset flag：modal 多次開啟（openAdd/openEdit）避免對同一 input 重複綁定監聽器
+  if (nameEl.dataset.similarBound === '1') return;
+  nameEl.dataset.similarBound = '1';
+  codeEl.dataset.similarBound = '1';
   const trigger = () => {
     clearTimeout(similarTimer);
     const name = document.getElementById(nameId).value.trim();
@@ -114,8 +121,8 @@ function bindSimilarCheck(nameId, codeId, warnId, excludeId) {
     }
     similarTimer = setTimeout(() => checkSimilar(name, code, warnId, excludeId), 350);
   };
-  document.getElementById(nameId).addEventListener('input', trigger);
-  document.getElementById(codeId).addEventListener('input', trigger);
+  nameEl.addEventListener('input', trigger);
+  codeEl.addEventListener('input', trigger);
 }
 
 // 查詢相似品項（debounce 後呼叫）；seq 序號防舊回應覆蓋新輸入

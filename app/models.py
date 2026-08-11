@@ -6,13 +6,13 @@ Pydantic 請求模型
 """
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ---------- 品項（v10 正規化：主檔 + 位置庫存） ----------
 class StockItem(BaseModel):
     location: str = ""
-    qty: float = 0
+    qty: float = Field(0, ge=0)
     note: str = ""
 
 
@@ -38,7 +38,7 @@ class ItemUpdate(BaseModel):
 
 class StockUpdate(BaseModel):
     location: Optional[str] = None
-    qty: Optional[float] = None
+    qty: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
 
 
@@ -51,7 +51,7 @@ class AdjustRequest(BaseModel):
 # ---------- 出庫 ----------
 class StockOutRequest(BaseModel):
     item_id: int
-    qty: float
+    qty: float = Field(..., ge=0)
     destination: str = ""
     note: str = ""
     location: str = ""  # v10：可指定從哪個位置出（空白=依庫存順序扣）

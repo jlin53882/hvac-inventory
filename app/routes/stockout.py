@@ -199,7 +199,7 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
         after = before - new_qty
         conn.execute("UPDATE movements SET delta=?, after_qty=? WHERE id=?",
                      (-new_qty, after, movement_id))
-        if diff != 0:
+        if abs(diff) > 1e-9:  # 浮點差額：奈米級誤差不寫流水
             conn.execute(
                 "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
                 (m["item_id"], -diff, before, after, "已領出編輯調整", m["destination"]),

@@ -2,7 +2,7 @@
 // esc / jsStr / absNum / todayStr / Modal 開關 / toast
 function esc(s) {
   return (s === null || s === undefined) ? '' :
-    String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // JS 字串 literal escape（用在 inline handler 的 '...' 內，防單引號/反斜線注入 XSS）
@@ -15,9 +15,12 @@ function jsStr(s) {
     .replace(/\r/g, '\\r');
 }
 
-// 取絕對值並去掉結尾的 .0（例如 -3.0 → 3），回傳字串
+// 取絕對值、四捨五入到小數 3 位並去掉結尾的 .0（例如 -3.0 → 3、0.30000000000000004 → 0.3），回傳字串
 function absNum(v) {
-  return String(Math.abs(v)).replace(/\.0$/, '');
+  const n = Math.abs(Number(v));
+  if (!isFinite(n)) return '';
+  const r = Math.round(n * 1000) / 1000;
+  return String(r).replace(/\.0$/, '');
 }
 
 // 回傳今天日期字串 YYYY-MM-DD（月份/日期自動補零）

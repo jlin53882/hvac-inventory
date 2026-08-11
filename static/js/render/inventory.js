@@ -72,7 +72,7 @@ function renderInventory() {
     html += `<div class="section-title"><span class="loc">位置：${esc(loc)}</span><span>${locItems.length} 項</span></div>`;
     locItems.forEach(i => {
       const delta = pending[i.id] || 0;
-      const display = i.qty + delta;
+      const display = Math.round((i.qty + delta) * 1000) / 1000;
       const isZero = display <= 0;
       const prepared = i.prepared_qty || 0;
       // 位置標籤（位置：文字）與備註（📝 具體位置/說明）分開兩行顯示
@@ -137,7 +137,7 @@ function quickSet(id) {
   const input = prompt(`輸入「${item.name}」的新數量：`, cur);
   if (input === null) return;
   const val = parseFloat(input);
-  if (isNaN(val) || val < 0) { toast('請輸入有效的數字', 'error'); return; }
+  if (!isFinite(val) || val < 0) { toast('請輸入有效的數字', 'error'); return; }
   const newDelta = val - item.qty;
   if (newDelta === 0) delete pending[id];
   else pending[id] = newDelta;

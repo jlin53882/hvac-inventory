@@ -49,5 +49,9 @@ document.getElementById('search-input').addEventListener('input', () => {
     renderUserMenu(user);
     applyRoleView(user);  // viewer 唯讀模式：隱藏新增/盤點/儲存列等
     loadData();
+  } else {
+    // checkAuth 回 null = 網路錯誤/伺服器掛（401 已在 checkAuth 內跳登入）→ 顯示錯誤不卡轉圈
+    const content = document.getElementById('content');
+    if (content) content.innerHTML = '<div class="empty">⚠️ 無法連線伺服器，請重新整理頁面<br><small>若持續發生請聯絡管理員</small></div>';
   }
 })();

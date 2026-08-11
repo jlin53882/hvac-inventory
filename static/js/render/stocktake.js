@@ -86,7 +86,7 @@ async function renderStocktake() {
       const displayLoc = s.location ? `位置：${esc(s.location)}` : '';
       html += `<tr>
         <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${displayLoc || '未標示'}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></td>
-        <td style="text-align:center;font-weight:700">${s.qty} ${esc(i.unit)}</td>
+        <td style="text-align:center;font-weight:700">${absNum(s.qty)} ${esc(i.unit)}</td>
         <td><div class="count-row">
           <input type="number" step="any" min="0" value="${val}"
             oninput="stocktakeValues['${jsStr(key)}'] = this.value"

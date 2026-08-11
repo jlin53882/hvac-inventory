@@ -51,7 +51,7 @@ function renderUserMenu(user) {
     : user.role === 'viewer' ? ' <span class="admin-badge" style="background:#6b7280">👀 檢視者</span>'
     : '';
   menu.innerHTML =
-    `<span class="user-chip" title="${user.username}">👤 ${user.display_name || user.username}` +
+    `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}` +
     roleChip + `</span>` +
     (isAdmin ? `<button class="btn-ghost" onclick="openUsersModal()">👥<span class="users-text"> 使用者</span></button>` : '') +
     `<button class="btn-ghost" onclick="logout()">🚪<span class="logout-text"> 登出</span></button>`;
