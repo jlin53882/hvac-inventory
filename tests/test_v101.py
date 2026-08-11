@@ -64,9 +64,11 @@ def _add_item(client, **kw):
 
 
 def _tiny_png():
+    """產生 1x1 最小合法 PNG bytes（測試照片上傳用）"""
     import struct
     import zlib
     def chunk(tag, data):
+        """組裝 PNG chunk：長度 + tag + data + CRC32"""
         c = tag + data
         return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
     ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)

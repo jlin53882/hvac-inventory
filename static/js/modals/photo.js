@@ -85,6 +85,7 @@ function openPhotoLightbox(itemId) {
   photoLightboxEl = overlay;
 }
 
+// 關閉大圖檢視（移除 overlay 元素）
 function closePhotoLightbox() {
   if (photoLightboxEl) { photoLightboxEl.remove(); photoLightboxEl = null; }
 }
@@ -117,6 +118,7 @@ function bindSimilarCheck(nameId, codeId, warnId, excludeId) {
   document.getElementById(codeId).addEventListener('input', trigger);
 }
 
+// 查詢相似品項（debounce 後呼叫）；seq 序號防舊回應覆蓋新輸入
 async function checkSimilar(name, code, warnId, excludeId) {
   const seq = ++similarReqSeq;
   const params = new URLSearchParams();

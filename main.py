@@ -108,6 +108,7 @@ def _versioned_html(path: str) -> Response:
         html = fh.read()
 
     def _swap(m):
+        """re.sub 替換 callback：static 資源 URL 換成帶 ?v=mtime 版本參數；檔案不存在則原樣保留"""
         url = m.group(1)                      # /static/js/app.js
         fp = os.path.join(STATIC_DIR, url[len("/static/"):])
         if os.path.exists(fp):
@@ -150,6 +151,7 @@ def _is_upload_path(path: str) -> bool:
 class _StaticWithoutUploads(StaticFiles):
     """static/uploads/ 下的照片不對外提供（改由需登入的 /uploads/ endpoint 讀取）"""
     async def get_response(self, path, scope):
+        """覆寫 StaticFiles.get_response：uploads 照片路徑一律 404（公開讀取封鎖），其餘正常回傳"""
         if _is_upload_path(path):
             raise HTTPException(status_code=404, detail="找不到照片")
         return await super().get_response(path, scope)

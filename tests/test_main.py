@@ -510,6 +510,7 @@ class TestStockoutReturn:
 
 class TestStockoutEdit:
     def _out(self, client, item_id, qty=3, dest="台北案場"):
+        """測試 helper：出庫 qty 後回傳該品項最新已領出記錄"""
         client.post("/api/stockout", json={
             "item_id": item_id, "qty": qty, "destination": dest})
         outs = client.get("/api/stockouts").json()
@@ -782,6 +783,7 @@ class TestKits:
         assert kit_item["name"] == "新名"
 
     def test_update_kit_not_found(self, client):
+        """驗證更新不存在的整組回傳 404"""
         r = client.put("/api/kits/999", json={"name": "X", "items": [{"item_id": 1, "qty": 1}]})
         assert r.status_code == 404
 
@@ -810,6 +812,7 @@ class TestKits:
         assert any(i["id"] == a["id"] for i in items)
 
     def test_delete_kit_not_found(self, client):
+        """驗證刪除不存在的整組回傳 404"""
         r = client.delete("/api/kits/999")
         assert r.status_code == 404
 
@@ -828,6 +831,7 @@ class TestKits:
         assert updated["total_qty"] == 8
 
     def test_delete_stockout_movement_not_found(self, client):
+        """驗證刪除不存在的已領出紀錄回傳 404"""
         r = client.delete("/api/stockouts/99999")
         assert r.status_code == 404
 
@@ -1270,5 +1274,6 @@ class TestSecurityHeaders:
         assert "content-security-policy" in r.headers
 
     def test_health_has_security_headers(self, client):
+        """驗證健康檢查回應帶安全 headers"""
         r = client.get("/health")
         assert r.headers.get("x-frame-options") == "DENY"

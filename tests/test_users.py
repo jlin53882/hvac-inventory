@@ -49,6 +49,7 @@ def test_users_requires_admin(user_client):
 
 
 def test_admin_can_create_and_list(admin_client):
+    """驗證 admin 可建立並列出使用者"""
     r = admin_client.post("/api/users", json={
         "username": "bob", "password": "Pass1234",
         "display_name": "Bob", "role": "user",
@@ -62,6 +63,7 @@ def test_admin_can_create_and_list(admin_client):
 
 
 def test_duplicate_username_409(admin_client):
+    """驗證重複帳號建立回傳 409"""
     admin_client.post("/api/users", json={
         "username": "bob", "password": "Pass1234", "display_name": "Bob", "role": "user",
     })
@@ -73,6 +75,7 @@ def test_duplicate_username_409(admin_client):
 
 
 def test_short_password_400(admin_client):
+    """驗證密碼過短回傳 400"""
     r = admin_client.post("/api/users", json={
         "username": "tiny", "password": "12", "display_name": "T", "role": "user",
     })
@@ -81,6 +84,7 @@ def test_short_password_400(admin_client):
 
 
 def test_deactivate_user_blocks_login(admin_client):
+    """驗證停用帳號無法登入"""
     r = admin_client.post("/api/users", json={
         "username": "jane", "password": "Pass1234", "display_name": "Jane", "role": "user",
     })
@@ -99,6 +103,7 @@ def test_deactivate_user_blocks_login(admin_client):
 
 
 def test_cannot_delete_self(admin_client):
+    """驗證不能刪除自己"""
     me = admin_client.get("/api/auth/me").json()["user"]
     r = admin_client.delete(f"/api/users/{me['id']}")
     assert r.status_code == 400
@@ -106,6 +111,7 @@ def test_cannot_delete_self(admin_client):
 
 
 def test_reset_password(admin_client):
+    """驗證重設密碼流程"""
     r = admin_client.post("/api/users", json={
         "username": "kate", "password": "Pass1234", "display_name": "Kate", "role": "user",
     })
@@ -120,6 +126,7 @@ def test_reset_password(admin_client):
 
 
 def test_delete_user(admin_client):
+    """驗證刪除使用者"""
     r = admin_client.post("/api/users", json={
         "username": "gone", "password": "Pass1234", "display_name": "G", "role": "user",
     })
@@ -134,6 +141,7 @@ def test_delete_user(admin_client):
 # ---------- 批次新增（表格 UI 用） ----------
 
 def test_batch_create_all_ok(admin_client):
+    """驗證批次建立使用者全部成功"""
     r = admin_client.post("/api/users/batch", json={"users": [
         {"username": "tracy", "password": "View1234", "display_name": "Tracy", "role": "viewer"},
         {"username": "bob", "password": "Pass1234", "display_name": "Bob", "role": "user"},
@@ -199,6 +207,7 @@ def test_batch_requires_admin(user_client):
 
 
 def test_batch_empty_list(admin_client):
+    """驗證批次空清單的處理行為"""
     r = admin_client.post("/api/users/batch", json={"users": []})
     assert r.status_code == 201
     assert r.json()["created"] == 0
@@ -208,6 +217,7 @@ def test_batch_empty_list(admin_client):
 # ---------- viewer 角色建立 ----------
 
 def test_admin_can_create_viewer(admin_client):
+    """驗證 admin 可建立 viewer 角色帳號"""
     r = admin_client.post("/api/users", json={
         "username": "view1", "password": "View1234",
         "display_name": "檢視者一", "role": "viewer",
@@ -223,6 +233,7 @@ def test_admin_can_create_viewer(admin_client):
 
 
 def test_invalid_role_rejected(admin_client):
+    """驗證非法角色被拒絕"""
     r = admin_client.post("/api/users", json={
         "username": "bad", "password": "Pass1234", "display_name": "B", "role": "superuser",
     })

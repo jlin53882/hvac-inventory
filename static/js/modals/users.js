@@ -8,6 +8,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') closeUsersModal();
 });
 
+// 建立並顯示使用者管理 modal（僅 admin；已存在則不重複建立）
 function openUsersModal() {
   if (document.getElementById('usersModal')) return;
   const overlay = document.createElement('div');
@@ -62,6 +63,7 @@ function openUsersModal() {
   addBatchRow();  // 預設先給一列空的批次輸入
 }
 
+// 批次新增表格加一列空輸入（帳號/密碼/顯示名稱/角色）
 function addBatchRow() {
   const tb = document.getElementById('batchTableBody');
   if (!tb) return;
@@ -79,6 +81,7 @@ function addBatchRow() {
   tb.appendChild(tr);
 }
 
+// 批次建立使用者（POST /api/users/batch），逐列標記 ✅/❌
 async function createUsersBatch() {
   const rows = Array.from(document.querySelectorAll('#batchTableBody tr'));
   const users = [];
@@ -123,12 +126,14 @@ async function createUsersBatch() {
   } catch (e) { toast('⚠️ ' + e.message); resultEl.textContent = ''; }
 }
 
+// 關閉並移除使用者管理 modal
 function closeUsersModal() {
   const el = document.getElementById('usersModal');
   if (el) el.remove();
   usersModalData = null;
 }
 
+// 載入使用者清單並渲染表格（角色 badge / 鎖定狀態 / 操作按鈕）
 async function loadUsersTable() {
   try {
     const res = await fetch('/api/users');
@@ -181,6 +186,7 @@ function toggleUserPerms(uid, btn) {
   btn.textContent = '📋 收起';
 }
 
+// HTML 跳脫（含單引號，users 表格渲染用）
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -196,6 +202,7 @@ function pwPolicyMsg(pw) {
   return '';
 }
 
+// 從 modal 表單新增單一使用者（先過密碼 policy 檢查）
 async function createUserFromModal() {
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value;
@@ -217,6 +224,7 @@ async function createUserFromModal() {
   } catch (e) { toast('⚠️ ' + e.message); }
 }
 
+// 重設指定帳號密碼（prompt 輸入，過 policy 檢查）
 async function resetUserPw(id) {
   const pw = prompt('輸入新密碼（8碼以上，含大寫/小寫/數字）：');
   if (!pw) return;
@@ -233,6 +241,7 @@ async function resetUserPw(id) {
   } catch (e) { toast('⚠️ ' + e.message); }
 }
 
+// 啟用/停用指定帳號
 async function toggleUserActive(id) {
   const u = usersModalData.find(x => x.id === id);
   if (!u) return;
@@ -251,6 +260,7 @@ async function toggleUserActive(id) {
   } catch (e) { toast('⚠️ ' + e.message); }
 }
 
+// 刪除指定帳號（含確認對話框）
 async function deleteUser(id) {
   const u = usersModalData.find(x => x.id === id);
   if (!u) return;

@@ -51,6 +51,7 @@ ALLOWED_ROLES = ("admin", "user", "viewer")
 
 # ---------- 共用 helpers ----------
 def _user_out(row) -> dict:
+    """使用者 row 轉對外 payload（只挑安全欄位，不含密碼）"""
     return {
         "id": row["id"],
         "username": row["username"],
@@ -64,6 +65,7 @@ def _user_out(row) -> dict:
 
 
 def _get_user_or_404(conn, user_id: int):
+    """依 id 查使用者，不存在則 404"""
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="找不到該使用者")

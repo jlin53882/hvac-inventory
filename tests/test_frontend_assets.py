@@ -37,6 +37,7 @@ UTILS_JS = os.path.join(STATIC, "js", "utils.js")
 
 
 def read(p):
+    """讀檔 helper（UTF-8）"""
     with open(p, encoding="utf-8") as fh:
         return fh.read()
 
@@ -44,6 +45,7 @@ def read(p):
 # ---------- index.html ----------
 
 def test_index_has_viewport():
+    """驗證 index.html 含 viewport meta"""
     assert 'name="viewport"' in read(INDEX)
 
 
@@ -63,6 +65,7 @@ def test_index_has_no_manual_version_params():
 # ---------- style.css ----------
 
 def test_css_mobile_media_query():
+    """驗證 CSS 含手機版 media query"""
     css = read(CSS)
     assert "@media (max-width: 767px)" in css
     # topbar 換行
@@ -78,6 +81,7 @@ def test_css_user_actions_black_text():
 
 
 def test_css_mobile_icon_only():
+    """驗證手機版 CSS 為圖示模式"""
     css = read(CSS)
     assert ".logout-text, .users-text { display: none; }" in css
 
@@ -92,6 +96,7 @@ def test_css_table_card_layout():
 # ---------- auth.js ----------
 
 def test_auth_js_wraps_button_text_in_span():
+    """驗證 auth.js 按鈕文字以 span 包覆"""
     js = read(AUTH_JS)
     assert 'class="users-text"' in js
     assert 'class="logout-text"' in js
@@ -109,6 +114,7 @@ def test_users_js_action_buttons_have_full_text():
 
 
 def test_users_js_has_class_names():
+    """驗證 users.js 含預期 class 名稱"""
     js = read(USERS_JS)
     assert "class=\"users-table\"" in js
     assert "class=\"user-actions\"" in js
@@ -296,6 +302,7 @@ def test_login_hvac_image_exists():
 # ---------- login.html（登入頁 v11.1 響應式） ----------
 
 def test_login_has_viewport():
+    """驗證 login.html 含 viewport meta"""
     assert 'name="viewport"' in read(LOGIN)
 
 

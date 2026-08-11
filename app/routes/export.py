@@ -28,6 +28,7 @@ def _safe(value):
 
 
 def _style_header(ws):
+    """設定工作表表頭樣式：粗體白字 + 品牌色底 + 置中 + 凍結首列"""
     from openpyxl.styles import Alignment, Font, PatternFill
 
     for cell in ws[1]:
@@ -38,6 +39,7 @@ def _style_header(ws):
 
 
 def _set_widths(ws, widths):
+    """依 widths 清單依序設定各欄寬度（A、B、C…）"""
     import openpyxl.utils
 
     for i, w in enumerate(widths, 1):
