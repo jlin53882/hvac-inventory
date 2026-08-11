@@ -298,20 +298,57 @@ def test_stockout_photo_column():
     css = read(CSS)
     assert ".so-photo" in css
 
-def test_title_is_zhenjia_inventory():
-    """標題改為「振佳空調庫存管理系統」（登入頁 + 主程式 + 分頁標題）"""
+def test_title_is_zhenjia_management():
+    """標題為「振佳空調管理系統」（2026-08-12 家豪/Sarah 定案：登入頁 + 主程式 + 分頁標題）"""
     login = read(LOGIN)
-    assert "振佳空調庫存管理系統" in login
+    assert "振佳空調管理系統" in login
+    assert "振佳空調庫存管理系統" not in login                # 舊標題不得殘留
     assert login.count("login-hvac.png") == 2                  # 大圖 + 手機小圖都換新
-    assert "<title>🔐 登入｜振佳空調庫存管理系統</title>" in login
+    assert "<title>🔐 登入｜振佳空調管理系統</title>" in login
     index = read(INDEX)
-    assert "<title>振佳空調庫存管理系統</title>" in index
-    assert "> 振佳空調庫存管理系統</h1>" in index              # topbar 標題
+    assert "<title>振佳空調管理系統</title>" in index
+    assert "> 振佳空調管理系統</h1>" in index              # topbar 標題
+
+def test_login_img_no_manual_cachebuster():
+    """登入圖版本號由 server 自動注入（_versioned_html 依檔案 mtime），原始 login.html 不得手動寫 ?v=——
+    2026-08-12 曾誤加 ?v=20260812 與方案 A 衝突（test_main.py::test_html_source_has_no_version_params 會抓），
+    快取問題由 mtime 注入解決：換圖存檔即版本號變、瀏覽器自動取新圖"""
+    html = read(LOGIN)
+    assert html.count("/static/img/login-hvac.png") == 2       # 桌機 big-logo + 手機 logo
+    assert "/static/img/login-hvac.png?v=" not in html        # 不得手動版本號
+
+def test_login_img_position_adjust_params():
+    """登入圖 CSS 速調參數存在（2026-08-12 家豪需求：translateX/translateY 手動微調）"""
+    html = read(LOGIN)
+    assert html.count("速調登入圖位置") == 2                   # 手機 .brand .logo img + 桌機 .big-logo img
+    assert "translateX(" in html and "translateY(" in html    # 參數本體不能整組被移除
+    assert "負=左/正=右" in html and "負=上/正=下" in html     # 註解規則存在（調整指引）
 
 def test_login_hvac_image_exists():
     """登入用圖片檔必須存在於 static/img/"""
     img = os.path.join(STATIC, "img", "login-hvac.png")
     assert os.path.exists(img), "static/img/login-hvac.png 不存在"
+
+
+def test_login_hvac_image_centered():
+    """登入圖內容水平置中 + 左緣無殘留黑線（2026-08-12 修復：原圖內容偏左 66px 且左緣有 1px 黑線，
+    已校正置中並清除黑線——此測試防未來換圖時重蹈覆轍）"""
+    try:
+        from PIL import Image
+    except ImportError:
+        pytest.skip("Pillow 不在環境，跳過圖片像素檢查")
+    img_path = os.path.join(STATIC, "img", "login-hvac.png")
+    im = Image.open(img_path).convert("L")
+    w, h = im.size
+    mask = im.point(lambda v: 255 if v < 245 else 0)           # 非白內容（含淺灰房子輪廓）
+    bbox = mask.getbbox()
+    assert bbox, "登入圖全白？"
+    left, top, right, bottom = bbox
+    center = (left + right) / 2
+    # 內容中心離畫布中心 < 5% 圖寬（目前偏右 33.5px = 2.85%，CSS translateX 補償）
+    assert abs(center - w / 2) < w * 0.05,         f"登入圖內容未置中: 中心 {center:.0f} vs 畫布中心 {w/2:.0f}（左留白 {left} / 右留白 {w-right}）"
+    # 左緣 x<50 全白：黑線已清除，防殘留線回歸
+    assert not mask.crop((0, 0, 50, h)).getbbox(), "登入圖左緣 x<50 有殘留像素（黑線未清乾淨？）"
 
 
 # ---------- login.html（登入頁 v11.1 響應式） ----------

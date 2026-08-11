@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔐 登入｜振佳空調庫存管理系統</title>
+<title>🔐 登入｜振佳空調管理系統</title>
 <style>
   /* ============ 全域 ============ */
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -52,7 +52,8 @@
     box-shadow: 0 0 0 5px rgba(255,255,255,0.06), 0 0 24px rgba(255,255,255,0.20), 0 8px 18px rgba(0,0,0,0.4);
     overflow: hidden;
   }
-  .brand .logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .brand .logo img { width: 100%; height: 100%; object-fit: contain; display: block;
+    transform: translateX(-2px) translateY(-4px); /* 速調登入圖位置：X 負=左/正=右，Y 負=上/正=下，單位 px */ }
   .brand h1 { font-size: 20px; font-weight: 700; color: #F8FAFC; }
   .brand .sub { font-size: 12.5px; color: #94A3B8; margin-top: 4px; }
 
@@ -198,7 +199,8 @@
       box-shadow: 0 0 0 6px rgba(255,255,255,0.06), 0 0 30px rgba(255,255,255,0.20), 0 10px 24px rgba(0,0,0,0.4);
       overflow: hidden;
     }
-    .brand-panel-inner .big-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .brand-panel-inner .big-logo img { width: 100%; height: 100%; object-fit: contain; display: block;
+      transform: translateX(-3px) translateY(-4px); /* 速調登入圖位置：X 負=左/正=右，Y 負=上/正=下，單位 px */ }
     .brand-panel-inner h2 { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
     .brand-panel-inner p { font-size: 14px; color: #94A3B8; line-height: 1.8; }
     .brand-panel-inner .geo {
@@ -228,7 +230,7 @@
       <div class="brand-panel">
         <div class="brand-panel-inner">
           <div class="big-logo"><img src="/static/img/login-hvac.png" alt="振佳空調"></div>
-          <h2>振佳空調庫存管理系統</h2>
+          <h2>振佳空調管理系統</h2>
           <p>冷凍空調材料庫存管理<br>單一材料・整組・位置追蹤・盤點</p>
           <div class="geo">▣ ▤ ▦</div>
         </div>
@@ -239,7 +241,7 @@
         <div class="login-card">
           <div class="brand">
             <div class="logo"><img src="/static/img/login-hvac.png" alt="振佳空調"></div>
-            <h1>振佳空調庫存管理系統</h1>
+            <h1>振佳空調管理系統</h1>
             <div class="sub">請登入以繼續</div>
           </div>
 
