@@ -74,6 +74,17 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
+_DUMMY_HASH = None
+
+
+def dummy_verify(password: str) -> None:
+    """帳號不存在時也跑相同成本 PBKDF2（防 timing 列舉）；結果恆 False"""
+    global _DUMMY_HASH
+    if _DUMMY_HASH is None:
+        _DUMMY_HASH = hash_password("dummy-placeholder")
+    verify_password(password, _DUMMY_HASH)
+
+
 def hash_token(token: str) -> str:
     """session token → sha256 hex（DB 只存這個）"""
     return hashlib.sha256(token.encode()).hexdigest()

@@ -22,6 +22,7 @@ from app.services.auth import (
     clear_ip_fail,
     create_session,
     delete_session,
+    dummy_verify,
     # session cookie 名稱
     get_session_user,
     get_user_by_username,
@@ -34,6 +35,14 @@ from app.services.auth import hash_password  # noqa: F401 (init_admin 互用)
 
 # auth API 路由（登入/登出/session）
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def _client_ip(request: Request) -> str:
+    """client IP：X-Forwarded-For 第一段優先（Cloudflare tunnel 管理），無則 fallback 直連 IP"""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 # ---------- 請求模型 ----------
@@ -54,7 +63,7 @@ class UserOut(BaseModel):
 def login(body: LoginRequest, request: Request, response: Response):
     """帳密登入：成功 → Set-Cookie httponly session；失敗 401；鎖定 429"""
     # B4：per-IP 失敗 rate limit（在 per-account 鎖定之前擋下大量嘗試）
-    ip = request.client.host if request.client else "unknown"
+    ip = _client_ip(request)
     if check_ip_rate_limit(ip):
         raise HTTPException(status_code=429, detail="嘗試次數過多，請稍後再試")
 
@@ -63,6 +72,8 @@ def login(body: LoginRequest, request: Request, response: Response):
         cleanup_expired(conn)
         row = get_user_by_username(conn, body.username.strip())
         if row is None:
+            dummy_verify(body.password)  # H3a：定時比較，防帳號列舉
+            record_ip_fail(ip)           # H3a：不存在帳號也計 rate limit（防帳號探測）
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
 
         if not row["is_active"]:

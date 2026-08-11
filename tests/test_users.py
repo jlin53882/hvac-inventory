@@ -334,3 +334,56 @@ def test_login_rate_limit_after_many_failures():
             assert 429 in codes, f"應該出現 429，實際: {codes}"
     finally:
         clear_ip_fail("testclient")
+
+# ========== H3a / H3b（2026-08-11 Phase 2a）：dummy PBKDF2 + XFF rate limit ==========
+
+def test_login_unknown_user_runs_dummy_hash(admin_client, monkeypatch):
+    """H3a：帳號不存在也跑 PBKDF2（防 timing 列舉）——verify_password 應被呼叫"""
+    import app.services.auth as svc
+    calls = []
+    orig = svc.verify_password
+
+    def spy(pw, stored):
+        calls.append(pw)
+        return orig(pw, stored)
+
+    monkeypatch.setattr(svc, "verify_password", spy)
+    r = admin_client.post("/api/auth/login",
+                          json={"username": "no_such_user_xyz", "password": "Pass1234"})
+    assert r.status_code == 401
+    assert len(calls) == 1  # dummy hash 有跑 verify（與真實帳號路徑同成本）
+
+
+def test_login_unknown_user_counts_rate_limit(admin_client):
+    """H3a/H3b：不存在帳號 + 同一 XFF 失敗多次 → 429（XFF 生效 + 不存在帳號也計數）"""
+    from app.services.auth import clear_ip_fail
+    ip = "203.0.113.77"
+    try:
+        codes = []
+        for _ in range(IP_FAIL_MAX + 2):
+            r = admin_client.post("/api/auth/login",
+                                  json={"username": "no_such_user_xyz", "password": "Pass1234"},
+                                  headers={"X-Forwarded-For": ip})
+            codes.append(r.status_code)
+        assert 429 in codes, f"應該出現 429（XFF rate limit），實際: {codes}"
+    finally:
+        clear_ip_fail(ip)
+
+
+def test_login_rate_limit_xff_separate(admin_client):
+    """H3b：不同 XFF 各自計數（共享 proxy IP 不再互相干擾）"""
+    from app.services.auth import clear_ip_fail
+    ips = ("203.0.113.1", "203.0.113.2")
+    try:
+        for ip in ips:
+            codes = []
+            for _ in range(5):
+                r = admin_client.post("/api/auth/login",
+                                      json={"username": "no_such_user_xyz", "password": "Pass1234"},
+                                      headers={"X-Forwarded-For": ip})
+                codes.append(r.status_code)
+            assert 429 not in codes, f"5 次各自計數應未達上限，實際: {codes}"
+    finally:
+        for ip in ips:
+            clear_ip_fail(ip)
+
