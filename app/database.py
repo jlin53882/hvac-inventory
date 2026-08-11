@@ -100,13 +100,42 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         expires_at TIMESTAMP NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS service_types (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL UNIQUE,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS appointments (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_name     TEXT NOT NULL,               -- 客戶姓名與戶號 / 案場
+        address         TEXT DEFAULT '',             -- 地址（選填，匯出日報表進備註區）
+        service_type_id INTEGER REFERENCES service_types(id),
+        date            TEXT NOT NULL,               -- YYYY-MM-DD
+        start_time      TEXT NOT NULL,               -- HH:MM（字串排序即時間序）
+        end_time        TEXT NOT NULL,
+        note            TEXT DEFAULT '',
+        created_by      INTEGER REFERENCES users(id),
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS appointment_assignees (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        appointment_id INTEGER NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+        user_id        INTEGER NOT NULL REFERENCES users(id),
+        UNIQUE(appointment_id, user_id)
+    );
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_items_brand ON items(brand);
     CREATE INDEX IF NOT EXISTS idx_stocks_item ON item_stocks(item_id);
     CREATE INDEX IF NOT EXISTS idx_stocks_location ON item_stocks(location);
     CREATE INDEX IF NOT EXISTS idx_movements_item ON movements(item_id);
-    """)
+    CREATE INDEX IF NOT EXISTS idx_appt_date ON appointments(date);
+    CREATE INDEX IF NOT EXISTS idx_appt_svc ON appointments(service_type_id);
+    CREATE INDEX IF NOT EXISTS idx_assignees_appt ON appointment_assignees(appointment_id);
+    """);
 
     # 舊資料庫遷移（v10 前）：items 若有 qty/location/note 欄位 → 需跑 scripts/migrate_v10.py
     item_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
@@ -126,6 +155,9 @@ def init_db():
         conn.execute("ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP")
         conn.execute("UPDATE users SET password_updated_at = COALESCE(password_updated_at, created_at, datetime('now'))")
         print("[migrate] users.password_updated_at 欄位已新增（既有帳號以建立時間起算）")
+    if "color" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN color TEXT DEFAULT '#1a73e8'")
+        print("[migrate] users.color 欄位已新增（行事曆人員顏色）")
     item_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
     if "is_deleted" not in item_cols:
         conn.execute("ALTER TABLE items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
@@ -145,5 +177,13 @@ def init_db():
     if "reverted_at" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN reverted_at TIMESTAMP")
         print("[migrate] movements.reverted_at 欄位已新增（退回已領出防重複）")
+    # 行事曆：service_types 種子（固定 4 項，id 1-4 對應日報表欄位順序 保養/維修/安裝/配管）
+    conn.executescript("""
+    INSERT OR IGNORE INTO service_types (id, name, sort_order, is_active) VALUES
+        (1, '保養', 1, 1),
+        (2, '維修', 2, 1),
+        (3, '安裝', 3, 1),
+        (4, '配管', 4, 1);
+    """)
     conn.commit()
     conn.close()

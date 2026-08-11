@@ -569,3 +569,57 @@ def test_kit_modal_demo_css_styles():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+# ---------- 行事曆派工（📅） ----------
+
+def test_index_has_calendar_nav():
+    """bottom-nav 含行事曆頁籤"""
+    html = read(INDEX)
+    assert 'id="nav-calendar"' in html
+    assert "行事曆" in html
+
+
+def test_index_loads_calendar_js():
+    """index.html 載入 render/calendar.js"""
+    assert '/static/js/render/calendar.js' in read(INDEX)
+
+
+def test_app_js_switchtab_has_calendar():
+    """switchTab 分派行事曆 → renderCalendar()"""
+    js = read(os.path.join(STATIC, "js", "app.js"))
+    assert "else if (tab === 'calendar') renderCalendar();" in js
+
+
+def test_calendar_js_has_core_functions():
+    """calendar.js 核心函式：月曆/明細/新增/匯出/設定"""
+    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    for fn in ("function renderCalendar()", "function calRenderMonth()",
+               "function calRenderDay()", "function calOpenAppt(",
+               "async function calSubmitAppt()", "async function calExport()",
+               "function calOpenSettings()", "function closeCalModal()"):
+        assert fn in js, f"缺 {fn}"
+
+
+def test_calendar_js_uses_api_endpoints():
+    """calendar.js 呼叫的 API 端點（後端需有對應路由）"""
+    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    assert "/api/appointments" in js
+    assert "/api/service-types" in js
+    assert "/api/assignable-users" in js
+    assert "/api/appointments/export" in js
+
+
+def test_calendar_js_viewer_write_hidden():
+    """viewer 看不到新增/編輯/刪除按鈕（權限整合）"""
+    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    assert "isViewer" in js
+    assert "calOpenAppt()" in js  # 按鈕以 isViewer 條件包住
+
+
+def test_css_has_calendar_styles():
+    """style.css 含行事曆樣式（月曆格/事件/設定表格）"""
+    css = read(CSS)
+    for sel in (".cal-grid", ".cal-cell", ".cal-evt", ".cal-day-card",
+                ".cal-set-table", ".cal-person-opt", ".switch"):
+        assert sel in css, f"缺 {sel}"

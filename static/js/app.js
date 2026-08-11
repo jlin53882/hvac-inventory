@@ -28,11 +28,20 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const nav = document.getElementById('nav-' + tab);
   if (nav) nav.classList.add('active');
+  // 行事曆頁不需要庫存搜尋、辦公室/倉庫分片與廠牌 tab（家豪 2026-08-12 指定）
+  const isCal = tab === 'calendar';
+  const sb = document.querySelector('.search-box');
+  const st = document.querySelector('.site-tabs');
+  const bt = document.getElementById('brand-tabs');
+  if (sb) sb.style.display = isCal ? 'none' : '';
+  if (st) st.style.display = isCal ? 'none' : '';
+  if (bt) bt.style.display = isCal ? 'none' : '';
   if (tab === 'inventory') renderInventory();
   else if (tab === 'prepared') renderPrepared();
   else if (tab === 'stockout') renderStockOuts();
   else if (tab === 'stocktake') renderStocktake();
   else if (tab === 'kit') renderKits();
+  else if (tab === 'calendar') renderCalendar();
 }
 
 // 檢查今天日期，每月 25 號（含）後顯示「月底記得盤點」提醒橫幅

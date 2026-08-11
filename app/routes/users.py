@@ -36,6 +36,7 @@ class UserUpdate(BaseModel):
     display_name: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[int] = None
+    color: Optional[str] = None  # 行事曆人員顏色（選填 hex）
 
 
 class UserPassword(BaseModel):
@@ -162,6 +163,7 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_ad
         display_name = row["display_name"] if body.display_name is None else body.display_name.strip()
         role = row["role"] if body.role is None else body.role
         is_active = row["is_active"] if body.is_active is None else body.is_active
+        color = row["color"] if body.color is None else body.color.strip()
 
         if body.role is not None and body.role not in ALLOWED_ROLES:
             raise HTTPException(status_code=400, detail=f"角色只能是 {'、'.join(ALLOWED_ROLES)}")
@@ -180,8 +182,8 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_ad
                     raise HTTPException(status_code=400, detail="系統至少需要一名啟用的管理員")
 
         conn.execute(
-            "UPDATE users SET display_name = ?, role = ?, is_active = ?, updated_at = datetime('now') WHERE id = ?",
-            (display_name, role, is_active, user_id),
+            "UPDATE users SET display_name = ?, role = ?, is_active = ?, color = ?, updated_at = datetime('now') WHERE id = ?",
+            (display_name, role, is_active, color, user_id),
         )
         # B3：帳號被停用 → 舊 session 立即失效（避免停用後仍可續用 7 天）
         if row["is_active"] == 1 and is_active == 0:
