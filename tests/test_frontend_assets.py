@@ -408,6 +408,25 @@ def test_xss_escapes_present():
     ut = read(UTILS_JS)
     assert "&#39;" in ut  # L1：utils esc 補單引號
 
+
+def test_changepw_expiry_ui_present():
+    """v11.2：改密碼 modal（變體 B）+ 過期提示 modal 資產存在"""
+    idx = read(os.path.join(STATIC, "index.html"))
+    assert 'id="changepw-modal"' in idx
+    assert 'id="expiry-modal"' in idx
+    assert 'id="cpw-new"' in idx and 'oninput="cpwCheckStrength()"' in idx  # 變體 B 強度打勾
+    assert 'id="cpw-mismatch"' in idx
+    assert "/static/js/modals/changepw.js" in idx
+    assert "/static/js/modals/expiry.js" in idx
+    au = read(AUTH_JS)
+    assert "openChangePwModal()" in au  # topbar 改密碼按鈕（所有角色）
+    cpw = read(os.path.join(STATIC, "js", "modals", "changepw.js"))
+    assert "function cpwCheckStrength" in cpw
+    assert "function submitChangePw" in cpw
+    exp = read(os.path.join(STATIC, "js", "modals", "expiry.js"))
+    assert "function openExpiryModal" in exp
+    assert "function ackPasswordExpiry" in exp
+
     utils = read(UTILS_JS)
     assert "function jsStr(" in utils  # JS literal escape helper 存在
 

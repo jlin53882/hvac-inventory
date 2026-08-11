@@ -723,3 +723,9 @@
   }
   .btn-del:hover { background: #fee2e2; }
   .btn-del:active { transform: scale(0.96); }
+
+/* v11.2 修改密碼 modal：密碼強度即時打勾 + 確認不一致警示 */
+.pw-checks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pw-check { font-size: 11px; color: #888; background: #f0f2f5; border-radius: 12px; padding: 3px 8px; display: inline-block; }
+.pw-check.ok { color: #15803d; background: #dcfce7; }
+.cpw-mismatch { font-size: 11px; color: #b45309; background: #fef3c7; padding: 6px 10px; border-radius: 6px; margin-top: 6px; }

@@ -11,6 +11,7 @@
 Session cookie：前端持 raw token；DB 只存 sha256(token)（外洩不可重放）
 """
 import hashlib
+import re
 import secrets
 import sqlite3
 import time
@@ -90,6 +91,18 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _check_pw(pw: str):
+    """密碼 policy（B2）：至少 8 碼，且含大寫 / 小寫 / 數字（users.py 與 auth.py 共用）"""
+    if len(pw) < 8:
+        raise HTTPException(status_code=400, detail="密碼至少 8 碼")
+    if not re.search(r"[A-Z]", pw):
+        raise HTTPException(status_code=400, detail="密碼需包含至少一個大寫字母")
+    if not re.search(r"[a-z]", pw):
+        raise HTTPException(status_code=400, detail="密碼需包含至少一個小寫字母")
+    if not re.search(r"\d", pw):
+        raise HTTPException(status_code=400, detail="密碼需包含至少一個數字")
+
+
 # ---------- users 表操作 ----------
 
 
@@ -104,7 +117,7 @@ def init_admin_if_missing(conn: sqlite3.Connection) -> None:
     if row["c"] > 0:
         return
     conn.execute(
-        "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)",
+        "INSERT INTO users (username, password_hash, display_name, role, password_updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
         ("admin", hash_password("admin123"), "管理員", "admin"),
     )
     conn.commit()
@@ -179,8 +192,8 @@ def get_session_user(conn: sqlite3.Connection, token: str):
 # ---------- FastAPI dependency ----------
 
 
-def require_login(request: Request) -> dict:
-    """FastAPI dependency：所有 /api/* 都要過這關；未登入 401"""
+def authenticate(request: Request) -> dict:
+    """純身份驗證（無角色方法封鎖）：token → user；自我身份操作（改密碼/過期 ack）用"""
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="未登入")
@@ -191,6 +204,12 @@ def require_login(request: Request) -> dict:
         conn.close()
     if user is None:
         raise HTTPException(status_code=401, detail="登入已過期，請重新登入")
+    return user
+
+
+def require_login(request: Request) -> dict:
+    """FastAPI dependency：所有 /api/* 都要過這關；未登入 401"""
+    user = authenticate(request)
     # viewer 角色單點封鎖：看得見一切 GET，所有寫入（POST/PUT/PATCH/DELETE）一律 403
     # 放在 require_login 內 → 全站現在與未來的寫入端點自動被擋，不會有「新端點忘了鎖」的漏洞
     if user["role"] == "viewer" and request.method in ("POST", "PUT", "PATCH", "DELETE"):

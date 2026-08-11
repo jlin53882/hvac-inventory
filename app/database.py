@@ -121,6 +121,11 @@ def init_db():
     if "site" not in item_cols:
         conn.execute("ALTER TABLE items ADD COLUMN site TEXT NOT NULL DEFAULT 'office'")
         print("[migrate] items.site 欄位已新增")
+    user_cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "password_updated_at" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP")
+        conn.execute("UPDATE users SET password_updated_at = COALESCE(password_updated_at, created_at, datetime('now'))")
+        print("[migrate] users.password_updated_at 欄位已新增（既有帳號以建立時間起算）")
     mov_cols = [r[1] for r in conn.execute("PRAGMA table_info(movements)").fetchall()]
     if "destination" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN destination TEXT DEFAULT ''")

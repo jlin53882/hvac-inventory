@@ -387,3 +387,88 @@ def test_login_rate_limit_xff_separate(admin_client):
         for ip in ips:
             clear_ip_fail(ip)
 
+# ========== Phase 2b（2026-08-11）：個人改密碼 + 6 個月過期提示 ==========
+# 注意順序：sarah 密碼會依測試依序被改（Test1234 → NewPass123 → FinalPass456）
+
+def test_change_password_kills_other_sessions_keeps_current(user_client):
+    """改密碼後：其他 session 失效、當前 session 保留"""
+    with TestClient(fastapi_app) as c2:
+        assert c2.post("/api/auth/login", json={"username": "sarah", "password": "Test1234"}).status_code == 200
+        r = user_client.put("/api/auth/password",
+                            json={"old_password": "Test1234", "new_password": "NewPass123"})
+        assert r.status_code == 200
+        assert c2.get("/api/auth/me").status_code == 401   # 其他 session 失效
+        assert user_client.get("/api/auth/me").status_code == 200  # 當前保留
+
+
+def test_change_password_wrong_old_400(user_client):
+    """舊密碼錯誤 → 400"""
+    r = user_client.put("/api/auth/password",
+                        json={"old_password": "WrongOld1", "new_password": "NewPass123"})
+    assert r.status_code == 400
+    assert "原密碼錯誤" in r.json()["detail"]
+
+
+def test_change_password_policy_400(user_client):
+    """新密碼不合 policy（太短）→ 400"""
+    r = user_client.put("/api/auth/password",
+                        json={"old_password": "WrongOld1", "new_password": "short"})
+    assert r.status_code == 400
+
+
+def test_change_password_same_400(user_client):
+    """新密碼與原密碼相同 → 400"""
+    r = user_client.put("/api/auth/password",
+                        json={"old_password": "Test1234", "new_password": "Test1234"})
+    assert r.status_code == 400
+    assert "不能與原密碼相同" in r.json()["detail"]
+
+
+def test_change_own_password_success(user_client):
+    """改密碼成功 → 舊密碼登入失敗、新密碼登入成功（fixture 每測試重建 sarah/Test1234）"""
+    r = user_client.put("/api/auth/password",
+                        json={"old_password": "Test1234", "new_password": "FinalPass456"})
+    assert r.status_code == 200
+    with TestClient(fastapi_app) as c:
+        assert c.post("/api/auth/login", json={"username": "sarah", "password": "Test1234"}).status_code == 401
+        assert c.post("/api/auth/login", json={"username": "sarah", "password": "FinalPass456"}).status_code == 200
+
+
+def test_viewer_can_change_own_password(admin_client):
+    """viewer 也能改自己的密碼"""
+    admin_client.post("/api/users", json={
+        "username": "viewer2", "password": "View1234", "display_name": "檢視者", "role": "viewer"})
+    with TestClient(fastapi_app) as c:
+        assert c.post("/api/auth/login", json={"username": "viewer2", "password": "View1234"}).status_code == 200
+        r = c.put("/api/auth/password", json={"old_password": "View1234", "new_password": "NewView123"})
+        assert r.status_code == 200
+
+
+def test_me_password_expired_flag(admin_client):
+    """password_updated_at 超過 180 天 → me 回傳 password_expired=true"""
+    conn = get_db()
+    try:
+        conn.execute("UPDATE users SET password_updated_at = datetime('now', '-190 days') WHERE username = 'admin'")
+        conn.commit()
+    finally:
+        conn.close()
+    r = admin_client.get("/api/auth/me")
+    assert r.status_code == 200
+    assert r.json()["user"]["password_expired"] is True
+
+
+def test_password_ack_resets_180(admin_client):
+    """按「繼續使用原密碼」→ ack → password_expired 歸 false（重置 180 天）"""
+    conn = get_db()
+    try:
+        conn.execute("UPDATE users SET password_updated_at = datetime('now', '-190 days') WHERE username = 'admin'")
+        conn.commit()
+    finally:
+        conn.close()
+    assert admin_client.get("/api/auth/me").json()["user"]["password_expired"] is True
+    r = admin_client.post("/api/auth/password-ack")
+    assert r.status_code == 200
+    assert r.json()["password_expired"] is False
+    assert admin_client.get("/api/auth/me").json()["user"]["password_expired"] is False
+
+

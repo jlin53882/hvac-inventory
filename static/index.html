@@ -354,6 +354,48 @@
   </div>
 </div>
 
+<!-- 修改密碼 modal（v11.2 變體 B：密碼強度即時打勾） -->
+<div class="modal-overlay" id="changepw-modal">
+  <div class="modal">
+    <h3>🔑 修改密碼</h3>
+    <div class="form-row">
+      <label>目前密碼</label>
+      <input type="password" id="cpw-old" placeholder="輸入目前的密碼">
+    </div>
+    <div class="form-row">
+      <label>新密碼</label>
+      <input type="password" id="cpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="cpwCheckStrength()">
+      <div class="pw-checks" id="cpw-checks">
+        <span class="pw-check" id="cpw-len">⬜ 8 碼以上</span>
+        <span class="pw-check" id="cpw-up">⬜ 含大寫</span>
+        <span class="pw-check" id="cpw-low">⬜ 含小寫</span>
+        <span class="pw-check" id="cpw-digit">⬜ 含數字</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>確認新密碼</label>
+      <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()">
+      <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
+    </div>
+    <button class="btn-save" onclick="submitChangePw()">💾 儲存新密碼</button>
+    <button class="btn-cancel" onclick="closeModal('changepw-modal')">取消</button>
+  </div>
+</div>
+
+<!-- 密碼過期提示 modal（v11.2：6 個月未改密碼進站彈出） -->
+<div class="modal-overlay" id="expiry-modal">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:44px;margin-bottom:10px">🔒</div>
+    <h3 style="margin-bottom:8px">密碼已超過 6 個月未更換</h3>
+    <p style="font-size:13px;color:#666;line-height:1.6;margin-bottom:18px">為了帳號安全，建議更換密碼。<br>也可以選擇繼續使用目前的密碼。</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn-save" style="flex:1;margin-top:0" onclick="expiryGoChangePw()">🔑 立即改密碼</button>
+      <button class="btn-cancel" style="flex:1;margin-top:0" onclick="ackPasswordExpiry()">繼續使用原密碼</button>
+    </div>
+    <div style="font-size:11px;color:#aaa;margin-top:12px">選擇任一選項後，將再延長 6 個月</div>
+  </div>
+</div>
+
 <datalist id="brand-list"></datalist>
 <datalist id="location-list"></datalist>
 <datalist id="dest-list"></datalist>
@@ -374,6 +416,8 @@
 <script src="/static/js/modals/kit.js" defer></script>
 <script src="/static/js/permissions.js" defer></script>
 <script src="/static/js/modals/users.js" defer></script>
+<script src="/static/js/modals/changepw.js" defer></script>
+<script src="/static/js/modals/expiry.js" defer></script>
 <script src="/static/js/app.js" defer></script>
 </body>
 </html>

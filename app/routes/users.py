@@ -12,14 +12,13 @@
 - 不能刪除自己 / 不能變更自己的角色或停用自己
 - 系統至少要保留一名啟用的 admin
 """
-import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.services.auth import hash_password, require_admin
+from app.services.auth import _check_pw, hash_password, require_admin
 
 # 使用者管理 API 路由
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -88,18 +87,6 @@ def _active_admin_count(conn, exclude_id: Optional[int] = None) -> int:
     return row["c"]
 
 
-def _check_pw(pw: str):
-    """密碼 policy（B2）：至少 8 碼，且含大寫 / 小寫 / 數字"""
-    if len(pw) < 8:
-        raise HTTPException(status_code=400, detail="密碼至少 8 碼")
-    if not re.search(r"[A-Z]", pw):
-        raise HTTPException(status_code=400, detail="密碼需包含至少一個大寫字母")
-    if not re.search(r"[a-z]", pw):
-        raise HTTPException(status_code=400, detail="密碼需包含至少一個小寫字母")
-    if not re.search(r"\d", pw):
-        raise HTTPException(status_code=400, detail="密碼需包含至少一個數字")
-
-
 def _create_user_single(conn, body: UserCreate) -> dict:
     """單筆建立帳號（共用邏輯：帳號唯一、密碼長度、角色白名單）。成功回傳 user dict，失敗 raise HTTPException。"""
     username = body.username.strip()
@@ -112,7 +99,7 @@ def _create_user_single(conn, body: UserCreate) -> dict:
     if dup:
         raise HTTPException(status_code=409, detail="帳號已存在")
     cur = conn.execute(
-        "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)",
+        "INSERT INTO users (username, password_hash, display_name, role, password_updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
         (username, hash_password(body.password), body.display_name.strip(), body.role),
     )
     conn.commit()
@@ -134,7 +121,7 @@ def list_users(admin: dict = Depends(require_admin)):
 
 @router.post("", status_code=201)
 def create_user(body: UserCreate, admin: dict = Depends(require_admin)):
-    """新增帳號（帳號唯一；密碼長度 >= 4）"""
+    """新增帳號（帳號唯一；密碼 8 碼+大小寫+數字，_check_pw）"""
     conn = get_db()
     try:
         return _create_user_single(conn, body)

@@ -53,6 +53,7 @@ function renderUserMenu(user) {
   menu.innerHTML =
     `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}` +
     roleChip + `</span>` +
+    `<button class="btn-ghost" onclick="openChangePwModal()">🔑<span class="users-text"> 改密碼</span></button>` +
     (isAdmin ? `<button class="btn-ghost" onclick="openUsersModal()">👥<span class="users-text"> 使用者</span></button>` : '') +
     `<button class="btn-ghost" onclick="logout()">🚪<span class="logout-text"> 登出</span></button>`;
   menu.style.display = 'flex';

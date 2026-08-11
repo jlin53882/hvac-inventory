@@ -8,21 +8,25 @@
 
 - 需要登入的 API 之外（login 以外）均由 main.py 掛 require_login 上鎖
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.database import get_db
 from app.services.auth import (
     SESSION_DAYS,
     SESSION_COOKIE,
+    _check_pw,
     check_ip_rate_limit,
     cleanup_expired,
     clear_ip_fail,
     create_session,
     delete_session,
     dummy_verify,
+    authenticate,
+    hash_token,
+    require_login,
     # session cookie 名稱
     get_session_user,
     get_user_by_username,
@@ -49,6 +53,11 @@ def _client_ip(request: Request) -> str:
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
 
 
 class UserOut(BaseModel):
@@ -129,15 +138,60 @@ def logout(request: Request, response: Response):
 
 @router.get("/me")
 def me(request: Request):
-    """目前登入者資訊（前端進站檢查用）"""
+    """目前登入者資訊（前端進站檢查用）；v11.2 加密碼過期旗標"""
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="未登入")
     conn = get_db()
     try:
         user = get_session_user(conn, token)
+        if user is None:
+            raise HTTPException(status_code=401, detail="登入已過期")
+        # v11.2：密碼過期旗標（password_updated_at 超過 180 天）
+        pw = conn.execute("SELECT password_updated_at FROM users WHERE id = ?", (user["id"],)).fetchone()
+        expired = False
+        if pw and pw["password_updated_at"]:
+            expired = str(pw["password_updated_at"]) < (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S")
+        return {"user": {**user, "password_expired": expired}}
     finally:
         conn.close()
-    if user is None:
-        raise HTTPException(status_code=401, detail="登入已過期")
-    return {"user": user}
+
+
+@router.put("/password")
+def change_my_password(body: ChangePasswordRequest, request: Request, user: dict = Depends(authenticate)):
+    """個人改密碼：驗證舊密碼 → 新密碼 policy → 更新 + 清其他 session（保留當前）；viewer 也可改自己的"""
+    if body.new_password == body.old_password:
+        raise HTTPException(status_code=400, detail="新密碼不能與原密碼相同")
+    _check_pw(body.new_password)
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
+        if row is None or not verify_password(body.old_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="原密碼錯誤")
+        conn.execute(
+            "UPDATE users SET password_hash = ?, password_updated_at = datetime('now'), failed_attempts = 0, locked_until = NULL, updated_at = datetime('now') WHERE id = ?",
+            (hash_password(body.new_password), user["id"]),
+        )
+        # 清其他 session（保留當前 token）——改密碼後其他裝置立即登出（B3 模式）
+        token = request.cookies.get(SESSION_COOKIE)
+        if token:
+            conn.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
+                         (user["id"], hash_token(token)))
+        else:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
+@router.post("/password-ack")
+def ack_password_expiry(request: Request, user: dict = Depends(authenticate)):
+    """按「繼續使用原密碼」→ 重置 180 天計時（帳號層級，跨裝置一致）；viewer 也可按"""
+    conn = get_db()
+    try:
+        conn.execute("UPDATE users SET password_updated_at = datetime('now') WHERE id = ?", (user["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True, "password_expired": False}
