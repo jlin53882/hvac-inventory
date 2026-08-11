@@ -30,11 +30,15 @@ async function renderStockOuts() {
       const totalOut = active.reduce((s, o) => s + Math.abs(o.delta), 0);
       html += `<div class="section-title"><span class="loc">📅 ${m}</span><span>${list.length} 筆 · 領出 ${totalOut} 件</span></div>`;
       html += `<table class="data-table"><thead><tr>
-        <th>日期</th><th>品項</th><th>數量</th><th>去向</th><th>操作</th>
+        <th>照片</th><th>日期</th><th>品項</th><th>數量</th><th>去向</th><th>操作</th>
       </tr></thead><tbody>`;
       list.forEach(o => {
         const reverted = !!o.reverted_at;
+        const soPhoto = o.has_photo
+          ? `<img class="so-photo" src="/uploads/${o.item_id}.jpg" alt="" loading="lazy">`
+          : `<div class="so-photo so-photo-empty">📷</div>`;
         html += `<tr${reverted ? ' style="opacity:0.55"' : ''}>
+          <td class="photo-cell">${soPhoto}</td>
           <td style="white-space:nowrap">${esc((o.created_at||'').slice(5,16))}</td>
           <td>${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#999">'+esc(o.code)+'</small>' : ''}</td>
           <td class="qty-neg">-${absNum(o.delta)} ${esc(o.unit)}</td>
@@ -42,9 +46,10 @@ async function renderStockOuts() {
               ${reverted ? '<br><span style="color:#999;font-size:11px">↩️ 已退回</span>' : ''}</td>
           <td style="white-space:nowrap">
             ${reverted
-              ? '<span style="color:#ccc;font-size:12px">—</span>'
+              ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`
               : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button>
-                 <button class="btn-out" style="padding:4px 8px" onclick="returnStockout(${o.id})">↩️ 退回</button>`}
+                 <button class="btn-out" style="padding:4px 8px" onclick="returnStockout(${o.id})">↩️ 退回</button>
+                 <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`}
           </td>
         </tr>`;
       });
@@ -53,5 +58,21 @@ async function renderStockOuts() {
     content.innerHTML = html;
   } catch (e) {
     content.innerHTML = `<div class="empty">⚠️ 載入失敗<br><small>${e.message}</small></div>`;
+  }
+}
+
+// 刪除已領出紀錄（僅刪紀錄、不回補庫存；2026-08-11 Sarah 需求）
+async function deleteStockoutRecord(movementId) {
+  if (!confirm('確定刪除這筆已領出紀錄？只刪紀錄、不會回補庫存。')) return;
+  try {
+    const res = await fetch(`/api/stockouts/${movementId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || '刪除失敗');
+    }
+    toast('✅ 已刪除紀錄', 'success');
+    renderStockOuts();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
   }
 }

@@ -28,3 +28,5 @@ var kitModalCompRows = [];
 
 // toast
 var toastTimer;
+
+var editingKitId = null;  // 編輯整組時記錄 kit id（2026-08-11 Sarah）

@@ -89,6 +89,59 @@ def create_kit(kit: KitCreate):
     return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
 
 
+@router.put("/api/kits/{kit_id}")
+def update_kit(kit_id: int, kit: KitCreate):
+    """更新整組定義（名稱/備註 + 全量替換材料；不影響已組裝的整組庫存）"""
+    if not kit.name or not kit.items:
+        raise HTTPException(400, "套件名稱與材料都不能空白")
+    conn = get_db()
+    row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "整組不存在")
+    conn.execute("UPDATE kits SET name=?, note=? WHERE id=?", (kit.name, kit.note, kit_id))
+    conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
+                 (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
+    conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
+    for comp in kit.items:
+        conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                     (kit_id, comp["item_id"], comp.get("qty", 1)))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "id": kit_id, "name": kit.name}
+
+
+@router.delete("/api/kits/{kit_id}")
+def delete_kit(kit_id: int):
+    """刪除整組定義：套件、材料關聯、套件品項（含流水/盤點/位置庫存/照片）"""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "整組不存在")
+    item_id = row["item_id"]
+    # 依序刪子表（子→父），避免 FK 約束擋刪除（同 delete_item 的 CASCADE 語義）
+    conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
+    conn.execute("DELETE FROM kits WHERE id=?", (kit_id,))
+    conn.execute("DELETE FROM movements WHERE item_id=?", (item_id,))
+    conn.execute("DELETE FROM stocktakes WHERE item_id=?", (item_id,))
+    conn.execute("DELETE FROM kit_items WHERE item_id=?", (item_id,))
+    conn.execute("DELETE FROM item_stocks WHERE item_id=?", (item_id,))
+    conn.execute("DELETE FROM items WHERE id=?", (item_id,))
+    conn.commit()
+    conn.close()
+    # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
+    from app.routes.photos import _photo_path
+    import os
+    try:
+        p = _photo_path(item_id)
+        if os.path.exists(p):
+            os.remove(p)
+    except OSError:
+        pass
+    return {"ok": True, "deleted": kit_id}
+
+
 def _deduct_total(conn, item_id, need, reason):
     """從位置庫存由後往前扣 need，記錄 movements。不足則拋錯。"""
     stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",

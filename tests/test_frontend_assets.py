@@ -31,6 +31,7 @@ KITS_RENDER_JS = os.path.join(STATIC, "js", "render", "kits.js")
 KIT_MODAL_JS = os.path.join(STATIC, "js", "modals", "kit.js")
 INVENTORY_RENDER_JS = os.path.join(STATIC, "js", "render", "inventory.js")
 PREPARED_RENDER_JS = os.path.join(STATIC, "js", "render", "prepared.js")
+STOCKOUT_RENDER_JS = os.path.join(STATIC, "js", "render", "stockout.js")
 STOCKTAKE_JS = os.path.join(STATIC, "js", "render", "stocktake.js")
 UTILS_JS = os.path.join(STATIC, "js", "utils.js")
 
@@ -216,6 +217,8 @@ def test_inventory_js_viewer_mode():
     assert "isViewer" in js
     assert "cursor:default" in js  # 數量唯讀樣式
     assert "title=\"唯讀\"" in js
+    assert "deleteItem" in js  # 卡片 刪除整筆材料（Sarah 需求）
+    assert ">刪除</button>" in js  # 刪除按鈕用文字、不用圖案（Sarah 2026-08-11 修正）
 
 
 def test_kits_js_viewer_mode():
@@ -223,6 +226,9 @@ def test_kits_js_viewer_mode():
     js = read(KITS_RENDER_JS)
     assert "isViewer" in js
     assert "openKitModal" in js
+    assert "editKit" in js  # 整組可編輯（Sarah 需求）
+    assert "deleteKit" in js  # 整組可刪除（Sarah 需求）
+    assert "submitKitEdit" in read(KIT_MODAL_JS)
 
 
 def test_prepared_js_viewer_mode():
@@ -231,6 +237,60 @@ def test_prepared_js_viewer_mode():
     assert "isViewer" in js
     assert "openPreparedOutModal" in js
     assert "returnPrepared" in js
+    assert "clearPrepared" in js  # 待領出可刪除（Sarah 需求）
+
+def test_stockout_js_has_delete():
+    """已領出紀錄可刪除（Sarah 需求）"""
+    js = read(STOCKOUT_RENDER_JS)
+    assert "deleteStockoutRecord" in js
+    assert "DELETE" in js
+
+
+# ---------- 2026-08-11 Sarah 需求：卡片顯示格式（位置/備註/刪除/照片/型號/標題） ----------
+
+def test_inventory_loc_pill_no_qty_and_note_merged():
+    """庫存卡位置標：只顯示位置、不顯示 ×數量；備註併入同一框（｜分隔）、無獨立 .item-note"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "位置：${esc(s.location" in js                      # 位置標存在
+    assert "item-loc" in js
+    assert "×${s.qty}" not in js                               # 不得再有 ×數量
+    assert "loc-qty" not in js                                 # 相關 CSS class 已移除
+    assert ".item-note" not in js                              # 備註不再單獨一行
+    assert "'｜'" in js or "｜" in js or "｜" in js         # 備註以｜併入位置框
+
+def test_inventory_del_btn_is_text():
+    """刪除按鈕用文字「刪除」而非 ✕ 圖案（Sarah 修正）"""
+    js = read(INVENTORY_RENDER_JS)
+    assert ">刪除</button>" in js
+    assert "title=\"刪除材料\"" in js
+
+def test_kit_materials_show_model():
+    """整組材料列顯示型號（Sarah 需求）"""
+    js = read(KITS_RENDER_JS)
+    assert "型號" in js
+    assert "model" in js
+
+def test_stockout_photo_column():
+    """已領出表格有照片欄（so-photo）"""
+    js = read(STOCKOUT_RENDER_JS)
+    assert "so-photo" in js
+    css = read(CSS)
+    assert ".so-photo" in css
+
+def test_title_is_zhenjia_inventory():
+    """標題改為「振佳空調庫存管理系統」（登入頁 + 主程式 + 分頁標題）"""
+    login = read(LOGIN)
+    assert "振佳空調庫存管理系統" in login
+    assert login.count("login-hvac.png") == 2                  # 大圖 + 手機小圖都換新
+    assert "<title>🔐 登入｜振佳空調庫存管理系統</title>" in login
+    index = read(INDEX)
+    assert "<title>振佳空調庫存管理系統</title>" in index
+    assert "> 振佳空調庫存管理系統</h1>" in index              # topbar 標題
+
+def test_login_hvac_image_exists():
+    """登入用圖片檔必須存在於 static/img/"""
+    img = os.path.join(STATIC, "img", "login-hvac.png")
+    assert os.path.exists(img), "static/img/login-hvac.png 不存在"
 
 
 # ---------- login.html（登入頁 v11.1 響應式） ----------

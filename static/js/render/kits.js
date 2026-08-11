@@ -29,7 +29,10 @@ async function renderKits() {
               <b style="font-size:14.5px">🔧 ${esc(k.name)}</b>
               <span class="kit-tag" style="margin-left:6px">庫存 ${k.stock_qty} ${esc(k.unit || '組')}</span>
             </div>
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              ${isViewer ? '' : `
+              <button class="btn-edit" style="margin-top:0" onclick="editKit(${k.id})">✏️ 編輯</button>
+              <button class="btn-del" style="margin-top:0" onclick="deleteKit(${k.id})">刪除</button>`}
               ${isViewer ? '' : `
               <button class="btn-prepare" style="margin-top:0" onclick="assembleKit(${k.id})" ${canAssemble ? '' : 'disabled title="材料不足"'}>🛠️ 組裝</button>
               <button class="btn-out" style="margin-top:0" onclick="disassembleKit(${k.id})" ${k.stock_qty > 0 ? '' : 'disabled title="整組庫存為0"'}>✂️ 拆解</button>`}
@@ -39,7 +42,7 @@ async function renderKits() {
         k.components.forEach(c => {
           const enough = c.stock >= c.need_qty;
           html += `<tr>
-            <td>${esc(c.brand)} ${esc(c.name)}</td>
+            <td>${esc(c.brand)} ${esc(c.name)}${c.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(c.code) + '</small>' : ''}</td>
             <td style="text-align:center">${c.need_qty} ${esc(c.unit)}</td>
             <td style="text-align:center;color:${enough ? '#16a34a' : '#dc2626'}">${c.stock} ${esc(c.unit)}</td>
           </tr>`;
@@ -67,7 +70,7 @@ function renderKitCompRows() {
       return `<div class="selected-row">
         <div class="info">
           <div class="nm">${sel ? esc(sel.brand) + ' ' + esc(sel.name) : ''}</div>
-          <div class="bd">${sel ? `庫存 ${sel.qty} ${esc(sel.unit || '個')}` : ''}</div>
+          <div class="bd">${sel ? `${sel.code ? `型號 <span class="model">${esc(sel.code)}</span> ・ ` : ''}庫存 ${sel.qty} ${esc(sel.unit || '個')}` : ''}</div>
         </div>
         <input type="number" min="1" step="any" value="${row.qty || 1}" onchange="kitModalCompRows[${idx}].qty = parseFloat(this.value) || 1">
         <button class="rm" onclick="removeKitCompRow(${idx})">✕</button>
@@ -103,7 +106,7 @@ function filterKitSearch(kw) {
   } else {
     drop.innerHTML = list.map(it => `
       <div class="kit-drop-opt" onclick="pickKitItem(${it.id})">
-        <div><div class="nm">${esc(it.brand)} ${esc(it.name)}</div><div class="bd">${esc(it.unit || '')}</div></div>
+        <div><div class="nm">${esc(it.brand)} ${esc(it.name)}</div><div class="bd">${it.code ? `型號 <span class="model">${esc(it.code)}</span> ・ ` : ''}${esc(it.unit || '')}</div></div>
         <span class="stk">庫存 ${it.qty}</span>
       </div>`).join('');
   }
@@ -175,6 +178,43 @@ async function disassembleKit(kitId) {
       throw new Error(err.detail || '拆解失敗');
     }
     toast(`✅ 已拆解 ${n} 組（材料已加回）`, 'success');
+    await loadData();
+    renderKits();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
+// 編輯整組（2026-08-11 Sarah 需求：整組也要能編輯/刪除，與單一庫存一致）
+async function editKit(kitId) {
+  let kit = null;
+  try {
+    const res = await fetch('/api/kits?site=all');
+    kit = (await res.json()).find(k => k.id === kitId);
+  } catch (e) { /* fallthrough */ }
+  if (!kit) { toast('找不到整組資料', 'error'); return; }
+  editingKitId = kitId;
+  kitModalCompRows = kit.components.map(c => ({ item_id: c.item_id, qty: c.need_qty }));
+  document.getElementById('k-name').value = kit.name;
+  document.getElementById('k-note').value = kit.note || '';
+  document.querySelector('#kit-modal h3').textContent = '🔧 編輯整組';
+  const btn = document.querySelector('#kit-modal .btn-confirm');
+  btn.textContent = '💾 儲存整組';
+  btn.setAttribute('onclick', 'submitKitEdit()');
+  renderKitCompRows();
+  openModal('kit-modal');
+}
+
+// 刪除整組（含定義、材料關聯、整組品項與紀錄）
+async function deleteKit(kitId) {
+  if (!confirm('確定刪除這個整組？它的定義、整組庫存與紀錄都會一起刪除，無法恢復。')) return;
+  try {
+    const res = await fetch(`/api/kits/${kitId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || '刪除失敗');
+    }
+    toast('✅ 已刪除整組', 'success');
     await loadData();
     renderKits();
   } catch (e) {

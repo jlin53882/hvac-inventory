@@ -77,14 +77,9 @@ function renderInventory() {
       const prepared = i.prepared_qty || 0;
       // 位置標籤（位置：文字）與備註（📝 具體位置/說明）分開兩行顯示
       // v10：多位置品項列出所有位置行；單一位置維持原本兩行樣式
-      const stocks = i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '', qty: i.qty, note: i.note || ''}];
-      const locHtml = stocks.length > 1
-        ? stocks.map(s => `
-            <div class="item-loc">位置：${esc(s.location || '未標示')} <span class="loc-qty">×${s.qty}</span></div>
-            ${s.note ? `<div class="item-note">📝 ${esc(s.note)}</div>` : ''}`).join('')
-        : `
-            <div class="item-loc">位置：${esc(stocks[0].location || '未標示')}</div>
-            ${stocks[0].note ? `<div class="item-note">📝 ${esc(stocks[0].note)}</div>` : ''}`;
+      const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
+      const locHtml = stocks.map(s => `
+            <div class="item-loc">位置：${esc(s.location || '未標示')}${s.note ? `｜${esc(s.note)}` : ''}</div>`).join('');
       html += `
       <div class="item-card" id="card-${i.id}">
         ${i.has_photo
@@ -92,11 +87,13 @@ function renderInventory() {
                        onclick="openPhotoLightbox(${i.id})" title="點擊看大圖"
                        onerror="this.style.display='none'">`
                   : ''}
-        ${isViewer ? '' : `<button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>`}
+        ${isViewer ? '' : `<button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>
+        <button class="del-btn" onclick="deleteItem(${i.id})" title="刪除材料">刪除</button>`}
         <div class="item-info" ${isViewer ? '' : `onclick="openEditModal(${i.id})"`}>
           <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>
           <div class="item-code">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
           ${locHtml}
+          
           ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
           ${prepared > 0 ? `<div class="prepared-tag">📤 待領出 ${prepared} ${esc(i.unit)}</div>` : ''}
           ${isViewer ? '' : `<div style="margin-top:4px">
@@ -157,4 +154,19 @@ function updateSaveBar() {
   } else {
     bar.classList.remove('show');
   }
+}
+
+
+// ========== 刪除材料（2026-08-11 Sarah 需求：每張卡片 ✕ 刪除整筆材料） ==========
+async function deleteItem(itemId) {
+  if (!confirm('確定刪除這個材料？會一併刪除它的庫存、照片與異動紀錄，無法恢復。')) return;
+  try {
+    const res = await fetch(`/api/items/${itemId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      alert(e.detail || '刪除失敗');
+      return;
+    }
+    await loadData();
+  } catch (e) { alert('刪除失敗：' + e.message); }
 }

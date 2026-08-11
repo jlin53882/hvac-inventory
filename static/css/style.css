@@ -239,7 +239,7 @@
   .photo-box img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid #e3e8ef; }
   .photo-box .photo-actions { display: flex; flex-direction: column; gap: 6px; }
   .item-info { flex: 1; min-width: 0; cursor: pointer; }
-  .item-name { font-size: 14px; font-weight: 600; padding-right: 46px; }
+  .item-name { font-size: 14px; font-weight: 600; padding-right: 118px; }
   .item-name .edit-hint { font-size: 10px; color: #999; font-weight: 400; margin-left: 4px; }
   .site-badge {
     display: inline-block; font-size: 9.5px; font-weight: 600;
@@ -253,8 +253,6 @@
       font-size: 11px; color: #2d5a8e; background: #eef4fa;
       border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 4px;
     }
-    .item-note { font-size: 11px; color: #b8860b; margin-top: 2px; }
-    .loc-qty { color: #2d5a8e; font-weight: 700; }
 
   /* v10：編輯 modal 位置清單列 */
   .stock-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
@@ -682,3 +680,46 @@
   .create-row .cr-input { flex: 1 1 45%; }
   .create-row .cr-btn { flex: 1 1 100%; }
 }
+
+/* ===== v1.1 已領出照片欄 + 整組材料型號（2026-08-11 Sarah 需求） ===== */
+.data-table .photo-cell { width: 54px; padding: 6px; }
+.so-photo { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; display: block; }
+.so-photo-empty { display: flex; align-items: center; justify-content: center; background: #eef2f7; color: #b6c2cf; font-size: 18px; }
+.selected-row .info .bd .model,
+.kit-drop-opt .bd .model { color: #1890FF; font-weight: 600; }
+
+/* ===== v1.1 庫存頁 卡片 ✕ 刪除材料（2026-08-11 Sarah 需求） ===== */
+  .item-card .del-btn {
+    position: absolute;
+    top: 8px;
+    right: 66px;
+    font-size: 11.5px;
+    color: #d33;
+    background: #fff;
+    border: 1px solid #f3c1c1;
+    border-radius: 6px;
+    padding: 2px 9px;
+    cursor: pointer;
+    z-index: 5;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .item-card .del-btn:hover { background: #fee2e2; }
+  .item-card .del-btn:active { transform: scale(0.92); }
+
+  /* ===== v1.1 通用 編輯/刪除 按鈕（整組/待領出/已領出，2026-08-11 Sarah） ===== */
+  .btn-edit {
+    background: #fff; border: 1.5px solid #2d5a8e; color: #2d5a8e;
+    border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 700;
+    cursor: pointer; margin-top: 5px; display: inline-flex; align-items: center; gap: 3px;
+    transition: background 0.15s;
+  }
+  .btn-edit:hover { background: #eef4fa; }
+  .btn-del {
+    background: #fff; border: 1.5px solid #dc2626; color: #dc2626;
+    border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 700;
+    cursor: pointer; margin-top: 5px; display: inline-flex; align-items: center; gap: 3px;
+    transition: background 0.15s;
+  }
+  .btn-del:hover { background: #fee2e2; }
+  .btn-del:active { transform: scale(0.96); }

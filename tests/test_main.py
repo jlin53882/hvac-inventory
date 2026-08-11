@@ -757,6 +757,80 @@ class TestKits:
         r = client.post(f"/api/kits/{kit['id']}/disassemble", json={"qty": 5})
         assert r.status_code == 400  # 整組庫存只有 0
 
+    def test_update_kit(self, client):
+        """2026-08-11 Sarah：整組可編輯（名稱/備註 + 全量替換材料）"""
+        a = _add_item(client, name="銅管", qty=10)
+        b = _add_item(client, name="接頭", qty=20)
+        c = _add_item(client, name="閥體", qty=5)
+        kit = client.post("/api/kits", json={
+            "name": "舊名", "note": "舊備註",
+            "items": [{"item_id": a["id"], "qty": 2}],
+        }).json()
+        r = client.put(f"/api/kits/{kit['id']}", json={
+            "name": "新名", "note": "新備註",
+            "items": [{"item_id": b["id"], "qty": 1}, {"item_id": c["id"], "qty": 3}],
+        })
+        assert r.status_code == 200
+        k = client.get("/api/kits").json()[0]
+        assert k["name"] == "新名"
+        assert k["note"] == "新備註"
+        assert [x["item_id"] for x in k["components"]] == [b["id"], c["id"]]
+        assert [x["need_qty"] for x in k["components"]] == [1, 3]
+        # 套件品項名稱同步
+        items = client.get("/api/items").json()
+        kit_item = [i for i in items if i["id"] == kit["item_id"]][0]
+        assert kit_item["name"] == "新名"
+
+    def test_update_kit_not_found(self, client):
+        r = client.put("/api/kits/999", json={"name": "X", "items": [{"item_id": 1, "qty": 1}]})
+        assert r.status_code == 404
+
+    def test_update_kit_requires_items(self, client):
+        """更新時材料空白 → 400"""
+        a = _add_item(client, name="銅管", qty=10)
+        kit = client.post("/api/kits", json={"name": "組", "items": [{"item_id": a["id"], "qty": 1}]}).json()
+        r = client.put(f"/api/kits/{kit['id']}", json={"name": "空", "items": []})
+        assert r.status_code == 400
+
+    def test_delete_kit(self, client):
+        """2026-08-11 Sarah：整組可刪除（定義 + 套件品項 + 流水一併清）"""
+        a = _add_item(client, name="銅管", qty=10)
+        kit = client.post("/api/kits", json={
+            "name": "測試套件",
+            "items": [{"item_id": a["id"], "qty": 1}],
+        }).json()
+        assert len(client.get("/api/kits").json()) == 1
+        r = client.delete(f"/api/kits/{kit['id']}")
+        assert r.status_code == 200
+        assert client.get("/api/kits").json() == []
+        # 套件品項也已刪除（不會殘留 is_kit 空殼）
+        items = client.get("/api/items").json()
+        assert all(i["id"] != kit["item_id"] for i in items)
+        # 材料本身不受影響
+        assert any(i["id"] == a["id"] for i in items)
+
+    def test_delete_kit_not_found(self, client):
+        r = client.delete("/api/kits/999")
+        assert r.status_code == 404
+
+    def test_delete_stockout_movement(self, client):
+        """2026-08-11 Sarah：已領出紀錄可刪除（只刪紀錄、不回補庫存）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        client.post("/api/stockout", json={"item_id": item["id"], "qty": 2, "destination": "工地A"})
+        outs = client.get("/api/stockouts").json()
+        assert len(outs) == 1
+        mid = outs[0]["id"]
+        r = client.delete(f"/api/stockouts/{mid}")
+        assert r.status_code == 200
+        assert client.get("/api/stockouts").json() == []
+        # 庫存不能動（8 維持）
+        updated = _get_item(client, item["id"])
+        assert updated["total_qty"] == 8
+
+    def test_delete_stockout_movement_not_found(self, client):
+        r = client.delete("/api/stockouts/99999")
+        assert r.status_code == 404
+
 
 # ========== 盤點 ==========
 

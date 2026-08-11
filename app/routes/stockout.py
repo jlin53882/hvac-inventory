@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
 from app.models import PrepareRequest, StockOutRequest, StockoutUpdate
+from app.routes.photos import has_photo
 
 router = APIRouter()
 
@@ -121,7 +122,12 @@ def list_stock_outs(limit: int = 100, search: str = "", site: Optional[str] = No
     params.append(limit)
     rows = conn.execute(sql, params).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    outs = []
+    for r in rows:
+        d = dict(r)
+        d["has_photo"] = has_photo(d["item_id"])  # 已領出列表顯示品項照片縮圖
+        outs.append(d)
+    return outs
 
 
 def _add_back_to_first_stock(conn, item_id, qty):
@@ -210,6 +216,21 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
 
 
 # ---------- 領出準備（兩階段出庫） ----------
+
+
+@router.delete("/api/stockouts/{movement_id}")
+def delete_stockout(movement_id: int):
+    """刪除已領出紀錄（僅刪紀錄，不回補庫存；需回復庫存請用退回）"""
+    conn = get_db()
+    row = conn.execute("SELECT id FROM movements WHERE id=?", (movement_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "紀錄不存在")
+    conn.execute("DELETE FROM movements WHERE id=?", (movement_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "deleted": movement_id}
+
 
 @router.post("/api/items/{item_id}/prepare")
 def prepare_item(item_id: int, req: PrepareRequest):

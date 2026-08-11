@@ -35,6 +35,7 @@ async function renderPrepared() {
         ${isViewer ? '' : `<td style="white-space:nowrap">
           <button class="btn-out" style="padding:4px 8px" onclick="openPreparedOutModal(${i.id})">🚚 已領出</button>
           <button class="btn-prepare" style="padding:4px 8px;margin-top:0" onclick="returnPrepared(${i.id})">↩️ 退回</button>
+          <button class="btn-del" style="padding:4px 8px;margin-top:0" onclick="clearPrepared(${i.id}, ${i.prepared_qty})">刪除</button>
         </td>`}
       </tr>`;
     });
@@ -55,5 +56,26 @@ function updatePreparedBadge(n) {
     badge.textContent = n;
   } else {
     badge.style.display = 'none';
+  }
+}
+
+// 刪除待領出：把該品項的待領出數量全部清掉（不影響庫存；2026-08-11 Sarah 需求）
+async function clearPrepared(itemId, qty) {
+  if (!confirm('確定刪除這筆待領出（' + qty + ' 件）？不會影響庫存。')) return;
+  try {
+    const res = await fetch(`/api/items/${itemId}/prepared-return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qty: qty, location: '' })
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || '刪除失敗');
+    }
+    toast('✅ 已刪除待領出', 'success');
+    await loadData();
+    renderPrepared();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
   }
 }
