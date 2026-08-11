@@ -78,7 +78,7 @@ def export_excel(days: int = 30):
         """).fetchall()
         for r in rows:
             ws.append([r["id"], _safe(r["brand"]), _safe(r["name"]), _safe(r["code"]),
-                       r["unit"], _safe(r["location"]), r["qty"], _safe(r["note"]), r["total"]])
+                       _safe(r["unit"]), _safe(r["location"]), r["qty"], _safe(r["note"]), r["total"]])
         _set_widths(ws, [8, 14, 40, 16, 8, 30, 10, 24, 10])
 
         # Sheet 2: 異動紀錄（days 控制範圍，取代寫死的 LIMIT 500）
@@ -106,7 +106,7 @@ def export_excel(days: int = 30):
             GROUP BY i.brand ORDER BY COUNT(DISTINCT i.id) DESC
         """).fetchall()
         for s in stats:
-            ws3.append(list(s))
+            ws3.append([_safe(x) for x in s])
         _set_widths(ws3, [14, 10, 10])
     finally:
         conn.close()

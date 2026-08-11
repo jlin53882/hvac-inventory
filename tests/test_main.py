@@ -1152,8 +1152,8 @@ class TestV10CompatAndCascade:
         assert [c.value for c in ws3[1]] == ["廠牌", "品項數", "總庫存"]
 
     def test_export_formula_injection_safe(self, client):
-        """公式注入防護：= 開頭的字串以 ' 前綴儲存，開啟 Excel 不會被當公式執行"""
-        _add_item(client, name="=1+1", location="=HYPERLINK(1)")
+        """公式注入防護：= 開頭的字串以 ' 前綴儲存，開啟 Excel 不會被當公式執行（含 unit / 廠牌統計）"""
+        _add_item(client, name="=1+1", location="=HYPERLINK(1)", brand="=1+1", unit="=2+2")
         r = client.get("/api/export")
         assert r.status_code == 200
 
@@ -1164,7 +1164,13 @@ class TestV10CompatAndCascade:
         values = [v for row in ws.iter_rows(min_row=2, values_only=True) for v in row]
         assert "'=1+1" in values        # 防護：撇號前綴
         assert "'=HYPERLINK(1)" in values
+        assert "'=2+2" in values        # unit 欄位也有防護
         assert "=1+1" not in values     # 沒有裸公式
+        assert "=2+2" not in values
+        ws3 = wb["廠牌統計"]
+        stats_values = [v for row in ws3.iter_rows(min_row=2, values_only=True) for v in row]
+        assert "'=1+1" in stats_values  # 廠牌統計 brand 也有防護
+        assert "=1+1" not in stats_values
 
     def test_export_days_clamped(self, client):
         """days 負數 / 超界不會 500：clamp 到 0~366"""
