@@ -79,13 +79,6 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
-class UserOut(BaseModel):
-    id: int
-    username: str
-    display_name: str = ""
-    role: str
-
-
 # ---------- API ----------
 @router.post("/login")
 def login(body: LoginRequest, request: Request, response: Response):

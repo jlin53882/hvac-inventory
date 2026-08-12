@@ -34,10 +34,3 @@ function getRolePerms(role) {
     return { key: p.key, label: p.label, allowed: !!p.roles[role] };
   });
 }
-
-// 依角色回傳「可以做」的權限 label 摘要（一行，供列表顯示）
-function getRolePermSummary(role) {
-  return getRolePerms(role)
-    .filter(function (p) { return p.allowed; })
-    .map(function (p) { return p.label; });
-}

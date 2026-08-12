@@ -10,20 +10,12 @@ let calAssignable = [];          // 可指派人員
 
 const CAL_PALETTE = ['#1a73e8', '#e91e63', '#9c27b0', '#2e7d32', '#f57c00', '#00838f', '#c62828', '#5d4037'];
 const CAL_WEEK = ['日', '一', '二', '三', '四', '五', '六'];
-const CAL_SVC_FIELDS = { '保養': 'D', '維修': 'F', '安裝': 'H', '配管': 'J' };  // 日報表欄位名位置（匯出提示用）
 
 function _iso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function _fmtTW(d) {
   return `${d.getMonth() + 1}月${d.getDate()}日 週${CAL_WEEK[d.getDay()]}`;
-}
-function _calPerson(id) {
-  return calAssignable.find(p => p.id === id);
-}
-function _calSvcName(id) {
-  const s = calSvc.find(x => x.id === id);
-  return s ? s.name : '?';
 }
 
 // ========== 頁面載入 ==========

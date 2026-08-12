@@ -753,8 +753,7 @@ def test_css_stat_cards_four_columns():
 # ---------- 2026-08-12 全專案 JS 完整性（家豪要求「都補」） ----------
 # 背景：盤點發現 22 個 JS 中 11 個完全沒有內容斷言測試（api/app/bottomsheet/globals/
 # modals 6 個 + render/card.js）。以下補「核心函式存在性」防護。
-# 注意：photo.js 的 photoImgClick 是已知 dead code（dead code 分析報告 #7 待清），
-# **不列入**斷言，待清理後測試不受影響。
+# 註：photo.js 的 photoImgClick 為 dead code，已於 2026-08-12 清理（未列入斷言）。
 
 def test_all_js_loaded_by_index():
     """static/js 下每個 .js 都必須被 index.html 引用（防新增 JS 忘掛載 = 整支 dead file）"""
@@ -826,7 +825,7 @@ def test_expiry_modal_core_functions():
 
 def test_photo_modal_core_functions():
     """modals/photo.js：照片渲染 / 上傳 / 刪除 / lightbox
-    （不含 photoImgClick——已知 dead code 待清，見 dead code 分析報告 #7）"""
+    （photoImgClick dead code 已於 2026-08-12 清理，不在此列）"""
     js = read(PHOTO_JS)
     for fn in ("renderPhotoBox", "uploadItemPhoto", "deleteItemPhoto",
                "openPhotoLightbox", "closePhotoLightbox"):

@@ -93,11 +93,6 @@ function closePhotoLightbox() {
 // ESC 關閉
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePhotoLightbox(); });
 
-// 編輯 modal 內的照片也可點開（renderPhotoBox 內 img onclick）
-function photoImgClick(itemId) {
-  openPhotoLightbox(itemId);
-}
-
 // ========== 相似品項提示（新增/編輯共用） ==========
 // bindSimilarCheck(inputNameId, inputCodeId, warnId, excludeId)
 //   - inputNameId/inputCodeId：觸發輸入框 id

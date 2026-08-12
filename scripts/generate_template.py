@@ -16,11 +16,10 @@
 
 from openpyxl import Workbook
 from openpyxl.styles import (
-    Font, PatternFill, Alignment, Border, Side, Protection
+    Font, PatternFill, Alignment, Border, Side
 )
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
-from openpyxl.drawing.image import Image as XLImage
 from openpyxl.comments import Comment
 import os
 
@@ -32,9 +31,6 @@ OUTPUT_PATH = r"C:\Users\admin\workspace\hvac-inventory\03-優化版庫存模板
 # ============================================================
 HEADER_FONT = Font(name="微軟正黑體", size=12, bold=True, color="FFFFFF")
 HEADER_FILL = PatternFill("solid", fgColor="2E5C8A")  # 深藍
-# 次表頭字型（微軟正黑體粗體）
-SUBHEADER_FONT = Font(name="微軟正黑體", size=11, bold=True, color="000000")
-SUBHEADER_FILL = PatternFill("solid", fgColor="E8F0F8")  # 淺藍
 # 資料字型
 DATA_FONT = Font(name="微軟正黑體", size=10)
 # 資料置中對齊（含換行）
