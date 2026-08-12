@@ -272,7 +272,7 @@ def test_export_daily_report(client):
     ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
     assert ws.title == "0812"                      # sheet 名 = mmdd
     assert ws["A1"].value == "振佳空調  工程日誌"
-    assert "工程師：管理員" in ws["A2"].value        # 當天負責人
+    assert ws["A2"].value == "工程師："              # 不帶名稱（2026-08-12 家豪指定）
     assert "星期三" in ws["D2"].value               # 日期含星期
     assert ws["A4"].value == 1                     # 項次
     assert ws["B4"].value == "09:00~11:00"          # 時間

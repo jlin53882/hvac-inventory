@@ -38,12 +38,13 @@ def _safe(value):
     return value
 
 
-def build_daily_report(date_str: str, day_events: list, engineers: list):
+def build_daily_report(date_str: str, day_events: list, engineers: list = None):
     """填值工程日誌範本 → 回傳 (BytesIO, mmdd)。
 
     day_events: 每筆含 client_name / address / service_type_id / service_name /
                 start_time / end_time / note（依開始時間排序）
-    engineers:  當天行程負責人 display_name 清單（去重）
+    engineers:  **已不使用**（2026-08-12 家豪指定：匯出 Excel 不帶工程師名稱，
+                A2 只留「工程師：」由工程師手寫；API 層 assignees 資料仍保留）
     """
     d = datetime.date.fromisoformat(date_str)
     mmdd = d.strftime("%m%d")
@@ -55,7 +56,7 @@ def build_daily_report(date_str: str, day_events: list, engineers: list):
     ws.title = mmdd
     ws.column_dimensions["B"].width = 20  # B 欄寬固定 20（家豪指定：10.75 放不下時間）
 
-    ws["A2"] = "工程師：" + ("、".join(engineers) if engineers else "")
+    ws["A2"] = "工程師："  # 不帶名稱（家豪 2026-08-12 指定）
     ws["D2"] = "日期：" + date_label
 
     # 1. 清空所有區塊資料格（避免殘留範本佔位；欄位名 D/F/H/J 保留）
