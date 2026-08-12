@@ -379,6 +379,13 @@ def test_title_is_zhenjia_management():
     assert "<title>振佳空調管理系統</title>" in index
     assert "> 振佳空調管理系統</h1>" in index              # topbar 標題
 
+def test_topbar_logo_uses_login_image():
+    """topbar 左上角 logo 換成登入照片 login-hvac.png（2026-08-13 Sarah 指定變體 A：24px 圓形直接換圖，
+    與登入頁同款圖；所有頁籤共用同一 topbar）——舊 logo-zhenjia.png 不得殘留"""
+    html = read(INDEX)
+    assert "/static/img/login-hvac.png" in html
+    assert "logo-zhenjia.png" not in html
+
 def test_login_img_no_manual_cachebuster():
     """登入圖版本號由 server 自動注入（_versioned_html 依檔案 mtime），原始 login.html 不得手動寫 ?v=——
     2026-08-12 曾誤加 ?v=20260812 與方案 A 衝突（test_main.py::test_html_source_has_no_version_params 會抓），
