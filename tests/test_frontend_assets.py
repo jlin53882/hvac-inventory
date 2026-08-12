@@ -48,6 +48,20 @@ STOCKOUT_RENDER_JS = os.path.join(STATIC, "js", "render", "stockout.js")
 STOCKTAKE_JS = os.path.join(STATIC, "js", "render", "stocktake.js")
 # 待測：utils.js
 UTILS_JS = os.path.join(STATIC, "js", "utils.js")
+# 待測：api.js / app.js / bottomsheet.js / globals.js（2026-08-12 全專案 JS 完整性補強）
+API_JS = os.path.join(STATIC, "js", "api.js")
+APP_JS = os.path.join(STATIC, "js", "app.js")
+BOTTOMSHEET_JS = os.path.join(STATIC, "js", "bottomsheet.js")
+GLOBALS_JS = os.path.join(STATIC, "js", "globals.js")
+# 待測：modals/*（2026-08-12 全專案 JS 完整性補強）
+ADD_JS = os.path.join(STATIC, "js", "modals", "add.js")
+CHANGEPW_JS = os.path.join(STATIC, "js", "modals", "changepw.js")
+EDIT_JS = os.path.join(STATIC, "js", "modals", "edit.js")
+EXPIRY_JS = os.path.join(STATIC, "js", "modals", "expiry.js")
+PHOTO_JS = os.path.join(STATIC, "js", "modals", "photo.js")
+STOCKOUT_MODAL_JS = os.path.join(STATIC, "js", "modals", "stockout.js")
+# 待測：render/card.js
+CARD_JS = os.path.join(STATIC, "js", "render", "card.js")
 
 
 def read(p):
@@ -458,11 +472,21 @@ def test_login_announce_banner():
     assert 'id="announce"' in read(LOGIN)
 
 
-# ---------- JS 語法（node --check） ----------
+# ---------- JS 語法（node --check，全量） ----------
 
-@pytest.mark.parametrize("js_path", [AUTH_JS, USERS_JS, KITS_RENDER_JS, INVENTORY_RENDER_JS, STOCKTAKE_JS, UTILS_JS])
+# 動態收集 static/js/ 下全部 .js：新增 JS 檔自動納入語法檢查，不會再漏。
+# （2026-08-12 前只檢查 6 個檔，其餘 16 個 JS 語法錯誤不會被 pytest 抓到）
+ALL_JS_FILES = sorted(
+    os.path.join(root, f)
+    for root, _, files in os.walk(os.path.join(STATIC, "js"))
+    for f in files
+    if f.endswith(".js")
+)
+
+
+@pytest.mark.parametrize("js_path", ALL_JS_FILES)
 def test_js_syntax(js_path):
-    """JS 檔必須通過 node --check（語法錯誤會讓整支 script 不執行）"""
+    """全部 JS 檔必須通過 node --check（語法錯誤會讓整支 script 不執行）"""
     try:
         r = subprocess.run(
             ["node", "--check", js_path],
@@ -679,3 +703,147 @@ def test_css_has_calendar_styles():
     for sel in (".cal-grid", ".cal-cell", ".cal-evt", ".cal-event-card",
                 ".cal-set-table", ".cal-person-opt", ".switch"):
         assert sel in css, f"缺 {sel}"
+
+
+# ---------- 2026-08-12 totalQty 補接（盤點頁第 4 張統計卡「庫存總數(件)」） ----------
+# 背景：dead code 分析（hvac-inventory-dead-code分析報告-2026-08-12）發現 totalQty 算好但 UI 沒顯示。
+# 決策：不刪、補接為第 4 張統計卡（家豪選定變體 A）。以下測試防「退回 dead code / 卡片順序跑掉 / 誤改回 3 欄」。
+
+def test_stocktake_totalqty_used():
+    """totalQty 不得淪為 dead code：計算保留且 totalQtyStr 有進模板渲染（防退回「算了沒顯示」）"""
+    js = read(STOCKTAKE_JS)
+    assert "const totalQty = ALL_ITEMS.reduce((s, i) => s + i.qty, 0);" in js  # 計算行保留
+    assert "${totalQtyStr}" in js                                               # 千分位結果有進模板
+    assert js.count("totalQty") >= 3  # 定義 + totalQtyStr 定義/使用（若只剩定義 1 次 = dead code 回歸）
+
+
+def test_stocktake_totalqty_thousands_format():
+    """庫存總數千分位顯示（四捨五入 3 位小數，例 2531.5 → "2,531.5"）"""
+    js = read(STOCKTAKE_JS)
+    assert "totalQtyStr" in js
+    assert "Math.round(totalQty * 1000) / 1000" in js
+    assert "toLocaleString('en-US')" in js
+
+
+def test_stocktake_four_stat_cards_order():
+    """盤點頁統計卡 4 張且順序固定：品項總數 → 庫存總數(件) → 低庫存 ▶ → 缺貨 ▶"""
+    js = read(STOCKTAKE_JS)
+    assert "庫存總數(件)" in js
+    i_total = js.index("品項總數")
+    i_qty = js.index("庫存總數(件)")
+    i_low = js.index("低庫存 ▶")
+    i_zero = js.index("缺貨 ▶")
+    assert i_total < i_qty < i_low < i_zero, "統計卡順序錯誤（應為 品項總數→庫存總數→低庫存→缺貨）"
+
+
+def test_stocktake_totalqty_card_not_clickable():
+    """庫存總數卡純顯示（無對應清單、不可點）；可點擊卡維持 2 張（低庫存/缺貨）"""
+    js = read(STOCKTAKE_JS)
+    assert js.count("stat-card clickable") == 2, "可點擊統計卡數量錯誤（應只有低庫存/缺貨 2 張）"
+
+
+def test_css_stat_cards_four_columns():
+    """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
+    css = read(CSS)
+    assert ".stat-cards" in css
+    assert "grid-template-columns: repeat(4, 1fr);" in css
+    assert "repeat(3, 1fr)" not in css.split(".cal-grid")[0], ".stat-cards 區域誤退回 3 欄"
+
+
+# ---------- 2026-08-12 全專案 JS 完整性（家豪要求「都補」） ----------
+# 背景：盤點發現 22 個 JS 中 11 個完全沒有內容斷言測試（api/app/bottomsheet/globals/
+# modals 6 個 + render/card.js）。以下補「核心函式存在性」防護。
+# 注意：photo.js 的 photoImgClick 是已知 dead code（dead code 分析報告 #7 待清），
+# **不列入**斷言，待清理後測試不受影響。
+
+def test_all_js_loaded_by_index():
+    """static/js 下每個 .js 都必須被 index.html 引用（防新增 JS 忘掛載 = 整支 dead file）"""
+    html = read(INDEX)
+    missing = []
+    for js_path in ALL_JS_FILES:
+        rel = "/static/" + os.path.relpath(js_path, STATIC).replace("\\", "/")
+        if f'src="{rel}"' not in html:
+            missing.append(rel)
+    assert not missing, f"以下 JS 存在但未被 index.html 載入（dead file）: {missing}"
+
+
+def test_api_js_core_functions():
+    """api.js 核心：載入 / 待領出 badge / 儲存 / 匯出"""
+    js = read(API_JS)
+    for fn in ("loadData", "loadPreparedBadge", "saveAll", "exportExcel"):
+        assert fn in js, f"api.js 缺 {fn}"
+
+
+def test_app_js_core_functions():
+    """app.js 核心：分頁 / 站點切換 / 提醒 + 盤點分派"""
+    js = read(APP_JS)
+    for fn in ("switchTab", "switchSite", "checkReminder", "hasPending"):
+        assert fn in js, f"app.js 缺 {fn}"
+    assert "renderStocktake" in js  # 盤點 tab 分派（防分派被拔掉 → 盤點頁開不了）
+
+
+def test_bottomsheet_js_core_functions():
+    """bottomsheet.js 核心：手機底部選單"""
+    js = read(BOTTOMSHEET_JS)
+    for fn in ("openSheet", "closeSheet", "openTopMenu", "isMobileView"):
+        assert fn in js, f"bottomsheet.js 缺 {fn}"
+
+
+def test_globals_js_has_state_vars():
+    """globals.js 全域狀態（ALL_ITEMS / stocktakeValues 等），防誤刪導致整站失效"""
+    js = read(GLOBALS_JS)
+    for v in ("ALL_ITEMS", "currentTab", "currentSite", "stocktakeValues", "DESTINATIONS"):
+        assert v in js, f"globals.js 缺 {v}"
+
+
+def test_add_modal_core_functions():
+    """modals/add.js：新增材料 modal"""
+    js = read(ADD_JS)
+    for fn in ("openAddModal", "submitAdd"):
+        assert fn in js, f"add.js 缺 {fn}"
+
+
+def test_changepw_modal_core_functions():
+    """modals/changepw.js：改密碼 + 強度 / 一致性檢查"""
+    js = read(CHANGEPW_JS)
+    for fn in ("openChangePwModal", "cpwCheckStrength", "cpwCheckMatch", "submitChangePw"):
+        assert fn in js, f"changepw.js 缺 {fn}"
+
+
+def test_edit_modal_core_functions():
+    """modals/edit.js：編輯材料 + 庫存列增刪"""
+    js = read(EDIT_JS)
+    for fn in ("openEditModal", "renderEditStockRows", "addEditStockRow", "deleteEditStockRow", "submitEdit"):
+        assert fn in js, f"edit.js 缺 {fn}"
+
+
+def test_expiry_modal_core_functions():
+    """modals/expiry.js：密碼到期提示與跳轉"""
+    js = read(EXPIRY_JS)
+    for fn in ("openExpiryModal", "expiryGoChangePw", "ackPasswordExpiry"):
+        assert fn in js, f"expiry.js 缺 {fn}"
+
+
+def test_photo_modal_core_functions():
+    """modals/photo.js：照片渲染 / 上傳 / 刪除 / lightbox
+    （不含 photoImgClick——已知 dead code 待清，見 dead code 分析報告 #7）"""
+    js = read(PHOTO_JS)
+    for fn in ("renderPhotoBox", "uploadItemPhoto", "deleteItemPhoto",
+               "openPhotoLightbox", "closePhotoLightbox"):
+        assert fn in js, f"photo.js 缺 {fn}"
+
+
+def test_stockout_modal_core_functions():
+    """modals/stockout.js：領出 / 待領出 / 退回 / 編輯紀錄"""
+    js = read(STOCKOUT_MODAL_JS)
+    for fn in ("openOutModal", "submitStockOut", "openPrepareModal", "submitPrepare",
+               "openPreparedOutModal", "submitPreparedOut", "returnPrepared", "returnStockout",
+               "openEditStockoutModal", "submitEditStockout"):
+        assert fn in js, f"stockout.js(modals) 缺 {fn}"
+
+
+def test_card_js_core_functions():
+    """render/card.js：手機卡片建構 helpers"""
+    js = read(CARD_JS)
+    for fn in ("buildThumb", "buildLocHTML", "buildQtyControl", "buildQtyNum", "mobileCardShell"):
+        assert fn in js, f"card.js 缺 {fn}"

@@ -17,10 +17,13 @@ async function renderStocktake() {
   const zero = zeroItems.length;
   const low = lowItems.length;
   const totalQty = ALL_ITEMS.reduce((s, i) => s + i.qty, 0);
+  // 千分位顯示（四捨五入 3 位小數，例：2531.5 → "2,531.5"）
+  const totalQtyStr = (Math.round(totalQty * 1000) / 1000).toLocaleString('en-US');
 
   let html = `
     <div class="stat-cards">
       <div class="stat-card"><div class="num">${ALL_ITEMS.length}</div><div class="lbl">品項總數</div></div>
+      <div class="stat-card"><div class="num">${totalQtyStr}</div><div class="lbl">庫存總數(件)</div></div>
       <div class="stat-card clickable ${low ? 'warn' : ''}" onclick="showStocktakeList('low')"><div class="num">${low}</div><div class="lbl">低庫存 ▶</div></div>
       <div class="stat-card clickable ${zero ? 'danger' : ''}" onclick="showStocktakeList('zero')"><div class="num">${zero}</div><div class="lbl">缺貨 ▶</div></div>
     </div>`;

@@ -415,14 +415,14 @@
 
   .stat-cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     margin-bottom: 14px;
   }
   .stat-card {
     background: #fff;
     border-radius: 12px;
-    padding: 12px;
+    padding: 12px 6px;
     text-align: center;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
