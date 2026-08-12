@@ -225,6 +225,15 @@ function calRenderMonth() {
 }
 
 // ========== 當日明細 ==========
+function calFmtCreatedAt(s) {
+  // created_at 為 UTC（sqlite CURRENT_TIMESTAMP）→ 轉本地顯示
+  if (!s) return '';
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return String(s).slice(0, 16);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function calRenderDay() {
   const selStr = _iso(calSelected);
   const isViewer = currentUser && currentUser.role === 'viewer';
@@ -245,6 +254,7 @@ function calRenderDay() {
     <div class="cal-tl-row">
       <span class="cal-tl-dot"></span>
       <div class="cal-event-card">
+        <div class="cal-creator"><span>📝 由 ${esc(e.created_by_name || '系統')} 新增</span><span>${calFmtCreatedAt(e.created_at)}</span></div>
         ${isViewer ? '' : `<div class="cal-card-actions">
           <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">✏️</button>
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>

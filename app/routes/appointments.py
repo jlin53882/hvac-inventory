@@ -92,6 +92,9 @@ def _appt_row(conn, appt_id: int) -> dict:
            WHERE aa.appointment_id=?""", (appt_id,)).fetchall()
     svc = (conn.execute("SELECT name FROM service_types WHERE id=?", (row["service_type_id"],)).fetchone()
            if row["service_type_id"] else None)
+    creator = None
+    if row["created_by"]:
+        creator = conn.execute("SELECT display_name, username FROM users WHERE id=?", (row["created_by"],)).fetchone()
     return {
         "id": row["id"],
         "client_name": row["client_name"],
@@ -102,6 +105,9 @@ def _appt_row(conn, appt_id: int) -> dict:
         "start_time": row["start_time"],
         "end_time": row["end_time"],
         "note": row["note"] or "",
+        "created_by": row["created_by"],
+        "created_by_name": (creator["display_name"] or creator["username"]) if creator else None,
+        "created_at": row["created_at"] or "",
         "user_ids": [a["user_id"] for a in assignees],
         "assignees": [{"id": a["user_id"], "name": a["display_name"],
                        "color": a["color"] or "#1a73e8"} for a in assignees],

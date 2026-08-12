@@ -132,6 +132,10 @@ def test_create_appointment(client):
     assert d["service_name"] == "維修"
     assert d["user_ids"] == [1]
     assert d["assignees"][0]["name"] == "管理員"
+    # 新增者（UI 顯示用，Excel 不匯出）
+    assert d["created_by"] == 1
+    assert d["created_by_name"] == "管理員"
+    assert d["created_at"]
 
 
 def test_appointment_validation(client):
@@ -161,6 +165,32 @@ def test_appointment_conflict_409(client):
     r = client.post("/api/appointments", json=_appt_body(
         client_name="王先生", start_time="10:00", end_time="12:00", user_ids=[2]))
     assert r.status_code == 200
+
+
+def test_edit_keeps_creator(client):
+    """編輯行程不改變新增者（created_by 保留原值）"""
+    r = client.post("/api/appointments", json=_appt_body())
+    appt_id = r.json()["id"]
+    assert r.json()["created_by_name"] == "管理員"
+    r = client.put(f"/api/appointments/{appt_id}", json=_appt_body(
+        client_name="改名客戶", start_time="14:00", end_time="16:00"))
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["client_name"] == "改名客戶"
+    assert d["created_by"] == 1
+    assert d["created_by_name"] == "管理員"
+
+
+def test_list_includes_creator(client):
+    """月/日查詢回傳 created_by_name（前端明細卡顯示用）"""
+    client.post("/api/appointments", json=_appt_body())
+    r = client.get("/api/appointments?date=2026-08-12")
+    assert r.status_code == 200
+    d = r.json()[0]
+    assert d["created_by_name"] == "管理員"
+    assert d["created_at"]
+    r = client.get("/api/appointments?year=2026&month=8")
+    assert r.json()[0]["created_by_name"] == "管理員"
 
 
 def test_appointment_edit_excludes_self(client):
