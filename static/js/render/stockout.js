@@ -38,8 +38,8 @@ async function renderStockOuts() {
             reverted,
             moreBtnHTML: `<button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>`,
             thumb: buildThumb(o.item_id, o.has_photo, o.item_name, '📷'),
-            nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}`,
-            subHTML: `${esc((o.created_at||'').slice(5,16))}${o.code ? ' · 型號 ' + esc(o.code) : ''}`,
+            nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}`,
+            subHTML: `${esc((o.created_at||'').slice(5,16))}`,
             extraHTML: o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : '',
             qtyHTML: buildQtyNum('-' + absNum(o.delta), o.unit, 'qty-neg'),
             actionsHTML: ''
@@ -66,7 +66,7 @@ async function renderStockOuts() {
         html += `<tr${reverted ? ' style="opacity:0.55"' : ''}>
           <td class="photo-cell">${soPhoto}</td>
           <td style="white-space:nowrap">${esc((o.created_at||'').slice(5,16))}</td>
-          <td>${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#999">'+esc(o.code)+'</small>' : ''}</td>
+          <td>${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}</td>
           <td class="qty-neg">-${absNum(o.delta)} ${esc(o.unit)}</td>
           <td>${o.destination ? `<span class="dest-chip">🏢 ${esc(o.destination)}</span>` : '<span style="color:#ccc">—</span>'}
               ${reverted ? '<br><span style="color:#999;font-size:11px">↩️ 已退回</span>' : ''}</td>

@@ -27,7 +27,7 @@ async function renderPrepared() {
           reverted: false,
           moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${i.id})">⋯</button>`,
           thumb: buildThumb(i.id, i.has_photo, i.name, '📷'),
-          nameHTML: `${esc(i.brand)} ${esc(i.name)}<span class="chip green">待領出</span>`,
+          nameHTML: `${esc(i.brand)} ${esc(i.name)}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<span class="chip green">待領出</span>`,
           subHTML: esc(i.location || '未標示'),
           extraHTML: `<div><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>`,
           qtyHTML: buildQtyNum(i.prepared_qty, i.unit, 'qty-violet'),
@@ -52,7 +52,7 @@ async function renderPrepared() {
         : `<div class="so-photo so-photo-empty">📷</div>`;
       html += `<tr>
         <td class="photo-cell">${pPhoto}</td>
-        <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
+        <td>${esc(i.brand)} ${esc(i.name)}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
         <td style="text-align:center"><b style="color:#6d28d9">${i.prepared_qty}</b> ${esc(i.unit)}</td>
         <td style="text-align:center">${i.qty} ${esc(i.unit)}</td>
         ${isViewer ? '' : `<td style="white-space:nowrap">

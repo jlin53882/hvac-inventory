@@ -290,6 +290,39 @@ def test_stockout_grouping_by_day():
     assert "todayStr" not in js
 
 
+def test_prepared_js_shows_model():
+    """待領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處"""
+    js = read(PREPARED_RENDER_JS)
+    # 手機卡片 nameHTML 與桌面表格都有藍色「型號」小字（樣式與整組材料列一致 #1890FF）
+    assert js.count("型號 ") == 2
+    assert "color:#1890FF;font-weight:600" in js
+
+
+def test_stockout_js_shows_model():
+    """已領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處"""
+    js = read(STOCKOUT_RENDER_JS)
+    assert js.count("型號 ") == 2
+    assert "color:#1890FF;font-weight:600" in js
+    # 型號從 subHTML 移到 nameHTML 下方：subHTML 只剩日期（不再有「· 型號」）
+    assert "· 型號" not in js
+
+
+def test_kits_components_show_photo():
+    """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求：不是整組一張，是每個單一材料）"""
+    js = read(KITS_RENDER_JS)
+    assert "cphoto" in js                                          # 手機 kit-comp 縮圖 class
+    assert "openPhotoLightbox(${c.item_id})" in js                 # 點擊放大
+    assert "k.has_photo" not in js                                 # kit 層級縮圖已移除（誤解版）
+
+
+def test_kit_comp_left_align():
+    """整組材料名稱/型號靠左（2026-08-12 Sarah 需求）——
+    kit-comp 用 flex-start + gap，不能用 space-between（3 元素會把名稱推到中間）"""
+    css = read(CSS)
+    assert ".m-card .kit-comp { display: flex; justify-content: flex-start; align-items: center; gap: 8px;" in css
+    assert ".m-card .kit-comp .cneed { color: #6b7280; flex-shrink: 0; margin-left: auto; }" in css
+
+
 # ---------- 2026-08-11 Sarah 需求：卡片顯示格式（位置/備註/刪除/照片/型號/標題） ----------
 
 def test_inventory_loc_pill_no_qty_and_note_merged():

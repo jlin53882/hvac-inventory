@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
 from app.models import KitAssemble, KitCreate
+from app.routes.photos import has_photo
 
 # 整組 API 路由
 router = APIRouter()
@@ -53,6 +54,8 @@ def list_kits(site: Optional[str] = None):
         for x in items:
             cx = dict(x)
             cx["stock"] = _total(conn, x["item_id"])
+            # 每個材料（單一庫存品項）自己的照片縮圖（2026-08-12 Sarah 需求）
+            cx["has_photo"] = has_photo(x["item_id"])
             comps.append(cx)
         d["components"] = comps
         result.append(d)

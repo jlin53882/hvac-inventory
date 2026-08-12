@@ -683,6 +683,10 @@ class TestKits:
         assert len(kits) == 1
         assert kits[0]["name"] == "銅管接頭組"
         assert len(kits[0]["components"]) == 2
+        # 整組照片（2026-08-12 Sarah 需求）：每個材料（單一庫存品項）有自己的照片縮圖
+        # → components 每筆有 has_photo 欄位（不鎖定 True/False——測試 DB 的 item id 可能撞到真實 static/uploads/ 既有照片）
+        assert all("has_photo" in c for c in kits[0]["components"])
+        assert all(isinstance(c["has_photo"], bool) for c in kits[0]["components"])
 
     def test_create_kit_requires_items(self, client):
         """驗證整組沒有元件時回傳 400"""
