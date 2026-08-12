@@ -28,6 +28,8 @@ def submit_stocktake(req: StocktakeSubmit):
     results = []
 
     for it in req.items:
+        if not isinstance(it, dict):  # 2026-08-12 補：非 dict → 400（af13870 只修了 import 同類）
+            raise HTTPException(400, "盤點項目格式錯誤（需為 JSON 物件）")
         # v10：item_id + location 定位到一筆 stock
         location = it.get("location", "")
         stock = conn.execute(

@@ -17,6 +17,7 @@
 管理額外加 require_admin。衝突規則：同人同日時間重疊（start < 他end 且 end > 他start）。
 """
 import datetime
+import re
 from typing import List, Optional
 from urllib.parse import quote
 
@@ -48,10 +49,28 @@ class ServiceTypeIn(BaseModel):
     is_active: int = 1
 
 
+_TIME_RE = re.compile(r"^\d{2}:\d{2}$")
+
+
 def _validate_time(start_time: str, end_time: str) -> None:
-    """起訖時間合理性（字串比較即時間序）"""
+    """起訖時間合理性：格式必須 HH:MM 且時間序正確（2026-08-12 補格式驗證——
+    原本零驗證讓任意字串（含 XSS payload）直接入庫）"""
+    for label, t in (("開始", start_time), ("結束", end_time)):
+        if not _TIME_RE.match(t):
+            raise HTTPException(400, f"{label}時間格式需為 HH:MM（如 09:00）")
+        h, m = int(t[:2]), int(t[3:])
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            raise HTTPException(400, f"{label}時間超出範圍（00:00~23:59）")
     if start_time >= end_time:
         raise HTTPException(400, "結束時間必須大於開始時間")
+
+
+def _validate_service_type(conn, svc_id) -> None:
+    """service_type_id 必須存在（防 FK IntegrityError 500）"""
+    if svc_id is None:
+        return
+    if conn.execute("SELECT id FROM service_types WHERE id=?", (svc_id,)).fetchone() is None:
+        raise HTTPException(400, f"服務項目 id={svc_id} 不存在")
 
 
 def _validate_users(conn, user_ids: List[int]) -> None:
@@ -125,6 +144,8 @@ def list_appointments(year: int = 0, month: int = 0, date: str = ""):
                 raise HTTPException(400, "需要 year+month 或 date 參數")
             if not 1 <= month <= 12:
                 raise HTTPException(400, "月份需在 1-12")
+            if not 1 <= year <= 9999:  # 2026-08-12 補：year 越界 → datetime.date ValueError 500
+                raise HTTPException(400, "年份需在 1-9999")
             start = f"{year}-{month:02d}-01"
             end = (datetime.date(year, month, 1).replace(day=28) + datetime.timedelta(days=4)).replace(day=1) \
                 - datetime.timedelta(days=1)
@@ -143,6 +164,7 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_login))
     conn = get_db()
     try:
         _validate_users(conn, body.user_ids)
+        _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
         conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time)
         if conflict:
             raise HTTPException(409, conflict)
@@ -174,6 +196,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         if row is None:
             raise HTTPException(404, "行程不存在")
         _validate_users(conn, body.user_ids)
+        _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
         conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time,
                                   exclude_id=appt_id)
         if conflict:

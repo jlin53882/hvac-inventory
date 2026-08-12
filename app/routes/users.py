@@ -14,6 +14,8 @@
 """
 from typing import Optional
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -167,6 +169,10 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_ad
 
         if body.role is not None and body.role not in ALLOWED_ROLES:
             raise HTTPException(status_code=400, detail=f"角色只能是 {'、'.join(ALLOWED_ROLES)}")
+
+        # 2026-08-12 補：color 只接受 #RRGGBB（防屬性逃逸 stored XSS——行事曆 render 直接內插 style）
+        if color and not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            raise HTTPException(status_code=400, detail="顏色格式需為 #RRGGBB")
 
         # 保護 1：不能變更自己的角色或停用自己
         if admin["id"] == user_id:

@@ -329,11 +329,15 @@ def import_items(items: list = Body(..., embed=True)):
         if not str(it.get("name", "")).strip():
             raise HTTPException(400, f"第 {i} 筆缺少品項名稱")
         try:
-            float(it.get("qty", 0))
+            qty_v = float(it.get("qty", 0))
+            if qty_v < 0:  # 2026-08-12 補：負數入庫會造成負庫存（其他路徑都有 ge=0，import 獨漏）
+                raise HTTPException(400, f"第 {i} 筆數量不能為負數")
         except (TypeError, ValueError):
             raise HTTPException(400, f"第 {i} 筆數量「{it.get('qty')}」格式錯誤")
         try:
-            float(it.get("low_stock", 0))
+            low_v = float(it.get("low_stock", 0))
+            if low_v < 0:
+                raise HTTPException(400, f"第 {i} 筆低庫存警示不能為負數")
         except (TypeError, ValueError):
             raise HTTPException(400, f"第 {i} 筆低庫存警示「{it.get('low_stock')}」格式錯誤")
     inserted = 0

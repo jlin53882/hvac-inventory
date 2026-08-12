@@ -169,7 +169,13 @@ def return_stockout(movement_id: int):
     current = _total_qty(conn, m["item_id"])  # M9：before_qty 用當前實際庫存（原用歷史值 m["after_qty"]）
     _add_back_to_first_stock(conn, m["item_id"], qty)
     now = datetime.datetime.now().isoformat()
-    conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", (now, movement_id))
+    # 2026-08-12 補：守衛式 UPDATE（WHERE reverted_at IS NULL）+ rowcount——
+    # 併發雙請求都通過上方讀取檢查時，只允許一個成功，另一個 rollback 撤銷已加庫存
+    cur = conn.execute(
+        "UPDATE movements SET reverted_at=? WHERE id=? AND reverted_at IS NULL", (now, movement_id))
+    if cur.rowcount == 0:
+        conn.rollback()
+        raise HTTPException(400, "該記錄已退回過")
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
         (m["item_id"], qty, current, current + qty, "退回已領出", m["destination"]),
@@ -233,10 +239,14 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
 def delete_stockout(movement_id: int):
     """刪除已領出紀錄（僅刪紀錄，不回補庫存；需回復庫存請用退回）"""
     conn = get_db()
-    row = conn.execute("SELECT id FROM movements WHERE id=?", (movement_id,)).fetchone()
+    row = conn.execute("SELECT delta, reason FROM movements WHERE id=?", (movement_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(404, "紀錄不存在")
+    # 2026-08-12 補：只允許刪「出庫」流水——手動調整/盤點/退回反向流水是稽核軌跡，不可刪
+    if row["delta"] >= 0 or not str(row["reason"]).startswith("出庫"):
+        conn.close()
+        raise HTTPException(400, "只有已領出（出庫）記錄可以刪除")
     conn.execute("DELETE FROM movements WHERE id=?", (movement_id,))
     conn.commit()
     conn.close()

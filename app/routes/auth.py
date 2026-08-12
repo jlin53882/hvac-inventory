@@ -57,6 +57,17 @@ def _client_ip(request: Request) -> str:
     return direct
 
 
+def _is_https(request: Request) -> bool:
+    """HTTPS 判斷：僅 proxy 白名單來源才採信 X-Forwarded-Proto（cloudflared 外網帶 https），
+    其餘（LAN 直連）以直連 scheme 為準——防偽造 proto 強開 Secure 造成本機 HTTP 登入失效"""
+    direct = request.client.host if request.client else "unknown"
+    if direct in TRUSTED_PROXIES:
+        proto = request.headers.get("x-forwarded-proto")
+        if proto and proto.split(",")[0].strip().lower() == "https":
+            return True
+    return request.url.scheme == "https"
+
+
 # ---------- 請求模型 ----------
 class LoginRequest(BaseModel):
     username: str
@@ -94,9 +105,13 @@ def login(body: LoginRequest, request: Request, response: Response):
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
 
         if not row["is_active"]:
+            dummy_verify(body.password)  # 停用分支也跑同成本 PBKDF2——防 timing 洩漏帳號狀態
+            record_ip_fail(ip)
             raise HTTPException(status_code=403, detail="帳號已被停用，請聯絡管理員")
 
         if is_locked(row):
+            dummy_verify(body.password)  # 鎖定分支同上（dummy_verify 只 cover「不存在」分支是修一半）
+            record_ip_fail(ip)
             raise HTTPException(status_code=429, detail="嘗試次數過多，請稍後再試")
 
         ok = verify_password(body.password, row["password_hash"])
@@ -110,14 +125,15 @@ def login(body: LoginRequest, request: Request, response: Response):
     finally:
         conn.close()
 
-    # B5：HTTPS 連線（外網 tunnel）才設 secure flag；本機 HTTP 不設以免登入失效
+    # B5：外網 tunnel（X-Forwarded-Proto: https）或直連 https 才設 secure flag；
+    #     本機/LAN HTTP 不設以免登入失效（_is_https 僅信任 proxy 白名單的 proto）
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
         max_age=SESSION_DAYS * 24 * 3600,
         httponly=True,
         samesite="lax",
-        secure=(request.url.scheme == "https"),
+        secure=_is_https(request),
     )
     return {
         "ok": True,
@@ -168,6 +184,10 @@ def me(request: Request):
 @router.put("/password")
 def change_my_password(body: ChangePasswordRequest, request: Request, user: dict = Depends(authenticate)):
     """個人改密碼：驗證舊密碼 → 新密碼 policy → 更新 + 清其他 session（保留當前）；viewer 也可改自己的"""
+    # 改密碼也套 per-IP rate limit（2026-08-12 補）：持有效 session 者不可無限試舊密碼
+    ip = _client_ip(request)
+    if check_ip_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="嘗試次數過多，請稍後再試")
     if body.new_password == body.old_password:
         raise HTTPException(status_code=400, detail="新密碼不能與原密碼相同")
     _check_pw(body.new_password)
@@ -175,6 +195,7 @@ def change_my_password(body: ChangePasswordRequest, request: Request, user: dict
     try:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
         if row is None or not verify_password(body.old_password, row["password_hash"]):
+            record_ip_fail(ip)  # 舊密碼錯誤計一次失敗（與登入共用 per-IP 窗）
             raise HTTPException(status_code=400, detail="原密碼錯誤")
         conn.execute(
             "UPDATE users SET password_hash = ?, password_updated_at = datetime('now'), failed_attempts = 0, locked_until = NULL, updated_at = datetime('now') WHERE id = ?",

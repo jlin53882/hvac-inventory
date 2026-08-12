@@ -249,7 +249,7 @@ function calRenderDay() {
   list.className = 'cal-timeline';
   list.innerHTML = dayEvents.map(e => {
     const who = (e.assignees || []).map(p =>
-      `<span class="cal-who"><span class="cal-who-dot" style="background:${p.color || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
+      `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
     return `
     <div class="cal-tl-row">
       <span class="cal-tl-dot"></span>
@@ -259,7 +259,7 @@ function calRenderDay() {
           <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">✏️</button>
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
         </div>`}
-        <div class="cal-time">⏰ ${e.start_time} - ${e.end_time}　${who}</div>
+        <div class="cal-time">⏰ ${esc(e.start_time)} - ${esc(e.end_time)}　${who}</div>
         <div class="cal-client">[${esc(e.service_name || '')}] ${esc(e.client_name)}</div>
         ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
         <div class="cal-note">${esc(e.note || '無備註')}</div>
@@ -293,7 +293,7 @@ function calOpenAppt(id) {
     const opt = document.createElement('label');
     opt.className = 'cal-person-opt';
     opt.innerHTML = `<input type="checkbox" value="${p.id}" ${f && f.user_ids.includes(p.id) ? 'checked' : ''}>
-      <span class="cal-swatch" style="background:${p.color || '#1a73e8'}"></span><span>${esc(p.display_name || p.username)}</span>`;
+      <span class="cal-swatch" style="background:${esc(p.color) || '#1a73e8'}"></span><span>${esc(p.display_name || p.username)}</span>`;
     list.appendChild(opt);
   });
   // 服務下拉（啟用中）

@@ -29,7 +29,7 @@ function openSheet(title, actions) {
 
   overlay.innerHTML = `
     <div class="sheet">
-      <div class="sheet-title">${title}</div>
+      <div class="sheet-title">${esc(title)}</div>
       ${items}
       <button class="s-cancel">取消</button>
     </div>`;

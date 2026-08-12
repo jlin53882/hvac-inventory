@@ -83,7 +83,8 @@ def create_kit(kit: KitCreate):
         (kit_item_id, kit.name, kit.note),
     )
     kit_id = cur2.lastrowid
-    for comp in kit.items:
+    for i, comp in enumerate(kit.items, 1):
+        _validate_kit_comp(conn, comp, i)  # 材料驗證：格式/數量>0/品項存在（2026-08-12 補）
         conn.execute(
             "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
             (kit_id, comp["item_id"], comp.get("qty", 1)),
@@ -91,6 +92,20 @@ def create_kit(kit: KitCreate):
     conn.commit()
     conn.close()
     return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
+
+
+def _validate_kit_comp(conn, comp, i) -> None:
+    """整組材料單筆驗證：物件格式 / 數量必須 >0（防負 qty 假流水）/ 品項必須存在且未刪除"""
+    if not isinstance(comp, dict):
+        raise HTTPException(400, f"第 {i} 筆材料格式錯誤（需為 JSON 物件）")
+    qty = comp.get("qty", 1)
+    if not isinstance(qty, (int, float)) or isinstance(qty, bool) or qty <= 0:
+        raise HTTPException(400, f"第 {i} 筆材料數量必須大於 0")
+    cid = comp.get("item_id")
+    if not isinstance(cid, int) or isinstance(cid, bool):
+        raise HTTPException(400, f"第 {i} 筆材料品項 id 格式錯誤")
+    if conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (cid,)).fetchone() is None:
+        raise HTTPException(400, f"第 {i} 筆材料品項 id={cid} 不存在或已刪除")
 
 
 @router.put("/api/kits/{kit_id}")
@@ -107,7 +122,8 @@ def update_kit(kit_id: int, kit: KitCreate):
     conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
                  (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
     conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
-    for comp in kit.items:
+    for i, comp in enumerate(kit.items, 1):
+        _validate_kit_comp(conn, comp, i)  # 材料驗證（與 create 共用）
         conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
                      (kit_id, comp["item_id"], comp.get("qty", 1)))
     conn.commit()

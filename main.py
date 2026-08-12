@@ -166,7 +166,7 @@ def _is_upload_path(path: str) -> bool:
     """判定是否為照片路徑（一律封鎖公開讀取）。
     StaticFiles.get_path 回傳的是檔案系統相對路徑（Windows 為反斜線），
     且 Mount 前綴資訊在 root_path —— 統一轉正斜線後比對兩種開頭。"""
-    p = path.replace("\\", "/").lstrip("/")
+    p = path.replace("\\", "/").lstrip("/").lower()  # 2026-08-12 補 lower：Windows 檔名不分大小寫，防 /static/UPLOADS/ 繞過
     return p.startswith("uploads/") or p.startswith("static/uploads/")
 
 
