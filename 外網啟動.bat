@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title 振佳空調庫存管理系統 - 外網連線
+title 振佳空調庫存管理系統 - 外網連線（Tailscale Funnel 固定網址）
 cd /d "%~dp0"
 
 echo ============================================
-echo   🌐 振佳空調庫存 - 外網連線啟動
+echo   🌐 振佳空調庫存 - 外網連線啟動（固定網址）
 echo ============================================
 echo.
 
@@ -18,12 +18,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 2. 啟動 Cloudflare 隧道 + Discord 通知
+REM 2. 啟動 Tailscale Funnel + Discord 通知（網址固定：node.tail13203e.ts.net）
 echo [1/2] 本機伺服器確認在跑 ✓
-echo [2/2] 建立 Cloudflare 隧道中，網址會自動推播到 Discord...
+echo [2/2] 確認 Tailscale Funnel（固定網址）中，網址會自動推播到 Discord...
 echo.
-echo   ❌ 關閉這個視窗 = 關閉外網連線
+echo   📱 固定網址：https://node.tail13203e.ts.net
+echo   （網址固定不變，重啟外網不需重新登入）
 echo.
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\tunnel-notify.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\tailscale-funnel-notify.ps1"
 pause
