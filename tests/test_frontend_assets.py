@@ -643,6 +643,6 @@ def test_calendar_js_viewer_write_hidden():
 def test_css_has_calendar_styles():
     """style.css 含行事曆樣式（月曆格/事件/設定表格）"""
     css = read(CSS)
-    for sel in (".cal-grid", ".cal-cell", ".cal-evt", ".cal-day-card",
+    for sel in (".cal-grid", ".cal-cell", ".cal-evt", ".cal-event-card",
                 ".cal-set-table", ".cal-person-opt", ".switch"):
         assert sel in css, f"缺 {sel}"
