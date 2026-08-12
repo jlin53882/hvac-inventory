@@ -16,10 +16,10 @@ async function renderStockOuts() {
       return;
     }
 
-    // 分組：按月
+    // 分組：按日
     const byMonth = {};
     outs.forEach(o => {
-      const m = (o.created_at || '').slice(0, 7);
+      const m = (o.created_at || '').slice(0, 10);
       (byMonth[m] = byMonth[m] || []).push(o);
     });
 

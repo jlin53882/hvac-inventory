@@ -267,6 +267,29 @@ def test_stockout_js_has_delete():
     assert "DELETE" in js
 
 
+def test_stockout_grouping_by_day():
+    """已領出分組按「日」顯示（2026-08-12 Sarah 需求：藍色標題要含幾號並分開顯示）
+
+    分組 key 從 created_at 前 7 字元（YYYY-MM 按月）改成前 10 字元（YYYY-MM-DD 按日），
+    藍色標題直接顯示完整日期（📅 2026-08-12 / 📅 2026-08-11 各自一組）。
+    防護：
+    1. slice(0, 10) 存在且 slice(0, 7) 不再出現（退回按月 = 標題又沒幾號）
+    2. 手機 + 桌機兩處標題都用 ${m}（完整日期）
+    3. 2026-08-12 中間版「顯示今天日期」helper（mLabel/todayStr）不得殘留
+       （會讓所有分組標題都變成今天、歷史日期無法分開）
+    """
+    js = read(STOCKOUT_RENDER_JS)
+    # 分組 key = 完整日期（年月日）
+    assert "slice(0, 10)" in js
+    assert "slice(0, 7)" not in js, "退回按月分組（slice(0,7)）會讓標題沒有幾號"
+    assert "// 分組：按日" in js
+    # 手機 + 桌機標題都用 ${m}（完整日期），各 1 處
+    assert js.count("📅 ${m}</span>") == 2
+    # 中間版「今天日期」helper 已移除
+    assert "mLabel" not in js
+    assert "todayStr" not in js
+
+
 # ---------- 2026-08-11 Sarah 需求：卡片顯示格式（位置/備註/刪除/照片/型號/標題） ----------
 
 def test_inventory_loc_pill_no_qty_and_note_merged():
