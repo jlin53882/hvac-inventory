@@ -55,9 +55,8 @@ def _validate_time(start_time: str, end_time: str) -> None:
 
 
 def _validate_users(conn, user_ids: List[int]) -> None:
-    """人員必須存在且啟用中"""
-    if not user_ids:
-        raise HTTPException(400, "請至少指派一位負責人員")
+    """人員必須存在且啟用中；**可空**（2026-08-12 家豪指定：可不指派負責人，
+    派工明細以新增者 created_by_name 標示即可）"""
     for uid in user_ids:
         row = conn.execute("SELECT id FROM users WHERE id=? AND is_active=1", (uid,)).fetchone()
         if row is None:

@@ -143,8 +143,10 @@ def test_appointment_validation(client):
     assert client.post("/api/appointments", json=_appt_body(start_time="11:00", end_time="09:00")).status_code == 400
     # 沒填客戶 400
     assert client.post("/api/appointments", json=_appt_body(client_name="  ")).status_code == 400
-    # 沒指派人員 400
-    assert client.post("/api/appointments", json=_appt_body(user_ids=[])).status_code == 400
+    # 沒指派人員 → 200（2026-08-12 家豪指定：負責人員可空，明細以新增者標示）
+    r = client.post("/api/appointments", json=_appt_body(user_ids=[]))
+    assert r.status_code == 200, r.text
+    assert r.json()["assignees"] == []
     # 不存在人員 400
     assert client.post("/api/appointments", json=_appt_body(user_ids=[999])).status_code == 400
 
@@ -191,6 +193,15 @@ def test_list_includes_creator(client):
     assert d["created_at"]
     r = client.get("/api/appointments?year=2026&month=8")
     assert r.json()[0]["created_by_name"] == "管理員"
+
+
+def test_create_without_service_type(client):
+    """service_type_id 可省略（API 相容，供公開填報場景；前端 UI 已加「請選擇服務項目」檢查）"""
+    r = client.post("/api/appointments", json=_appt_body(service_type_id=None))
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["service_name"] is None
+    assert d["service_type_id"] is None
 
 
 def test_appointment_edit_excludes_self(client):

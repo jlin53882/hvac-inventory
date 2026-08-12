@@ -92,8 +92,8 @@ function calModalHtml(isAdmin) {
       <h3 id="cal-appt-title">➕ 新增派工</h3>
       <div class="cal-conflict" id="cal-appt-conflict"></div>
       <input type="hidden" id="cal-f-id">
-      <div class="form-row">
-        <label>負責人員（可勾多位＝一起出勤）</label>
+      <div class="form-row" style="display:none">  <!-- 負責人員已隱藏（2026-08-12 家豪指定：明細以新增者標示即可） -->
+        <label>負責人員（可不選，可勾多位＝一起出勤）</label>
         <div class="cal-person-list" id="cal-f-users"></div>
       </div>
       <div class="form-row">
@@ -312,7 +312,9 @@ function calOpenAppt(id) {
 
 async function calSubmitAppt() {
   const id = document.getElementById('cal-f-id').value;
-  const user_ids = [...document.querySelectorAll('#cal-f-users input:checked')].map(i => Number(i.value));
+  // 負責人員欄位已隱藏：新增傳空、編輯保留原指派（避免清除舊資料）
+  const orig = id ? ((calEvents.find(e => e.id === Number(id)) || {}).user_ids || []) : [];
+  const user_ids = orig;
   const body = {
     client_name: document.getElementById('cal-f-client').value.trim(),
     address: document.getElementById('cal-f-address').value.trim(),
@@ -325,8 +327,8 @@ async function calSubmitAppt() {
   };
   const box = document.getElementById('cal-appt-conflict');
   const showErr = (msg) => { box.innerText = msg; box.style.display = 'block'; };
-  if (!user_ids.length) return showErr('⚠️ 請至少勾選一位負責人員');
   if (!body.client_name) return showErr('⚠️ 請填客戶 / 案場');
+  if (!body.service_type_id) return showErr('⚠️ 請選擇服務項目');
   try {
     const res = await fetch(id ? `/api/appointments/${id}` : '/api/appointments', {
       method: id ? 'PUT' : 'POST',
