@@ -101,6 +101,8 @@ REVIEWED_SAFE_BODIES = {
     "c.need_qty", "c.stock", "k.stock_qty", "kits.length", "items.length",
     "totalPrepared", "i.prepared_qty", "list.length", "m", "totalOut",
     "o.item_id", "absNum(o.delta)", "absNum(s.qty)", "val",
+    # kits.js 整組待領出/已領出按鈕（2026-08-14 工作區既有改動）：k.item_id 為 DB 數字主鍵（同 c.item_id/o.item_id）
+    "k.item_id",
     "prevTotal - i + 1", "locItems.length", "counts[b] || ALL_ITEMS.length",
     "last.diff_count", "last.item_count", "last.total_diff",
     "d.diff_count", "d.item_count", "d.total_diff", "ALL_ITEMS.length",
