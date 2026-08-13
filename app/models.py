@@ -57,6 +57,16 @@ class StockOutRequest(BaseModel):
     location: str = ""  # v10：可指定從哪個位置出（空白=依庫存順序扣）
 
 
+class NonStockOutRequest(BaseModel):
+    """新增非庫存品項的已領出（不在單一庫存/整組庫存，只記流水不扣庫存）"""
+    name: str
+    code: str = ""
+    unit: str = "個"
+    qty: float = Field(..., gt=0)
+    destination: str
+    note: str = ""
+
+
 class StockoutUpdate(BaseModel):
     """編輯已領出記錄：去向 / 數量（差額補扣庫存）/ 日期"""
     destination: Optional[str] = None

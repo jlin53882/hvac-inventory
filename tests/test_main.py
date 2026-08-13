@@ -1690,5 +1690,58 @@ class TestPhase5Robustness:
         assert r2.status_code == 200  # 無 Origin（curl/測試）→ 放行
 
 
+class TestNonStockOut:
+    """2026-08-13 Sarah：已領出可直接新增「不在單一庫存/整組庫存」的品項（POST /api/stockout/nonstock）"""
 
+    def test_nonstock_stockout_creates_movement(self, client):
+        """非庫存品項領出：建臨時品項（is_deleted=1）+ 出庫流水；庫存頁看不到、已領出看得到"""
+        r = client.post("/api/stockout/nonstock", json={
+            "name": "冷媒銅管 3分", "code": '3/8"', "unit": "捲",
+            "qty": 2, "destination": "張小姐-大樓保養", "note": "維修"})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["name"] == "冷媒銅管 3分"
 
+        # 已領出清單看得到（item_deleted 標記 + 品名/型號/單位/數量/去向）
+        outs = client.get("/api/stockouts").json()
+        match = [o for o in outs if o["item_id"] == body["id"]]
+        assert len(match) == 1
+        assert match[0]["item_name"] == "冷媒銅管 3分"
+        assert match[0]["code"] == '3/8"'
+        assert match[0]["unit"] == "捲"
+        assert match[0]["item_deleted"] == 1
+        assert match[0]["delta"] == -2
+        assert match[0]["destination"] == "張小姐-大樓保養"
+        assert "出庫 - 維修" in match[0]["reason"]
+
+        # 庫存頁看不到（is_deleted=1 被過濾）
+        items = client.get("/api/items").json()
+        assert all(i["id"] != body["id"] for i in items), "非庫存臨時品項不應出現在庫存頁"
+
+    def test_nonstock_stockout_requires_name(self, client):
+        """品項名稱空白 → 400"""
+        r = client.post("/api/stockout/nonstock", json={
+            "name": "   ", "qty": 1, "destination": "客戶A"})
+        assert r.status_code == 400
+
+    def test_nonstock_stockout_requires_destination(self, client):
+        """去哪裡空白 → 400"""
+        r = client.post("/api/stockout/nonstock", json={
+            "name": "雜項", "qty": 1, "destination": ""})
+        assert r.status_code == 400
+
+    def test_nonstock_stockout_qty_must_be_positive(self, client):
+        """數量 0/負 → pydantic gt=0 擋 422 或手動 400"""
+        r = client.post("/api/stockout/nonstock", json={
+            "name": "雜項", "qty": 0, "destination": "客戶A"})
+        assert r.status_code in (400, 422)
+
+    def test_nonstock_stockout_does_not_deduct_inventory(self, client):
+        """非庫存領出不影響任何既有庫存數量"""
+        item = _add_item(client, name="既有品", qty=5)
+        r = client.post("/api/stockout/nonstock", json={
+            "name": "臨時品", "qty": 3, "destination": "客戶A"})
+        assert r.status_code == 200
+        after = client.get("/api/items").json()
+        cur = [i for i in after if i["id"] == item["id"]][0]
+        assert cur["qty"] == 5, "非庫存領出不應扣到既有庫存"

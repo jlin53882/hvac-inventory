@@ -253,6 +253,42 @@
   </div>
 </div>
 
+<!-- 非庫存品項出庫 Modal（2026-08-13 Sarah：已領出可直接新增不在庫存的東西） -->
+<div class="modal-overlay" id="nonstock-out-modal">
+  <div class="modal">
+    <h3>➕ 新增已領出</h3>
+    <div class="hint-nonstock">ℹ️ 此品項不在單一庫存 / 整組庫存，只記錄這次領出，不會加入庫存清單</div>
+    <div class="form-row">
+      <label>品項名稱 *</label>
+      <input type="text" id="ns-name" placeholder="直接輸入名稱，例如：冷媒銅管 3分">
+    </div>
+    <div class="form-row">
+      <label>型號（選填）</label>
+      <input type="text" id="ns-code" placeholder="例如：3/8&quot;">
+    </div>
+    <div class="form-row">
+      <label>單位</label>
+      <input type="text" id="ns-unit" value="個">
+    </div>
+    <div class="form-row">
+      <label>領出數量 *</label>
+      <input type="number" id="ns-qty" min="0" step="any" placeholder="要領出多少">
+    </div>
+    <div class="form-row">
+      <label>去哪裡（客戶 / 案場 / 工地）*</label>
+      <input type="text" id="ns-dest" list="dest-list" placeholder="例如：王先生-中山路案場">
+    </div>
+    <div class="form-row">
+      <label>備註（選填）</label>
+      <textarea id="ns-note" placeholder="例如：安裝、維修…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('nonstock-out-modal')">取消</button>
+      <button class="btn-confirm orange" onclick="submitNonStockOut()">🚚 確認已領出</button>
+    </div>
+  </div>
+</div>
+
 <!-- 待領出 Modal -->
 <div class="modal-overlay" id="prepare-modal">
   <div class="modal">

@@ -1018,6 +1018,27 @@ def test_stockout_modal_core_functions():
         assert fn in js, f"stockout.js(modals) 缺 {fn}"
 
 
+def test_stockout_nonstock_add_ui():
+    """2026-08-13 Sarah：已領出可直接新增非庫存品項——render 按鈕/標籤 + modal DOM + 函式"""
+    js = read(STOCKOUT_MODAL_JS)
+    for fn in ("openNonStockOutModal", "submitNonStockOut"):
+        assert fn in js, f"modals/stockout.js 缺 {fn}"
+    assert "fetch('/api/stockout/nonstock'" in js, "submitNonStockOut 沒打新端點"
+
+    rjs = read(STOCKOUT_RENDER_JS)
+    assert "onclick=\"openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
+    assert "共 ${outs.length} 筆" in rjs, "已領出頁缺筆數列"
+    assert "tag-nonstock" in rjs, "非庫存標籤 class 缺失"
+
+    html = read(INDEX)
+    assert 'id="nonstock-out-modal"' in html
+    for fid in ("ns-name", "ns-qty", "ns-dest", "ns-note"):
+        assert f'id="{fid}"' in html, f"nonstock modal 缺 {fid} 欄位"
+
+    css = read(CSS)
+    assert ".tag-nonstock" in css and ".hint-nonstock" in css, "非庫存標籤/提示樣式缺失"
+
+
 def test_card_js_core_functions():
     """render/card.js：手機卡片建構 helpers"""
     js = read(CARD_JS)

@@ -169,6 +169,8 @@
   /* 2026-08-13 Sarah：庫存清單頂部新增按鈕（與匯出並排） */
   .btn-add-inv { background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .btn-add-inv:hover { background: #15803d; }
+  .tag-nonstock { display: inline-block; background: #dcfce7; color: #15803d; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+  .hint-nonstock { font-size: 12px; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 7px 10px; margin-bottom: 12px; }
   .btn-export:hover { background: #1557b0; }
   .loc-export-count { font-size: 12px; color: #888; }
 

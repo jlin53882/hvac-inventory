@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from app.database import get_db
-from app.models import PrepareRequest, StockOutRequest, StockoutUpdate
+from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutUpdate
 from app.routes.photos import has_photo
 
 # 出庫/待領出 API 路由
@@ -111,12 +111,43 @@ def stock_out(req: StockOutRequest):
     return payload
 
 
+@router.post("/api/stockout/nonstock")
+def stock_out_nonstock(req: NonStockOutRequest):
+    """新增「非庫存品項」的已領出（2026-08-13 Sarah）：建臨時品項（is_deleted=1 不出現在庫存頁）+ 只記出庫流水、不扣庫存"""
+    name = req.name.strip()
+    dest = req.destination.strip()
+    unit = req.unit.strip() or "個"
+    code = req.code.strip()
+    note = req.note.strip()
+    if not name:
+        raise HTTPException(400, "品項名稱不能為空")
+    if req.qty <= 0:
+        raise HTTPException(400, "出庫數量必須大於 0")
+    if not dest:
+        raise HTTPException(400, "去哪裡（客戶/案場/工地）不能為空")
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
+        "VALUES ('',?,?,0,?,0,0,'',1)",
+        (code, name, unit),
+    )
+    item_id = cur.lastrowid
+    reason = "出庫" if not note else f"出庫 - {note}"
+    conn.execute(
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,?,?)",
+        (item_id, -req.qty, reason, dest),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": item_id, "name": name}
+
+
 @router.get("/api/stockouts")
 def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[str] = None):
     """出庫紀錄（含去向）"""
     conn = get_db()
     sql = """
-        SELECT m.*, i.name as item_name, i.brand, i.code, i.unit
+        SELECT m.*, i.name as item_name, i.brand, i.code, i.unit, i.is_deleted as item_deleted
         FROM movements m JOIN items i ON i.id = m.item_id
         WHERE m.delta < 0 AND m.reason LIKE '出庫%'
     """

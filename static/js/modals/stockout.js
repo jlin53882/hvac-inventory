@@ -51,6 +51,47 @@ async function submitStockOut() {
   }
 }
 
+// ========== 非庫存品項出庫（2026-08-13 Sarah：直接新增不在庫存的東西，只記流水） ==========
+function openNonStockOutModal() {
+  document.getElementById('ns-name').value = '';
+  document.getElementById('ns-code').value = '';
+  document.getElementById('ns-unit').value = '個';
+  document.getElementById('ns-qty').value = '';
+  document.getElementById('ns-dest').value = '';
+  document.getElementById('ns-note').value = '';
+  openModal('nonstock-out-modal');
+}
+
+async function submitNonStockOut() {
+  const name = document.getElementById('ns-name').value.trim();
+  const code = document.getElementById('ns-code').value.trim();
+  const unit = document.getElementById('ns-unit').value.trim() || '個';
+  const qty = parseFloat(document.getElementById('ns-qty').value);
+  const dest = document.getElementById('ns-dest').value.trim();
+  const note = document.getElementById('ns-note').value.trim();
+
+  if (!name) { toast('請輸入品項名稱', 'error'); return; }
+  if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
+  if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
+
+  try {
+    const res = await fetch('/api/stockout/nonstock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, code: code, unit: unit, qty: qty, destination: dest, note: note })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || '領出失敗');
+    }
+    closeModalForce('nonstock-out-modal');
+    toast(`✅ 已領出 ${qty} ${unit} → ${dest}`, 'success');
+    await loadData();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
 // ========== 領出準備（兩階段出庫） ==========
 function openPrepareModal(id, ev) {
   if (ev) ev.stopPropagation();

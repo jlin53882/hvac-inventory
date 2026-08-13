@@ -12,7 +12,8 @@ async function renderStockOuts() {
     stockoutRecords = outs;  // 供退回/編輯 modal 查品項資訊
 
     if (!outs.length) {
-      content.innerHTML = '<div class="empty">🚚 還沒有已領出紀錄<br><small>在庫存頁點「已領出」就會記錄在這裡</small></div>';
+      content.innerHTML = '<div class="empty">🚚 還沒有已領出紀錄<br><small>在庫存頁點「已領出」就會記錄在這裡</small>' +
+        (isViewer ? '' : '<br><br><button class="btn-add-inv" onclick="openNonStockOutModal()">＋ 新增已領出</button>') + '</div>';
       return;
     }
 
@@ -25,6 +26,8 @@ async function renderStockOuts() {
 
     const isM = (typeof isMobileView === 'function') && isMobileView();
     let html = '';
+    // 2026-08-13 Sarah：已領出可直接新增「不在庫存」的品項（只記流水、不扣庫存）
+    html += `<div class="loc-export-bar"><span>共 ${outs.length} 筆</span>${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockOutModal()">＋ 新增已領出</button>'}</div>`;
     if (isM) {
       // ===== 手機版：卡片式（⋯ 動作選單） =====
       Object.keys(byMonth).sort().reverse().forEach(m => {
@@ -38,7 +41,7 @@ async function renderStockOuts() {
             reverted,
             moreBtnHTML: `<button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>`,
             thumb: buildThumb(o.item_id, o.has_photo, o.item_name, '📷'),
-            nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}`,
+            nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}`,
             subHTML: `${esc((o.created_at||'').slice(5,16))}`,
             extraHTML: o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : '',
             qtyHTML: buildQtyNum('-' + absNum(o.delta), o.unit, 'qty-neg'),
@@ -66,7 +69,7 @@ async function renderStockOuts() {
         html += `<tr${reverted ? ' style="opacity:0.55"' : ''}>
           <td class="photo-cell">${soPhoto}</td>
           <td style="white-space:nowrap">${esc((o.created_at||'').slice(5,16))}</td>
-          <td>${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}</td>
+          <td>${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}</td>
           <td class="qty-neg">-${absNum(o.delta)} ${esc(o.unit)}</td>
           <td>${o.destination ? `<span class="dest-chip">🏢 ${esc(o.destination)}</span>` : '<span style="color:#ccc">—</span>'}
               ${reverted ? '<br><span style="color:#999;font-size:11px">↩️ 已退回</span>' : ''}</td>
