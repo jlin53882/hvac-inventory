@@ -66,9 +66,9 @@ function renderUserMenu(user) {
     return;
   }
   const isAdmin = user.role === 'admin';
-  // 保險：非 user 角色恢復 ☰ 顯示（避免 user→admin 切換殘留隱藏）
+  // 2026-08-13 Sarah：登出直接顯示在 topbar；☰ 選單只剩 admin 需要（改密碼＋使用者管理），viewer/user 隱藏 ☰
   const bm = document.getElementById('btn-menu');
-  if (bm) bm.style.display = '';
+  if (bm) bm.style.display = isAdmin ? '' : 'none';
   const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
     : user.role === 'viewer' ? ' <span class="admin-badge" style="background:#6b7280">👀 檢視者</span>'
     : '';
@@ -79,7 +79,8 @@ function renderUserMenu(user) {
     roleChip + `</span>` +
     (canChangePw ? `<button class="btn-ghost" onclick="openChangePwModal()">🔑<span class="users-text"> 改密碼</span></button>` : '') +
     (isAdmin ? `<button class="btn-ghost" onclick="openUsersModal()">👥<span class="users-text"> 使用者</span></button>` : '') +
-    `<button class="btn-ghost" onclick="logout()">🚪<span class="logout-text"> 登出</span></button>`;
+    // 2026-08-13 Sarah：登出直接顯示在 topbar（btn-logout-direct 手機版不隱藏），☰ 選單不放登出
+    `<button class="btn-ghost btn-logout-direct" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>`;
   menu.style.display = 'flex';
 }
 

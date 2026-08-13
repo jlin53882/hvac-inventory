@@ -82,7 +82,7 @@ function openTopMenu() {
   if (u && u.role === 'admin' && typeof openUsersModal === 'function') {
     actions.push({ icon: '👥', label: '使用者管理', fn: () => openUsersModal() });
   }
-  actions.push({ icon: '🚪', label: '登出', cls: 'del', fn: () => logout() });
+  // 2026-08-13 Sarah：登出直接顯示在 topbar（auth.js renderUserMenu btn-logout-direct），☰ 選單不放登出
   openSheet('功能選單', actions);
 }
 

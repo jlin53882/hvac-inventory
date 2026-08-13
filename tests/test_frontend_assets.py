@@ -587,6 +587,9 @@ def test_changepw_expiry_ui_present():
     assert "u.role !== 'viewer' && u.role !== 'user'" in bs
     # 2026-08-13 Sarah：功能選單移除「匯出報表」action（user/admin 相繼要求）——匯出口統一在庫存清單頂部
     assert "label: '匯出報表'" not in bs
+    # 2026-08-13 Sarah：登出直接顯示在 topbar（☰ 選單不放登出；viewer/user 隱藏 ☰）
+    assert "label: '登出'" not in bs
+    assert "isAdmin ? '' : 'none'" in au  # 只有 admin 顯示 ☰
     cpw = read(os.path.join(STATIC, "js", "modals", "changepw.js"))
     assert "function cpwCheckStrength" in cpw
     assert "function submitChangePw" in cpw
