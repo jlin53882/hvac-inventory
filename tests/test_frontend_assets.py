@@ -144,11 +144,12 @@ def test_css_mobile_topbar_full_buttons():
     assert ".logout-text, .users-text { display: none; }" not in css
     # 右邊四個 2×2 grid
     assert ".user-menu { display: grid !important; grid-template-columns: auto auto;" in css
-    # 左邊標題兩行（振佳空調 / 管理系統）
-    assert ".topbar h1 .t-title-2 { display: block;" in css
+    # 左邊標題兩行（logo 左、兩行字右，左緣對齊）
+    assert ".topbar h1 .t-wrap { display: flex; flex-direction: column;" in css
     # 標題 span 存在（index.html）
     idx = read(INDEX)
     assert 'class="t-title"' in idx and 'class="t-title-2"' in idx
+    assert 'class="t-wrap"' in idx
 
 
 def test_css_table_card_layout():
