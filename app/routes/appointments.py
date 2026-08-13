@@ -113,6 +113,9 @@ def _appt_row(conn, appt_id: int) -> dict:
     creator = None
     if row["created_by"]:
         creator = conn.execute("SELECT display_name, username FROM users WHERE id=?", (row["created_by"],)).fetchone()
+    updater = None
+    if row["updated_by"]:
+        updater = conn.execute("SELECT display_name, username FROM users WHERE id=?", (row["updated_by"],)).fetchone()
     return {
         "id": row["id"],
         "client_name": row["client_name"],
@@ -126,6 +129,8 @@ def _appt_row(conn, appt_id: int) -> dict:
         "created_by": row["created_by"],
         "created_by_name": (creator["display_name"] or creator["username"]) if creator else None,
         "created_at": row["created_at"] or "",
+        "updated_by": row["updated_by"],
+        "updated_by_name": (updater["display_name"] or updater["username"]) if updater else None,
         "user_ids": [a["user_id"] for a in assignees],
         "assignees": [{"id": a["user_id"], "name": a["display_name"],
                        "color": a["color"] or "#1a73e8"} for a in assignees],
@@ -203,9 +208,9 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
             raise HTTPException(409, conflict)
         conn.execute(
             """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
-               start_time=?, end_time=?, note=?, updated_at=datetime('now') WHERE id=?""",
+               start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=?""",
             (body.client_name.strip(), body.address.strip(), body.service_type_id,
-             body.date, body.start_time, body.end_time, body.note.strip(), appt_id),
+             body.date, body.start_time, body.end_time, body.note.strip(), user["id"], appt_id),
         )
         conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
         for uid in body.user_ids:

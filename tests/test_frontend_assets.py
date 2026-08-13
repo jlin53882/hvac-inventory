@@ -777,6 +777,8 @@ def test_calendar_js_uses_api_endpoints():
     assert "/api/service-types" in js
     assert "/api/assignable-users" in js
     assert "/api/appointments/export" in js
+    # 2026-08-13 Sarah：明細卡顯示編輯者（非新增者時）——esc 防 XSS
+    assert "esc(e.updated_by_name)" in js and "編輯" in js
 
 
 def test_calendar_js_viewer_write_hidden():

@@ -118,7 +118,8 @@ def init_db():
         note            TEXT DEFAULT '',
         created_by      INTEGER REFERENCES users(id),
         created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_by      INTEGER REFERENCES users(id)   -- 2026-08-13：最後編輯者（Sarah：編輯非新增者要顯示）
     );
     CREATE TABLE IF NOT EXISTS appointment_assignees (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,6 +159,10 @@ def init_db():
     if "color" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN color TEXT DEFAULT '#1a73e8'")
         print("[migrate] users.color 欄位已新增（行事曆人員顏色）")
+    appt_cols = [r[1] for r in conn.execute("PRAGMA table_info(appointments)").fetchall()]
+    if "updated_by" not in appt_cols:
+        conn.execute("ALTER TABLE appointments ADD COLUMN updated_by INTEGER REFERENCES users(id)")
+        print("[migrate] appointments.updated_by 欄位已新增（最後編輯者）")
     item_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
     if "is_deleted" not in item_cols:
         conn.execute("ALTER TABLE items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")

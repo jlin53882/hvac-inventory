@@ -175,10 +175,11 @@ def test_appointment_conflict_409(client):
 
 
 def test_edit_keeps_creator(client):
-    """編輯行程不改變新增者（created_by 保留原值）"""
+    """編輯行程不改變新增者（created_by 保留原值）＋記錄最後編輯者（2026-08-13 Sarah：編輯非新增者要顯示）"""
     r = client.post("/api/appointments", json=_appt_body())
     appt_id = r.json()["id"]
     assert r.json()["created_by_name"] == "管理員"
+    assert r.json()["updated_by_name"] is None  # 剛新增無編輯者
     r = client.put(f"/api/appointments/{appt_id}", json=_appt_body(
         client_name="改名客戶", start_time="14:00", end_time="16:00"))
     assert r.status_code == 200, r.text
@@ -186,6 +187,8 @@ def test_edit_keeps_creator(client):
     assert d["client_name"] == "改名客戶"
     assert d["created_by"] == 1
     assert d["created_by_name"] == "管理員"
+    assert d["updated_by"] == 1  # 同為 admin 編輯
+    assert d["updated_by_name"] == "管理員"
 
 
 def test_list_includes_creator(client):

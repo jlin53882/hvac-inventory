@@ -249,7 +249,11 @@ function calRenderDay() {
     <div class="cal-tl-row">
       <span class="cal-tl-dot"></span>
       <div class="cal-event-card">
-        <div class="cal-creator"><span>📝 由 ${esc(e.created_by_name || '系統')} 新增</span><span>${calFmtCreatedAt(e.created_at)}</span></div>
+        <div class="cal-creator">
+          <span>📝 由 ${esc(e.created_by_name || '系統')} 新增</span>
+          ${(e.updated_by_name && e.updated_by_name !== (e.created_by_name || '系統')) ? `<span>✏️ 由 ${esc(e.updated_by_name)} 編輯</span>` : ''}
+          <span>${calFmtCreatedAt(e.created_at)}</span>
+        </div>
         ${isViewer ? '' : `<div class="cal-card-actions">
           <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">✏️</button>
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
