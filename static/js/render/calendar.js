@@ -195,23 +195,22 @@ function calRenderMonth() {
     c.className = 'cal-cell' + (ds === tStr ? ' cal-today' : '') + (ds === selStr ? ' cal-selected' : '');
     c.innerHTML = `<span class="cal-day-num">${d}</span>`;
     c.onclick = () => { calSelected = new Date(y, m, d); calRenderMonth(); calRenderDay(); };
-    calEvents.filter(e => e.date === ds).sort((a, b) => a.start_time.localeCompare(b.start_time))
-      .forEach(e => {
-        const shown = (e.assignees || []).slice(0, 2);
-        shown.forEach(p => {
-          const t = document.createElement('span');
-          t.className = 'cal-evt';
-          t.style.background = p.color || '#1a73e8';
-          t.innerText = `${e.start_time} ${p.name || ''}`;
-          c.appendChild(t);
-        });
-        if ((e.assignees || []).length > 2) {
-          const t = document.createElement('span');
-          t.className = 'cal-evt cal-evt-more';
-          t.innerText = `+${e.assignees.length - 2} 人`;
-          c.appendChild(t);
-        }
-      });
+    const evts = calEvents.filter(e => e.date === ds)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    // 2026-08-13 Sarah：月曆格顯示「時間 [服務] 客戶」（原只顯示時間+人員；右邊明細內容寫進左邊格子）
+    evts.slice(0, 2).forEach(e => {
+      const t = document.createElement('span');
+      t.className = 'cal-evt';
+      t.style.background = ((e.assignees || [])[0] && (e.assignees[0].color)) || '#1a73e8';
+      t.innerText = `${e.start_time} [${e.service_name || ''}] ${e.client_name || ''}`;
+      c.appendChild(t);
+    });
+    if (evts.length > 2) {
+      const t = document.createElement('span');
+      t.className = 'cal-evt cal-evt-more';
+      t.innerText = `+${evts.length - 2} 筆`;
+      c.appendChild(t);
+    }
     grid.appendChild(c);
   }
 }

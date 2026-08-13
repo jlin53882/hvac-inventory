@@ -62,6 +62,8 @@ PHOTO_JS = os.path.join(STATIC, "js", "modals", "photo.js")
 STOCKOUT_MODAL_JS = os.path.join(STATIC, "js", "modals", "stockout.js")
 # 待測：render/card.js
 CARD_JS = os.path.join(STATIC, "js", "render", "card.js")
+# 待測：render/calendar.js（2026-08-13）
+CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
 
 
 def read(p):
@@ -738,6 +740,15 @@ def test_css_has_calendar_styles():
     for sel in (".cal-grid", ".cal-cell", ".cal-evt", ".cal-event-card",
                 ".cal-set-table", ".cal-person-opt", ".switch"):
         assert sel in css, f"缺 {sel}"
+
+
+def test_calendar_cell_shows_service_client():
+    """2026-08-13 Sarah：月曆格子內派工標籤顯示「時間 [服務] 客戶」（右邊明細內容寫進左邊格子）"""
+    js = read(CALENDAR_RENDER_JS)
+    assert "evts.slice(0, 2)" in js                     # 每格最多 2 筆派工
+    assert "e.start_time} [${e.service_name" in js       # 時間 + [服務]
+    assert "e.client_name || ''" in js                   # 客戶名
+    assert "t.innerText = `${e.start_time}" in js        # 用 innerText 安全設定（非 innerHTML）
 
 
 # ---------- 2026-08-12 totalQty 補接（盤點頁第 4 張統計卡「庫存總數(件)」） ----------
