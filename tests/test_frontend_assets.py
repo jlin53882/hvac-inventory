@@ -92,6 +92,19 @@ def test_index_has_no_manual_version_params():
     assert not bad, f"資源引用有手動版本號: {bad}"
 
 
+def test_index_html_div_balanced():
+    """index.html div 標籤開閉平衡（2026-08-13 C4 教訓：python 字串搬移 bottom-nav 曾產生多餘 </div>
+    造成 HTML 結構錯誤——任何結構改動若標籤不平衡，此測試擋下）"""
+    html = read(INDEX)
+    opens = html.count("<div")          # <div ...> 開標籤
+    closes = html.count("</div>")       # 閉標籤
+    assert opens == closes, f"div 開閉不平衡：開 {opens} / 閉 {closes}"
+    # 其他常用結構標籤也一併檢查（防同類搬移殘骸）
+    for tag in ("section", "table", "form", "button"):
+        o, c = html.count(f"<{tag}"), html.count(f"</{tag}>")
+        assert o == c, f"{tag} 開閉不平衡：開 {o} / 閉 {c}"
+
+
 def test_search_input_no_autofill():
     """搜尋框不被瀏覽器 autofill（2026-08-13 Sarah：重新打開網站搜尋框殘留「admin」＝瀏覽器把登入帳號填入第一個文字框）
     三重防護：type=search（Chrome 不對 search input 填帳號，根治）+ autocomplete=new-password
