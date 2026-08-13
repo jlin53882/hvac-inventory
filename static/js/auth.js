@@ -66,9 +66,10 @@ function renderUserMenu(user) {
   const isAdmin = user.role === 'admin';
   const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
     : user.role === 'viewer' ? ' <span class="admin-badge" style="background:#6b7280">👀 檢視者</span>'
+    : user.role === 'tech' ? ' <span class="admin-badge" style="background:#0d9488">🔧 工程師</span>'
     : '';
-  // 2026-08-13 Sarah：user 角色不可自行改密碼（topbar 不顯示；由 admin 重設）
-  const canChangePw = user.role !== 'user';
+  // 2026-08-13 Sarah：user/tech 角色不可自行改密碼（topbar 不顯示；由 admin 重設）
+  const canChangePw = user.role !== 'user' && user.role !== 'tech';
   menu.innerHTML =
     `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}` +
     roleChip + `</span>` +
@@ -83,7 +84,7 @@ function renderUserMenu(user) {
 // 前端隱藏 = UX 防呆；真正的防護在後端 require_login 的 method 封鎖（403）。
 function applyRoleView(user) {
   if (!user) return;
-  const isViewer = user.role === 'viewer';
+  const isViewer = user.role === 'viewer' || user.role === 'tech';
   // 2026-08-13 Sarah：新增按鈕已移到庫存清單頂部（inventory.js renderInventory 內，viewer 由 isViewer 判斷隱藏）
   const navStocktake = document.getElementById('nav-stocktake');
   const reminder = document.getElementById('reminder');

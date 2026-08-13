@@ -50,7 +50,7 @@ class UserBatch(BaseModel):
 
 
 # 可建立的角色（admin/user/viewer）
-ALLOWED_ROLES = ("admin", "user", "viewer")
+ALLOWED_ROLES = ("admin", "user", "viewer", "tech")  # tech：行事曆可寫、其他唯讀（2026-08-13 Sarah：藍政達）
 
 
 # ---------- 共用 helpers ----------

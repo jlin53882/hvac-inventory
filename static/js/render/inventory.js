@@ -35,7 +35,7 @@ function buildDatalists() {
 
 // ========== 庫存頁渲染 ==========
 function renderInventory() {
-  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer' || currentUser.role === 'tech';
   document.getElementById('brand-tabs').style.display = 'flex';
   const kw = document.getElementById('search-input').value.trim().toLowerCase();
   // 庫存頁只顯示單一材料（整組在「🔧 整組」頁籤管理）
@@ -229,7 +229,7 @@ async function deleteItem(itemId) {
 function openItemSheet(itemId) {
   const item = ALL_ITEMS.find(i => i.id === itemId);
   if (!item) return;
-  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer' || currentUser.role === 'tech';
   const actions = [];
   if (!isViewer) {
     actions.push({ icon: '✏️', label: '編輯品項', fn: () => openEditModal(itemId) });

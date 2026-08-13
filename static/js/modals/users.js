@@ -26,6 +26,7 @@ function openUsersModal() {
         <input type="text" id="newDisplay" placeholder="顯示名稱" class="cr-input">
         <select id="newRole" class="cr-input">
           <option value="user">User</option>
+          <option value="tech">🔧 工程師（行事曆可寫）</option>
           <option value="viewer">檢視者</option>
           <option value="admin">Admin</option>
         </select>
@@ -74,6 +75,7 @@ function addBatchRow() {
     <td style="padding:4px"><input type="text" class="batch-display cr-input" placeholder="顯示名稱" style="min-width:100px"></td>
     <td style="padding:4px"><select class="batch-role cr-input">
       <option value="user">User</option>
+      <option value="tech">🔧 工程師（行事曆可寫）</option>
       <option value="viewer">檢視者</option>
       <option value="admin">Admin</option>
     </select></td>

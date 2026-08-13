@@ -586,8 +586,8 @@ def test_changepw_expiry_ui_present():
     assert "/static/js/modals/expiry.js" in idx
     au = read(AUTH_JS)
     assert "openChangePwModal()" in au  # topbar 改密碼按鈕
-    # 2026-08-13 Sarah：user 角色不可自行改密碼 → topbar/功能選單/過期提示都按角色隱藏
-    assert "const canChangePw = user.role !== 'user';" in au
+    # 2026-08-13 Sarah：user/tech 角色不可自行改密碼 → topbar/功能選單/過期提示都按角色隱藏
+    assert "const canChangePw = user.role !== 'user' && user.role !== 'tech';" in au
     # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕
     assert "user.role === 'user'" in au
     assert "btn-logout-direct" in au
@@ -788,10 +788,20 @@ def test_calendar_js_uses_api_endpoints():
     # 2026-08-13 Sarah：reminder 條只留文字＋框（移除「看今天行程」按鈕；calGoToday 已刪）
     assert "看今天行程</button>" not in js
     assert "calGoToday" not in js
+    # 2026-08-13 Sarah：tech 角色——庫存 render 視為唯讀、calendar 可寫、auth.js 工程師 chip
+    inv = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    assert "currentUser.role === 'tech'" in inv  # tech 庫存唯讀
+    cal = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    assert "currentUser.role === 'tech'" not in cal  # tech 行事曆可寫（不視為 viewer）
+    au = read(AUTH_JS)
+    assert "🔧 工程師" in au  # tech chip
+    assert "user.role !== 'user' && user.role !== 'tech'" in au  # tech 不可自行改密碼
+    pm = read(os.path.join(STATIC, "js", "permissions.js"))
+    assert "cal-mgmt" in pm and "tech" in pm  # 權限矩陣有行事曆項目＋tech 欄位
 
 
 def test_calendar_js_viewer_write_hidden():
-    """viewer 看不到新增/編輯/刪除按鈕（權限整合）"""
+    """viewer 看不到新增/編輯/刪除按鈕（權限整合）；tech 可看（行事曆可寫）"""
     js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
     assert "isViewer" in js
     assert "calOpenAppt()" in js  # 按鈕以 isViewer 條件包住

@@ -1,7 +1,7 @@
 // 庫存管理系統 - 已領出紀錄頁渲染（v8 拆分）
 // ========== 出庫紀錄頁 ==========
 async function renderStockOuts() {
-  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer' || currentUser.role === 'tech';
   document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入紀錄…</div></div>';
@@ -109,7 +109,7 @@ async function deleteStockoutRecord(movementId) {
 function openStockoutSheet(movementId) {
   const rec = (typeof stockoutRecords !== 'undefined' ? stockoutRecords : []).find(r => r.id === movementId);
   if (!rec) return;
-  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer' || currentUser.role === 'tech';
   const reverted = !!rec.reverted_at;
   const actions = [];
   if (!isViewer) {

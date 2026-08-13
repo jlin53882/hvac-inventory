@@ -208,12 +208,17 @@ def authenticate(request: Request) -> dict:
 
 
 def require_login(request: Request) -> dict:
-    """FastAPI dependency：所有 /api/* 都要過這關；未登入 401"""
+    """FastAPI dependency：所有 /api/* 都要過這關；未登入 401
+    角色寫入封鎖：
+    - viewer：所有寫入（POST/PUT/PATCH/DELETE）一律 403
+    - tech（2026-08-13 Sarah：藍政達「行事曆可寫、其他唯讀」）：寫入僅放行 /api/appointments*（行事曆），其餘 403
+    """
     user = authenticate(request)
-    # viewer 角色單點封鎖：看得見一切 GET，所有寫入（POST/PUT/PATCH/DELETE）一律 403
-    # 放在 require_login 內 → 全站現在與未來的寫入端點自動被擋，不會有「新端點忘了鎖」的漏洞
     if user["role"] == "viewer" and request.method in ("POST", "PUT", "PATCH", "DELETE"):
         raise HTTPException(status_code=403, detail="檢視者僅能檢視，無法修改資料")
+    if user["role"] == "tech" and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        if not request.url.path.startswith("/api/appointments"):
+            raise HTTPException(status_code=403, detail="此角色僅能檢視（行事曆除外），無法修改資料")
     return user
 
 

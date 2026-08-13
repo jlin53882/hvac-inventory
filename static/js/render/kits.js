@@ -4,7 +4,7 @@ async function renderKits() {
   document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入整組清單…</div></div>';
-  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer' || currentUser.role === 'tech';
 
   try {
     const res = await fetch(`/api/kits?site=${currentSite}`);
@@ -259,7 +259,7 @@ async function deleteKit(kitId) {
 
 // ========== 手機版 ⋯ 動作選單（整組卡） ==========
 function openKitSheet(kitId) {
-  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer';
+  const isViewer = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'viewer' || currentUser.role === 'tech';
   const actions = [];
   if (!isViewer) {
     actions.push({ icon: '🛠️', label: '組裝', cls: 'out', fn: () => assembleKit(kitId) });

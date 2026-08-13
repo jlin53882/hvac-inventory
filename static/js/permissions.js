@@ -26,7 +26,16 @@ var PERMISSION_MATRIX = [
   { key: 'kit-mgmt', label: '整組 建立／組裝／拆解',          roles: { admin: true,  user: true,  viewer: false } },
   { key: 'photo',    label: '照片 上傳／刪除',                roles: { admin: true,  user: true,  viewer: false } },
   { key: 'user-mgmt',label: '使用者管理',                    roles: { admin: true,  user: false, viewer: false } },
+  // 2026-08-13 Sarah：tech（藍政達）行事曆可寫、其他唯讀
+  { key: 'cal-mgmt', label: '行事曆派工（新增／編輯／刪除）',   roles: { admin: true,  user: true,  viewer: false, tech: true } },
 ];
+// 既有項目補 tech 欄位（唯讀項目 true、寫入項目 false）
+(function () {
+  var readOnly = { 'view': 1, 'stats': 1, 'kit-view': 1, 'prepared': 1, 'export': 1 };
+  PERMISSION_MATRIX.forEach(function (p) {
+    if (!('tech' in p.roles)) p.roles.tech = !!readOnly[p.key];
+  });
+})();
 
 // 依角色回傳權限清單：[{label, allowed, key}]
 function getRolePerms(role) {

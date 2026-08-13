@@ -36,6 +36,49 @@ def user_client(admin_client):
         yield c
 
 
+@pytest.fixture()
+def tech_client(admin_client):
+    """tech 角色（2026-08-13 Sarah：藍政達「行事曆可寫、其他唯讀」）"""
+    admin_client.post("/api/users", json={
+        "username": "techuser", "password": "Test1234",
+        "display_name": "工程師", "role": "tech",
+    })
+    with TestClient(fastapi_app) as c:
+        r = c.post("/api/auth/login", json={"username": "techuser", "password": "Test1234"})
+        assert r.status_code == 200
+        yield c
+
+
+def test_tech_calendar_writable_other_readonly(tech_client):
+    """tech：行事曆可寫（新增/編輯/刪除派工）、庫存等寫入 403、GET 可看"""
+    # 行事曆可寫：新增派工 200
+    r = tech_client.post("/api/appointments", json={
+        "client_name": "tech測試", "address": "", "service_type_id": 1,
+        "date": "2026-08-14", "start_time": "10:00", "end_time": "10:00",
+        "note": "", "user_ids": [1],
+    })
+    assert r.status_code == 200, r.text
+    appt_id = r.json()["id"]
+    # 編輯派工 200
+    r = tech_client.put(f"/api/appointments/{appt_id}", json={
+        "client_name": "tech測試改", "address": "", "service_type_id": 1,
+        "date": "2026-08-14", "start_time": "11:00", "end_time": "11:00",
+        "note": "", "user_ids": [1],
+    })
+    assert r.status_code == 200, r.text
+    # 刪除派工 200
+    assert tech_client.delete(f"/api/appointments/{appt_id}").status_code == 200
+    # 庫存寫入 403（品項新增）
+    assert tech_client.post("/api/items", json={"brand": "X", "name": "Y", "unit": "個", "qty": 1}).status_code == 403
+    # 其他寫入 403（出庫/盤點/整組）
+    assert tech_client.post("/api/stockout", json={}).status_code == 403
+    assert tech_client.post("/api/stocktake", json={}).status_code == 403
+    assert tech_client.post("/api/kits", json={}).status_code == 403
+    # GET 可看
+    assert tech_client.get("/api/items?site=office").status_code == 200
+    assert tech_client.get("/api/appointments?year=2026&month=8").status_code == 200
+
+
 def test_users_requires_login():
     """未登入 → 401"""
     with TestClient(fastapi_app) as c:
