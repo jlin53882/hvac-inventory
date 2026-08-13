@@ -72,9 +72,10 @@ function renderInventory() {
   try { collapsedLocs = JSON.parse(localStorage.getItem(collapsedKey) || '[]') || []; } catch (e) { collapsedLocs = []; }
   const isM = (typeof isMobileView === 'function') && isMobileView();
   let html = '';
-  // 2026-08-13 Sarah：匯出庫存按鈕從 topbar 移到庫存清單頂部（位置分組前，靠右）
+  // 2026-08-13 Sarah：新增/匯出按鈕從 topbar 移到庫存清單頂部（位置分組前，靠右；viewer 不顯示新增）
   html += `<div class="loc-export-bar">
     ${list.length ? `<span class="loc-export-count">共 ${list.length} 項</span>` : ''}
+    ${isViewer ? '' : `<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>`}
     <button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>
   </div>`;
   if (isM) {

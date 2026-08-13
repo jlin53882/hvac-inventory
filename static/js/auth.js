@@ -88,14 +88,12 @@ function renderUserMenu(user) {
 function applyRoleView(user) {
   if (!user) return;
   const isViewer = user.role === 'viewer';
-  const btnAdd = document.getElementById('btn-add');
+  // 2026-08-13 Sarah：新增按鈕已移到庫存清單頂部（inventory.js renderInventory 內，viewer 由 isViewer 判斷隱藏）
   const navStocktake = document.getElementById('nav-stocktake');
   const reminder = document.getElementById('reminder');
   const saveBar = document.getElementById('save-bar');
 
   if (isViewer) {
-    // 新增按鈕隱藏；匯出保留（家豪已確認 viewer 可匯出）
-    if (btnAdd) btnAdd.style.display = 'none';
     // 盤點 tab 隱藏（不能盤點就不顯示）；待領出/已領出保留（家豪已確認可看）
     if (navStocktake) navStocktake.style.display = 'none';
     // 盤點提醒橫幅隱藏
@@ -108,7 +106,6 @@ function applyRoleView(user) {
     }
   } else {
     // 非 viewer：確認該顯示的都顯示（避免前次登入殘留 display:none）
-    if (btnAdd) btnAdd.style.display = '';
     if (navStocktake) navStocktake.style.display = '';
     if (saveBar) saveBar.style.display = '';
   }
