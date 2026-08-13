@@ -9,15 +9,16 @@ v10 語意：總庫存 = SUM(item_stocks.qty)
 """
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import Depends, APIRouter
 
 from app.database import get_db
+from app.services.auth import require_perm
 
 # 統計 API 路由
 router = APIRouter()
 
 
-@router.get("/api/stats")
+@router.get("/api/stats", dependencies=[Depends(require_perm("stats"))])
 def stats(site: Optional[str] = None):
     """統計總品項數/總庫存/低庫存/缺貨/品牌數（支援 site 分片篩選），回傳統計 dict"""
     conn = get_db()

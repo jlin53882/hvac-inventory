@@ -18,11 +18,12 @@ import datetime
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import Depends, APIRouter, Body, HTTPException, Query
 
 from app.database import get_db
 from app.models import AdjustRequest, ItemCreate, ItemUpdate, StockUpdate
 from app.routes.photos import has_photo
+from app.services.auth import require_perm
 
 # 品項 API 路由
 router = APIRouter()
@@ -104,7 +105,7 @@ def list_items(
     return result
 
 
-@router.post("/api/items", status_code=201)
+@router.post("/api/items", status_code=201, dependencies=[Depends(require_perm("item-mgmt"))])
 def create_item(item: ItemCreate):
     """新增品項主檔 + 位置庫存（v10 去重：同鍵已存在則 400 拒絕）"""
     conn = get_db()
@@ -140,7 +141,7 @@ def create_item(item: ItemCreate):
     return full
 
 
-@router.patch("/api/items/{item_id}")
+@router.patch("/api/items/{item_id}", dependencies=[Depends(require_perm("item-mgmt"))])
 def update_item(item_id: int, upd: ItemUpdate):
     """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
     conn = get_db()
@@ -190,7 +191,7 @@ def update_item(item_id: int, upd: ItemUpdate):
     return full
 
 
-@router.delete("/api/items/{item_id}")
+@router.delete("/api/items/{item_id}", dependencies=[Depends(require_perm("item-mgmt"))])
 def delete_item(item_id: int):
     """刪除品項（M6 soft-delete：保留 movements/stocktakes 稽核軌跡與 kit 引用，只標 is_deleted=1）"""
     conn = get_db()
@@ -214,7 +215,7 @@ def delete_item(item_id: int):
 
 
 # ============ 位置庫存 CRUD ============
-@router.post("/api/items/{item_id}/stocks", status_code=201)
+@router.post("/api/items/{item_id}/stocks", status_code=201, dependencies=[Depends(require_perm("stock-mgmt"))])
 def add_stock(item_id: int, st: StockUpdate):
     """新增位置庫存（同位置重複 → 400 拒絕），回傳該品項全部位置清單"""
     conn = get_db()
@@ -242,7 +243,7 @@ def add_stock(item_id: int, st: StockUpdate):
     return [dict(r) for r in row]
 
 
-@router.patch("/api/stocks/{stock_id}")
+@router.patch("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])
 def update_stock(stock_id: int, st: StockUpdate):
     """修改位置庫存（數量/位置/備註）；改位置時檢查同品項內重複"""
     conn = get_db()
@@ -268,7 +269,7 @@ def update_stock(stock_id: int, st: StockUpdate):
     return {"ok": True}
 
 
-@router.delete("/api/stocks/{stock_id}")
+@router.delete("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])
 def delete_stock(stock_id: int):
     """刪除指定位置庫存"""
     conn = get_db()
@@ -280,7 +281,7 @@ def delete_stock(stock_id: int):
     return {"ok": True}
 
 
-@router.post("/api/items/{item_id}/adjust")
+@router.post("/api/items/{item_id}/adjust", dependencies=[Depends(require_perm("stock-mgmt"))])
 def adjust_qty(item_id: int, req: AdjustRequest):
     """加減庫存：正數=盤點補入、負數=扣減"""
     conn = get_db()
@@ -333,7 +334,7 @@ def adjust_qty(item_id: int, req: AdjustRequest):
     return {"ok": True, "before": total_before, "after": total_after}
 
 
-@router.post("/api/import")
+@router.post("/api/import", dependencies=[Depends(require_perm("import"))])
 def import_items(items: list = Body(..., embed=True)):
     """批量匯入（v10：自動去重，重複則合併到既有主檔的庫存）"""
     conn = get_db()

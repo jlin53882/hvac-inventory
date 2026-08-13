@@ -10,10 +10,11 @@ import datetime
 import io
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException
 from fastapi.responses import Response
 
 from app.database import get_db
+from app.services.auth import require_perm
 
 # 匯出 API 路由
 router = APIRouter()
@@ -49,7 +50,7 @@ def _set_widths(ws, widths):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
 
-@router.get("/api/export")
+@router.get("/api/export", dependencies=[Depends(require_perm("export"))])
 def export_excel(days: int = 30):
     """匯出完整庫存 Excel（記憶體回傳，伺服器不留檔案）"""
     try:

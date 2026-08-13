@@ -19,11 +19,12 @@ import io
 import os
 import uuid
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import Depends, APIRouter, HTTPException, UploadFile
 from PIL import Image
 
 import app.config as app_config  # 動態取值：測試可 monkeypatch
 from app.database import get_db
+from app.services.auth import require_perm
 
 # 照片 API 路由
 router = APIRouter()
@@ -54,7 +55,7 @@ def _compress_and_save(img: Image.Image, dest: str) -> None:
     img.save(dest, "JPEG", quality=80, optimize=True)
 
 
-@router.post("/api/items/{item_id}/photo", status_code=200)
+@router.post("/api/items/{item_id}/photo", status_code=200, dependencies=[Depends(require_perm("photo"))])
 def upload_photo(item_id: int, file: UploadFile):
     """上傳/覆蓋品項照片。壓縮後存 uploads/<item_id>.jpg（無庫存也能建照片？不——物品須存在）"""
     conn = get_db()
@@ -95,7 +96,7 @@ def upload_photo(item_id: int, file: UploadFile):
     return {"ok": True, "item_id": item_id, "photo": f"/uploads/{item_id}.jpg"}
 
 
-@router.delete("/api/items/{item_id}/photo")
+@router.delete("/api/items/{item_id}/photo", dependencies=[Depends(require_perm("photo"))])
 def delete_photo(item_id: int):
     """刪除品項照片（檔案不存在也算成功——冪等）"""
     dest = _photo_path(item_id)

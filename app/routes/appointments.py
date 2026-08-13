@@ -13,8 +13,8 @@
 - PUT  /api/service-types/{id}             更新名稱/排序/啟用（僅 admin）
 - DELETE /api/service-types/{id}           停用 is_active=0（僅 admin，不真刪）
 
-權限：寫入端點由 main.py 全域 require_login 擋 viewer（403）；service-types
-管理額外加 require_admin。衝突規則：同人同日時間重疊（start < 他end 且 end > 他start）。
+權限（RBAC 2026-08-13）：行事曆寫入掛 require_perm("cal-mgmt")、service-types
+掛 require_perm("svc-type-mgmt")。衝突規則：同人同日時間重疊（start < 他end 且 end > 他start）。
 """
 import datetime
 import re
@@ -26,7 +26,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.services.auth import require_admin, require_login
+from app.services.auth import require_perm
 from app.services.report import build_daily_report
 
 router = APIRouter()
@@ -162,7 +162,7 @@ def list_appointments(year: int = 0, month: int = 0, date: str = ""):
 
 
 @router.post("/api/appointments")
-def create_appointment(body: AppointmentIn, user: dict = Depends(require_login)):
+def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("cal-mgmt"))):
     _validate_time(body.start_time, body.end_time)
     if not body.client_name.strip():
         raise HTTPException(400, "請填客戶 / 案場")
@@ -191,7 +191,7 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_login))
 
 
 @router.put("/api/appointments/{appt_id}")
-def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(require_login)):
+def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(require_perm("cal-mgmt"))):
     _validate_time(body.start_time, body.end_time)
     if not body.client_name.strip():
         raise HTTPException(400, "請填客戶 / 案場")
@@ -223,7 +223,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
 
 
 @router.delete("/api/appointments/{appt_id}")
-def delete_appointment(appt_id: int, user: dict = Depends(require_login)):
+def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt"))):
     conn = get_db()
     try:
         row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
@@ -298,7 +298,7 @@ def list_service_types():
         conn.close()
 
 
-@router.post("/api/service-types", dependencies=[Depends(require_admin)])
+@router.post("/api/service-types", dependencies=[Depends(require_perm("svc-type-mgmt"))])
 def create_service_type(body: ServiceTypeIn):
     name = body.name.strip()
     if not name:
@@ -316,7 +316,7 @@ def create_service_type(body: ServiceTypeIn):
         conn.close()
 
 
-@router.put("/api/service-types/{svc_id}", dependencies=[Depends(require_admin)])
+@router.put("/api/service-types/{svc_id}", dependencies=[Depends(require_perm("svc-type-mgmt"))])
 def update_service_type(svc_id: int, body: ServiceTypeIn):
     name = body.name.strip()
     if not name:
@@ -337,7 +337,7 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
         conn.close()
 
 
-@router.delete("/api/service-types/{svc_id}", dependencies=[Depends(require_admin)])
+@router.delete("/api/service-types/{svc_id}", dependencies=[Depends(require_perm("svc-type-mgmt"))])
 def deactivate_service_type(svc_id: int):
     """停用（is_active=0，不真刪：舊行程的類別仍顯示）"""
     conn = get_db()

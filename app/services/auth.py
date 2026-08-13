@@ -17,7 +17,7 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 
 from app.database import get_db
 
@@ -175,7 +175,8 @@ def cleanup_expired(conn: sqlite3.Connection) -> None:
 
 
 def get_session_user(conn: sqlite3.Connection, token: str):
-    """依 token 查 session JOIN user；過期/停用/不存在回 None"""
+    """依 token 查 session JOIN user；過期/停用/不存在回 None
+    RBAC（2026-08-13）：回傳含 permissions（合成權限，每次請求即時重算）"""
     if not token:
         return None
     row = conn.execute(
@@ -186,7 +187,58 @@ def get_session_user(conn: sqlite3.Connection, token: str):
     ).fetchone()
     if row is None or not row["is_active"]:
         return None
-    return {"id": row["id"], "username": row["username"], "display_name": row["display_name"], "role": row["role"]}
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "display_name": row["display_name"],
+        "role": row["role"],
+        "permissions": get_user_permissions(conn, row["id"]),
+    }
+
+
+def get_user_permissions(conn: sqlite3.Connection, user_id: int) -> dict:
+    """合成使用者權限：角色預設 + 個人覆蓋 + 強制規則 → {key: bool}
+    與 docs/RBAC-帳號權限系統-設計文件 §6.3/§7 一致：
+    - view：全角色恆 true（基底權限，不可關閉——§7.5）
+    - user-mgmt：僅 admin 角色可持有（非 admin 強制 false——§7.4）；admin 恆 true（§7.7）
+    - change-own-password：admin 恆 true（§7.6）
+    - svc-type-mgmt：非 admin 不可開（維持角色語意——§7.8）
+    """
+    row = conn.execute("SELECT id, role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if row is None:
+        return {}
+    role = row["role"]
+    # §7.2：唯一啟用 admin → 全權限強制 true（固定最大權限，防 admin 互覆蓋後鎖死唯一管理員）
+    if role == "admin":
+        admin_cnt = conn.execute(
+            "SELECT COUNT(*) AS c FROM users WHERE role='admin' AND is_active=1"
+        ).fetchone()["c"]
+        if admin_cnt == 1:
+            return {p["key"]: True for p in conn.execute("SELECT key FROM permissions").fetchall()}
+    # 16 權限點全 false 起底（以 permissions 表為權威清單）
+    perms = {p["key"]: False for p in conn.execute("SELECT key FROM permissions").fetchall()}
+    # 角色預設（role_permissions）
+    for p in conn.execute(
+        """SELECT p.key FROM role_permissions rp
+           JOIN permissions p ON p.id = rp.permission_id
+           JOIN roles r ON r.id = rp.role_id
+           WHERE r.name = ?""", (role,)).fetchall():
+        perms[p["key"]] = True
+    # 個人覆蓋（user_permissions，三態：無列 = 跟隨角色）
+    for p in conn.execute(
+        """SELECT p.key, up.value FROM user_permissions up
+           JOIN permissions p ON p.id = up.permission_id
+           WHERE up.user_id = ?""", (user_id,)).fetchall():
+        perms[p["key"]] = bool(p["value"])
+    # 強制規則（覆蓋無效）
+    perms["view"] = True
+    if role == "admin":
+        perms["user-mgmt"] = True
+        perms["change-own-password"] = True
+    else:
+        perms["user-mgmt"] = False
+        perms["svc-type-mgmt"] = False
+    return perms
 
 
 # ---------- FastAPI dependency ----------
@@ -208,23 +260,19 @@ def authenticate(request: Request) -> dict:
 
 
 def require_login(request: Request) -> dict:
-    """FastAPI dependency：所有 /api/* 都要過這關；未登入 401
-    角色寫入封鎖：
-    - viewer：所有寫入（POST/PUT/PATCH/DELETE）一律 403
-    - tech（2026-08-13 Sarah：藍政達「行事曆可寫、其他唯讀」）：寫入僅放行 /api/appointments*（行事曆），其餘 403
+    """FastAPI dependency：所有 /api/* 都要過這關；未登入 401。
+    RBAC（2026-08-13）：viewer/tech 的 method 級封鎖已移除——
+    改由各端點 Depends(require_perm(key)) 權限驅動（設計 §6.3）。
+    user dict 含 permissions（合成權限，即時生效）。
     """
-    user = authenticate(request)
-    if user["role"] == "viewer" and request.method in ("POST", "PUT", "PATCH", "DELETE"):
-        raise HTTPException(status_code=403, detail="檢視者僅能檢視，無法修改資料")
-    if user["role"] == "tech" and request.method in ("POST", "PUT", "PATCH", "DELETE"):
-        if not request.url.path.startswith("/api/appointments"):
-            raise HTTPException(status_code=403, detail="此角色僅能檢視（行事曆除外），無法修改資料")
-    return user
+    return authenticate(request)
 
 
-def require_admin(request: Request) -> dict:
-    """require_login + 強制 admin 角色（使用者管理 API 用）"""
-    user = require_login(request)
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="需要管理員權限")
-    return user
+def require_perm(perm_key: str):
+    """權限守衛（RBAC，設計 §6.3）：先過 require_login，再檢查合成權限含 perm_key。
+    用法：Depends(require_perm("user-mgmt"))"""
+    def dep(user: dict = Depends(require_login)):
+        if not user.get("permissions", {}).get(perm_key):
+            raise HTTPException(status_code=403, detail="無此權限")
+        return user
+    return dep

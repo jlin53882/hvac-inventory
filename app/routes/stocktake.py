@@ -11,16 +11,17 @@ system_qty = 該位置數量，更新也寫回該位置。
 """
 import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
 from app.models import StocktakeSubmit
+from app.services.auth import require_perm
 
 # 盤點 API 路由
 router = APIRouter()
 
 
-@router.post("/api/stocktake")
+@router.post("/api/stocktake", dependencies=[Depends(require_perm("stocktake"))])
 def submit_stocktake(req: StocktakeSubmit):
     """盤點：逐項輸入實際數量，計算盤盈/盤虧並更新庫存"""
     conn = get_db()

@@ -491,11 +491,12 @@ def test_client_ip_trust_boundary():
 # 2026-08-13 Sarah：user 角色不可自行改密碼（403）——流程邏輯改用 admin 驗證（admin 仍可改）
 
 def test_user_cannot_change_password_403(user_client):
-    """user 角色改密碼 → 403（2026-08-13 Sarah：藍政達/蘇昱豪/吳佩霖等一般使用者由 admin 重設）"""
+    """user 角色改密碼 → 403（2026-08-13 Sarah：藍政達/蘇昱豪/吳佩霖等一般使用者由 admin 重設）
+    RBAC：seed 僅 admin 有 change-own-password → user 無此權限（require_perm 403）"""
     r = user_client.put("/api/auth/password",
                         json={"old_password": "Test1234", "new_password": "NewPass123"})
     assert r.status_code == 403
-    assert "不可自行改密碼" in r.json()["detail"]
+    assert "無此權限" in r.json()["detail"]
 
 
 def test_change_password_kills_other_sessions_keeps_current(admin_client):

@@ -32,6 +32,7 @@ from app.services.auth import (
     get_user_by_username,
     is_locked,
     record_ip_fail,
+    require_perm,
     update_failed_attempts,
     verify_password,
 )
@@ -169,17 +170,17 @@ def me(request: Request):
         expired = False
         if pw and pw["password_updated_at"]:
             expired = str(pw["password_updated_at"]) < (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S")
-        return {"user": {**user, "password_expired": expired}}
+        return {"user": {**user, "password_expired": expired, "is_admin_role": user["role"] == "admin"}}
     finally:
         conn.close()
 
 
 @router.put("/password")
-def change_my_password(body: ChangePasswordRequest, request: Request, user: dict = Depends(authenticate)):
+def change_my_password(body: ChangePasswordRequest, request: Request, user: dict = Depends(require_perm("change-own-password"))):
     """個人改密碼：驗證舊密碼 → 新密碼 policy → 更新 + 清其他 session（保留當前）
-    2026-08-13 Sarah：只有 admin 可自行改密碼（user/tech/viewer 皆由 admin 重設）"""
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="一般使用者不可自行改密碼，請聯絡管理員重設")
+    RBAC（2026-08-13）：權限驅動 require_perm("change-own-password")——
+    seed 僅 admin 持有（2026-08-13 Sarah：只有 admin 可自行改密碼）；
+    日後 admin 可在權限頁個別開放某帳號自行改密碼（P5 開關）。"""
     # 改密碼也套 per-IP rate limit（2026-08-12 補）：持有效 session 者不可無限試舊密碼
     ip = _client_ip(request)
     if check_ip_rate_limit(ip):
@@ -211,12 +212,10 @@ def change_my_password(body: ChangePasswordRequest, request: Request, user: dict
 
 
 @router.post("/password-ack")
-def ack_password_expiry(request: Request, user: dict = Depends(authenticate)):
+def ack_password_expiry(request: Request, user: dict = Depends(require_perm("change-own-password"))):
     """按「繼續使用原密碼」→ 重置 180 天計時（帳號層級，跨裝置一致）
-    B4（2026-08-13）：只有 admin 可 ack——非 admin 密碼由 admin 控管（不可自行改密碼），
-    過期後 ack 403 → 前端持續提醒「請聯絡管理員重設」，政策不再形同虛設"""
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="密碼已過期，請聯絡管理員重設")
+    RBAC（2026-08-13）：僅有 change-own-password 權限者可按（seed=admin）——
+    與 R2「無此權限不顯示密碼過期提示」一致"""
     conn = get_db()
     try:
         conn.execute("UPDATE users SET password_updated_at = datetime('now') WHERE id = ?", (user["id"],))

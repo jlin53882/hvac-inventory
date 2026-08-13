@@ -17,11 +17,12 @@ v10 數量語意：
 import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
 from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutUpdate
 from app.routes.photos import has_photo
+from app.services.auth import require_perm
 
 # 出庫/待領出 API 路由
 router = APIRouter()
@@ -79,7 +80,7 @@ def _deduct(conn, item_id, qty, location=""):
     return total_before, total_before - qty
 
 
-@router.post("/api/stockout")
+@router.post("/api/stockout", dependencies=[Depends(require_perm("stockout"))])
 def stock_out(req: StockOutRequest):
     """出庫：扣庫存 + 記錄去向（客戶/案場/工地）"""
     if req.qty <= 0:
@@ -111,7 +112,7 @@ def stock_out(req: StockOutRequest):
     return payload
 
 
-@router.post("/api/stockout/nonstock")
+@router.post("/api/stockout/nonstock", dependencies=[Depends(require_perm("stockout"))])
 def stock_out_nonstock(req: NonStockOutRequest):
     """新增「非庫存品項」的已領出（2026-08-13 Sarah）：建臨時品項（is_deleted=1 不出現在庫存頁）+ 只記出庫流水、不扣庫存"""
     name = req.name.strip()
@@ -142,7 +143,7 @@ def stock_out_nonstock(req: NonStockOutRequest):
     return {"id": item_id, "name": name}
 
 
-@router.get("/api/stockouts")
+@router.get("/api/stockouts", dependencies=[Depends(require_perm("prepared"))])
 def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[str] = None):
     """出庫紀錄（含去向）"""
     conn = get_db()
@@ -182,7 +183,7 @@ def _add_back_to_first_stock(conn, item_id, qty):
                  (qty, datetime.datetime.now().isoformat(), stocks[0]["id"]))
 
 
-@router.post("/api/stockouts/{movement_id}/return")
+@router.post("/api/stockouts/{movement_id}/return", dependencies=[Depends(require_perm("stockout"))])
 def return_stockout(movement_id: int):
     """退回已領出：把該筆出庫數量加回庫存 + 標記原記錄（reverted_at）+ 寫反向流水"""
     conn = get_db()
@@ -217,7 +218,7 @@ def return_stockout(movement_id: int):
     return {"ok": True, "movement_id": movement_id, "returned_qty": qty}
 
 
-@router.patch("/api/stockouts/{movement_id}")
+@router.patch("/api/stockouts/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
 def update_stockout(movement_id: int, upd: StockoutUpdate):
     """編輯已領出記錄：去向 / 數量（差額補/扣庫存並記錄流水）/ 日期"""
     conn = get_db()
@@ -267,7 +268,7 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
 # ---------- 領出準備（兩階段出庫） ----------
 
 
-@router.delete("/api/stockouts/{movement_id}")
+@router.delete("/api/stockouts/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
 def delete_stockout(movement_id: int):
     """刪除已領出紀錄（僅刪紀錄，不回補庫存；需回復庫存請用退回）"""
     conn = get_db()
@@ -285,7 +286,7 @@ def delete_stockout(movement_id: int):
     return {"ok": True, "deleted": movement_id}
 
 
-@router.post("/api/prepare/nonstock")
+@router.post("/api/prepare/nonstock", dependencies=[Depends(require_perm("stockout"))])
 def prepare_nonstock(req: NonStockOutRequest):
     """新增「非庫存品項」的待領出（2026-08-13 家豪，比照 /api/stockout/nonstock）：建臨時品項（is_deleted=1）+ 標記 prepared_qty，不扣庫存"""
     name = req.name.strip()
@@ -312,7 +313,7 @@ def prepare_nonstock(req: NonStockOutRequest):
     return {"id": item_id, "name": name}
 
 
-@router.post("/api/items/{item_id}/prepare")
+@router.post("/api/items/{item_id}/prepare", dependencies=[Depends(require_perm("stockout"))])
 def prepare_item(item_id: int, req: PrepareRequest):
     """領出準備：把東西拿出來準備（庫存不扣，只標記 prepared_qty）"""
     if req.qty <= 0:
@@ -342,7 +343,7 @@ def prepare_item(item_id: int, req: PrepareRequest):
     return payload
 
 
-@router.post("/api/items/{item_id}/prepared-out")
+@router.post("/api/items/{item_id}/prepared-out", dependencies=[Depends(require_perm("stockout"))])
 def prepared_out(item_id: int, req: PrepareRequest):
     """確認出庫：從準備中的數量真正出庫（此時才扣庫存）+ 記錄去向"""
     if req.qty <= 0:
@@ -392,7 +393,7 @@ def prepared_out(item_id: int, req: PrepareRequest):
     return payload
 
 
-@router.post("/api/items/{item_id}/prepared-return")
+@router.post("/api/items/{item_id}/prepared-return", dependencies=[Depends(require_perm("stockout"))])
 def prepared_return(item_id: int, req: PrepareRequest):
     """退回：把準備中的數量退回（取消領出）"""
     if req.qty <= 0:
@@ -420,7 +421,7 @@ def prepared_return(item_id: int, req: PrepareRequest):
     return payload
 
 
-@router.get("/api/prepared")
+@router.get("/api/prepared", dependencies=[Depends(require_perm("prepared"))])
 def list_prepared(site: Optional[str] = None):
     """準備中清單（已領出尚未出庫）"""
     conn = get_db()

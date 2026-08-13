@@ -13,11 +13,12 @@ v10 數量語意：材料庫存 = SUM(item_stocks.qty)
 import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException
 
 from app.database import get_db
 from app.models import KitAssemble, KitCreate
 from app.routes.photos import has_photo
+from app.services.auth import require_perm
 
 # 整組 API 路由
 router = APIRouter()
@@ -29,7 +30,7 @@ def _total(conn, item_id) -> float:
                         (item_id,)).fetchone()[0]
 
 
-@router.get("/api/kits")
+@router.get("/api/kits", dependencies=[Depends(require_perm("kit-view"))])
 def list_kits(site: Optional[str] = None):
     """套件清單（含組成材料）"""
     conn = get_db()
@@ -63,7 +64,7 @@ def list_kits(site: Optional[str] = None):
     return result
 
 
-@router.post("/api/kits", status_code=201)
+@router.post("/api/kits", status_code=201, dependencies=[Depends(require_perm("kit-mgmt"))])
 def create_kit(kit: KitCreate):
     """新增套件定義：建立套件品項 + 組成材料"""
     if not kit.name or not kit.items:
@@ -108,7 +109,7 @@ def _validate_kit_comp(conn, comp, i) -> None:
         raise HTTPException(400, f"第 {i} 筆材料品項 id={cid} 不存在或已刪除")
 
 
-@router.put("/api/kits/{kit_id}")
+@router.put("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
 def update_kit(kit_id: int, kit: KitCreate):
     """更新整組定義（名稱/備註 + 全量替換材料；不影響已組裝的整組庫存）"""
     if not kit.name or not kit.items:
@@ -131,7 +132,7 @@ def update_kit(kit_id: int, kit: KitCreate):
     return {"ok": True, "id": kit_id, "name": kit.name}
 
 
-@router.delete("/api/kits/{kit_id}")
+@router.delete("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
 def delete_kit(kit_id: int):
     """刪除整組定義：套件、材料關聯、套件品項（含流水/盤點/位置庫存/照片）"""
     conn = get_db()
@@ -200,7 +201,7 @@ def _add_total(conn, item_id, add, reason):
     )
 
 
-@router.post("/api/kits/{kit_id}/assemble")
+@router.post("/api/kits/{kit_id}/assemble", dependencies=[Depends(require_perm("kit-mgmt"))])
 def assemble_kit(kit_id: int, req: KitAssemble):
     """組裝：從材料庫存扣掉所需數量，整組庫存增加"""
     if req.qty <= 0:
@@ -236,7 +237,7 @@ def assemble_kit(kit_id: int, req: KitAssemble):
     return {"ok": True, "kit": kit["name"], "qty": req.qty}
 
 
-@router.post("/api/kits/{kit_id}/disassemble")
+@router.post("/api/kits/{kit_id}/disassemble", dependencies=[Depends(require_perm("kit-mgmt"))])
 def disassemble_kit(kit_id: int, req: KitAssemble):
     """拆解：整組扣掉，材料庫存加回"""
     if req.qty <= 0:

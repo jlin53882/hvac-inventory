@@ -101,7 +101,7 @@ def test_viewer_write_endpoints_all_403(viewer_client, item):
     for method, url, body in cases:
         resp = getattr(viewer_client, method.lower())(url, json=body) if body is not None else getattr(viewer_client, method.lower())(url)
         assert resp.status_code == 403, f"{method} {url} 應 403，實際 {resp.status_code}"
-        assert "檢視者" in resp.json()["detail"]
+        assert "無此權限" in resp.json()["detail"]
 
 
 def test_viewer_cannot_create_user(viewer_client):
