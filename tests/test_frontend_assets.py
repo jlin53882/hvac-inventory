@@ -137,10 +137,18 @@ def test_css_user_actions_black_text():
     assert ".btn-ghost.danger { color: #dc2626" in css
 
 
-def test_css_mobile_icon_only():
-    """驗證手機版 CSS 為圖示模式"""
+def test_css_mobile_topbar_full_buttons():
+    """手機版 topbar：右邊四個按鈕 2×2（管理員/改密碼 上排、使用者/登出 下排）+ 左邊標題兩行（2026-08-13 Sarah）"""
     css = read(CSS)
-    assert ".logout-text, .users-text { display: none; }" in css
+    # icon-only 規則已移除（改為顯示文字）
+    assert ".logout-text, .users-text { display: none; }" not in css
+    # 右邊四個 2×2 grid
+    assert ".user-menu { display: grid !important; grid-template-columns: auto auto;" in css
+    # 左邊標題兩行（振佳空調 / 管理系統）
+    assert ".topbar h1 .t-title-2 { display: block;" in css
+    # 標題 span 存在（index.html）
+    idx = read(INDEX)
+    assert 'class="t-title"' in idx and 'class="t-title-2"' in idx
 
 
 def test_css_table_card_layout():
@@ -153,10 +161,10 @@ def test_css_table_card_layout():
 # ---------- auth.js ----------
 
 def test_auth_js_wraps_button_text_in_span():
-    """驗證 auth.js 按鈕文字以 span 包覆"""
+    """驗證 auth.js 按鈕文字以 span 包覆（2026-08-13：登出改用 logout-direct-text 避免手機版隱藏）"""
     js = read(AUTH_JS)
     assert 'class="users-text"' in js
-    assert 'class="logout-text"' in js
+    assert 'class="logout-direct-text"' in js
 
 
 # ---------- users.js ----------
@@ -407,7 +415,8 @@ def test_title_is_zhenjia_management():
     assert "<title>🔐 登入｜振佳空調管理系統</title>" in login
     index = read(INDEX)
     assert "<title>振佳空調管理系統</title>" in index
-    assert "> 振佳空調管理系統</h1>" in index              # topbar 標題
+    # topbar 標題（2026-08-13 Sarah：手機兩行＝振佳空調＋管理系統，拆兩個 span）
+    assert 'class="t-title">振佳空調</span>' in index and 'class="t-title-2">管理系統</span>' in index
 
 def test_topbar_logo_uses_login_image():
     """topbar 左上角 logo 換成登入照片 login-hvac.png（2026-08-13 Sarah 指定變體 A：24px 圓形直接換圖，
@@ -576,20 +585,18 @@ def test_changepw_expiry_ui_present():
     assert "openChangePwModal()" in au  # topbar 改密碼按鈕
     # 2026-08-13 Sarah：user 角色不可自行改密碼 → topbar/功能選單/過期提示都按角色隱藏
     assert "const canChangePw = user.role !== 'user';" in au
-    # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕（☰ 隱藏）
+    # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕
     assert "user.role === 'user'" in au
     assert "btn-logout-direct" in au
     assert "logout-direct-text" in au  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
-    assert "btn-menu" in au and "style.display = 'none'" in au
+    assert "btn-menu" not in au  # ☰ 按鈕已移除（2026-08-13 Sarah：不要下拉選單）
     css_all = read(CSS)
     assert ".btn-logout-direct" in css_all  # 手機版覆蓋 .user-menu .btn-ghost 隱藏
     bs = read(BOTTOMSHEET_JS)
-    assert "u.role !== 'viewer' && u.role !== 'user'" in bs
-    # 2026-08-13 Sarah：功能選單移除「匯出報表」action（user/admin 相繼要求）——匯出口統一在庫存清單頂部
+    # 2026-08-13 Sarah：☰ 功能選單整個移除（不要下拉選單）——openTopMenu 已刪
+    assert "openTopMenu" not in bs
     assert "label: '匯出報表'" not in bs
-    # 2026-08-13 Sarah：登出直接顯示在 topbar（☰ 選單不放登出；viewer/user 隱藏 ☰）
     assert "label: '登出'" not in bs
-    assert "isAdmin ? '' : 'none'" in au  # 只有 admin 顯示 ☰
     cpw = read(os.path.join(STATIC, "js", "modals", "changepw.js"))
     assert "function cpwCheckStrength" in cpw
     assert "function submitChangePw" in cpw
@@ -924,10 +931,11 @@ def test_app_js_core_functions():
 
 
 def test_bottomsheet_js_core_functions():
-    """bottomsheet.js 核心：手機底部選單"""
+    """bottomsheet.js 核心：手機底部選單（openTopMenu 已刪除——2026-08-13 Sarah：不要下拉選單）"""
     js = read(BOTTOMSHEET_JS)
-    for fn in ("openSheet", "closeSheet", "openTopMenu", "isMobileView"):
+    for fn in ("openSheet", "closeSheet", "isMobileView"):
         assert fn in js, f"bottomsheet.js 缺 {fn}"
+    assert "openTopMenu" not in js  # ☰ 功能選單已移除
 
 
 def test_globals_js_has_state_vars():

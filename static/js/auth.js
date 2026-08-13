@@ -61,14 +61,9 @@ function renderUserMenu(user) {
       `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}</span>` +
       `<button class="btn-ghost btn-logout-direct" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>`;
     menu.style.display = 'flex';
-    const bm = document.getElementById('btn-menu');
-    if (bm) bm.style.display = 'none';  // 手機 ☰ 隱藏（不彈功能選單）
     return;
   }
   const isAdmin = user.role === 'admin';
-  // 2026-08-13 Sarah：登出直接顯示在 topbar；☰ 選單只剩 admin 需要（改密碼＋使用者管理），viewer/user 隱藏 ☰
-  const bm = document.getElementById('btn-menu');
-  if (bm) bm.style.display = isAdmin ? '' : 'none';
   const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
     : user.role === 'viewer' ? ' <span class="admin-badge" style="background:#6b7280">👀 檢視者</span>'
     : '';

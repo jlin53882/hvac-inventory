@@ -70,22 +70,6 @@ function closeSheet() {
   }
 }
 
-// ========== 手機版 ☰ 功能選單（topbar 漢堡） ==========
-function openTopMenu() {
-  const u = (typeof currentUser !== 'undefined') ? currentUser : null;
-  const actions = [];
-  // 2026-08-13 Sarah：功能選單移除「匯出報表」（user/admin 相繼要求）——匯出入口統一在庫存清單頂部按鈕
-  // 2026-08-13 Sarah：user 角色不可自行改密碼（功能選單不顯示；由 admin 重設）
-  if (u && u.role !== 'viewer' && u.role !== 'user' && typeof openChangePwModal === 'function') {
-    actions.push({ icon: '🔑', label: '改密碼', fn: () => openChangePwModal() });
-  }
-  if (u && u.role === 'admin' && typeof openUsersModal === 'function') {
-    actions.push({ icon: '👥', label: '使用者管理', fn: () => openUsersModal() });
-  }
-  // 2026-08-13 Sarah：登出直接顯示在 topbar（auth.js renderUserMenu btn-logout-direct），☰ 選單不放登出
-  openSheet('功能選單', actions);
-}
-
 // ========== 手機版判斷（<768px 視為手機，render 走卡片式模板） ==========
 function isMobileView() {
   return window.matchMedia('(max-width: 767px)').matches;
