@@ -77,7 +77,8 @@ function openTopMenu() {
   if (typeof exportExcel === 'function') {
     actions.push({ icon: '⬇️', label: '匯出報表', fn: () => exportExcel() });
   }
-  if (u && u.role !== 'viewer' && typeof openChangePwModal === 'function') {
+  // 2026-08-13 Sarah：user 角色不可自行改密碼（功能選單不顯示；由 admin 重設）
+  if (u && u.role !== 'viewer' && u.role !== 'user' && typeof openChangePwModal === 'function') {
     actions.push({ icon: '🔑', label: '改密碼', fn: () => openChangePwModal() });
   }
   if (u && u.role === 'admin' && typeof openUsersModal === 'function') {

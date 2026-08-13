@@ -2,6 +2,12 @@
 // 規則：按「立即改密碼」或「繼續使用原密碼」任一鍵 → 後端重置 180 天（帳號層級）
 // ========== 開啟 ==========
 function openExpiryModal() {
+  // 2026-08-13 Sarah：user 角色不可自行改密碼 → 過期提示只留「繼續使用原密碼」（由 admin 重設）
+  const u = (typeof currentUser !== 'undefined') ? currentUser : null;
+  const btn = document.querySelector('#expiry-modal .btn-save');
+  if (btn) {
+    btn.style.display = (u && u.role === 'user') ? 'none' : '';
+  }
   openModal('expiry-modal');
 }
 

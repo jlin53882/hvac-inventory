@@ -573,13 +573,18 @@ def test_changepw_expiry_ui_present():
     assert "/static/js/modals/changepw.js" in idx
     assert "/static/js/modals/expiry.js" in idx
     au = read(AUTH_JS)
-    assert "openChangePwModal()" in au  # topbar 改密碼按鈕（所有角色）
+    assert "openChangePwModal()" in au  # topbar 改密碼按鈕
+    # 2026-08-13 Sarah：user 角色不可自行改密碼 → topbar/功能選單/過期提示都按角色隱藏
+    assert "const canChangePw = user.role !== 'user';" in au
+    bs = read(BOTTOMSHEET_JS)
+    assert "u.role !== 'viewer' && u.role !== 'user'" in bs
     cpw = read(os.path.join(STATIC, "js", "modals", "changepw.js"))
     assert "function cpwCheckStrength" in cpw
     assert "function submitChangePw" in cpw
     exp = read(os.path.join(STATIC, "js", "modals", "expiry.js"))
     assert "function openExpiryModal" in exp
     assert "function ackPasswordExpiry" in exp
+    assert "u.role === 'user'" in exp  # user 過期提示隱藏「立即改密碼」按鈕
 
 
 def test_resetpw_modal_ui_present():

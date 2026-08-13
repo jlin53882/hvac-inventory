@@ -410,50 +410,58 @@ def test_client_ip_trust_boundary():
     assert _client_ip(_req("127.0.0.1")) == "127.0.0.1"
 
 # ========== Phase 2b（2026-08-11）：個人改密碼 + 6 個月過期提示 ==========
-# 注意順序：sarah 密碼會依測試依序被改（Test1234 → NewPass123 → FinalPass456）
+# 2026-08-13 Sarah：user 角色不可自行改密碼（403）——流程邏輯改用 admin 驗證（admin 仍可改）
 
-def test_change_password_kills_other_sessions_keeps_current(user_client):
-    """改密碼後：其他 session 失效、當前 session 保留"""
+def test_user_cannot_change_password_403(user_client):
+    """user 角色改密碼 → 403（2026-08-13 Sarah：藍政達/蘇昱豪/吳佩霖等一般使用者由 admin 重設）"""
+    r = user_client.put("/api/auth/password",
+                        json={"old_password": "Test1234", "new_password": "NewPass123"})
+    assert r.status_code == 403
+    assert "不可自行改密碼" in r.json()["detail"]
+
+
+def test_change_password_kills_other_sessions_keeps_current(admin_client):
+    """改密碼後：其他 session 失效、當前 session 保留（admin 流程）"""
     with TestClient(fastapi_app) as c2:
-        assert c2.post("/api/auth/login", json={"username": "sarah", "password": "Test1234"}).status_code == 200
-        r = user_client.put("/api/auth/password",
-                            json={"old_password": "Test1234", "new_password": "NewPass123"})
+        assert c2.post("/api/auth/login", json={"username": "admin", "password": "admin123"}).status_code == 200
+        r = admin_client.put("/api/auth/password",
+                             json={"old_password": "admin123", "new_password": "NewPass123"})
         assert r.status_code == 200
         assert c2.get("/api/auth/me").status_code == 401   # 其他 session 失效
-        assert user_client.get("/api/auth/me").status_code == 200  # 當前保留
+        assert admin_client.get("/api/auth/me").status_code == 200  # 當前保留
 
 
-def test_change_password_wrong_old_400(user_client):
-    """舊密碼錯誤 → 400"""
-    r = user_client.put("/api/auth/password",
-                        json={"old_password": "WrongOld1", "new_password": "NewPass123"})
+def test_change_password_wrong_old_400(admin_client):
+    """舊密碼錯誤 → 400（admin 流程）"""
+    r = admin_client.put("/api/auth/password",
+                         json={"old_password": "WrongOld1", "new_password": "NewPass123"})
     assert r.status_code == 400
     assert "原密碼錯誤" in r.json()["detail"]
 
 
-def test_change_password_policy_400(user_client):
-    """新密碼不合 policy（太短）→ 400"""
-    r = user_client.put("/api/auth/password",
-                        json={"old_password": "WrongOld1", "new_password": "short"})
+def test_change_password_policy_400(admin_client):
+    """新密碼不合 policy（太短）→ 400（admin 流程）"""
+    r = admin_client.put("/api/auth/password",
+                         json={"old_password": "WrongOld1", "new_password": "short"})
     assert r.status_code == 400
 
 
-def test_change_password_same_400(user_client):
-    """新密碼與原密碼相同 → 400"""
-    r = user_client.put("/api/auth/password",
-                        json={"old_password": "Test1234", "new_password": "Test1234"})
+def test_change_password_same_400(admin_client):
+    """新密碼與原密碼相同 → 400（admin 流程）"""
+    r = admin_client.put("/api/auth/password",
+                         json={"old_password": "admin123", "new_password": "admin123"})
     assert r.status_code == 400
     assert "不能與原密碼相同" in r.json()["detail"]
 
 
-def test_change_own_password_success(user_client):
-    """改密碼成功 → 舊密碼登入失敗、新密碼登入成功（fixture 每測試重建 sarah/Test1234）"""
-    r = user_client.put("/api/auth/password",
-                        json={"old_password": "Test1234", "new_password": "FinalPass456"})
+def test_change_own_password_success(admin_client):
+    """改密碼成功 → 舊密碼登入失敗、新密碼登入成功（admin 流程）"""
+    r = admin_client.put("/api/auth/password",
+                         json={"old_password": "admin123", "new_password": "FinalPass456"})
     assert r.status_code == 200
     with TestClient(fastapi_app) as c:
-        assert c.post("/api/auth/login", json={"username": "sarah", "password": "Test1234"}).status_code == 401
-        assert c.post("/api/auth/login", json={"username": "sarah", "password": "FinalPass456"}).status_code == 200
+        assert c.post("/api/auth/login", json={"username": "admin", "password": "admin123"}).status_code == 401
+        assert c.post("/api/auth/login", json={"username": "admin", "password": "FinalPass456"}).status_code == 200
 
 
 def test_viewer_can_change_own_password(admin_client):
