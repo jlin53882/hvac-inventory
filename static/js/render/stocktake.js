@@ -1,6 +1,8 @@
 // 庫存管理系統 - 盤點頁渲染（v10：以位置庫存為單位對帳）
 // ========== 盤點頁 ==========
 async function renderStocktake() {
+  // 2026-08-14 家豪裁決：盤點頁瀏覽掛 view（所有人看得到）；「本次盤點」操作區僅限 stocktake 權限（admin/user）
+  const canStocktake = !!(currentUser && currentUser.permissions && currentUser.permissions['stocktake']);
   document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
 
@@ -54,9 +56,16 @@ async function renderStocktake() {
     html += '</tbody></table>';
   }
 
-  // 盤點輸入表（v10：展開每個位置 = 一列）
+  // 盤點輸入表（v10：展開每個位置 = 一列；2026-08-14：僅限 stocktake 權限，其他角色只讀）
   html += `<div class="section-title" style="margin-top:18px"><span class="loc">✏️ 本次盤點（${todayStr()}）</span>
     <span>共 ${ALL_ITEMS.length} 項</span></div>`;
+  if (!canStocktake) {
+    html += `<div style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:12px;padding:16px;font-size:13px;color:#64748b;text-align:center;margin-bottom:12px">
+      🔒 盤點作業僅限管理員 / 一般使用者操作<br><small style="color:#94a3b8">檢視者與工程師為唯讀，可瀏覽上方盤點歷史與統計</small>
+    </div>`;
+    content.innerHTML = html;
+    return;
+  }
   html += `<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;color:#555">
     逐項輸入<b>實際清點數量</b>，系統會自動計算盤盈/盤虧。<br>
     沒填的品項維持原數量不變。

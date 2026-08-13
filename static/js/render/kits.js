@@ -38,7 +38,10 @@ async function renderKits() {
               <span class="cneed">需 <b class="${enough ? 'ok' : 'low'}">${c.need_qty}</b> / 有 ${c.stock}</span>
             </div>`;
           });
-          html += `</div></div>`;
+          html += `</div>${isViewer ? '' : `<div class="m-card-actions">
+            <button class="btn-prepare" style="margin:0" onclick="openPrepareModal(${k.item_id}, event)">📤 待領出</button>
+            <button class="btn-out" style="margin:0" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>
+          </div>`}</div>`;
         });
       }
     } else {
@@ -64,6 +67,9 @@ async function renderKits() {
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
               ${isViewer ? '' : `
+              ${isViewer ? '' : `
+              <button class="btn-prepare" style="margin-top:0" onclick="openPrepareModal(${k.item_id}, event)">📤 待領出</button>
+              <button class="btn-out" style="margin-top:0" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>`}
               <button class="btn-edit" style="margin-top:0" onclick="editKit(${k.id})">✏️ 編輯</button>
               <button class="btn-del" style="margin-top:0" onclick="deleteKit(${k.id})">刪除</button>`}
               ${isViewer ? '' : `

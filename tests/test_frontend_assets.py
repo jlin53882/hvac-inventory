@@ -408,11 +408,13 @@ def test_title_is_zhenjia_management():
     assert 'class="t-title">振佳空調</span>' in index and 'class="t-title-2">管理系統</span>' in index
 
 def test_topbar_logo_uses_login_image():
-    """topbar 左上角 logo 換成登入照片 login-hvac.png（2026-08-13 Sarah 指定變體 A：24px 圓形直接換圖，
-    與登入頁同款圖；所有頁籤共用同一 topbar）——舊 logo-zhenjia.png 不得殘留"""
+    """topbar 左上角 logo：2026-08-13 換 login-hvac.png（變體 A：24px 圓形）；2026-08-14 再換 logo-topbar.png
+    （Sarah 指定第一張圖，登入頁 login-hvac.png 保留）——所有頁籤共用同一 topbar"""
     html = read(INDEX)
-    assert "/static/img/login-hvac.png" in html
-    assert "logo-zhenjia.png" not in html
+    assert "/static/img/logo-topbar.png" in html, "topbar logo 應指向 logo-topbar.png"
+    assert "logo-zhenjia.png" not in html, "舊 logo-zhenjia.png 不得殘留"
+    assert "/static/img/logo-topbar.png" in html and os.path.exists(os.path.join(STATIC, "img", "logo-topbar.png")), \
+        "logo-topbar.png 檔案必須存在"
 
 def test_login_img_no_manual_cachebuster():
     """登入圖版本號由 server 自動注入（_versioned_html 依檔案 mtime），原始 login.html 不得手動寫 ?v=——
@@ -1002,6 +1004,20 @@ def test_stockout_modal_core_functions():
                "openPreparedOutModal", "submitPreparedOut", "returnPrepared", "returnStockout",
                "openEditStockoutModal", "submitEditStockout"):
         assert fn in js, f"stockout.js(modals) 缺 {fn}"
+
+
+def test_stocktake_view_for_all_roles():
+    """2026-08-14 家豪裁決（Sarah：藍政達/蘇昱豪手機看不到盤點）：盤點頁瀏覽掛 view 基底權限——
+    所有角色看得到盤點 tab；「本次盤點」操作區僅限 stocktake 權限（admin/user）"""
+    au = read(AUTH_JS)
+    assert "canViewStocktake" in au, "auth.js 缺 canViewStocktake（瀏覽權限）"
+    assert "navStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
+    assert "reminder.style.display = canStocktake ? '' : 'none'" in au,         "盤點提醒橫幅仍限操作者（canStocktake）"
+
+    st = read(STOCKTAKE_JS)
+    assert "canStocktake" in st, "renderStocktake 缺 canStocktake 判斷"
+    assert "盤點作業僅限管理員" in st, "只讀提示（非操作者）缺失"
+    assert "content.innerHTML = html;" in st, "只讀模式要能渲染（歷史/統計）"
 
 
 def test_kit_stockout_actions():

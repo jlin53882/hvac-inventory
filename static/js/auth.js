@@ -86,20 +86,21 @@ function applyRoleView(user) {
   if (!user) return;
   const perms = user.permissions || {};
   const canStocktake = !!perms['stocktake'];
+  // 2026-08-14 家豪裁決（Sarah 需求）：盤點頁瀏覽掛 view 基底權限——所有角色看得到盤點 tab/歷史，操作仍限 canStocktake
+  const canViewStocktake = canStocktake || !!perms['view'];
   const canAdjust = !!perms['stock-mgmt'];
   // 2026-08-13 Sarah：新增按鈕已移到庫存清單頂部（inventory.js renderInventory 內，由權限判斷隱藏）
   const navStocktake = document.getElementById('nav-stocktake');
   const reminder = document.getElementById('reminder');
   const saveBar = document.getElementById('save-bar');
 
-  // 盤點 tab 隱藏（不能盤點就不顯示）；待領出/已領出保留（家豪已確認可看）
-  if (navStocktake) navStocktake.style.display = canStocktake ? '' : 'none';
-  // 盤點提醒橫幅隱藏
+  // 盤點 tab 顯示：有 stocktake（操作）或 view（瀏覽）都顯示；盤點提醒橫幅仍限操作者
+  if (navStocktake) navStocktake.style.display = canViewStocktake ? '' : 'none';
   if (reminder) reminder.style.display = canStocktake ? '' : 'none';
   // 儲存列隱藏（數量不可編輯）
   if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';
-  // 若停在隱藏的盤點 tab → 強制切回庫存頁
-  if (!canStocktake && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
+  // 若停在看不到的盤點 tab → 強制切回庫存頁
+  if (!canViewStocktake && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
     switchTab('inventory');
   }
   // 匯出按鈕已移到庫存清單頂部（inventory.js renderInventory 內，2026-08-13 Sarah）
