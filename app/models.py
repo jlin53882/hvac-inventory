@@ -58,12 +58,12 @@ class StockOutRequest(BaseModel):
 
 
 class NonStockOutRequest(BaseModel):
-    """新增非庫存品項的已領出（不在單一庫存/整組庫存，只記流水不扣庫存）"""
+    """新增非庫存品項的已領出/待領出（不在單一庫存/整組庫存，只記流水不扣庫存；destination 端點內驗證）"""
     name: str
     code: str = ""
     unit: str = "個"
     qty: float = Field(..., gt=0)
-    destination: str
+    destination: str = ""
     note: str = ""
 
 

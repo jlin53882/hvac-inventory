@@ -92,6 +92,44 @@ async function submitNonStockOut() {
   }
 }
 
+// ========== 非庫存品項待領出（2026-08-13 家豪：比照已領出，待領出頁直接新增不在庫存的東西） ==========
+function openNonStockPrepareModal() {
+  document.getElementById('nsp-name').value = '';
+  document.getElementById('nsp-code').value = '';
+  document.getElementById('nsp-unit').value = '個';
+  document.getElementById('nsp-qty').value = '';
+  document.getElementById('nsp-note').value = '';
+  openModal('nonstock-prepare-modal');
+}
+
+async function submitNonStockPrepare() {
+  const name = document.getElementById('nsp-name').value.trim();
+  const code = document.getElementById('nsp-code').value.trim();
+  const unit = document.getElementById('nsp-unit').value.trim() || '個';
+  const qty = parseFloat(document.getElementById('nsp-qty').value);
+  const note = document.getElementById('nsp-note').value.trim();
+
+  if (!name) { toast('請輸入品項名稱', 'error'); return; }
+  if (!qty || qty <= 0) { toast('請輸入待領出數量', 'error'); return; }
+
+  try {
+    const res = await fetch('/api/prepare/nonstock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, code: code, unit: unit, qty: qty, destination: '', note: note })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || '新增失敗');
+    }
+    closeModalForce('nonstock-prepare-modal');
+    toast(`✅ 已新增待領出 ${qty} ${unit}`, 'success');
+    await loadData();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
 // ========== 領出準備（兩階段出庫） ==========
 function openPrepareModal(id, ev) {
   if (ev) ev.stopPropagation();

@@ -285,6 +285,33 @@ def delete_stockout(movement_id: int):
     return {"ok": True, "deleted": movement_id}
 
 
+@router.post("/api/prepare/nonstock")
+def prepare_nonstock(req: NonStockOutRequest):
+    """新增「非庫存品項」的待領出（2026-08-13 家豪，比照 /api/stockout/nonstock）：建臨時品項（is_deleted=1）+ 標記 prepared_qty，不扣庫存"""
+    name = req.name.strip()
+    unit = req.unit.strip() or "個"
+    code = req.code.strip()
+    note = req.note.strip()
+    if not name:
+        raise HTTPException(400, "品項名稱不能為空")
+    if req.qty <= 0:
+        raise HTTPException(400, "數量必須大於 0")
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
+        "VALUES ('',?,?,?,?,0,0,'',1)",
+        (code, name, req.qty, unit),
+    )
+    item_id = cur.lastrowid
+    conn.execute(
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,?,?,?)",
+        (item_id, 0, req.qty, "領出準備", note),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": item_id, "name": name}
+
+
 @router.post("/api/items/{item_id}/prepare")
 def prepare_item(item_id: int, req: PrepareRequest):
     """領出準備：把東西拿出來準備（庫存不扣，只標記 prepared_qty）"""
@@ -321,16 +348,33 @@ def prepared_out(item_id: int, req: PrepareRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
     if not row:
         raise HTTPException(404, "品項不存在")
     if req.qty > row["prepared_qty"]:
         raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
 
+    dest = req.note  # note 欄位當去向用（相容前端）
+    if row["is_deleted"]:
+        # 非庫存品項：無庫存可扣，直接寫出庫流水（before/after=0）+ 清 prepared_qty
+        new_prepared = row["prepared_qty"] - req.qty
+        cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
+                           (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
+        if cur.rowcount == 0:
+            raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,'出庫',?)",
+            (item_id, -req.qty, dest),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        payload = _item_payload(conn, updated)
+        conn.close()
+        return payload
+
     before = _total_qty(conn, item_id)
     after = before - req.qty
     new_prepared = row["prepared_qty"] - req.qty
-    dest = req.note  # note 欄位當去向用（相容前端）
 
     _deduct(conn, item_id, req.qty, req.location)
     cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
@@ -354,7 +398,7 @@ def prepared_return(item_id: int, req: PrepareRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
     if not row:
         raise HTTPException(404, "品項不存在")
     if req.qty > row["prepared_qty"]:
@@ -386,7 +430,7 @@ def list_prepared(site: Optional[str] = None):
         where = " AND site = ?"
         params = (site,)
     rows = conn.execute(f"""
-        SELECT * FROM items WHERE prepared_qty > 0 AND is_deleted = 0{where} ORDER BY brand COLLATE NOCASE, name
+        SELECT * FROM items WHERE prepared_qty > 0 AND (is_deleted = 0 OR site = ''){where} ORDER BY brand COLLATE NOCASE, name
     """, params).fetchall()
     payloads = [_item_payload(conn, r) for r in rows]  # 補 total_qty/location/stocks 相容欄位
     conn.close()

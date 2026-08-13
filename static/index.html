@@ -289,6 +289,38 @@
   </div>
 </div>
 
+<!-- 非庫存品項待領出 Modal（2026-08-13 家豪：待領出頁也可直接新增不在庫存的東西） -->
+<div class="modal-overlay" id="nonstock-prepare-modal">
+  <div class="modal">
+    <h3>➕ 新增待領出</h3>
+    <div class="hint-nonstock">ℹ️ 此品項不在單一庫存 / 整組庫存，只記錄這次待領出，不會加入庫存清單</div>
+    <div class="form-row">
+      <label>品項名稱 *</label>
+      <input type="text" id="nsp-name" placeholder="直接輸入名稱，例如：冷媒銅管 3分">
+    </div>
+    <div class="form-row">
+      <label>型號（選填）</label>
+      <input type="text" id="nsp-code" placeholder="例如：3/8&quot;">
+    </div>
+    <div class="form-row">
+      <label>單位</label>
+      <input type="text" id="nsp-unit" value="個">
+    </div>
+    <div class="form-row">
+      <label>待領出數量 *</label>
+      <input type="number" id="nsp-qty" min="0" step="any" placeholder="要準備多少">
+    </div>
+    <div class="form-row">
+      <label>備註（選填）</label>
+      <textarea id="nsp-note" placeholder="例如：安裝、維修…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('nonstock-prepare-modal')">取消</button>
+      <button class="btn-confirm orange" onclick="submitNonStockPrepare()">📤 確認待領出</button>
+    </div>
+  </div>
+</div>
+
 <!-- 待領出 Modal -->
 <div class="modal-overlay" id="prepare-modal">
   <div class="modal">

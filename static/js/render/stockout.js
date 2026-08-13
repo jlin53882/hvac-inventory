@@ -27,7 +27,8 @@ async function renderStockOuts() {
     const isM = (typeof isMobileView === 'function') && isMobileView();
     let html = '';
     // 2026-08-13 Sarah：已領出可直接新增「不在庫存」的品項（只記流水、不扣庫存）
-    html += `<div class="loc-export-bar"><span>共 ${outs.length} 筆</span>${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockOutModal()">＋ 新增已領出</button>'}</div>`;
+    const stockoutBar = `<div class="loc-export-bar"><span>共 ${outs.length} 筆</span>${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockOutModal()">＋ 新增已領出</button>'}</div>`;
+    html += stockoutBar;
     if (isM) {
       // ===== 手機版：卡片式（⋯ 動作選單） =====
       Object.keys(byMonth).sort().reverse().forEach(m => {
@@ -51,7 +52,7 @@ async function renderStockOuts() {
       });
     } else {
       // ===== 桌面版：原表格 =====
-    html = '';
+    html = stockoutBar;  // 桌面版也要有「＋ 新增已領出」（2026-08-13 家豪：電腦版沒出現按鈕）
     Object.keys(byMonth).sort().reverse().forEach(m => {
       const list = byMonth[m];
       // 統計只算「未退回」的出庫（退回的數量已加回庫存）

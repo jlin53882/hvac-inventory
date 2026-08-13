@@ -11,13 +11,17 @@ async function renderPrepared() {
     const items = await res.json();
 
     if (!items.length) {
-      content.innerHTML = '<div class="empty">📤 目前沒有待領出的品項<br><small>在庫存頁點「待領出」把要帶的材料先準備好</small></div>';
+      content.innerHTML = '<div class="empty">📤 目前沒有待領出的品項<br><small>在庫存頁點「待領出」把要帶的材料先準備好</small>' +
+        (isViewer ? '' : '<br><br><button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>') + '</div>';
       updatePreparedBadge(0);
       return;
     }
 
     const totalPrepared = items.reduce((s, i) => s + i.prepared_qty, 0);
     let html = '';
+    // 2026-08-13 家豪：待領出頁也可直接新增「不在庫存」的品項（比照已領出）
+    const preparedBar = `<div class="loc-export-bar"><span>共 ${items.length} 筆</span>${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>'}</div>`;
+    html += preparedBar;
     const isM = (typeof isMobileView === 'function') && isMobileView();
     if (isM) {
       // ===== 手機版：卡片式（⋯ 動作選單） =====
@@ -27,7 +31,7 @@ async function renderPrepared() {
           reverted: false,
           moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${i.id})">⋯</button>`,
           thumb: buildThumb(i.id, i.has_photo, i.name, '📷'),
-          nameHTML: `${esc(i.brand)} ${esc(i.name)}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<span class="chip green">待領出</span>`,
+          nameHTML: `${esc(i.brand)} ${esc(i.name)}${i.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<span class="chip green">待領出</span>`,
           subHTML: esc(i.location || '未標示'),
           extraHTML: `<div><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>`,
           qtyHTML: buildQtyNum(i.prepared_qty, i.unit, 'qty-violet'),
@@ -36,7 +40,7 @@ async function renderPrepared() {
       });
     } else {
       // ===== 桌面版：原表格 =====
-    html = `
+    html = preparedBar + `
       <div class="section-title"><span class="loc">📤 待領出（已拿出未出去）</span><span>${items.length} 項 · ${totalPrepared} 件</span></div>
       <div style="background:#f5f3ff;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#6d28d9">
         💡 待領出 <b>不會扣庫存</b>。真正出去時按「已領出」才會扣，也可以「退回」。
@@ -52,7 +56,7 @@ async function renderPrepared() {
         : `<div class="so-photo so-photo-empty">📷</div>`;
       html += `<tr>
         <td class="photo-cell">${pPhoto}</td>
-        <td>${esc(i.brand)} ${esc(i.name)}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
+        <td>${esc(i.brand)} ${esc(i.name)}${i.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
         <td style="text-align:center"><b style="color:#6d28d9">${i.prepared_qty}</b> ${esc(i.unit)}</td>
         <td style="text-align:center">${i.qty} ${esc(i.unit)}</td>
         ${isViewer ? '' : `<td style="white-space:nowrap">

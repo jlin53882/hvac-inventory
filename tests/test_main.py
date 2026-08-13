@@ -1755,6 +1755,60 @@ class TestNonStockOut:
             "name": "雜項", "qty": 0, "destination": "客戶A"})
         assert r.status_code in (400, 422)
 
+    def test_nonstock_prepare_shows_in_list(self, client):
+        """非庫存品項待領出：/api/prepare/nonstock 建臨時品項 + prepared_qty，出現在待領出清單（含 is_deleted 標記）"""
+        r = client.post("/api/prepare/nonstock", json={
+            "name": "臨時耗材", "code": "T-1", "unit": "捲", "qty": 3, "note": "工地備料"})
+        assert r.status_code == 200, r.text
+        pid = r.json()["id"]
+
+        prepared = client.get("/api/prepared").json()
+        match = [i for i in prepared if i["id"] == pid]
+        assert len(match) == 1, "非庫存待領出應出現在待領出清單"
+        assert match[0]["prepared_qty"] == 3
+        assert match[0]["is_deleted"] == 1
+        assert match[0]["unit"] == "捲"
+
+        # 庫存頁看不到
+        items = client.get("/api/items").json()
+        assert all(i["id"] != pid for i in items)
+
+    def test_nonstock_prepare_out_becomes_stockout(self, client):
+        """非庫存品項待領出 → 確認出庫：不扣庫存、直接寫出庫流水、清 prepared_qty"""
+        r = client.post("/api/prepare/nonstock", json={
+            "name": "臨時材料", "qty": 2, "destination": ""})
+        assert r.status_code == 200
+        pid = r.json()["id"]
+
+        out = client.post(f"/api/items/{pid}/prepared-out",
+                          json={"qty": 2, "note": "某案場", "location": ""})
+        assert out.status_code == 200, out.text
+        assert out.json()["prepared_qty"] == 0
+
+        # 已領出清單有該筆（非庫存、出庫流水）
+        outs = client.get("/api/stockouts").json()
+        match = [o for o in outs if o["item_id"] == pid]
+        assert len(match) == 1
+        assert match[0]["delta"] == -2
+        assert match[0]["item_deleted"] == 1
+        assert match[0]["destination"] == "某案場"
+
+    def test_nonstock_prepared_return_clears(self, client):
+        """非庫存品項待領出 → 退回：清 prepared_qty、無出庫流水（不加庫存）"""
+        r = client.post("/api/prepare/nonstock", json={
+            "name": "臨時材料", "qty": 2, "destination": ""})
+        assert r.status_code == 200
+        pid = r.json()["id"]
+
+        ret = client.post(f"/api/items/{pid}/prepared-return", json={"qty": 2, "location": ""})
+        assert ret.status_code == 200, ret.text
+        assert ret.json()["prepared_qty"] == 0
+
+        prepared = client.get("/api/prepared").json()
+        assert all(i["id"] != pid for i in prepared), "退回後不應再出現在待領出"
+        outs = client.get("/api/stockouts").json()
+        assert all(o["item_id"] != pid for o in outs), "退回不應產生出庫流水"
+
     def test_nonstock_stockout_does_not_deduct_inventory(self, client):
         """非庫存領出不影響任何既有庫存數量"""
         item = _add_item(client, name="既有品", qty=5)
