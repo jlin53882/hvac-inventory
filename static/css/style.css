@@ -161,6 +161,12 @@
 
   /* 內容區 */
   .content { padding: 14px 16px 20px; max-width: 640px; margin: 0 auto; }
+  /* 庫存清單頂部匯出列（2026-08-13 Sarah：匯出按鈕從 topbar 移到這裡，靠右） */
+  .loc-export-bar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: 10px 2px 4px; }
+  .btn-export { background: #1a73e8; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-export:hover { background: #1557b0; }
+  .loc-export-count { font-size: 12px; color: #888; }
+
   .section-title {
     font-size: 13px; font-weight: 700; color: #888;
     margin: 14px 0 8px;

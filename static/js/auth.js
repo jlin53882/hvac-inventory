@@ -73,7 +73,6 @@ function applyRoleView(user) {
   if (!user) return;
   const isViewer = user.role === 'viewer';
   const btnAdd = document.getElementById('btn-add');
-  const btnExport = document.getElementById('btn-export');
   const navStocktake = document.getElementById('nav-stocktake');
   const reminder = document.getElementById('reminder');
   const saveBar = document.getElementById('save-bar');
@@ -97,6 +96,5 @@ function applyRoleView(user) {
     if (navStocktake) navStocktake.style.display = '';
     if (saveBar) saveBar.style.display = '';
   }
-  // 匯出按鈕：admin/user/viewer 全部顯示
-  if (btnExport) btnExport.style.display = '';
+  // 匯出按鈕已移到庫存清單頂部（inventory.js renderInventory 內，2026-08-13 Sarah）
 }

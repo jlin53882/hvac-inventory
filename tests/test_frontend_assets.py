@@ -252,11 +252,12 @@ def test_users_js_has_viewer_role_option():
 # ---------- viewer 角色前端（唯讀模式） ----------
 
 def test_auth_js_has_apply_role_view():
-    """auth.js 有 applyRoleView：viewer 隱藏新增/盤點/儲存列/提醒；匯出保留"""
+    """auth.js 有 applyRoleView：viewer 隱藏新增/盤點/儲存列/提醒
+    （2026-08-13 Sarah：匯出按鈕已移到庫存清單頂部 inventory.js，auth.js 不再引用 btn-export）"""
     js = read(AUTH_JS)
     assert "applyRoleView" in js
     assert "btn-add" in js
-    assert "btn-export" in js
+    assert "btn-export" not in js  # 已搬移，不留 dead code
     assert "nav-stocktake" in js
     assert "save-bar" in js
     assert "檢視者" in js  # viewer chip 文字
@@ -674,8 +675,19 @@ if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
 
 
-# ---------- 行事曆派工（📅） ----------
 
+def test_index_has_no_topbar_export():
+    """2026-08-13 Sarah：匯出按鈕從 topbar 移到庫存清單頂部右側（index.html 無 btn-export；inventory.js 有 loc-export-bar；CSS 靠右）"""
+    idx = read(INDEX)
+    assert 'id="btn-export"' not in idx
+    inv = read(INVENTORY_RENDER_JS)
+    assert "loc-export-bar" in inv
+    assert "onclick=\"exportExcel()\"" in inv
+    css = read(CSS)
+    assert "justify-content: flex-end" in css  # 匯出列靠右（2026-08-13 Sarah 選項）
+
+
+# ---------- 行事曆派工（📅） ----------
 def test_index_has_calendar_nav():
     """bottom-nav 含行事曆頁籤（2026-08-13 Sarah：行事曆移到最前面且登入預設顯示行事曆）"""
     html = read(INDEX)
