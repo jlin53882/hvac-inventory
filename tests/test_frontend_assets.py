@@ -1027,6 +1027,7 @@ def test_stockout_nonstock_add_ui():
 
     rjs = read(STOCKOUT_RENDER_JS)
     assert "onclick=\"openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
+    assert "site=${currentSite}" in rjs, "已領出頁 fetch 應隨 site 過濾（倉庫 0 就不能顯示內容）"
     assert "共 ${outs.length} 筆" in rjs, "已領出頁缺筆數列"
     assert "tag-nonstock" in rjs, "非庫存標籤 class 缺失"
 

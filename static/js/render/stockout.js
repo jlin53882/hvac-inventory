@@ -7,7 +7,7 @@ async function renderStockOuts() {
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入紀錄…</div></div>';
 
   try {
-    const res = await fetch('/api/stockouts?limit=200');
+    const res = await fetch(`/api/stockouts?limit=200&site=${currentSite}`);
     const outs = await res.json();
     stockoutRecords = outs;  // 供退回/編輯 modal 查品項資訊
 

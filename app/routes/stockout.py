@@ -153,7 +153,8 @@ def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", sit
     """
     params = []
     if site and site != "all":
-        sql += " AND i.site = ?"
+        # 非庫存品項（is_deleted=1）不分 site 永遠顯示（2026-08-13：已領出隨 site 過濾，但非庫存品項不屬於任何 site）
+        sql += " AND (i.site = ? OR i.is_deleted = 1)"
         params.append(site)
     if search:
         sql += " AND (m.destination LIKE ? OR i.name LIKE ? OR i.brand LIKE ?)"

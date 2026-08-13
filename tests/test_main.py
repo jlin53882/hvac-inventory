@@ -1061,6 +1061,25 @@ class TestSiteSharding:
         assert len(wh_outs) == 1
         assert wh_outs[0]["destination"] == "倉庫去向"
 
+    def test_stockout_site_filter_shows_nonstock_everywhere(self, client):
+        """2026-08-13：非庫存品項（is_deleted=1）不受 site 過濾——office/warehouse 都看得到"""
+        office_item = _add_item(client, name="辦公室品項", qty=10)
+        client.post(f"/api/items/{office_item['id']}/adjust",
+                    json={"delta": -2, "reason": "出庫", "destination": "辦公室去向"})
+        r = client.post("/api/stockout/nonstock", json={
+            "name": "臨時耗材", "qty": 1, "destination": "某案場"})
+        assert r.status_code == 200
+        ns_id = r.json()["id"]
+
+        office_outs = client.get("/api/stockouts", params={"site": "office"}).json()
+        wh_outs = client.get("/api/stockouts", params={"site": "warehouse"}).json()
+        # 非庫存品項兩邊都顯示
+        assert any(o["item_id"] == ns_id for o in office_outs), "非庫存品項在 office 過濾下應顯示"
+        assert any(o["item_id"] == ns_id for o in wh_outs), "非庫存品項在 warehouse 過濾下應顯示"
+        # 一般品項只有 office 看得到
+        assert any(o["item_id"] == office_item["id"] for o in office_outs)
+        assert all(o["item_id"] != office_item["id"] for o in wh_outs)
+
     def test_update_item_site(self, client):
         """編輯品項可以搬移分片"""
         item = _add_item(client, name="品項", site="office")
