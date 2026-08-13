@@ -4,11 +4,12 @@
 // 維護：任何權限異動時，同步更新本檔 + docs/權限列表.md
 // 使用：getRolePerms(role) → [{label, allowed}]，供使用者管理 modal 顯示權限一覽
 
-// 角色顯示名稱
+// 角色顯示名稱（2026-08-13：加 tech——B1 帳號列表顯示修正）
 var ROLE_LABELS = {
   admin: '👑 管理員',
   user: '👤 使用者',
   viewer: '👀 檢視者',
+  tech: '🔧 工程師',
 };
 
 // 權限矩陣：每個權限項目各角色的可否（admin/user/viewer）

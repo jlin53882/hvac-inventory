@@ -212,7 +212,11 @@ def change_my_password(body: ChangePasswordRequest, request: Request, user: dict
 
 @router.post("/password-ack")
 def ack_password_expiry(request: Request, user: dict = Depends(authenticate)):
-    """按「繼續使用原密碼」→ 重置 180 天計時（帳號層級，跨裝置一致）；viewer 也可按"""
+    """按「繼續使用原密碼」→ 重置 180 天計時（帳號層級，跨裝置一致）
+    B4（2026-08-13）：只有 admin 可 ack——非 admin 密碼由 admin 控管（不可自行改密碼），
+    過期後 ack 403 → 前端持續提醒「請聯絡管理員重設」，政策不再形同虛設"""
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="密碼已過期，請聯絡管理員重設")
     conn = get_db()
     try:
         conn.execute("UPDATE users SET password_updated_at = datetime('now') WHERE id = ?", (user["id"],))

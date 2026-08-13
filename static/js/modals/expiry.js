@@ -2,12 +2,15 @@
 // 規則：按「立即改密碼」或「繼續使用原密碼」任一鍵 → 後端重置 180 天（帳號層級）
 // ========== 開啟 ==========
 function openExpiryModal() {
-  // 2026-08-13 Sarah：只有 admin 可自行改密碼 → 過期提示只留「繼續使用原密碼」（user/tech/viewer 由 admin 重設）
+  // B4（2026-08-13）：只有 admin 可自行改密碼/ack——非 admin 過期只顯示「請聯絡管理員重設」
   const u = (typeof currentUser !== 'undefined') ? currentUser : null;
+  const isAdmin = u && u.role === 'admin';
   const btn = document.querySelector('#expiry-modal .btn-save');
-  if (btn) {
-    btn.style.display = (u && u.role === 'admin') ? '' : 'none';
-  }
+  const ack = document.querySelector('#expiry-modal .btn-cancel');
+  const adminOnly = document.getElementById('expiry-admin-only');
+  if (btn) btn.style.display = isAdmin ? '' : 'none';
+  if (ack) ack.style.display = isAdmin ? '' : 'none';
+  if (adminOnly) adminOnly.style.display = isAdmin ? 'none' : '';
   openModal('expiry-modal');
 }
 

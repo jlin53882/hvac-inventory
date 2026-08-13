@@ -181,6 +181,41 @@ def test_delete_user(admin_client):
         assert c.post("/api/auth/login", json={"username": "gone", "password": "Pass1234"}).status_code == 401
 
 
+def test_delete_user_with_appointments_blocked(admin_client):
+    """A1（2026-08-13）：刪除「當過派工新增者/被指派者」的帳號 → 400 提示，不 500"""
+    r = admin_client.post("/api/users", json={
+        "username": "techdel", "password": "Pass1234", "display_name": "TD", "role": "tech",
+    })
+    uid = r.json()["id"]
+    # 指派該帳號到一筆派工
+    r = admin_client.post("/api/appointments", json={
+        "client_name": "A1測試", "address": "", "service_type_id": 1,
+        "date": "2026-08-20", "start_time": "10:00", "end_time": "10:00",
+        "note": "", "user_ids": [uid],
+    })
+    assert r.status_code == 200, r.text
+    # 刪除 → 400（有派工紀錄）
+    r = admin_client.delete(f"/api/users/{uid}")
+    assert r.status_code == 400
+    assert "派工紀錄" in r.text
+    # 該帳號仍存在（未被刪除）
+    lst = admin_client.get("/api/users").json()
+    users = lst if isinstance(lst, list) else lst.get("users", [])
+    assert any(u["id"] == uid for u in users)
+
+
+def test_ack_password_expiry_admin_only(admin_client):
+    """B4（2026-08-13）：只有 admin 可 ack 密碼過期；user/viewer/tech → 403"""
+    # 建一個 user 帳號登入試 ack
+    admin_client.post("/api/users", json={
+        "username": "ackuser", "password": "Test1234", "display_name": "AU", "role": "user"})
+    with TestClient(fastapi_app) as c:
+        assert c.post("/api/auth/login", json={"username": "ackuser", "password": "Test1234"}).status_code == 200
+        assert c.post("/api/auth/password-ack").status_code == 403
+    # admin 可 ack
+    assert admin_client.post("/api/auth/password-ack").status_code == 200
+
+
 # ---------- 批次新增（表格 UI 用） ----------
 
 def test_batch_create_all_ok(admin_client):

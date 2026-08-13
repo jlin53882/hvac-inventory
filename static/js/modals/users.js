@@ -145,7 +145,7 @@ async function loadUsersTable() {
     const tb = document.getElementById('usersTableBody');
     tb.innerHTML = data.users.map(u => {
       const me = currentUser && u.id === currentUser.id;
-      const roleLabel = ROLE_LABELS[u.role] || (u.role === 'admin' ? '🛡️ 管理員' : u.role === 'viewer' ? '👀 檢視者' : '👤 使用者');
+      const roleLabel = ROLE_LABELS[u.role] || (u.role === 'admin' ? '🛡️ 管理員' : u.role === 'viewer' ? '👀 檢視者' : u.role === 'tech' ? '🔧 工程師' : '👤 使用者');
       const roleClass = u.role === 'admin' ? 'role-badge-admin' : u.role === 'viewer' ? 'role-badge-viewer' : 'role-badge-user';
       return `<tr>
         <td style="padding:8px; font-weight:700">${esc(u.username)}${me ? ' <small>(我)</small>' : ''}</td>

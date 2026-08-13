@@ -49,7 +49,7 @@ class UserBatch(BaseModel):
     users: list[UserCreate]
 
 
-# 可建立的角色（admin/user/viewer）
+# 可建立的角色（admin/user/viewer/tech——tech：行事曆可寫、其他唯讀，2026-08-13 Sarah：藍政達）
 ALLOWED_ROLES = ("admin", "user", "viewer", "tech")  # tech：行事曆可寫、其他唯讀（2026-08-13 Sarah：藍政達）
 
 
@@ -220,7 +220,7 @@ def reset_password(user_id: int, body: UserPassword, admin: dict = Depends(requi
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int, admin: dict = Depends(require_admin)):
-    """刪除帳號（不能刪自己 / 不能刪最後一名啟用 admin）"""
+    """刪除帳號（不能刪自己 / 不能刪最後一名啟用 admin / 不能被行事曆引用——A1 防 FK 500）"""
     if admin["id"] == user_id:
         raise HTTPException(status_code=400, detail="不能刪除自己")
     conn = get_db()
@@ -228,6 +228,16 @@ def delete_user(user_id: int, admin: dict = Depends(require_admin)):
         row = _get_user_or_404(conn, user_id)
         if row["role"] == "admin" and row["is_active"] == 1 and _active_admin_count(conn, exclude_id=user_id) == 0:
             raise HTTPException(status_code=400, detail="系統必須保留一名啟用的管理員")
+        # A1（2026-08-13）：刪除前檢查行事曆引用——created_by/updated_by/被指派，有引用回 400 不 500
+        ref = conn.execute(
+            """SELECT
+                 (SELECT COUNT(*) FROM appointments WHERE created_by=?) +
+                 (SELECT COUNT(*) FROM appointments WHERE updated_by=?) +
+                 (SELECT COUNT(*) FROM appointment_assignees WHERE user_id=?) AS cnt""",
+            (user_id, user_id, user_id)).fetchone()
+        if ref and ref["cnt"] > 0:
+            raise HTTPException(status_code=400,
+                                detail="該帳號有派工紀錄（新增/編輯/被指派），無法刪除；可先停用帳號")
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.commit()

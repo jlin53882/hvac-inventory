@@ -606,7 +606,10 @@ def test_changepw_expiry_ui_present():
     exp = read(os.path.join(STATIC, "js", "modals", "expiry.js"))
     assert "function openExpiryModal" in exp
     assert "function ackPasswordExpiry" in exp
-    assert "u.role === 'admin'" in exp  # 只有 admin 過期提示顯示「立即改密碼」按鈕（2026-08-13 Sarah）
+    assert "u.role === 'admin'" in exp  # 只有 admin 過期提示顯示按鈕（B4：非 admin 只顯示請聯絡管理員）
+    assert "expiry-admin-only" in idx  # 非 admin 過期提醒文字（B4 2026-08-13）
+    pm = read(os.path.join(STATIC, "js", "permissions.js"))
+    assert "tech: '🔧 工程師'" in pm  # B1：ROLE_LABELS 有 tech（帳號列表顯示修正）
 
 
 def test_resetpw_modal_ui_present():
