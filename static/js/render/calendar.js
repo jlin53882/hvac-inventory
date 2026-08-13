@@ -112,7 +112,7 @@ function calModalHtml(isAdmin) {
         </div>
       </div>
       <div class="form-row">
-        <label>備註（型號 / 車馬費）</label>
+        <label>備註</label>
         <textarea id="cal-f-note" rows="2" placeholder="例：車馬費 800 元"></textarea>
       </div>
       <div class="modal-actions">
