@@ -9,7 +9,7 @@ async function loadData() {
     buildDatalists();
     checkReminder();
     updateSubInfo();
-    renderInventory();
+    switchTab(currentTab);  // 2026-08-13 Sarah：登入預設顯示行事曆（由 currentTab 分派；庫存頁行為不變）
     loadPreparedBadge();  // 剛進網頁就要顯示待領出數量小標
   } catch (e) {
     document.getElementById('content').innerHTML =

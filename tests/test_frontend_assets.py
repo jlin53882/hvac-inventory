@@ -675,10 +675,24 @@ if __name__ == "__main__":
 # ---------- 行事曆派工（📅） ----------
 
 def test_index_has_calendar_nav():
-    """bottom-nav 含行事曆頁籤"""
+    """bottom-nav 含行事曆頁籤（2026-08-13 Sarah：行事曆移到最前面且登入預設顯示行事曆）"""
     html = read(INDEX)
     assert 'id="nav-calendar"' in html
     assert "行事曆" in html
+    # 2026-08-13：行事曆在 nav 第一個，且 active 在 nav-calendar（登入一進來顯示行事曆）
+    i_cal = html.index('id="nav-calendar"')
+    i_inv = html.index('id="nav-inventory"')
+    assert i_cal < i_inv, "行事曆應在 nav 最前面"
+    assert 'class="nav-item active" id="nav-calendar"' in html
+    assert 'class="nav-item" id="nav-inventory"' in html
+
+
+def test_default_tab_is_calendar():
+    """登入一進來顯示行事曆（2026-08-13 Sarah）：globals currentTab 初始 calendar + loadData 用 switchTab 分派"""
+    gl = read(GLOBALS_JS)
+    assert "var currentTab = 'calendar';" in gl
+    ap = read(API_JS)
+    assert "switchTab(currentTab);" in ap
 
 
 def test_index_loads_calendar_js():

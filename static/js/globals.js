@@ -7,8 +7,9 @@
 var ALL_ITEMS = [];
 var currentBrand = '全部';
 var pending = {};   // itemId -> delta
-// 目前頁籤（inventory/prepared/stockout/stocktake/kit）
-var currentTab = 'inventory';
+// 目前頁籤（inventory/prepared/stockout/stocktake/kit/calendar）
+// 2026-08-13 Sarah：登入預設顯示行事曆（原本 inventory）
+var currentTab = 'calendar';
 var currentSite = 'office';  // office=辦公室 / warehouse=倉庫
 // 正在編輯的品項 id（編輯 modal）
 var editItemId = null;
