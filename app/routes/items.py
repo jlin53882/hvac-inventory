@@ -245,28 +245,58 @@ def add_stock(item_id: int, st: StockUpdate):
 
 @router.patch("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])
 def update_stock(stock_id: int, st: StockUpdate):
-    """修改位置庫存（數量/位置/備註）；改位置時檢查同品項內重複"""
+    """修改位置庫存（數量/位置/備註）；改位置時檢查同品項內重複
+
+    2026-08-14 併發修復：qty 改「相對差額」寫回（併發不互相覆蓋）+ 補 movements 流水
+    （原本絕對值寫回且零流水）；負數調整以品項「總量」比對待領出（與 adjust_qty 語意一致）。
+    """
     conn = get_db()
-    fields = {k: v for k, v in st.model_dump().items() if v is not None}
-    row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(404, "位置庫存不存在")
-    if "location" in fields and fields["location"] != row["location"]:
-        dup = conn.execute(
-            "SELECT id FROM item_stocks WHERE item_id=? AND location=? AND id!=?",
-            (row["item_id"], fields["location"], stock_id),
-        ).fetchone()
-        if dup:
-            conn.close()
-            raise HTTPException(400, f"該位置「{fields['location']}」已存在")
-    if fields:
-        fields["updated_at"] = datetime.datetime.now().isoformat()
-        sets = ", ".join(f"{k}=?" for k in fields)
-        conn.execute(f"UPDATE item_stocks SET {sets} WHERE id=?", (*fields.values(), stock_id))
+    try:
+        fields = {k: v for k, v in st.model_dump().items() if v is not None}
+        row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "位置庫存不存在")
+        if "location" in fields and fields["location"] != row["location"]:
+            dup = conn.execute(
+                "SELECT id FROM item_stocks WHERE item_id=? AND location=? AND id!=?",
+                (row["item_id"], fields["location"], stock_id),
+            ).fetchone()
+            if dup:
+                raise HTTPException(400, f"該位置「{fields['location']}」已存在")
+        # qty 差額處理（2026-08-14：併發 lost update 防護 + 補流水）
+        if "qty" in fields:
+            diff = round(fields["qty"] - row["qty"], 3)
+            fields.pop("qty")  # qty 已抽離，避免下方動態 UPDATE 覆寫
+            if abs(diff) > 1e-9:
+                item_row = conn.execute("SELECT * FROM items WHERE id=?", (row["item_id"],)).fetchone()
+                prepared = item_row["prepared_qty"] or 0
+                if diff < 0:
+                    # 總量語意：品項所有位置合計不得低於待領出（與 adjust_qty 一致）
+                    total_before = conn.execute(
+                        "SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=?",
+                        (row["item_id"],)).fetchone()[0]
+                    if total_before + diff < prepared:
+                        raise HTTPException(400, f"減少後庫存不能低於待領出數量 {prepared}")
+                now = datetime.datetime.now().isoformat()
+                conn.execute(
+                    "UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+                    (diff, now, stock_id),
+                )
+                conn.execute(
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                    (row["item_id"], diff, row["qty"], round(row["qty"] + diff, 3), "編輯位置調整", ""),
+                )
+        if fields:
+            fields["updated_at"] = datetime.datetime.now().isoformat()
+            sets = ", ".join(f"{k}=?" for k in fields)
+            conn.execute(f"UPDATE item_stocks SET {sets} WHERE id=?", (*fields.values(), stock_id))
         conn.commit()
-    conn.close()
-    return {"ok": True}
+        return {"ok": True}
+    except:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 @router.delete("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])

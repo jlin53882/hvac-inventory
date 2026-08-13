@@ -168,6 +168,9 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("c
         raise HTTPException(400, "請填客戶 / 案場")
     conn = get_db()
     try:
+        # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句（SELECT 不觸發 auto-BEGIN）——
+        # 衝突檢查+寫入持 RESERVED 鎖同一交易，防雙重派工（TO-1）。依賴 Task 0.1 busy_timeout。
+        conn.execute("BEGIN IMMEDIATE")
         _validate_users(conn, body.user_ids)
         _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
         conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time)
@@ -186,6 +189,9 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("c
                          (appt_id, uid))
         conn.commit()
         return _appt_row(conn, appt_id)
+    except:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -197,6 +203,8 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         raise HTTPException(400, "請填客戶 / 案場")
     conn = get_db()
     try:
+        # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句——衝突檢查+寫入同一交易（TO-1）
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "行程不存在")
@@ -218,6 +226,9 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
                          (appt_id, uid))
         conn.commit()
         return _appt_row(conn, appt_id)
+    except:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

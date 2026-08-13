@@ -176,6 +176,37 @@ def test_appointment_conflict_409(client):
     assert r.status_code == 200
 
 
+def test_appointment_concurrent_double_booking_rejected(client):
+    """2026-08-14 併發修復：同人同時段併發新增 → 只有一個成功（BEGIN IMMEDIATE 防雙重派工 TO-1）"""
+    import threading
+    from app.services.auth import SESSION_COOKIE
+
+    token = client.cookies.get(SESSION_COOKIE)
+    barrier = threading.Barrier(2)
+    results = {}
+
+    def worker(n):
+        c = TestClient(app_main.app)
+        c.cookies.set(SESSION_COOKIE, token)
+        barrier.wait()  # 兩 thread 同時送出
+        r = c.post("/api/appointments", json=_appt_body(client_name=f"併發測試{n}"))
+        results[n] = r.status_code
+        c.close()
+
+    t1 = threading.Thread(target=worker, args=(1,))
+    t2 = threading.Thread(target=worker, args=(2,))
+    t1.start(); t2.start()
+    t1.join(); t2.join()
+
+    codes = sorted(results.values())
+    assert codes == [200, 409], f"併發雙重派工未被擋住: {results}"
+    # 資料庫只有一筆該時段行程（_appt_body 預設 date=2026-08-12、09:00-11:00）
+    appts = client.get("/api/appointments?date=2026-08-12").json()
+    same_slot = [a for a in appts if a["start_time"] == "09:00" and a["end_time"] == "11:00"
+                 and a["client_name"].startswith("併發測試")]
+    assert len(same_slot) == 1, f"預期 1 筆併發行程，實際 {len(same_slot)}"
+
+
 def test_edit_keeps_creator(client):
     """編輯行程不改變新增者（created_by 保留原值）＋記錄最後編輯者（2026-08-13 Sarah：編輯非新增者要顯示）"""
     r = client.post("/api/appointments", json=_appt_body())

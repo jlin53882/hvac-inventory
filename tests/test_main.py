@@ -924,6 +924,83 @@ class TestStocktake:
         assert dates[0]["total_diff"] == 1
 
 
+    def test_stocktake_optimistic_lock_where_clause(self, client):
+        """2026-08-14 樂觀鎖核心行為：API 讀到的 system_qty 已被他人異動 → 寫回 rowcount=0（409 觸發條件）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        stock_id = item["stocks"][0]["id"]
+        c1 = app_db.get_db()
+        c2 = app_db.get_db()
+        try:
+            # A 連線（盤點端）讀到 system_qty=10
+            sys_qty = c1.execute("SELECT qty FROM item_stocks WHERE id=?", (stock_id,)).fetchone()["qty"]
+            assert sys_qty == 10
+            # B 連線（他人出庫/調整）把庫存改成 15
+            c2.execute("UPDATE item_stocks SET qty=15 WHERE id=?", (stock_id,))
+            c2.commit()
+            # A 用舊值 10 當樂觀鎖條件寫回 → rowcount=0（應 409 拒絕）
+            cur = c1.execute(
+                "UPDATE item_stocks SET qty=qty+2, updated_at=datetime('now') WHERE id=? AND qty=?",
+                (stock_id, sys_qty))
+            assert cur.rowcount == 0
+            # 沒覆蓋成功：庫存維持 15（不是 A 的 12）
+            assert c1.execute("SELECT qty FROM item_stocks WHERE id=?", (stock_id,)).fetchone()["qty"] == 15
+            # 對照：無異動時用正確值寫回 → rowcount=1（正常盤點不受影響）
+            cur2 = c1.execute(
+                "UPDATE item_stocks SET qty=qty+1, updated_at=datetime('now') WHERE id=? AND qty=?",
+                (stock_id, 15))
+            assert cur2.rowcount == 1
+            c1.commit()
+        finally:
+            c1.close()
+            c2.close()
+
+
+# ========== 位置庫存 PATCH（2026-08-14 併發修復：差額寫回 + 流水） ==========
+
+class TestPatchStock:
+    def test_patch_stock_delta_and_movement(self, client):
+        """2026-08-14：PATCH stocks qty 差額寫回 + 補 movements 流水（原本絕對值覆蓋且零流水）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        stock_id = item["stocks"][0]["id"]
+        r = client.patch(f"/api/stocks/{stock_id}", json={"qty": 15})
+        assert r.status_code == 200, r.text
+        updated = _get_item(client, item["id"])
+        assert updated["total_qty"] == 15
+        # 流水有「編輯位置調整」delta=+5（before=10 after=15）
+        movs = client.get("/api/movements").json()
+        hits = [m for m in movs if m["reason"] == "編輯位置調整" and m["item_id"] == item["id"]]
+        assert len(hits) == 1
+        assert hits[0]["delta"] == 5
+        assert hits[0]["before_qty"] == 10
+        assert hits[0]["after_qty"] == 15
+
+    def test_patch_stock_zero_delta_no_movement(self, client):
+        """2026-08-14：qty 無變化 → 不寫流水（避免假流水）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        stock_id = item["stocks"][0]["id"]
+        r = client.patch(f"/api/stocks/{stock_id}", json={"qty": 10})
+        assert r.status_code == 200, r.text
+        movs = client.get("/api/movements").json()
+        assert not any(m["reason"] == "編輯位置調整" for m in movs)
+
+    def test_patch_stock_below_prepared_400(self, client):
+        """2026-08-14：負數調整後總量低於待領出 → 400（總量語意與 adjust_qty 一致）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 8})
+        stock_id = item["stocks"][0]["id"]
+        r = client.patch(f"/api/stocks/{stock_id}", json={"qty": 1})
+        assert r.status_code == 400
+        assert "待領出" in r.json()["detail"]
+        # 庫存沒被改
+        updated = _get_item(client, item["id"])
+        assert updated["total_qty"] == 10
+
+    def test_patch_stock_not_found_404(self, client):
+        """2026-08-14：不存在的 stock → 404"""
+        r = client.patch("/api/stocks/99999", json={"qty": 5})
+        assert r.status_code == 404
+
+
 # ========== 統計（缺貨只列單一 / 低量含整組） ==========
 
 class TestStats:

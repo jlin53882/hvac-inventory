@@ -11,10 +11,17 @@ from app.config import DB_PATH
 
 
 def get_db():
-    """開啟 SQLite 連線（row_factory=Row + 啟用外鍵），回傳連線物件"""
-    conn = sqlite3.connect(DB_PATH)
+    """開啟 SQLite 連線（row_factory=Row + 啟用外鍵 + WAL 併發調校），回傳連線物件
+
+    2026-08-14：併發修復——timeout=10 + WAL（讀寫不互擋）+ busy_timeout（鎖競爭等 5 秒不直接拋）
+    + synchronous=NORMAL（WAL 下安全，寫入更快）
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")      # 讀寫不互擋（持久設定，重複執行無害）
+    conn.execute("PRAGMA busy_timeout = 10000")    # 等鎖 10 秒（與 connect timeout=10 對齊，不直接拋）
+    conn.execute("PRAGMA synchronous = NORMAL")    # WAL 下 NORMAL 已安全，寫入更快
     return conn
 
 

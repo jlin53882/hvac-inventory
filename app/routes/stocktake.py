@@ -23,55 +23,71 @@ router = APIRouter()
 
 @router.post("/api/stocktake", dependencies=[Depends(require_perm("stocktake"))])
 def submit_stocktake(req: StocktakeSubmit):
-    """盤點：逐項輸入實際數量，計算盤盈/盤虧並更新庫存"""
+    """盤點：逐項輸入實際數量，計算盤盈/盤虧並更新庫存
+
+    2026-08-14 併發修復：寫回改樂觀鎖（WHERE qty=? 比對讀到的 system_qty）——
+    併發被他人改過 → rowcount=0 → 整批 409 拒絕（不覆蓋同時進行的出庫/調整）。
+    整函式 try/except/finally：既有 error 路徑不再洩漏連線。
+    """
     conn = get_db()
-    take_date = req.take_date or datetime.date.today().isoformat()
-    results = []
+    try:
+        take_date = req.take_date or datetime.date.today().isoformat()
+        results = []
 
-    for it in req.items:
-        if not isinstance(it, dict):  # 2026-08-12 補：非 dict → 400（af13870 只修了 import 同類）
-            raise HTTPException(400, "盤點項目格式錯誤（需為 JSON 物件）")
-        # v10：item_id + location 定位到一筆 stock
-        location = it.get("location", "")
-        stock = conn.execute(
-            "SELECT * FROM item_stocks WHERE item_id=? AND location=?",
-            (it["item_id"], location),
-        ).fetchone()
-        if not stock:
-            continue
-        item = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (it["item_id"],)).fetchone()
-        if not item:  # M6：soft-delete 品項不可盤點
-            raise HTTPException(400, f"品項 {it['item_id']} 已刪除，無法盤點")
-        system_qty = stock["qty"]
-        raw_actual = it.get("actual_qty", system_qty)
-        try:
-            actual_qty = float(raw_actual)
-        except (TypeError, ValueError):  # M4/M7b：非數字 → 400（原本 500）
-            raise HTTPException(400, "盤點數量格式錯誤")
-        if actual_qty < 0:  # M4：負數拒絕
-            raise HTTPException(400, "盤點數量不能為負數")
-        prepared = item["prepared_qty"] or 0
-        if actual_qty < prepared:  # M4：盤點後不得低於待領出數量
-            raise HTTPException(400, f"盤點數量不能低於待領出數量 {prepared}")
-        diff = round(actual_qty - system_qty, 3)
-        note = it.get("note", "")
+        for it in req.items:
+            if not isinstance(it, dict):  # 2026-08-12 補：非 dict → 400（af13870 只修了 import 同類）
+                raise HTTPException(400, "盤點項目格式錯誤（需為 JSON 物件）")
+            # v10：item_id + location 定位到一筆 stock
+            location = it.get("location", "")
+            stock = conn.execute(
+                "SELECT * FROM item_stocks WHERE item_id=? AND location=?",
+                (it["item_id"], location),
+            ).fetchone()
+            if not stock:
+                continue
+            item = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (it["item_id"],)).fetchone()
+            if not item:  # M6：soft-delete 品項不可盤點
+                raise HTTPException(400, f"品項 {it['item_id']} 已刪除，無法盤點")
+            system_qty = stock["qty"]
+            raw_actual = it.get("actual_qty", system_qty)
+            try:
+                actual_qty = float(raw_actual)
+            except (TypeError, ValueError):  # M4/M7b：非數字 → 400（原本 500）
+                raise HTTPException(400, "盤點數量格式錯誤")
+            if actual_qty < 0:  # M4：負數拒絕
+                raise HTTPException(400, "盤點數量不能為負數")
+            prepared = item["prepared_qty"] or 0
+            if actual_qty < prepared:  # M4：盤點後不得低於待領出數量
+                raise HTTPException(400, f"盤點數量不能低於待領出數量 {prepared}")
+            diff = round(actual_qty - system_qty, 3)
+            note = it.get("note", "")
 
-        conn.execute("UPDATE item_stocks SET qty=?, updated_at=? WHERE id=?",
-                     (actual_qty, datetime.datetime.now().isoformat(), stock["id"]))
-        conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (it["item_id"], diff, system_qty, actual_qty, "盤點調整", location),
-        )
-        conn.execute(
-            "INSERT INTO stocktakes (take_date, item_id, location, system_qty, actual_qty, diff, note) VALUES (?,?,?,?,?,?,?)",
-            (take_date, it["item_id"], location, system_qty, actual_qty, diff, note),
-        )
-        results.append({"item_id": it["item_id"], "name": item["name"], "location": location,
-                        "system_qty": system_qty, "actual_qty": actual_qty, "diff": diff})
+            # 2026-08-14：樂觀鎖——寫回條件是「qty 仍是讀到的 system_qty」，
+            # 併發被他人改過 → rowcount=0 → 整批拒絕（盤點前需重新載入）
+            cur = conn.execute(
+                "UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=? AND qty=?",
+                (diff, datetime.datetime.now().isoformat(), stock["id"], system_qty),
+            )
+            if cur.rowcount == 0:
+                raise HTTPException(409, f"品項 {item['name']} 的庫存已被其他操作異動，請重新整理後再盤點")
+            conn.execute(
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                (it["item_id"], diff, system_qty, round(system_qty + diff, 3), "盤點調整", location),
+            )
+            conn.execute(
+                "INSERT INTO stocktakes (take_date, item_id, location, system_qty, actual_qty, diff, note) VALUES (?,?,?,?,?,?,?)",
+                (take_date, it["item_id"], location, system_qty, actual_qty, diff, note),
+            )
+            results.append({"item_id": it["item_id"], "name": item["name"], "location": location,
+                            "system_qty": system_qty, "actual_qty": actual_qty, "diff": diff})
 
-    conn.commit()
-    conn.close()
-    return {"take_date": take_date, "count": len(results), "results": results}
+        conn.commit()
+        return {"take_date": take_date, "count": len(results), "results": results}
+    except:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 @router.get("/api/stocktakes")
