@@ -65,10 +65,9 @@ function renderUserMenu(user) {
   }
   const isAdmin = user.role === 'admin';
   const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
-    : user.role === 'viewer' ? ' <span class="admin-badge" style="background:#6b7280">👀 檢視者</span>'
-    : '';  // tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
-  // 2026-08-13 Sarah：user/tech 角色不可自行改密碼（topbar 不顯示；由 admin 重設）
-  const canChangePw = user.role !== 'user' && user.role !== 'tech';
+    : '';  // viewer/tech 不顯示 badge（2026-08-13 Sarah：不要列出檢視者／工程師）
+  // 2026-08-13 Sarah：只有 admin 可自行改密碼（user/tech/viewer 皆由 admin 重設）
+  const canChangePw = user.role === 'admin';
   menu.innerHTML =
     `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}` +
     roleChip + `</span>` +

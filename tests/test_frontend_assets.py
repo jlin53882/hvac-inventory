@@ -284,7 +284,7 @@ def test_auth_js_has_apply_role_view():
     assert "btn-export" not in js  # 已搬移，不留 dead code
     assert "nav-stocktake" in js
     assert "save-bar" in js
-    assert "檢視者" in js  # viewer chip 文字
+    assert "admin-badge\" style=\"background:#6b7280\">👀 檢視者" not in js  # viewer 不顯示 badge（2026-08-13 Sarah）
 
 
 def test_inventory_js_viewer_mode():
@@ -586,8 +586,8 @@ def test_changepw_expiry_ui_present():
     assert "/static/js/modals/expiry.js" in idx
     au = read(AUTH_JS)
     assert "openChangePwModal()" in au  # topbar 改密碼按鈕
-    # 2026-08-13 Sarah：user/tech 角色不可自行改密碼 → topbar/功能選單/過期提示都按角色隱藏
-    assert "const canChangePw = user.role !== 'user' && user.role !== 'tech';" in au
+    # 2026-08-13 Sarah：只有 admin 可自行改密碼 → topbar/過期提示都按角色隱藏
+    assert "const canChangePw = user.role === 'admin';" in au
     # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕
     assert "user.role === 'user'" in au
     assert "btn-logout-direct" in au
@@ -606,7 +606,7 @@ def test_changepw_expiry_ui_present():
     exp = read(os.path.join(STATIC, "js", "modals", "expiry.js"))
     assert "function openExpiryModal" in exp
     assert "function ackPasswordExpiry" in exp
-    assert "u.role === 'user'" in exp  # user 過期提示隱藏「立即改密碼」按鈕
+    assert "u.role === 'admin'" in exp  # 只有 admin 過期提示顯示「立即改密碼」按鈕（2026-08-13 Sarah）
 
 
 def test_resetpw_modal_ui_present():
@@ -795,7 +795,7 @@ def test_calendar_js_uses_api_endpoints():
     assert "currentUser.role === 'tech'" not in cal  # tech 行事曆可寫（不視為 viewer）
     au = read(AUTH_JS)
     assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
-    assert "user.role !== 'user' && user.role !== 'tech'" in au  # tech 不可自行改密碼
+    assert "user.role === 'admin'" in au  # 只有 admin 可自行改密碼
     pm = read(os.path.join(STATIC, "js", "permissions.js"))
     assert "cal-mgmt" in pm and "tech" in pm  # 權限矩陣有行事曆項目＋tech 欄位
 

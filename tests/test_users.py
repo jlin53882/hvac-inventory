@@ -507,14 +507,14 @@ def test_change_own_password_success(admin_client):
         assert c.post("/api/auth/login", json={"username": "admin", "password": "FinalPass456"}).status_code == 200
 
 
-def test_viewer_can_change_own_password(admin_client):
-    """viewer 也能改自己的密碼"""
+def test_viewer_cannot_change_own_password(admin_client):
+    """2026-08-13 Sarah：viewer 也不能改自己的密碼（只有 admin 可）"""
     admin_client.post("/api/users", json={
         "username": "viewer2", "password": "View1234", "display_name": "檢視者", "role": "viewer"})
     with TestClient(fastapi_app) as c:
         assert c.post("/api/auth/login", json={"username": "viewer2", "password": "View1234"}).status_code == 200
         r = c.put("/api/auth/password", json={"old_password": "View1234", "new_password": "NewView123"})
-        assert r.status_code == 200
+        assert r.status_code == 403
 
 
 def test_me_password_expired_flag(admin_client):

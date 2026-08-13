@@ -177,8 +177,8 @@ def me(request: Request):
 @router.put("/password")
 def change_my_password(body: ChangePasswordRequest, request: Request, user: dict = Depends(authenticate)):
     """個人改密碼：驗證舊密碼 → 新密碼 policy → 更新 + 清其他 session（保留當前）
-    2026-08-13 Sarah：user 角色不可自行改密碼（由 admin 重設）；admin/viewer 維持可改"""
-    if user["role"] in ("user", "tech"):
+    2026-08-13 Sarah：只有 admin 可自行改密碼（user/tech/viewer 皆由 admin 重設）"""
+    if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="一般使用者不可自行改密碼，請聯絡管理員重設")
     # 改密碼也套 per-IP rate limit（2026-08-12 補）：持有效 session 者不可無限試舊密碼
     ip = _client_ip(request)
