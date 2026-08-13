@@ -751,6 +751,20 @@ def test_calendar_cell_shows_service_client():
     assert "t.innerText = `${e.start_time}" in js        # 用 innerText 安全設定（非 innerHTML）
 
 
+def test_calendar_appt_only_start_time():
+    """2026-08-13 Sarah：編輯派工只寫開始時間、不用結束時間
+    - modal 無「結束」欄位（cal-f-end 移除）
+    - 儲存時 end_time 自動 = start_time（後端衝突判斷：同時段/涵蓋才衝突）
+    - 明細卡只顯示開始時間（不再 ⏰ 08:00 - 08:30）"""
+    js = read(CALENDAR_RENDER_JS)
+    assert "cal-f-end" not in js                        # 結束欄位已移除
+    assert 'label>派工時間</label><input type="time" id="cal-f-start"' in js
+    # 儲存：end_time = start_time（同一 input）
+    assert "end_time: document.getElementById('cal-f-start').value" in js
+    # 明細卡：只顯示開始時間
+    assert "<div class=\"cal-time\">⏰ ${esc(e.start_time)}　${who}</div>" in js
+
+
 # ---------- 2026-08-12 totalQty 補接（盤點頁第 4 張統計卡「庫存總數(件)」） ----------
 # 背景：dead code 分析（hvac-inventory-dead-code分析報告-2026-08-12）發現 totalQty 算好但 UI 沒顯示。
 # 決策：不刪、補接為第 4 張統計卡（家豪選定變體 A）。以下測試防「退回 dead code / 卡片順序跑掉 / 誤改回 3 欄」。

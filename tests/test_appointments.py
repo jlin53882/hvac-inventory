@@ -291,7 +291,7 @@ def test_export_daily_report(client):
     assert ws["A2"].value == "工程師："              # 不帶名稱（2026-08-12 家豪指定）
     assert "星期三" in ws["D2"].value               # 日期含星期
     assert ws["A4"].value == 1                     # 項次
-    assert ws["B4"].value == "09:00~11:00"          # 時間
+    assert ws["B4"].value == "09:00"            # 時間（2026-08-13 Sarah：只寫開始時間，不再 09:00~11:00）
     assert ws["C4"].value == "陳先生 (B棟 3F)"
     assert ws["G4"].value == "✓"                    # 維修 ✓ 在 G 欄（右側空格）
     assert ws["F4"].value == "維修"                 # 欄位名保留

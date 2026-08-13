@@ -73,8 +73,8 @@ def build_daily_report(date_str: str, day_events: list, engineers: list = None):
         b = BLOCKS[i]
         r = b["data"]
         ws.cell(row=r, column=1).value = i + 1
-        # 2026-08-12 補：時間欄也套 _safe()（H4 同類漏網——client/address/note 都有，時間獨漏）
-        ws.cell(row=r, column=2).value = _safe(f"{e['start_time']}~{e['end_time']}")
+        # 2026-08-13 Sarah：只寫開始時間，不用結束時間 → 日報表時間欄只填 start_time
+        ws.cell(row=r, column=2).value = _safe(e["start_time"])
         ws.cell(row=r, column=3).value = _safe(e["client_name"])
         check_col = SVC_CHECK_COL.get(e["service_type_id"])
         if check_col:

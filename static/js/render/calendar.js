@@ -103,9 +103,8 @@ function calModalHtml(isAdmin) {
       <div class="form-row">
         <label>派工日期</label><input type="date" id="cal-f-date">
       </div>
-      <div class="form-2col">
-        <div class="form-row"><label>開始</label><input type="time" id="cal-f-start"></div>
-        <div class="form-row"><label>結束</label><input type="time" id="cal-f-end"></div>
+      <div class="form-row">
+        <label>派工時間</label><input type="time" id="cal-f-start">
       </div>
       <div class="form-row">
         <label>備註（型號 / 車馬費）</label>
@@ -250,7 +249,7 @@ function calRenderDay() {
           <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">✏️</button>
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
         </div>`}
-        <div class="cal-time">⏰ ${esc(e.start_time)} - ${esc(e.end_time)}　${who}</div>
+        <div class="cal-time">⏰ ${esc(e.start_time)}　${who}</div>
         <div class="cal-client">[${esc(e.service_name || '')}] ${esc(e.client_name)}</div>
         ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
         <div class="cal-note">${esc(e.note || '無備註')}</div>
@@ -296,7 +295,6 @@ function calOpenAppt(id) {
   document.getElementById('cal-f-address').value = f ? (f.address || '') : '';
   document.getElementById('cal-f-date').value = f ? f.date : _iso(calSelected);
   document.getElementById('cal-f-start').value = f ? f.start_time : '09:00';
-  document.getElementById('cal-f-end').value = f ? f.end_time : '11:00';
   document.getElementById('cal-f-note').value = f ? (f.note || '') : '';
   document.getElementById('cal-appt-modal').style.display = 'flex';
 }
@@ -312,7 +310,8 @@ async function calSubmitAppt() {
     service_type_id: document.getElementById('cal-f-svc').value ? Number(document.getElementById('cal-f-svc').value) : null,
     date: document.getElementById('cal-f-date').value,
     start_time: document.getElementById('cal-f-start').value,
-    end_time: document.getElementById('cal-f-end').value,
+    // 2026-08-13 Sarah：只寫開始時間，不用結束時間 → end 自動 = start（後端衝突判斷變「同時段才衝突」）
+    end_time: document.getElementById('cal-f-start').value,
     note: document.getElementById('cal-f-note').value.trim(),
     user_ids,
   };

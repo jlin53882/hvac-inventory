@@ -61,7 +61,7 @@ def _validate_time(start_time: str, end_time: str) -> None:
         h, m = int(t[:2]), int(t[3:])
         if not (0 <= h <= 23 and 0 <= m <= 59):
             raise HTTPException(400, f"{label}時間超出範圍（00:00~23:59）")
-    if start_time >= end_time:
+    if start_time > end_time:
         raise HTTPException(400, "結束時間必須大於開始時間")
 
 
@@ -95,7 +95,7 @@ def _find_conflict(conn, user_ids, date, start_time, end_time, exclude_id=0):
             (date, uid, end_time, start_time, exclude_id),
         ).fetchone()
         if row:
-            return f"⚠️ 衝突！【{row['display_name']}】{row['start_time']}~{row['end_time']} 已有行程（{row['client_name']}）"
+            return f"⚠️ 衝突！【{row['display_name']}】{row['start_time']} 已有行程（{row['client_name']}）"
     return None
 
 
