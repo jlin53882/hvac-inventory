@@ -62,10 +62,8 @@ def export_excel(days: int = 30):
 
     wb = openpyxl.Workbook()
     conn = get_db()
-    try:
-        # Sheet 1: 庫存明細（單一 JOIN 消除 N+1；每列 = 主檔 × 每位置一行）
-        ws = wb.active
-        ws.title = "庫存明細"
+    def _fill_stock_sheet(ws, site):
+        """庫存明細頁（每列 = 主檔 × 每位置一行；2026-08-13 家豪：辦公室/倉庫分頁）"""
         ws.append(["編號", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "總數量"])
         _style_header(ws)
         rows = conn.execute("""
@@ -74,18 +72,26 @@ def export_excel(days: int = 30):
                    COALESCE(SUM(s.qty) OVER (PARTITION BY i.id), 0) AS total
             FROM items i
             LEFT JOIN item_stocks s ON s.item_id = i.id
-            WHERE i.is_deleted = 0
+            WHERE i.is_deleted = 0 AND i.site = ?
             ORDER BY i.brand COLLATE NOCASE, i.name, s.id
-        """).fetchall()
+        """, (site,)).fetchall()
         for r in rows:
             ws.append([r["id"], _safe(r["brand"]), _safe(r["name"]), _safe(r["code"]),
                        _safe(r["unit"]), _safe(r["location"]), r["qty"], _safe(r["note"]), r["total"]])
         _set_widths(ws, [8, 14, 40, 16, 8, 30, 10, 24, 10])
 
-        # Sheet 2: 異動紀錄（days 控制範圍，取代寫死的 LIMIT 500）
-        ws2 = wb.create_sheet("異動紀錄")
-        ws2.append(["時間", "品項", "變動", "原本", "現在", "去向", "原因"])
-        _style_header(ws2)
+    try:
+        # Sheet 1/2: 庫存明細拆「辦公室」「倉庫」兩頁（單一 JOIN 消除 N+1）
+        ws = wb.active
+        ws.title = "辦公室"
+        _fill_stock_sheet(ws, "office")
+        ws2 = wb.create_sheet("倉庫")
+        _fill_stock_sheet(ws2, "warehouse")
+
+        # Sheet 3: 異動紀錄（days 控制範圍，取代寫死的 LIMIT 500）
+        ws3 = wb.create_sheet("異動紀錄")
+        ws3.append(["時間", "品項", "變動", "原本", "現在", "去向", "原因"])
+        _style_header(ws3)
         movs = conn.execute("""
             SELECT m.created_at, i.name, m.delta, m.before_qty, m.after_qty,
                    m.destination, m.reason
@@ -94,21 +100,21 @@ def export_excel(days: int = 30):
             ORDER BY m.id DESC
         """, (f"-{days} days",)).fetchall()
         for m in movs:
-            ws2.append([_safe(x) for x in m])
-        _set_widths(ws2, [20, 30, 10, 10, 10, 16, 30])
+            ws3.append([_safe(x) for x in m])
+        _set_widths(ws3, [20, 30, 10, 10, 10, 16, 30])
 
-        # Sheet 3: 廠牌統計
-        ws3 = wb.create_sheet("廠牌統計")
-        ws3.append(["廠牌", "品項數", "總庫存"])
-        _style_header(ws3)
+        # Sheet 4: 廠牌統計
+        ws4 = wb.create_sheet("廠牌統計")
+        ws4.append(["廠牌", "品項數", "總庫存"])
+        _style_header(ws4)
         stats = conn.execute("""
             SELECT i.brand, COUNT(DISTINCT i.id), COALESCE(SUM(s.qty), 0)
             FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id
             GROUP BY i.brand ORDER BY COUNT(DISTINCT i.id) DESC
         """).fetchall()
         for s in stats:
-            ws3.append([_safe(x) for x in s])
-        _set_widths(ws3, [14, 10, 10])
+            ws4.append([_safe(x) for x in s])
+        _set_widths(ws4, [14, 10, 10])
     finally:
         conn.close()
 

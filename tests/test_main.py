@@ -1186,14 +1186,21 @@ class TestV10CompatAndCascade:
         import io as _io
         from openpyxl import load_workbook
         wb = load_workbook(_io.BytesIO(r.content))
-        assert wb.sheetnames == ["庫存明細", "異動紀錄", "廠牌統計"]
+        # 2026-08-13 家豪：庫存明細拆「辦公室」「倉庫」兩頁
+        assert wb.sheetnames == ["辦公室", "倉庫", "異動紀錄", "廠牌統計"]
 
-        ws = wb["庫存明細"]
+        ws = wb["辦公室"]
         assert [c.value for c in ws[1]] == \
             ["編號", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "總數量"]
-        # 每列 = 主檔 × 每位置一行：找到冷媒管列，位置/數量/總量正確
+        # 每列 = 主檔 × 每位置一行：找到冷媒管列，位置/數量/總量正確（_add_item 預設 office）
         row = next(rr for rr in ws.iter_rows(min_row=2, values_only=True) if rr[2] == "冷媒管")
         assert row[5] == "A倉" and row[6] == 5 and row[8] == 5
+
+        # 倉庫頁目前 0 筆：只有表頭
+        ws_wh = wb["倉庫"]
+        assert [c.value for c in ws_wh[1]] == \
+            ["編號", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "總數量"]
+        assert ws_wh.max_row == 1, "倉庫頁無資料時應只有表頭"
 
         ws2 = wb["異動紀錄"]
         assert [c.value for c in ws2[1]] == ["時間", "品項", "變動", "原本", "現在", "去向", "原因"]
@@ -1210,7 +1217,7 @@ class TestV10CompatAndCascade:
         import io as _io
         from openpyxl import load_workbook
         wb = load_workbook(_io.BytesIO(r.content))
-        ws = wb["庫存明細"]
+        ws = wb["辦公室"]
         values = [v for row in ws.iter_rows(min_row=2, values_only=True) for v in row]
         assert "'=1+1" in values        # 防護：撇號前綴
         assert "'=HYPERLINK(1)" in values
