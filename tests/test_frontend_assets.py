@@ -749,6 +749,18 @@ def test_stocktake_totalqty_card_not_clickable():
     assert js.count("stat-card clickable") == 2, "可點擊統計卡數量錯誤（應只有低庫存/缺貨 2 張）"
 
 
+def test_stocktake_list_shows_model_and_kits():
+    """缺貨/低庫存清單品項欄顯示型號（藍色粗體）+ 整組材料標註「屬於整組：名稱」（2026-08-13 Sarah 需求）"""
+    js = read(STOCKTAKE_JS)
+    # 型號：比照已領出/待領出頁樣式（code 有值才顯示）
+    assert "color:#1890FF;font-weight:600" in js
+    assert "型號 ' + esc(i.code)" in js
+    # 整組材料標註：in_kits 陣列非空才顯示「屬於整組：名稱」
+    assert "in_kits" in js
+    assert "屬於整組：" in js
+    assert "esc(i.in_kits.join('、'))" in js
+
+
 def test_css_stat_cards_four_columns():
     """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
     css = read(CSS)

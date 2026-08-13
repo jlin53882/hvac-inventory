@@ -141,7 +141,7 @@ function showStocktakeList(type) {
   items.sort((a, b) => a.qty - b.qty).forEach(i => {
     const locStr = (i.stocks || []).map(s => s.location || '未標示').join('、');
     html += `<tr style="cursor:pointer" onclick="openEditModal(${i.id})">
-      <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${esc(locStr || '未標示')}</small></td>
+      <td>${esc(i.brand)} ${esc(i.name)}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}${(i.in_kits && i.in_kits.length) ? '<br><small style="color:#b45309;font-weight:600">🔧 屬於整組：' + esc(i.in_kits.join('、')) + '</small>' : ''}<br><small style="color:#999">${esc(locStr || '未標示')}</small></td>
       <td style="text-align:center"><b style="color:${i.qty <= 0 ? '#dc2626' : '#f59e0b'}">${i.qty}</b> ${esc(i.unit)}</td>
       <td style="text-align:center;color:#999">${isLow ? (i.low_stock || 0) : esc(locStr || '—')}</td>
     </tr>`;

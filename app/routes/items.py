@@ -28,8 +28,12 @@ from app.routes.photos import has_photo
 router = APIRouter()
 
 
-def _item_full(conn, row) -> dict:
-    """主檔 + 位置庫存 + 總量 組合成前端完整物件"""
+def _item_full(conn, row, kit_map: Optional[dict] = None) -> dict:
+    """主檔 + 位置庫存 + 總量 組合成前端完整物件
+
+    kit_map：{item_id: [整組名稱]} 預先查好的對應（list_items 一次查全部避免 N+1）；
+    為 None 時單筆查詢（create/update 單筆呼叫用）。
+    """
     d = dict(row)
     d["stocks"] = [dict(s) for s in conn.execute(
         "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (d["id"],)).fetchall()]
@@ -39,6 +43,13 @@ def _item_full(conn, row) -> dict:
     d["location"] = d["stocks"][0]["location"] if d["stocks"] else ""
     d["note"] = d["stocks"][0]["note"] if d["stocks"] else ""
     d["has_photo"] = has_photo(d["id"])  # 前端顯示照片縮圖（無圖→📦）
+    # 該品項屬於哪些整組（缺貨/低庫存清單標註用，2026-08-13 Sarah 需求）
+    if kit_map is not None:
+        d["in_kits"] = kit_map.get(d["id"], [])
+    else:
+        d["in_kits"] = [r["name"] for r in conn.execute(
+            "SELECT DISTINCT k.name FROM kit_items ki JOIN kits k ON k.id = ki.kit_id "
+            "WHERE ki.item_id = ? ORDER BY k.name", (d["id"],)).fetchall()]
     return d
 
 
@@ -81,7 +92,14 @@ def list_items(
     }
     sql += f" ORDER BY {sort_map.get(sort, 'i.brand COLLATE NOCASE, i.name')}"
     rows = conn.execute(sql, params).fetchall()
-    result = [_item_full(conn, r) for r in rows]
+    # 一次查全部「品項 → 所屬整組名稱」對應（in_kits 欄位用，避免每筆 N+1）
+    kit_map: dict = {}
+    for r in conn.execute(
+        "SELECT ki.item_id, k.name FROM kit_items ki JOIN kits k ON k.id = ki.kit_id "
+        "JOIN items i ON i.id = k.item_id AND i.is_deleted = 0 ORDER BY k.name"
+    ):
+        kit_map.setdefault(r["item_id"], []).append(r["name"])
+    result = [_item_full(conn, r, kit_map) for r in rows]
     conn.close()
     return result
 

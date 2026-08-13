@@ -688,6 +688,33 @@ class TestKits:
         assert all("has_photo" in c for c in kits[0]["components"])
         assert all(isinstance(c["has_photo"], bool) for c in kits[0]["components"])
 
+    def test_items_have_in_kits_field(self, client):
+        """2026-08-13 Sarah 需求：/api/items 每筆回傳 in_kits（該品項屬於哪些整組），
+        缺貨/低庫存清單標註「屬於整組：名稱」用；未加入任何整組的品項為空陣列"""
+        a = _add_item(client, name="銅管", qty=10)
+        b = _add_item(client, name="接頭", qty=20)
+        # 建立整組前：材料 in_kits 為空陣列
+        ia0 = _get_item(client, a["id"])
+        assert ia0["in_kits"] == []
+        # 建立整組：銅管/接頭都加入
+        r = client.post("/api/kits", json={
+            "name": "銅管接頭組",
+            "items": [{"item_id": a["id"], "qty": 2}, {"item_id": b["id"], "qty": 1}],
+        })
+        assert r.status_code == 201
+        # 建立後：材料 in_kits 含整組名稱（list_items 與單筆都一致）
+        items = client.get("/api/items").json()
+        ia = next(x for x in items if x["id"] == a["id"])
+        ib = next(x for x in items if x["id"] == b["id"])
+        assert ia["in_kits"] == ["銅管接頭組"]
+        assert ib["in_kits"] == ["銅管接頭組"]
+        # 套件品項（整組本身）不屬於任何整組
+        kit_item = next(x for x in items if x["is_kit"])
+        assert kit_item["in_kits"] == []
+        # 單筆 GET 也一致
+        ia_single = _get_item(client, a["id"])
+        assert ia_single["in_kits"] == ["銅管接頭組"]
+
     def test_create_kit_requires_items(self, client):
         """驗證整組沒有元件時回傳 400"""
         r = client.post("/api/kits", json={"name": "空套件", "items": []})
