@@ -63,6 +63,18 @@ document.getElementById('search-input').addEventListener('input', () => {
   if (currentTab === 'inventory') renderInventory();
 });
 
+// 2026-08-13 Sarah：重新打開網站搜尋框殘留「admin」——瀏覽器 autofill 把登入帳號填入
+// 頁面第一個文字框。三重防護：type=search（Chrome 不對 search input 填帳號）+ autocomplete=new-password
+// + load 後延遲清空兜底（autofill 常在 DOMContentLoaded 之後才寫入，啟動時清太早）
+function clearSearchAutofill() {
+  const si = document.getElementById('search-input');
+  if (si) si.value = '';
+}
+window.addEventListener('load', () => {
+  clearSearchAutofill();
+  setTimeout(clearSearchAutofill, 500);
+});
+
 // 啟動：先檢查登入，過關才載資料
 (async () => {
   const user = await checkAuth();

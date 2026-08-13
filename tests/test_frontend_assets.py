@@ -90,6 +90,20 @@ def test_index_has_no_manual_version_params():
     assert not bad, f"資源引用有手動版本號: {bad}"
 
 
+def test_search_input_no_autofill():
+    """搜尋框不被瀏覽器 autofill（2026-08-13 Sarah：重新打開網站搜尋框殘留「admin」＝瀏覽器把登入帳號填入第一個文字框）
+    三重防護：type=search（Chrome 不對 search input 填帳號，根治）+ autocomplete=new-password
+    + app.js load 後延遲清空兜底（autofill 常在 DOMContentLoaded 之後才寫入）"""
+    idx = read(INDEX)
+    assert 'id="search-input"' in idx
+    assert 'type="search"' in idx          # 根治：search 型別不被 Chrome autofill
+    assert 'autocomplete="new-password"' in idx
+    ap = read(APP_JS)
+    assert "function clearSearchAutofill" in ap
+    assert "window.addEventListener('load'" in ap
+    assert "setTimeout(clearSearchAutofill, 500)" in ap
+
+
 # ---------- style.css ----------
 
 def test_css_mobile_media_query():
