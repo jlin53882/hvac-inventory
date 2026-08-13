@@ -50,7 +50,7 @@
     try {
       const meRes = await apiGet('/api/auth/me');
       me = meRes.user;
-      if (!me.is_admin_role) { location.href = '/index.html'; return; }
+      if (!me.is_admin_role) { location.href = '/'; return; }
       const [users, permData] = await Promise.all([
         apiGet('/api/users'),
         apiGet('/api/users/permissions'),
@@ -60,7 +60,7 @@
       roleDefaults = permData.role_defaults;
       renderUserList();
       renderChips();
-      selectUser(permUsers[0].id);
+      window.permSelect(permUsers[0].id);  // 2026-08-14 修：舊名 selectUser 未定義 → 自動選中失敗
     } catch (e) {
       toast(e.message || '載入失敗', 'error');
     }
@@ -268,7 +268,7 @@
   };
 
   function selectNextUser() {
-    if (!permUsers.length) { location.href = '/index.html'; return; }
+    if (!permUsers.length) { location.href = '/'; return; }
     window.permSelect(permUsers[0].id);
   }
 

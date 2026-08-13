@@ -243,6 +243,22 @@ def test_perms_js_has_viewer_role_option():
     assert 'value="viewer">👀 檢視者' in html
 
 
+def test_perms_js_auto_select_no_old_name():
+    """2026-08-14 修：initPermPage 自動選中必須呼叫 window.permSelect（舊名 selectUser 未定義→右側空白）"""
+    js = read(PERMS_JS)
+    assert "window.permSelect(permUsers[0].id)" in js  # 自動選中第一位
+    assert "selectUser(permUsers[0].id)" not in js     # 防舊名回歸（selectUser is not defined）
+
+
+def test_perms_html_nav_buttons_use_root():
+    """2026-08-14 修：返回/庫存按鈕必須導向 /（後端無 /index.html 路由 → 舊寫法 404）"""
+    html = read(PERMISSIONS_HTML)
+    assert "location.href='/'" in html
+    assert "location.href='/index.html'" not in html  # 防 404 回歸（{"detail":"Not Found"}）
+    js = read(PERMS_JS)
+    assert "location.href='/index.html'" not in js
+
+
 # ---------- viewer 角色前端（唯讀模式） ----------
 
 def test_auth_js_has_apply_role_view():
@@ -986,6 +1002,19 @@ def test_stockout_modal_core_functions():
                "openPreparedOutModal", "submitPreparedOut", "returnPrepared", "returnStockout",
                "openEditStockoutModal", "submitEditStockout"):
         assert fn in js, f"stockout.js(modals) 缺 {fn}"
+
+
+def test_kit_stockout_actions():
+    """2026-08-13 Sarah：整組庫存也要有「待領出/已領出」按鈕（手機+桌面），直接複用單一庫存 modal"""
+    js = read(KITS_RENDER_JS)
+    # 手機卡片 m-card-actions + 桌面操作列：各一組 openPrepareModal/openOutModal（用 kit 的 item_id）
+    assert js.count("openPrepareModal(${k.item_id}") >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
+    assert js.count("openOutModal(${k.item_id}") >= 2, "整組卡片已領出按鈕（手機+桌面）缺失"
+    assert "m-card-actions" in js, "手機整組卡片缺 m-card-actions 按鈕列"
+    # 桌面版：待領出/已領出要在編輯按鈕前面（設計圖：操作列最前面）
+    assert js.find("openOutModal(${k.item_id}") < js.find("editKit(${k.id})"), "桌面按鈕應在編輯前面"
+    # viewer/tech 隱藏
+    assert "isViewer ? '' : `<div class=\"m-card-actions\">" in js, "手機按鈕列應對 viewer/tech 隱藏"
 
 
 def test_prepared_nonstock_add_ui():
