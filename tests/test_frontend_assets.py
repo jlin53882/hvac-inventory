@@ -779,10 +779,13 @@ def test_calendar_js_uses_api_endpoints():
     assert "/api/appointments/export" in js
     # 2026-08-13 Sarah：明細卡顯示編輯者（非新增者時）——esc 防 XSS
     assert "esc(e.updated_by_name)" in js and "編輯" in js
-    # 2026-08-13 Sarah：明細卡編輯按鈕只有文字（無 ✏️ 圖示）、刪除維持 ✕
+    # 2026-08-13 Sarah：編輯按鈕只有文字（無 ✏️ 圖示）、刪除維持 ✕
     assert "btn-edit\" onclick=\"calOpenAppt" in js
     assert ">編輯</button>" in js and "✕</button>" in js
     assert "✏️ 編輯</button>" not in js and "✕ 刪除" not in js
+    # 2026-08-13 Sarah：reminder 條只留文字＋框（移除「看今天行程」按鈕；calGoToday 已刪）
+    assert "看今天行程</button>" not in js
+    assert "calGoToday" not in js
 
 
 def test_calendar_js_viewer_write_hidden():

@@ -60,21 +60,13 @@ async function renderCalendar() {
   calRenderReminder();
 }
 
-// 今日提醒條（同 demo：常駐顯示「今天 … 有 N 筆派工」+ 看今天行程）
+// 今日提醒條（2026-08-13 Sarah：只留左邊文字＋框，移除「看今天行程」按鈕）
 function calRenderReminder() {
   const todayStr = _iso(new Date());
   const n = calEvents.filter(e => e.date === todayStr).length;
   const el = document.getElementById('cal-reminder');
   el.style.display = 'flex';
-  el.innerHTML = `今天 ${_fmtTW(new Date())} 有 ${n} 筆派工 <button onclick="calGoToday()">看今天行程</button>`;
-}
-
-// 跳到今天
-function calGoToday() {
-  const d = new Date();
-  calSelected = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-  calLoadData().then(() => { calRenderMonth(); calRenderDay(); });
+  el.innerHTML = `今天 ${_fmtTW(new Date())} 有 ${n} 筆派工`;
 }
 
 function calModalHtml(isAdmin) {
