@@ -249,20 +249,15 @@ def export_daily_report(date: str):
             """SELECT a.*, s.name AS service_name FROM appointments a
                LEFT JOIN service_types s ON s.id = a.service_type_id
                WHERE a.date=? ORDER BY a.start_time""", (date,)).fetchall()
-        day_events, engineers = [], []
+        day_events = []
         for r in rows:
-            assigns = conn.execute(
-                """SELECT u.display_name FROM appointment_assignees aa
-                   JOIN users u ON u.id = aa.user_id WHERE aa.appointment_id=?""", (r["id"],)).fetchall()
-            for a in assigns:
-                if a["display_name"] and a["display_name"] not in engineers:
-                    engineers.append(a["display_name"])
             day_events.append({
                 "client_name": r["client_name"], "address": r["address"] or "",
                 "service_type_id": r["service_type_id"], "service_name": r["service_name"],
                 "start_time": r["start_time"], "end_time": r["end_time"], "note": r["note"] or "",
             })
-        buf, mmdd = build_daily_report(date, day_events, engineers)
+        # 2026-08-13：engineers 計算已移除——A2 固定寫「藍政達 蘇昱豪」（D3 dead code 清理）
+        buf, mmdd = build_daily_report(date, day_events)
         filename = f"工程日報表{mmdd}.xlsx"
         return Response(
             buf.getvalue(),

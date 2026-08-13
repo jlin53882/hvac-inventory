@@ -44,8 +44,7 @@ def build_daily_report(date_str: str, day_events: list, engineers: list = None):
 
     day_events: 每筆含 client_name / address / service_type_id / service_name /
                 start_time / end_time / note（依開始時間排序）
-    engineers:  **已不使用**（2026-08-12 家豪指定：匯出 Excel 不帶工程師名稱，
-                A2 只留「工程師：」由工程師手寫；API 層 assignees 資料仍保留）
+    engineers:  保留參數（相容）；A2 固定寫「工程師：藍政達 蘇昱豪」（2026-08-13 Sarah 指定）
     """
     d = datetime.date.fromisoformat(date_str)
     mmdd = d.strftime("%m%d")
