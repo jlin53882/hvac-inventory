@@ -255,7 +255,7 @@ function calRenderDay() {
           <span>${calFmtCreatedAt(e.created_at)}</span>
         </div>
         ${isViewer ? '' : `<div class="cal-card-actions">
-          <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">✏️ 編輯</button>
+          <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">編輯</button>
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
         </div>`}
         <div class="cal-time">⏰ ${esc(e.start_time)}　${who}</div>
