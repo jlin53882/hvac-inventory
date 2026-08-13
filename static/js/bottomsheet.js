@@ -74,10 +74,7 @@ function closeSheet() {
 function openTopMenu() {
   const u = (typeof currentUser !== 'undefined') ? currentUser : null;
   const actions = [];
-  // 2026-08-13 Sarah：user 角色功能選單不顯示匯出報表（admin/viewer 維持；user 匯出由管理員代操作）
-  if (u && u.role !== 'user' && typeof exportExcel === 'function') {
-    actions.push({ icon: '⬇️', label: '匯出報表', fn: () => exportExcel() });
-  }
+  // 2026-08-13 Sarah：功能選單移除「匯出報表」（user/admin 相繼要求）——匯出入口統一在庫存清單頂部按鈕
   // 2026-08-13 Sarah：user 角色不可自行改密碼（功能選單不顯示；由 admin 重設）
   if (u && u.role !== 'viewer' && u.role !== 'user' && typeof openChangePwModal === 'function') {
     actions.push({ icon: '🔑', label: '改密碼', fn: () => openChangePwModal() });

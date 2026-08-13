@@ -585,7 +585,8 @@ def test_changepw_expiry_ui_present():
     assert ".btn-logout-direct" in css_all  # 手機版覆蓋 .user-menu .btn-ghost 隱藏
     bs = read(BOTTOMSHEET_JS)
     assert "u.role !== 'viewer' && u.role !== 'user'" in bs
-    assert "u.role !== 'user' && typeof exportExcel" in bs  # user 功能選單不顯示匯出報表
+    # 2026-08-13 Sarah：功能選單移除「匯出報表」action（user/admin 相繼要求）——匯出口統一在庫存清單頂部
+    assert "label: '匯出報表'" not in bs
     cpw = read(os.path.join(STATIC, "js", "modals", "changepw.js"))
     assert "function cpwCheckStrength" in cpw
     assert "function submitChangePw" in cpw
