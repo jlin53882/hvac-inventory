@@ -882,6 +882,8 @@
   /* topbar 手機版：保留 👤 使用者 chip；匯出/改密碼/使用者/登出 按鈕收進 ☰ */
   .top-actions .btn-ghost { display: none; }
   .user-menu .btn-ghost { display: none; }
+  /* 2026-08-13 Sarah：user 角色直接顯示登出按鈕（不彈 ☰ 功能選單）——覆蓋上面的隱藏 */
+  .user-menu .btn-logout-direct { display: flex !important; }
   .user-menu { display: flex !important; }
   .topbar .sub { display: none; }
   /* 手機 ☰ 按鈕（index.html 內建，桌面隱藏） */

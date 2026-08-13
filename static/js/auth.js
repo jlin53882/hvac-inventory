@@ -54,7 +54,21 @@ async function logout() {
 function renderUserMenu(user) {
   const menu = document.getElementById('userMenu');
   if (!menu || !user) return;
+  // 2026-08-13 Sarah：user 角色不要功能選單 bottom sheet，topbar 直接顯示登出按鈕
+  if (user.role === 'user') {
+    // 2026-08-13 Sarah：登出要有文字（手機版 .users-text 會隱藏 → 用獨立 span）
+    menu.innerHTML =
+      `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}</span>` +
+      `<button class="btn-ghost btn-logout-direct" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>`;
+    menu.style.display = 'flex';
+    const bm = document.getElementById('btn-menu');
+    if (bm) bm.style.display = 'none';  // 手機 ☰ 隱藏（不彈功能選單）
+    return;
+  }
   const isAdmin = user.role === 'admin';
+  // 保險：非 user 角色恢復 ☰ 顯示（避免 user→admin 切換殘留隱藏）
+  const bm = document.getElementById('btn-menu');
+  if (bm) bm.style.display = '';
   const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
     : user.role === 'viewer' ? ' <span class="admin-badge" style="background:#6b7280">👀 檢視者</span>'
     : '';

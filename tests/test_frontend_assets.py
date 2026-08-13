@@ -576,8 +576,16 @@ def test_changepw_expiry_ui_present():
     assert "openChangePwModal()" in au  # topbar 改密碼按鈕
     # 2026-08-13 Sarah：user 角色不可自行改密碼 → topbar/功能選單/過期提示都按角色隱藏
     assert "const canChangePw = user.role !== 'user';" in au
+    # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕（☰ 隱藏）
+    assert "user.role === 'user'" in au
+    assert "btn-logout-direct" in au
+    assert "logout-direct-text" in au  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
+    assert "btn-menu" in au and "style.display = 'none'" in au
+    css_all = read(CSS)
+    assert ".btn-logout-direct" in css_all  # 手機版覆蓋 .user-menu .btn-ghost 隱藏
     bs = read(BOTTOMSHEET_JS)
     assert "u.role !== 'viewer' && u.role !== 'user'" in bs
+    assert "u.role !== 'user' && typeof exportExcel" in bs  # user 功能選單不顯示匯出報表
     cpw = read(os.path.join(STATIC, "js", "modals", "changepw.js"))
     assert "function cpwCheckStrength" in cpw
     assert "function submitChangePw" in cpw

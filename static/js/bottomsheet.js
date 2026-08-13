@@ -74,7 +74,8 @@ function closeSheet() {
 function openTopMenu() {
   const u = (typeof currentUser !== 'undefined') ? currentUser : null;
   const actions = [];
-  if (typeof exportExcel === 'function') {
+  // 2026-08-13 Sarah：user 角色功能選單不顯示匯出報表（admin/viewer 維持；user 匯出由管理員代操作）
+  if (u && u.role !== 'user' && typeof exportExcel === 'function') {
     actions.push({ icon: '⬇️', label: '匯出報表', fn: () => exportExcel() });
   }
   // 2026-08-13 Sarah：user 角色不可自行改密碼（功能選單不顯示；由 admin 重設）
