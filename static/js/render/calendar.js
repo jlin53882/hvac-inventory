@@ -104,7 +104,12 @@ function calModalHtml(isAdmin) {
         <label>派工日期</label><input type="date" id="cal-f-date">
       </div>
       <div class="form-row">
-        <label>派工時間</label><input type="time" id="cal-f-start">
+        <label>派工時間</label>
+        <!-- 2026-08-13 Sarah：time input 在手機顯示 12 制（上午/下午）→ 改下拉式 24 制 -->
+        <div class="cal-time-picker">
+          <select id="cal-f-hour" aria-label="時"></select><span class="cal-time-colon">:</span>
+          <select id="cal-f-minute" aria-label="分"></select>
+        </div>
       </div>
       <div class="form-row">
         <label>備註（型號 / 車馬費）</label>
@@ -294,7 +299,20 @@ function calOpenAppt(id) {
   document.getElementById('cal-f-client').value = f ? f.client_name : '';
   document.getElementById('cal-f-address').value = f ? (f.address || '') : '';
   document.getElementById('cal-f-date').value = f ? f.date : _iso(calSelected);
-  document.getElementById('cal-f-start').value = f ? f.start_time : '09:00';
+  // 2026-08-13：24 制下拉（時 00-23、分 00-59，每 5 分鐘）
+  const hSel = document.getElementById('cal-f-hour');
+  hSel.innerHTML = Array.from({length: 24}, (_, h) => {
+    const hh = String(h).padStart(2, '0');
+    return `<option value="${hh}">${hh}</option>`;
+  }).join('');
+  const mSel = document.getElementById('cal-f-minute');
+  mSel.innerHTML = Array.from({length: 12}, (_, i) => {
+    const mm = String(i * 5).padStart(2, '0');
+    return `<option value="${mm}">${mm}</option>`;
+  }).join('');
+  const t = (f ? f.start_time : '09:00') || '09:00';
+  hSel.value = t.slice(0, 2);
+  mSel.value = t.slice(3, 5);
   document.getElementById('cal-f-note').value = f ? (f.note || '') : '';
   document.getElementById('cal-appt-modal').style.display = 'flex';
 }
@@ -309,9 +327,10 @@ async function calSubmitAppt() {
     address: document.getElementById('cal-f-address').value.trim(),
     service_type_id: document.getElementById('cal-f-svc').value ? Number(document.getElementById('cal-f-svc').value) : null,
     date: document.getElementById('cal-f-date').value,
-    start_time: document.getElementById('cal-f-start').value,
+    // 2026-08-13：24 制下拉（時/分）組回 HH:MM
+    start_time: document.getElementById('cal-f-hour').value + ':' + document.getElementById('cal-f-minute').value,
     // 2026-08-13 Sarah：只寫開始時間，不用結束時間 → end 自動 = start（後端衝突判斷變「同時段才衝突」）
-    end_time: document.getElementById('cal-f-start').value,
+    end_time: document.getElementById('cal-f-hour').value + ':' + document.getElementById('cal-f-minute').value,
     note: document.getElementById('cal-f-note').value.trim(),
     user_ids,
   };

@@ -123,6 +123,8 @@ REVIEWED_SAFE_BODIES = {
     "displayLoc || '未標示'", "display", "cls ? ' ' + cls : ''",
     # stocktake.js 盤點輸入表 tab（2026-08-13）：stkGroupByLoc 內部所有使用者資料已 esc()
     "stkGroupByLoc(kitRows)", "stkGroupByLoc(singleRows)",
+    # calendar.js 24 制時間下拉（2026-08-13）：${hh}/${mm} 為 String(h/mm).padStart 產生的純數字（00-23/00-55），不可控
+    "hh", "mm",
     # card.js 共用元件參數（呼叫端傳入已消毒 HTML）
     "p.moreBtnHTML || ''", "p.nameHTML", "p.thumb", "p.actionsHTML || ''",
     "p.extraHTML || ''", "p.qtyHTML",

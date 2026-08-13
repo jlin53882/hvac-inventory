@@ -793,12 +793,16 @@ def test_calendar_appt_only_start_time():
     """2026-08-13 Sarah：編輯派工只寫開始時間、不用結束時間
     - modal 無「結束」欄位（cal-f-end 移除）
     - 儲存時 end_time 自動 = start_time（後端衝突判斷：同時段/涵蓋才衝突）
-    - 明細卡只顯示開始時間（不再 ⏰ 08:00 - 08:30）"""
+    - 明細卡只顯示開始時間（不再 ⏰ 08:00 - 08:30）
+    - 時間用 24 制下拉（時 00-23 / 分 00-55，取代手機 12 制 time input）"""
     js = read(CALENDAR_RENDER_JS)
     assert "cal-f-end" not in js                        # 結束欄位已移除
-    assert 'label>派工時間</label><input type="time" id="cal-f-start"' in js
-    # 儲存：end_time = start_time（同一 input）
-    assert "end_time: document.getElementById('cal-f-start').value" in js
+    assert 'id="cal-f-hour"' in js and 'id="cal-f-minute"' in js  # 24 制時/分下拉
+    assert 'type="time"' not in js                      # 不再用 12 制 time input
+    assert "{length: 24}" in js                         # 時 00-23
+    assert "i * 5" in js                                # 分每 5 分鐘
+    # 儲存：end_time = start_time（同一組時/分）
+    assert "end_time: document.getElementById('cal-f-hour').value" in js
     # 明細卡：只顯示開始時間
     assert "<div class=\"cal-time\">⏰ ${esc(e.start_time)}　${who}</div>" in js
 

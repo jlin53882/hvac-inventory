@@ -956,6 +956,14 @@
 .cal-person-list { display: flex; flex-direction: column; gap: 6px; }
 .cal-person-opt { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-size: 13px; }
 .cal-person-opt input { width: auto; }
+/* 2026-08-13：派工時間 24 制下拉（時/分） */
+.cal-time-picker { display: flex; align-items: center; gap: 6px; }
+.cal-time-picker select {
+  flex: 1; padding: 9px 8px; border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 14px; background: #fff; color: #1e293b; -webkit-appearance: none; appearance: none;
+}
+.cal-time-colon { font-weight: 700; color: #555; }
+
 .cal-swatch { width: 14px; height: 14px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .cal-set-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .cal-set-tab { padding: 6px 14px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; color: #555; }
