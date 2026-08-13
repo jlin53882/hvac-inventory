@@ -32,17 +32,19 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
     app_db.init_db()
 
-    # 建 admin + 登入（v11：全 API 需登入）
-    from app.services.auth import init_admin_if_missing
+    # 建 admin + session 注入（A② 2026-08-14：取代 POST login，省 PBKDF2 600k 迭代 ≈150ms/測試；
+    # 登入路徑本身由 test_users.py 的登入/暴力破解測試覆蓋）
+    from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
     _conn = app_db.get_db()
     try:
         init_admin_if_missing(_conn)
+        _admin_id = _conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+        _token = create_session(_conn, _admin_id)
     finally:
         _conn.close()
 
     with TestClient(app_main.app) as c:
-        r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-        assert r.status_code == 200, f"測試 admin 登入失敗: {r.status_code} {r.text}"
+        c.cookies.set(SESSION_COOKIE, _token)
         yield c
 
     # 測試後清掉測試 DB（Windows 上可能仍被連線鎖住，失敗不影響）

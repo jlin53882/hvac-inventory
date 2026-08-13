@@ -13,13 +13,15 @@ def admin_client(tmp_path, monkeypatch):
     test_db = tmp_path / "test_users.db"
     monkeypatch.setattr("app.database.DB_PATH", str(test_db))
     init_db()
-    from app.services.auth import init_admin_if_missing
+    # A②（2026-08-14）：session 注入取代 POST login（登入/暴力破解測試保留真實登入）
+    from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
     conn = get_db()
     init_admin_if_missing(conn)
+    _admin_id = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+    _token = create_session(conn, _admin_id)
     conn.close()
     with TestClient(fastapi_app) as c:
-        r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-        assert r.status_code == 200
+        c.cookies.set(SESSION_COOKIE, _token)
         yield c
 
 

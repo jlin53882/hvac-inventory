@@ -32,15 +32,17 @@ def client(tmp_path, monkeypatch):
     test_db = tmp_path / "test_inventory.db"
     monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
     app_db.init_db()
-    from app.services.auth import init_admin_if_missing
+    # A②（2026-08-14）：session 注入取代 POST login（省 PBKDF2 600k 迭代）
+    from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
     _conn = app_db.get_db()
     try:
         init_admin_if_missing(_conn)
+        _admin_id = _conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+        _token = create_session(_conn, _admin_id)
     finally:
         _conn.close()
     with TestClient(app_main.app) as c:
-        r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-        assert r.status_code == 200
+        c.cookies.set(SESSION_COOKIE, _token)
         yield c
     try:
         if test_db.exists():

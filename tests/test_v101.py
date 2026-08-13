@@ -33,17 +33,18 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("app.config.UPLOAD_DIR", str(test_upload))
     app_db.init_db()
 
-    # v11：全 API 需登入 → 建 admin + 登入
-    from app.services.auth import init_admin_if_missing
+    # v11：全 API 需登入 → 建 admin + session 注入（A② 2026-08-14：省 PBKDF2 600k 迭代）
+    from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
     _conn = app_db.get_db()
     try:
         init_admin_if_missing(_conn)
+        _admin_id = _conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+        _token = create_session(_conn, _admin_id)
     finally:
         _conn.close()
 
     with TestClient(app_main.app) as c:
-        r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
-        assert r.status_code == 200, f"測試 admin 登入失敗: {r.status_code} {r.text}"
+        c.cookies.set(SESSION_COOKIE, _token)
         yield c
 
 

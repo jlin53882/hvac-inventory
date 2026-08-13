@@ -79,6 +79,50 @@ def tech_client(admin_client):
         yield c
 
 
+# ---------- module-scope fixtures（80 個端點矩陣 case 共用，省 PBKDF2 重複登入） ----------
+@pytest.fixture(scope="module")
+def matrix_db(tmp_path_factory):
+    """module-scope 獨立 DB（唯讀矩陣測試共用；手動 MonkeyPatch，不依賴 function-scope monkeypatch）"""
+    test_db = tmp_path_factory.mktemp("rbac_matrix") / "test.db"
+    mp = pytest.MonkeyPatch()
+    mp.setattr("app.database.DB_PATH", str(test_db))
+    init_db()
+    yield test_db
+    mp.undo()
+
+
+@pytest.fixture(scope="module")
+def matrix_admin(matrix_db):
+    """module-scope admin client（整個 module 登入一次）"""
+    conn = get_db()
+    init_admin_if_missing(conn)
+    conn.close()
+    with TestClient(fastapi_app) as c:
+        r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+        assert r.status_code == 200
+        yield c
+
+
+@pytest.fixture(scope="module")
+def matrix_viewer(matrix_admin):
+    """module-scope viewer client（端點矩陣唯讀 403 檢查用）"""
+    _make_user(matrix_admin, "matrix_viewer", "viewer")
+    with TestClient(fastapi_app) as c:
+        r = c.post("/api/auth/login", json={"username": "matrix_viewer", "password": "Test1234"})
+        assert r.status_code == 200
+        yield c
+
+
+@pytest.fixture(scope="module")
+def matrix_tech(matrix_admin):
+    """module-scope tech client（端點矩陣行事曆白名單檢查用）"""
+    _make_user(matrix_admin, "matrix_tech", "tech")
+    with TestClient(fastapi_app) as c:
+        r = c.post("/api/auth/login", json={"username": "matrix_tech", "password": "Test1234"})
+        assert r.status_code == 200
+        yield c
+
+
 # ---------- me 回傳 permissions ----------
 def test_me_returns_permissions_dict(admin_client):
     """GET /api/auth/me 回傳 permissions dict（16 key，admin 全 true）"""
@@ -310,17 +354,17 @@ def _call(client, method, url):
 
 
 @pytest.mark.parametrize("method,url,key", WRITE_ENDPOINTS, ids=[f"{m}{u}" for m, u, k in WRITE_ENDPOINTS])
-def test_viewer_write_endpoints_all_403(viewer_client, method, url, key):
+def test_viewer_write_endpoints_all_403(matrix_viewer, method, url, key):
     """viewer 對 38 寫入端點全數 403（權限矩陣，稽核 A3 全量）"""
-    resp = _call(viewer_client, method, url)
+    resp = _call(matrix_viewer, method, url)
     assert resp.status_code == 403, f"viewer {method} {url} 應 403，實際 {resp.status_code}"
     assert "無此權限" in resp.json()["detail"]
 
 
 @pytest.mark.parametrize("method,url,key", WRITE_ENDPOINTS, ids=[f"{m}{u}" for m, u, k in WRITE_ENDPOINTS])
-def test_tech_write_endpoints_only_calendar(tech_client, method, url, key):
+def test_tech_write_endpoints_only_calendar(matrix_tech, method, url, key):
     """tech 僅 cal-mgmt 端點非 403，其餘全 403（現況白名單 1:1）"""
-    resp = _call(tech_client, method, url)
+    resp = _call(matrix_tech, method, url)
     if key == "cal-mgmt":
         assert resp.status_code != 403, f"tech {method} {url} 應可達業務層，實際 403"
     else:
