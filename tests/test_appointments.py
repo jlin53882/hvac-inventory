@@ -288,7 +288,7 @@ def test_export_daily_report(client):
     ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
     assert ws.title == "0812"                      # sheet 名 = mmdd
     assert ws["A1"].value == "振佳空調  工程日誌"
-    assert ws["A2"].value == "工程師："              # 不帶名稱（2026-08-12 家豪指定）
+    assert ws["A2"].value == "工程師：藍政達 蘇昱豪"  # 固定兩位工程師（2026-08-13 Sarah 指定）
     assert "星期三" in ws["D2"].value               # 日期含星期
     assert ws["A4"].value == 1                     # 項次
     assert ws["B4"].value == "09:00"            # 時間（2026-08-13 Sarah：只寫開始時間，不再 09:00~11:00）
@@ -330,6 +330,6 @@ def test_export_empty_day_and_bad_date(client):
     r = client.get("/api/appointments/export?date=2026-08-01")
     assert r.status_code == 200
     ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
-    assert ws["A2"].value == "工程師："
+    assert ws["A2"].value == "工程師：藍政達 蘇昱豪"  # 固定兩位工程師（2026-08-13 Sarah 指定，空日也填）
     # 壞日期 400
     assert client.get("/api/appointments/export?date=2026-13-99").status_code == 400

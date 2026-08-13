@@ -57,7 +57,8 @@ def build_daily_report(date_str: str, day_events: list, engineers: list = None):
     ws.title = mmdd
     ws.column_dimensions["B"].width = 20  # B 欄寬固定 20（家豪指定：10.75 放不下時間）
 
-    ws["A2"] = "工程師："  # 不帶名稱（家豪 2026-08-12 指定）
+    # 2026-08-13 Sarah：工程師固定寫 藍政達 蘇昱豪（取代 2026-08-12 留空手寫）
+    ws["A2"] = "工程師：藍政達 蘇昱豪"
     ws["D2"] = "日期：" + date_label
 
     # 1. 清空所有區塊資料格（避免殘留範本佔位；欄位名 D/F/H/J 保留）
