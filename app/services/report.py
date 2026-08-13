@@ -17,8 +17,9 @@ from openpyxl.utils import column_index_from_string
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 TEMPLATE_PATH = ASSETS_DIR / "工程日誌範本.xlsx"
 
-# service_types 固定 id 1-4 → 日報表勾選 ✓ 欄位（欄位名 保養/維修/安裝/配管 由範本印在 D/F/H/J）
-SVC_CHECK_COL = {1: "E", 2: "G", 3: "I", 4: "K"}
+# service_types → 日報表勾選 ✓ 欄位（欄位名 保養/維修/施工/場勘 由範本印在 D/F/H/J）
+# 2026-08-13 Sarah：工程項目「安裝/配管」→「施工/場勘」；對應 id 1/2/5/6
+SVC_CHECK_COL = {1: "E", 2: "G", 5: "I", 6: "K"}
 # 5 個預留區塊：資料列 + 備註區第 1 列（第 2 列 = 第 1 列 +1 列）
 BLOCKS = [
     {"data": 4, "note": "B5"},

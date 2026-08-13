@@ -177,13 +177,16 @@ def init_db():
     if "reverted_at" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN reverted_at TIMESTAMP")
         print("[migrate] movements.reverted_at 欄位已新增（退回已領出防重複）")
-    # 行事曆：service_types 種子（固定 4 項，id 1-4 對應日報表欄位順序 保養/維修/安裝/配管）
+    # 行事曆：service_types 種子（2026-08-13 Sarah：工程項目 安裝/配管 → 施工/場勘）
+    # id 1/2 = 保養/維修 active；3/4 = 安裝/配管 停用（歷史保留）；5/6 = 施工/場勘 active
     conn.executescript("""
     INSERT OR IGNORE INTO service_types (id, name, sort_order, is_active) VALUES
         (1, '保養', 1, 1),
         (2, '維修', 2, 1),
-        (3, '安裝', 3, 1),
-        (4, '配管', 4, 1);
+        (3, '安裝', 3, 0),
+        (4, '配管', 4, 0),
+        (5, '施工', 3, 1),
+        (6, '場勘', 4, 1);
     """)
     conn.commit()
     conn.close()

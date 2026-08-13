@@ -71,9 +71,14 @@ def _create_user(admin_client, username, role):
 def test_service_types_seeded(client):
     r = client.get("/api/service-types")
     assert r.status_code == 200
-    names = [s["name"] for s in r.json()]
-    assert names == ["保養", "維修", "安裝", "配管"]
-    assert [s["id"] for s in r.json()] == [1, 2, 3, 4]
+    rows = r.json()
+    # 2026-08-13 Sarah：工程項目 安裝/配管 → 施工/場勘（停用的歷史項目仍在清單）
+    names = [s["name"] for s in rows]
+    assert names == ["保養", "維修", "安裝", "施工", "配管", "場勘"]
+    assert [s["id"] for s in rows] == [1, 2, 3, 5, 4, 6]
+    # active 4 項 = 保養/維修/施工/場勘（前端下拉只顯示 active）
+    active = [s["name"] for s in rows if s["is_active"] == 1]
+    assert active == ["保養", "維修", "施工", "場勘"]
 
 
 def test_service_types_crud_admin(client):
@@ -91,7 +96,7 @@ def test_service_types_crud_admin(client):
     r = client.delete(f"/api/service-types/{svc_id}")
     assert r.status_code == 200
     row = client.get("/api/service-types").json()
-    assert [s["id"] for s in row if s["is_active"] == 1] == [1, 2, 3, 4]
+    assert [s["id"] for s in row if s["is_active"] == 1] == [1, 2, 5, 6]
 
 
 def test_service_types_requires_admin(client):
@@ -290,12 +295,33 @@ def test_export_daily_report(client):
     assert ws["C4"].value == "陳先生 (B棟 3F)"
     assert ws["G4"].value == "✓"                    # 維修 ✓ 在 G 欄（右側空格）
     assert ws["F4"].value == "維修"                 # 欄位名保留
+    # 2026-08-13 Sarah：工程項目 安裝/配管 → 施工/場勘（欄位名 D/F/H/J，5 個區塊全改——第一輪只改 row4 被抓包）
+    for r in (4, 11, 18, 25, 32):
+        assert ws[f"D{r}"].value == "保養", f"row{r} D 欄應為 保養"
+        assert ws[f"F{r}"].value == "維修", f"row{r} F 欄應為 維修"
+        assert ws[f"H{r}"].value == "施工", f"row{r} H 欄應為 施工"
+        assert ws[f"J{r}"].value == "場勘", f"row{r} J 欄應為 場勘"
     assert ws["B5"].value == "地址：新北市板橋區中山路一段 100 號"  # 地址 + 前綴
     assert ws["B6"].value == "閃紅燈維護"            # 備註無前綴
     assert ws["B12"].value is None                 # 未使用區塊備註清空
     assert ws["B18"].value is None
     assert ws.column_dimensions["B"].width == 20   # B 欄寬固定 20
     assert len(ws.merged_cells.ranges) >= 42       # 範本合併格保留
+
+
+def test_export_daily_report_construction_site_check_cols(client):
+    """2026-08-13 Sarah：施工(id5)→I 欄 ✓、場勘(id6)→K 欄 ✓（SVC_CHECK_COL 新對應）"""
+    import openpyxl
+    client.post("/api/appointments", json=_appt_body(service_type_id=5, date="2026-08-13", start_time="09:00", end_time="10:00", client_name="施工客戶"))
+    client.post("/api/appointments", json=_appt_body(service_type_id=6, date="2026-08-13", start_time="11:00", end_time="12:00", client_name="場勘客戶"))
+    r = client.get("/api/appointments/export?date=2026-08-13")
+    assert r.status_code == 200
+    ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
+    # 兩筆派工依序填 BLOCKS[0]（第4列）/ BLOCKS[1]（第11列）
+    assert ws["I4"].value == "✓"    # 施工(第1筆) → I4
+    assert ws["K11"].value == "✓"   # 場勘(第2筆) → K11
+    assert ws["G4"].value is None   # 第1列維修欄沒被誤勾
+    assert ws["G11"].value is None  # 第2列維修欄沒被誤勾
 
 
 def test_export_empty_day_and_bad_date(client):

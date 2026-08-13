@@ -138,7 +138,7 @@ function calSettingsHtml(isAdmin) {
           <input type="text" id="cal-svc-new" placeholder="新服務項目名稱（例：報價勘查）">
           <button class="btn-sm btn-primary" onclick="calAddSvc()">＋ 加入</button>
         </div>
-        <div class="cal-hint">日報表勾選欄位固定：保養 / 維修 / 安裝 / 配管（其他服務匯出時附註於地點欄）</div>
+        <div class="cal-hint">日報表勾選欄位固定：保養 / 維修 / 施工 / 場勘（其他服務匯出時附註於地點欄）</div>
       </div>
       <div id="cal-tab-ppl-panel" style="display:none">
         <table class="cal-set-table">
