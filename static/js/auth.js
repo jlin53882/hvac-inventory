@@ -64,45 +64,43 @@ function renderUserMenu(user) {
     return;
   }
   const isAdmin = user.role === 'admin';
+  // RBAC（2026-08-13）：按鈕顯示改用權限（permissions 由 /api/auth/me 回傳，立即生效）
+  const perms = user.permissions || {};
+  const canManageUsers = !!perms['user-mgmt'];
+  const canChangePw = !!perms['change-own-password'];
   const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
     : '';  // viewer/tech 不顯示 badge（2026-08-13 Sarah：不要列出檢視者／工程師）
-  // 2026-08-13 Sarah：只有 admin 可自行改密碼（user/tech/viewer 皆由 admin 重設）
-  const canChangePw = user.role === 'admin';
   menu.innerHTML =
     `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}` +
     roleChip + `</span>` +
     (canChangePw ? `<button class="btn-ghost" onclick="openChangePwModal()">🔑<span class="users-text"> 改密碼</span></button>` : '') +
-    (isAdmin ? `<button class="btn-ghost" onclick="openUsersModal()">👥<span class="users-text"> 使用者</span></button>` : '') +
+    (canManageUsers ? `<button class="btn-ghost" onclick="location.href='/permissions.html'">👥<span class="users-text"> 帳號與權限</span></button>` : '') +
     // 2026-08-13 Sarah：登出直接顯示在 topbar（btn-logout-direct 手機版不隱藏），☰ 選單不放登出
     `<button class="btn-ghost btn-logout-direct" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>`;
   menu.style.display = 'flex';
 }
 
-// ---------- 角色 UI 控制（viewer 唯讀模式） ----------
-// 前端隱藏 = UX 防呆；真正的防護在後端 require_login 的 method 封鎖（403）。
+// ---------- 角色 UI 控制（權限驅動，RBAC 2026-08-13） ----------
+// 前端隱藏 = UX 防呆；真正的防護在後端 require_perm（403）。
 function applyRoleView(user) {
   if (!user) return;
-  const isViewer = user.role === 'viewer' || user.role === 'tech';
-  // 2026-08-13 Sarah：新增按鈕已移到庫存清單頂部（inventory.js renderInventory 內，viewer 由 isViewer 判斷隱藏）
+  const perms = user.permissions || {};
+  const canStocktake = !!perms['stocktake'];
+  const canAdjust = !!perms['stock-mgmt'];
+  // 2026-08-13 Sarah：新增按鈕已移到庫存清單頂部（inventory.js renderInventory 內，由權限判斷隱藏）
   const navStocktake = document.getElementById('nav-stocktake');
   const reminder = document.getElementById('reminder');
   const saveBar = document.getElementById('save-bar');
 
-  if (isViewer) {
-    // 盤點 tab 隱藏（不能盤點就不顯示）；待領出/已領出保留（家豪已確認可看）
-    if (navStocktake) navStocktake.style.display = 'none';
-    // 盤點提醒橫幅隱藏
-    if (reminder) reminder.style.display = 'none';
-    // 儲存列隱藏（數量不可編輯）
-    if (saveBar) saveBar.style.display = 'none';
-    // 若 viewer 停在隱藏的盤點 tab → 強制切回庫存頁
-    if (typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
-      switchTab('inventory');
-    }
-  } else {
-    // 非 viewer：確認該顯示的都顯示（避免前次登入殘留 display:none）
-    if (navStocktake) navStocktake.style.display = '';
-    if (saveBar) saveBar.style.display = '';
+  // 盤點 tab 隱藏（不能盤點就不顯示）；待領出/已領出保留（家豪已確認可看）
+  if (navStocktake) navStocktake.style.display = canStocktake ? '' : 'none';
+  // 盤點提醒橫幅隱藏
+  if (reminder) reminder.style.display = canStocktake ? '' : 'none';
+  // 儲存列隱藏（數量不可編輯）
+  if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';
+  // 若停在隱藏的盤點 tab → 強制切回庫存頁
+  if (!canStocktake && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
+    switchTab('inventory');
   }
   // 匯出按鈕已移到庫存清單頂部（inventory.js renderInventory 內，2026-08-13 Sarah）
 }

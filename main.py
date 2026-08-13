@@ -159,6 +159,15 @@ def login_page():
     return Response("<h1>登入頁不存在</h1>", media_type="text/html")
 
 
+@app.get("/permissions.html")
+def permissions_page():
+    """帳號與權限頁（RBAC 2026-08-13；static 資源版本號自動化）"""
+    idx = os.path.join(STATIC_DIR, "permissions.html")
+    if os.path.exists(idx):
+        return _versioned_html(idx)
+    return Response("<h1>權限頁不存在</h1>", media_type="text/html")
+
+
 # 掛載靜態目錄（放在最後，避免吃掉 API 路由）
 # B1：照片維持在 static/uploads（原本位置），但 /static/uploads/* 一律 404 封鎖公開讀取；
 #     登入者改走 /uploads/<id>.jpg（見下方 read_photo）

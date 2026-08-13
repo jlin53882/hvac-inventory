@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>帳號與權限 — 振佳空調管理系統</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<style>
+/* ===== 帳號與權限頁（RBAC 2026-08-13：桌面 3-B / 手機 M1 chip）===== */
+.perm-layout { display: flex; gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; align-items: flex-start; }
+.user-list { width: 250px; flex-shrink: 0; background: #fff; border-radius: 12px; border: 1px solid #eee; overflow: hidden; }
+.user-list-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid #f5f5f5; transition: background .15s; }
+.user-list-item:last-child { border-bottom: none; }
+.user-list-item:hover { background: #f7fbff; }
+.user-list-item.active { background: #e6f4ff; border-left: 3px solid #1890ff; }
+.user-avatar { width: 34px; height: 34px; border-radius: 50%; background: #1890ff; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.user-avatar.off { background: #bbb; }
+.user-meta { flex: 1; min-width: 0; }
+.user-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-name .me-tag { color: #999; font-size: 12px; font-weight: 400; }
+.user-sub { font-size: 12px; color: #888; margin-top: 2px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.on { background: #52c41a; }
+.status-dot.off { background: #ff4d4f; }
+
+.perm-main { flex: 1; min-width: 0; }
+.perm-panel { background: #fff; border-radius: 12px; border: 1px solid #eee; padding: 18px 20px; }
+.panel-head { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; }
+.panel-head .user-avatar { width: 44px; height: 44px; font-size: 19px; }
+.panel-title { font-size: 17px; font-weight: 700; }
+.panel-sub { font-size: 12px; color: #888; margin-top: 2px; }
+
+.tabs { display: flex; gap: 6px; margin: 14px 0 4px; border-bottom: 1px solid #eee; }
+.tab { padding: 9px 16px; border: none; background: none; font-size: 14px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
+.tab.active { color: #1890ff; border-bottom-color: #1890ff; font-weight: 600; }
+
+.perm-group { margin-top: 12px; }
+.perm-group-title { font-size: 12px; color: #999; font-weight: 600; margin-bottom: 6px; padding-left: 2px; }
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.perm-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid #f0f0f0; border-radius: 8px; background: #fafafa; }
+.perm-row.locked { background: #f5f5f5; opacity: .75; }
+.perm-label { font-size: 13.5px; }
+.perm-label small { display: block; color: #999; font-size: 11.5px; margin-top: 1px; }
+.perm-src { font-size: 11px; color: #999; margin-left: 8px; white-space: nowrap; }
+.perm-src.override { color: #fa8c16; }
+.perm-src.role { color: #52c41a; }
+.perm-src.locked { color: #bfbfbf; }
+
+/* 開關（iOS 風格） */
+.switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider { position: absolute; inset: 0; background: #ccc; border-radius: 24px; transition: .2s; cursor: pointer; }
+.switch .slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.switch input:checked + .slider { background: #1890ff; }
+.switch input:checked + .slider::before { transform: translateX(18px); }
+.switch input:disabled + .slider { cursor: not-allowed; opacity: .55; }
+
+.save-bar { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #f0f0f0; }
+.save-hint { font-size: 12.5px; color: #999; }
+.save-hint.changed { color: #fa8c16; font-weight: 600; }
+
+/* 帳號設定 tab */
+.account-card { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 14px; }
+.account-field { padding: 10px 12px; border: 1px solid #f0f0f0; border-radius: 8px; background: #fafafa; }
+.account-field .k { font-size: 12px; color: #999; }
+.account-field .v { font-size: 14px; font-weight: 600; margin-top: 2px; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.account-actions .btn-danger { background: #ff4d4f; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.account-actions .btn-danger:hover { background: #d9363e; }
+.btn-warn { background: #faad14; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.btn-warn:hover { background: #d48806; }
+.warn-box { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #fff7e6; border: 1px solid #ffd591; font-size: 12.5px; color: #ad6800; }
+
+/* 手機：chip 列（M1）取代左列表 */
+.chip-bar { display: none; overflow-x: auto; gap: 8px; padding: 12px 16px 2px; scrollbar-width: none; }
+.chip-bar::-webkit-scrollbar { display: none; }
+.chip { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 18px; border: 1px solid #e0e0e0; background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.chip.active { background: #1890ff; color: #fff; border-color: #1890ff; }
+.chip .status-dot { width: 7px; height: 7px; }
+.chip.off { opacity: .6; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13.5px; z-index: 999; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+@media (max-width: 768px) {
+  .perm-layout { padding: 0; }
+  .user-list { display: none; }
+  .chip-bar { display: flex; }
+  .perm-main { padding: 0 12px 12px; }
+  .perm-grid { grid-template-columns: 1fr; }
+  .topbar-title { display: none; }
+}
+
+/* 新增帳號 modal（權限頁內嵌，沿用既有 modal 樣式） */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+.modal-overlay.show { display: flex; }
+.modal { background: #fff; border-radius: 12px; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto; padding: 18px; }
+.modal h3 { margin: 0 0 14px; font-size: 16px; }
+.cr-input, .cr-select { width: 100%; padding: 9px 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; margin-top: 4px; box-sizing: border-box; }
+.cr-field { margin-bottom: 12px; }
+.cr-field label { font-size: 12.5px; color: #555; }
+.batch-textarea { width: 100%; min-height: 110px; padding: 9px 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; box-sizing: border-box; font-family: inherit; margin-top: 4px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.batch-result { margin-top: 10px; font-size: 12.5px; max-height: 140px; overflow-y: auto; }
+.batch-result .ok { color: #52c41a; }
+.batch-result .err { color: #ff4d4f; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left" style="display:flex;align-items:center;gap:8px;padding-left:12px">
+    <button class="btn-ghost" onclick="location.href='/index.html'">← 返回</button>
+    <span class="topbar-title" style="font-weight:700">🔐 帳號與權限</span>
+  </div>
+  <div class="top-actions" style="display:flex;align-items:center;gap:8px;padding-right:12px">
+    <button class="btn-primary" onclick="openAddUserModal()">＋ 新增帳號</button>
+    <button class="btn-ghost" onclick="location.href='/index.html'">🏠 庫存</button>
+  </div>
+</div>
+
+<div class="chip-bar" id="chipBar"></div>
+
+<div class="perm-layout">
+  <aside class="user-list" id="userList"></aside>
+  <main class="perm-main">
+    <div class="perm-panel">
+      <div class="panel-head" id="panelHead"></div>
+      <div class="tabs">
+        <button class="tab active" data-tab="perms" onclick="switchTab('perms')">🔐 權限設定</button>
+        <button class="tab" data-tab="account" onclick="switchTab('account')">🔑 帳號設定</button>
+      </div>
+      <div id="tab-perms"></div>
+      <div id="tab-account" style="display:none"></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="addUserOverlay">
+  <div class="modal">
+    <h3>＋ 新增帳號</h3>
+    <div class="tabs" style="margin:0 0 12px">
+      <button class="tab active" onclick="addUserMode('single')">單一新增</button>
+      <button class="tab" onclick="addUserMode('batch')">批次新增</button>
+    </div>
+    <div id="addSingle">
+      <div class="cr-field"><label>帳號</label><input class="cr-input" id="nu-username" placeholder="登入用帳號"></div>
+      <div class="cr-field"><label>顯示名稱</label><input class="cr-input" id="nu-display" placeholder="例如 王小明"></div>
+      <div class="cr-field"><label>角色</label>
+        <select class="cr-select" id="nu-role">
+          <option value="user">👤 使用者（庫存全寫入）</option>
+          <option value="tech">🔧 工程師（行事曆可寫、其他唯讀）</option>
+          <option value="viewer">👀 檢視者（全唯讀）</option>
+          <option value="admin">🛡️ 管理員</option>
+        </select>
+      </div>
+      <div class="cr-field"><label>密碼（8 碼以上，含大小寫與數字）</label><input class="cr-input" type="password" id="nu-password"></div>
+    </div>
+    <div id="addBatch" style="display:none">
+      <div class="cr-field"><label>每行一筆：帳號, 顯示名稱, 角色（admin/user/tech/viewer）, 密碼</label>
+        <textarea class="batch-textarea" id="nu-batch" placeholder="例如：&#10;alice, 王小明, user, Pass1234&#10;bob, 陳大文, tech, Pass5678"></textarea>
+      </div>
+      <div class="batch-result" id="nu-batch-result"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeAddUserModal()">取消</button>
+      <button class="btn-primary" id="nu-submit" onclick="submitAddUser()">建立</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="resetPwOverlay">
+  <div class="modal">
+    <h3>🔑 重設密碼</h3>
+    <p style="font-size:13px;color:#666;margin:0 0 10px" id="resetPwTarget"></p>
+    <div class="cr-field"><label>新密碼（8 碼以上，含大小寫與數字）</label><input class="cr-input" type="password" id="rp-password"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeResetPwModal()">取消</button>
+      <button class="btn-primary" onclick="submitResetPw()">重設</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/globals.js" defer></script>
+<script src="/static/js/utils.js" defer></script>
+<script src="/static/js/api.js" defer></script>
+<script src="/static/js/perms.js" defer></script>
+</body>
+</html>

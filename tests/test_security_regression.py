@@ -125,6 +125,14 @@ REVIEWED_SAFE_BODIES = {
     "stkGroupByLoc(kitRows)", "stkGroupByLoc(singleRows)",
     # calendar.js 24 制時間下拉（2026-08-13）：${hh}/${mm} 為 String(h/mm).padStart 產生的純數字（00-23/00-55），不可控
     "hh", "mm",
+    # perms.js 權限頁（2026-08-13）：class 三元 / ROLE_LABELS・GROUP_LABELS 常數輸出，使用者資料已 esc()
+    "u.id === curUid ? 'active' : ''", "badge", "u.is_active ? '啟用中' : '已停用'",
+    "u.is_active ? '' : 'off'", "u.is_active ? 'on' : 'off'", "isMe ? '（自己）' : ''",
+    "u.is_active ? '✅ 啟用中' : '⏸ 已停用'", "GROUP_LABELS[mod] || mod", "locked ? 'locked' : ''",
+    "srcCls", "srcLabel", "checked", "disabled ? 'disabled' : ''", "isMe ? 'disabled' : ''",
+    "Object.keys(permChanges).length ? 'changed' : ''", "u.is_active ? 0 : 1",
+    "u.is_active ? '⏸ 停用帳號' : '▶️ 啟用帳號'",
+    "x.status === 'ok' ? 'ok' : 'err'", "x.status === 'ok' ? '✔' : '✘'",
     # card.js 共用元件參數（呼叫端傳入已消毒 HTML）
     "p.moreBtnHTML || ''", "p.nameHTML", "p.thumb", "p.actionsHTML || ''",
     "p.extraHTML || ''", "p.qtyHTML",

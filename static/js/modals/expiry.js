@@ -4,7 +4,7 @@
 function openExpiryModal() {
   // B4（2026-08-13）：只有 admin 可自行改密碼/ack——非 admin 過期只顯示「請聯絡管理員重設」
   const u = (typeof currentUser !== 'undefined') ? currentUser : null;
-  const isAdmin = u && u.role === 'admin';
+  const isAdmin = u && !!(u.permissions || {})['change-own-password'];
   const btn = document.querySelector('#expiry-modal .btn-save');
   const ack = document.querySelector('#expiry-modal .btn-cancel');
   const adminOnly = document.getElementById('expiry-admin-only');

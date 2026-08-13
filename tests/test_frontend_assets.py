@@ -32,8 +32,6 @@ LOGIN = os.path.join(STATIC, "login.html")
 CSS = os.path.join(STATIC, "css", "style.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
-# 待測：modals/users.js
-USERS_JS = os.path.join(STATIC, "js", "modals", "users.js")
 # 待測：render/kits.js
 KITS_RENDER_JS = os.path.join(STATIC, "js", "render", "kits.js")
 # 待測：modals/kit.js
@@ -130,11 +128,10 @@ def test_css_mobile_media_query():
 
 
 def test_css_user_actions_black_text():
-    """操作按鈕黑字白底（白底 modal 上看得到）"""
+    """舊使用者 modal 操作欄樣式已清理（RBAC 權限頁取代，user-actions 退役）"""
     css = read(CSS)
-    assert ".user-actions .btn-ghost" in css
-    assert "color: #1a1a1a" in css
-    assert ".btn-ghost.danger { color: #dc2626" in css
+    assert ".user-actions" not in css
+    assert ".btn-ghost.danger" not in css  # 舊 modal danger 按鈕樣式一併清理
 
 
 def test_css_mobile_topbar_full_buttons():
@@ -155,10 +152,9 @@ def test_css_mobile_topbar_full_buttons():
 
 
 def test_css_table_card_layout():
-    """手機版使用者表格卡片化"""
+    """舊使用者 modal 手機卡片化樣式已清理（RBAC 權限頁取代，users-table 退役）"""
     css = read(CSS)
-    assert ".users-table thead { display: none; }" in css
-    assert ".users-table tr {" in css
+    assert ".users-table" not in css
 
 
 # ---------- auth.js ----------
@@ -170,107 +166,81 @@ def test_auth_js_wraps_button_text_in_span():
     assert 'class="logout-direct-text"' in js
 
 
-# ---------- users.js ----------
+# ---------- 權限頁 perms.js（RBAC 2026-08-13，取代 users.js modal） ----------
 
-def test_users_js_action_buttons_have_full_text():
-    """操作按鈕必須有完整文字（不能退化成純圖示）"""
-    js = read(USERS_JS)
-    assert "🔑 修改密碼" in js
-    assert "⏸ 帳號停用" in js
-    assert "▶️ 帳號啟用" in js
-    assert "🗑 刪除帳號" in js
-
-
-def test_users_js_has_class_names():
-    """驗證 users.js 含預期 class 名稱"""
-    js = read(USERS_JS)
-    assert "class=\"users-table\"" in js
-    assert "class=\"user-actions\"" in js
-    assert "class=\"create-row\"" in js
-    assert "class=\"cr-input\"" in js
-
-
-def test_users_js_close_button_has_text():
-    """關閉按鈕必須是「✕ 關閉」文字（不能退化成純 ✕ 符號）"""
-    js = read(USERS_JS)
-    assert "✕ 關閉" in js
-
-
-def test_users_js_close_methods():
-    """三種關閉方式：按鈕 / 背景點擊 / Esc"""
-    js = read(USERS_JS)
-    assert "closeUsersModal()" in js
-    assert "e.target === overlay" in js
-    assert "Escape" in js
-
-
-def test_users_js_batch_table():
-    """批次新增表格：加列/刪列/批次建立函式 + 表格容器存在"""
-    js = read(USERS_JS)
-    assert "batchTableBody" in js
-    assert "addBatchRow()" in js
-    assert "createUsersBatch()" in js
-    assert "/api/users/batch" in js
-    assert "batch-username" in js
-    assert "batch-password" in js
-    assert "batch-role" in js
-
-
-# 待測：permissions.js
-PERMS_JS = os.path.join(STATIC, "js", "permissions.js")
-
-
-def test_index_loads_permissions_js():
-    """index.html 有載入 permissions.js（權限一覽資料來源，無手動版本號）"""
-    html = read(INDEX)
-    assert 'src="/static/js/permissions.js"' in html
-    assert "permissions.js?v=" not in html  # 版本號由後端自動注入
-
-
-def test_permissions_js_matrix_has_three_roles():
-    """權限矩陣：13 項權限 × 三角色，viewer 唯讀、admin 全權"""
+def test_perms_js_account_actions_have_full_text():
+    """帳號操作按鈕必須有完整文字（不能退化成純圖示）"""
     js = read(PERMS_JS)
-    assert "PERMISSION_MATRIX" in js
+    assert "重設密碼" in js
+    assert "停用帳號" in js
+    assert "啟用帳號" in js
+    assert "刪除帳號" in js
+
+
+def test_perms_js_has_class_names():
+    """驗證 perms.js 含預期 class 名稱（權限頁 UI）"""
+    js = read(PERMS_JS)
+    assert "perm-row" in js
+    assert "perm-grid" in js
+    assert "switch" in js
+    assert "chip" in js  # 手機 M1 chip 列
+
+
+def test_perms_js_close_methods():
+    """新增帳號 / 重設密碼 modal 有關閉函式"""
+    js = read(PERMS_JS)
+    assert "closeAddUserModal" in js
+    assert "closeResetPwModal" in js
+
+
+def test_perms_js_batch_create():
+    """批次新增：/api/users/batch 端點 + 逐筆結果顯示"""
+    js = read(PERMS_JS)
+    assert "/api/users/batch" in js
+    assert "results" in js
+
+
+# 待測：permissions.html / perms.js（RBAC 權限頁，2026-08-13）
+PERMS_JS = os.path.join(STATIC, "js", "perms.js")
+PERMISSIONS_HTML = os.path.join(STATIC, "permissions.html")
+
+
+def test_permissions_html_loads_perms_js():
+    """permissions.html 有載入 perms.js（無手動版本號）"""
+    html = read(PERMISSIONS_HTML)
+    assert 'src="/static/js/perms.js"' in html
+    assert "perms.js?v=" not in html  # 版本號由後端自動注入
+
+
+def test_perms_js_has_roles_and_groups():
+    """權限頁：四角色 label + 權限分組常數"""
+    js = read(PERMS_JS)
     assert "ROLE_LABELS" in js
-    assert "getRolePerms" in js
-    # 三角色都在矩陣內
-    assert "admin:" in js and "user:" in js and "viewer:" in js
-    # viewer 不能寫入（品項管理/盤點/使用者管理為 false）
-    assert "item-mgmt" in js
-    assert "user-mgmt" in js
-    # viewer 可匯出
-    assert "export" in js
-    assert "viewer: true" in js
+    assert "GROUP_LABELS" in js
+    assert "admin: '🛡️ 管理員'" in js and "tech: '🔧 工程師'" in js
+    assert "/api/users/permissions" in js  # 權限清單動態載入（後端權威，前端不寫死矩陣）
 
 
-def test_users_js_perm_toggle():
-    """使用者表格有「📋 權限」展開按鈕 + toggleUserPerms 函式"""
-    js = read(USERS_JS)
-    assert "toggleUserPerms" in js
-    assert "📋 權限" in js
-    assert "getRolePerms" in js
-    assert "perm-detail-row" in js
+def test_perms_js_perm_save_and_reset():
+    """權限開關：儲存 / 重設為角色預設 API 呼叫"""
+    js = read(PERMS_JS)
+    assert "permSave" in js
+    assert "permReset" in js
+    assert "reset_all" in js
+    assert "/permissions" in js
 
 
-def test_users_js_role_badge_styles():
-    """角色 badge 樣式（方案 C：角色欄下方權限按鈕）"""
-    js = read(USERS_JS)
-    assert "role-badge" in js
-    assert "role-badge-admin" in js
-    assert "role-badge-viewer" in js
-    assert "perm-btn" in js
+def test_perms_js_role_badge_styles():
+    """權限頁角色樣式 + 共用 CSS（.switch 為 calendar service-type 啟停沿用）"""
     css = read(CSS)
-    assert ".role-badge-admin" in css
-    assert ".role-badge-viewer" in css
-    assert ".perm-btn" in css
-    assert ".perm-grid" in css
+    assert ".switch" in css
+    assert "role-badge" not in css  # 舊 users modal 樣式已清理（RBAC 取代）
 
 
-def test_users_js_has_viewer_role_option():
-    """角色下拉（單筆 + 批次）都要有檢視者選項"""
-    js = read(USERS_JS)
-    assert 'value="viewer">檢視者</option>' in js
-    assert js.count('value="viewer"') >= 2  # 單筆 select + 批次 select
+def test_perms_js_has_viewer_role_option():
+    """新增帳號角色下拉（單一）要有檢視者選項"""
+    html = read(PERMISSIONS_HTML)
+    assert 'value="viewer">👀 檢視者' in html
 
 
 # ---------- viewer 角色前端（唯讀模式） ----------
@@ -561,9 +531,9 @@ def test_xss_escapes_present():
     assert "jsStr(key)" in st          # inline handler JS literal escape
     assert 'data-key="${esc(key)}"' in st
 
-    us = read(USERS_JS)
-    assert "${esc(u.username)}" in us  # 帳號欄位
-    assert "function esc(" not in us   # L1：esc 單一來源（users.js 不再自行定義，統一用 utils.js）
+    ps = read(PERMS_JS)
+    assert "${esc(u.username)}" in ps  # 權限頁帳號欄位
+    assert "function esc(" not in ps   # L1：esc 單一來源（統一用 utils.js）
 
     # Phase 1（2026-08-11）：已領出 modal 位置選項顯示文字 + topbar 帳號名 escape
     so = read(os.path.join(STATIC, "js", "modals", "stockout.js"))
@@ -586,8 +556,8 @@ def test_changepw_expiry_ui_present():
     assert "/static/js/modals/expiry.js" in idx
     au = read(AUTH_JS)
     assert "openChangePwModal()" in au  # topbar 改密碼按鈕
-    # 2026-08-13 Sarah：只有 admin 可自行改密碼 → topbar/過期提示都按角色隱藏
-    assert "const canChangePw = user.role === 'admin';" in au
+    # RBAC（2026-08-13）：改密碼按鈕由 change-own-password 權限驅動（seed 僅 admin 持有）
+    assert "perms['change-own-password']" in au
     # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕
     assert "user.role === 'user'" in au
     assert "btn-logout-direct" in au
@@ -606,10 +576,10 @@ def test_changepw_expiry_ui_present():
     exp = read(os.path.join(STATIC, "js", "modals", "expiry.js"))
     assert "function openExpiryModal" in exp
     assert "function ackPasswordExpiry" in exp
-    assert "u.role === 'admin'" in exp  # 只有 admin 過期提示顯示按鈕（B4：非 admin 只顯示請聯絡管理員）
+    assert "change-own-password" in exp  # RBAC：有自行改密碼權限才顯示過期提示按鈕（R2）
     assert "expiry-admin-only" in idx  # 非 admin 過期提醒文字（B4 2026-08-13）
-    pm = read(os.path.join(STATIC, "js", "permissions.js"))
-    assert "tech: '🔧 工程師'" in pm  # B1：ROLE_LABELS 有 tech（帳號列表顯示修正）
+    pm = read(os.path.join(STATIC, "js", "perms.js"))
+    assert "tech: '🔧 工程師'" in pm  # B1：ROLE_LABELS 有 tech（權限頁顯示）
 
 
 def test_resetpw_modal_ui_present():
@@ -622,8 +592,8 @@ def test_resetpw_modal_ui_present():
     assert "btn-cancel-ghost" in idx  # 取消按鈕 ghost 樣式（與儲存並排）
     css = read(os.path.join(STATIC, "css", "style.css"))
     assert ".btn-cancel-ghost" in css
-    us = read(USERS_JS)
-    assert "openResetPwModal(" in us   # 重設改用 modal（不再用瀏覽器 prompt）
+    us = read(PERMS_JS)
+    assert "permResetPw" in us         # 重設改用 modal（不再用瀏覽器 prompt）
     assert "prompt(" not in us         # 回歸防護：不得改回 prompt
     ut = read(UTILS_JS)
     assert "document.body.appendChild(el)" in ut  # openModal z-order 修正（後開 modal 蓋過先開）
@@ -638,7 +608,7 @@ def test_unsaved_changes_guard_present():
     assert "有未儲存的變更" in ut  # confirm 文案
     assert "delete __modalSnapshots[id]" in ut
     # submit 成功路徑用 force（不彈確認）
-    for f in ("add.js", "edit.js", "kit.js", "stockout.js", "users.js", "photo.js"):
+    for f in ("add.js", "edit.js", "kit.js", "stockout.js", "photo.js"):
         src = read(os.path.join(STATIC, "js", "modals", f))
         assert "closeModalForce(" in src, f"{f} 應使用 closeModalForce"
 
@@ -795,14 +765,14 @@ def test_calendar_js_uses_api_endpoints():
     assert "calGoToday" not in js
     # 2026-08-13 Sarah：tech 角色——庫存 render 視為唯讀、calendar 可寫、auth.js 工程師 chip
     inv = read(os.path.join(STATIC, "js", "render", "inventory.js"))
-    assert "currentUser.role === 'tech'" in inv  # tech 庫存唯讀
+    assert "hasPerm('item-mgmt')" in inv  # RBAC：tech 無庫存寫入權限 → 庫存頁唯讀
     cal = read(os.path.join(STATIC, "js", "render", "calendar.js"))
-    assert "currentUser.role === 'tech'" not in cal  # tech 行事曆可寫（不視為 viewer）
+    assert "hasPerm('cal-mgmt')" in cal  # RBAC：tech 有 cal-mgmt → 行事曆可寫
     au = read(AUTH_JS)
     assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
-    assert "user.role === 'admin'" in au  # 只有 admin 可自行改密碼
-    pm = read(os.path.join(STATIC, "js", "permissions.js"))
-    assert "cal-mgmt" in pm and "tech" in pm  # 權限矩陣有行事曆項目＋tech 欄位
+    assert "perms['user-mgmt']" in au  # RBAC：帳號與權限按鈕由 user-mgmt 驅動
+    pm = read(os.path.join(STATIC, "js", "perms.js"))
+    assert "/api/users/permissions" in pm  # 權限清單動態載入（含 cal-mgmt 等全部 key）
 
 
 def test_calendar_js_viewer_write_hidden():
@@ -932,14 +902,14 @@ def test_css_stat_cards_four_columns():
 # 註：photo.js 的 photoImgClick 為 dead code，已於 2026-08-12 清理（未列入斷言）。
 
 def test_all_js_loaded_by_index():
-    """static/js 下每個 .js 都必須被 index.html 引用（防新增 JS 忘掛載 = 整支 dead file）"""
-    html = read(INDEX)
+    """static/js 下每個 .js 都必須被 index.html 或 permissions.html 引用（防新增 JS 忘掛載 = 整支 dead file）"""
+    html = read(INDEX) + read(PERMISSIONS_HTML)
     missing = []
     for js_path in ALL_JS_FILES:
         rel = "/static/" + os.path.relpath(js_path, STATIC).replace("\\", "/")
         if f'src="{rel}"' not in html:
             missing.append(rel)
-    assert not missing, f"以下 JS 存在但未被 index.html 載入（dead file）: {missing}"
+    assert not missing, f"以下 JS 存在但未被 index/permissions.html 載入（dead file）: {missing}"
 
 
 def test_api_js_core_functions():

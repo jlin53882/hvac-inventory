@@ -21,8 +21,8 @@ function _fmtTW(d) {
 // ========== 頁面載入 ==========
 async function renderCalendar() {
   const el = document.getElementById('content');
-  const isAdmin = currentUser && currentUser.role === 'admin';
-  const isViewer = currentUser && currentUser.role === 'viewer';
+  const isAdmin = hasPerm('svc-type-mgmt');
+  const isViewer = !hasPerm('cal-mgmt');
   el.innerHTML = `
     <div class="cal-wrap">
       <div class="cal-toolbar">
@@ -223,7 +223,7 @@ function calFmtCreatedAt(s) {
 
 function calRenderDay() {
   const selStr = _iso(calSelected);
-  const isViewer = currentUser && currentUser.role === 'viewer';
+  const isViewer = !hasPerm('cal-mgmt');
   document.getElementById('cal-day-title').innerText = `${_fmtTW(calSelected)} · 派工明細`;
   document.getElementById('cal-picker').value = selStr;
   const list = document.getElementById('cal-day-list');
