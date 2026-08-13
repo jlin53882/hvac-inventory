@@ -127,6 +127,42 @@ def init_db():
         user_id        INTEGER NOT NULL REFERENCES users(id),
         UNIQUE(appointment_id, user_id)
     );
+    -- RBAC（2026-08-13）：角色/權限/角色預設模板/個人覆蓋/稽核軌跡
+    CREATE TABLE IF NOT EXISTS roles (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        name      TEXT NOT NULL UNIQUE,
+        label     TEXT NOT NULL,
+        is_system INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS permissions (
+        id     INTEGER PRIMARY KEY AUTOINCREMENT,
+        key    TEXT NOT NULL UNIQUE,
+        label  TEXT NOT NULL,
+        module TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS role_permissions (
+        role_id       INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+        permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+        PRIMARY KEY (role_id, permission_id)
+    );
+    CREATE TABLE IF NOT EXISTS user_permissions (
+        user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+        value         INTEGER NOT NULL CHECK (value IN (0, 1)),
+        updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, permission_id)
+    );
+    -- 稽核軌跡：operator/target 用 SET NULL——刪帳號不滅證（稽核 A1）
+    CREATE TABLE IF NOT EXISTS user_audit_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        operator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        target_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        action      TEXT NOT NULL,
+        detail      TEXT NOT NULL DEFAULT '',
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_target ON user_audit_log(target_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_time  ON user_audit_log(created_at);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_items_brand ON items(brand);
@@ -193,5 +229,57 @@ def init_db():
         (5, '施工', 3, 1),
         (6, '場勘', 4, 1);
     """)
+    # ---------- RBAC seed（2026-08-13，與 docs/RBAC-帳號權限系統-設計文件 §5 矩陣一致）----------
+    conn.executescript("""
+    INSERT OR IGNORE INTO roles (name, label, is_system) VALUES
+        ('admin',  '🛡️ 管理員', 1),
+        ('user',   '👤 使用者', 1),
+        ('tech',   '🔧 工程師', 1),
+        ('viewer', '👀 檢視者', 1);
+    INSERT OR IGNORE INTO permissions (key, label, module) VALUES
+        ('view',                 '庫存瀏覽/搜尋/看照片', 'view'),
+        ('stats',                '統計數字',             'view'),
+        ('kit-view',             '整組清單瀏覽',         'view'),
+        ('prepared',             '待領出/已領出瀏覽',    'view'),
+        ('export',               '匯出 Excel',           'view'),
+        ('item-mgmt',            '品項 新增/編輯/刪除',  'stock'),
+        ('stock-mgmt',           '庫存位置/數量調整',    'stock'),
+        ('import',               '匯入 JSON',            'stock'),
+        ('stockout',             '出庫作業',             'stock'),
+        ('stocktake',            '盤點作業',             'stock'),
+        ('kit-mgmt',             '整組 建立/組裝/拆解',  'stock'),
+        ('photo',                '照片 上傳/刪除',       'stock'),
+        ('cal-mgmt',             '行事曆派工（新增/編輯/刪除）', 'calendar'),
+        ('svc-type-mgmt',        '服務項目管理',         'calendar'),
+        ('user-mgmt',            '使用者管理',           'system'),
+        ('change-own-password',  '自行改密碼',           'system');
+    """)
+    # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
+    _RBAC_DEFAULT = {
+        'view':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'stats':   {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'kit-view':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'prepared':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'export':  {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'item-mgmt':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'stock-mgmt':  {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'import':      {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'stockout':    {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'stocktake':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'kit-mgmt':    {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'photo':       {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'cal-mgmt':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+        'svc-type-mgmt':      {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    }
+    _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
+    _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}
+    _rows = []
+    for _key, _perms in _RBAC_DEFAULT.items():
+        for _role, _on in _perms.items():
+            if _on:
+                _rows.append((_role_ids[_role], _perm_ids[_key]))
+    conn.executemany("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)", _rows)
     conn.commit()
     conn.close()
