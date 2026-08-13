@@ -2,13 +2,13 @@
 """
 品項照片路由（Todo 5 / v10.1）
 ================================
-- POST   /api/items/{item_id}/photo   上傳/覆蓋品項照片（自動壓縮到 300px 寬）
+- POST   /api/items/{item_id}/photo   上傳/覆蓋品項照片（自動壓縮到 800px 寬）
 - DELETE /api/items/{item_id}/photo   刪除品項照片
 - GET    /uploads/<item_id>.jpg        靜態讀取（由 main.py 掛載 StaticFiles）
 
 儲存設計：static/uploads/<item_id>.jpg（檔名 = 品項 id）
   → DB schema 零變更、遷移零成本；搬主機時複製 uploads/ 目錄即可。
-  → 壓縮在「上傳當下」做一次（300px 寬 JPEG q=80），前端讀取永遠是輕檔案。
+  → 壓縮在「上傳當下」做一次（800px 寬 JPEG q=80），前端讀取永遠是輕檔案。
 
 效能（家豪要求避免圖片過多卡頓）：
   - 上傳時壓縮（Pillow）→ 檔案小，靜態讀取快
@@ -47,7 +47,7 @@ def has_photo(item_id: int) -> bool:
 
 
 def _compress_and_save(img: Image.Image, dest: str) -> None:
-    """壓縮圖片（300px 寬、JPEG q=80）並存檔；EXIF 翻正後儲存"""
+    """壓縮圖片（800px 寬、JPEG q=80）並存檔；EXIF 翻正後儲存"""
     img = img.convert("RGB")
     w, h = img.size
     if w > THUMB_WIDTH:
