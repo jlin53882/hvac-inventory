@@ -761,6 +761,28 @@ def test_stocktake_list_shows_model_and_kits():
     assert "esc(i.in_kits.join('、'))" in js
 
 
+def test_stocktake_tabs_kit_single_split():
+    """盤點輸入表整組/單一材料分開（tab 切換，2026-08-13 Sarah 需求）：
+    kitRows/singleRows 分組 + 兩個 pane + 切換函式 + CSS 樣式存在"""
+    js = read(STOCKTAKE_JS)
+    # 分組：整組（is_kit）與單一材料分開收集
+    assert "rows.filter(r => r.item.is_kit)" in js
+    assert "rows.filter(r => !r.item.is_kit)" in js
+    # 兩個 pane（整組預設顯示、單一材料隱藏）
+    assert 'id="stk-pane-kit"' in js
+    assert 'id="stk-pane-single" style="display:none"' in js
+    # tab 切換函式
+    assert "function switchStocktakeTab(tab)" in js
+    assert "switchStocktakeTab('kit')" in js
+    assert "switchStocktakeTab('single')" in js
+    # 共用位置分組渲染 helper
+    assert "function stkGroupByLoc(rows)" in js
+    # CSS 樣式
+    css = read(CSS)
+    assert ".stk-tabs {" in css
+    assert ".stk-tab.active {" in css
+
+
 def test_css_stat_cards_four_columns():
     """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
     css = read(CSS)

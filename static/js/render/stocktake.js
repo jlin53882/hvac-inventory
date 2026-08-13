@@ -70,12 +70,32 @@ async function renderStocktake() {
       rows.push({ item: i, stock: s });
     });
   });
+  // 2026-08-13 Sarah 需求：盤點輸入表整組 / 單一材料分開（tab 切換）
+  const kitRows = rows.filter(r => r.item.is_kit);
+  const singleRows = rows.filter(r => !r.item.is_kit);
+
+  html += `<div class="stk-tabs">
+    <button class="stk-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${kitRows.length} 項</span></button>
+    <button class="stk-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${singleRows.length} 項</span></button>
+  </div>`;
+  html += `<div id="stk-pane-kit">${stkGroupByLoc(kitRows)}</div>`;
+  html += `<div id="stk-pane-single" style="display:none">${stkGroupByLoc(singleRows)}</div>`;
+
+  html += `<div style="margin-top:16px">
+    <button class="btn-save" style="width:100%;padding:13px;font-size:15px" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>
+  </div>`;
+
+  content.innerHTML = html;
+}
+
+// ========== 盤點輸入表：位置分組渲染（整組/單一材料共用，2026-08-13） ==========
+function stkGroupByLoc(rows) {
   const byLoc = {};
   rows.forEach(r => {
     const loc = r.stock.location || '未標示';
     (byLoc[loc] = byLoc[loc] || []).push(r);
   });
-
+  let html = '';
   Object.keys(byLoc).sort().forEach(loc => {
     const locRows = byLoc[loc];
     html += `<div class="section-title"><span class="loc">位置：${esc(loc)}</span><span>${locRows.length} 項</span></div>`;
@@ -100,12 +120,16 @@ async function renderStocktake() {
     });
     html += '</tbody></table>';
   });
+  return html;
+}
 
-  html += `<div style="margin-top:16px">
-    <button class="btn-save" style="width:100%;padding:13px;font-size:15px" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>
-  </div>`;
-
-  content.innerHTML = html;
+// 盤點輸入表 tab 切換（整組 / 單一材料）
+function switchStocktakeTab(tab) {
+  document.getElementById('stk-pane-kit').style.display = tab === 'kit' ? '' : 'none';
+  document.getElementById('stk-pane-single').style.display = tab === 'single' ? '' : 'none';
+  document.querySelectorAll('.stk-tab').forEach(b => b.classList.remove('active'));
+  const idx = tab === 'kit' ? 0 : 1;
+  document.querySelectorAll('.stk-tab')[idx].classList.add('active');
 }
 
 // ========== 盤點：低庫存 / 缺貨清單 ==========

@@ -121,6 +121,8 @@ REVIEWED_SAFE_BODIES = {
     "calFmtCreatedAt(e.created_at)", "calModalHtml(isAdmin)", "calSettingsHtml(isAdmin)",
     "_fmtTW(new Date())", "todayStr()", "who", "locHtml", "pPhoto", "soPhoto",
     "displayLoc || '未標示'", "display", "cls ? ' ' + cls : ''",
+    # stocktake.js 盤點輸入表 tab（2026-08-13）：stkGroupByLoc 內部所有使用者資料已 esc()
+    "stkGroupByLoc(kitRows)", "stkGroupByLoc(singleRows)",
     # card.js 共用元件參數（呼叫端傳入已消毒 HTML）
     "p.moreBtnHTML || ''", "p.nameHTML", "p.thumb", "p.actionsHTML || ''",
     "p.extraHTML || ''", "p.qtyHTML",

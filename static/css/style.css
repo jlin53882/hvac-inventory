@@ -433,6 +433,13 @@
   .stat-card.clickable { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
   .stat-card.clickable:active { transform: scale(0.95); box-shadow: 0 0 0 2px #2d5a8e33; }
 
+  /* 盤點輸入表 tab 切換（2026-08-13：整組 / 單一材料分開） */
+  .stk-tabs { display: flex; gap: 8px; background: #f1f5f9; border-radius: 12px; padding: 4px; margin: 12px 0; }
+  .stk-tab { flex: 1; padding: 9px 0; border: none; border-radius: 9px; font-size: 13.5px; font-weight: 600; cursor: pointer; background: transparent; color: #64748b; transition: all 0.2s; line-height: 1.3; }
+  .stk-tab.active { background: #fff; color: #1e3a5f; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+  .stk-tab span { display: block; font-size: 10.5px; font-weight: 400; opacity: 0.7; margin-top: 1px; }
+  .stk-tab.active span { opacity: 0.85; }
+
   .empty { text-align: center; color: #999; padding: 40px 0; font-size: 14px; }
 
   .toast {
