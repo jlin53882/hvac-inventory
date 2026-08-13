@@ -21,8 +21,8 @@
   .topbar h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
   .topbar h1 .topbar-logo { width: 24px; height: 24px; border-radius: 50%; object-fit: contain; background: #fff; }
   .topbar .sub { font-size: 12px; opacity: 0.75; margin-top: 2px; }
-  /* 2026-08-13：標題兩行 wrapper——桌面 display:contents 等於沒包（一行）；手機版覆蓋成 flex column */
-  .topbar h1 .t-wrap { display: contents; }
+  /* 2026-08-13：標題兩行 wrapper——桌面 inline-flex（兩字連在一起無間距）；手機版覆蓋成 flex column */
+  .topbar h1 .t-wrap { display: inline-flex; }
   .top-actions { display: flex; gap: 8px; }
   .btn-ghost {
     background: rgba(255,255,255,0.15);

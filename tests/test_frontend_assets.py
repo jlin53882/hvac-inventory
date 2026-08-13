@@ -144,8 +144,10 @@ def test_css_mobile_topbar_full_buttons():
     assert ".logout-text, .users-text { display: none; }" not in css
     # 右邊四個 2×2 grid
     assert ".user-menu { display: grid !important; grid-template-columns: auto auto;" in css
-    # 左邊標題兩行（logo 左、兩行字右，左緣對齊）
+    # 左邊標題兩行（logo 左、兩行字右，左緣對齊）——手機版 flex column
     assert ".topbar h1 .t-wrap { display: flex; flex-direction: column;" in css
+    # 桌面版兩字連在一起（inline-flex 無間距；2026-08-13 Sarah：電腦版的不要空一格）
+    assert ".topbar h1 .t-wrap { display: inline-flex; }" in css
     # 標題 span 存在（index.html）
     idx = read(INDEX)
     assert 'class="t-title"' in idx and 'class="t-title-2"' in idx
