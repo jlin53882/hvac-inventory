@@ -794,7 +794,7 @@ def test_calendar_js_uses_api_endpoints():
     cal = read(os.path.join(STATIC, "js", "render", "calendar.js"))
     assert "currentUser.role === 'tech'" not in cal  # tech 行事曆可寫（不視為 viewer）
     au = read(AUTH_JS)
-    assert "🔧 工程師" in au  # tech chip
+    assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
     assert "user.role !== 'user' && user.role !== 'tech'" in au  # tech 不可自行改密碼
     pm = read(os.path.join(STATIC, "js", "permissions.js"))
     assert "cal-mgmt" in pm and "tech" in pm  # 權限矩陣有行事曆項目＋tech 欄位
