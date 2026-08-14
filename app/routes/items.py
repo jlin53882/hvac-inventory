@@ -325,53 +325,54 @@ def delete_stock(stock_id: int):
 def adjust_qty(item_id: int, req: AdjustRequest):
     """加減庫存：正數=盤點補入、負數=扣減"""
     conn = get_db()
-    item_row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
-    if not item_row:
-        conn.close()
-        raise HTTPException(404, "品項不存在")
-    row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
-    if not row:
-        conn.close()
-        raise HTTPException(404, "品項無庫存位置")
-    total_before = sum(r["qty"] for r in row)
-    # 負數調整：減少後庫存不得低於待領出數量（避免「可領數量」變負）
-    if req.delta < 0:
-        prepared = item_row["prepared_qty"] or 0
-        if total_before + req.delta < prepared:
-            conn.close()
-            raise HTTPException(
-                400,
-                f"減少後庫存不能低於待領出數量！目前庫存 {total_before}、待領出 {prepared}，請先退回待領出",
-            )
-    # 第一筆位置作為調整標的（正數加入第一筆；負數從最後一筆往前扣）
-    if req.delta >= 0:
-        target = row[0]
-        conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
-                     (req.delta, datetime.datetime.now().isoformat(), target["id"]))
-        total_after = total_before + req.delta
-    else:
-        remaining = -req.delta
-        total_after = total_before + req.delta
-        for r in row:  # M10：統一從頭扣（與 stockout._deduct 一致）
-            if remaining <= 0:
-                break
-            take = min(r["qty"], remaining)
-            cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
-                               (take, datetime.datetime.now().isoformat(), r["id"], take))
-            if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕
-                conn.close()
+    try:
+        item_row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+        if not item_row:
+            raise HTTPException(404, "品項不存在")
+        row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
+        if not row:
+            raise HTTPException(404, "品項無庫存位置")
+        total_before = sum(r["qty"] for r in row)
+        # 負數調整：減少後庫存不得低於待領出數量（避免「可領數量」變負）
+        if req.delta < 0:
+            prepared = item_row["prepared_qty"] or 0
+            if total_before + req.delta < prepared:
+                raise HTTPException(
+                    400,
+                    f"減少後庫存不能低於待領出數量！目前庫存 {total_before}、待領出 {prepared}，請先退回待領出",
+                )
+        # 第一筆位置作為調整標的（正數加入第一筆；負數從最後一筆往前扣）
+        if req.delta >= 0:
+            target = row[0]
+            conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+                         (req.delta, datetime.datetime.now().isoformat(), target["id"]))
+        else:
+            remaining = -req.delta
+            for r in row:  # M10：統一從頭扣（與 stockout._deduct 一致）
+                if remaining <= 0:
+                    break
+                take = min(r["qty"], remaining)
+                cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+                                   (take, datetime.datetime.now().isoformat(), r["id"], take))
+                if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕
+                    raise HTTPException(400, f"庫存不足！剩 {total_before}")
+                remaining -= take
+            if remaining > 0:
                 raise HTTPException(400, f"庫存不足！剩 {total_before}")
-            remaining -= take
-        if remaining > 0:
-            conn.close()
-            raise HTTPException(400, f"庫存不足！剩 {total_before}")
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, req.delta, total_before, total_after, req.reason, req.destination),
-    )
-    conn.commit()
-    conn.close()
-    return {"ok": True, "before": total_before, "after": total_after}
+        # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
+        total_after = sum(r2["qty"] for r2 in conn.execute(
+            "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+            (item_id, req.delta, total_after - req.delta, total_after, req.reason, req.destination),
+        )
+        conn.commit()
+        return {"ok": True, "before": total_after - req.delta, "after": total_after}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 @router.post("/api/import", dependencies=[Depends(require_perm("import"))])

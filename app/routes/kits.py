@@ -187,9 +187,12 @@ def _deduct_total(conn, item_id, need, reason):
         remaining -= take
     if remaining > 0:
         raise HTTPException(400, f"庫存不足！剩 {before}")
+    # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
+    after = sum(s["qty"] for s in conn.execute(
+        "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, -need, before, before - need, reason, ""),
+        (item_id, -need, after + need, after, reason, ""),
     )
 
 
@@ -197,7 +200,6 @@ def _add_total(conn, item_id, add, reason):
     """加入第一筆位置庫存，記錄 movements。"""
     stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
                           (item_id,)).fetchall()
-    before = sum(s["qty"] for s in stocks)
     target = stocks[0] if stocks else None
     if target:
         conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
@@ -205,9 +207,12 @@ def _add_total(conn, item_id, add, reason):
     else:
         conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
                      (item_id, "", add, ""))
+    # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
+    after = sum(s["qty"] for s in conn.execute(
+        "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, add, before, before + add, reason, ""),
+        (item_id, add, after - add, after, reason, ""),
     )
 
 
@@ -217,34 +222,38 @@ def assemble_kit(kit_id: int, req: KitAssemble):
     if req.qty <= 0:
         raise HTTPException(400, "組裝數量必須大於 0")
     conn = get_db()
-    kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
-    if not kit:
-        raise HTTPException(404, "套件不存在")
-    comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
+    try:
+        kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
+        if not kit:
+            raise HTTPException(404, "套件不存在")
+        comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
 
-    # 檢查材料庫存
-    short = []
-    for c in comps:
-        mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (c["item_id"],)).fetchone()
-        if not mat:  # M6：材料已刪除 → 不可組裝
-            raise HTTPException(400, f"材料 id={c['item_id']} 已刪除，無法組裝")
-        need = c["qty"] * req.qty
-        stock = _total(conn, c["item_id"])
-        if stock < need:
-            short.append(f"{mat['name']}（需要 {need}，剩 {stock}）")
-    if short:
+        # 檢查材料庫存
+        short = []
+        for c in comps:
+            mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (c["item_id"],)).fetchone()
+            if not mat:  # M6：材料已刪除 → 不可組裝
+                raise HTTPException(400, f"材料 id={c['item_id']} 已刪除，無法組裝")
+            need = c["qty"] * req.qty
+            stock = _total(conn, c["item_id"])
+            if stock < need:
+                short.append(f"{mat['name']}（需要 {need}，剩 {stock}）")
+        if short:
+            raise HTTPException(400, "材料不足：" + "、".join(short))
+
+        # 扣材料
+        for c in comps:
+            need = c["qty"] * req.qty
+            _deduct_total(conn, c["item_id"], need, f"組裝套件:{kit['name']}")
+        # 加整組庫存
+        _add_total(conn, kit["item_id"], req.qty, f"組裝完成:{kit['name']}")
+        conn.commit()
+        return {"ok": True, "kit": kit["name"], "qty": req.qty}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
         conn.close()
-        raise HTTPException(400, "材料不足：" + "、".join(short))
-
-    # 扣材料
-    for c in comps:
-        need = c["qty"] * req.qty
-        _deduct_total(conn, c["item_id"], need, f"組裝套件:{kit['name']}")
-    # 加整組庫存
-    _add_total(conn, kit["item_id"], req.qty, f"組裝完成:{kit['name']}")
-    conn.commit()
-    conn.close()
-    return {"ok": True, "kit": kit["name"], "qty": req.qty}
 
 
 @router.post("/api/kits/{kit_id}/disassemble", dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -253,21 +262,25 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
     if req.qty <= 0:
         raise HTTPException(400, "拆解數量必須大於 0")
     conn = get_db()
-    kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
-    if not kit:
-        raise HTTPException(404, "套件不存在")
-    kit_stock = _total(conn, kit["item_id"])
-    if kit_stock < req.qty:
-        conn.close()
-        raise HTTPException(400, f"整組庫存不足！只剩 {kit_stock} 組")
+    try:
+        kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
+        if not kit:
+            raise HTTPException(404, "套件不存在")
+        kit_stock = _total(conn, kit["item_id"])
+        if kit_stock < req.qty:
+            raise HTTPException(400, f"整組庫存不足！只剩 {kit_stock} 組")
 
-    # 扣整組
-    _deduct_total(conn, kit["item_id"], req.qty, f"拆解:{kit['name']}")
-    # 加回材料
-    comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
-    for c in comps:
-        add = c["qty"] * req.qty
-        _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}")
-    conn.commit()
-    conn.close()
-    return {"ok": True, "kit": kit["name"], "qty": req.qty}
+        # 扣整組
+        _deduct_total(conn, kit["item_id"], req.qty, f"拆解:{kit['name']}")
+        # 加回材料
+        comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
+        for c in comps:
+            add = c["qty"] * req.qty
+            _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}")
+        conn.commit()
+        return {"ok": True, "kit": kit["name"], "qty": req.qty}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

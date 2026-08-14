@@ -1146,3 +1146,13 @@ def test_calendar_js_month_url():
     js = read(CALENDAR_RENDER_JS)
     assert "new URLSearchParams(location.search).get('month')" in js, "calendar.js 未從 URL 讀 month"
     assert "syncViewUrl" in js, "calendar.js 切月後未同步 URL"
+
+
+# ---------- P4（2026-08-14）：saveAll 失敗保留 pending ----------
+
+def test_api_js_saveall_keeps_failed_pending():
+    """api.js saveAll：失敗的調整保留在 pending（不靜默丟失），成功才清空"""
+    js = read(API_JS)
+    assert "failed" in js, "api.js saveAll 缺 failed 陣列"
+    assert "kept" in js and "pending = kept" in js, "api.js saveAll 未保留失敗 pending"
+    assert "失敗的調整已保留" in js, "api.js saveAll 失敗 toast 未提示保留"

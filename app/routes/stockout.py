@@ -77,7 +77,10 @@ def _deduct(conn, item_id, qty, location=""):
             remaining -= take
         if remaining > 0:
             raise HTTPException(400, f"庫存不足！只剩 {total_before}")
-    return total_before, total_before - qty
+    # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
+    total_after = sum(s["qty"] for s in conn.execute(
+        "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
+    return total_after + qty, total_after
 
 
 @router.post("/api/stockout", dependencies=[Depends(require_perm("stockout"))])
@@ -86,30 +89,35 @@ def stock_out(req: StockOutRequest):
     if req.qty <= 0:
         raise HTTPException(400, "出庫數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, "品項不存在")
-    before = _total_qty(conn, req.item_id)
-    if before < req.qty:
-        raise HTTPException(400, f"庫存不足！目前只剩 {before} {row['unit']}")
-    # M3：出庫後剩餘不得低於待領出數量（保留準備量給「確認出庫」；與 adjust_qty 守衛一致）
-    prepared = row["prepared_qty"] or 0
-    if before - req.qty < prepared:
-        raise HTTPException(400, f"出庫後剩餘庫存不能低於待領出數量！目前庫存 {before}、待領出 {prepared}，請從「待領出」確認出庫")
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "品項不存在")
+        before = _total_qty(conn, req.item_id)
+        if before < req.qty:
+            raise HTTPException(400, f"庫存不足！目前只剩 {before} {row['unit']}")
+        # M3：出庫後剩餘不得低於待領出數量（保留準備量給「確認出庫」；與 adjust_qty 守衛一致）
+        prepared = row["prepared_qty"] or 0
+        if before - req.qty < prepared:
+            raise HTTPException(400, f"出庫後剩餘庫存不能低於待領出數量！目前庫存 {before}、待領出 {prepared}，請從「待領出」確認出庫")
 
-    reason = "出庫"
-    if req.note:
-        reason = f"出庫 - {req.note}"
-    _, after = _deduct(conn, req.item_id, req.qty, req.location)
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (req.item_id, -req.qty, before, after, reason, req.destination),
-    )
-    conn.commit()
-    updated = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
-    payload = _item_payload(conn, updated)
-    conn.close()
-    return payload
+        reason = "出庫"
+        if req.note:
+            reason = f"出庫 - {req.note}"
+        # 2026-08-14 P4-1：before/after 用 _deduct 寫後重讀值（鏈一致）
+        before, after = _deduct(conn, req.item_id, req.qty, req.location)
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+            (req.item_id, -req.qty, before, after, reason, req.destination),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
+        return _item_payload(conn, updated)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 @router.post("/api/stockout/nonstock", dependencies=[Depends(require_perm("stockout"))])
@@ -222,47 +230,51 @@ def return_stockout(movement_id: int):
 def update_stockout(movement_id: int, upd: StockoutUpdate):
     """編輯已領出記錄：去向 / 數量（差額補/扣庫存並記錄流水）/ 日期"""
     conn = get_db()
-    m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
-    if not m:
-        conn.close()
-        raise HTTPException(404, "出庫記錄不存在")
-    if m["delta"] >= 0 or not str(m["reason"]).startswith("出庫"):
-        conn.close()
-        raise HTTPException(400, "只有已領出（出庫）記錄可以編輯")
-    if m["reverted_at"]:
-        conn.close()
-        raise HTTPException(400, "已退回的記錄不能編輯")
+    try:
+        # 2026-08-14 P4-4：BEGIN IMMEDIATE 防兩視窗同時編輯同一筆（流水 delta 絕對值覆寫）
+        conn.execute("BEGIN IMMEDIATE")
+        m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+        if not m:
+            raise HTTPException(404, "出庫記錄不存在")
+        if m["delta"] >= 0 or not str(m["reason"]).startswith("出庫"):
+            raise HTTPException(400, "只有已領出（出庫）記錄可以編輯")
+        if m["reverted_at"]:
+            raise HTTPException(400, "已退回的記錄不能編輯")
 
-    old_qty = -m["delta"]
-    if upd.qty is not None:
-        if upd.qty <= 0:
-            conn.close()
-            raise HTTPException(400, "數量必須大於 0")
-        new_qty = upd.qty
-        diff = new_qty - old_qty  # >0 需多扣庫存；<0 補回庫存
-        if diff > 0:
-            _deduct(conn, m["item_id"], diff, "")  # 庫存不足會 400
-        elif diff < 0:
-            _add_back_to_first_stock(conn, m["item_id"], -diff)
-        before = m["before_qty"]
-        after = before - new_qty
-        conn.execute("UPDATE movements SET delta=?, after_qty=? WHERE id=?",
-                     (-new_qty, after, movement_id))
-        if abs(diff) > 1e-9:  # 浮點差額：奈米級誤差不寫流水
-            conn.execute(
-                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                (m["item_id"], -diff, before, after, "已領出編輯調整", m["destination"]),
-            )
-    if upd.destination is not None:
-        conn.execute("UPDATE movements SET destination=? WHERE id=?",
-                     (upd.destination, movement_id))
-    if upd.created_at is not None:
-        conn.execute("UPDATE movements SET created_at=? WHERE id=?",
-                     (upd.created_at, movement_id))
-    conn.commit()
-    row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
-    conn.close()
-    return dict(row)
+        old_qty = -m["delta"]
+        if upd.qty is not None:
+            if upd.qty <= 0:
+                raise HTTPException(400, "數量必須大於 0")
+            new_qty = upd.qty
+            diff = new_qty - old_qty  # >0 需多扣庫存；<0 補回庫存
+            if diff > 0:
+                _deduct(conn, m["item_id"], diff, "")  # 庫存不足會 400
+            elif diff < 0:
+                _add_back_to_first_stock(conn, m["item_id"], -diff)
+            new_after = m["before_qty"] - new_qty  # 原出庫記錄的 after（B0 - 新數量）
+            conn.execute("UPDATE movements SET delta=?, after_qty=? WHERE id=?",
+                         (-new_qty, new_after, movement_id))
+            if abs(diff) > 1e-9:  # 浮點差額：奈米級誤差不寫流水
+                # 2026-08-14 審查修（P4-1）：編輯調整流水的 before_qty 用「編輯前總量」= 原記錄 after_qty（B0-old_qty）
+                # → 鏈：(B0-old_qty) + (old_qty-new_qty) = B0-new_qty 恆成立
+                conn.execute(
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                    (m["item_id"], -diff, m["after_qty"], new_after, "已領出編輯調整", m["destination"]),
+                )
+        if upd.destination is not None:
+            conn.execute("UPDATE movements SET destination=? WHERE id=?",
+                         (upd.destination, movement_id))
+        if upd.created_at is not None:
+            conn.execute("UPDATE movements SET created_at=? WHERE id=?",
+                         (upd.created_at, movement_id))
+        conn.commit()
+        row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+        return dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 # ---------- 領出準備（兩階段出庫） ----------
@@ -373,11 +385,10 @@ def prepared_out(item_id: int, req: PrepareRequest):
         conn.close()
         return payload
 
-    before = _total_qty(conn, item_id)
-    after = before - req.qty
     new_prepared = row["prepared_qty"] - req.qty
 
-    _deduct(conn, item_id, req.qty, req.location)
+    # 2026-08-14 審查修（P4-1）：before/after 用 _deduct 寫後重讀值（鏈一致）
+    before, after = _deduct(conn, item_id, req.qty, req.location)
     cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
                        (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
     if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕

@@ -73,6 +73,7 @@ async function saveAll() {
   const btn = document.getElementById('btn-save');
   if (btn) btn.disabled = true;
   let ok = 0, fail = 0;
+  const failed = [];  // 2026-08-14 P4-2：失敗的調整 id 保留（不靜默丟失）
   try {
     for (const id of ids) {
       try {
@@ -81,13 +82,21 @@ async function saveAll() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ delta: pending[id], reason: '手動調整' })
         });
-        if (res.ok) ok++; else fail++;
-      } catch (e) { fail++; }
+        if (res.ok) ok++;
+        else { fail++; failed.push(id); }
+      } catch (e) { fail++; failed.push(id); }
     }
-    pending = {};
+    // 2026-08-14 P4-2：只保留失敗的 pending（併發被他人先扣 400 的調整可修正後再存）
+    if (failed.length) {
+      const kept = {};
+      failed.forEach(id => { kept[id] = pending[id]; });
+      pending = kept;
+    } else {
+      pending = {};
+    }
     await loadData();
     if (fail === 0) toast(`✅ 已儲存 ${ok} 項變更`, 'success');
-    else toast(`⚠️ ${ok} 成功，${fail} 失敗`, 'error');
+    else toast(`⚠️ ${ok} 成功，${fail} 失敗——失敗的調整已保留，可修正後再儲存`, 'error');
   } finally {
     savingAll = false;
     if (btn) btn.disabled = false;

@@ -474,6 +474,46 @@ class TestStockoutReturn:
         assert len(backs) == 1
         assert backs[0]["delta"] == 3
 
+    def test_movements_chain_before_delta_after(self, client):
+        """P4-1（2026-08-14）：連續調整後每筆流水 before+delta==after（寫後重讀，鏈一致）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        client.post(f"/api/items/{item['id']}/adjust", json={"delta": 5, "reason": "進貨"})
+        client.post(f"/api/items/{item['id']}/adjust", json={"delta": -3, "reason": "出貨"})
+        client.post(f"/api/items/{item['id']}/adjust", json={"delta": 2, "reason": "進貨"})
+        movs = client.get("/api/movements").json()
+        assert len(movs) == 3
+        # 每筆流水 before + delta == after（浮點 round 3 位）
+        for m in movs:
+            assert round(m["before_qty"] + m["delta"], 3) == round(m["after_qty"], 3), \
+                f"流水鏈不一致: {m}"
+        # 最後一筆 after == 目前總量（10+5-3+2=14）
+        assert movs[0]["after_qty"] == 14
+        assert _get_item(client, item["id"])["total_qty"] == 14
+
+    def test_update_stockout_keeps_delta_after(self, client):
+        """P4-4（2026-08-14）：編輯已領出數量後流水 delta/after 正確（BEGIN IMMEDIATE 不破壞功能）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        assert _get_item(client, item["id"])["total_qty"] == 6
+        # 改數量 4 → 6（多扣 2）
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": 6})
+        assert r.status_code == 200, r.text
+        assert _get_item(client, item["id"])["total_qty"] == 4
+        # 原記錄流水更新為 delta=-6、after_qty=4
+        movs = client.get("/api/movements").json()
+        target = [m for m in movs if m["id"] == rec["id"]][0]
+        assert target["delta"] == -6
+        assert target["after_qty"] == 4
+        assert round(target["before_qty"] + target["delta"], 3) == round(target["after_qty"], 3)
+        # 編輯調整流水（-2）鏈一致：before=編輯前總量 6 → 6+(-2)=4（2026-08-14 審查修 P4-1）
+        adj = [m for m in movs if m["reason"] == "已領出編輯調整"]
+        assert len(adj) == 1
+        assert adj[0]["delta"] == -2
+        assert adj[0]["before_qty"] == 6
+        assert adj[0]["after_qty"] == 4
+        assert round(adj[0]["before_qty"] + adj[0]["delta"], 3) == round(adj[0]["after_qty"], 3)
+
+
     def test_return_twice_rejected(self, client):
         """同一筆已領出記錄不能重複退回"""
         item = _add_item(client, name="冷媒", qty=10)
