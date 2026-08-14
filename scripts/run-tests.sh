@@ -27,4 +27,7 @@ case "${1:-all}" in
 esac
 
 echo "== 測試組: ${1:-all} =="
-exec env -u PYTHONPATH "$PY" -m pytest $FILES -q
+# 2026-08-14 補：all（全量）用 pytest-xdist 並行加速（~150s → ~60s）；分組組別小不並行避免 overhead
+PARALLEL=""
+[ "${1:-all}" = "all" ] && PARALLEL="-n auto"
+exec env -u PYTHONPATH "$PY" -m pytest $FILES -q $PARALLEL
