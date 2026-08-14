@@ -17,6 +17,7 @@
 import datetime
 import os
 import re
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
@@ -28,8 +29,22 @@ from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, kits, lookup, photos, stats, stockout, stocktake, users
 from app.services.auth import init_admin_if_missing, require_login
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """啟動時初始化 DB schema + 首次 admin；shutdown 無需清理。
+    2026-08-14 移入 lifespan：`import main` 不再觸發 DB 寫入（測試側 database is locked 根治）"""
+    init_db()
+    _conn = get_db()
+    try:
+        init_admin_if_missing(_conn)
+    finally:
+        _conn.close()
+    yield
+
+
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
-app = FastAPI(title="庫存管理系統", version="11.0.0")
+app = FastAPI(title="庫存管理系統", version="11.0.0", lifespan=lifespan)
 # ---------- 快取策略（避免瀏覽器快取舊版 HTML/JS） ----------
 @app.middleware("http")
 async def cache_control_middleware(request, call_next):
@@ -83,18 +98,6 @@ async def security_headers_middleware(request, call_next):
         "form-action 'self'"
     )
     return response
-
-
-
-init_db()
-
-# 首次啟動建立 admin（已存在則跳過）
-# 模組層共用的 DB connection
-_conn = get_db()
-try:
-    init_admin_if_missing(_conn)
-finally:
-    _conn.close()
 
 
 # ---------- 健康檢查 ----------
