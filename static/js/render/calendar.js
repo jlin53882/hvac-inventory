@@ -201,8 +201,17 @@ function calRenderMonth() {
       const t = document.createElement('span');
       t.className = 'cal-evt';
       t.style.background = ((e.assignees || [])[0] && (e.assignees[0].color)) || '#1a73e8';
-      // 2026-08-14 Sarah：派工時間選填——無時間的派工不顯示時間前綴
-      t.innerText = `${e.start_time ? e.start_time + ' ' : ''}[${e.service_name || ''}] ${e.client_name || ''}`;
+      // 2026-08-14 家豪 B 方案：時間獨立一行（粗體）＋ 服務/客戶一行截斷（cell 內不換行不溢出）
+      if (e.start_time) {
+        const timeEl = document.createElement('span');
+        timeEl.className = 'cal-evt-time';
+        timeEl.textContent = e.start_time;
+        t.appendChild(timeEl);
+      }
+      const bodyEl = document.createElement('span');
+      bodyEl.className = 'cal-evt-body';
+      bodyEl.textContent = `[${e.service_name || ''}] ${e.client_name || ''}`;
+      t.appendChild(bodyEl);
       c.appendChild(t);
     });
     if (evts.length > 2) {

@@ -127,12 +127,14 @@ def test_css_mobile_media_query():
     assert ".top-actions { flex-wrap: wrap" in css or "flex-wrap: wrap" in css
 
 
-def test_css_cal_evt_wraps_on_mobile():
-    """2026-08-14 Sarah：手機版月曆格派工文字自動換行（桌面 nowrap+ellipsis 保留，手機窄格不超出）"""
+def test_css_cal_evt_b_variant_and_no_overflow():
+    """2026-08-14 家豪 B 方案：月曆格時間/內容兩段式 ＋ 跑版防回歸
+    - .cal-grid 必須 minmax(0, 1fr)（1fr=minmax(auto,1fr) 會被長 nowrap 文字撐破格子——8/22 跑版根因）
+    - .cal-evt 兩段結構：時間一行 + 內容一行截斷"""
     css = read(CSS)
-    assert "white-space: normal" in css
-    assert "word-break: break-word" in css
-    assert "overflow-wrap: anywhere" in css
+    assert "repeat(7, minmax(0, 1fr))" in css            # 跑版防回歸（長內容不撐破格子）
+    assert ".cal-evt .cal-evt-time" in css               # 時間獨立一行
+    assert ".cal-evt .cal-evt-body" in css               # 內容一行（ellipsis 截斷）
 
 
 def test_css_user_actions_black_text():
@@ -852,12 +854,16 @@ def test_css_has_calendar_styles():
 
 
 def test_calendar_cell_shows_service_client():
-    """2026-08-13 Sarah：月曆格子內派工標籤顯示「時間 [服務] 客戶」（右邊明細內容寫進左邊格子）"""
+    """2026-08-13 Sarah + 08-14 家豪 B 方案：月曆格子內派工標籤顯示「時間」+「[服務] 客戶」
+    - B 方案：時間獨立一行（.cal-evt-time）＋ 服務/客戶一行截斷（.cal-evt-body）
+    - 用 textContent 安全設定（非 innerHTML）"""
     js = read(CALENDAR_RENDER_JS)
     assert "evts.slice(0, 2)" in js                     # 每格最多 2 筆派工
-    assert "e.start_time ? e.start_time + ' ' : ''}[${e.service_name" in js  # 時間前綴 + [服務]
+    assert "className = 'cal-evt-time'" in js           # 時間獨立一行
+    assert "className = 'cal-evt-body'" in js           # 服務/客戶一行
     assert "e.client_name || ''" in js                   # 客戶名
-    assert "t.innerText = `${e.start_time ? e.start_time + ' ' : ''}" in js  # 用 innerText 安全設定（非 innerHTML）
+    assert "textContent" in js                           # 用 textContent 安全設定（非 innerHTML）
+    assert "innerText = `${e.start_time" not in js       # 舊單行 innerText 已移除（B 方案取代）
 
 
 def test_calendar_appt_only_start_time():
@@ -889,7 +895,7 @@ def test_calendar_time_optional():
     assert "const t = (f && f.start_time) || '';" in js     # 回填：無時間留空
     assert "const timeVal = (hh && mm) ? hh + ':' + mm : '';" in js  # 選「--」→ 空字串
     assert "start_time: timeVal," in js and "end_time: timeVal," in js
-    assert "e.start_time ? e.start_time + ' ' : ''" in js   # 月曆格無時間前綴
+    assert "if (e.start_time) {" in js                   # 月曆格無時間不顯示時間行（B 方案）
     assert "⏰ ${esc(e.start_time)}　` : ''}${who}" in js    # 明細卡無時間不顯示 ⏰
     assert "(a.start_time || '99:99')" in js                # 空時間排最後
     assert "'09:00'" not in js.split("const t =")[1].split("const timeVal")[0]  # 新增不再預設 09:00
