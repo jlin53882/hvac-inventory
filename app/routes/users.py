@@ -289,7 +289,7 @@ def delete_user(user_id: int, admin: dict = Depends(require_perm("user-mgmt"))):
 # ---------- RBAC 權限管理端點（2026-08-13，設計 §6.2） ----------
 @router.get("/permissions")
 def list_permissions(admin: dict = Depends(require_perm("user-mgmt"))):
-    """權限點清單 + 四角色預設（權限頁顯示來源）"""
+    """權限點清單 + 四角色預設（保留 API：前端已改由 per-user 端點內聯載入，此端點供稽核/四角色預設查詢）"""
     conn = get_db()
     try:
         perms = [dict(r) for r in conn.execute("SELECT key, label, module FROM permissions ORDER BY id").fetchall()]

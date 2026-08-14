@@ -13,8 +13,6 @@
   };
 
   let permUsers = [];       // 全部帳號
-  let permPoints = [];      // 權限點 [{key,label,module}]
-  let roleDefaults = {};    // {role: [permKeys]}
   let me = null;            // 當前登入者
   let curUid = null;        // 選中帳號 id
   let permChanges = {};     // 未儲存開關變更 {key: 0|1}
@@ -51,13 +49,8 @@
       const meRes = await apiGet('/api/auth/me');
       me = meRes.user;
       if (!me.is_admin_role) { location.href = '/'; return; }
-      const [users, permData] = await Promise.all([
-        apiGet('/api/users'),
-        apiGet('/api/users/permissions'),
-      ]);
+      const users = await apiGet('/api/users');
       permUsers = users.users;
-      permPoints = permData.permissions;
-      roleDefaults = permData.role_defaults;
       renderUserList();
       renderChips();
       window.permSelect(permUsers[0].id);  // 2026-08-14 修：舊名 selectUser 未定義 → 自動選中失敗
@@ -169,6 +162,11 @@
 
   window.permToggle = function permToggle(key, checked) {
     permChanges[key] = checked ? 1 : 0;
+    // 2026-08-14：切換即時把該列來源標籤改「✏️ 自訂」（跟隨角色→自訂），
+    // 避免開關動了但標籤沒變的「狀態殘影」感
+    const row = document.querySelector(`input[data-key="${key}"]`)?.closest('.perm-row');
+    const src = row && row.querySelector('.perm-src');
+    if (src) { src.textContent = '✏️ 自訂'; src.className = 'perm-src override'; }
     const hint = document.getElementById('saveHint');
     if (hint) {
       const n = Object.keys(permChanges).length;

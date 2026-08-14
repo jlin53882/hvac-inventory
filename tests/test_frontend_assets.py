@@ -218,7 +218,7 @@ def test_perms_js_has_roles_and_groups():
     assert "ROLE_LABELS" in js
     assert "GROUP_LABELS" in js
     assert "admin: '🛡️ 管理員'" in js and "tech: '🔧 工程師'" in js
-    assert "/api/users/permissions" in js  # 權限清單動態載入（後端權威，前端不寫死矩陣）
+    assert "/api/users/${curUid}/permissions" in js  # 權限清單由 per-user 端點內聯載入（後端權威，前端不寫死矩陣）
 
 
 def test_perms_js_perm_save_and_reset():
@@ -790,7 +790,7 @@ def test_calendar_js_uses_api_endpoints():
     assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
     assert "perms['user-mgmt']" in au  # RBAC：帳號與權限按鈕由 user-mgmt 驅動
     pm = read(os.path.join(STATIC, "js", "perms.js"))
-    assert "/api/users/permissions" in pm  # 權限清單動態載入（含 cal-mgmt 等全部 key）
+    assert "/api/users/${curUid}/permissions" in pm  # 權限清單由 per-user 端點內聯載入（含 cal-mgmt 等全部 key）
 
 
 def test_calendar_js_viewer_write_hidden():

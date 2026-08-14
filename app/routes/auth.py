@@ -24,9 +24,7 @@ from app.services.auth import (
     create_session,
     delete_session,
     dummy_verify,
-    authenticate,
     hash_token,
-    require_login,
     # session cookie 名稱
     get_session_user,
     get_user_by_username,

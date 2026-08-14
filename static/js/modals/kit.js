@@ -2,7 +2,6 @@
 var kitUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯整組 modal 時的 updated_at 快照
 function openKitModal() {
   editingKitId = null;
-  kitModalSelections = [];
   kitModalCompRows = [];
   document.getElementById('k-name').value = '';
   document.getElementById('k-note').value = '';
