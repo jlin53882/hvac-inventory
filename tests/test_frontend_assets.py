@@ -213,6 +213,66 @@ def test_perms_js_close_methods():
     assert "closeResetPwModal" in js
 
 
+def test_perms_js_reset_perm_modal():
+    """2026-08-15：重設為角色預設 改自訂確認 modal（取代原生 confirm）——開/關/確定 三函式齊全"""
+    js = read(PERMS_JS)
+    assert "openResetPermModal" in js
+    assert "closeResetPermModal" in js
+    assert "confirmResetPerm" in js
+    assert "reset_all" in js
+    # 舊的 permReset（原生 confirm 版本）已移除；permResetPw 是「重設密碼」不同功能，保留
+    assert "window.permReset = " not in js
+
+
+def test_permissions_html_has_reset_perm_overlay():
+    """permissions.html 有重設確認 modal（resetPermOverlay + 目標帳號/角色 span）"""
+    html = read(PERMISSIONS_HTML)
+    assert 'id="resetPermOverlay"' in html
+    assert 'id="resetPermTarget"' in html
+    assert 'id="resetPermRole"' in html
+    assert "確定重設" in html
+
+
+def test_permissions_html_breadcrumb_topbar():
+    """2026-08-15 變體 B 麵包屑頂欄：vb-back 圓鈕 + 麵包屑 + 內容區大標題"""
+    html = read(PERMISSIONS_HTML)
+    assert 'class="vb-back"' in html
+    assert 'class="vb-crumb"' in html
+    assert "庫存" in html and "vb-crumb-current" in html  # 麵包屑「庫存 › 帳號與權限」
+    assert 'class="vb-content-title"' in html  # 大標題下移內容區
+    assert "vb-crumb a, .vb-crumb .sep { display: none; }" in html  # 手機版隱藏麵包屑
+
+
+def test_permissions_html_save_bar_variant_b():
+    """2026-08-15 方案 B sticky 底條：save-bar fixed bottom + inner 對齊 + 手機 column 雙鈕"""
+    html = read(PERMISSIONS_HTML)
+    assert ".save-bar {" in html and "position: fixed; bottom: 0" in html  # fixed 底條
+    assert ".save-bar-inner" in html  # 桌面 1200 對齊 wrapper
+    assert ".save-btns" in html  # 雙鈕組
+    assert "env(safe-area-inset-bottom" in html  # 手機 safe-area
+    assert "flex-direction: column" in html  # 手機版 column 排列
+    # 內容區留白防遮擋（底條高 ~58px，padding 要大於底條）
+    assert "padding: 16px 16px 90px" in html  # 桌面
+    assert "padding: 0 0 110px" in html  # 手機
+
+
+def test_permissions_html_btn_ghost_white_fix():
+    """2026-08-15 根因修復：.btn-ghost 全域白字樣式（topbar 專用）用於白底容器會隱形——
+       save-bar / modal 內必須覆寫白底深字版"""
+    html = read(PERMISSIONS_HTML)
+    assert ".save-btns .btn-ghost" in html and "color: #555" in html  # save-bar 重設鈕覆寫
+    assert ".modal .btn-ghost" in html and "color: #555" in html  # modal 取消鈕覆寫
+
+
+def test_perms_js_reset_perm_modal_structure():
+    """2026-08-15：save-bar render 結構——save-bar-inner + save-btns 包雙鈕（重設/儲存），重設開 modal"""
+    js = read(PERMS_JS)
+    assert "save-bar-inner" in js
+    assert "save-btns" in js
+    assert "window.openResetPermModal()" in js
+    assert "window.permSave()" in js
+
+
 def test_perms_js_batch_create():
     """批次新增：/api/users/batch 端點 + 逐筆結果顯示"""
     js = read(PERMS_JS)

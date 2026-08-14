@@ -6,8 +6,25 @@
 <title>帳號與權限 — 振佳空調管理系統</title>
 <link rel="stylesheet" href="/static/css/style.css">
 <style>
-/* ===== 帳號與權限頁（RBAC 2026-08-13：桌面 3-B / 手機 M1 chip）===== */
-.perm-layout { display: flex; gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; align-items: flex-start; }
+/* ===== 帳號與權限頁（RBAC 2026-08-13：桌面 3-B / 手機 M1 chip）=====
+   2026-08-15 家豪選定：頂欄改「變體 B 麵包屑式」——topbar 輕量化（← + 庫存 › 帳號與權限），
+   頁面大標題下移到內容區左上、與左側 user-list 對齊 */
+.perm-layout { display: flex; gap: 16px; padding: 16px 16px 90px; max-width: 1200px; margin: 0 auto; align-items: flex-start; }
+
+/* 覆寫全域 .topbar：權限頁改麵包屑式（display flex + 較矮 padding） */
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; }
+.vb-back { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.35); color: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; flex-shrink: 0; }
+.vb-back:hover { background: rgba(255,255,255,0.25); }
+.vb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.85); margin-left: 12px; }
+.vb-crumb a { color: rgba(255,255,255,0.75); text-decoration: none; }
+.vb-crumb a:hover { text-decoration: underline; }
+.vb-crumb .sep { opacity: .5; }
+.vb-crumb .vb-crumb-current { color: #fff; font-weight: 600; }
+
+/* 內容區上方頁面大標題（與 user-list 頂端對齊） */
+.vb-content-title { max-width: 1200px; margin: 16px auto 0; padding: 0 16px; }
+.vb-content-title h2 { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+.vb-content-title p { font-size: 12.5px; color: #888; margin-top: 3px; }
 .user-list { width: 250px; flex-shrink: 0; background: #fff; border-radius: 12px; border: 1px solid #eee; overflow: hidden; }
 .user-list-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid #f5f5f5; transition: background .15s; }
 .user-list-item:last-child { border-bottom: none; }
@@ -62,9 +79,30 @@
 .switch input:checked + .slider::before { left: 21px; }
 .switch input:disabled + .slider { cursor: not-allowed; opacity: .55; }
 
-.save-bar { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #f0f0f0; }
+/* save-bar：2026-08-15 家豪選定方案 B——桌面+手機都是 fixed 底部底條（sticky），
+   權限列多時按鈕常駐可見；內容區底部留 padding 防遮擋 */
+.save-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #fff; border-top: 1px solid #e5e9f0;
+  box-shadow: 0 -2px 8px rgba(0,0,0,.06);
+  padding: 10px 20px; z-index: 95;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.save-bar-inner { max-width: 1200px; margin: 0 auto; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .save-hint { font-size: 12.5px; color: #999; }
 .save-hint.changed { color: #fa8c16; font-weight: 600; }
+.save-btns { display: flex; gap: 8px; }
+.save-btns .btn-primary, .save-btns .btn-ghost { padding: 8px 16px; }
+/* 2026-08-15 根因修復：.btn-ghost 全域樣式是 topbar 專用（白字半透明白底），
+   用在白底 save-bar 上會「白字白底隱形」——重設按鈕因此看不見。
+   這裡覆寫成白底深字版（灰邊框），桌面+手機共用 */
+.save-btns .btn-ghost {
+  background: #fff;
+  border: 1.5px solid #d0d5dd;
+  color: #555;
+}
+.save-btns .btn-ghost:hover { background: #f5f7fa; }
+.save-btns .btn-ghost:disabled { opacity: .55; cursor: not-allowed; }
 
 /* 帳號設定 tab */
 .account-card { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 14px; }
@@ -74,6 +112,12 @@
 .account-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .account-actions .btn-danger { background: #ff4d4f; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
 .account-actions .btn-danger:hover { background: #d9363e; }
+/* 2026-08-15：重設確認 modal 的紅色確定鈕（modal 內獨立定義，非 .account-actions 子層） */
+.modal .btn-danger { background: #ff4d4f; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.modal .btn-danger:hover { background: #d9363e; }
+/* 2026-08-15：modal 內「取消」也是 .btn-ghost（topbar 白字樣式），白底 modal 上看不見——覆寫白底深字 */
+.modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }
+.modal .btn-ghost:hover { background: #f5f7fa; }
 .btn-warn { background: #faad14; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
 .btn-warn:hover { background: #d48806; }
 .warn-box { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #fff7e6; border: 1px solid #ffd591; font-size: 12.5px; color: #ad6800; }
@@ -90,12 +134,22 @@
 .toast.show { opacity: 1; }
 
 @media (max-width: 768px) {
-  .perm-layout { padding: 0; }
+  .perm-layout { padding: 0 0 110px; }
   .user-list { display: none; }
   .chip-bar { display: flex; }
   .perm-main { padding: 0 12px 12px; }
   .perm-grid { grid-template-columns: 1fr; }
-  .topbar-title { display: none; }
+  /* 2026-08-15 變體 B：手機 topbar 只留「← + 帳號與權限」，麵包屑「庫存 ›」隱藏；內容區大標題隱藏（topbar 已顯示，避免重複） */
+  .topbar { padding: 10px 14px; }
+  .vb-crumb { margin-left: 10px; font-size: 15px; }
+  .vb-crumb a, .vb-crumb .sep { display: none; }
+  .vb-content-title { display: none; }
+  /* 2026-08-15 方案 B 手機版：save-bar 改 column——提示置中在上、雙鈕等寬在下 */
+  .save-bar { padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); flex-direction: column; gap: 6px; }
+  .save-bar-inner { flex-direction: column; gap: 6px; }
+  .save-hint { font-size: 11.5px; text-align: center; width: 100%; }
+  .save-btns { width: 100%; display: flex; gap: 8px; }
+  .save-btns .btn-primary, .save-btns .btn-ghost { flex: 1; padding: 10px 0; text-align: center; }
 }
 
 /* 新增帳號 modal（權限頁內嵌，沿用既有 modal 樣式） */
@@ -116,14 +170,19 @@
 <body>
 
 <div class="topbar">
-  <div class="topbar-left" style="display:flex;align-items:center;gap:8px;padding-left:12px">
-    <button class="btn-ghost" onclick="location.href='/'">← 返回</button>
-    <span class="topbar-title" style="font-weight:700">🔐 帳號與權限</span>
+  <div class="topbar-left" style="display:flex;align-items:center">
+    <button class="vb-back" onclick="location.href='/'" title="返回庫存">←</button>
+    <span class="vb-crumb"><a href="/">庫存</a><span class="sep">›</span><span class="vb-crumb-current">帳號與權限</span></span>
   </div>
   <div class="top-actions" style="display:flex;align-items:center;gap:8px;padding-right:12px">
     <button class="btn-primary" onclick="openAddUserModal()">＋ 新增帳號</button>
     <button class="btn-ghost" onclick="location.href='/'">🏠 庫存</button>
   </div>
+</div>
+
+<div class="vb-content-title">
+  <h2>🔐 帳號與權限</h2>
+  <p>管理登入帳號、角色與各模組權限。變更立即生效，不需重新登入。</p>
 </div>
 
 <div class="chip-bar" id="chipBar"></div>
@@ -184,6 +243,19 @@
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeResetPwModal()">取消</button>
       <button class="btn-primary" onclick="submitResetPw()">重設</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-08-15 家豪選定：重設為角色預設 確認 modal（取代原生 confirm） -->
+<div class="modal-overlay" id="resetPermOverlay">
+  <div class="modal">
+    <h3>⚠️ 重設為角色預設？</h3>
+    <div class="warn-box">此操作會清除 <span id="resetPermTarget"></span> 的所有個人權限覆寫。</div>
+    <p style="font-size:13px;color:#666;margin:10px 0 0">重設後，此帳號的權限將完全跟隨角色預設（<span id="resetPermRole"></span>）。原本「✏️ 自訂」的開關會全部還原，此動作無法復原。</p>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeResetPermModal()">取消</button>
+      <button class="btn-danger" onclick="confirmResetPerm()">確定重設</button>
     </div>
   </div>
 </div>

@@ -153,9 +153,13 @@
       html += `</div></div>`;
     }
     html += `<div class="save-bar">
-      <button class="btn-primary" onclick="window.permSave()" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
-      <button class="btn-ghost" onclick="window.permReset()" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
-      <span class="save-hint ${Object.keys(permChanges).length ? 'changed' : ''}" id="saveHint">${Object.keys(permChanges).length ? `有 ${Object.keys(permChanges).length} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
+      <div class="save-bar-inner">
+        <span class="save-hint ${Object.keys(permChanges).length ? 'changed' : ''}" id="saveHint">${Object.keys(permChanges).length ? `有 ${Object.keys(permChanges).length} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
+        <div class="save-btns">
+          <button class="btn-ghost" onclick="window.openResetPermModal()" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
+          <button class="btn-primary" onclick="window.permSave()" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
+        </div>
+      </div>
     </div>`;
     el.innerHTML = html;
   }
@@ -190,8 +194,21 @@
     }
   };
 
-  window.permReset = async function permReset() {
-    if (!confirm('確定要清除該帳號的所有個人權限設定，回到角色預設嗎？')) return;
+    // 2026-08-15 家豪選定：重設改自訂確認 modal（取代原生 confirm），桌面+手機共用
+  window.openResetPermModal = function openResetPermModal() {
+    const u = permUsers.find(x => x.id === curUid);
+    if (!u) return;
+    document.getElementById('resetPermTarget').textContent = `${u.display_name}（@${u.username}）`;
+    document.getElementById('resetPermRole').textContent = ROLE_LABELS[u.role] || u.role;
+    document.getElementById('resetPermOverlay').classList.add('show');
+  };
+
+  window.closeResetPermModal = function closeResetPermModal() {
+    document.getElementById('resetPermOverlay').classList.remove('show');
+  };
+
+  window.confirmResetPerm = async function confirmResetPerm() {
+    closeResetPermModal();
     try {
       await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { reset_all: true });
       permChanges = {};
