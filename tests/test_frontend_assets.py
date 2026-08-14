@@ -137,6 +137,15 @@ def test_css_cal_evt_b_variant_and_no_overflow():
     assert ".cal-evt .cal-evt-body" in css               # 內容一行（ellipsis 截斷）
 
 
+def test_css_cal_selected_highlight():
+    """2026-08-14 家豪：點月曆日期要有「選中」深色框（原 .cal-selected 只有淡背景，看不到框）
+    - 選中框 = 深藍邊框 + 深藍數字底；選中今天時 today 邊框讓位"""
+    css = read(CSS)
+    assert ".cal-cell.cal-selected { border: 2px solid #2d5a8e" in css
+    assert ".cal-cell.cal-selected .cal-day-num { background: #2d5a8e" in css
+    assert ".cal-cell.cal-selected.cal-today { border-color: #2d5a8e; }" in css
+
+
 def test_css_user_actions_black_text():
     """舊使用者 modal 操作欄樣式已清理（RBAC 權限頁取代，user-actions 退役）"""
     css = read(CSS)
