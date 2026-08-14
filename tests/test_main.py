@@ -1991,3 +1991,45 @@ class TestNonStockOut:
         after = client.get("/api/items").json()
         cur = [i for i in after if i["id"] == item["id"]][0]
         assert cur["qty"] == 5, "非庫存領出不應扣到既有庫存"
+
+
+# ========== B7：database is locked 根治防回歸（2026-08-14） ==========
+
+class TestDbLockRelease:
+    """寫入端點 error 後鎖必須釋放——防「bare-conn 洩漏」復發（f0b520f/3007c61 根治）。"""
+
+    def test_write_error_releases_db_lock(self, client):
+        """寫入端點拋 400（同名衝突 → rollback 路徑）後，獨立連線可立即寫入 → 無 RESERVED 鎖洩漏"""
+        import sqlite3
+        payload = {"name": "鎖洩漏測試", "sort_order": 1, "is_active": True}
+        r1 = client.post("/api/service-types", json=payload)
+        assert r1.status_code == 200, f"建立服務項目應成功，got {r1.status_code}"
+        r2 = client.post("/api/service-types", json=payload)
+        assert r2.status_code == 400, "同名衝突應 400（觸發 rollback 路徑）"
+
+        # 決定性驗證：獨立連線（timeout=1，不給長等）立即寫入成功 = 鎖已釋放
+        probe = sqlite3.connect(str(app_db.DB_PATH), timeout=1)
+        try:
+            probe.execute(
+                "INSERT INTO service_types (name, sort_order, is_active) VALUES (?,?,?)",
+                ("鎖已釋放", 2, 1))
+            probe.commit()
+        finally:
+            probe.close()
+
+    def test_rollback_path_does_not_leak_lock_on_validation_error(self, client):
+        """寫入端點在 commit 前因驗證錯誤拋 400（items 去重）→ 鎖同樣釋放"""
+        import sqlite3
+        item = _add_item(client, name="重複品", brand="B", code="C", qty=3)
+        r = client.post("/api/items", json={
+            "brand": "B", "code": "C", "name": "重複品", "unit": "個",
+            "low_stock": 0, "site": "office", "stocks": []})
+        assert r.status_code == 400, "同鍵去重應 400（item 已存在）"
+
+        probe = sqlite3.connect(str(app_db.DB_PATH), timeout=1)
+        try:
+            probe.execute("INSERT INTO service_types (name, sort_order, is_active) VALUES (?,?,?)",
+                          ("驗證錯誤後可寫", 3, 1))
+            probe.commit()
+        finally:
+            probe.close()
