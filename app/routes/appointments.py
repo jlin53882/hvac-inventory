@@ -267,6 +267,9 @@ def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt
         conn.execute("DELETE FROM appointments WHERE id=?", (appt_id,))
         conn.commit()
         return {"ok": True}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
 
@@ -345,8 +348,12 @@ def create_service_type(body: ServiceTypeIn):
                                (name, body.sort_order, body.is_active))
             conn.commit()
         except Exception:
+            conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
             raise HTTPException(400, "同名服務項目已存在")
         return dict(conn.execute("SELECT * FROM service_types WHERE id=?", (cur.lastrowid,)).fetchone())
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
 
@@ -366,8 +373,12 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
                          (name, body.sort_order, body.is_active, svc_id))
             conn.commit()
         except Exception:
+            conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
             raise HTTPException(400, "同名服務項目已存在")
         return dict(conn.execute("SELECT * FROM service_types WHERE id=?", (svc_id,)).fetchone())
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
 
@@ -383,5 +394,8 @@ def deactivate_service_type(svc_id: int):
         conn.execute("UPDATE service_types SET is_active=0 WHERE id=?", (svc_id,))
         conn.commit()
         return {"ok": True}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()

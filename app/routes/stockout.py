@@ -135,20 +135,25 @@ def stock_out_nonstock(req: NonStockOutRequest):
     if not dest:
         raise HTTPException(400, "去哪裡（客戶/案場/工地）不能為空")
     conn = get_db()
-    cur = conn.execute(
-        "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
-        "VALUES ('',?,?,0,?,0,0,'',1)",
-        (code, name, unit),
-    )
-    item_id = cur.lastrowid
-    reason = "出庫" if not note else f"出庫 - {note}"
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,?,?)",
-        (item_id, -req.qty, reason, dest),
-    )
-    conn.commit()
-    conn.close()
-    return {"id": item_id, "name": name}
+    try:
+        cur = conn.execute(
+            "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
+            "VALUES ('',?,?,0,?,0,0,'',1)",
+            (code, name, unit),
+        )
+        item_id = cur.lastrowid
+        reason = "出庫" if not note else f"出庫 - {note}"
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,?,?)",
+            (item_id, -req.qty, reason, dest),
+        )
+        conn.commit()
+        return {"id": item_id, "name": name}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.get("/api/stockouts", dependencies=[Depends(require_perm("prepared"))])
@@ -285,18 +290,21 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
 def delete_stockout(movement_id: int):
     """刪除已領出紀錄（僅刪紀錄，不回補庫存；需回復庫存請用退回）"""
     conn = get_db()
-    row = conn.execute("SELECT delta, reason FROM movements WHERE id=?", (movement_id,)).fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(404, "紀錄不存在")
-    # 2026-08-12 補：只允許刪「出庫」流水——手動調整/盤點/退回反向流水是稽核軌跡，不可刪
-    if row["delta"] >= 0 or not str(row["reason"]).startswith("出庫"):
-        conn.close()
-        raise HTTPException(400, "只有已領出（出庫）記錄可以刪除")
-    conn.execute("DELETE FROM movements WHERE id=?", (movement_id,))
-    conn.commit()
-    conn.close()
-    return {"ok": True, "deleted": movement_id}
+    try:
+        row = conn.execute("SELECT delta, reason FROM movements WHERE id=?", (movement_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "紀錄不存在")
+        # 2026-08-12 補：只允許刪「出庫」流水——手動調整/盤點/退回反向流水是稽核軌跡，不可刪
+        if row["delta"] >= 0 or not str(row["reason"]).startswith("出庫"):
+            raise HTTPException(400, "只有已領出（出庫）記錄可以刪除")
+        conn.execute("DELETE FROM movements WHERE id=?", (movement_id,))
+        conn.commit()
+        return {"ok": True, "deleted": movement_id}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.post("/api/prepare/nonstock", dependencies=[Depends(require_perm("stockout"))])
@@ -311,19 +319,24 @@ def prepare_nonstock(req: NonStockOutRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    cur = conn.execute(
-        "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
-        "VALUES ('',?,?,?,?,0,0,'',1)",
-        (code, name, req.qty, unit),
-    )
-    item_id = cur.lastrowid
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,?,?,?)",
-        (item_id, 0, req.qty, "領出準備", note),
-    )
-    conn.commit()
-    conn.close()
-    return {"id": item_id, "name": name}
+    try:
+        cur = conn.execute(
+            "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
+            "VALUES ('',?,?,?,?,0,0,'',1)",
+            (code, name, req.qty, unit),
+        )
+        item_id = cur.lastrowid
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,?,?,?)",
+            (item_id, 0, req.qty, "領出準備", note),
+        )
+        conn.commit()
+        return {"id": item_id, "name": name}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.post("/api/items/{item_id}/prepare", dependencies=[Depends(require_perm("stockout"))])
@@ -332,28 +345,33 @@ def prepare_item(item_id: int, req: PrepareRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, "品項不存在")
-    available = _total_qty(conn, item_id) - row["prepared_qty"]
-    # H6：單一原子 UPDATE 累加（併發 prepare 不 lost update）；守衛確保不超過可領數量
-    cur = conn.execute(
-        "UPDATE items SET prepared_qty = prepared_qty + ?, updated_at = ? "
-        "WHERE id = ? AND prepared_qty + ? <= (SELECT COALESCE(SUM(qty), 0) FROM item_stocks WHERE item_id = ?)",
-        (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty, item_id),
-    )
-    if cur.rowcount == 0:
-        raise HTTPException(400, f"可領出數量不足！可用 {available} {row['unit']}")
-    new_prepared = row["prepared_qty"] + req.qty
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, 0, row["prepared_qty"], new_prepared, "領出準備", req.location),
-    )
-    conn.commit()
-    updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-    payload = _item_payload(conn, updated)
-    conn.close()
-    return payload
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "品項不存在")
+        available = _total_qty(conn, item_id) - row["prepared_qty"]
+        # H6：單一原子 UPDATE 累加（併發 prepare 不 lost update）；守衛確保不超過可領數量
+        cur = conn.execute(
+            "UPDATE items SET prepared_qty = prepared_qty + ?, updated_at = ? "
+            "WHERE id = ? AND prepared_qty + ? <= (SELECT COALESCE(SUM(qty), 0) FROM item_stocks WHERE item_id = ?)",
+            (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty, item_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(400, f"可領出數量不足！可用 {available} {row['unit']}")
+        new_prepared = row["prepared_qty"] + req.qty
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+            (item_id, 0, row["prepared_qty"], new_prepared, "領出準備", req.location),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        payload = _item_payload(conn, updated)
+        return payload
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.post("/api/items/{item_id}/prepared-out", dependencies=[Depends(require_perm("stockout"))])
@@ -362,77 +380,88 @@ def prepared_out(item_id: int, req: PrepareRequest):
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, "品項不存在")
-    if req.qty > row["prepared_qty"]:
-        raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "品項不存在")
+        if req.qty > row["prepared_qty"]:
+            raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
 
-    dest = req.note  # note 欄位當去向用（相容前端）
-    if row["is_deleted"]:
-        # 非庫存品項：無庫存可扣，直接寫出庫流水（before/after=0）+ 清 prepared_qty
+        dest = req.note  # note 欄位當去向用（相容前端）
+        if row["is_deleted"]:
+            # 非庫存品項：無庫存可扣，直接寫出庫流水（before/after=0）+ 清 prepared_qty
+            new_prepared = row["prepared_qty"] - req.qty
+            cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
+                               (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
+            if cur.rowcount == 0:
+                raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
+            conn.execute(
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,'出庫',?)",
+                (item_id, -req.qty, dest),
+            )
+            conn.commit()
+            updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+            payload = _item_payload(conn, updated)
+            return payload
+
         new_prepared = row["prepared_qty"] - req.qty
+
+        # 2026-08-14 審查修（P4-1）：before/after 用 _deduct 寫後重讀值（鏈一致）
+        before, after = _deduct(conn, item_id, req.qty, req.location)
         cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
                            (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
-        if cur.rowcount == 0:
+        if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
             raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,'出庫',?)",
-            (item_id, -req.qty, dest),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+            (item_id, -req.qty, before, after, "出庫", dest),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         payload = _item_payload(conn, updated)
-        conn.close()
         return payload
 
-    new_prepared = row["prepared_qty"] - req.qty
-
-    # 2026-08-14 審查修（P4-1）：before/after 用 _deduct 寫後重讀值（鏈一致）
-    before, after = _deduct(conn, item_id, req.qty, req.location)
-    cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
-                       (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
-    if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
-        raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, -req.qty, before, after, "出庫", dest),
-    )
-    conn.commit()
-    updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-    payload = _item_payload(conn, updated)
-    conn.close()
-    return payload
 
 
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.post("/api/items/{item_id}/prepared-return", dependencies=[Depends(require_perm("stockout"))])
 def prepared_return(item_id: int, req: PrepareRequest):
     """退回：把準備中的數量退回（取消領出）"""
     if req.qty <= 0:
         raise HTTPException(400, "數量必須大於 0")
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, "品項不存在")
-    if req.qty > row["prepared_qty"]:
-        raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "品項不存在")
+        if req.qty > row["prepared_qty"]:
+            raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
 
-    new_prepared = row["prepared_qty"] - req.qty
-    cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
-                       (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
-    if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
-        raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, 0, row["prepared_qty"], new_prepared, "退回準備", ""),
-    )
-    conn.commit()
-    updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-    payload = _item_payload(conn, updated)
-    conn.close()
-    return payload
+        new_prepared = row["prepared_qty"] - req.qty
+        cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
+                           (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
+        if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
+            raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+            (item_id, 0, row["prepared_qty"], new_prepared, "退回準備", ""),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        payload = _item_payload(conn, updated)
+        return payload
 
 
+
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.get("/api/prepared", dependencies=[Depends(require_perm("prepared"))])
 def list_prepared(site: Optional[str] = None):
     """準備中清單（已領出尚未出庫）"""

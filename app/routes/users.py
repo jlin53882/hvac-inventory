@@ -148,6 +148,9 @@ def create_user(body: UserCreate, admin: dict = Depends(require_perm("user-mgmt"
     conn = get_db()
     try:
         return _create_user_single(conn, body, operator_id=admin["id"])
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
 
@@ -247,6 +250,9 @@ def reset_password(user_id: int, body: UserPassword, admin: dict = Depends(requi
         _audit(conn, admin["id"], user_id, "reset_password")
         conn.commit()
         return {"ok": True}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
 
@@ -384,6 +390,9 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
                json.dumps(changes, ensure_ascii=False))
         conn.commit()
         return {"ok": True, "permissions": get_user_permissions(conn, user_id)}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
 

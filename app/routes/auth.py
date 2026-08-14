@@ -114,6 +114,9 @@ def login(body: LoginRequest, request: Request, response: Response):
 
         clear_ip_fail(ip)
         token = create_session(conn, row["id"])
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
 
@@ -146,6 +149,9 @@ def logout(request: Request, response: Response):
         conn = get_db()
         try:
             delete_session(conn, token)
+        except Exception:
+            conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+            raise
         finally:
             conn.close()
     response.delete_cookie(SESSION_COOKIE)
@@ -204,6 +210,9 @@ def change_my_password(body: ChangePasswordRequest, request: Request, user: dict
         else:
             conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
         conn.commit()
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
     return {"ok": True}
@@ -218,6 +227,9 @@ def ack_password_expiry(request: Request, user: dict = Depends(require_perm("cha
     try:
         conn.execute("UPDATE users SET password_updated_at = datetime('now') WHERE id = ?", (user["id"],))
         conn.commit()
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
     finally:
         conn.close()
     return {"ok": True, "password_expired": False}

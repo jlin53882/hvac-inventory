@@ -28,6 +28,20 @@ def get_db():
 def init_db():
     """建立所有資料表與索引，並執行舊資料庫（v10 前）的欄位遷移"""
     conn = get_db()
+    try:
+        _exec_init(conn)
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：init_db 中途炸（雙開 server 搶 DB 等）確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()
+
+
+def _exec_init(conn):
+    """init_db 主體（conn 已開）：schema + migration + seed。
+    薄殼化（2026-08-14）：init_db 只負責 conn 生命週期，主體抽出讓 try/finally 可包住
+    ——雙開 server 搶 DB 時 init 中途炸也不會漏 conn
+    """
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS items (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -294,4 +308,3 @@ def init_db():
                 _rows.append((_role_ids[_role], _perm_ids[_key]))
     conn.executemany("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)", _rows)
     conn.commit()
-    conn.close()

@@ -109,36 +109,40 @@ def list_items(
 def create_item(item: ItemCreate):
     """新增品項主檔 + 位置庫存（v10 去重：同鍵已存在則 400 拒絕）"""
     conn = get_db()
-    # ===== v10 去重規則 =====
-    exists = conn.execute(
-        "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",
-        (item.brand, item.code, item.name, item.unit, item.site),
-    ).fetchone()
-    if exists:
-        conn.close()
-        raise HTTPException(400, f"該品項已存在（id={exists['id']}）！要放新位置請用「編輯」→「新增位置」")
+    try:
+        # ===== v10 去重規則 =====
+        exists = conn.execute(
+            "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",
+            (item.brand, item.code, item.name, item.unit, item.site),
+        ).fetchone()
+        if exists:
+            raise HTTPException(400, f"該品項已存在（id={exists['id']}）！要放新位置請用「編輯」→「新增位置」")
 
-    cur = conn.execute(
-        "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
-        (item.brand, item.code, item.name, item.unit, item.low_stock, item.site),
-    )
-    new_id = cur.lastrowid
-    # 位置庫存
-    if item.stocks:
-        for s in item.stocks:
-            conn.execute(
-                "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                (new_id, s.location, s.qty, s.note),
-            )
-    else:
-        # 至少一筆空位置庫存，維持「總量」語意（stocks 沒給時補 0）
-        conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                     (new_id, "", 0, ""))
-    conn.commit()
-    row = conn.execute("SELECT * FROM items WHERE id=?", (new_id,)).fetchone()
-    full = _item_full(conn, row)
-    conn.close()
-    return full
+        cur = conn.execute(
+            "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
+            (item.brand, item.code, item.name, item.unit, item.low_stock, item.site),
+        )
+        new_id = cur.lastrowid
+        # 位置庫存
+        if item.stocks:
+            for s in item.stocks:
+                conn.execute(
+                    "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                    (new_id, s.location, s.qty, s.note),
+                )
+        else:
+            # 至少一筆空位置庫存，維持「總量」語意（stocks 沒給時補 0）
+            conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                         (new_id, "", 0, ""))
+        conn.commit()
+        row = conn.execute("SELECT * FROM items WHERE id=?", (new_id,)).fetchone()
+        full = _item_full(conn, row)
+        return full
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.patch("/api/items/{item_id}", dependencies=[Depends(require_perm("item-mgmt"))])
@@ -207,14 +211,18 @@ def update_item(item_id: int, upd: ItemUpdate):
 def delete_item(item_id: int):
     """刪除品項（M6 soft-delete：保留 movements/stocktakes 稽核軌跡與 kit 引用，只標 is_deleted=1）"""
     conn = get_db()
-    row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(404, "品項不存在")
-    conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
-                 (datetime.datetime.now().isoformat(), item_id))
-    conn.commit()
-    conn.close()
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "品項不存在")
+        conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
+                     (datetime.datetime.now().isoformat(), item_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
     # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
     from app.routes.photos import _photo_path
     try:
@@ -231,28 +239,31 @@ def delete_item(item_id: int):
 def add_stock(item_id: int, st: StockUpdate):
     """新增位置庫存（同位置重複 → 400 拒絕），回傳該品項全部位置清單"""
     conn = get_db()
-    item = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
-    if not item:
-        conn.close()
-        raise HTTPException(404, "品項不存在")
-    location = st.location if st.location is not None else ""
-    # UNIQUE(item_id, location)：同位置重複 → 拒絕
-    dup = conn.execute(
-        "SELECT id FROM item_stocks WHERE item_id=? AND location=?",
-        (item_id, location),
-    ).fetchone()
-    if dup:
-        conn.close()
-        raise HTTPException(400, f"該品項在「{location}」已有庫存，請用編輯修改數量")
-    qty = st.qty if st.qty is not None else 0
-    conn.execute(
-        "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-        (item_id, location, qty, st.note or ""),
-    )
-    conn.commit()
-    row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in row]
+    try:
+        item = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+        if not item:
+            raise HTTPException(404, "品項不存在")
+        location = st.location if st.location is not None else ""
+        # UNIQUE(item_id, location)：同位置重複 → 拒絕
+        dup = conn.execute(
+            "SELECT id FROM item_stocks WHERE item_id=? AND location=?",
+            (item_id, location),
+        ).fetchone()
+        if dup:
+            raise HTTPException(400, f"該品項在「{location}」已有庫存，請用編輯修改數量")
+        qty = st.qty if st.qty is not None else 0
+        conn.execute(
+            "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+            (item_id, location, qty, st.note or ""),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
+        return [dict(r) for r in row]
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.patch("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])
@@ -315,12 +326,17 @@ def update_stock(stock_id: int, st: StockUpdate):
 def delete_stock(stock_id: int):
     """刪除指定位置庫存"""
     conn = get_db()
-    cur = conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
-    conn.commit()
-    conn.close()
-    if cur.rowcount == 0:
-        raise HTTPException(404, "找不到該庫存位置")
-    return {"ok": True}
+    try:
+        cur = conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(404, "找不到該庫存位置")
+        return {"ok": True}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.post("/api/items/{item_id}/adjust", dependencies=[Depends(require_perm("stock-mgmt"))])
@@ -381,66 +397,71 @@ def adjust_qty(item_id: int, req: AdjustRequest):
 def import_items(items: list = Body(..., embed=True)):
     """批量匯入（v10：自動去重，重複則合併到既有主檔的庫存）"""
     conn = get_db()
-    # M8：筆數上限（防一次塞爆）
-    if len(items) > 500:
-        raise HTTPException(400, "一次最多匯入 500 筆")
-    # M8：逐筆驗證（型別/必填），任一筆錯誤 → 400 且整批不寫入（避免部分成功）
-    for i, it in enumerate(items, 1):
-        if not isinstance(it, dict):  # M8：非 dict（字串/數字）→ 400，不 500
-            raise HTTPException(400, f"第 {i} 筆格式錯誤（需為 JSON 物件）")
-        if not str(it.get("name", "")).strip():
-            raise HTTPException(400, f"第 {i} 筆缺少品項名稱")
-        try:
-            qty_v = float(it.get("qty", 0))
-            if qty_v < 0:  # 2026-08-12 補：負數入庫會造成負庫存（其他路徑都有 ge=0，import 獨漏）
-                raise HTTPException(400, f"第 {i} 筆數量不能為負數")
-        except (TypeError, ValueError):
-            raise HTTPException(400, f"第 {i} 筆數量「{it.get('qty')}」格式錯誤")
-        try:
-            low_v = float(it.get("low_stock", 0))
-            if low_v < 0:
-                raise HTTPException(400, f"第 {i} 筆低庫存警示不能為負數")
-        except (TypeError, ValueError):
-            raise HTTPException(400, f"第 {i} 筆低庫存警示「{it.get('low_stock')}」格式錯誤")
-    inserted = 0
-    merged = 0
-    for it in items:
-        brand = it.get("brand", "")
-        code = it.get("code", "")
-        name = it.get("name", "")
-        unit = it.get("unit", "個")
-        site = it.get("site", "office")
-        qty = float(it.get("qty", 0))
-        location = it.get("location", "")
-        note = it.get("note", "")
-        exists = conn.execute(
-            "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",
-            (brand, code, name, unit, site),
-        ).fetchone()
-        if exists:
-            # 既有品項：同位置合併，不同位置新增一筆
-            stock = conn.execute(
-                "SELECT id FROM item_stocks WHERE item_id=? AND location=?",
-                (exists["id"], location),
+    try:
+        # M8：筆數上限（防一次塞爆）
+        if len(items) > 500:
+            raise HTTPException(400, "一次最多匯入 500 筆")
+        # M8：逐筆驗證（型別/必填），任一筆錯誤 → 400 且整批不寫入（避免部分成功）
+        for i, it in enumerate(items, 1):
+            if not isinstance(it, dict):  # M8：非 dict（字串/數字）→ 400，不 500
+                raise HTTPException(400, f"第 {i} 筆格式錯誤（需為 JSON 物件）")
+            if not str(it.get("name", "")).strip():
+                raise HTTPException(400, f"第 {i} 筆缺少品項名稱")
+            try:
+                qty_v = float(it.get("qty", 0))
+                if qty_v < 0:  # 2026-08-12 補：負數入庫會造成負庫存（其他路徑都有 ge=0，import 獨漏）
+                    raise HTTPException(400, f"第 {i} 筆數量不能為負數")
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"第 {i} 筆數量「{it.get('qty')}」格式錯誤")
+            try:
+                low_v = float(it.get("low_stock", 0))
+                if low_v < 0:
+                    raise HTTPException(400, f"第 {i} 筆低庫存警示不能為負數")
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"第 {i} 筆低庫存警示「{it.get('low_stock')}」格式錯誤")
+        inserted = 0
+        merged = 0
+        for it in items:
+            brand = it.get("brand", "")
+            code = it.get("code", "")
+            name = it.get("name", "")
+            unit = it.get("unit", "個")
+            site = it.get("site", "office")
+            qty = float(it.get("qty", 0))
+            location = it.get("location", "")
+            note = it.get("note", "")
+            exists = conn.execute(
+                "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",
+                (brand, code, name, unit, site),
             ).fetchone()
-            if stock:
-                conn.execute("UPDATE item_stocks SET qty = qty + ?, note=? WHERE id=?",
-                             (qty, note or it.get("note", ""), stock["id"]))
+            if exists:
+                # 既有品項：同位置合併，不同位置新增一筆
+                stock = conn.execute(
+                    "SELECT id FROM item_stocks WHERE item_id=? AND location=?",
+                    (exists["id"], location),
+                ).fetchone()
+                if stock:
+                    conn.execute("UPDATE item_stocks SET qty = qty + ?, note=? WHERE id=?",
+                                 (qty, note or it.get("note", ""), stock["id"]))
+                else:
+                    conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                                 (exists["id"], location, qty, note))
+                merged += 1
             else:
+                cur = conn.execute(
+                    "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
+                    (brand, code, name, unit, float(it.get("low_stock", 0)), site),
+                )
                 conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                             (exists["id"], location, qty, note))
-            merged += 1
-        else:
-            cur = conn.execute(
-                "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
-                (brand, code, name, unit, float(it.get("low_stock", 0)), site),
-            )
-            conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                         (cur.lastrowid, location, qty, note))
-            inserted += 1
-    conn.commit()
-    conn.close()
-    return {"ok": True, "inserted": inserted, "merged": merged}
+                             (cur.lastrowid, location, qty, note))
+                inserted += 1
+        conn.commit()
+        return {"ok": True, "inserted": inserted, "merged": merged}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.get("/api/movements")

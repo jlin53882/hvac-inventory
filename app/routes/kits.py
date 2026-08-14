@@ -70,29 +70,34 @@ def create_kit(kit: KitCreate):
     if not kit.name or not kit.items:
         raise HTTPException(400, "套件名稱與材料都不能空白")
     conn = get_db()
-    # 建立套件品項（v10：主檔 + 一筆空位置 stock）
-    cur = conn.execute(
-        "INSERT INTO items (brand, name, unit, is_kit, site) VALUES (?,?,?,1,?)",
-        ("", kit.name, "組", "office"),
-    )
-    kit_item_id = cur.lastrowid
-    conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                 (kit_item_id, "", 0, kit.note))
-    # 建立套件定義
-    cur2 = conn.execute(
-        "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
-        (kit_item_id, kit.name, kit.note),
-    )
-    kit_id = cur2.lastrowid
-    for i, comp in enumerate(kit.items, 1):
-        _validate_kit_comp(conn, comp, i)  # 材料驗證：格式/數量>0/品項存在（2026-08-12 補）
-        conn.execute(
-            "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-            (kit_id, comp["item_id"], comp.get("qty", 1)),
+    try:
+        # 建立套件品項（v10：主檔 + 一筆空位置 stock）
+        cur = conn.execute(
+            "INSERT INTO items (brand, name, unit, is_kit, site) VALUES (?,?,?,1,?)",
+            ("", kit.name, "組", "office"),
         )
-    conn.commit()
-    conn.close()
-    return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
+        kit_item_id = cur.lastrowid
+        conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                     (kit_item_id, "", 0, kit.note))
+        # 建立套件定義
+        cur2 = conn.execute(
+            "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
+            (kit_item_id, kit.name, kit.note),
+        )
+        kit_id = cur2.lastrowid
+        for i, comp in enumerate(kit.items, 1):
+            _validate_kit_comp(conn, comp, i)  # 材料驗證：格式/數量>0/品項存在（2026-08-12 補）
+            conn.execute(
+                "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                (kit_id, comp["item_id"], comp.get("qty", 1)),
+            )
+        conn.commit()
+        return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 def _validate_kit_comp(conn, comp, i) -> None:
@@ -115,49 +120,56 @@ def update_kit(kit_id: int, kit: KitCreate):
     if not kit.name or not kit.items:
         raise HTTPException(400, "套件名稱與材料都不能空白")
     conn = get_db()
-    row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(404, "整組不存在")
-    # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
-    if kit.updated_at:
-        cur = conn.execute(
-            "UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=? AND updated_at=?",
-            (kit.name, kit.note, kit_id, kit.updated_at))
-        if cur.rowcount == 0:
-            conn.close()
-            raise HTTPException(409, "該整組已被他人修改，請重新整理後再編輯")
-    else:
-        conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
-                     (kit.name, kit.note, kit_id))
-    conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
-                 (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
-    conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
-    for i, comp in enumerate(kit.items, 1):
-        _validate_kit_comp(conn, comp, i)  # 材料驗證（與 create 共用）
-        conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                     (kit_id, comp["item_id"], comp.get("qty", 1)))
-    conn.commit()
-    conn.close()
-    return {"ok": True, "id": kit_id, "name": kit.name}
+    try:
+        row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "整組不存在")
+        # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
+        if kit.updated_at:
+            cur = conn.execute(
+                "UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=? AND updated_at=?",
+                (kit.name, kit.note, kit_id, kit.updated_at))
+            if cur.rowcount == 0:
+                raise HTTPException(409, "該整組已被他人修改，請重新整理後再編輯")
+        else:
+            conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
+                         (kit.name, kit.note, kit_id))
+        conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
+                     (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
+        conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
+        for i, comp in enumerate(kit.items, 1):
+            _validate_kit_comp(conn, comp, i)  # 材料驗證（與 create 共用）
+            conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                         (kit_id, comp["item_id"], comp.get("qty", 1)))
+        conn.commit()
+        return {"ok": True, "id": kit_id, "name": kit.name}
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.delete("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
 def delete_kit(kit_id: int):
     """刪除整組定義：套件、材料關聯、套件品項（含流水/盤點/位置庫存/照片）"""
     conn = get_db()
-    row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(404, "整組不存在")
-    item_id = row["item_id"]
-    conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
-    conn.execute("DELETE FROM kits WHERE id=?", (kit_id,))
-    # M6：套件品項 soft-delete（保留 movements/stocktakes 稽核軌跡）
-    conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
-                 (datetime.datetime.now().isoformat(), item_id))
-    conn.commit()
-    conn.close()
+    try:
+        row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "整組不存在")
+        item_id = row["item_id"]
+        conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
+        conn.execute("DELETE FROM kits WHERE id=?", (kit_id,))
+        # M6：套件品項 soft-delete（保留 movements/stocktakes 稽核軌跡）
+        conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
+                     (datetime.datetime.now().isoformat(), item_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+        raise
+    finally:
+        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
     # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
     from app.routes.photos import _photo_path
     import os
