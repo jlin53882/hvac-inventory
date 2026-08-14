@@ -875,6 +875,14 @@ def test_calendar_cell_shows_service_client():
     assert "innerText = `${e.start_time" not in js       # 舊單行 innerText 已移除（B 方案取代）
 
 
+def test_calendar_cell_selected_highlight_js():
+    """2026-08-14 家豪：月曆格「選中」機制——點擊設定 calSelected + 渲染 cal-selected class（與 cal-today 並存）"""
+    js = read(CALENDAR_RENDER_JS)
+    assert "cal-selected" in js                          # 渲染時加選中 class
+    assert "calSelected = new Date(y, m, d)" in js       # 點擊格子設定選中日期
+    assert "cal-today" in js                             # 今天 class 保留（兩者並存）
+
+
 def test_calendar_appt_only_start_time():
     """2026-08-13 Sarah：編輯派工只寫開始時間、不用結束時間
     - modal 無「結束」欄位（cal-f-end 移除）
