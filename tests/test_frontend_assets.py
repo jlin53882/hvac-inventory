@@ -127,6 +127,14 @@ def test_css_mobile_media_query():
     assert ".top-actions { flex-wrap: wrap" in css or "flex-wrap: wrap" in css
 
 
+def test_css_cal_evt_wraps_on_mobile():
+    """2026-08-14 Sarah：手機版月曆格派工文字自動換行（桌面 nowrap+ellipsis 保留，手機窄格不超出）"""
+    css = read(CSS)
+    assert "white-space: normal" in css
+    assert "word-break: break-word" in css
+    assert "overflow-wrap: anywhere" in css
+
+
 def test_css_user_actions_black_text():
     """舊使用者 modal 操作欄樣式已清理（RBAC 權限頁取代，user-actions 退役）"""
     css = read(CSS)

@@ -957,6 +957,8 @@
 @media (max-width: 767px) {
   .cal-cell { min-height: 58px; }
   .cal-evt { font-size: 9.5px; }
+  /* 2026-08-14 Sarah：手機格子窄——派工文字自動換行（桌面版保留 nowrap+ellipsis 截斷） */
+  .cal-evt { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
 }
 
 /* 今日提醒條（demo 同款） */
