@@ -18,6 +18,7 @@
 """
 import datetime
 import re
+import sqlite3
 from typing import List, Optional
 from urllib.parse import quote
 
@@ -347,7 +348,7 @@ def create_service_type(body: ServiceTypeIn):
             cur = conn.execute("INSERT INTO service_types (name, sort_order, is_active) VALUES (?,?,?)",
                                (name, body.sort_order, body.is_active))
             conn.commit()
-        except Exception:
+        except sqlite3.IntegrityError:   # 2026-08-14 精準捕捉（B1）：只有 UNIQUE 衝突才是同名，鎖衝突不誤報
             conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
             raise HTTPException(400, "同名服務項目已存在")
         return dict(conn.execute("SELECT * FROM service_types WHERE id=?", (cur.lastrowid,)).fetchone())
@@ -372,7 +373,7 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
             conn.execute("UPDATE service_types SET name=?, sort_order=?, is_active=? WHERE id=?",
                          (name, body.sort_order, body.is_active, svc_id))
             conn.commit()
-        except Exception:
+        except sqlite3.IntegrityError:   # 2026-08-14 精準捕捉（B1）：只有 UNIQUE 衝突才是同名，鎖衝突不誤報
             conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
             raise HTTPException(400, "同名服務項目已存在")
         return dict(conn.execute("SELECT * FROM service_types WHERE id=?", (svc_id,)).fetchone())
