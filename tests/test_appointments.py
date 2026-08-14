@@ -158,6 +158,27 @@ def test_appointment_validation(client):
     assert client.post("/api/appointments", json=_appt_body(user_ids=[999])).status_code == 400
 
 
+def test_appointment_time_optional(client):
+    """2026-08-14 Sarah：派工時間選填——兩欄皆空可建立、空時間不觸發衝突、只填一欄 400"""
+    # 兩欄皆空 → 200（存空字串）
+    r = client.post("/api/appointments", json=_appt_body(start_time="", end_time=""))
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["start_time"] == ""
+    assert d["end_time"] == ""
+    # 同人同天兩筆空時間派工 → 不衝突（未指定時間無法判斷同時段）
+    r = client.post("/api/appointments", json=_appt_body(
+        client_name="張小姐 (A棟 12F)", start_time="", end_time=""))
+    assert r.status_code == 200, r.text
+    # 只填開始不填結束 → 400（時間要嘛完整填寫要嘛留空）
+    r = client.post("/api/appointments", json=_appt_body(start_time="09:00", end_time=""))
+    assert r.status_code == 400
+    assert "派工時間請完整填寫" in r.json()["detail"]
+    # 編輯成空時間 → 200
+    r = client.put(f"/api/appointments/{d['id']}", json=_appt_body(start_time="", end_time=""))
+    assert r.status_code == 200, r.text
+
+
 def test_appointment_conflict_409(client):
     assert client.post("/api/appointments", json=_appt_body()).status_code == 200
     # 同人同時段重疊 → 409

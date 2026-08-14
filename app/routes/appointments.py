@@ -37,8 +37,8 @@ class AppointmentIn(BaseModel):
     address: str = ""
     service_type_id: Optional[int] = None
     date: str
-    start_time: str
-    end_time: str
+    start_time: Optional[str] = ""   # 2026-08-14 Sarah：派工時間選填（兩欄皆空=未指定時間）
+    end_time: Optional[str] = ""
     note: str = ""
     user_ids: List[int] = []
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯派工時的 updated_at 快照
@@ -55,7 +55,15 @@ _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
 def _validate_time(start_time: str, end_time: str) -> None:
     """起訖時間合理性：格式必須 HH:MM 且時間序正確（2026-08-12 補格式驗證——
-    原本零驗證讓任意字串（含 XSS payload）直接入庫）"""
+    原本零驗證讓任意字串（含 XSS payload）直接入庫）。
+    2026-08-14 Sarah：派工時間選填——兩欄皆空 = 未指定時間（不做格式/時間序檢查）；
+    只填一欄 = 400（時間要嘛完整填寫要嘛留空）"""
+    start_time = start_time or ""
+    end_time = end_time or ""
+    if not start_time and not end_time:
+        return
+    if bool(start_time) != bool(end_time):
+        raise HTTPException(400, "派工時間請完整填寫（開始與結束）或留空")
     for label, t in (("開始", start_time), ("結束", end_time)):
         if not _TIME_RE.match(t):
             raise HTTPException(400, f"{label}時間格式需為 HH:MM（如 09:00）")
@@ -84,7 +92,10 @@ def _validate_users(conn, user_ids: List[int]) -> None:
 
 
 def _find_conflict(conn, user_ids, date, start_time, end_time, exclude_id=0):
-    """衝突檢查：任一被指派人員在同時段已有行程 → 回傳衝突訊息，否則 None"""
+    """衝突檢查：任一被指派人員在同時段已有行程 → 回傳衝突訊息，否則 None。
+    2026-08-14 Sarah：未指定時間（選填）無法判斷同時段 → 跳過衝突檢查"""
+    if not start_time or not end_time:
+        return None
     for uid in user_ids:
         row = conn.execute(
             """SELECT a.client_name, a.start_time, a.end_time, u.display_name
@@ -183,7 +194,7 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("c
                (client_name, address, service_type_id, date, start_time, end_time, note, created_by)
                VALUES (?,?,?,?,?,?,?,?)""",
             (body.client_name.strip(), body.address.strip(), body.service_type_id,
-             body.date, body.start_time, body.end_time, body.note.strip(), user["id"]),
+             body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"]),
         )
         appt_id = cur.lastrowid
         for uid in body.user_ids:
@@ -222,7 +233,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
                 """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
                    start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=? AND updated_at=?""",
                 (body.client_name.strip(), body.address.strip(), body.service_type_id,
-                 body.date, body.start_time, body.end_time, body.note.strip(), user["id"], appt_id, body.updated_at),
+                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id, body.updated_at),
             )
             if cur.rowcount == 0:
                 raise HTTPException(409, "該行程已被他人修改，請重新整理後再編輯")
@@ -231,7 +242,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
                 """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
                    start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=?""",
                 (body.client_name.strip(), body.address.strip(), body.service_type_id,
-                 body.date, body.start_time, body.end_time, body.note.strip(), user["id"], appt_id),
+                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id),
             )
         conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
         for uid in body.user_ids:
