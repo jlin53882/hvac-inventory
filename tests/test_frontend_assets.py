@@ -290,6 +290,18 @@ def test_perms_js_perm_toggle_updates_source_label():
     assert "perm-src override" in js
 
 
+def test_perms_js_dead_code_no_regression():
+    """57ead1e 清理的 dead code 防回歸（2026-08-14 補）：
+    A3 kitModalSelections / A4 permPoints / A5 roleDefaults / A6 全量權限 fetch
+    任一復活 → 本測試紅，防止「清完又長回來」"""
+    gl = read(GLOBALS_JS) + read(KIT_MODAL_JS)
+    assert "kitModalSelections" not in gl          # A3：v8 拆分殘骸（被 kitModalCompRows 取代）
+    js = read(PERMS_JS)
+    assert "permPoints" not in js                  # A4：權限點全量目錄殘骸（per-user 端點內聯取代）
+    assert "roleDefaults" not in js                # A5：角色預設殘骸（同上）
+    assert "apiGet('/api/users/permissions')" not in js  # A6：全量 fetch 不得復活（per-user ${curUid} 端點才對）
+
+
 # ---------- viewer 角色前端（唯讀模式） ----------
 
 def test_auth_js_has_apply_role_view():
