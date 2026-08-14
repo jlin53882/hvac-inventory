@@ -186,11 +186,12 @@ function calRenderMonth() {
     c.innerHTML = `<span class="cal-day-num">${prevTotal - i + 1}</span>`;
     grid.appendChild(c);
   }
-  const tStr = _iso(new Date()), selStr = _iso(calSelected);
+  const selStr = _iso(calSelected);
   for (let d = 1; d <= total; d++) {
     const ds = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const c = document.createElement('div');
-    c.className = 'cal-cell' + (ds === tStr ? ' cal-today' : '') + (ds === selStr ? ' cal-selected' : '');
+    // 2026-08-14 家豪：今天完全不標記（變體 A）——不再產生「今天」class，只有選中的日期有框
+    c.className = 'cal-cell' + (ds === selStr ? ' cal-selected' : '');
     c.innerHTML = `<span class="cal-day-num">${d}</span>`;
     c.onclick = () => { calSelected = new Date(y, m, d); calRenderMonth(); calRenderDay(); };
     const evts = calEvents.filter(e => e.date === ds)

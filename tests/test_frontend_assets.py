@@ -139,11 +139,12 @@ def test_css_cal_evt_b_variant_and_no_overflow():
 
 def test_css_cal_selected_highlight():
     """2026-08-14 家豪：點月曆日期要有「選中」深色框（原 .cal-selected 只有淡背景，看不到框）
-    - 選中框 = 深藍邊框 + 深藍數字底；選中今天時 today 邊框讓位"""
+    - 選中框 = 深藍邊框 + 深藍數字底
+    - 08-14 變體 A：今天完全不標記——不再有 .cal-today 樣式（只有選中的日期有框）"""
     css = read(CSS)
     assert ".cal-cell.cal-selected { border: 2px solid #2d5a8e" in css
     assert ".cal-cell.cal-selected .cal-day-num { background: #2d5a8e" in css
-    assert ".cal-cell.cal-selected.cal-today { border-color: #2d5a8e; }" in css
+    assert ".cal-cell.cal-today" not in css            # 今天無標記（不與選中框衝突）
 
 
 def test_css_user_actions_black_text():
@@ -876,11 +877,12 @@ def test_calendar_cell_shows_service_client():
 
 
 def test_calendar_cell_selected_highlight_js():
-    """2026-08-14 家豪：月曆格「選中」機制——點擊設定 calSelected + 渲染 cal-selected class（與 cal-today 並存）"""
+    """2026-08-14 家豪：月曆格「選中」機制——點擊設定 calSelected + 渲染 cal-selected class
+    - 08-14 變體 A：今天完全不標記（不再產生 cal-today class，避免今天與選中同時有框）"""
     js = read(CALENDAR_RENDER_JS)
     assert "cal-selected" in js                          # 渲染時加選中 class
     assert "calSelected = new Date(y, m, d)" in js       # 點擊格子設定選中日期
-    assert "cal-today" in js                             # 今天 class 保留（兩者並存）
+    assert "cal-today" not in js                         # 今天不標記（無 cal-today class 產生）
 
 
 def test_calendar_appt_only_start_time():
