@@ -1470,9 +1470,13 @@ class TestCookieSecureFlag:
         assert "hvac_session=" in set_cookie
         assert "Secure" not in set_cookie.split("hvac_session=")[1].split(";")[0].upper() or "Secure" not in set_cookie
 
-    def test_login_cookie_secure_on_https(self):
-        """HTTPS 登入 → cookie 帶 Secure flag"""
+    def test_login_cookie_secure_on_https(self, tmp_path, monkeypatch):
+        """HTTPS 登入 → cookie 帶 Secure flag
+        2026-08-14 補：改用 tmp DB（monkeypatch 後 lifespan 自動 init+建 admin），
+        不再打真實 inventory.db——根治「database is locked」（原無 fixture 直接打真實 DB）"""
         from fastapi.testclient import TestClient
+        test_db = tmp_path / "test_inventory.db"
+        monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
         with TestClient(app_main.app, base_url="https://testserver") as c:
             r = c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
             assert r.status_code == 200
