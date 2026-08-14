@@ -812,9 +812,9 @@ def test_calendar_cell_shows_service_client():
     """2026-08-13 Sarah：月曆格子內派工標籤顯示「時間 [服務] 客戶」（右邊明細內容寫進左邊格子）"""
     js = read(CALENDAR_RENDER_JS)
     assert "evts.slice(0, 2)" in js                     # 每格最多 2 筆派工
-    assert "e.start_time} [${e.service_name" in js       # 時間 + [服務]
+    assert "e.start_time ? e.start_time + ' ' : ''}[${e.service_name" in js  # 時間前綴 + [服務]
     assert "e.client_name || ''" in js                   # 客戶名
-    assert "t.innerText = `${e.start_time}" in js        # 用 innerText 安全設定（非 innerHTML）
+    assert "t.innerText = `${e.start_time ? e.start_time + ' ' : ''}" in js  # 用 innerText 安全設定（非 innerHTML）
 
 
 def test_calendar_appt_only_start_time():
@@ -829,10 +829,27 @@ def test_calendar_appt_only_start_time():
     assert 'type="time"' not in js                      # 不再用 12 制 time input
     assert "{length: 24}" in js                         # 時 00-23
     assert "i * 5" in js                                # 分每 5 分鐘
-    # 儲存：end_time = start_time（同一組時/分）
-    assert "end_time: document.getElementById('cal-f-hour').value" in js
-    # 明細卡：只顯示開始時間
-    assert "<div class=\"cal-time\">⏰ ${esc(e.start_time)}　${who}</div>" in js
+    # 儲存：end_time = start_time（同一組時/分；2026-08-14 起選填——選「--」→ timeVal 空字串）
+    assert "end_time: timeVal" in js
+    # 明細卡：只顯示開始時間（2026-08-14 起選填——無時間不顯示 ⏰ 前綴）
+    assert "<div class=\"cal-time\">${e.start_time ? `⏰ ${esc(e.start_time)}　` : ''}${who}</div>" in js
+
+
+def test_calendar_time_optional():
+    """2026-08-14 Sarah：派工時間選填
+    - 時/分下拉第一個選項「--」= 不指定時間
+    - 新增預設留空、編輯無時間回「--」（不再預設 09:00）
+    - 提交時選「--」→ 時間留空字串（timeVal）
+    - 月曆格/明細卡無時間不顯示時間前綴；排序空時間排最後"""
+    js = read(CALENDAR_RENDER_JS)
+    assert '<option value="">--</option>' in js             # 時/分下拉「--」空選項
+    assert "const t = (f && f.start_time) || '';" in js     # 回填：無時間留空
+    assert "const timeVal = (hh && mm) ? hh + ':' + mm : '';" in js  # 選「--」→ 空字串
+    assert "start_time: timeVal," in js and "end_time: timeVal," in js
+    assert "e.start_time ? e.start_time + ' ' : ''" in js   # 月曆格無時間前綴
+    assert "⏰ ${esc(e.start_time)}　` : ''}${who}" in js    # 明細卡無時間不顯示 ⏰
+    assert "(a.start_time || '99:99')" in js                # 空時間排最後
+    assert "'09:00'" not in js.split("const t =")[1].split("const timeVal")[0]  # 新增不再預設 09:00
 
 
 # ---------- 2026-08-12 totalQty 補接（盤點頁第 4 張統計卡「庫存總數(件)」） ----------
@@ -1104,3 +1121,28 @@ def test_calendar_js_optimistic_lock_snapshot():
     js = read(CALENDAR_RENDER_JS)
     assert "calApptUpdatedAt" in js, "calendar.js 缺 calApptUpdatedAt 快照變數"
     assert "updated_at: calApptUpdatedAt" in js, "calendar.js calSubmitAppt 未帶 updated_at"
+
+# ---------- Phase 3：前端即時性與狀態持久化（2026-08-14） ----------
+
+def test_app_js_visibility_reload():
+    """app.js：切回頁籤/視窗自動重載（多使用者即時性）"""
+    js = read(APP_JS)
+    assert "autoReloadOnFocus" in js, "app.js 缺 autoReloadOnFocus"
+    assert "visibilitychange" in js, "app.js 缺 visibilitychange 監聽器"
+    assert "hasPending()" in js, "app.js 自動重載應跳過未儲存調整（hasPending）"
+
+
+def test_app_js_url_state_persistence():
+    """app.js：URL 參數持久化畫面狀態（F5 保留頁籤/分片）"""
+    js = read(APP_JS)
+    assert "syncViewUrl" in js, "app.js 缺 syncViewUrl"
+    assert "history.replaceState" in js, "syncViewUrl 應使用 replaceState（不觸發重載）"
+    assert "_TABS" in js and "_SITES" in js, "app.js 缺白名單 _TABS/_SITES"
+    assert "currentTab = _t" in js, "app.js 啟動未從 URL 恢復 currentTab"
+
+
+def test_calendar_js_month_url():
+    """calendar.js：行事曆月份從 URL 讀（F5 停在原本月份）"""
+    js = read(CALENDAR_RENDER_JS)
+    assert "new URLSearchParams(location.search).get('month')" in js, "calendar.js 未從 URL 讀 month"
+    assert "syncViewUrl" in js, "calendar.js 切月後未同步 URL"

@@ -2,7 +2,9 @@
 // 資料來源：/api/appointments、/api/service-types、/api/assignable-users
 
 // ========== 行事曆狀態 ==========
-let calMonth = new Date();       // 目前顯示的月份
+// 2026-08-14 Phase 3：calMonth 從 URL 讀（?month=YYYY-MM，F5 停在原本月份）
+const _calM = new URLSearchParams(location.search).get('month');
+let calMonth = _calM && /^\d{4}-\d{2}$/.test(_calM) ? new Date(parseInt(_calM.slice(0,4)), parseInt(_calM.slice(5,7))-1, 1) : new Date();       // 目前顯示的月份
 let calSelected = new Date();    // 選取的日期
 let calEvents = [];              // 當月/當日行程
 let calSvc = [];                 // 服務項目字典（全部，含停用）
@@ -192,13 +194,15 @@ function calRenderMonth() {
     c.innerHTML = `<span class="cal-day-num">${d}</span>`;
     c.onclick = () => { calSelected = new Date(y, m, d); calRenderMonth(); calRenderDay(); };
     const evts = calEvents.filter(e => e.date === ds)
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+      // 2026-08-14：空時間排最後（未指定時間的派工排在當天行程尾）
+      .sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'));
     // 2026-08-13 Sarah：月曆格顯示「時間 [服務] 客戶」（原只顯示時間+人員；右邊明細內容寫進左邊格子）
     evts.slice(0, 2).forEach(e => {
       const t = document.createElement('span');
       t.className = 'cal-evt';
       t.style.background = ((e.assignees || [])[0] && (e.assignees[0].color)) || '#1a73e8';
-      t.innerText = `${e.start_time} [${e.service_name || ''}] ${e.client_name || ''}`;
+      // 2026-08-14 Sarah：派工時間選填——無時間的派工不顯示時間前綴
+      t.innerText = `${e.start_time ? e.start_time + ' ' : ''}[${e.service_name || ''}] ${e.client_name || ''}`;
       c.appendChild(t);
     });
     if (evts.length > 2) {
@@ -227,7 +231,7 @@ function calRenderDay() {
   document.getElementById('cal-day-title').innerText = `${_fmtTW(calSelected)} · 派工明細`;
   document.getElementById('cal-picker').value = selStr;
   const list = document.getElementById('cal-day-list');
-  const dayEvents = calEvents.filter(e => e.date === selStr).sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const dayEvents = calEvents.filter(e => e.date === selStr).sort((a, b) => (a.start_time || '99:99').localeCompare(b.start_time || '99:99'));
   if (!dayEvents.length) {
     list.className = '';
     list.innerHTML = '<div class="empty">這天沒有派工行程' + (isViewer ? '' : '<br>點右上「＋ 新增派工」排一筆') + '</div>';
@@ -250,7 +254,7 @@ function calRenderDay() {
           <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">編輯</button>
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
         </div>`}
-        <div class="cal-time">⏰ ${esc(e.start_time)}　${who}</div>
+        <div class="cal-time">${e.start_time ? `⏰ ${esc(e.start_time)}　` : ''}${who}</div>
         <div class="cal-client">[${esc(e.service_name || '')}] ${esc(e.client_name)}</div>
         ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
         <div class="cal-note">${esc(e.note || '無備註')}</div>
@@ -262,6 +266,7 @@ function calRenderDay() {
 function calChangeMonth(d) {
   calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + d, 1);
   calLoadData().then(() => { calRenderMonth(); calRenderDay(); });
+  if (typeof syncViewUrl === 'function') syncViewUrl();  // 2026-08-14：月份寫入 URL（F5 保留）
 }
 
 function calPickDate(v) {
@@ -269,6 +274,7 @@ function calPickDate(v) {
   calSelected = new Date(v);
   calMonth = new Date(v.getFullYear(), v.getMonth(), 1);
   calLoadData().then(() => { calRenderMonth(); calRenderDay(); });
+  if (typeof syncViewUrl === 'function') syncViewUrl();  // 2026-08-14：月份寫入 URL（F5 保留）
 }
 
 // ========== 新增 / 編輯 ==========
@@ -299,18 +305,20 @@ function calOpenAppt(id) {
   document.getElementById('cal-f-date').value = f ? f.date : _iso(calSelected);
   // 2026-08-13：24 制下拉（時 00-23、分 00-59，每 5 分鐘）
   const hSel = document.getElementById('cal-f-hour');
-  hSel.innerHTML = Array.from({length: 24}, (_, h) => {
+  // 2026-08-14 Sarah：派工時間選填——第一個選項「--」= 不指定時間
+  hSel.innerHTML = '<option value="">--</option>' + Array.from({length: 24}, (_, h) => {
     const hh = String(h).padStart(2, '0');
     return `<option value="${hh}">${hh}</option>`;
   }).join('');
   const mSel = document.getElementById('cal-f-minute');
-  mSel.innerHTML = Array.from({length: 12}, (_, i) => {
+  mSel.innerHTML = '<option value="">--</option>' + Array.from({length: 12}, (_, i) => {
     const mm = String(i * 5).padStart(2, '0');
     return `<option value="${mm}">${mm}</option>`;
   }).join('');
-  const t = (f ? f.start_time : '09:00') || '09:00';
-  hSel.value = t.slice(0, 2);
-  mSel.value = t.slice(3, 5);
+  // 2026-08-14 Sarah：派工時間選填——新增預設「--」（不填）、編輯未指定時間也回「--」
+  const t = (f && f.start_time) || '';
+  hSel.value = t ? t.slice(0, 2) : '';
+  mSel.value = t ? t.slice(3, 5) : '';
   document.getElementById('cal-f-note').value = f ? (f.note || '') : '';
   document.getElementById('cal-appt-modal').style.display = 'flex';
 }
@@ -320,15 +328,18 @@ async function calSubmitAppt() {
   // 負責人員欄位已隱藏：新增傳空、編輯保留原指派（避免清除舊資料）
   const orig = id ? ((calEvents.find(e => e.id === Number(id)) || {}).user_ids || []) : [];
   const user_ids = orig;
+  // 2026-08-14 Sarah：派工時間選填——時或分選「--」→ 時間留空字串（後端接受空時間）
+  const hh = document.getElementById('cal-f-hour').value;
+  const mm = document.getElementById('cal-f-minute').value;
+  const timeVal = (hh && mm) ? hh + ':' + mm : '';
   const body = {
     client_name: document.getElementById('cal-f-client').value.trim(),
     address: document.getElementById('cal-f-address').value.trim(),
     service_type_id: document.getElementById('cal-f-svc').value ? Number(document.getElementById('cal-f-svc').value) : null,
     date: document.getElementById('cal-f-date').value,
-    // 2026-08-13：24 制下拉（時/分）組回 HH:MM
-    start_time: document.getElementById('cal-f-hour').value + ':' + document.getElementById('cal-f-minute').value,
+    start_time: timeVal,
     // 2026-08-13 Sarah：只寫開始時間，不用結束時間 → end 自動 = start（後端衝突判斷變「同時段才衝突」）
-    end_time: document.getElementById('cal-f-hour').value + ':' + document.getElementById('cal-f-minute').value,
+    end_time: timeVal,
     note: document.getElementById('cal-f-note').value.trim(),
     user_ids,
     updated_at: calApptUpdatedAt,  // 2026-08-14 樂觀鎖（新增時 null，編輯時帶快照）
