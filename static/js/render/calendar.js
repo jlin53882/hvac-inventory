@@ -4,7 +4,7 @@
 // ========== 行事曆狀態 ==========
 // 2026-08-14 Phase 3：calMonth 從 URL 讀（?month=YYYY-MM，F5 停在原本月份）
 const _calM = new URLSearchParams(location.search).get('month');
-let calMonth = _calM && /^\d{4}-\d{2}$/.test(_calM) ? new Date(parseInt(_calM.slice(0,4)), parseInt(_calM.slice(5,7))-1, 1) : new Date();       // 目前顯示的月份
+let calMonth = _calM && /^\d{4}-\d{2}$/.test(_calM) && Number(_calM.slice(5,7)) >= 1 && Number(_calM.slice(5,7)) <= 12 ? new Date(parseInt(_calM.slice(0,4)), parseInt(_calM.slice(5,7))-1, 1) : new Date();       // 目前顯示的月份（regex + 月範圍 1-12 校驗）
 let calSelected = new Date();    // 選取的日期
 let calEvents = [];              // 當月/當日行程
 let calSvc = [];                 // 服務項目字典（全部，含停用）
@@ -363,6 +363,7 @@ async function calSubmitAppt() {
     await calLoadData();
     calRenderMonth();
     calRenderDay();
+    if (typeof syncViewUrl === 'function') syncViewUrl();  // 2026-08-14 審查補：跳月後同步 URL（F5 停在該月）
   } catch (e) {
     showErr('⚠️ 網路錯誤：' + e.message);
   }
