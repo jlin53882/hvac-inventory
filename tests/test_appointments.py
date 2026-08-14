@@ -207,6 +207,25 @@ def test_appointment_concurrent_double_booking_rejected(client):
     assert len(same_slot) == 1, f"預期 1 筆併發行程，實際 {len(same_slot)}"
 
 
+def test_update_appointment_optimistic_lock_409(client):
+    """2026-08-14 Phase 2：PUT 派工帶過期 updated_at 快照 → 409（_appt_row 有回傳 updated_at）"""
+    r = client.post("/api/appointments", json=_appt_body())
+    assert r.status_code == 200
+    appt = r.json()
+    assert "updated_at" in appt, "API 必須回傳 updated_at（前端樂觀鎖快照用）"
+    # 他人先改過
+    client.put(f"/api/appointments/{appt['id']}", json=_appt_body(client_name="他人改的"))
+    # 用舊快照儲存 → 409
+    r = client.put(f"/api/appointments/{appt['id']}",
+                   json=_appt_body(client_name="我的修改", updated_at="1999-01-01 00:00:00"))
+    assert r.status_code == 409
+    assert "已被他人修改" in r.json()["detail"]
+    # 沒被覆蓋
+    appts = client.get("/api/appointments?date=2026-08-12").json()
+    target = [a for a in appts if a["id"] == appt["id"]][0]
+    assert target["client_name"] == "他人改的"
+
+
 def test_edit_keeps_creator(client):
     """編輯行程不改變新增者（created_by 保留原值）＋記錄最後編輯者（2026-08-13 Sarah：編輯非新增者要顯示）"""
     r = client.post("/api/appointments", json=_appt_body())

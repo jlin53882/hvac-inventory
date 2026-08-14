@@ -1081,3 +1081,26 @@ def test_card_js_core_functions():
     js = read(CARD_JS)
     for fn in ("buildThumb", "buildLocHTML", "buildQtyControl", "buildQtyNum", "mobileCardShell"):
         assert fn in js, f"card.js 缺 {fn}"
+
+
+# ---------- 樂觀鎖快照（2026-08-14 Phase 2：編輯 modal 帶 updated_at） ----------
+
+def test_edit_js_optimistic_lock_snapshot():
+    """edit.js：開啟編輯 modal 存 updated_at 快照、儲存時帶回（後端 WHERE 守衛）"""
+    js = read(EDIT_JS)
+    assert "editUpdatedAt" in js, "edit.js 缺 editUpdatedAt 快照變數"
+    assert "updated_at: editUpdatedAt" in js, "edit.js submitEdit 未帶 updated_at"
+
+
+def test_kit_js_optimistic_lock_snapshot():
+    """kit.js：編輯整組帶 updated_at 快照（submitKitEdit body）"""
+    js = read(KIT_MODAL_JS)
+    assert "kitUpdatedAt" in js, "kit.js 缺 kitUpdatedAt 快照變數"
+    assert "updated_at: kitUpdatedAt" in js, "kit.js submitKitEdit 未帶 updated_at"
+
+
+def test_calendar_js_optimistic_lock_snapshot():
+    """calendar.js：編輯派工帶 updated_at 快照（calSubmitAppt body）"""
+    js = read(CALENDAR_RENDER_JS)
+    assert "calApptUpdatedAt" in js, "calendar.js 缺 calApptUpdatedAt 快照變數"
+    assert "updated_at: calApptUpdatedAt" in js, "calendar.js calSubmitAppt 未帶 updated_at"

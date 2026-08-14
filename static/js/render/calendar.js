@@ -272,8 +272,10 @@ function calPickDate(v) {
 }
 
 // ========== 新增 / 編輯 ==========
+let calApptUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯派工 modal 時的 updated_at 快照
 function calOpenAppt(id) {
   const f = id ? calEvents.find(e => e.id === id) : null;
+  calApptUpdatedAt = f ? (f.updated_at || null) : null;  // 快照：儲存時帶回做 WHERE 守衛
   document.getElementById('cal-appt-title').innerText = f ? '✏️ 編輯派工' : '➕ 新增派工';
   document.getElementById('cal-f-id').value = f ? f.id : '';
   document.getElementById('cal-appt-conflict').style.display = 'none';
@@ -329,6 +331,7 @@ async function calSubmitAppt() {
     end_time: document.getElementById('cal-f-hour').value + ':' + document.getElementById('cal-f-minute').value,
     note: document.getElementById('cal-f-note').value.trim(),
     user_ids,
+    updated_at: calApptUpdatedAt,  // 2026-08-14 樂觀鎖（新增時 null，編輯時帶快照）
   };
   const box = document.getElementById('cal-appt-conflict');
   const showErr = (msg) => { box.innerText = msg; box.style.display = 'block'; };

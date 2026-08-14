@@ -119,7 +119,17 @@ def update_kit(kit_id: int, kit: KitCreate):
     if not row:
         conn.close()
         raise HTTPException(404, "整組不存在")
-    conn.execute("UPDATE kits SET name=?, note=? WHERE id=?", (kit.name, kit.note, kit_id))
+    # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
+    if kit.updated_at:
+        cur = conn.execute(
+            "UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=? AND updated_at=?",
+            (kit.name, kit.note, kit_id, kit.updated_at))
+        if cur.rowcount == 0:
+            conn.close()
+            raise HTTPException(409, "該整組已被他人修改，請重新整理後再編輯")
+    else:
+        conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
+                     (kit.name, kit.note, kit_id))
     conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
                  (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
     conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))

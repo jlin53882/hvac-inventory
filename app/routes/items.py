@@ -145,21 +145,31 @@ def create_item(item: ItemCreate):
 def update_item(item_id: int, upd: ItemUpdate):
     """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
     conn = get_db()
-    row0 = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+    row0 = conn.execute("SELECT id, updated_at FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
     if not row0:
         conn.close()
         raise HTTPException(404, "品項不存在")
     data = upd.model_dump()
-    # 主檔欄位（排除 qty/location/note/stocks —— 這些由位置庫存管理）
+    # 主檔欄位（排除 qty/location/note/stocks/updated_at —— qty/location/note 由位置庫存管理，
+    # updated_at 是樂觀鎖快照值不可當 SET 欄位覆寫）
     fields = {k: v for k, v in data.items()
-              if k not in ("qty", "location", "note", "stocks") and v is not None}
+              if k not in ("qty", "location", "note", "stocks", "updated_at") and v is not None}
     if not fields and data.get("stocks") is None:
         conn.close()
         raise HTTPException(400, "沒有要更新的欄位")
     if fields:
         fields["updated_at"] = datetime.datetime.now().isoformat()
         sets = ", ".join(f"{k}=?" for k in fields)
-        conn.execute(f"UPDATE items SET {sets} WHERE id=?", (*fields.values(), item_id))
+        # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → 守衛 WHERE updated_at=？
+        # 已被他人修改（快照過期）→ rowcount=0 → 409（不靜默覆蓋）
+        if upd.updated_at:
+            cur = conn.execute(f"UPDATE items SET {sets} WHERE id=? AND updated_at=?",
+                               (*fields.values(), item_id, upd.updated_at))
+            if cur.rowcount == 0:
+                conn.close()
+                raise HTTPException(409, "該品項已被他人修改，請重新整理後再編輯")
+        else:
+            conn.execute(f"UPDATE items SET {sets} WHERE id=?", (*fields.values(), item_id))
     # stocks 全量同步（M1：同位置 UPDATE 保留 stock id；新增 INSERT、消失 DELETE；qty 變化寫流水）
     if data.get("stocks") is not None:
         dedup = {}

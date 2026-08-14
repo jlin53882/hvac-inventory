@@ -34,6 +34,7 @@ class ItemUpdate(BaseModel):
     low_stock: Optional[float] = None
     site: Optional[str] = None
     stocks: Optional[List[StockItem]] = None  # v10：完整位置清單全量替換
+    updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯 modal 開啟時的快照值
 
 
 class StockUpdate(BaseModel):
@@ -85,6 +86,7 @@ class KitCreate(BaseModel):
     name: str
     items: list  # [{item_id, qty}]
     note: str = ""
+    updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯整組時的 updated_at 快照
 
 
 class KitAssemble(BaseModel):

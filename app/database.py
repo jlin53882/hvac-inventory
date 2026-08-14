@@ -79,7 +79,8 @@ def init_db():
         item_id     INTEGER NOT NULL REFERENCES items(id),
         name        TEXT NOT NULL,
         note        TEXT DEFAULT '',
-        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP   -- 2026-08-14 樂觀鎖（併發編輯防覆蓋）
     );
     CREATE TABLE IF NOT EXISTS kit_items (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -210,6 +211,10 @@ def init_db():
     if "is_deleted" not in item_cols:
         conn.execute("ALTER TABLE items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
         print("[migrate] items.is_deleted 欄位已新增（soft-delete）")
+    kit_cols = [r[1] for r in conn.execute("PRAGMA table_info(kits)").fetchall()]
+    if "updated_at" not in kit_cols:
+        conn.execute("ALTER TABLE kits ADD COLUMN updated_at TIMESTAMP")
+        print("[migrate] kits.updated_at 欄位已新增（樂觀鎖）")
     # M5：items 唯一約束（併發重複防線）——有重複資料則跳過建索引並警告（不自動刪資料）
     dup_row = conn.execute(
         "SELECT COUNT(*) AS c FROM (SELECT 1 FROM items GROUP BY brand, COALESCE(code,''), name, unit, site HAVING COUNT(*) > 1)"

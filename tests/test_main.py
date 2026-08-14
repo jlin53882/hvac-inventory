@@ -1001,6 +1001,49 @@ class TestPatchStock:
         assert r.status_code == 404
 
 
+# ========== 編輯端點樂觀鎖（2026-08-14 Phase 2：updated_at 快照守衛） ==========
+
+class TestOptimisticLock:
+    def test_update_item_optimistic_lock_ok(self, client):
+        """2026-08-14：PATCH 帶正確 updated_at 快照 → 200"""
+        item = _add_item(client, name="冷媒", qty=10)
+        r = client.patch(f"/api/items/{item['id']}", json={"name": "冷媒R22", "updated_at": item["updated_at"]})
+        assert r.status_code == 200, r.text
+        updated = _get_item(client, item["id"])
+        assert updated["name"] == "冷媒R22"
+
+    def test_update_item_optimistic_lock_conflict_409(self, client):
+        """2026-08-14：PATCH 帶過期 updated_at 快照（被他人改過）→ 409 不覆蓋"""
+        item = _add_item(client, name="冷媒", qty=10)
+        # 他人先改過（updated_at 前進）
+        client.patch(f"/api/items/{item['id']}", json={"name": "他人改的"})
+        # 用舊快照儲存 → 409
+        r = client.patch(f"/api/items/{item['id']}", json={"name": "我的修改", "updated_at": item["updated_at"]})
+        assert r.status_code == 409
+        assert "已被他人修改" in r.json()["detail"]
+        # 品項維持他人改的名字（沒被覆蓋）
+        updated = _get_item(client, item["id"])
+        assert updated["name"] == "他人改的"
+
+    def test_update_kit_optimistic_lock_conflict_409(self, client):
+        """2026-08-14：PUT 整組帶過期 updated_at → 409（kits migration 後 updated_at 欄生效）"""
+        a = _add_item(client, name="銅管", qty=10)
+        r = client.post("/api/kits", json={"name": "測試組", "items": [{"item_id": a["id"], "qty": 1}]})
+        assert r.status_code == 201
+        kits = client.get("/api/kits").json()
+        kit = kits[0]
+        # 他人先改過
+        client.put(f"/api/kits/{kit['id']}", json={"name": "他人改組", "items": [{"item_id": a["id"], "qty": 2}]})
+        # 用舊快照儲存 → 409
+        r = client.put(f"/api/kits/{kit['id']}", json={
+            "name": "我的修改", "items": [{"item_id": a["id"], "qty": 1}], "updated_at": kit["updated_at"] or "1999-01-01 00:00:00"})
+        assert r.status_code == 409
+        assert "已被他人修改" in r.json()["detail"]
+        # 整組名稱沒被覆蓋
+        kits2 = client.get("/api/kits").json()
+        assert kits2[0]["name"] == "他人改組"
+
+
 # ========== 統計（缺貨只列單一 / 低量含整組） ==========
 
 class TestStats:

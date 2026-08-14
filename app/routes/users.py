@@ -180,6 +180,9 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
     """改顯示名稱 / 角色 / 啟用停用（含保護規則）"""
     conn = get_db()
     try:
+        # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個 transaction 語句（前面只有 SELECT）——
+        # last-admin 保護的「讀 count → 判斷 → UPDATE」持鎖原子化（LU-7/TO-3 防兩 admin 同時降級對方）
+        conn.execute("BEGIN IMMEDIATE")
         row = _get_user_or_404(conn, user_id)
 
         display_name = row["display_name"] if body.display_name is None else body.display_name.strip()
@@ -222,6 +225,9 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
                    json.dumps({"is_active": is_active}, ensure_ascii=False))
         conn.commit()
         return _user_out(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -252,6 +258,8 @@ def delete_user(user_id: int, admin: dict = Depends(require_perm("user-mgmt"))):
         raise HTTPException(status_code=400, detail="不能刪除自己")
     conn = get_db()
     try:
+        # 2026-08-14 併發修復：BEGIN IMMEDIATE 第一個語句——last-admin 檢查 + DELETE 持鎖原子化（漏網 LU-7）
+        conn.execute("BEGIN IMMEDIATE")
         row = _get_user_or_404(conn, user_id)
         if row["role"] == "admin" and row["is_active"] == 1 and _active_admin_count(conn, exclude_id=user_id) == 0:
             raise HTTPException(status_code=400, detail="系統必須保留一名啟用的管理員")
@@ -271,6 +279,9 @@ def delete_user(user_id: int, admin: dict = Depends(require_perm("user-mgmt"))):
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.commit()
         return {"ok": True}
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

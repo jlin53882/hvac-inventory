@@ -1,9 +1,11 @@
 // 庫存管理系統 - 編輯品項 Modal（v10：多位置 stocks）
+var editUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯 modal 時的 updated_at 快照（併發防覆蓋）
 // ========== 編輯品項 ==========
 function openEditModal(id) {
   const item = ALL_ITEMS.find(i => i.id === id);
   if (!item) return;
   editItemId = id;
+  editUpdatedAt = item.updated_at || null;  // 快照：儲存時帶回後端做 WHERE 守衛
   document.getElementById('e-brand').value = item.brand || '';
   document.getElementById('e-code').value = item.code || '';
   document.getElementById('e-name').value = item.name || '';
@@ -80,6 +82,8 @@ async function submitEdit() {
       qty: parseFloat(row.querySelector('.stock-qty').value) || 0,
       note: row.querySelector('.stock-note').value.trim(),
     })),
+    // 2026-08-14 樂觀鎖：帶開啟時的 updated_at 快照，後端比對被他人改過 → 409
+    updated_at: editUpdatedAt,
   };
   try {
     const res = await fetch(`/api/items/${editItemId}`, {

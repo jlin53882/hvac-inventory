@@ -41,6 +41,7 @@ class AppointmentIn(BaseModel):
     end_time: str
     note: str = ""
     user_ids: List[int] = []
+    updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯派工時的 updated_at 快照
 
 
 class ServiceTypeIn(BaseModel):
@@ -129,6 +130,7 @@ def _appt_row(conn, appt_id: int) -> dict:
         "created_by": row["created_by"],
         "created_by_name": (creator["display_name"] or creator["username"]) if creator else None,
         "created_at": row["created_at"] or "",
+        "updated_at": row["updated_at"] or "",  # 2026-08-14 樂觀鎖：前端編輯時的快照值
         "updated_by": row["updated_by"],
         "updated_by_name": (updater["display_name"] or updater["username"]) if updater else None,
         "user_ids": [a["user_id"] for a in assignees],
@@ -214,12 +216,23 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
                                   exclude_id=appt_id)
         if conflict:
             raise HTTPException(409, conflict)
-        conn.execute(
-            """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
-               start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=?""",
-            (body.client_name.strip(), body.address.strip(), body.service_type_id,
-             body.date, body.start_time, body.end_time, body.note.strip(), user["id"], appt_id),
-        )
+        # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
+        if body.updated_at:
+            cur = conn.execute(
+                """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
+                   start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=? AND updated_at=?""",
+                (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                 body.date, body.start_time, body.end_time, body.note.strip(), user["id"], appt_id, body.updated_at),
+            )
+            if cur.rowcount == 0:
+                raise HTTPException(409, "該行程已被他人修改，請重新整理後再編輯")
+        else:
+            conn.execute(
+                """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
+                   start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=?""",
+                (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                 body.date, body.start_time, body.end_time, body.note.strip(), user["id"], appt_id),
+            )
         conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
         for uid in body.user_ids:
             conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",

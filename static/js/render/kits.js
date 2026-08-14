@@ -234,6 +234,7 @@ async function editKit(kitId) {
   } catch (e) { /* fallthrough */ }
   if (!kit) { toast('找不到整組資料', 'error'); return; }
   editingKitId = kitId;
+  kitUpdatedAt = kit.updated_at || null;  // 2026-08-14 樂觀鎖快照
   kitModalCompRows = kit.components.map(c => ({ item_id: c.item_id, qty: c.need_qty }));
   document.getElementById('k-name').value = kit.name;
   document.getElementById('k-note').value = kit.note || '';

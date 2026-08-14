@@ -1,4 +1,5 @@
 // 庫存管理系統 - 整組 Modal（v8 拆分；材料選擇為 demo 樣式：已選列 + 單一可搜尋框）
+var kitUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯整組 modal 時的 updated_at 快照
 function openKitModal() {
   editingKitId = null;
   kitModalSelections = [];
@@ -62,7 +63,8 @@ async function submitKitEdit() {
     const res = await fetch(`/api/kits/${editingKitId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, items: items, note: document.getElementById('k-note').value.trim() })
+      body: JSON.stringify({ name: name, items: items, note: document.getElementById('k-note').value.trim(),
+                             updated_at: kitUpdatedAt })
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
