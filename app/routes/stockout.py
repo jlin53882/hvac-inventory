@@ -193,37 +193,38 @@ def _add_back_to_first_stock(conn, item_id, qty):
 
 @router.post("/api/stockouts/{movement_id}/return", dependencies=[Depends(require_perm("stockout"))])
 def return_stockout(movement_id: int):
-    """退回已領出：把該筆出庫數量加回庫存 + 標記原記錄（reverted_at）+ 寫反向流水"""
-    conn = get_db()
-    m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
-    if not m:
-        conn.close()
-        raise HTTPException(404, "出庫記錄不存在")
-    if m["delta"] >= 0 or not str(m["reason"]).startswith("出庫"):
-        conn.close()
-        raise HTTPException(400, "只有已領出（出庫）記錄可以退回")
-    if m["reverted_at"]:
-        conn.close()
-        raise HTTPException(400, "該記錄已退回過")
+    try:
+        """退回已領出：把該筆出庫數量加回庫存 + 標記原記錄（reverted_at）+ 寫反向流水"""
+        conn = get_db()
+        m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+        if not m:
+            raise HTTPException(404, "出庫記錄不存在")
+        if m["delta"] >= 0 or not str(m["reason"]).startswith("出庫"):
+            raise HTTPException(400, "只有已領出（出庫）記錄可以退回")
+        if m["reverted_at"]:
+            raise HTTPException(400, "該記錄已退回過")
 
-    qty = -m["delta"]
-    current = _total_qty(conn, m["item_id"])  # M9：before_qty 用當前實際庫存（原用歷史值 m["after_qty"]）
-    _add_back_to_first_stock(conn, m["item_id"], qty)
-    now = datetime.datetime.now().isoformat()
-    # 2026-08-12 補：守衛式 UPDATE（WHERE reverted_at IS NULL）+ rowcount——
-    # 併發雙請求都通過上方讀取檢查時，只允許一個成功，另一個 rollback 撤銷已加庫存
-    cur = conn.execute(
-        "UPDATE movements SET reverted_at=? WHERE id=? AND reverted_at IS NULL", (now, movement_id))
-    if cur.rowcount == 0:
+        qty = -m["delta"]
+        current = _total_qty(conn, m["item_id"])  # M9：before_qty 用當前實際庫存（原用歷史值 m["after_qty"]）
+        _add_back_to_first_stock(conn, m["item_id"], qty)
+        now = datetime.datetime.now().isoformat()
+        # 2026-08-12 補：守衛式 UPDATE（WHERE reverted_at IS NULL）+ rowcount——
+        # 併發雙請求都通過上方讀取檢查時，只允許一個成功，另一個 rollback 撤銷已加庫存
+        cur = conn.execute(
+            "UPDATE movements SET reverted_at=? WHERE id=? AND reverted_at IS NULL", (now, movement_id))
+        if cur.rowcount == 0:
+            raise HTTPException(400, "該記錄已退回過")
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+            (m["item_id"], qty, current, current + qty, "退回已領出", m["destination"]),
+        )
+        conn.commit()
+        return {"ok": True, "movement_id": movement_id, "returned_qty": qty}
+    except Exception:
         conn.rollback()
-        raise HTTPException(400, "該記錄已退回過")
-    conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (m["item_id"], qty, current, current + qty, "退回已領出", m["destination"]),
-    )
-    conn.commit()
-    conn.close()
-    return {"ok": True, "movement_id": movement_id, "returned_qty": qty}
+        raise
+    finally:
+        conn.close()
 
 
 @router.patch("/api/stockouts/{movement_id}", dependencies=[Depends(require_perm("stockout"))])

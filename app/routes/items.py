@@ -143,62 +143,64 @@ def create_item(item: ItemCreate):
 
 @router.patch("/api/items/{item_id}", dependencies=[Depends(require_perm("item-mgmt"))])
 def update_item(item_id: int, upd: ItemUpdate):
-    """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
-    conn = get_db()
-    row0 = conn.execute("SELECT id, updated_at FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
-    if not row0:
-        conn.close()
-        raise HTTPException(404, "品項不存在")
-    data = upd.model_dump()
-    # 主檔欄位（排除 qty/location/note/stocks/updated_at —— qty/location/note 由位置庫存管理，
-    # updated_at 是樂觀鎖快照值不可當 SET 欄位覆寫）
-    fields = {k: v for k, v in data.items()
-              if k not in ("qty", "location", "note", "stocks", "updated_at") and v is not None}
-    if not fields and data.get("stocks") is None:
-        conn.close()
-        raise HTTPException(400, "沒有要更新的欄位")
-    if fields:
-        fields["updated_at"] = datetime.datetime.now().isoformat()
-        sets = ", ".join(f"{k}=?" for k in fields)
-        # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → 守衛 WHERE updated_at=？
-        # 已被他人修改（快照過期）→ rowcount=0 → 409（不靜默覆蓋）
-        if upd.updated_at:
-            cur = conn.execute(f"UPDATE items SET {sets} WHERE id=? AND updated_at=?",
-                               (*fields.values(), item_id, upd.updated_at))
-            if cur.rowcount == 0:
-                conn.close()
-                raise HTTPException(409, "該品項已被他人修改，請重新整理後再編輯")
-        else:
-            conn.execute(f"UPDATE items SET {sets} WHERE id=?", (*fields.values(), item_id))
-    # stocks 全量同步（M1：同位置 UPDATE 保留 stock id；新增 INSERT、消失 DELETE；qty 變化寫流水）
-    if data.get("stocks") is not None:
-        dedup = {}
-        for s in data["stocks"]:
-            dedup[s.get("location") or ""] = s
-        existing = {r["location"]: r for r in conn.execute(
-            "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
-        for loc, s in dedup.items():
-            new_qty = float(s.get("qty") or 0)
-            if loc in existing:
-                old = existing[loc]
-                conn.execute("UPDATE item_stocks SET qty=?, note=?, updated_at=? WHERE id=?",
-                             (new_qty, s.get("note") or "", datetime.datetime.now().isoformat(), old["id"]))
-                if abs(new_qty - old["qty"]) > 1e-9:  # qty 變化才寫流水（浮點誤差不算）
-                    conn.execute(
-                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                        (item_id, round(new_qty - old["qty"], 3), old["qty"], new_qty, "編輯品項調整", loc),
-                    )
+    try:
+        """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
+        conn = get_db()
+        row0 = conn.execute("SELECT id, updated_at FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+        if not row0:
+            raise HTTPException(404, "品項不存在")
+        data = upd.model_dump()
+        # 主檔欄位（排除 qty/location/note/stocks/updated_at —— qty/location/note 由位置庫存管理，
+        # updated_at 是樂觀鎖快照值不可當 SET 欄位覆寫）
+        fields = {k: v for k, v in data.items()
+                  if k not in ("qty", "location", "note", "stocks", "updated_at") and v is not None}
+        if not fields and data.get("stocks") is None:
+            raise HTTPException(400, "沒有要更新的欄位")
+        if fields:
+            fields["updated_at"] = datetime.datetime.now().isoformat()
+            sets = ", ".join(f"{k}=?" for k in fields)
+            # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → 守衛 WHERE updated_at=？
+            # 已被他人修改（快照過期）→ rowcount=0 → 409（不靜默覆蓋）
+            if upd.updated_at:
+                cur = conn.execute(f"UPDATE items SET {sets} WHERE id=? AND updated_at=?",
+                                   (*fields.values(), item_id, upd.updated_at))
+                if cur.rowcount == 0:
+                    raise HTTPException(409, "該品項已被他人修改，請重新整理後再編輯")
             else:
-                conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                             (item_id, loc, new_qty, s.get("note") or ""))
-        for loc, old in existing.items():
-            if loc not in dedup:
-                conn.execute("DELETE FROM item_stocks WHERE id=?", (old["id"],))
-    conn.commit()
-    row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-    full = _item_full(conn, row)
-    conn.close()
-    return full
+                conn.execute(f"UPDATE items SET {sets} WHERE id=?", (*fields.values(), item_id))
+        # stocks 全量同步（M1：同位置 UPDATE 保留 stock id；新增 INSERT、消失 DELETE；qty 變化寫流水）
+        if data.get("stocks") is not None:
+            dedup = {}
+            for s in data["stocks"]:
+                dedup[s.get("location") or ""] = s
+            existing = {r["location"]: r for r in conn.execute(
+                "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
+            for loc, s in dedup.items():
+                new_qty = float(s.get("qty") or 0)
+                if loc in existing:
+                    old = existing[loc]
+                    conn.execute("UPDATE item_stocks SET qty=?, note=?, updated_at=? WHERE id=?",
+                                 (new_qty, s.get("note") or "", datetime.datetime.now().isoformat(), old["id"]))
+                    if abs(new_qty - old["qty"]) > 1e-9:  # qty 變化才寫流水（浮點誤差不算）
+                        conn.execute(
+                            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                            (item_id, round(new_qty - old["qty"], 3), old["qty"], new_qty, "編輯品項調整", loc),
+                        )
+                else:
+                    conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                                 (item_id, loc, new_qty, s.get("note") or ""))
+            for loc, old in existing.items():
+                if loc not in dedup:
+                    conn.execute("DELETE FROM item_stocks WHERE id=?", (old["id"],))
+        conn.commit()
+        row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        full = _item_full(conn, row)
+        return full
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 @router.delete("/api/items/{item_id}", dependencies=[Depends(require_perm("item-mgmt"))])
