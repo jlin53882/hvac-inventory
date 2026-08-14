@@ -46,13 +46,20 @@
 .perm-src.role { color: #52c41a; }
 .perm-src.locked { color: #bfbfbf; }
 
-/* 開關（iOS 風格） */
+/* 開關（iOS 風格）——2026-08-14 修正紀錄：
+   第一/二輪：transition 限縮→移除動畫（誤判為動畫殘影，無效）
+   第三輪：transform→left（仍無效——因為根本不是動畫問題）
+   第四輪（根因）：style.css 有行事曆設定頁的 .switch（button 結構，.switch::after 白圈 left:2px 不動），
+   與本頁 label+slider 結構的 .switch class 撞名 → 每個開關多出一個永遠停在左邊的白圈（「左邊圓圈還存在」）！
+   解法：覆寫 .switch::after 為 content:none，並清掉 style.css 的 label 背景 */
+.switch::after { content: none; }
+.switch { background: transparent; }
 .switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
-.switch input { opacity: 0; width: 0; height: 0; }
-.switch .slider { position: absolute; inset: 0; background: #ccc; border-radius: 24px; transition: .2s; cursor: pointer; }
-.switch .slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.switch .slider { position: absolute; inset: 0; background: #ccc; border-radius: 24px; transition: none; cursor: pointer; }
+.switch .slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: none; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 .switch input:checked + .slider { background: #1890ff; }
-.switch input:checked + .slider::before { transform: translateX(18px); }
+.switch input:checked + .slider::before { left: 21px; }
 .switch input:disabled + .slider { cursor: not-allowed; opacity: .55; }
 
 .save-bar { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #f0f0f0; }

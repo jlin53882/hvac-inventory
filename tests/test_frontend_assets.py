@@ -259,6 +259,29 @@ def test_perms_html_nav_buttons_use_root():
     assert "location.href='/index.html'" not in js
 
 
+def test_perms_html_switch_after_overridden():
+    """2026-08-14 修：權限頁開關必須覆寫 style.css 的 .switch::after（行事曆 button 開關的白圈）
+    ——否則兩者共用 .switch class 撞名，權限頁每顆開關多出一個永遠停在左邊的白圈（家豪「兩個白色圓圈」）"""
+    html = read(PERMISSIONS_HTML)
+    assert ".switch::after { content: none; }" in html
+    assert ".switch { background: transparent; }" in html
+
+
+def test_css_has_btn_primary():
+    """2026-08-14 修：style.css 必須定義 .btn-primary（權限頁「新增帳號/儲存變更」）
+    ——原本全站無定義 → 瀏覽器預設方形按鈕（家豪「不要這樣方形很醜」）"""
+    css = read(CSS)
+    assert ".btn-primary {" in css
+    assert ".topbar .btn-primary {" in css  # topbar 深藍底上的反白
+
+
+def test_perms_js_perm_toggle_updates_source_label():
+    """2026-08-14 修：切換開關時來源標籤即時改「✏️ 自訂」（跟隨角色→自訂），避免狀態殘影感"""
+    js = read(PERMS_JS)
+    assert "src.textContent = '✏️ 自訂'" in js
+    assert "perm-src override" in js
+
+
 # ---------- viewer 角色前端（唯讀模式） ----------
 
 def test_auth_js_has_apply_role_view():
