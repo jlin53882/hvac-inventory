@@ -129,6 +129,14 @@ def _exec_init(conn):
         is_active   INTEGER NOT NULL DEFAULT 1,
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- 單位字典（2026-08-16 單位動態清單：全站 4 個 modal 共用，UI 可新增/停用/排序）
+    CREATE TABLE IF NOT EXISTS units (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT NOT NULL UNIQUE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_active  INTEGER NOT NULL DEFAULT 1
+    );
     CREATE TABLE IF NOT EXISTS appointments (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         client_name     TEXT NOT NULL,               -- 客戶姓名與戶號 / 案場
@@ -254,6 +262,14 @@ def _exec_init(conn):
         (4, '配管', 4, 0),
         (5, '施工', 3, 1),
         (6, '場勘', 4, 1);
+    """)
+    # 單位種子（2026-08-16：既有 10 種 + 常見補 5 種；破碎歷史值不種子，由收編功能處理）
+    conn.executescript("""
+    INSERT OR IGNORE INTO units (name, sort_order, is_active) VALUES
+        ('個', 1, 1), ('罐', 2, 1), ('瓶', 3, 1), ('包', 4, 1),
+        ('組', 5, 1), ('米', 6, 1), ('條', 7, 1), ('捲', 8, 1),
+        ('盤', 9, 1), ('套', 10, 1),
+        ('箱', 11, 1), ('台', 12, 1), ('支', 13, 1), ('顆', 14, 1), ('桶', 15, 1);
     """)
     # ---------- RBAC seed（2026-08-13，與 docs/RBAC-帳號權限系統-設計文件 §5 矩陣一致）----------
     conn.executescript("""
