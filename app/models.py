@@ -97,3 +97,18 @@ class KitAssemble(BaseModel):
 class StocktakeSubmit(BaseModel):
     take_date: str = ""  # 預設今天
     items: list  # [{item_id, location, actual_qty, note}]
+
+# ---------- 單位字典（2026-08-16 單位動態清單） ----------
+class UnitIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=20)
+
+
+class UnitUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=20)
+    sort_order: int | None = Field(None, ge=0, le=9999)
+    is_active: bool | None = None
+
+
+class UnitConsolidate(BaseModel):
+    from_unit: str = Field(..., min_length=1, max_length=20)
+    to_unit: str = Field(..., min_length=1, max_length=20)
