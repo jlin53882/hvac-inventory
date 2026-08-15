@@ -67,14 +67,16 @@ function renderUserMenu(user) {
   // RBAC（2026-08-13）：按鈕顯示改用權限（permissions 由 /api/auth/me 回傳，立即生效）
   const perms = user.permissions || {};
   const canManageUsers = !!perms['user-mgmt'];
+  const canManageUnits = !!perms['unit-mgmt'];  // 2026-08-16 單位整理（admin 專屬）
   const canChangePw = !!perms['change-own-password'];
   const roleChip = user.role === 'admin' ? ' <span class="admin-badge">管理員</span>'
     : '';  // viewer/tech 不顯示 badge（2026-08-13 Sarah：不要列出檢視者／工程師）
+  // 2026-08-16 家豪定案：改密碼收進設定中心（⚙️ 設定），topbar 維持 4 元件
   menu.innerHTML =
     `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}` +
     roleChip + `</span>` +
-    (canChangePw ? `<button class="btn-ghost" onclick="openChangePwModal()">🔑<span class="users-text"> 改密碼</span></button>` : '') +
     (canManageUsers ? `<button class="btn-ghost" onclick="location.href='/permissions.html'">👥<span class="users-text"> 帳號與權限</span></button>` : '') +
+    ((canManageUnits || canChangePw) ? `<button class="btn-ghost" onclick="location.href='/settings.html'">⚙️<span class="users-text"> 設定</span></button>` : '') +
     // 2026-08-13 Sarah：登出直接顯示在 topbar（btn-logout-direct 手機版不隱藏），☰ 選單不放登出
     `<button class="btn-ghost btn-logout-direct" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>`;
   menu.style.display = 'flex';
