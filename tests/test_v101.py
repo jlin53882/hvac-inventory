@@ -301,3 +301,34 @@ class TestPhotoAccessControl:
         )
         assert r.returncode == 0, f"static/uploads/ 未被 .gitignore 涵蓋！stdout={r.stdout}"
         assert "uploads/" in r.stdout
+
+    def test_list_photo_ids_scans_upload_dir(self, tmp_path, monkeypatch):
+        """2026-08-15 B1：list_photo_ids 一次 listdir 回傳有照片的 item_id 集合（非數字檔名/非 jpg 忽略）"""
+        from app.routes.photos import list_photo_ids
+        upload = tmp_path / "uploads"
+        upload.mkdir()
+        (upload / "1.jpg").write_bytes(b"x")
+        (upload / "2.jpg").write_bytes(b"x")
+        (upload / "abc.jpg").write_bytes(b"x")   # 非數字檔名 → 忽略
+        (upload / "3.png").write_bytes(b"x")     # 非 jpg → 忽略
+        monkeypatch.setattr("app.config.UPLOAD_DIR", str(upload))
+        assert list_photo_ids() == {1, 2}
+
+    def test_list_photo_ids_missing_dir_returns_empty(self, tmp_path, monkeypatch):
+        """2026-08-15 B1：uploads 目錄不存在 → OSError → 空集合（與 has_photo=False 語意一致）"""
+        from app.routes.photos import list_photo_ids
+        monkeypatch.setattr("app.config.UPLOAD_DIR", str(tmp_path / "no_such_dir"))
+        assert list_photo_ids() == set()
+
+    def test_list_photo_ids_weird_filenames_ignored(self, tmp_path, monkeypatch):
+        """v4 pro 審查 A2/B1：.JPG 大小寫、12.34.jpg 多點、².jpg Unicode 數字一律不誤判、不 crash
+        （isdigit() 會放行 Unicode 數字但 int() 會崩潰 → 改 ASCII-only regex）"""
+        from app.routes.photos import list_photo_ids
+        upload = tmp_path / "uploads"
+        upload.mkdir()
+        (upload / "12.JPG").write_bytes(b"x")     # 大小寫 → 忽略
+        (upload / "12.34.jpg").write_bytes(b"x")  # 多點 → 忽略
+        (upload / "².jpg").write_bytes(b"x")  # ² Unicode 數字 → 不 crash
+        (upload / "3.jpg").write_bytes(b"x")
+        monkeypatch.setattr("app.config.UPLOAD_DIR", str(upload))
+        assert list_photo_ids() == {3}

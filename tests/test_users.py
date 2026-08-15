@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """v11 使用者管理 API 測試（僅 admin）"""
 import pytest
+import os
 from app.database import init_db, get_db, DB_PATH
 from app.services.auth import IP_FAIL_MAX, hash_password
 from main import app as fastapi_app
@@ -87,6 +88,28 @@ def test_users_requires_login(tmp_path, monkeypatch):
     monkeypatch.setattr("app.database.DB_PATH", str(test_db))
     with TestClient(fastapi_app) as c:
         assert c.get("/api/users").status_code == 401
+
+def test_users_requires_login_does_not_touch_real_db(tmp_path, monkeypatch):
+    """v4 pro 審查補測 #3：防回歸——本測試不碰正式 inventory.db
+    （monkeypatch DB_PATH 後 lifespan 打在 tmp DB，正式 DB 檔案不變）"""
+    import app.config as cfg
+    real_db = cfg.DB_PATH
+    stat_before = (os.path.getsize(real_db), os.path.getmtime(real_db)) if os.path.exists(real_db) else None
+    test_db = tmp_path / "test_users_noauth.db"
+    monkeypatch.setattr("app.database.DB_PATH", str(test_db))
+    with TestClient(fastapi_app) as c:
+        assert c.get("/api/users").status_code == 401
+    # 正式 DB 檔案未被修改（lifespan 的 init_db 打在 tmp DB）
+    stat_after = (os.path.getsize(real_db), os.path.getmtime(real_db)) if os.path.exists(real_db) else None
+    assert stat_before == stat_after, "測試碰觸了正式 inventory.db！"
+    # tmp DB 被 lifespan 初始化（證明隔離有效）
+    import sqlite3
+    conn = sqlite3.connect(str(test_db))
+    try:
+        n = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    finally:
+        conn.close()
+    assert n >= 1
 
 
 def test_users_requires_admin(user_client):

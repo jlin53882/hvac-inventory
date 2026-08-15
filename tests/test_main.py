@@ -135,6 +135,58 @@ class TestItemsCRUD:
         assert r.status_code == 200
         assert len(r.json()) == 2
 
+    def test_list_items_batch_stocks_grouping(self, client):
+        """2026-08-15 B1：list_items 批量查（IN 子句）——多 item 多 stocks 分組正確、每筆內依 id 排序、has_photo 為 bool"""
+        a = _add_item(client, name="批量甲", brand="大金", location="A倉", qty=10)
+        client.post(f"/api/items/{a['id']}/stocks", json={"location": "B倉", "qty": 5})
+        b = _add_item(client, name="批量乙", brand="三菱", location="C倉", qty=3)
+        client.post(f"/api/items/{b['id']}/stocks", json={"location": "D倉", "qty": 2})
+
+        items = client.get("/api/items").json()
+        ia = next(x for x in items if x["id"] == a["id"])
+        ib = next(x for x in items if x["id"] == b["id"])
+        # 分組正確：每筆 item 只含自己的 stocks，且依 id 排序（A倉 先建 → 排前）
+        assert [s["location"] for s in ia["stocks"]] == ["A倉", "B倉"]
+        assert [s["location"] for s in ib["stocks"]] == ["C倉", "D倉"]
+        assert ia["total_qty"] == 15
+        assert ib["total_qty"] == 5
+        assert isinstance(ia["has_photo"], bool)
+        assert ia["in_kits"] == []
+
+    def test_list_items_has_photo_true_with_file(self, client, tmp_path, monkeypatch):
+        """v4 pro 審查補測 #1：upload 目錄有照片檔 → list_items 的 has_photo=True（正向等價性）"""
+        import os
+        upload = tmp_path / "uploads"
+        upload.mkdir()
+        monkeypatch.setattr("app.config.UPLOAD_DIR", str(upload))
+        a = _add_item(client, name="有照片", qty=1)
+        b = _add_item(client, name="無照片", qty=2)
+        (upload / f"{a['id']}.jpg").write_bytes(b"fake-jpg")
+        items = client.get("/api/items").json()
+        ia = next(x for x in items if x["id"] == a["id"])
+        ib = next(x for x in items if x["id"] == b["id"])
+        assert ia["has_photo"] is True
+        assert ib["has_photo"] is False
+
+    def test_list_items_item_with_zero_stocks(self, client):
+        """v4 pro 審查補測 #5：位置刪光 → stocks=[]、qty=0、location=""、note=""（批量 path 空分支）"""
+        item = _add_item(client, name="零庫存", qty=5, location="Z倉")
+        sid = item["stocks"][0]["id"]
+        r = client.delete(f"/api/stocks/{sid}")
+        assert r.status_code == 200
+        items = client.get("/api/items").json()
+        it = next(x for x in items if x["id"] == item["id"])
+        assert it["stocks"] == []
+        assert it["qty"] == 0
+        assert it["location"] == ""
+        assert it["note"] == ""
+
+    def test_list_items_empty_db_returns_list(self, client):
+        """v4 pro 審查補測 #6：空品項清單 → 不進 IN 查、回 []（200 不 crash）"""
+        r = client.get("/api/items")
+        assert r.status_code == 200
+        assert r.json() == []
+
     def test_list_items_filter_brand(self, client):
         """驗證以 brand 參數篩選品項"""
         _add_item(client, name="一", brand="三菱")
@@ -2033,3 +2085,45 @@ class TestDbLockRelease:
             probe.commit()
         finally:
             probe.close()
+
+# ========== B8：lifespan cleanup_expired 防回歸（2026-08-15） ==========
+
+class TestLifespanCleanup:
+    """lifespan 啟動時清理過期 session——docstring 承諾「啟動時與登入時呼叫」落地（563a96d）。"""
+
+    def test_lifespan_removes_expired_sessions(self, tmp_path, monkeypatch):
+        """啟動時：過期 session 被刪、未過期保留（用獨立 tmp DB 驗證 lifespan 行為）"""
+        import datetime
+        from fastapi.testclient import TestClient
+        test_db = tmp_path / "test_lifespan.db"
+        monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
+        app_db.init_db()
+
+        # 塞 1 筆過期 + 1 筆未過期 session（user_id 指向已存在的 admin——先建）
+        _conn = app_db.get_db()
+        try:
+            from app.services.auth import init_admin_if_missing
+            init_admin_if_missing(_conn)
+            _conn.execute(
+                "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+                (1, "expired_token_hash", "2000-01-01 00:00:00"))
+            _conn.execute(
+                "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+                (1, "valid_token_hash",
+                 (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")))
+            _conn.commit()
+        finally:
+            _conn.close()
+
+        with TestClient(app_main.app):
+            pass  # lifespan 啟動 → cleanup_expired 執行
+
+        # 過期被刪、未過期保留
+        _conn2 = app_db.get_db()
+        try:
+            hashes = [r["token_hash"] for r in
+                      _conn2.execute("SELECT token_hash FROM sessions").fetchall()]
+        finally:
+            _conn2.close()
+        assert "expired_token_hash" not in hashes
+        assert "valid_token_hash" in hashes
