@@ -53,7 +53,7 @@ async def cache_control_middleware(request, call_next):
     """HTML 每次重新驗證（no-cache）；static 資源短快取（配合 ?v=N 版本參數）"""
     response = await call_next(request)
     path = request.url.path
-    if path in ("/", "/login.html"):
+    if path in ("/", "/login.html", "/permissions.html", "/settings.html"):
         # HTML：每次都要重新驗證，確保拿到最新 ?v=N 引用
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     elif path.startswith("/static/"):
@@ -171,6 +171,14 @@ def permissions_page():
     if os.path.exists(idx):
         return _versioned_html(idx)
     return Response("<h1>權限頁不存在</h1>", media_type="text/html")
+
+@app.get("/settings.html")
+def settings_page():
+    """設定中心頁（2026-08-16 單位管理/修改密碼；static 資源版本號自動化）"""
+    idx = os.path.join(STATIC_DIR, "settings.html")
+    if os.path.exists(idx):
+        return _versioned_html(idx)
+    return Response("<h1>設定頁不存在</h1>", media_type="text/html")
 
 
 # 掛載靜態目錄（放在最後，避免吃掉 API 路由）

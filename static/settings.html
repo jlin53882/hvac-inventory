@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚙️ 設定 — 振佳空調管理系統</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<style>
+/* ===== 設定中心頁（2026-08-16 家豪 B-1 定案：麵包屑式 topbar + 左右清單，同帳號與權限頁）===== */
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; }
+.vb-back { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.35); color: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; flex-shrink: 0; }
+.vb-back:hover { background: rgba(255,255,255,0.25); }
+.vb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.85); margin-left: 12px; }
+.vb-crumb a { color: rgba(255,255,255,0.75); text-decoration: none; }
+.vb-crumb a:hover { text-decoration: underline; }
+.vb-crumb .sep { opacity: .5; }
+.vb-crumb .vb-crumb-current { color: #fff; font-weight: 600; }
+.vb-content-title { max-width: 1200px; margin: 16px auto 0; padding: 0 16px; }
+.vb-content-title h2 { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+.vb-content-title p { font-size: 12.5px; color: #888; margin-top: 3px; }
+.perm-layout { display: flex; gap: 16px; padding: 16px 16px 90px; max-width: 1200px; margin: 0 auto; align-items: flex-start; }
+.side-list { width: 230px; flex-shrink: 0; background: #fff; border-radius: 12px; border: 1px solid #eee; overflow: hidden; }
+.side-item { display: flex; align-items: center; gap: 10px; padding: 13px 14px; cursor: pointer; border-bottom: 1px solid #f5f5f5; transition: background .15s; font-size: 13.5px; }
+.side-item:last-child { border-bottom: none; }
+.side-item:hover { background: #f7fbff; }
+.side-item.active { background: #e6f4ff; border-left: 3px solid #1890ff; font-weight: 600; }
+.side-item .ic { font-size: 16px; }
+.side-item .desc { color: #999; font-size: 11px; display: block; font-weight: 400; }
+.side-main { flex: 1; min-width: 0; background: #fff; border-radius: 12px; border: 1px solid #eee; padding: 18px 20px; }
+.side-main h4 { font-size: 15px; margin-bottom: 12px; color: #1e3a5f; }
+.u-add-row { display: flex; gap: 6px; margin-bottom: 12px; max-width: 420px; }
+.u-add-row input { flex: 1; padding: 8px 10px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 13.5px; }
+.u-table { width: 100%; font-size: 13.5px; border-collapse: collapse; }
+.u-table td { padding: 9px 6px; border-bottom: 1px solid #eef0f3; }
+.u-table .off { color: #aaa; text-decoration: line-through; }
+.updown { color: #2d5a8e; cursor: pointer; font-size: 13px; text-decoration: none; margin: 0 2px; }
+.hist-clean { background: #fff8e6; border: 1px solid #f0d48a; border-radius: 8px; padding: 10px 12px; margin-top: 14px; font-size: 12.5px; color: #8a6d1a; }
+.hist-clean .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; flex-wrap: wrap; }
+.hist-clean .fix { color: #c0392b; cursor: pointer; font-weight: 600; font-size: 12px; }
+.hist-clean select { padding: 4px 6px; border: 1px solid #cfd6df; border-radius: 6px; font-size: 12px; }
+.hist-clean .btn-primary { padding: 4px 10px; font-size: 11.5px; border-radius: 6px; }
+/* 開關（複用 style.css .switch 結構，避免與行事曆設定頁 .switch 撞名→權限頁先例：內嵌覆寫） */
+.settings-switch { position: relative; width: 38px; height: 22px; display: inline-block; vertical-align: middle; }
+.settings-switch input { opacity: 0; width: 0; height: 0; }
+.settings-switch .slider { position: absolute; inset: 0; background: #cbd2da; border-radius: 22px; transition: .2s; }
+.settings-switch .slider::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.settings-switch input:checked + .slider { background: #2d5a8e; }
+.settings-switch input:checked + .slider::before { transform: translateX(16px); }
+.chip-bar { display: none; overflow-x: auto; gap: 8px; padding: 12px 16px 2px; scrollbar-width: none; }
+.chip-bar::-webkit-scrollbar { display: none; }
+.chip { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 18px; border: 1px solid #e0e0e0; background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.chip.active { background: #1890ff; color: #fff; border-color: #1890ff; }
+/* 修改密碼內嵌表單（id 與 index.html changepw-modal 一致，複用 changepw.js） */
+.side-main .form-row { margin-bottom: 12px; max-width: 420px; }
+.side-main .form-row label { display: block; font-size: 12.5px; color: #444; margin-bottom: 4px; font-weight: 600; }
+.side-main .form-row input { width: 100%; padding: 9px 10px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 14px; }
+@media (max-width: 768px) {
+  .perm-layout { padding: 0 0 110px; display: block; }
+  .side-list { display: none; }
+  .chip-bar { display: flex; }
+  .side-main { border: none; border-radius: 0; padding: 12px 14px; }
+  .vb-content-title { display: none; }
+  .topbar { padding: 10px 14px; }
+  .vb-crumb { margin-left: 10px; font-size: 15px; }
+  .vb-crumb a, .vb-crumb .sep { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left" style="display:flex;align-items:center">
+    <button class="vb-back" onclick="location.href='/'" title="返回庫存">←</button>
+    <span class="vb-crumb"><a href="/">庫存</a><span class="sep">›</span><span class="vb-crumb-current">⚙️ 設定</span></span>
+  </div>
+  <div class="top-actions" style="display:flex;align-items:center;gap:8px;padding-right:12px">
+    <button class="btn-ghost" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>
+  </div>
+</div>
+
+<div class="vb-content-title">
+  <h2>⚙️ 設定</h2>
+  <p>管理單位清單與個人帳號設定。變更立即生效。</p>
+</div>
+
+<div class="chip-bar" id="settingsChipBar"></div>
+
+<div class="perm-layout">
+  <aside class="side-list" id="settingsSideList">
+    <div class="side-item active" data-panel="units" onclick="settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
+    <div class="side-item" data-panel="pw" onclick="settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
+  </aside>
+  <main class="side-main">
+    <div id="panel-units"></div>
+    <div id="panel-pw" style="display:none">
+      <h4>🔑 修改密碼</h4>
+      <div class="form-row">
+        <label>目前密碼</label>
+        <input type="password" id="cpw-old" placeholder="輸入目前的密碼" autocomplete="current-password">
+      </div>
+      <div class="form-row">
+        <label>新密碼</label>
+        <input type="password" id="cpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="cpwCheckStrength()" autocomplete="new-password">
+        <div class="pw-checks" id="cpw-checks">
+          <span class="pw-check" id="cpw-len">⬜ 8 碼以上</span>
+          <span class="pw-check" id="cpw-up">⬜ 含大寫</span>
+          <span class="pw-check" id="cpw-low">⬜ 含小寫</span>
+          <span class="pw-check" id="cpw-digit">⬜ 含數字</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>確認新密碼</label>
+        <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()" autocomplete="new-password">
+        <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px;max-width:420px">
+        <button class="btn-save" style="flex:2;margin-top:0" onclick="settingsSubmitPw()">💾 儲存新密碼</button>
+        <button class="btn-cancel-ghost" style="flex:1;margin-top:0" onclick="clearPwForm()">清除</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/globals.js" defer></script>
+<script src="/static/js/auth.js" defer></script>
+<script src="/static/js/utils.js" defer></script>
+<script src="/static/js/api.js" defer></script>
+<script src="/static/js/units.js" defer></script>
+<script src="/static/js/modals/changepw.js" defer></script>
+<script src="/static/js/settings.js" defer></script>
+</body>
+</html>

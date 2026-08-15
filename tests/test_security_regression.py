@@ -109,6 +109,8 @@ REVIEWED_SAFE_BODIES = {
     "s.sort_order", "totalQtyStr", "low", "zero", "s.qty", "id",
     # 布林三元（常數輸出或含 esc 分支）
     "u.is_active ? '⏸ 帳號停用' : '▶️ 帳號啟用'", "u.is_active ? '✅ 啟用' : '⛔ 停用'",
+    # settings.js（2026-08-16 設定中心）：u.is_active 為 DB bool 常數輸出（同帳號頁模式）；u.count 為 COUNT(*) 數字（已 esc）
+    "u.is_active ? 'checked' : ''",
     "isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'", "isLow ? '警示值' : '位置'",
     "isLow ? '#92400e' : '#991b1b'", "isLow ? '#fffbeb' : '#fef2f2'",
     "isLow ? '⚠️ 低庫存品項' : '⛔ 缺貨品項'", "isLow ? (i.low_stock || 0) : esc(locStr || '—')",

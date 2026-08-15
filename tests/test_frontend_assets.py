@@ -283,6 +283,7 @@ def test_perms_js_batch_create():
 # 待測：permissions.html / perms.js（RBAC 權限頁，2026-08-13）
 PERMS_JS = os.path.join(STATIC, "js", "perms.js")
 PERMISSIONS_HTML = os.path.join(STATIC, "permissions.html")
+SETTINGS_HTML = os.path.join(STATIC, "settings.html")  # 2026-08-16 設定中心
 
 
 def test_permissions_html_loads_perms_js():
@@ -1066,7 +1067,7 @@ def test_css_stat_cards_four_columns():
 
 def test_all_js_loaded_by_index():
     """static/js 下每個 .js 都必須被 index.html 或 permissions.html 引用（防新增 JS 忘掛載 = 整支 dead file）"""
-    html = read(INDEX) + read(PERMISSIONS_HTML)
+    html = read(INDEX) + read(PERMISSIONS_HTML) + read(SETTINGS_HTML)
     missing = []
     for js_path in ALL_JS_FILES:
         rel = "/static/" + os.path.relpath(js_path, STATIC).replace("\\", "/")
