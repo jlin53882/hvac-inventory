@@ -1991,6 +1991,11 @@ class TestNonStockOut:
         match = [i for i in prepared if i["id"] == pid]
         assert len(match) == 1, "非庫存待領出應出現在待領出清單"
         assert match[0]["prepared_qty"] == 3
+
+        # 2026-08-16 防回歸：帶 site 參數（前端 currentSite 預設 office）也要看得到非庫存待領出
+        prepared_office = client.get("/api/prepared?site=office").json()
+        match_office = [i for i in prepared_office if i["id"] == pid]
+        assert len(match_office) == 1, "非庫存待領出不應被 site 過濾掉"
         assert match[0]["is_deleted"] == 1
         assert match[0]["unit"] == "捲"
 

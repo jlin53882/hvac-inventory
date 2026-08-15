@@ -469,7 +469,7 @@ def list_prepared(site: Optional[str] = None):
     where = ""
     params = ()
     if site and site != "all":
-        where = " AND site = ?"
+        where = " AND (site = ? OR is_deleted = 1)"  # 2026-08-16 修復：非庫存品項（is_deleted=1, site=''）不分 site 永遠顯示（比照 list_stock_outs）
         params = (site,)
     rows = conn.execute(f"""
         SELECT * FROM items WHERE prepared_qty > 0 AND (is_deleted = 0 OR site = ''){where} ORDER BY brand COLLATE NOCASE, name
