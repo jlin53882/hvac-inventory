@@ -27,16 +27,18 @@ import app.config as app_config
 from app.config import STATIC_DIR
 from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, kits, lookup, photos, stats, stockout, stocktake, users
-from app.services.auth import init_admin_if_missing, require_login
+from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """啟動時初始化 DB schema + 首次 admin；shutdown 無需清理。
-    2026-08-14 移入 lifespan：`import main` 不再觸發 DB 寫入（測試側 database is locked 根治）"""
+    """啟動時初始化 DB schema + 首次 admin + 清理過期 session；shutdown 無需清理。
+    2026-08-14 移入 lifespan：`import main` 不再觸發 DB 寫入（測試側 database is locked 根治）
+    2026-08-15：cleanup_expired 落地（docstring 原聲稱「啟動時與登入時呼叫」但啟動時漏呼叫）"""
     init_db()
     _conn = get_db()
     try:
+        cleanup_expired(_conn)      # 2026-08-15：啟動時清理過期 session（避免 sessions 表無限增長）
         init_admin_if_missing(_conn)
     finally:
         _conn.close()
