@@ -114,11 +114,16 @@ def list_items(
     stocks_map: dict = {}
     if rows:
         ids = [r["id"] for r in rows]
-        placeholders = ",".join("?" * len(ids))  # SQLite 變數上限 999，259 筆安全；>999 需分批
-        for s in conn.execute(
-            f"SELECT * FROM item_stocks WHERE item_id IN ({placeholders}) ORDER BY item_id, id",
-            ids):
-            stocks_map.setdefault(s["item_id"], []).append(s)
+        # v4 pro 審查 B2：SQLITE_MAX_VARIABLE_NUMBER 自 3.32 起為 32766（非 999），
+        # 分批 500/組防「too many SQL variables」（item 數超過上限時 500）
+        CHUNK = 500
+        for i in range(0, len(ids), CHUNK):
+            chunk = ids[i:i + CHUNK]
+            placeholders = ",".join("?" * len(chunk))
+            for s in conn.execute(
+                f"SELECT * FROM item_stocks WHERE item_id IN ({placeholders}) ORDER BY item_id, id",
+                chunk):
+                stocks_map.setdefault(s["item_id"], []).append(s)
     photo_ids = list_photo_ids()  # 一次 listdir（OSError → 空集合，與 has_photo=False 語意一致）
     result = [_item_full(conn, r, kit_map, stocks_map, photo_ids) for r in rows]
     conn.close()

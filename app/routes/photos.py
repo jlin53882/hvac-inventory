@@ -17,6 +17,7 @@
 """
 import io
 import os
+import re
 import uuid
 
 from fastapi import Depends, APIRouter, HTTPException, UploadFile
@@ -51,10 +52,13 @@ def list_photo_ids() -> set:
 
     2026-08-15 B1：has_photo 逐筆 stat → list_items 一次快取。
     OSError（uploads 不存在）回傳空集合，與 has_photo=False 語意一致。
+    檔名解析用 re.fullmatch(r"[0-9]+\.jpg")（v4 pro 審查 A2/B1）：
+    - isdigit() 會放行 Unicode 數字（²/①/١٢٣）但 int() 崩潰 → 改 ASCII-only [0-9]
+    - 大小寫 .JPG 與多點 12.34.jpg 不誤判（與 has_photo/_photo_path 語意一致）
     """
     try:
         return {int(f.split(".")[0]) for f in os.listdir(app_config.UPLOAD_DIR)
-                if f.endswith(".jpg") and f.split(".")[0].isdigit()}
+                if re.fullmatch(r"[0-9]+\.jpg", f)}
     except OSError:
         return set()
 
