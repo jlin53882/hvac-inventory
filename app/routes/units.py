@@ -37,6 +37,9 @@ def create_unit(u: UnitIn):
         cur = conn.execute("INSERT INTO units (name, sort_order) VALUES (?, ?)", (name, nxt))
         conn.commit()
         return _row_to_dict(conn.execute("SELECT * FROM units WHERE id=?", (cur.lastrowid,)).fetchone())
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(400, f"單位「{name}」已存在")
     finally:
         conn.close()
 
@@ -63,6 +66,9 @@ def update_unit(unit_id: int, u: UnitUpdate):
             conn.execute("UPDATE units SET is_active=? WHERE id=?", (1 if u.is_active else 0, unit_id))
         conn.commit()
         return _row_to_dict(conn.execute("SELECT * FROM units WHERE id=?", (unit_id,)).fetchone())
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(400, "單位名稱已存在")
     finally:
         conn.close()
 
@@ -78,6 +84,9 @@ def deactivate_unit(unit_id: int):
         conn.execute("UPDATE units SET is_active=0 WHERE id=?", (unit_id,))
         conn.commit()
         return {"ok": True}
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -102,18 +111,22 @@ def consolidate_units(req: UnitConsolidate):
     """收編：items.unit from→to（含 is_deleted=1 幽靈品項，B4）；來源單位若在 units 表 → 停用。
     (A3) items 唯一鍵 (brand,code,name,unit,site) 含 unit——收編前先偵測衝突：同 (brand,code,name,site)
     已有 to_unit 活品項 → 409 列出，避免 IntegrityError 500。(B5) UPDATE bump updated_at（樂觀鎖）。"""
-    frm, to = req.from_unit.strip(), req.to_unit.strip()
-    if not frm or not to:
-        raise HTTPException(400, "來源與目標單位不可為空白")
+    frm = (req.from_unit or "").strip()  # B3：from_unit 允許空字串（活庫 11 筆 unit='' 需可收編）
+    to = req.to_unit.strip()
+    if not to:
+        raise HTTPException(400, "目標單位不可為空白")
     if frm == to:
         raise HTTPException(400, "來源與目標單位相同")
     conn = get_db()
     try:
+        if conn.execute("SELECT id FROM units WHERE name=?", (to,)).fetchone() is None:
+            raise HTTPException(400, f"目標單位「{to}」不在單位清單中，請先在清單新增")
         # A3 衝突偵測：同 (brand,code,name,site) 已存在 to_unit 的「活」品項，且該鍵也有 from_unit 品項
         conflicts = conn.execute(
             """SELECT t.brand, t.code, t.name, t.site, COUNT(*) AS n
                 FROM items t
-                JOIN items f ON f.brand IS t.brand AND f.code IS t.code
+                JOIN items f ON f.brand IS t.brand
+                             AND COALESCE(f.code, '') = COALESCE(t.code, '')
                              AND f.name IS t.name AND f.site IS t.site
                 WHERE t.unit=? AND t.is_deleted=0 AND f.unit=? AND f.is_deleted=0
                 GROUP BY t.brand, t.code, t.name, t.site LIMIT 10""",

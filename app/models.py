@@ -110,5 +110,6 @@ class UnitUpdate(BaseModel):
 
 
 class UnitConsolidate(BaseModel):
-    from_unit: str = Field(..., min_length=1, max_length=20)
+    # from_unit 允許空字串（活庫有 11 筆 unit='' 需可收編，B3 審查修正）
+    from_unit: str | None = Field(None, max_length=20)
     to_unit: str = Field(..., min_length=1, max_length=20)

@@ -238,6 +238,7 @@ def get_user_permissions(conn: sqlite3.Connection, user_id: int) -> dict:
     else:
         perms["user-mgmt"] = False
         perms["svc-type-mgmt"] = False
+        perms["unit-mgmt"] = False
     return perms
 
 

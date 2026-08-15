@@ -331,6 +331,8 @@ def get_user_permissions_detail(user_id: int, admin: dict = Depends(require_perm
                 source = "locked"
             elif key == "svc-type-mgmt" and target_role != "admin":
                 source = "locked"
+            elif key == "unit-mgmt" and target_role != "admin":
+                source = "locked"
             elif key in overrides:
                 source = "override"
             else:
@@ -380,6 +382,8 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
                     raise HTTPException(status_code=400, detail="管理員的自行改密碼權限不可關閉")
                 if key == "svc-type-mgmt" and target_role != "admin" and value == 1:
                     raise HTTPException(status_code=400, detail="服務項目管理權限僅管理員角色可持有")
+                if key == "unit-mgmt" and target_role != "admin" and value == 1:
+                    raise HTTPException(status_code=400, detail="單位整理權限僅管理員角色可持有")
                 conn.execute(
                     "INSERT OR REPLACE INTO user_permissions (user_id, permission_id, value, updated_at) VALUES (?, ?, ?, datetime('now'))",
                     (user_id, perm_ids[key], value))
