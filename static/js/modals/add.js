@@ -9,6 +9,8 @@ function openAddModal() {
   warnBox.style.display = 'none';
   warnBox.innerHTML = '';
   bindSimilarCheck('f-name', 'f-code', 'f-similar-warn', 0);
+  // 2026-08-16：單位動態清單（寫死 options 移除）
+  fillUnitSelect(document.getElementById('f-unit'), '個');
 }
 
 // 送出新增品項表單（POST /api/items），成功後關閉 Modal、清空表單並重載資料
@@ -46,9 +48,11 @@ async function submitAdd() {
     }
     toast(`✅ 已新增「${name}」`, 'success');
     closeModalForce('add-modal');
-    ['f-brand','f-code','f-name','f-qty','f-unit','f-location','f-note'].forEach(id => {
-      document.getElementById(id).value = id === 'f-qty' ? '0' : id === 'f-unit' ? '個' : '';
+    // f-unit 是動態 select（2026-08-16）→ 不參與 value reset，改重填
+    ['f-brand','f-code','f-name','f-qty','f-location','f-note'].forEach(id => {
+      document.getElementById(id).value = id === 'f-qty' ? '0' : '';
     });
+    fillUnitSelect(document.getElementById('f-unit'), '個');
     await loadData();
   } catch (e) {
     toast('新增失敗', 'error');

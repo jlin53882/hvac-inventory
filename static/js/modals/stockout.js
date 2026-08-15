@@ -55,7 +55,7 @@ async function submitStockOut() {
 function openNonStockOutModal() {
   document.getElementById('ns-name').value = '';
   document.getElementById('ns-code').value = '';
-  document.getElementById('ns-unit').value = '個';
+  fillUnitSelect(document.getElementById('ns-unit'), '個');  // 2026-08-16 動態清單
   document.getElementById('ns-qty').value = '';
   document.getElementById('ns-dest').value = '';
   document.getElementById('ns-note').value = '';
@@ -96,7 +96,7 @@ async function submitNonStockOut() {
 function openNonStockPrepareModal() {
   document.getElementById('nsp-name').value = '';
   document.getElementById('nsp-code').value = '';
-  document.getElementById('nsp-unit').value = '個';
+  fillUnitSelect(document.getElementById('nsp-unit'), '個');  // 2026-08-16 動態清單
   document.getElementById('nsp-qty').value = '';
   document.getElementById('nsp-note').value = '';
   openModal('nonstock-prepare-modal');

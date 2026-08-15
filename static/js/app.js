@@ -117,6 +117,7 @@ function syncViewUrl() {
     renderUserMenu(user);
     applyRoleView(user);  // viewer 唯讀模式：隱藏新增/盤點/儲存列等
     if (user.password_expired) openExpiryModal();  // v11.2：6 個月未改密碼 → 提示（非強制）
+    await loadUnits();  // 2026-08-16 單位動態清單：先載入再渲染（modal 開啟時清單已就緒）
     loadData();
   } else {
     // checkAuth 回 null = 網路錯誤/伺服器掛（401 已在 checkAuth 內跳登入）→ 顯示錯誤不卡轉圈

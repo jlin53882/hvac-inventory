@@ -132,11 +132,7 @@
     <div class="form-2col">
       <div class="form-row">
         <label>單位</label>
-        <select id="f-unit">
-          <option>個</option><option>罐</option><option>瓶</option><option>包</option>
-          <option>組</option><option>米</option><option>條</option><option>捲</option>
-          <option>盤</option><option>套</option>
-        </select>
+        <select id="f-unit"></select>
       </div>
     </div>
     <div class="form-row">
@@ -182,11 +178,7 @@
     <div class="form-2col">
       <div class="form-row">
         <label>單位</label>
-        <select id="e-unit">
-          <option>個</option><option>罐</option><option>瓶</option><option>包</option>
-          <option>組</option><option>米</option><option>條</option><option>捲</option>
-          <option>盤</option><option>套</option>
-        </select>
+        <select id="f-unit"></select>
       </div>
       <div class="form-row">
         <label>低庫存警示值</label>
@@ -268,7 +260,7 @@
     </div>
     <div class="form-row">
       <label>單位</label>
-      <input type="text" id="ns-unit" value="個">
+      <select id="ns-unit"></select>
     </div>
     <div class="form-row">
       <label>領出數量 *</label>
@@ -304,7 +296,7 @@
     </div>
     <div class="form-row">
       <label>單位</label>
-      <input type="text" id="nsp-unit" value="個">
+      <select id="nsp-unit"></select>
     </div>
     <div class="form-row">
       <label>待領出數量 *</label>
@@ -505,6 +497,7 @@
 <script src="/static/js/auth.js" defer></script>
 <script src="/static/js/utils.js" defer></script>
 <script src="/static/js/api.js" defer></script>
+<script src="/static/js/units.js" defer></script>
 <script src="/static/js/render/card.js" defer></script>
 <script src="/static/js/render/inventory.js" defer></script>
 <script src="/static/js/render/prepared.js" defer></script>

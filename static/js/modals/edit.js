@@ -9,7 +9,7 @@ function openEditModal(id) {
   document.getElementById('e-brand').value = item.brand || '';
   document.getElementById('e-code').value = item.code || '';
   document.getElementById('e-name').value = item.name || '';
-  document.getElementById('e-unit').value = item.unit || '個';
+  fillUnitSelect(document.getElementById('e-unit'), item.unit || '個');  // 2026-08-16 動態清單（歷史值自動補「（歷史）」）
   document.getElementById('e-lowstock').value = item.low_stock || 0;
   document.getElementById('e-site').value = item.site || 'office';
   // v10：位置清單（從 stocks 展開，每列一個位置）
