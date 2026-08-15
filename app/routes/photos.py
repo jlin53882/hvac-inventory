@@ -46,6 +46,19 @@ def has_photo(item_id: int) -> bool:
     return os.path.exists(_photo_path(item_id))
 
 
+def list_photo_ids() -> set:
+    """一次 listdir 回傳有照片的 item_id 集合（list_items 批量用，避免每筆 os.path.exists）
+
+    2026-08-15 B1：has_photo 逐筆 stat → list_items 一次快取。
+    OSError（uploads 不存在）回傳空集合，與 has_photo=False 語意一致。
+    """
+    try:
+        return {int(f.split(".")[0]) for f in os.listdir(app_config.UPLOAD_DIR)
+                if f.endswith(".jpg") and f.split(".")[0].isdigit()}
+    except OSError:
+        return set()
+
+
 def _compress_and_save(img: Image.Image, dest: str) -> None:
     """壓縮圖片（800px 寬、JPEG q=80）並存檔；EXIF 翻正後儲存"""
     img = img.convert("RGB")

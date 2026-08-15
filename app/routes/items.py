@@ -22,28 +22,38 @@ from fastapi import Depends, APIRouter, Body, HTTPException, Query
 
 from app.database import get_db
 from app.models import AdjustRequest, ItemCreate, ItemUpdate, StockUpdate
-from app.routes.photos import has_photo
+from app.routes.photos import has_photo, list_photo_ids
 from app.services.auth import require_perm
 
 # 品項 API 路由
 router = APIRouter()
 
 
-def _item_full(conn, row, kit_map: Optional[dict] = None) -> dict:
+def _item_full(conn, row, kit_map: Optional[dict] = None,
+               stocks_map: Optional[dict] = None,
+               photo_ids: Optional[set] = None) -> dict:
     """主檔 + 位置庫存 + 總量 組合成前端完整物件
 
     kit_map：{item_id: [整組名稱]} 預先查好的對應（list_items 一次查全部避免 N+1）；
     為 None 時單筆查詢（create/update 單筆呼叫用）。
+    stocks_map：{item_id: [位置庫存 rows]} 預先查好的對應（list_items 批量查避免 N+1）；
+    為 None 時單筆查詢（create/update 單筆呼叫用）。
+    photo_ids：有照片的 item_id 集合（list_items 一次 listdir 快取，避免每筆 os.path.exists）；
+    為 None 時逐筆 has_photo()（create/update 單筆呼叫用）。
     """
     d = dict(row)
-    d["stocks"] = [dict(s) for s in conn.execute(
-        "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (d["id"],)).fetchall()]
+    if stocks_map is not None:
+        stocks = stocks_map.get(d["id"], [])
+    else:
+        stocks = conn.execute(
+            "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (d["id"],)).fetchall()
+    d["stocks"] = [dict(s) for s in stocks]
     # 舊欄位相容（前端/匯出仍可用）
     d["qty"] = sum(s["qty"] for s in d["stocks"])
     d["total_qty"] = d["qty"]
     d["location"] = d["stocks"][0]["location"] if d["stocks"] else ""
     d["note"] = d["stocks"][0]["note"] if d["stocks"] else ""
-    d["has_photo"] = has_photo(d["id"])  # 前端顯示照片縮圖（無圖→📦）
+    d["has_photo"] = d["id"] in photo_ids if photo_ids is not None else has_photo(d["id"])
     # 該品項屬於哪些整組（缺貨/低庫存清單標註用，2026-08-13 Sarah 需求）
     if kit_map is not None:
         d["in_kits"] = kit_map.get(d["id"], [])
@@ -100,7 +110,17 @@ def list_items(
         "JOIN items i ON i.id = k.item_id AND i.is_deleted = 0 ORDER BY k.name"
     ):
         kit_map.setdefault(r["item_id"], []).append(r["name"])
-    result = [_item_full(conn, r, kit_map) for r in rows]
+    # 2026-08-15 B1：一次查全部位置庫存 + 一次 listdir 照片，消除 per-item N+1/stat
+    stocks_map: dict = {}
+    if rows:
+        ids = [r["id"] for r in rows]
+        placeholders = ",".join("?" * len(ids))  # SQLite 變數上限 999，259 筆安全；>999 需分批
+        for s in conn.execute(
+            f"SELECT * FROM item_stocks WHERE item_id IN ({placeholders}) ORDER BY item_id, id",
+            ids):
+            stocks_map.setdefault(s["item_id"], []).append(s)
+    photo_ids = list_photo_ids()  # 一次 listdir（OSError → 空集合，與 has_photo=False 語意一致）
+    result = [_item_full(conn, r, kit_map, stocks_map, photo_ids) for r in rows]
     conn.close()
     return result
 
