@@ -5,6 +5,16 @@ function hasPerm(key) {
   return typeof currentUser !== 'undefined' && !!currentUser && !!(currentUser.permissions || {})[key];
 }
 
+// 密碼 policy（2026-08-16 補：對齊後端 _check_pw——至少 8 碼 + 大寫 + 小寫 + 數字）
+// 通過回傳 null，否則回傳錯誤訊息（changepw.js submitChangePw 依賴此函式）
+function pwPolicyMsg(pw) {
+  if (!pw || pw.length < 8) return '密碼至少 8 碼';
+  if (!/[A-Z]/.test(pw)) return '密碼需包含至少一個大寫字母';
+  if (!/[a-z]/.test(pw)) return '密碼需包含至少一個小寫字母';
+  if (!/\d/.test(pw)) return '密碼需包含至少一個數字';
+  return null;
+}
+
 function esc(s) {
   return (s === null || s === undefined) ? '' :
     String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
