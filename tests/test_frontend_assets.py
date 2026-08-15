@@ -689,9 +689,14 @@ def test_changepw_expiry_ui_present():
     assert "/static/js/modals/changepw.js" in idx
     assert "/static/js/modals/expiry.js" in idx
     au = read(AUTH_JS)
-    assert "openChangePwModal()" in au  # topbar 改密碼按鈕
-    # RBAC（2026-08-13）：改密碼按鈕由 change-own-password 權限驅動（seed 僅 admin 持有）
+    # 2026-08-16 家豪定案：改密碼收進設定中心 → topbar 改密碼按鈕移除（openChangePwModal
+    # 仍在 changepw.js 定義 / expiry.js 呼叫 / index.html onclick，勿誤傷）
+    assert "openChangePwModal()" not in au
+    # RBAC（2026-08-13）：改密碼權限判斷保留（設定中心入口條件用）
     assert "perms['change-own-password']" in au
+    # 2026-08-16：⚙️ 設定按鈕（settings.html 入口）
+    assert "location.href='/settings.html'" in au
+    assert "canManageUnits" in au
     # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕
     assert "user.role === 'user'" in au
     assert "btn-logout-direct" in au
