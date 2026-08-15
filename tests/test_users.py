@@ -81,8 +81,10 @@ def test_tech_calendar_writable_other_readonly(tech_client):
     assert tech_client.get("/api/appointments?year=2026&month=8").status_code == 200
 
 
-def test_users_requires_login():
-    """未登入 → 401"""
+def test_users_requires_login(tmp_path, monkeypatch):
+    """未登入 → 401（tmp DB 隔離，不碰正式 inventory.db）"""
+    test_db = tmp_path / "test_users_noauth.db"
+    monkeypatch.setattr("app.database.DB_PATH", str(test_db))
     with TestClient(fastapi_app) as c:
         assert c.get("/api/users").status_code == 401
 
