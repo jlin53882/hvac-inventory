@@ -1075,6 +1075,40 @@ def test_stocktake_tabs_kit_single_split():
     assert ".stk-tab.active {" in css
 
 
+def test_stocktake_table_photo_thumb():
+    """盤點輸入表品項欄顯示圖片縮圖（2026-08-16 家豪需求，比照單一材料頁面）：
+    有照片顯示 /uploads/{id}.jpg 縮圖（點擊放大），無照片顯示 📷 佔位（cphoto-empty）"""
+    js = read(STOCKTAKE_JS)
+    # 縮圖 class（與整組庫存頁表格同款 cphoto，內嵌品項欄）
+    assert 'class="cphoto"' in js
+    # 有照片 → img 縮圖 + 點擊放大
+    assert 'src="/uploads/${i.id}.jpg"' in js
+    assert "openPhotoLightbox(${i.id})" in js
+    # 無照片 → 📷 佔位
+    assert "cphoto-empty" in js
+
+
+def test_stocktake_kit_tab_expands_components():
+    """盤點整組 tab 展開組成品項（2026-08-16 家豪需求，比照整組庫存頁）：
+    fetch /api/kits 載入 stocktakeKits + 品項欄內嵌組成品項縮圖/名稱/型號/需有"""
+    js = read(STOCKTAKE_JS)
+    # 載入整組資料（fetch /api/kits，site 對齊 currentSite）
+    assert "fetch(`/api/kits?site=${currentSite}`)" in js
+    assert "stocktakeKits = await kitRes.json()" in js
+    # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
+    assert "stocktakeKits.find(k => k.item_id === i.id)" in js
+    assert 'src="/uploads/${c.item_id}.jpg"' in js
+    assert "openPhotoLightbox(${c.item_id})" in js
+    assert "需 <b>${c.need_qty}</b>" in js
+    # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
+    assert "stocktakeValues['${jsStr(mKey)}'] = this.value" in js
+    assert "markChanged(this, '${jsStr(mKey)}')" in js
+    assert 'placeholder="實際"' in js
+    # 全域宣告（globals.js，var 跨檔共享）
+    gl = read(GLOBALS_JS)
+    assert "var stocktakeKits = []" in gl
+
+
 def test_css_stat_cards_four_columns():
     """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
     css = read_css_all()

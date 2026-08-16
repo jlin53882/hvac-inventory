@@ -12,6 +12,11 @@ async function renderStocktake() {
     const res = await fetch('/api/stocktake/dates');
     takeDates = await res.json();
   } catch {}
+  // 載入整組組成材料（盤點整組 tab 展開顯示，比照整組庫存頁）
+  try {
+    const kitRes = await fetch(`/api/kits?site=${currentSite}`);
+    stocktakeKits = await kitRes.json();
+  } catch { stocktakeKits = []; }
 
   // 統計卡片（缺貨只算單一材料；低庫存整組與單一都算）— 以總量判斷
   const zeroItems = ALL_ITEMS.filter(i => !i.is_kit && i.qty <= 0);
@@ -116,8 +121,31 @@ function stkGroupByLoc(rows) {
       const key = `${i.id}:${s.location}`;
       const val = stocktakeValues[key] !== undefined ? stocktakeValues[key] : '';
       const displayLoc = s.location ? `位置：${esc(s.location)}` : '';
+      // 2026-08-16 家豪：整組盤點列展開組成材料（縮圖+名稱+型號+需/有），比照整組庫存頁；
+      // 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
+      const kitDef = i.is_kit ? (stocktakeKits.find(k => k.item_id === i.id) || null) : null;
+      const kitCompsHTML = kitDef && kitDef.components && kitDef.components.length
+        ? `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e2e8f0">
+            ${kitDef.components.map(c => {
+              const matItem = ALL_ITEMS.find(x => x.id === c.item_id);
+              const mStock = matItem && matItem.stocks && matItem.stocks.length ? matItem.stocks[0] : null;
+              const mKey = `${c.item_id}:${mStock ? mStock.location : ''}`;
+              const mVal = stocktakeValues[mKey] !== undefined ? stocktakeValues[mKey] : '';
+              const mSysQty = mStock ? absNum(mStock.qty) : absNum(c.stock);
+              return `
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;font-size:11.5px;color:#555">
+              <span class="cphoto" style="width:26px;height:26px">${c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>
+              <span>${esc(c.brand)} ${esc(c.name)}${c.code ? `<small style="color:#1890FF;font-weight:600"> 型號 ${esc(c.code)}</small>` : ''}</span>
+              <span style="margin-left:auto;white-space:nowrap;color:#64748b">需 <b>${c.need_qty}</b> ・ 系統 <b>${mSysQty}</b> ${esc(c.unit || '')}</span>
+              <input type="number" step="any" min="0" value="${mVal}" placeholder="實際"
+                style="width:64px;padding:3px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;text-align:center"
+                oninput="stocktakeValues['${jsStr(mKey)}'] = this.value"
+                onchange="stocktakeValues['${jsStr(mKey)}'] = this.value; markChanged(this, '${jsStr(mKey)}')"
+                data-key="${esc(mKey)}">
+            </div>`;}).join('')}
+          </div>` : '';
       html += `<tr>
-        <td>${esc(i.brand)} ${esc(i.name)}<br><small style="color:#999">${displayLoc || '未標示'}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></td>
+        <td><span class="cphoto">${i.has_photo ? `<img src="/uploads/${i.id}.jpg" alt="" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>${esc(i.brand)} ${esc(i.name)}${kitCompsHTML}<br><small style="color:#999">${displayLoc || '未標示'}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></td>
         <td style="text-align:center;font-weight:700">${absNum(s.qty)} ${esc(i.unit)}</td>
         <td><div class="count-row">
           <input type="number" step="any" min="0" value="${val}"

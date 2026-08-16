@@ -16,6 +16,7 @@ var editItemId = null;
 // 出庫 modal 的品項 id
 var outItemId = null;
 var stocktakeValues = {};  // itemId -> actual_qty
+var stocktakeKits = [];    // 盤點頁整組 tab 的組成材料清單（render/stocktake.js fetch /api/kits 填入）
 // 去向下拉建議清單（loadDestinations 填入）
 var DESTINATIONS = [];
 

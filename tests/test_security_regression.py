@@ -145,6 +145,12 @@ REVIEWED_SAFE_BODIES = {
     "s.note ? ' · 📝 ' + esc(s.note) : ''",
     # stocktake.js 多行三元提示文字（isLow ? '常數提示' : '常數提示'）
     "isLow\n        ? '💡 庫存數量已低於（或等於）警示值，建議盡快補貨。點品項可直接編輯警示值。'\n        : '💡 庫存為 0 或以下的品項，需要補貨或盤點確認。'",
+    # stocktake.js 整組盤點展開組成材料（2026-08-16）：c.item_id 為 DB 數字主鍵（同 k.item_id/o.item_id）、
+    # c.has_photo 為布林控制縮圖/佔位三元、kitCompsHTML 為內部已 esc 的組裝 HTML（同 pPhoto/soPhoto 模式）
+    "c.item_id", "c.has_photo", "kitCompsHTML",
+    # stocktake.js 組成品項實際數量輸入框（2026-08-16）：mKey/mVal 為 itemId:location 鍵與輸入值（數字或空）、
+    # mSysQty 為 absNum 格式化的數字字串（純數字不可控）
+    "mKey", "mVal", "mSysQty",
 }
 
 
