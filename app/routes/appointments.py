@@ -8,17 +8,11 @@
 - PUT  /api/appointments/{id}              編輯（衝突檢查排除自己）
 - DELETE /api/appointments/{id}            刪除
 - GET  /api/appointments/export?date=      匯出工程日報表 xlsx（範本填值法）
-- GET  /api/service-types                  服務項目字典（含停用，前端自行過濾）
-- POST /api/service-types                  新增（僅 admin）
-- PUT  /api/service-types/{id}             更新名稱/排序/啟用（僅 admin）
-- DELETE /api/service-types/{id}           停用 is_active=0（僅 admin，不真刪）
 
-權限（RBAC 2026-08-13）：行事曆寫入掛 require_perm("cal-mgmt")、service-types
-掛 require_perm("svc-type-mgmt")。衝突規則：同人同日時間重疊（start < 他end 且 end > 他start）。
+權限（RBAC 2026-08-13）：行事曆寫入掛 require_perm("cal-mgmt")（service-types 端點已移至 service_types.py）。衝突規則：同人同日時間重疊（start < 他end 且 end > 他start）。
 """
 import datetime
 import re
-import sqlite3
 from typing import List
 from urllib.parse import quote
 
@@ -26,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
 from app.database import get_db
-from app.models import AppointmentIn, ServiceTypeIn
+from app.models import AppointmentIn
 from app.services.auth import require_perm
 from app.services.report import build_daily_report
 
@@ -289,8 +283,6 @@ def export_daily_report(date: str):
         conn.close()
 
 
-# ---------- 服務項目字典（僅 admin 可管理） ----------
-
 
 @router.get("/api/assignable-users")
 def list_assignable_users():
@@ -304,81 +296,5 @@ def list_assignable_users():
                  "display_name": r["display_name"] or r["username"],
                  "color": r["color"] or "#1a73e8",
                  "role": r["role"]} for r in rows]
-    finally:
-        conn.close()
-
-
-@router.get("/api/service-types")
-def list_service_types():
-    """全部服務項目（含停用；前端新增下拉只顯示 is_active=1）"""
-    conn = get_db()
-    try:
-        rows = conn.execute("SELECT * FROM service_types ORDER BY sort_order, id").fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
-
-
-@router.post("/api/service-types", dependencies=[Depends(require_perm("svc-type-mgmt"))])
-def create_service_type(body: ServiceTypeIn):
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(400, "名稱不可空白")
-    conn = get_db()
-    try:
-        try:
-            cur = conn.execute("INSERT INTO service_types (name, sort_order, is_active) VALUES (?,?,?)",
-                               (name, body.sort_order, body.is_active))
-            conn.commit()
-        except sqlite3.IntegrityError:   # 2026-08-14 精準捕捉（B1）：只有 UNIQUE 衝突才是同名，鎖衝突不誤報
-            conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
-            raise HTTPException(400, "同名服務項目已存在")
-        return dict(conn.execute("SELECT * FROM service_types WHERE id=?", (cur.lastrowid,)).fetchone())
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
-
-
-@router.put("/api/service-types/{svc_id}", dependencies=[Depends(require_perm("svc-type-mgmt"))])
-def update_service_type(svc_id: int, body: ServiceTypeIn):
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(400, "名稱不可空白")
-    conn = get_db()
-    try:
-        row = conn.execute("SELECT id FROM service_types WHERE id=?", (svc_id,)).fetchone()
-        if row is None:
-            raise HTTPException(404, "服務項目不存在")
-        try:
-            conn.execute("UPDATE service_types SET name=?, sort_order=?, is_active=? WHERE id=?",
-                         (name, body.sort_order, body.is_active, svc_id))
-            conn.commit()
-        except sqlite3.IntegrityError:   # 2026-08-14 精準捕捉（B1）：只有 UNIQUE 衝突才是同名，鎖衝突不誤報
-            conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
-            raise HTTPException(400, "同名服務項目已存在")
-        return dict(conn.execute("SELECT * FROM service_types WHERE id=?", (svc_id,)).fetchone())
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
-
-
-@router.delete("/api/service-types/{svc_id}", dependencies=[Depends(require_perm("svc-type-mgmt"))])
-def deactivate_service_type(svc_id: int):
-    """停用（is_active=0，不真刪：舊行程的類別仍顯示）"""
-    conn = get_db()
-    try:
-        row = conn.execute("SELECT id FROM service_types WHERE id=?", (svc_id,)).fetchone()
-        if row is None:
-            raise HTTPException(404, "服務項目不存在")
-        conn.execute("UPDATE service_types SET is_active=0 WHERE id=?", (svc_id,))
-        conn.commit()
-        return {"ok": True}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
     finally:
         conn.close()
