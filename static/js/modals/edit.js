@@ -10,6 +10,9 @@ function openEditModal(id) {
   document.getElementById('e-code').value = item.code || '';
   document.getElementById('e-name').value = item.name || '';
   fillUnitSelect(document.getElementById('e-unit'), item.unit || '個');  // 2026-08-16 動態清單（歷史值自動補「（歷史）」）
+  // 2026-08-16：快速新增單位按鈕（item-mgmt 才顯示）
+  const eUnitAdd = document.getElementById('e-unit-add');
+  if (eUnitAdd) eUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
   document.getElementById('e-lowstock').value = item.low_stock || 0;
   document.getElementById('e-site').value = item.site || 'office';
   // v10：位置清單（從 stocks 展開，每列一個位置）

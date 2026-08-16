@@ -37,6 +37,14 @@
   }
   .btn-ghost:hover { background: rgba(255,255,255,0.28); }
 
+  /* 快速新增單位連結（2026-08-16 B 變體：select 下方「＋ 新增單位」） */
+  .unit-add-link {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
+    font-size: 13px; color: #2d5a8e; cursor: pointer; background: none;
+    border: none; padding: 6px 2px; text-decoration: none;
+  }
+  .unit-add-link:hover { text-decoration: underline; }
+
   /* 主按鈕（2026-08-14 補定義——原本無 .btn-primary 樣式，權限頁「新增帳號/儲存變更」掉成瀏覽器預設方形按鈕） */
   .btn-primary {
     background: #2d5a8e;

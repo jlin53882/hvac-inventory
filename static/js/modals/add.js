@@ -11,6 +11,9 @@ function openAddModal() {
   bindSimilarCheck('f-name', 'f-code', 'f-similar-warn', 0);
   // 2026-08-16：單位動態清單（寫死 options 移除）
   fillUnitSelect(document.getElementById('f-unit'), '個');
+  // 2026-08-16：快速新增單位按鈕（item-mgmt 才顯示）
+  const fUnitAdd = document.getElementById('f-unit-add');
+  if (fUnitAdd) fUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
 }
 
 // 送出新增品項表單（POST /api/items），成功後關閉 Modal、清空表單並重載資料

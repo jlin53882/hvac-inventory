@@ -34,6 +34,7 @@ function fillUnitSelect(sel, current) {
 // ＋ 快速新增：select 換 inline input → POST → 本地更新 → 重填並選中
 // 顯示條件由呼叫端以 hasPerm('item-mgmt') 控制（add/edit/stockout.js）
 function openUnitQuickAdd(sel, addBtn) {
+  if (!sel) { console.error('[openUnitQuickAdd] select 不存在'); return; }
   const wrap = sel.parentElement;
   const input = document.createElement('input');
   input.placeholder = '新單位，例如：顆';
@@ -44,7 +45,7 @@ function openUnitQuickAdd(sel, addBtn) {
   const cancel = document.createElement('button');
   cancel.textContent = '取消';
   cancel.className = 'btn-ghost';
-  sel.style.display = 'none'; addBtn.style.display = 'none';
+  sel.style.display = 'none'; if (addBtn) addBtn.style.display = 'none';
   const box = document.createElement('div');
   box.className = 'unit-quick-add';
   box.style.cssText = 'display:flex;gap:6px;margin-top:6px;width:100%';
@@ -64,10 +65,10 @@ function openUnitQuickAdd(sel, addBtn) {
       if (!res.ok) { toast(data.detail || '新增失敗', 'error'); return; }
       unitList.push(data);
       unitListActive = unitList.filter(u => u.is_active);
-      box.remove(); sel.style.display = ''; addBtn.style.display = '';
+      box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = '';
       fillUnitSelect(sel, name);
       toast(`✅ 單位「${name}」已新增`, 'success');
-    } catch (e) { toast('新增失敗', 'error'); }
+    } catch (e) { console.error('[openUnitQuickAdd] 新增單位失敗', e); toast('新增失敗', 'error'); }
   };
-  cancel.onclick = () => { box.remove(); sel.style.display = ''; addBtn.style.display = ''; };
+  cancel.onclick = () => { box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = ''; };
 }
