@@ -8,7 +8,8 @@ async function renderPrepared() {
 
   try {
     const res = await fetch(`/api/prepared?site=${currentSite}`);
-    const items = await res.json();
+    const items = await res.json();
+    preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
     if (!items.length) {
       content.innerHTML = '<div class="empty">📤 目前沒有待領出的品項<br><small>在庫存頁點「待領出」把要帶的材料先準備好</small>' +
@@ -31,9 +32,9 @@ async function renderPrepared() {
           reverted: false,
           moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${i.id})">⋯</button>`,
           thumb: buildThumb(i.id, i.has_photo, i.name, '📷'),
-          nameHTML: `${esc(i.brand)} ${esc(i.name)}${i.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<span class="chip green">待領出</span>`,
-          subHTML: esc(i.location || '未標示'),
-          extraHTML: `<div><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>`,
+          nameHTML: `${esc(i.brand)} ${esc(i.name)}${i.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,  // V1b 2026-08-16：chip 移出品名行（防長名截出誤導 ⋯）
+          subHTML: `${i.code ? '<small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small><br>' : ''}<small style="color:#999">${esc(i.location || '未標示')}</small>`,
+          extraHTML: `<div style="margin-top:3px"><span class="chip green">待領出</span><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>`,
           qtyHTML: buildQtyNum(i.prepared_qty, i.unit, 'qty-violet'),
           actionsHTML: ''
         });
@@ -61,7 +62,7 @@ async function renderPrepared() {
         <td style="text-align:center">${i.qty} ${esc(i.unit)}</td>
         ${isViewer ? '' : `<td style="white-space:nowrap">
           <button class="btn-out" style="padding:4px 8px" onclick="openPreparedOutModal(${i.id})">🚚 已領出</button>
-          <button class="btn-prepare" style="padding:4px 8px;margin-top:0" onclick="returnPrepared(${i.id})">↩️ 退回</button>
+          ${i.is_deleted ? '' : `<button class="btn-prepare" style="padding:4px 8px;margin-top:0" onclick="returnPrepared(${i.id})">↩️ 退回</button>`}
           <button class="btn-del" style="padding:4px 8px;margin-top:0" onclick="clearPrepared(${i.id}, ${i.prepared_qty})">刪除</button>
         </td>`}
       </tr>`;
@@ -111,13 +112,13 @@ async function clearPrepared(itemId, qty) {
 
 // ========== 手機版 ⋯ 動作選單（待領出卡） ==========
 function openPreparedSheet(itemId) {
-  const item = ALL_ITEMS.find(i => i.id === itemId);
+  const item = preparedItems.find(i => i.id === itemId) || ALL_ITEMS.find(i => i.id === itemId);  // 非庫存品項不在 ALL_ITEMS（2026-08-16 家豪：點 ⋯ 無效 bug）
   if (!item) return;
   const isViewer = !hasPerm('stockout');
   const actions = [];
   if (!isViewer) {
     actions.push({ icon: '🚚', label: '已領出', cls: 'out', fn: () => openPreparedOutModal(itemId) });
-    actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnPrepared(itemId) });
+    if (!item.is_deleted) actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnPrepared(itemId) });  // 非庫存無退回（家豪 2026-08-16）
     actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => clearPrepared(itemId, item.prepared_qty) });
   }
   openSheet(`${item.brand} ${item.name}`, actions);

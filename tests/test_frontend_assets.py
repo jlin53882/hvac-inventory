@@ -505,6 +505,22 @@ def test_prepared_js_shows_model():
     assert "color:#1890FF;font-weight:600" in js
 
 
+def test_prepared_js_none_stock_sheet_actions():
+    """非庫存品項 ⋯ 選單可開（preparedItems fallback）+ 無退回按鈕（2026-08-16 家豪）"""
+    js = read(PREPARED_RENDER_JS)
+    assert "preparedItems.find" in js          # 非庫存品項不在 ALL_ITEMS → 用待領出清單 fallback（bug：點 ⋯ 無效）
+    assert "!item.is_deleted" in js            # 退回按鈕條件（非庫存保留 已領出+刪除）
+
+
+def test_prepared_js_chip_out_of_name_line():
+    """V1b（2026-08-16）：待領出 chip 移出品名行（改放 extraHTML），名稱行不再塞 chip 防誤導 ⋯"""
+    js = read(PREPARED_RENDER_JS)
+    assert 'margin-top:3px' in js              # extraHTML chip 行（V1b 標記）
+    assert "subHTML: `${i.code ?" in js        # 型號移入 subHTML
+    inv = read(INVENTORY_RENDER_JS)
+    assert "待領出 ' + prepared + '</span>" in inv  # 單一庫存 chip 移到 subHTML（品牌前面）
+
+
 def test_stockout_js_shows_model():
     """已領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處"""
     js = read(STOCKOUT_RENDER_JS)

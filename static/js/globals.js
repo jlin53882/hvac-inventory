@@ -5,6 +5,7 @@
 
 // 品項資料與狀態
 var ALL_ITEMS = [];
+var preparedItems = [];  // 待領出清單（含非庫存品項；openPreparedSheet 資料源，2026-08-16 家豪）
 var currentBrand = '全部';
 var pending = {};   // itemId -> delta
 // 目前頁籤（inventory/prepared/stockout/stocktake/kit/calendar）

@@ -99,8 +99,8 @@ function renderInventory() {
           reverted: false,
           moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openItemSheet(${i.id})">⋯</button>`,
           thumb: buildThumb(i.id, i.has_photo, i.name, '📦'),
-          nameHTML: `${esc(i.name)}${i.site === 'warehouse' ? ' 🏭' : ''}${prepared > 0 ? `<span class="chip green">待領出 ${prepared}</span>` : ''}`,
-          subHTML: `${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}`,
+          nameHTML: `${esc(i.name)}${i.site === 'warehouse' ? ' 🏭' : ''}`,  // V1b 2026-08-16：chip 移出品名行（防長名截出誤導 ⋯）
+          subHTML: `${prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : ''}${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}`,
           extraHTML: locStr,
           qtyHTML: buildQtyControl({id: i.id, display, unit: i.unit, isZero, delta, viewer: isViewer}),
           actionsHTML: isViewer ? '' : `<div class="m-card-actions">

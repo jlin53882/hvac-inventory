@@ -810,7 +810,7 @@
   font-size: 14px; font-weight: 700; color: #111827; cursor: pointer;
 }
 .m-card .qty-actions .act.mid .unit { font-size: 10px; color: #999; font-weight: 400; }
-.m-card .chip { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 8px; margin-left: 4px; }
+.m-card .chip { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 8px; margin-left: 0; margin-right: 4px; }  /* V1b 2026-08-16：chip 移出 nameHTML 後改右邊距 */
 .m-card .chip.green { background: #dcfce7; color: #15803d; }
 .m-card.reverted { opacity: .55; }
 .m-card .reverted-tag { font-size: 10px; color: #9ca3af; margin-left: 4px; }
