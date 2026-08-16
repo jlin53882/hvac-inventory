@@ -57,6 +57,8 @@
     font-size: 13px; background: #f7f8fa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 8px center;
   }
   .unit-search:focus { outline: 2px solid #2d5a8e33; border-color: #2d5a8e; background-color: #fff; }
+  .unit-search:focus::placeholder { opacity: 0; }        /* 家豪 08-16：聚焦後灰字消失 */
+  .unit-search:focus { background-image: none; }          /* 聚焦後 🔍 圖案消失（乾淨輸入框） */
   .unit-search::placeholder { color: #aaa; }
 
   /* 主按鈕（2026-08-14 補定義——原本無 .btn-primary 樣式，權限頁「新增帳號/儲存變更」掉成瀏覽器預設方形按鈕） */
