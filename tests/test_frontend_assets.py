@@ -62,12 +62,22 @@ STOCKOUT_MODAL_JS = os.path.join(STATIC, "js", "modals", "stockout.js")
 CARD_JS = os.path.join(STATIC, "js", "render", "card.js")
 # 待測：render/calendar.js（2026-08-13）
 CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
+# 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
+CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
+CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
+GLOBALS_JS = os.path.join(STATIC, "js", "globals.js")
 
 
 def read(p):
     """讀檔 helper（UTF-8）"""
     with open(p, encoding="utf-8") as fh:
         return fh.read()
+
+def read_calendar_js_all():
+    """calendar 拆檔後（2026-08-16）：render + modals/calendar + modals/calendar-settings + globals.js 合併讀。
+    ⚠️ 必含 globals.js——URLSearchParams 初始化（_calM/calMonth）搬去 globals.js，test_calendar_js_month_url 斷言它在這"""
+    return (read(CALENDAR_RENDER_JS) + read(CALENDAR_MODAL_JS)
+            + read(CALENDAR_SETTINGS_JS) + read(GLOBALS_JS))
 
 
 # ---------- index.html ----------
@@ -864,8 +874,10 @@ def test_default_tab_is_calendar():
 
 
 def test_index_loads_calendar_js():
-    """index.html 載入 render/calendar.js"""
+    """index.html 載入 render/calendar.js + modals/calendar.js + modals/calendar-settings.js（2026-08-16 拆檔）"""
     assert '/static/js/render/calendar.js' in read(INDEX)
+    assert '/static/js/modals/calendar.js' in read(INDEX)
+    assert '/static/js/modals/calendar-settings.js' in read(INDEX)
 
 
 def test_app_js_switchtab_has_calendar():
@@ -876,7 +888,7 @@ def test_app_js_switchtab_has_calendar():
 
 def test_calendar_js_has_core_functions():
     """calendar.js 核心函式：月曆/明細/新增/匯出/設定"""
-    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    js = read_calendar_js_all()
     for fn in ("function renderCalendar()", "function calRenderMonth()",
                "function calRenderDay()", "function calOpenAppt(",
                "async function calSubmitAppt()", "async function calExport()",
@@ -886,7 +898,7 @@ def test_calendar_js_has_core_functions():
 
 def test_calendar_js_uses_api_endpoints():
     """calendar.js 呼叫的 API 端點（後端需有對應路由）"""
-    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    js = read_calendar_js_all()
     assert "/api/appointments" in js
     assert "/api/service-types" in js
     assert "/api/assignable-users" in js
@@ -905,7 +917,7 @@ def test_calendar_js_uses_api_endpoints():
     # 2026-08-13 Sarah：tech 角色——庫存 render 視為唯讀、calendar 可寫、auth.js 工程師 chip
     inv = read(os.path.join(STATIC, "js", "render", "inventory.js"))
     assert "hasPerm('item-mgmt')" in inv  # RBAC：tech 無庫存寫入權限 → 庫存頁唯讀
-    cal = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    cal = read_calendar_js_all()
     assert "hasPerm('cal-mgmt')" in cal  # RBAC：tech 有 cal-mgmt → 行事曆可寫
     au = read(AUTH_JS)
     assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
@@ -916,7 +928,7 @@ def test_calendar_js_uses_api_endpoints():
 
 def test_calendar_js_viewer_write_hidden():
     """viewer 看不到新增/編輯/刪除按鈕（權限整合）；tech 可看（行事曆可寫）"""
-    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    js = read_calendar_js_all()
     assert "isViewer" in js
     assert "calOpenAppt()" in js  # 按鈕以 isViewer 條件包住
 
@@ -933,7 +945,7 @@ def test_calendar_cell_shows_service_client():
     """2026-08-13 Sarah + 08-14 家豪 B 方案：月曆格子內派工標籤顯示「時間」+「[服務] 客戶」
     - B 方案：時間獨立一行（.cal-evt-time）＋ 服務/客戶一行截斷（.cal-evt-body）
     - 用 textContent 安全設定（非 innerHTML）"""
-    js = read(CALENDAR_RENDER_JS)
+    js = read_calendar_js_all()
     assert "evts.slice(0, 2)" in js                     # 每格最多 2 筆派工
     assert "className = 'cal-evt-time'" in js           # 時間獨立一行
     assert "className = 'cal-evt-body'" in js           # 服務/客戶一行
@@ -945,7 +957,7 @@ def test_calendar_cell_shows_service_client():
 def test_calendar_cell_selected_highlight_js():
     """2026-08-14 家豪：月曆格「選中」機制——點擊設定 calSelected + 渲染 cal-selected class
     - 08-14 變體 A：今天完全不標記（不再產生 cal-today class，避免今天與選中同時有框）"""
-    js = read(CALENDAR_RENDER_JS)
+    js = read_calendar_js_all()
     assert "cal-selected" in js                          # 渲染時加選中 class
     assert "calSelected = new Date(y, m, d)" in js       # 點擊格子設定選中日期
     assert "cal-today" not in js                         # 今天不標記（無 cal-today class 產生）
@@ -957,7 +969,7 @@ def test_calendar_appt_only_start_time():
     - 儲存時 end_time 自動 = start_time（後端衝突判斷：同時段/涵蓋才衝突）
     - 明細卡只顯示開始時間（不再 ⏰ 08:00 - 08:30）
     - 時間用 24 制下拉（時 00-23 / 分 00-55，取代手機 12 制 time input）"""
-    js = read(CALENDAR_RENDER_JS)
+    js = read_calendar_js_all()
     assert "cal-f-end" not in js                        # 結束欄位已移除
     assert 'id="cal-f-hour"' in js and 'id="cal-f-minute"' in js  # 24 制時/分下拉
     assert 'type="time"' not in js                      # 不再用 12 制 time input
@@ -975,7 +987,7 @@ def test_calendar_time_optional():
     - 新增預設留空、編輯無時間回「--」（不再預設 09:00）
     - 提交時選「--」→ 時間留空字串（timeVal）
     - 月曆格/明細卡無時間不顯示時間前綴；排序空時間排最後"""
-    js = read(CALENDAR_RENDER_JS)
+    js = read_calendar_js_all()
     assert '<option value="">--</option>' in js             # 時/分下拉「--」空選項
     assert "const t = (f && f.start_time) || '';" in js     # 回填：無時間留空
     assert "const timeVal = (hh && mm) ? hh + ':' + mm : '';" in js  # 選「--」→ 空字串
@@ -1252,7 +1264,7 @@ def test_kit_js_optimistic_lock_snapshot():
 
 def test_calendar_js_optimistic_lock_snapshot():
     """calendar.js：編輯派工帶 updated_at 快照（calSubmitAppt body）"""
-    js = read(CALENDAR_RENDER_JS)
+    js = read_calendar_js_all()
     assert "calApptUpdatedAt" in js, "calendar.js 缺 calApptUpdatedAt 快照變數"
     assert "updated_at: calApptUpdatedAt" in js, "calendar.js calSubmitAppt 未帶 updated_at"
 
@@ -1277,7 +1289,7 @@ def test_app_js_url_state_persistence():
 
 def test_calendar_js_month_url():
     """calendar.js：行事曆月份從 URL 讀（F5 停在原本月份）"""
-    js = read(CALENDAR_RENDER_JS)
+    js = read_calendar_js_all()
     assert "new URLSearchParams(location.search).get('month')" in js, "calendar.js 未從 URL 讀 month"
     assert "syncViewUrl" in js, "calendar.js 切月後未同步 URL"
 

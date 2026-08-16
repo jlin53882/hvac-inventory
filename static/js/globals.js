@@ -34,3 +34,13 @@ var kitModalCompRows = [];
 var toastTimer;
 
 var editingKitId = null;  // 編輯整組時記錄 kit id（2026-08-11 Sarah）
+
+// 行事曆（render/calendar.js + modals/* 共享；let/const 不跨檔，2026-08-16 拆檔搬入）
+var _calM = new URLSearchParams(location.search).get('month');   // 原 calendar.js：?month=YYYY-MM（F5 保留月份）
+var calMonth = _calM && /^\d{4}-\d{2}$/.test(_calM) && Number(_calM.slice(5,7)) >= 1 && Number(_calM.slice(5,7)) <= 12 ? new Date(parseInt(_calM.slice(0,4)), parseInt(_calM.slice(5,7))-1, 1) : new Date();
+var calSelected = new Date();    // 選取的日期
+var calEvents = [];              // 當月/當日行程
+var calSvc = [];                 // 服務項目字典（全部，含停用）
+var calAssignable = [];          // 可指派人員
+var CAL_PALETTE = ['#1a73e8', '#e91e63', '#9c27b0', '#2e7d32', '#f57c00', '#00838f', '#c62828', '#5d4037'];
+var CAL_WEEK = ['日', '一', '二', '三', '四', '五', '六'];
