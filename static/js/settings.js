@@ -1,7 +1,7 @@
 // settings.js — 設定中心（2026-08-16 家豪 B-1 定案：左右清單）
 // 依賴：utils.js（esc/jsStr/hasPerm/toast）、units.js（unitList/unitListActive/loadUnits）、
 //       changepw.js（submitChangePw/cpwResetChecks/cpwCheckStrength/cpwCheckMatch）
-var unitUsage = [];
+var orphanItems = [];  // 逐筆收編資料源（GET /api/units/orphans，2026-08-16 方案 B）
 
 function settingsSwitch(panel) {
   document.querySelectorAll('#settingsSideList .side-item').forEach(el =>
@@ -14,11 +14,25 @@ function settingsSwitch(panel) {
   if (showUnits) renderUnitsPanel();
 }
 
-async function loadUnitUsage() {
+async function loadOrphans() {
   try {
-    const res = await fetch('/api/units/usage');
-    if (res.ok) unitUsage = await res.json();
+    const res = await fetch('/api/units/orphans');
+    if (res.ok) orphanItems = await res.json();
   } catch (e) { /* 忽略 */ }
+}
+
+// 依 unit 分組（'' 顯示「（空白）」）；順序依 orphans API 的 ORDER BY unit
+function groupOrphans(items) {
+  const map = new Map();
+  items.forEach(it => {
+    if (!map.has(it.unit)) map.set(it.unit, []);
+    map.get(it.unit).push(it);
+  });
+  return Array.from(map.entries()).map(([unit, arr]) => ({
+    unit,
+    label: unit === '' ? '（空白）' : unit,
+    items: arr
+  }));
 }
 
 // ========== 單位管理面板 ==========
@@ -42,16 +56,32 @@ function renderUnitsPanel() {
   });
   html += '</table>';
   if (canManage) {
-    const orphans = unitUsage.filter(u => u.count > 0 && !unitListActive.some(x => x.name === u.unit));
-    if (orphans.length) {
-      html += '<div class="hist-clean"><b>⚠️ 不在清單的歷史單位（可收編）</b>';
-      orphans.forEach(u => {
-        const label = u.unit === '' ? '（空白）' : u.unit;
-        html += `<div class="row"><span>「${esc(label)}」× ${esc(u.count)} 筆</span><span>` +
-                `收編為 <select class="u-consolidate-to">${unitListActive.map(x => `<option>${esc(x.name)}</option>`).join('')}</select> ` +
-                `<button class="btn-primary" data-from="${jsStr(u.unit)}" onclick="consolidateUnit(this)">收編</button></span></div>`;
+    const groups = groupOrphans(orphanItems);
+    if (groups.length) {
+      html += '<div class="hist-clean"><b>⚠️ 不在清單的歷史單位（點開逐筆處理）</b>';
+      html += '<div style="font-size:11.5px;color:#a08a3e;margin:4px 0 8px">每筆品項各自指定正確單位；處理完自動消失。組底可整組快速套用。</div>';
+      groups.forEach(g => {
+        html += `<div class="grp">
+          <div class="grp-head" onclick="this.parentElement.classList.toggle('open')">
+            <span class="grp-title"><span class="arrow">▶</span> ${esc(g.label)}</span>
+            <span class="grp-count">${g.items.length} 筆</span></div>
+          <div class="grp-body"><table class="g-table">`;
+        g.items.forEach(it => {
+          html += `<tr><td class="p-name">${esc(it.name)}${it.is_deleted ? ' <small>（非庫存）</small>' : ''}</td>
+            <td class="qty">×${absNum(it.total_qty)}</td>
+            <td style="text-align:right"><select class="u-ci-to" required><option value="">— 請選擇 —</option>`;
+          unitListActive.forEach(u => { html += `<option>${esc(u.name)}</option>`; });
+          html += `</select> <button class="btn-primary" onclick="consolidateItem(${it.item_id}, this)">改為</button></td></tr>`;
+        });
+        html += `</table>
+          <div class="grp-fast">整組快速套用：<select class="u-ci-fast" required><option value="">— 請選擇 —</option>`;
+        unitListActive.forEach(u => { html += `<option>${esc(u.name)}</option>`; });
+        html += `</select><button class="btn-primary" data-from="${esc(g.unit)}" onclick="consolidateGroup(this)">套用全部</button></div>
+          </div></div>`;
       });
       html += '</div>';
+    } else {
+      html += '<div class="hist-clean" style="color:#2e7d32">✅ 所有品項單位皆在清單中</div>';
     }
   }
   document.getElementById('panel-units').innerHTML = html;
@@ -111,13 +141,34 @@ async function moveUnit(id, dir) {
   } catch (e) { toast('排序失敗', 'error'); }
 }
 
-async function consolidateUnit(btn) {
-  const from = btn.dataset.from;
-  const sel = btn.closest('.row').querySelector('.u-consolidate-to');
+async function consolidateItem(itemId, btn) {
+  const sel = btn.closest('tr').querySelector('.u-ci-to');
   const to = sel ? sel.value : '';
-  if (!from || !to) return;
-  const _cnt = unitUsage.find(u => u.unit === from)?.count || 0;
-  if (!confirm('將「' + from + '」共 ' + _cnt + ' 筆品項的單位改為「' + to + '」？')) return;
+  if (!to) { toast('請先選擇目標單位', 'error'); return; }
+  const nameEl = btn.closest('tr').querySelector('.p-name');
+  if (!confirm('將「' + (nameEl ? nameEl.textContent : '') + '」的單位改為「' + to + '」？')) return;
+  try {
+    const res = await fetch('/api/units/consolidate-item', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: itemId, to_unit: to })
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.detail || '改單位失敗', 'error'); return; }
+    await Promise.all([loadUnits(), loadOrphans()]);
+    renderUnitsPanel();
+    toast('✅ 已改為「' + to + '」', 'success');
+  } catch (e) { toast('改單位失敗', 'error'); }
+}
+
+async function consolidateGroup(btn) {
+  const from = btn.dataset.from;
+  const sel = btn.closest('.grp-fast').querySelector('.u-ci-fast');
+  const to = sel ? sel.value : '';
+  if (!to) { toast('請先選擇目標單位', 'error'); return; }
+  const label = from === '' ? '（空白）' : from;
+  const n = orphanItems.filter(o => o.unit === from).length;
+  if (!confirm('將「' + label + '」全部 ' + n + ' 筆的單位改為「' + to + '」？此操作一次套用整組。')) return;
   try {
     const res = await fetch('/api/units/consolidate', {
       method: 'POST',
@@ -126,9 +177,9 @@ async function consolidateUnit(btn) {
     });
     const data = await res.json();
     if (!res.ok) { toast(data.detail || '收編失敗', 'error'); return; }
-    await Promise.all([loadUnits(), loadUnitUsage()]);
+    await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
-    toast(`✅ 已收編 ${data.affected} 筆為「${to}」`, 'success');
+    toast('✅ 已收編 ' + data.affected + ' 筆為「' + to + '」', 'success');
   } catch (e) { toast('收編失敗', 'error'); }
 }
 
@@ -169,6 +220,6 @@ function clearPwForm() {
      .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
-  await Promise.all([loadUnits(), loadUnitUsage()]);
+  await Promise.all([loadUnits(), loadOrphans()]);
   settingsSwitch(canUnits ? 'units' : 'pw');
 })();

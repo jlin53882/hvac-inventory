@@ -111,6 +111,12 @@ REVIEWED_SAFE_BODIES = {
     "u.is_active ? '⏸ 帳號停用' : '▶️ 帳號啟用'", "u.is_active ? '✅ 啟用' : '⛔ 停用'",
     # settings.js（2026-08-16 設定中心）：u.is_active 為 DB bool 常數輸出（同帳號頁模式）；u.count 為 COUNT(*) 數字（已 esc）
     "u.is_active ? 'checked' : ''",
+    # settings.js 方案 B 逐筆收編（2026-08-16）：it.item_id 為 DB 整數主鍵（同 c.item_id 先例）、
+    # absNum(it.total_qty) 為格式化數字字串、g.items.length 為陣列長度（同 items.length 先例）；
+    # 其餘內插（esc/布林三元含 HTML 常數）由掃描器自動放行
+    "it.item_id",
+    "absNum(it.total_qty)",
+    "g.items.length",
     "isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'", "isLow ? '警示值' : '位置'",
     "isLow ? '#92400e' : '#991b1b'", "isLow ? '#fffbeb' : '#fef2f2'",
     "isLow ? '⚠️ 低庫存品項' : '⛔ 缺貨品項'", "isLow ? (i.low_stock || 0) : esc(locStr || '—')",

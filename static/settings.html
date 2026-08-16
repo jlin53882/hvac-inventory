@@ -39,6 +39,24 @@
 .hist-clean .fix { color: #c0392b; cursor: pointer; font-weight: 600; font-size: 12px; }
 .hist-clean select { padding: 4px 6px; border: 1px solid #cfd6df; border-radius: 6px; font-size: 12px; }
 .hist-clean .btn-primary { padding: 4px 10px; font-size: 11.5px; border-radius: 6px; }
+/* 方案 B 分組手風琴（2026-08-16 mockup B 定案值） */
+.grp { border: 1px solid #f0d48a; border-radius: 8px; margin-bottom: 8px; overflow: hidden; background: #fffdf2; }
+.grp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; cursor: pointer; flex-wrap: wrap; font-weight: 700; font-size: 12.5px; color: #8a6d1a; }
+.grp-head:hover { background: #fff8e6; }
+.grp-title .arrow { display: inline-block; transition: transform .15s; font-size: 10px; }
+.grp.open .grp-title .arrow { transform: rotate(90deg); }
+.grp-count { font-size: 11px; color: #b0893a; font-weight: 400; }
+.grp-body { display: none; border-top: 1px dashed #eedaab; }
+.grp.open .grp-body { display: block; }
+.g-table { width: 100%; border-collapse: collapse; background: #fff; }
+.g-table td { padding: 5px 10px; border-bottom: 1px solid #f7edcd; font-size: 12px; vertical-align: middle; }
+.g-table tr:last-child td { border-bottom: none; }
+.g-table .p-name { font-weight: 600; color: #333; }
+.g-table .qty { color: #999; }
+.g-table select { padding: 3px 4px; border: 1px solid #cfd6df; border-radius: 6px; font-size: 12px; width: 84px; color: #333; }
+.g-table select:invalid { color: #aaa; }
+.grp-fast { display: flex; align-items: center; gap: 6px; padding: 7px 10px; background: #fdf6e0; font-size: 11.5px; color: #8a6d1a; flex-wrap: wrap; }
+.grp-fast select { padding: 3px 4px; border: 1px solid #cfd6df; border-radius: 6px; font-size: 12px; }
 /* 開關（複用 style.css .switch 結構，避免與行事曆設定頁 .switch 撞名→權限頁先例：內嵌覆寫） */
 .settings-switch { position: relative; width: 38px; height: 22px; display: inline-block; vertical-align: middle; }
 .settings-switch input { opacity: 0; width: 0; height: 0; }

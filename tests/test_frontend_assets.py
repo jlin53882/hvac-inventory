@@ -300,6 +300,31 @@ def test_perms_js_batch_create():
 PERMS_JS = os.path.join(STATIC, "js", "perms.js")
 PERMISSIONS_HTML = os.path.join(STATIC, "permissions.html")
 SETTINGS_HTML = os.path.join(STATIC, "settings.html")  # 2026-08-16 設定中心
+SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")  # 2026-08-16 設定中心
+
+
+def test_settings_js_orphan_group_ui():
+    """方案 B（2026-08-16）：settings.js 有 loadOrphans / consolidateItem / 分組手風琴結構（防回歸退回整批模式）"""
+    js = read(SETTINGS_JS)
+    assert "loadOrphans" in js
+    assert "consolidateItem(" in js
+    assert "consolidate-item" in js            # 新端點呼叫（舊 code 無）
+    assert "grp-head" in js and "grp-body" in js  # 分組展開結構（舊 code 無）
+    assert "consolidateGroup(" in js           # 組底整組快速套用（複用既有 consolidate）
+
+
+def test_settings_js_unit_select_placeholder():
+    """下拉預設「— 請選擇 —」（防回歸：預設第一個單位「個」的誤收編模式）"""
+    js = read(SETTINGS_JS)
+    assert "— 請選擇 —" in js
+
+
+def test_settings_js_no_old_batch_ui():
+    """舊整批收編 UI（unitUsage/consolidateUnit）已移除（dead code 防回歸）"""
+    js = read(SETTINGS_JS)
+    assert "unitUsage" not in js
+    assert "consolidateUnit(" not in js
+    assert "u-consolidate-to" not in js
 
 
 def test_permissions_html_loads_perms_js():
