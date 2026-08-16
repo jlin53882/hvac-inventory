@@ -119,6 +119,15 @@ def test_index_html_div_balanced():
         assert o == c, f"{tag} 開閉不平衡：開 {o} / 閉 {c}"
 
 
+def test_index_unit_select_ids_unique():
+    """單位動態 select id 唯一：f-unit 只在新增 modal（1 次）、編輯 modal 用 e-unit
+    （2026-08-16 bug：編輯 modal 誤寫 f-unit 與新增重複 id → edit.js getElementById('e-unit')=null
+    → 單位欄空白無法選，家豪 08-16 手機實測回報）"""
+    html = read(INDEX)
+    assert html.count('id="f-unit"') == 1
+    assert 'id="e-unit"' in html
+
+
 def test_search_input_no_autofill():
     """搜尋框不被瀏覽器 autofill（2026-08-13 Sarah：重新打開網站搜尋框殘留「admin」＝瀏覽器把登入帳號填入第一個文字框）
     三重防護：type=search（Chrome 不對 search input 填帳號，根治）+ autocomplete=new-password
