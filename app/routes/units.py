@@ -2,7 +2,7 @@
 import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
-from app.models import UnitIn, UnitUpdate, UnitConsolidate
+from app.models import UnitIn, UnitUpdate, UnitConsolidate, UnitConsolidateItem
 from app.services.auth import require_perm
 
 router = APIRouter()
@@ -106,6 +106,26 @@ def unit_usage():
         conn.close()
 
 
+@router.get("/api/units/orphans")
+def unit_orphans():
+    """unit 不在啟用單位清單的品項明細（全角色）：
+    (B 方案) 逐筆收編的資料源——含 is_deleted=1 幽靈品項與 total_qty。
+    語意對齊前端舊判定：LEFT JOIN units ON unit=name AND is_active=1 → u.id IS NULL。"""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT i.id AS item_id, i.name, i.code, i.site, i.unit, i.is_deleted,
+                      COALESCE((SELECT SUM(s.qty) FROM item_stocks s WHERE s.item_id = i.id), 0) AS total_qty
+               FROM items i
+               LEFT JOIN units u ON i.unit = u.name AND u.is_active = 1
+               WHERE u.id IS NULL
+               ORDER BY i.unit, i.site, i.name"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 @router.post("/api/units/consolidate", dependencies=[Depends(require_perm("unit-mgmt"))])
 def consolidate_units(req: UnitConsolidate):
     """收編：items.unit from→to（含 is_deleted=1 幽靈品項，B4）；來源單位若在 units 表 → 停用。
@@ -145,5 +165,41 @@ def consolidate_units(req: UnitConsolidate):
     except sqlite3.IntegrityError:
         conn.rollback()
         raise HTTPException(409, "收編造成品項重複（唯一鍵衝突），請先合併品項再收編")
+    finally:
+        conn.close()
+
+
+@router.post("/api/units/consolidate-item", dependencies=[Depends(require_perm("unit-mgmt"))])
+def consolidate_item(req: UnitConsolidateItem):
+    """單筆收編：items.unit → to_unit（含幽靈品項）。不處理來源停用——
+    來源若非字典值即無從停用；若為停用字典單位則早已停用（收編前即 is_active=0）。"""
+    to = req.to_unit.strip()
+    if not to:
+        raise HTTPException(400, "目標單位不可為空白")
+    conn = get_db()
+    try:
+        item = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
+        if not item:
+            raise HTTPException(404, "品項不存在")
+        if conn.execute("SELECT id FROM units WHERE name=?", (to,)).fetchone() is None:
+            raise HTTPException(400, f"目標單位「{to}」不在單位清單中，請先在清單新增")
+        if item["unit"] == to:
+            raise HTTPException(400, "該品項已是此單位")
+        # 單筆版 A3 衝突：同 (brand,code,name,site) 已有 to_unit 活品項（排除自己）
+        conflict = conn.execute(
+            """SELECT id FROM items
+               WHERE brand IS ? AND COALESCE(code,'') = COALESCE(?,'')
+                 AND name IS ? AND site IS ? AND unit = ? AND is_deleted = 0 AND id != ?
+               LIMIT 1""",
+            (item["brand"], item["code"], item["name"], item["site"], to, req.item_id)).fetchone()
+        if conflict:
+            raise HTTPException(409, f"已存在同品名「{item['name']}」單位為「{to}」的品項，請先編輯合併再改")
+        conn.execute("UPDATE items SET unit=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                     (to, req.item_id))
+        conn.commit()
+        return {"ok": True, "item_id": req.item_id, "to_unit": to}
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(409, "改單位造成品項重複（唯一鍵衝突），請先合併品項再改")
     finally:
         conn.close()

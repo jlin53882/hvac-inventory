@@ -115,6 +115,12 @@ class UnitConsolidate(BaseModel):
     to_unit: str = Field(..., min_length=1, max_length=20)
 
 
+class UnitConsolidateItem(BaseModel):
+    """單筆收編：指定某一筆品項改為目標單位（2026-08-16 方案 B 逐筆收編）"""
+    item_id: int
+    to_unit: str = Field(..., min_length=1, max_length=20)
+
+
 # ---------- 使用者（2026-08-16 從 users.py 收攏） ----------
 class UserCreate(BaseModel):
     username: str

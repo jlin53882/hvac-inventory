@@ -188,3 +188,102 @@ def test_units_consolidate_conflict_409(client):
     r = client.post("/api/units/consolidate", json={"from_unit": "/4罐", "to_unit": "罐"})
     assert r.status_code == 409, r.text
     assert "重複" in r.json()["detail"]
+
+
+# ---------- 2026-08-16 方案 B：orphans 明細 + 單筆收編 ----------
+def _ghostify(item_id):
+    """建幽靈品項（is_deleted=1）——直接 SQL，避免非庫存端點的 movement 副作用"""
+    conn = app_db.get_db()
+    try:
+        conn.execute("UPDATE items SET is_deleted=1 WHERE id=?", (item_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_units_orphans_lists_items(client):
+    """破碎值 / 幽靈品項 / 停用字典單位的品項都列出，欄位齊全"""
+    a = _add_item(client, name="甲", unit="/4罐")           # 破碎值（不在字典）
+    b = _add_item(client, name="乙", unit="")               # 空白 → 轉幽靈
+    _ghostify(b["id"])
+    tiao_id = [u["id"] for u in client.get("/api/units").json() if u["name"] == "條"][0]
+    assert client.put(f"/api/units/{tiao_id}", json={"is_active": False}).status_code == 200
+    _add_item(client, name="丙", unit="條")                  # 停用字典單位的品項
+    orphans = client.get("/api/units/orphans").json()
+    assert len(orphans) == 3, orphans
+    by_name = {o["name"]: o for o in orphans}
+    assert by_name["甲"]["unit"] == "/4罐" and by_name["甲"]["is_deleted"] == 0
+    assert by_name["甲"]["total_qty"] == 1
+    assert by_name["乙"]["unit"] == "" and by_name["乙"]["is_deleted"] == 1
+    assert by_name["丙"]["unit"] == "條"                     # 停用字典單位照列（語意保持）
+    assert {"item_id", "name", "code", "site", "unit", "is_deleted", "total_qty"} <= set(orphans[0].keys())
+
+
+def test_units_orphans_excludes_active_dict(client):
+    """unit 在啟用字典的品項不出現在 orphans"""
+    _add_item(client, name="正常", unit="個")
+    assert client.get("/api/units/orphans").json() == []
+
+
+def test_units_orphans_requires_login(client):
+    """未登入 401"""
+    c2 = TestClient(app_main.app)
+    assert c2.get("/api/units/orphans").status_code == 401
+
+
+def test_units_consolidate_item_ok(client):
+    """單筆收編成功（含幽靈品項），品項單位更新"""
+    a = _add_item(client, name="甲", unit="/4罐")
+    b = _add_item(client, name="乙", unit="/4罐")
+    _ghostify(b["id"])
+    r = client.post("/api/units/consolidate-item", json={"item_id": a["id"], "to_unit": "罐"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"ok": True, "item_id": a["id"], "to_unit": "罐"}
+    # 幽靈品項也收編（B4 語意）
+    r2 = client.post("/api/units/consolidate-item", json={"item_id": b["id"], "to_unit": "罐"})
+    assert r2.status_code == 200, r2.text
+    conn = app_db.get_db()
+    try:
+        rows = conn.execute(
+            "SELECT unit, is_deleted FROM items WHERE id IN (?, ?) ORDER BY id", (a["id"], b["id"])).fetchall()
+    finally:
+        conn.close()
+    assert [dict(r) for r in rows] == [{"unit": "罐", "is_deleted": 0}, {"unit": "罐", "is_deleted": 1}]
+
+
+def test_units_consolidate_item_not_found(client):
+    """item_id 不存在 → 404"""
+    r = client.post("/api/units/consolidate-item", json={"item_id": 99999, "to_unit": "罐"})
+    assert r.status_code == 404, r.text
+
+
+def test_units_consolidate_item_target_not_in_dict(client):
+    """to_unit 不在字典 → 400"""
+    a = _add_item(client, name="甲", unit="/4罐")
+    r = client.post("/api/units/consolidate-item", json={"item_id": a["id"], "to_unit": "不存在單位"})
+    assert r.status_code == 400, r.text
+    assert "不在單位清單" in r.json()["detail"]
+
+
+def test_units_consolidate_item_same_unit(client):
+    """已同單位 → 400"""
+    a = _add_item(client, name="甲", unit="罐")
+    r = client.post("/api/units/consolidate-item", json={"item_id": a["id"], "to_unit": "罐"})
+    assert r.status_code == 400, r.text
+
+
+def test_units_consolidate_item_conflict_409(client):
+    """同 (brand,code,name,site) 已有 to_unit 活品項 → 409（bug 版必紅：無衝突檢查→IntegrityError 500）"""
+    _add_item(client, name="衝突品", unit="罐")
+    b = _add_item(client, name="衝突品", unit="/4罐")
+    r = client.post("/api/units/consolidate-item", json={"item_id": b["id"], "to_unit": "罐"})
+    assert r.status_code == 409, r.text
+    assert "已存在同品名" in r.json()["detail"]  # pre-check 專屬文案（鎖定 pre-check 未被誤刪，C1）
+
+
+def test_units_consolidate_item_requires_unit_mgmt(client):
+    """user 角色（無 unit-mgmt）→ 403"""
+    a = _add_item(client, name="甲", unit="/4罐")
+    c2 = _add_role_user(client, "probe_u2", "user")
+    r = c2.post("/api/units/consolidate-item", json={"item_id": a["id"], "to_unit": "罐"})
+    assert r.status_code == 403, r.text
