@@ -875,6 +875,8 @@
   /* 2026-08-13 Sarah：手機 topbar 右邊四個（管理員/改密碼/使用者/登出）2×2 排列 */
   .user-menu { display: grid !important; grid-template-columns: auto auto; gap: 4px 6px; margin-left: 0; }
   .user-menu .btn-ghost { display: flex; padding: 6px 10px; font-size: 12.5px; white-space: nowrap; }
+  /* 2026-08-17 家豪：手機板 ⚙️/🚪 圖示偏上，僅圖示往下 2px（文字不動） */
+  .user-menu .btn-ghost .btn-ghost-icon { display: inline-block; transform: translateY(2px); }
   .user-menu .btn-logout-direct { display: flex !important; }
   .topbar .sub { display: none; }
   /* 2026-08-13 Sarah：左邊 logo 圖案放上、兩行字對齊（logo 左、兩行字右，左緣對齊） */

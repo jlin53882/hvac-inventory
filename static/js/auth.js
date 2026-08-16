@@ -59,7 +59,7 @@ function renderUserMenu(user) {
     // 2026-08-13 Sarah：登出要有文字（手機版 .users-text 會隱藏 → 用獨立 span）
     menu.innerHTML =
       `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}</span>` +
-      `<button class="btn-ghost btn-logout-direct" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>`;
+      `<button class="btn-ghost btn-logout-direct" onclick="logout()"><span class="btn-ghost-icon">🚪</span><span class="logout-direct-text"> 登出</span></button>`;
     menu.style.display = 'flex';
     return;
   }
@@ -76,9 +76,9 @@ function renderUserMenu(user) {
     `<span class="user-chip" title="${esc(user.username)}">👤 ${esc(user.display_name || user.username)}` +
     roleChip + `</span>` +
     (canManageUsers ? `<button class="btn-ghost" onclick="location.href='/permissions.html'">👥<span class="users-text"> 帳號與權限</span></button>` : '') +
-    ((canManageUnits || canChangePw) ? `<button class="btn-ghost" onclick="location.href='/settings.html'">⚙️<span class="users-text"> 設定</span></button>` : '') +
+    ((canManageUnits || canChangePw) ? `<button class="btn-ghost" onclick="location.href='/settings.html'"><span class="btn-ghost-icon">⚙️</span><span class="users-text"> 設定</span></button>` : '') +
     // 2026-08-13 Sarah：登出直接顯示在 topbar（btn-logout-direct 手機版不隱藏），☰ 選單不放登出
-    `<button class="btn-ghost btn-logout-direct" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>`;
+    `<button class="btn-ghost btn-logout-direct" onclick="logout()"><span class="btn-ghost-icon">🚪</span><span class="logout-direct-text"> 登出</span></button>`;
   menu.style.display = 'flex';
 }
 

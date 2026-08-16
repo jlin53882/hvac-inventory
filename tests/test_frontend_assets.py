@@ -211,6 +211,20 @@ def test_auth_js_wraps_button_text_in_span():
     assert 'class="logout-direct-text"' in js
 
 
+def test_mobile_topbar_icon_align_fix():
+    """2026-08-17 家豪：手機 topbar ⚙️ 設定 / 🚪 登出圖示在按鈕內偏上 → 圖示包 .btn-ghost-icon span，
+    CSS 僅對 span translateY(2px) 下移（文字不動）。防回歸：
+    - auth.js 兩角色（user/admin）的設定/登出圖示都必須包在 .btn-ghost-icon span 內（不包 = 無法只動圖示）
+    - CSS 手機版有 .btn-ghost-icon 的 translateY 微調規則（移除 = 圖示退回偏上）"""
+    js = read(AUTH_JS)
+    assert '<span class="btn-ghost-icon">⚙️</span>' in js      # admin：設定
+    assert '<span class="btn-ghost-icon">🚪</span>' in js       # 登出（user + admin 兩處都有）
+    assert js.count('<span class="btn-ghost-icon">🚪</span>') >= 2  # 兩個角色分支各一處
+    css = read_css_all()
+    assert ".user-menu .btn-ghost .btn-ghost-icon {" in css     # 手機版專用規則存在
+    assert "transform: translateY(2px)" in css                  # 圖示微調值保留（家豪實測定案）
+
+
 # ---------- 權限頁 perms.js（RBAC 2026-08-13，取代 users.js modal） ----------
 
 def test_perms_js_account_actions_have_full_text():
