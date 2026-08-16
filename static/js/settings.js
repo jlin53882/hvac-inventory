@@ -2,6 +2,7 @@
 // 依賴：utils.js（esc/jsStr/hasPerm/toast）、units.js（unitList/unitListActive/loadUnits）、
 //       changepw.js（submitChangePw/cpwResetChecks/cpwCheckStrength/cpwCheckMatch）
 var orphanItems = [];  // 逐筆收編資料源（GET /api/units/orphans，2026-08-16 方案 B）
+var orphanLoadFailed = false;  // 2026-08-16 no-op 修復：載入失敗時顯示警告而非「✅ 全在清單」假成功
 
 function settingsSwitch(panel) {
   document.querySelectorAll('#settingsSideList .side-item').forEach(el =>
@@ -17,8 +18,9 @@ function settingsSwitch(panel) {
 async function loadOrphans() {
   try {
     const res = await fetch('/api/units/orphans');
-    if (res.ok) orphanItems = await res.json();
-  } catch (e) { /* 忽略 */ }
+    if (res.ok) { orphanItems = await res.json(); orphanLoadFailed = false; }
+    else { console.error('[loadOrphans] /api/units/orphans 失敗', res.status); orphanLoadFailed = true; }
+  } catch (e) { console.error('[loadOrphans] 網路錯誤', e); orphanLoadFailed = true; }
 }
 
 // 依 unit 分組（'' 顯示「（空白）」）；順序依 orphans API 的 ORDER BY unit
@@ -80,6 +82,8 @@ function renderUnitsPanel() {
           </div></div>`;
       });
       html += '</div>';
+    } else if (orphanLoadFailed) {
+      html += '<div class="hist-clean" style="color:#c62828">⚠️ 歷史單位載入失敗（無法確認是否收編乾淨）</div>';
     } else {
       html += '<div class="hist-clean" style="color:#2e7d32">✅ 所有品項單位皆在清單中</div>';
     }

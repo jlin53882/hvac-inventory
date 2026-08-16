@@ -10,13 +10,15 @@ async function renderStocktake() {
   let takeDates = [];
   try {
     const res = await fetch('/api/stocktake/dates');
+    if (!res.ok) { console.error('[renderStocktake] /api/stocktake/dates 失敗', res.status); throw new Error('dates ' + res.status); }
     takeDates = await res.json();
-  } catch {}
+  } catch (e) { console.error('[renderStocktake] 盤點日期載入失敗', e); }
   // 載入整組組成材料（盤點整組 tab 展開顯示，比照整組庫存頁）
   try {
     const kitRes = await fetch(`/api/kits?site=${currentSite}`);
+    if (!kitRes.ok) { console.error('[renderStocktake] /api/kits 失敗', kitRes.status); throw new Error('kits ' + kitRes.status); }
     stocktakeKits = await kitRes.json();
-  } catch { stocktakeKits = []; }
+  } catch (e) { console.error('[renderStocktake] 整組材料載入失敗', e); stocktakeKits = []; }
 
   // 統計卡片（缺貨只算單一材料；低庫存整組與單一都算）— 以總量判斷
   const zeroItems = ALL_ITEMS.filter(i => !i.is_kit && i.qty <= 0);

@@ -6,15 +6,15 @@ var unitListActive = [];    // 啟用中（select 用）
 async function loadUnits() {
   try {
     const res = await fetch('/api/units');
-    if (!res.ok) return;
+    if (!res.ok) { console.error('[loadUnits] /api/units 失敗', res.status); return; }
     unitList = await res.json();
     unitListActive = unitList.filter(u => u.is_active);
-  } catch (e) { /* 登入頁/離線忽略 */ }
+  } catch (e) { console.error('[loadUnits] 網路錯誤', e); }
 }
 
 // 填充 select：active 單位 + 若 current 不在清單（歷史值）→ 補「（歷史）xxx」並選中
 function fillUnitSelect(sel, current) {
-  if (!sel) return;
+  if (!sel) { console.error('[fillUnitSelect] select 元素不存在（id 打錯或 DOM 未建立）'); return; }
   sel.innerHTML = '';
   unitListActive.forEach(u => {
     const o = document.createElement('option');

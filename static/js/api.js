@@ -31,6 +31,7 @@ async function loadPreparedBadge() {
 async function updateSubInfo() {
   try {
     const res = await fetch(`/api/stats?site=${currentSite}`);
+    if (!res.ok) { console.error('[updateSubInfo] /api/stats 失敗', res.status); return; }
     const s = await res.json();
     // 統計單一材料與整組分開算
     const singleCount = ALL_ITEMS.filter(i => !i.is_kit).length;
@@ -41,26 +42,27 @@ async function updateSubInfo() {
     // 更新頂部分片按鈕的數字（辦公室 / 倉庫）
     try {
       const [officeStats, warehouseStats] = await Promise.all([
-        fetch('/api/stats?site=office').then(r => r.json()),
-        fetch('/api/stats?site=warehouse').then(r => r.json()),
+        fetch('/api/stats?site=office').then(r => r.ok ? r.json() : Promise.reject(new Error('stats office ' + r.status))),
+        fetch('/api/stats?site=warehouse').then(r => r.ok ? r.json() : Promise.reject(new Error('stats warehouse ' + r.status))),
       ]);
       document.getElementById('site-office-sub').textContent =
         `${officeStats.total_items} 項 · ${officeStats.total_qty}`;
       document.getElementById('site-warehouse-sub').textContent =
         `${warehouseStats.total_items} 項 · ${warehouseStats.total_qty}`;
-    } catch {}
-  } catch {}
+    } catch (e) { console.error('[updateSubInfo] 分片統計失敗', e); }
+  } catch (e) { console.error('[updateSubInfo] 統計失敗', e); }
 }
 
 // 載入最近 100 筆出庫紀錄的去向 → 建立 destination 下拉建議清單（DESTINATIONS）
 async function loadDestinations() {
   try {
     const res = await fetch(`/api/stockouts?limit=100&site=${currentSite}`);
+    if (!res.ok) { console.error('[loadDestinations] /api/stockouts 失敗', res.status); return; }
     const outs = await res.json();
     DESTINATIONS = [...new Set(outs.map(o => o.destination).filter(Boolean))];
     document.getElementById('dest-list').innerHTML =
       DESTINATIONS.map(d => `<option value="${esc(d)}">`).join('');
-  } catch {}
+  } catch (e) { console.error('[loadDestinations] 網路錯誤', e); }
 }
 
 // 將 pending 暫存的所有數量調整逐筆送出（POST /api/items/{id}/adjust），成功後重載資料

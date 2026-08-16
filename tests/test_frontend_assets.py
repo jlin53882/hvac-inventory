@@ -703,6 +703,37 @@ ALL_JS_FILES = sorted(
 )
 
 
+def test_js_getelementbyid_ids_all_exist():
+    """防回歸（2026-08-16 f-unit bug）：JS 所有 getElementById('X')/querySelector('#X') 引用的 id
+    必須存在於 HTML 靜態定義 或 JS 動態建立點（id="X" 字串）。
+
+    f-unit bug 根因：edit.js getElementById('e-unit') 但 HTML 只有重複的 f-unit → 拿 null →
+    fillUnitSelect 靜默 return → 單位欄空白。此測試確保「JS 引用的每個 id 都有建立點」，
+    故意打錯任何 getElementById 的 id 此測試必紅。
+    """
+    import re
+    js_refs = {}   # id -> 引用來源檔案清單
+    html_ids = set()
+    js_build_ids = set()
+    for p in ALL_JS_FILES:
+        src = read(p)
+        for m in re.finditer(r"getElementById\(['\"]([^'\"]+)['\"]\)", src):
+            js_refs.setdefault(m.group(1), []).append(os.path.basename(p))
+        for m in re.finditer(r"querySelector\(['\"]\#([\w-]+)['\"]\)", src):
+            js_refs.setdefault(m.group(1), []).append(os.path.basename(p))
+        for m in re.finditer(r'id=["\']([^"\']+)["\']', src):
+            js_build_ids.add(m.group(1))
+    for hf in (INDEX, LOGIN, os.path.join(STATIC, "permissions.html"), os.path.join(STATIC, "settings.html")):
+        for m in re.finditer(r'id=["\']([^"\']+)["\']', read(hf)):
+            html_ids.add(m.group(1))
+    missing = {k: v for k, v in sorted(js_refs.items())
+               if k not in html_ids and k not in js_build_ids}
+    assert not missing, (
+        f"JS 引用的 id 無任何建立點（HTML 靜態 id 或 JS 動態 id= 皆無）: {missing}\n"
+        f"→ getElementById 必拿 null → 靜默 no-op 或 TypeError（f-unit bug 同型）"
+    )
+
+
 @pytest.mark.parametrize("js_path", ALL_JS_FILES)
 def test_js_syntax(js_path):
     """全部 JS 檔必須通過 node --check（語法錯誤會讓整支 script 不執行）"""

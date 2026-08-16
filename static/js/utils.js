@@ -47,6 +47,7 @@ function todayStr() {
 // ========== Modal ==========
 function openModal(id) {
   const el = document.getElementById(id);
+  if (!el) { console.error('[openModal] modal 不存在:', id); return; }
   el.classList.add('show');
   // 移到 DOM 最後：所有 modal 同 z-index（200），後開的必須蓋過先開的（DOM 順序決定覆蓋）
   document.body.appendChild(el);

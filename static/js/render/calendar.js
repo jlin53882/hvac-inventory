@@ -64,10 +64,10 @@ function calRenderReminder() {
 async function calLoadData() {
   const y = calMonth.getFullYear(), m = calMonth.getMonth() + 1;
   const [ev, svc, ppl] = await Promise.all([
-    fetch(`/api/appointments?year=${y}&month=${m}`).then(r => r.ok ? r.json() : []),
-    fetch('/api/service-types').then(r => r.ok ? r.json() : []),
-    fetch('/api/assignable-users').then(r => r.ok ? r.json() : []),
-  ]);
+    fetch(`/api/appointments?year=${y}&month=${m}`).then(r => r.ok ? r.json() : Promise.reject(new Error('appointments ' + r.status))),
+    fetch('/api/service-types').then(r => r.ok ? r.json() : Promise.reject(new Error('service-types ' + r.status))),
+    fetch('/api/assignable-users').then(r => r.ok ? r.json() : Promise.reject(new Error('assignable-users ' + r.status))),
+  ]).catch(e => { console.error('[calLoadData] 行事曆資料載入失敗', e); return [[], [], []]; });
   calEvents = ev;
   calSvc = svc;
   calAssignable = ppl;
