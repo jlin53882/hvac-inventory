@@ -59,6 +59,8 @@ function openNonStockOutModal() {
   // 2026-08-16：快速新增單位按鈕（item-mgmt 才顯示）
   const nsUnitAdd = document.getElementById('ns-unit-add');
   if (nsUnitAdd) nsUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
+  const nsUnitSearch = document.getElementById('ns-unit-search');
+  if (nsUnitSearch) nsUnitSearch.value = '';  // 重開 modal 清空搜尋
   document.getElementById('ns-qty').value = '';
   document.getElementById('ns-dest').value = '';
   document.getElementById('ns-note').value = '';
@@ -103,6 +105,8 @@ function openNonStockPrepareModal() {
   // 2026-08-16：快速新增單位按鈕（item-mgmt 才顯示）
   const nspUnitAdd = document.getElementById('nsp-unit-add');
   if (nspUnitAdd) nspUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
+  const nspUnitSearch = document.getElementById('nsp-unit-search');
+  if (nspUnitSearch) nspUnitSearch.value = '';  // 重開 modal 清空搜尋
   document.getElementById('nsp-qty').value = '';
   document.getElementById('nsp-note').value = '';
   openModal('nonstock-prepare-modal');

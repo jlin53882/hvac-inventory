@@ -732,6 +732,19 @@ def test_js_getelementbyid_ids_all_exist():
         f"JS 引用的 id 無任何建立點（HTML 靜態 id 或 JS 動態 id= 皆無）: {missing}\n"
         f"→ getElementById 必拿 null → 靜默 no-op 或 TypeError（f-unit bug 同型）"
     )
+def test_unit_search_and_duplicate_guard():
+    """快速新增單位 UX（2026-08-16 家豪）：① 單位搜尋框存在（4 modal）② 搜尋過濾函式
+    ③ 重複單位提示（不 POST）④ .modal .btn-ghost 覆寫（取消按鈕白底深字——家豪實測看不到的隱形 bug）"""
+    html = read(INDEX)
+    for sid in ('f-unit-search', 'e-unit-search', 'ns-unit-search', 'nsp-unit-search'):
+        assert f'id="{sid}"' in html, f"搜尋框 {sid} 不存在"
+    assert html.count('filterUnitSelect(this, ') == 4
+    units = read(os.path.join(STATIC, "js", "units.js"))
+    assert "function filterUnitSelect" in units
+    assert "已存在" in units and "unitList.some" in units  # 重複提示檢查
+    css = read(CSS_CORE)
+    assert ".modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }" in css  # 取消按鈕隱形修復
+    assert ".unit-search" in css
 
 
 @pytest.mark.parametrize("js_path", ALL_JS_FILES)

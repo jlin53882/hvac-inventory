@@ -45,6 +45,20 @@
   }
   .unit-add-link:hover { text-decoration: underline; }
 
+  /* 2026-08-16：.btn-ghost 是 topbar 深藍底專用（白字半透明白底）——白底 modal 內取消按鈕會隱形
+     （openUnitQuickAdd 快速新增行的取消按鈕，家豪實測看不到）。全域覆寫白底深字灰邊
+     （permissions.html 08-15 已內嵌同款修法，此處提升為全域，index.html 的 modal 一併生效） */
+  .modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }
+  .modal .btn-ghost:hover { background: #f5f7fa; }
+
+  /* 單位搜尋框（2026-08-16：單位多時用搜尋較快，輸入過濾相似單位） */
+  .unit-search {
+    width: 100%; padding: 7px 10px 7px 28px; border: 1px solid #ccc; border-radius: 8px;
+    font-size: 13px; background: #f7f8fa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 8px center;
+  }
+  .unit-search:focus { outline: 2px solid #2d5a8e33; border-color: #2d5a8e; background-color: #fff; }
+  .unit-search::placeholder { color: #aaa; }
+
   /* 主按鈕（2026-08-14 補定義——原本無 .btn-primary 樣式，權限頁「新增帳號/儲存變更」掉成瀏覽器預設方形按鈕） */
   .btn-primary {
     background: #2d5a8e;

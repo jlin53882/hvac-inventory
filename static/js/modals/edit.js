@@ -13,6 +13,8 @@ function openEditModal(id) {
   // 2026-08-16：快速新增單位按鈕（item-mgmt 才顯示）
   const eUnitAdd = document.getElementById('e-unit-add');
   if (eUnitAdd) eUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
+  const eUnitSearch = document.getElementById('e-unit-search');
+  if (eUnitSearch) eUnitSearch.value = '';  // 重開 modal 清空搜尋
   document.getElementById('e-lowstock').value = item.low_stock || 0;
   document.getElementById('e-site').value = item.site || 'office';
   // v10：位置清單（從 stocks 展開，每列一個位置）

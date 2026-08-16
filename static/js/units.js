@@ -31,6 +31,22 @@ function fillUnitSelect(sel, current) {
   return sel;
 }
 
+// 搜尋過濾單位（2026-08-16：單位多時用搜尋較快）——input 輸入 → 下拉只留「包含」該文字的單位
+function filterUnitSelect(input, selId) {
+  const sel = document.getElementById(selId);
+  if (!sel) { console.error('[filterUnitSelect] select 不存在:', selId); return; }
+  const kw = (input.value || '').trim();
+  if (!kw) { fillUnitSelect(sel, sel.value); return; }  // 清空 → 還原全部
+  const cur = sel.value;
+  sel.innerHTML = '';
+  unitListActive.filter(u => u.name.includes(kw)).forEach(u => {
+    const o = document.createElement('option');
+    o.value = u.name; o.textContent = u.name;
+    sel.appendChild(o);
+  });
+  if (cur && [...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
 // ＋ 快速新增：select 換 inline input → POST → 本地更新 → 重填並選中
 // 顯示條件由呼叫端以 hasPerm('item-mgmt') 控制（add/edit/stockout.js）
 function openUnitQuickAdd(sel, addBtn) {
@@ -55,6 +71,11 @@ function openUnitQuickAdd(sel, addBtn) {
   ok.onclick = async () => {
     const name = input.value.trim();
     if (!name) return;
+    // 2026-08-16：已在清單（含停用）→ 提示不新增
+    if (unitList.some(u => u.name === name)) {
+      toast(`⚠️ 單位「${name}」已存在`, 'error');
+      return;
+    }
     try {
       const res = await fetch('/api/units', {
         method: 'POST',
