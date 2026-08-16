@@ -8,7 +8,6 @@
 - DELETE      /api/stocks/{sid}             刪除位置
 - POST        /api/items/{id}/adjust        加減庫存
 - POST        /api/import                   從 JSON 匯入
-- GET         /api/movements                異動紀錄
 
 去重規則（v10 核心）：
   主檔以 (brand, code, name, unit, site) 為唯一鍵；
@@ -18,7 +17,7 @@ import datetime
 import os
 from typing import Optional
 
-from fastapi import Depends, APIRouter, Body, HTTPException, Query
+from fastapi import Depends, APIRouter, Body, HTTPException
 
 from app.database import get_db
 from app.models import AdjustRequest, ItemCreate, ItemUpdate, StockUpdate
@@ -487,17 +486,3 @@ def import_items(items: list = Body(..., embed=True)):
         raise
     finally:
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
-
-
-@router.get("/api/movements")
-def list_movements(limit: int = Query(50, ge=1, le=500)):
-    """異動紀錄（含品項名稱/品牌），依 id 倒序回傳最近 limit 筆"""
-    conn = get_db()
-    rows = conn.execute(
-        """SELECT m.*, i.name, i.brand FROM movements m
-           JOIN items i ON i.id = m.item_id
-           ORDER BY m.id DESC LIMIT ?""",
-        (limit,),
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]

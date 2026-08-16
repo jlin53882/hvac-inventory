@@ -26,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 import app.config as app_config
 from app.config import STATIC_DIR
 from app.database import get_db, init_db
-from app.routes import appointments, auth, export, items, kits, lookup, photos, stats, stockout, stocktake, users, units
+from app.routes import appointments, auth, export, items, kits, lookup, movements, photos, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 
 
@@ -114,7 +114,7 @@ def health():
 app.include_router(auth.router)
 
 # 其餘全部上鎖：未登入一律 401
-for _r in (items.router, stockout.router, kits.router, stocktake.router,
+for _r in (items.router, movements.router, stockout.router, kits.router, stocktake.router,
            stats.router, export.router, photos.router, lookup.router, users.router,
            appointments.router, units.router):
     app.include_router(_r, dependencies=[Depends(require_login)])
