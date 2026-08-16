@@ -29,7 +29,8 @@ INDEX = os.path.join(STATIC, "index.html")
 # 待測：login.html
 LOGIN = os.path.join(STATIC, "login.html")
 # 待測：style.css
-CSS = os.path.join(STATIC, "css", "style.css")
+CSS_CORE = os.path.join(STATIC, "css", "style.core.css")
+CSS_CAL = os.path.join(STATIC, "css", "style.calendar.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js
@@ -78,6 +79,11 @@ def read_calendar_js_all():
     ⚠️ 必含 globals.js——URLSearchParams 初始化（_calM/calMonth）搬去 globals.js，test_calendar_js_month_url 斷言它在這"""
     return (read(CALENDAR_RENDER_JS) + read(CALENDAR_MODAL_JS)
             + read(CALENDAR_SETTINGS_JS) + read(GLOBALS_JS))
+
+
+def read_css_all():
+    """style.css 拆檔後（2026-08-16）：core + calendar 合併讀，合併順序 = 原檔順序（內容 == 原 style.css）"""
+    return read(CSS_CORE) + read(CSS_CAL)
 
 
 # ---------- index.html ----------
@@ -131,7 +137,7 @@ def test_search_input_no_autofill():
 
 def test_css_mobile_media_query():
     """驗證 CSS 含手機版 media query"""
-    css = read(CSS)
+    css = read_css_all()
     assert "@media (max-width: 767px)" in css
     # topbar 換行
     assert ".top-actions { flex-wrap: wrap" in css or "flex-wrap: wrap" in css
@@ -141,7 +147,7 @@ def test_css_cal_evt_b_variant_and_no_overflow():
     """2026-08-14 家豪 B 方案：月曆格時間/內容兩段式 ＋ 跑版防回歸
     - .cal-grid 必須 minmax(0, 1fr)（1fr=minmax(auto,1fr) 會被長 nowrap 文字撐破格子——8/22 跑版根因）
     - .cal-evt 兩段結構：時間一行 + 內容一行截斷"""
-    css = read(CSS)
+    css = read_css_all()
     assert "repeat(7, minmax(0, 1fr))" in css            # 跑版防回歸（長內容不撐破格子）
     assert ".cal-evt .cal-evt-time" in css               # 時間獨立一行
     assert ".cal-evt .cal-evt-body" in css               # 內容一行（ellipsis 截斷）
@@ -151,7 +157,7 @@ def test_css_cal_selected_highlight():
     """2026-08-14 家豪：點月曆日期要有「選中」深色框（原 .cal-selected 只有淡背景，看不到框）
     - 選中框 = 深藍邊框 + 深藍數字底
     - 08-14 變體 A：今天完全不標記——不再有 .cal-today 樣式（只有選中的日期有框）"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".cal-cell.cal-selected { border: 2px solid #2d5a8e" in css
     assert ".cal-cell.cal-selected .cal-day-num { background: #2d5a8e" in css
     assert ".cal-cell.cal-today" not in css            # 今天無標記（不與選中框衝突）
@@ -159,14 +165,14 @@ def test_css_cal_selected_highlight():
 
 def test_css_user_actions_black_text():
     """舊使用者 modal 操作欄樣式已清理（RBAC 權限頁取代，user-actions 退役）"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".user-actions" not in css
     assert ".btn-ghost.danger" not in css  # 舊 modal danger 按鈕樣式一併清理
 
 
 def test_css_mobile_topbar_full_buttons():
     """手機版 topbar：右邊四個按鈕 2×2（管理員/改密碼 上排、使用者/登出 下排）+ 左邊標題兩行（2026-08-13 Sarah）"""
-    css = read(CSS)
+    css = read_css_all()
     # icon-only 規則已移除（改為顯示文字）
     assert ".logout-text, .users-text { display: none; }" not in css
     # 右邊四個 2×2 grid
@@ -183,7 +189,7 @@ def test_css_mobile_topbar_full_buttons():
 
 def test_css_table_card_layout():
     """舊使用者 modal 手機卡片化樣式已清理（RBAC 權限頁取代，users-table 退役）"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".users-table" not in css
 
 
@@ -323,7 +329,7 @@ def test_perms_js_perm_save_and_reset():
 
 def test_perms_js_role_badge_styles():
     """權限頁角色樣式 + 共用 CSS（.switch 為 calendar service-type 啟停沿用）"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".switch" in css
     assert "role-badge" not in css  # 舊 users modal 樣式已清理（RBAC 取代）
 
@@ -361,7 +367,7 @@ def test_perms_html_switch_after_overridden():
 def test_css_has_btn_primary():
     """2026-08-14 修：style.css 必須定義 .btn-primary（權限頁「新增帳號/儲存變更」）
     ——原本全站無定義 → 瀏覽器預設方形按鈕（家豪「不要這樣方形很醜」）"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".btn-primary {" in css
     assert ".topbar .btn-primary {" in css  # topbar 深藍底上的反白
 
@@ -485,7 +491,7 @@ def test_kits_components_show_photo():
 def test_kit_comp_left_align():
     """整組材料名稱/型號靠左（2026-08-12 Sarah 需求）——
     kit-comp 用 flex-start + gap，不能用 space-between（3 元素會把名稱推到中間）"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".m-card .kit-comp { display: flex; justify-content: flex-start; align-items: center; gap: 8px;" in css
     assert ".m-card .kit-comp .cneed { color: #6b7280; flex-shrink: 0; margin-left: auto; }" in css
 
@@ -518,7 +524,7 @@ def test_stockout_photo_column():
     """已領出表格有照片欄（so-photo）"""
     js = read(STOCKOUT_RENDER_JS)
     assert "so-photo" in js
-    css = read(CSS)
+    css = read_css_all()
     assert ".so-photo" in css
 
 def test_title_is_zhenjia_management():
@@ -712,7 +718,7 @@ def test_changepw_expiry_ui_present():
     assert "btn-logout-direct" in au
     assert "logout-direct-text" in au  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
     assert "btn-menu" not in au  # ☰ 按鈕已移除（2026-08-13 Sarah：不要下拉選單）
-    css_all = read(CSS)
+    css_all = read_css_all()
     assert ".btn-logout-direct" in css_all  # 手機版覆蓋 .user-menu .btn-ghost 隱藏
     bs = read(BOTTOMSHEET_JS)
     # 2026-08-13 Sarah：☰ 功能選單整個移除（不要下拉選單）——openTopMenu 已刪
@@ -739,7 +745,7 @@ def test_resetpw_modal_ui_present():
     assert 'id="rpw-confirm"' in idx
     assert 'id="rpw-mismatch"' in idx
     assert "btn-cancel-ghost" in idx  # 取消按鈕 ghost 樣式（與儲存並排）
-    css = read(os.path.join(STATIC, "css", "style.css"))
+    css = read_css_all()
     assert ".btn-cancel-ghost" in css
     us = read(PERMS_JS)
     assert "permResetPw" in us         # 重設改用 modal（不再用瀏覽器 prompt）
@@ -824,7 +830,7 @@ def test_kit_modal_searchable_material_picker():
 def test_kit_modal_demo_css_styles():
     """整組 Modal demo 樣式移植守護：style.css 有 selected-row / mat-search /
     btn-add-row 三組樣式（灰卡片已選列、圓角搜尋框、藍色虛線加入按鈕）。"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".selected-row" in css
     assert ".mat-search" in css
     assert ".btn-add-row" in css
@@ -847,7 +853,7 @@ def test_index_has_no_topbar_export():
     assert "loc-export-bar" in inv
     assert "onclick=\"exportExcel()\"" in inv
     assert "onclick=\"openAddModal()\"" in inv  # 庫存清單頂部新增按鈕
-    css = read(CSS)
+    css = read_css_all()
     assert "justify-content: flex-end" in css  # 匯出列靠右（2026-08-13 Sarah 選項）
 
 
@@ -935,7 +941,7 @@ def test_calendar_js_viewer_write_hidden():
 
 def test_css_has_calendar_styles():
     """style.css 含行事曆樣式（月曆格/事件/設定表格）"""
-    css = read(CSS)
+    css = read_css_all()
     for sel in (".cal-grid", ".cal-cell", ".cal-evt", ".cal-event-card",
                 ".cal-set-table", ".cal-person-opt", ".switch"):
         assert sel in css, f"缺 {sel}"
@@ -1064,14 +1070,14 @@ def test_stocktake_tabs_kit_single_split():
     # 共用位置分組渲染 helper
     assert "function stkGroupByLoc(rows)" in js
     # CSS 樣式
-    css = read(CSS)
+    css = read_css_all()
     assert ".stk-tabs {" in css
     assert ".stk-tab.active {" in css
 
 
 def test_css_stat_cards_four_columns():
     """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
-    css = read(CSS)
+    css = read_css_all()
     assert ".stat-cards" in css
     assert "grid-template-columns: repeat(4, 1fr);" in css
     assert "repeat(3, 1fr)" not in css.split(".cal-grid")[0], ".stat-cards 區域誤退回 3 欄"
@@ -1235,7 +1241,7 @@ def test_stockout_nonstock_add_ui():
     for fid in ("ns-name", "ns-qty", "ns-dest", "ns-note"):
         assert f'id="{fid}"' in html, f"nonstock modal 缺 {fid} 欄位"
 
-    css = read(CSS)
+    css = read_css_all()
     assert ".tag-nonstock" in css and ".hint-nonstock" in css, "非庫存標籤/提示樣式缺失"
 
 
