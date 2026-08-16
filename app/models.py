@@ -113,3 +113,61 @@ class UnitConsolidate(BaseModel):
     # from_unit 允許空字串（活庫有 11 筆 unit='' 需可收編，B3 審查修正）
     from_unit: str | None = Field(None, max_length=20)
     to_unit: str = Field(..., min_length=1, max_length=20)
+
+
+# ---------- 使用者（2026-08-16 從 users.py 收攏） ----------
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
+    role: str = "user"
+
+
+class UserUpdate(BaseModel):
+    display_name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[int] = None
+    color: Optional[str] = None  # 行事曆人員顏色（選填 hex）
+
+
+class UserPassword(BaseModel):
+    password: str
+
+
+class UserBatch(BaseModel):
+    users: list[UserCreate]
+
+
+class UserPermissionsUpdate(BaseModel):
+    permissions: Optional[dict] = None   # {key: 0|1}（部分更新）
+    reset_all: bool = False              # True = 清空全部覆蓋回角色預設
+
+
+# ---------- 認證（2026-08-16 從 auth.py 收攏） ----------
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
+# ---------- 行事曆（2026-08-16 從 appointments.py 收攏） ----------
+class AppointmentIn(BaseModel):
+    client_name: str
+    address: str = ""
+    service_type_id: Optional[int] = None
+    date: str
+    start_time: Optional[str] = ""   # 2026-08-14 Sarah：派工時間選填（兩欄皆空=未指定時間）
+    end_time: Optional[str] = ""
+    note: str = ""
+    user_ids: List[int] = []
+    updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯派工時的 updated_at 快照
+
+
+class ServiceTypeIn(BaseModel):
+    name: str
+    sort_order: int = 0
+    is_active: int = 1

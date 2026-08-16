@@ -11,9 +11,9 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
 
 from app.database import get_db
+from app.models import ChangePasswordRequest, LoginRequest
 from app.services.auth import (
     SESSION_DAYS,
     SESSION_COOKIE,
@@ -65,17 +65,6 @@ def _is_https(request: Request) -> bool:
         if proto and proto.split(",")[0].strip().lower() == "https":
             return True
     return request.url.scheme == "https"
-
-
-# ---------- 請求模型 ----------
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class ChangePasswordRequest(BaseModel):
-    old_password: str
-    new_password: str
 
 
 # ---------- API ----------

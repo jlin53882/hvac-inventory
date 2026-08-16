@@ -18,41 +18,13 @@ import json
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 
 from app.database import get_db
+from app.models import UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate
 from app.services.auth import _check_pw, get_user_permissions, hash_password, require_perm
 
 # 使用者管理 API 路由
 router = APIRouter(prefix="/api/users", tags=["users"])
-
-
-# ---------- 請求模型 ----------
-class UserCreate(BaseModel):
-    username: str
-    password: str
-    display_name: str = ""
-    role: str = "user"
-
-
-class UserUpdate(BaseModel):
-    display_name: Optional[str] = None
-    role: Optional[str] = None
-    is_active: Optional[int] = None
-    color: Optional[str] = None  # 行事曆人員顏色（選填 hex）
-
-
-class UserPassword(BaseModel):
-    password: str
-
-
-class UserBatch(BaseModel):
-    users: list[UserCreate]
-
-
-class UserPermissionsUpdate(BaseModel):
-    permissions: Optional[dict] = None   # {key: 0|1}（部分更新）
-    reset_all: bool = False              # True = 清空全部覆蓋回角色預設
 
 
 # 可建立的角色（admin/user/viewer/tech——tech：行事曆可寫、其他唯讀，2026-08-13 Sarah：藍政達）

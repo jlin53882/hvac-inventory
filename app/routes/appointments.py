@@ -19,36 +19,18 @@
 import datetime
 import re
 import sqlite3
-from typing import List, Optional
+from typing import List
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
 
 from app.database import get_db
+from app.models import AppointmentIn, ServiceTypeIn
 from app.services.auth import require_perm
 from app.services.report import build_daily_report
 
 router = APIRouter()
-
-
-class AppointmentIn(BaseModel):
-    client_name: str
-    address: str = ""
-    service_type_id: Optional[int] = None
-    date: str
-    start_time: Optional[str] = ""   # 2026-08-14 Sarah：派工時間選填（兩欄皆空=未指定時間）
-    end_time: Optional[str] = ""
-    note: str = ""
-    user_ids: List[int] = []
-    updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯派工時的 updated_at 快照
-
-
-class ServiceTypeIn(BaseModel):
-    name: str
-    sort_order: int = 0
-    is_active: int = 1
 
 
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
