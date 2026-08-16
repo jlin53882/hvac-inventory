@@ -18,7 +18,7 @@ PY=".venv/Scripts/python.exe"
 
 case "${1:-all}" in
   core)       FILES="tests/test_main.py" ;;
-  frontend)   FILES="tests/test_frontend_assets.py tests/test_security_regression.py" ;;
+  frontend)   FILES="tests/test_frontend_assets.py tests/test_security_regression.py tests/test_structure.py" ;;
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   rbac)       FILES="tests/test_rbac.py tests/test_rbac_perms.py" ;;
   regression) FILES="tests/test_v101.py tests/test_appointments.py" ;;
