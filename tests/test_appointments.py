@@ -277,7 +277,7 @@ def test_list_includes_creator(client):
 
 
 def test_create_without_service_type(client):
-    """service_type_id 可省略（API 相容，供公開填報場景；前端 UI 已加「請選擇服務項目」檢查）"""
+    """service_type_id 可省略（API 相容；2026-08-17 Sarah 定案：服務項目改非必填，前端一併放行）"""
     r = client.post("/api/appointments", json=_appt_body(service_type_id=None))
     assert r.status_code == 200, r.text
     d = r.json()
@@ -409,3 +409,17 @@ def test_export_empty_day_and_bad_date(client):
     assert ws["A2"].value == "工程師：藍政達 蘇昱豪"  # 固定兩位工程師（2026-08-13 Sarah 指定，空日也填）
     # 壞日期 400
     assert client.get("/api/appointments/export?date=2026-13-99").status_code == 400
+
+
+def test_export_daily_report_without_service_type(client):
+    """2026-08-17 Sarah：服務項目改非必填——未指定服務項目的派工匯出日報表不壞
+    （SVC_CHECK_COL.get(None) → 不勾✓、service_name 為 None → 不附註，客戶名/時間正常填）"""
+    import openpyxl
+    client.post("/api/appointments", json=_appt_body(service_type_id=None, client_name="無服務客戶"))
+    r = client.get("/api/appointments/export?date=2026-08-12")
+    assert r.status_code == 200
+    ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
+    assert ws["C4"].value == "無服務客戶"          # 客戶名正常填
+    assert ws["B4"].value == "09:00"              # 時間正常填
+    for col in ("E", "G", "I", "K"):
+        assert ws[f"{col}4"].value is None        # 所有 ✓ 欄都不勾（無服務項目）

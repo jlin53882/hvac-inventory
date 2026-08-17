@@ -119,7 +119,7 @@ function calRenderMonth() {
       }
       const bodyEl = document.createElement('span');
       bodyEl.className = 'cal-evt-body';
-      bodyEl.textContent = `[${e.service_name || ''}] ${e.client_name || ''}`;
+      bodyEl.textContent = (e.service_name ? `[${e.service_name}] ` : '') + (e.client_name || '');
       t.appendChild(bodyEl);
       c.appendChild(t);
     });
@@ -173,7 +173,7 @@ function calRenderDay() {
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
         </div>`}
         <div class="cal-time">${e.start_time ? `⏰ ${esc(e.start_time)}　` : ''}${who}</div>
-        <div class="cal-client">[${esc(e.service_name || '')}] ${esc(e.client_name)}</div>
+        <div class="cal-client">${e.service_name ? `[${esc(e.service_name)}] ` : ''}${esc(e.client_name)}</div>
         ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
         <div class="cal-note">${esc(e.note || '無備註')}</div>
       </div>

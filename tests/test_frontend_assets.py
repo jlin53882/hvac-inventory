@@ -1068,6 +1068,15 @@ def test_calendar_cell_shows_service_client():
     assert "innerText = `${e.start_time" not in js       # 舊單行 innerText 已移除（B 方案取代）
 
 
+def test_service_type_optional_ui():
+    """2026-08-17 Sarah：服務項目改非必填——前端不再擋必填（原「請選擇服務項目」檢查已移除）、
+    月曆格/明細卡無服務項目時不顯示「[] 」空括號前綴（比照 08-14 時間選填「無時間不顯示前綴」）"""
+    js = read_calendar_js_all()
+    assert "⚠️ 請選擇服務項目" not in js                                        # 必填檢查已移除（bug 版必紅）
+    assert "(e.service_name ? `[${e.service_name}] ` : '')" in js              # 月曆格：有服務才顯示 [服務] 前綴
+    assert "${e.service_name ? `[${esc(e.service_name)}] ` : ''}" in js        # 明細卡：同款（esc 保留，XSS 防護不退化）
+
+
 def test_calendar_cell_selected_highlight_js():
     """2026-08-14 家豪：月曆格「選中」機制——點擊設定 calSelected + 渲染 cal-selected class
     - 08-14 變體 A：今天完全不標記（不再產生 cal-today class，避免今天與選中同時有框）"""

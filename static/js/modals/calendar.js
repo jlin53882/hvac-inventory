@@ -117,7 +117,6 @@ async function calSubmitAppt() {
   const box = document.getElementById('cal-appt-conflict');
   const showErr = (msg) => { box.innerText = msg; box.style.display = 'block'; };
   if (!body.client_name) return showErr('⚠️ 請填客戶 / 案場');
-  if (!body.service_type_id) return showErr('⚠️ 請選擇服務項目');
   try {
     const res = await fetch(id ? `/api/appointments/${id}` : '/api/appointments', {
       method: id ? 'PUT' : 'POST',
