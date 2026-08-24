@@ -9,26 +9,37 @@ let similarReqSeq = 0;            // 請求序號：防舊回應覆蓋新輸入�
 // ========== 照片（編輯 modal） ==========
 function renderPhotoBox(itemId, hasPhoto) {
   const box = document.getElementById('e-photo-box');
+  if (!box) return;
+  const canPhoto = hasPerm('photo');
   if (hasPhoto) {
     box.innerHTML = `
       <img src="/uploads/${itemId}.jpg" alt="品項照片" onclick="openPhotoLightbox(${itemId})"
            style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
-      <div class="photo-actions">
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 更換照片
+      ${canPhoto ? `<div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+          <input type="file" accept="image/*" capture="environment" style="display:none"
+                 onchange="uploadItemPhoto(${itemId}, this)">
+        </label>
+        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
           <input type="file" accept="image/*" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
-        <button class="btn-cancel" onclick="deleteItemPhoto(${itemId})">🗑 刪除照片</button>
-      </div>`;
+        <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteItemPhoto(${itemId})">🗑 刪除</button>
+      </div>` : ''}`;
   } else {
-    box.innerHTML = `
-      <div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
-      <div class="photo-actions">
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照 / 🖼 從相簿選
+    box.innerHTML = canPhoto
+      ? `<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
+      <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+          <input type="file" accept="image/*" capture="environment" style="display:none"
+                 onchange="uploadItemPhoto(${itemId}, this)">
+        </label>
+        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
           <input type="file" accept="image/*" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
-      </div>`;
+      </div>`
+      : '<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>';
   }
 }
 

@@ -1287,6 +1287,34 @@ def test_add_modal_core_functions():
         assert fn in js, f"add.js 缺 {fn}"
 
 
+def test_add_modal_has_photo_upload():
+    """新增 modal 有照片上傳區塊（f-photo-box + renderAddPhotoBox）"""
+    html = read(INDEX)
+    assert 'id="f-photo-box"' in html, "index.html add-modal 缺 f-photo-box"
+    assert "品項照片" in html, "index.html add-modal 缺照片 label"
+    js = read(ADD_JS)
+    assert "renderAddPhotoBox" in js, "add.js 缺 renderAddPhotoBox"
+    assert "openAddModal" in js and "renderAddPhotoBox()" in js, \
+        "openAddModal 未呼叫 renderAddPhotoBox"
+
+
+def test_add_photo_submit_auto_upload():
+    """submitAdd 新增成功後自動上傳照片（兩步驟：先建 item 再 POST photo）"""
+    js = read(ADD_JS)
+    assert "f-photo-input" in js, "submitAdd 未引用 f-photo-input"
+    assert "f-photo-album" in js, "submitAdd 未引用 f-photo-album"
+    assert "/api/items/${newItemId}/photo" in js, "submitAdd 未自動上傳照片"
+    assert "chosenFile" in js, "submitAdd 未合併拍照/相簿 input"
+
+
+def test_add_photo_box_dual_buttons():
+    """新增 modal 照片区有「拍照」（capture）和「從相簿選」兩個獨立按鈕"""
+    js = read(ADD_JS)
+    assert 'capture="environment"' in js, "新增 modal 缺 capture=environment（拍照按鈕）"
+    assert "f-photo-input" in js, "新增 modal 缺 f-photo-input（拍照 input）"
+    assert "f-photo-album" in js, "新增 modal 缺 f-photo-album（相簿 input）"
+
+
 def test_changepw_modal_core_functions():
     """modals/changepw.js：改密碼 + 強度 / 一致性檢查"""
     js = read(CHANGEPW_JS)
@@ -1315,6 +1343,29 @@ def test_photo_modal_core_functions():
     for fn in ("renderPhotoBox", "uploadItemPhoto", "deleteItemPhoto",
                "openPhotoLightbox", "closePhotoLightbox"):
         assert fn in js, f"photo.js 缺 {fn}"
+
+
+def test_photo_box_permission_check():
+    """renderPhotoBox 有前端權限檢查（hasPerm('photo')），無權限時隱藏上傳按鈕"""
+    js = read(PHOTO_JS)
+    assert "hasPerm('photo')" in js, "renderPhotoBox 缺 hasPerm('photo') 權限檢查"
+    assert "canPhoto" in js, "renderPhotoBox 缺 canPhoto 變數"
+
+
+def test_photo_box_dual_buttons():
+    """編輯 modal 照片区有「拍照」（capture）和「從相簿選」兩個獨立按鈕"""
+    js = read(PHOTO_JS)
+    assert js.count('capture="environment"') >= 2, \
+        "photo.js renderPhotoBox 缺 capture=environment（拍照 input，有照片+無照片各一）"
+    assert "從相簿選" in js, "photo.js renderPhotoBox 缺「從相簿選」按鈕"
+
+
+def test_photo_box_delete_button_style():
+    """刪除照片按鈕統一用 btn-prepare 樣式（與拍照/相簿選一致），非 btn-cancel"""
+    js = read(PHOTO_JS)
+    # 刪除按鈕用 btn-prepare（圓角），不用 btn-cancel（方形）
+    assert "btn-prepare" in js and "刪除" in js, \
+        "刪除按鈕應使用 btn-prepare 樣式"
 
 
 def test_stockout_modal_core_functions():

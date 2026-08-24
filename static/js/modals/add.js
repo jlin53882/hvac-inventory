@@ -16,9 +16,37 @@ function openAddModal() {
   // 2026-08-16：快速新增單位按鈕（item-mgmt 才顯示）
   const fUnitAdd = document.getElementById('f-unit-add');
   if (fUnitAdd) fUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
+  // 品項照片：初始化照片上傳區塊
+  renderAddPhotoBox();
+}
+
+// 渲染新增 modal 的照片上傳區塊（無品項 ID，建立後自動上傳）
+function renderAddPhotoBox() {
+  const box = document.getElementById('f-photo-box');
+  if (!box) return;
+  if (!hasPerm('photo')) {
+    box.innerHTML = '<div style="font-size:11px;color:#999;padding:6px 0">無照片上傳權限</div>';
+    return;
+  }
+  box.innerHTML = `
+    <div style="font-size:11px;color:#999;padding:6px 0">新增後可立即上傳照片</div>
+    <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+      <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+        <input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">
+      </label>
+      <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+        <input type="file" accept="image/*" id="f-photo-album" style="display:none">
+      </label>
+    </div>`;
+  // 兩個 input 同步到同一個 hidden state（submitAdd 只讀一個）
+  const cam = document.getElementById('f-photo-input');
+  const album = document.getElementById('f-photo-album');
+  cam.addEventListener('change', () => { if (cam.files[0]) album.value = ''; });
+  album.addEventListener('change', () => { if (album.files[0]) cam.value = ''; });
 }
 
 // 送出新增品項表單（POST /api/items），成功後關閉 Modal、清空表單並重載資料
+// v10.1：新增成功後自動上傳照片（若已選檔）
 async function submitAdd() {
   const name = document.getElementById('f-name').value.trim();
   if (!name) { toast('品項名稱必填', 'error'); return; }
@@ -51,7 +79,23 @@ async function submitAdd() {
       toast('⚠️ ' + msg, 'error');
       return;
     }
-    toast(`✅ 已新增「${name}」`, 'success');
+    const newItem = await res.json();
+    const newItemId = newItem.id;
+    // v10.1：若有選擇照片，自動上傳（拍照或相簿擇一）
+    const photoInput = document.getElementById('f-photo-input');
+    const albumInput = document.getElementById('f-photo-album');
+    const chosenFile = (photoInput && photoInput.files && photoInput.files[0])
+      || (albumInput && albumInput.files && albumInput.files[0]);
+    let photoMsg = '';
+    if (chosenFile) {
+      try {
+        const fd = new FormData();
+        fd.append('file', chosenFile);
+        const photoRes = await fetch(`/api/items/${newItemId}/photo`, { method: 'POST', body: fd });
+        if (photoRes.ok) photoMsg = '（含照片）';
+      } catch {}
+    }
+    toast(`✅ 已新增「${name}」${photoMsg}`, 'success');
     closeModalForce('add-modal');
     // f-unit 是動態 select（2026-08-16）→ 不參與 value reset，改重填
     ['f-brand','f-code','f-name','f-qty','f-location','f-note'].forEach(id => {
