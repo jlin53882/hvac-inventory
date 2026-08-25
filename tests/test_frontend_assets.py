@@ -192,8 +192,9 @@ def test_css_modal_mobile_visible_fix():
     assert "z-index: 960" in css          # toast 浮在開啟的 modal 上
     # 層3：modal 底部 padding 歸零（sticky 按鈕自帶 padding），縫隙不再露出滾動內容
     assert "padding: 20px 20px 0;" in css
-    # sticky 按鈕釘底 + 分隔陰影
-    assert "position: sticky; bottom: 0; background: #fff; padding: 12px 0 16px; z-index: 10;\n    box-shadow: 0 -4px 10px rgba(0,0,0,0.06);" in css
+    # sticky 按鈕釘底——A 方案定案（2026-08-25 家豪選定）：白底無陰影貼底，白色框感消失
+    assert "position: sticky; bottom: 0; background: #fff; padding: 12px 0 14px; z-index: 10;" in css
+    assert "box-shadow" not in css.split(".modal-actions")[1].split("}")[0]  # 按鈕區無陰影
 
 
 def test_css_user_actions_black_text():

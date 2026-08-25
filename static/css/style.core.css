@@ -623,8 +623,7 @@
   #kit-modal .btn-confirm { background: linear-gradient(135deg, #1890FF, #36a3ff); }
   .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 16px;
-    position: sticky; bottom: 0; background: #fff; padding: 12px 0 16px; z-index: 10;
-    box-shadow: 0 -4px 10px rgba(0,0,0,0.06); }
+    position: sticky; bottom: 0; background: #fff; padding: 12px 0 14px; z-index: 10; }
   .modal-actions button { flex: 1; padding: 11px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; }
   .btn-cancel { background: #f0f0f0; color: #555; }
   .btn-confirm { background: #2d5a8e; color: #fff; }
