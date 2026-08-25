@@ -1535,3 +1535,61 @@ def test_api_js_saveall_keeps_failed_pending():
     assert "failed" in js, "api.js saveAll 缺 failed 陣列"
     assert "kept" in js and "pending = kept" in js, "api.js saveAll 未保留失敗 pending"
     assert "失敗的調整已保留" in js, "api.js saveAll 失敗 toast 未提示保留"
+
+
+# ---------- 2026-08-25：輸入驗證補強（A1-A3/B1-B5） ----------
+
+def test_add_modal_required_fields_validation():
+    """B4：新增品項 brand/code/location 必填驗證"""
+    js = read(ADD_JS)
+    assert "!brand" in js and "廠牌必填" in js, "add.js 缺 brand 必填檢查"
+    assert "!code" in js and "型號必填" in js, "add.js 缺 code 必填檢查"
+    assert "!location" in js and "位置必填" in js, "add.js 缺 location 必填檢查"
+
+
+def test_edit_modal_low_stock_validation():
+    """A1：編輯品項 low_stock 負數檢查"""
+    js = read(EDIT_JS)
+    assert "lowstockVal" in js, "edit.js 缺 lowstockVal 變數"
+    assert "< 0" in js and "警示值不能為負數" in js, "edit.js 缺 low_stock 負數檢查"
+
+
+def test_edit_modal_stock_qty_clamping():
+    """A2：編輯品項位置庫存 qty 不得為負"""
+    js = read(EDIT_JS)
+    assert "isNaN(q) || q < 0" in js, "edit.js 缺 stock qty 負數 clamping"
+
+
+def test_edit_modal_name_empty_toast():
+    """B5：編輯品項 name 空白時 toast 提示"""
+    js = read(EDIT_JS)
+    assert "!nameVal" in js and "名稱未修改" in js, "edit.js 缺 name 空白 toast 提示"
+
+
+def test_stockout_edit_qty_upper_bound():
+    """A3：編輯已領出數量上限檢查"""
+    js = read(STOCKOUT_MODAL_JS)
+    assert "Math.abs(rec.delta) * 10" in js, "stockout.js 缺 qty 上限檢查"
+    assert "數量異常大" in js, "stockout.js 缺異常大數量 toast"
+
+
+def test_calendar_date_required_validation():
+    """B3：行事曆派工日期必填"""
+    js = read(CALENDAR_MODAL_JS)
+    assert "!body.date" in js and "請選擇派工日期" in js, "calendar.js 缺 date 必填檢查"
+
+
+def test_photo_upload_file_validation():
+    """B2：照片上傳前端副檔名+大小驗證"""
+    js = read(PHOTO_JS)
+    assert "ALLOWED" in js and ".jpg" in js, "photo.js 缺副檔名白名單"
+    assert "10 * 1024 * 1024" in js, "photo.js 缺 10MB 大小檢查"
+
+
+def test_perms_password_policy_validation():
+    """B1：新增/重設帳號密碼 policy 即時提示"""
+    js = read(PERMS_JS)
+    assert "pwPolicyMsg" in js, "perms.js 缺 pwPolicyMsg 呼叫"
+    # 新增帳號 + 重設密碼 + 批次都應有
+    count = js.count("pwPolicyMsg")
+    assert count >= 3, f"perms.js pwPolicyMsg 只出現 {count} 次，應 >= 3（新增/批次/重設）"

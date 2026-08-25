@@ -1590,6 +1590,59 @@ class TestPhase1Validation:
         r = client.delete("/api/stocks/99999")
         assert r.status_code == 404
 
+# ========== 2026-08-25：輸入驗證補強（A1/A2/A3） ==========
+
+class TestInputValidation:
+    def test_update_item_negative_low_stock_422(self, client):
+        """A1：編輯品項 low_stock 不得為負（pydantic ge=0）"""
+        item = _add_item(client, name="低庫存品")
+        r = client.patch(f"/api/items/{item['id']}", json={"low_stock": -5})
+        assert r.status_code == 422
+
+    def test_update_item_zero_low_stock_ok(self, client):
+        """A1：low_stock=0 合法（允許關閉警示）"""
+        item = _add_item(client, name="關閉警示品", low_stock=10)
+        r = client.patch(f"/api/items/{item['id']}", json={"low_stock": 0})
+        assert r.status_code == 200
+        assert r.json()["low_stock"] == 0
+
+    def test_update_item_negative_stock_qty_422(self, client):
+        """A2：編輯品項位置庫存 qty 不得為負（pydantic ge=0）"""
+        item = _add_item(client, name="位置品", qty=5, location="A倉")
+        r = client.patch(f"/api/items/{item['id']}", json={
+            "stocks": [{"location": "A倉", "qty": -3, "note": ""}]
+        })
+        assert r.status_code == 422
+
+    def test_edit_stockout_negative_qty_422(self, client):
+        """A3：編輯已領出 qty 不得為負或零（pydantic gt=0）"""
+        item = _add_item(client, name="出庫品", qty=10)
+        rec_r = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 3, "destination": "測試"
+        })
+        rec = rec_r.json()
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": -1})
+        assert r.status_code == 422
+
+    def test_edit_stockout_zero_qty_422(self, client):
+        """A3：編輯已領出 qty=0 也拒絕（gt=0）"""
+        item = _add_item(client, name="出庫品2", qty=10)
+        rec_r = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 3, "destination": "測試"
+        })
+        rec = rec_r.json()
+        r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": 0})
+        assert r.status_code == 422
+
+    def test_create_item_empty_brand_required(self, client):
+        """B4：新增品項 brand 為空字串仍可建立（後端相容）"""
+        r = client.post("/api/items", json={
+            "brand": "", "code": "X001", "name": "測試", "unit": "個",
+            "stocks": [{"location": "A", "qty": 1, "note": ""}]
+        })
+        # 後端目前不擋空 brand（前端擋），這裡確認後端行為
+        assert r.status_code == 201
+
 # ========== Phase 3（2026-08-11）：交易/併發（H5/H6/M3/M4/M5/M10） ==========
 
 class TestPhase3Concurrency:
