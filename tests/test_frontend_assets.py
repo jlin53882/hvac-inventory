@@ -172,6 +172,30 @@ def test_css_cal_selected_highlight():
     assert ".cal-cell.cal-today" not in css            # 今天無標記（不與選中框衝突）
 
 
+def test_css_modal_mobile_visible_fix():
+    """2026-08-25 手機 modal 三層修復防回歸（家豪截圖實證三輪迭代定案）
+
+    背景：手機新增/編輯品項 modal 顯示不完整，根因有三層、缺一不可：
+    1. vh 含網址列 → modal 高度超出可視區 → max-height 用 dvh（fallback vh 寫前面）
+    2. 手機 topbar sticky z-index:900 蓋住 overlay z-200 → overlay 提到 950
+       （須低於 bottomsheet 3000 / lightbox 9999；toast 同步提到 960 才能浮在 modal 上）
+    3. modal padding-bottom 20px 讓 sticky 按鈕下方留縫隙露出滾動內容 → padding 簡寫改 20px 20px 0
+
+    bug 版必紅已驗證（Playwright elementFromPoint：z=200 時 h3/brand owner=topbar；
+    padding-bottom 縫隙 20px 時探測點抓到 form-row 露出）"""
+    css = read_css_all()
+    # 層1：dvh（fallback vh 必須在 dvh 前面，順序顛倒會讓支援 dvh 的瀏覽器也用不到）
+    assert "max-height: 88vh;" in css and "max-height: 88dvh;" in css
+    assert css.index("max-height: 88vh;") < css.index("max-height: 88dvh;")
+    # 層2：overlay 高於手機 topbar z-900、低於 sheet 3000/lightbox 9999
+    assert "z-index: 950" in css
+    assert "z-index: 960" in css          # toast 浮在開啟的 modal 上
+    # 層3：modal 底部 padding 歸零（sticky 按鈕自帶 padding），縫隙不再露出滾動內容
+    assert "padding: 20px 20px 0;" in css
+    # sticky 按鈕釘底 + 分隔陰影
+    assert "position: sticky; bottom: 0; background: #fff; padding: 12px 0 16px; z-index: 10;\n    box-shadow: 0 -4px 10px rgba(0,0,0,0.06);" in css
+
+
 def test_css_user_actions_black_text():
     """舊使用者 modal 操作欄樣式已清理（RBAC 權限頁取代，user-actions 退役）"""
     css = read_css_all()
