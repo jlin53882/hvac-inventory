@@ -73,20 +73,28 @@ function deleteEditStockRow(btn) {
 // 送出編輯表單（PATCH /api/items/{id}，位置庫存全量替換），成功後關閉 Modal 並重載資料
 async function submitEdit() {
   const nameVal = document.getElementById('e-name').value.trim();
+  if (!nameVal) toast('名稱未修改（保留原值）', 'info');
+  const lowstockVal = parseFloat(document.getElementById('e-lowstock').value);
+  if (document.getElementById('e-lowstock').value !== '' && (isNaN(lowstockVal) || lowstockVal < 0)) {
+    toast('警示值不能為負數', 'error'); return;
+  }
   const payload = {
     brand: document.getElementById('e-brand').value.trim(),
     code: document.getElementById('e-code').value.trim(),
     // 名稱空白時不更新（保留原值），避免把原名覆蓋成空白
     ...(nameVal ? { name: nameVal } : {}),
     unit: document.getElementById('e-unit').value,
-    low_stock: parseFloat(document.getElementById('e-lowstock').value) || 0,
+    low_stock: isNaN(lowstockVal) ? 0 : lowstockVal,
     site: document.getElementById('e-site').value,
     // v10：完整位置清單（全量替換）
-    stocks: [...document.querySelectorAll('#edit-stock-rows .stock-row')].map(row => ({
-      location: row.querySelector('.stock-loc').value.trim(),
-      qty: parseFloat(row.querySelector('.stock-qty').value) || 0,
-      note: row.querySelector('.stock-note').value.trim(),
-    })),
+    stocks: [...document.querySelectorAll('#edit-stock-rows .stock-row')].map(row => {
+      const q = parseFloat(row.querySelector('.stock-qty').value);
+      return {
+        location: row.querySelector('.stock-loc').value.trim(),
+        qty: isNaN(q) || q < 0 ? 0 : q,
+        note: row.querySelector('.stock-note').value.trim(),
+      };
+    }),
     // 2026-08-14 樂觀鎖：帶開啟時的 updated_at 快照，後端比對被他人改過 → 409
     updated_at: editUpdatedAt,
   };

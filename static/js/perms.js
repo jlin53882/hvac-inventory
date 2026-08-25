@@ -326,6 +326,8 @@
         const role = document.getElementById('nu-role').value;
         const password = document.getElementById('nu-password').value;
         if (!username || !password) { toast('帳號與密碼必填', 'error'); return; }
+        const pwErr = typeof pwPolicyMsg === 'function' ? pwPolicyMsg(password) : null;
+        if (pwErr) { toast(pwErr, 'error'); return; }
         await apiSend('/api/users', 'POST', { username, display_name: display || username, role, password });
         toast(`已建立 ${username}`, 'success');
         closeAddUserModal();
@@ -338,6 +340,9 @@
           const parts = line.split(',').map(s => s.trim());
           if (parts.length < 4) { toast(`格式錯誤（需 4 欄）：${line}`, 'error'); return; }
           const [username, display, role, password] = parts;
+          if (!username || !password) { toast(`帳號與密碼必填：${line}`, 'error'); return; }
+          const pwErr = typeof pwPolicyMsg === 'function' ? pwPolicyMsg(password) : null;
+          if (pwErr) { toast(`${username}：${pwErr}`, 'error'); return; }
           users.push({ username, display_name: display || username, role, password });
         }
         const res = await apiSend('/api/users/batch', 'POST', { users });
@@ -361,6 +366,8 @@
   window.submitResetPw = async function submitResetPw() {
     const password = document.getElementById('rp-password').value;
     if (!password) { toast('請輸入新密碼', 'error'); return; }
+    const pwErr = typeof pwPolicyMsg === 'function' ? pwPolicyMsg(password) : null;
+    if (pwErr) { toast(pwErr, 'error'); return; }
     try {
       await apiSend(`/api/users/${curUid}/password`, 'PUT', { password });
       toast('密碼已重設', 'success');

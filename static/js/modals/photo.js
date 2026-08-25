@@ -47,6 +47,15 @@ function renderPhotoBox(itemId, hasPhoto) {
 async function uploadItemPhoto(itemId, input) {
   const file = input.files && input.files[0];
   if (!file) return;
+  // 前端驗證：副檔名白名單 + 大小上限 10MB
+  const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp'];
+  const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+  if (ALLOWED.indexOf(ext) === -1) {
+    toast('不支援的圖片格式（限 jpg/png/webp）', 'error'); return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    toast('圖片超過 10MB 上限', 'error'); return;
+  }
   const fd = new FormData();
   fd.append('file', file);
   try {

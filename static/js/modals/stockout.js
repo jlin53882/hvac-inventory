@@ -273,6 +273,11 @@ async function submitEditStockout() {
   const dest = document.getElementById('es-dest').value.trim();
   const dt = document.getElementById('es-datetime').value;
   if (!qty || qty <= 0) { toast('請輸入有效數量', 'error'); return; }
+  // 上限檢查：不可超過原記錄數量的 10 倍（防誤輸入）
+  const rec = stockoutRecords.find(r => r.id === editStockoutId);
+  if (rec && qty > Math.abs(rec.delta) * 10) {
+    toast('數量異常大，請確認', 'error'); return;
+  }
   const body = { qty: qty };
   if (dest) body.destination = dest;
   if (dt) body.created_at = dt.replace('T', ' ') + ':00';

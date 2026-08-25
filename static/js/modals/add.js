@@ -50,9 +50,15 @@ function renderAddPhotoBox() {
 async function submitAdd() {
   const name = document.getElementById('f-name').value.trim();
   if (!name) { toast('品項名稱必填', 'error'); return; }
+  const brand = document.getElementById('f-brand').value.trim();
+  const code = document.getElementById('f-code').value.trim();
+  const location = document.getElementById('f-location').value.trim();
+  if (!brand) { toast('廠牌必填', 'error'); return; }
+  if (!code) { toast('型號必填', 'error'); return; }
+  if (!location) { toast('位置必填', 'error'); return; }
   const payload = {
-    brand: document.getElementById('f-brand').value.trim(),
-    code: document.getElementById('f-code').value.trim(),
+    brand: brand,
+    code: code,
     name: name,
     unit: document.getElementById('f-unit').value,
     site: document.getElementById('f-site').value,

@@ -31,7 +31,7 @@ class ItemUpdate(BaseModel):
     code: Optional[str] = None
     name: Optional[str] = None
     unit: Optional[str] = None
-    low_stock: Optional[float] = None
+    low_stock: Optional[float] = Field(None, ge=0)
     site: Optional[str] = None
     stocks: Optional[List[StockItem]] = None  # v10：完整位置清單全量替換
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯 modal 開啟時的快照值
@@ -71,7 +71,7 @@ class NonStockOutRequest(BaseModel):
 class StockoutUpdate(BaseModel):
     """編輯已領出記錄：去向 / 數量（差額補扣庫存）/ 日期"""
     destination: Optional[str] = None
-    qty: Optional[float] = None
+    qty: Optional[float] = Field(None, gt=0)
     created_at: Optional[str] = None
 
 

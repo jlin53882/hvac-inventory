@@ -205,6 +205,8 @@ def update_item(item_id: int, upd: ItemUpdate):
                 "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
             for loc, s in dedup.items():
                 new_qty = float(s.get("qty") or 0)
+                if new_qty < 0:
+                    raise HTTPException(400, f"位置「{loc}」的庫存數量不能為負數")
                 if loc in existing:
                     old = existing[loc]
                     conn.execute("UPDATE item_stocks SET qty=?, note=?, updated_at=? WHERE id=?",

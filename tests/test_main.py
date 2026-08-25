@@ -660,11 +660,11 @@ class TestStockoutEdit:
         assert r.status_code == 400
 
     def test_edit_zero_qty_400(self, client):
-        """數量改 0 → 400"""
+        """數量改 0 → 422（Pydantic gt=0 驗證）"""
         item = _add_item(client, name="冷媒", qty=10)
         rec = self._out(client, item["id"], qty=3)
         r = client.patch(f"/api/stockouts/{rec['id']}", json={"qty": 0})
-        assert r.status_code == 400
+        assert r.status_code == 422
 
     def test_edit_created_at(self, client):
         """編輯日期"""
