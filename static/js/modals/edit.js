@@ -17,6 +17,7 @@ function openEditModal(id) {
   if (eUnitSearch) eUnitSearch.value = '';  // 重開 modal 清空搜尋
   document.getElementById('e-lowstock').value = item.low_stock || 0;
   document.getElementById('e-site').value = item.site || 'office';
+  document.getElementById('e-category').value = item.category || '';
   // v10：位置清單（從 stocks 展開，每列一個位置）
   const stocks = item.stocks && item.stocks.length
     ? item.stocks
@@ -86,6 +87,7 @@ async function submitEdit() {
     unit: document.getElementById('e-unit').value,
     low_stock: isNaN(lowstockVal) ? 0 : lowstockVal,
     site: document.getElementById('e-site').value,
+    category: document.getElementById('e-category').value,
     // v10：完整位置清單（全量替換）
     stocks: [...document.querySelectorAll('#edit-stock-rows .stock-row')].map(row => {
       const q = parseFloat(row.querySelector('.stock-qty').value);

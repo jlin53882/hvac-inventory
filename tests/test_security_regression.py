@@ -157,6 +157,9 @@ REVIEWED_SAFE_BODIES = {
     # stocktake.js 組成品項實際數量輸入框（2026-08-16）：mKey/mVal 為 itemId:location 鍵與輸入值（數字或空）、
     # mSysQty 為 absNum 格式化的數字字串（純數字不可控）
     "mKey", "mVal", "mSysQty",
+    # stocktake.js 盤點表分組渲染（2026-08-26 搜尋過濾）：stkGroupByLoc 回傳內部已 esc 的 HTML，
+    # filteredKitRows/filteredSingleRows 為 kitRows/singleRows 過濾後陣列（同 kitCompsHTML 安全模式）
+    "stkGroupByLoc(filteredKitRows)", "stkGroupByLoc(filteredSingleRows)",
 }
 
 

@@ -31,12 +31,16 @@ function switchTab(tab) {
   if (nav) nav.classList.add('active');
   // 行事曆頁不需要庫存搜尋、辦公室/倉庫分片與廠牌 tab（家豪 2026-08-12 指定）
   const isCal = tab === 'calendar';
+  const isInventory = tab === 'inventory';
+  const isKit = tab === 'kit';
   const sb = document.querySelector('.search-box');
   const st = document.querySelector('.site-tabs');
-  const bt = document.getElementById('brand-tabs');
+  const fp = document.getElementById('filter-panel');
+  // 搜尋框：行事曆隱藏，其餘顯示
   if (sb) sb.style.display = isCal ? 'none' : '';
   if (st) st.style.display = isCal ? 'none' : '';
-  if (bt) bt.style.display = isCal ? 'none' : '';
+  // 篩選面板：只在單一庫存頁顯示
+  if (fp) fp.style.display = isInventory ? '' : 'none';
   if (tab === 'inventory') renderInventory();
   else if (tab === 'prepared') renderPrepared();
   else if (tab === 'stockout') renderStockOuts();
@@ -62,7 +66,12 @@ function checkReminder() {
 
 
 document.getElementById('search-input').addEventListener('input', () => {
+  // 所有頁面都支援搜尋（行事曆頁搜尋框已隱藏，不會觸發）
   if (currentTab === 'inventory') renderInventory();
+  else if (currentTab === 'prepared') renderPrepared();
+  else if (currentTab === 'stockout') renderStockOuts();
+  else if (currentTab === 'stocktake') renderStocktake();
+  else if (currentTab === 'kit') renderKits();
 });
 
 // 2026-08-13 Sarah：重新打開網站搜尋框殘留「admin」——瀏覽器 autofill 把登入帳號填入

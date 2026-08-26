@@ -1593,3 +1593,98 @@ def test_perms_password_policy_validation():
     # 新增帳號 + 重設密碼 + 批次都應有
     count = js.count("pwPolicyMsg")
     assert count >= 3, f"perms.js pwPolicyMsg 只出現 {count} 次，應 >= 3（新增/批次/重設）"
+
+
+# ---------- 2026-08-26 搜尋篩選功能 ----------
+
+def test_filter_panel_html_exists():
+    """篩選面板 HTML 區塊存在於 index.html"""
+    idx = read(INDEX)
+    assert 'id="filter-panel"' in idx, "index.html 缺 filter-panel 區塊"
+    assert 'id="fp-brand-chips"' in idx, "index.html 缺 fp-brand-chips"
+    assert 'id="fp-cat-chips"' in idx, "index.html 缺 fp-cat-chips"
+
+
+def test_filter_panel_css_exists():
+    """篩選面板 + chip CSS 樣式存在"""
+    css = read_css_all()
+    assert '.filter-panel' in css, "style.css 缺 .filter-panel"
+    assert '.filter-chip' in css, "style.css 缺 .filter-chip"
+    assert '.filter-chips.collapsed' in css, "style.css 缺 .filter-chips.collapsed"
+    assert '.toggle-btn' in css, "style.css 缺 .toggle-btn"
+
+
+def test_filter_panel_js_functions():
+    """inventory.js 含篩選面板函式"""
+    js = read(INVENTORY_RENDER_JS)
+    assert 'function buildFilterPanel()' in js, "inventory.js 缺 buildFilterPanel"
+    assert 'function renderFilterChips(' in js, "inventory.js 缺 renderFilterChips"
+    assert 'function clearFilterPanel()' in js, "inventory.js 缺 clearFilterPanel"
+    assert 'function toggleFilterCollapse(' in js, "inventory.js 缺 toggleFilterCollapse"
+
+
+def test_filterBySearch_multword():
+    """多詞 AND 搜尋函式存在"""
+    js = read(INVENTORY_RENDER_JS)
+    assert 'function filterBySearch(' in js, "inventory.js 缺 filterBySearch"
+    assert 'split(' in js and ('\\s+' in js or "' '" in js or '" "' in js), \
+        "inventory.js filterBySearch 缺空白拆詞"
+
+
+def test_category_in_add_modal():
+    """新增品項 modal 含 category 下拉"""
+    idx = read(INDEX)
+    assert 'id="f-category"' in idx, "index.html 新增 modal 缺 f-category"
+    assert '分類' in idx, "index.html 缺「分類」label"
+
+
+def test_category_in_edit_modal():
+    """編輯品項 modal 含 category 下拉"""
+    idx = read(INDEX)
+    assert 'id="e-category"' in idx, "index.html 編輯 modal 缺 e-category"
+
+
+def test_category_in_add_js():
+    """add.js 含 category payload + 自動推斷"""
+    js = read(ADD_JS)
+    assert 'f-category' in js, "add.js 缺 f-category 引用"
+    assert 'category' in js, "add.js 缺 category payload"
+    assert '_autoInferCategory' in js, "add.js 缺 _autoInferCategory 函式"
+
+
+def test_category_in_edit_js():
+    """edit.js 含 category 顯示 + payload"""
+    js = read(EDIT_JS)
+    assert 'e-category' in js, "edit.js 缺 e-category 引用"
+    assert 'category' in js, "edit.js 缺 category payload"
+
+
+def test_search_handlers_all_tabs():
+    """app.js search-input 事件處理所有頁面"""
+    js = read(APP_JS)
+    assert 'renderPrepared()' in js, "app.js search-input 缺 renderPrepared 呼叫"
+    assert 'renderStockOuts()' in js, "app.js search-input 缺 renderStockOuts 呼叫"
+    assert 'renderStocktake()' in js, "app.js search-input 缺 renderStocktake 呼叫"
+    assert 'renderKits()' in js, "app.js search-input 缺 renderKits 呼叫"
+
+
+def test_filter_panel_only_inventory_tab():
+    """篩選面板只在 inventory 頁顯示"""
+    js = read(APP_JS)
+    assert "isInventory" in js, "app.js switchTab 缺 isInventory 判斷"
+    assert "filter-panel" in js, "app.js switchTab 缺 filter-panel 控制"
+
+
+def test_all_js_syntax_valid():
+    """所有關鍵 JS 檔案語法正確（node --check）"""
+    js_files = [
+        INVENTORY_RENDER_JS, PREPARED_RENDER_JS, STOCKOUT_RENDER_JS,
+        STOCKTAKE_JS, KITS_RENDER_JS, APP_JS, API_JS, GLOBALS_JS,
+        ADD_JS, EDIT_JS,
+    ]
+    for f in js_files:
+        result = subprocess.run(
+            ["node", "--check", f],
+            capture_output=True, text=True, timeout=10
+        )
+        assert result.returncode == 0, f"{os.path.basename(f)} 語法錯誤: {result.stderr[:200]}"

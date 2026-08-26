@@ -30,7 +30,7 @@
         </div>
   </div>
   <div class="search-box">
-    <input type="search" id="search-input" placeholder="🔍 搜尋名稱 / 型號 / 位置 / 備註…" autocomplete="new-password" autocapitalize="off" spellcheck="false">
+    <input type="search" id="search-input" placeholder="🔍 搜尋（空白多詞篩選，如：米多力 面板）" autocomplete="new-password" autocapitalize="off" spellcheck="false">
   </div>
   <div class="site-tabs">
     <button class="site-tab active" id="site-office" onclick="switchSite('office')">
@@ -48,8 +48,28 @@
   <button onclick="switchTab('stocktake')">開始盤點</button>
 </div>
 
-<!-- 庫存頁：廠牌 tab -->
-<div class="brand-tabs" id="brand-tabs" style="display:none"></div>
+
+<!-- 篩選面板（品牌+分類 chips） -->
+<div class="filter-panel" id="filter-panel" style="display:none">
+  <div class="filter-section">
+    <div class="filter-label">
+      <div class="left">🏷️ 品牌 <span class="count" id="fp-brand-count"></span></div>
+      <button class="toggle-btn" id="fp-brand-toggle" onclick="toggleFilterCollapse('fp-brand-chips','fp-brand-toggle')">展開 ▼</button>
+    </div>
+    <div class="filter-chips collapsed" id="fp-brand-chips"></div>
+  </div>
+  <div class="filter-section">
+    <div class="filter-label">
+      <div class="left">📦 項目分類 <span class="count" id="fp-cat-count"></span></div>
+      <button class="toggle-btn" id="fp-cat-toggle" onclick="toggleFilterCollapse('fp-cat-chips','fp-cat-toggle')">展開 ▼</button>
+    </div>
+    <div class="filter-chips collapsed" id="fp-cat-chips"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+    <button class="filter-clear" onclick="clearFilterPanel()">清除篩選</button>
+    <div class="filter-summary" id="fp-summary"></div>
+  </div>
+</div>
 
 <div class="content" id="content">
   <div class="loading"><div class="spin"></div><div>載入庫存資料…</div></div>
@@ -143,6 +163,20 @@
       <input type="text" id="f-location" list="location-list" placeholder="例如：(有門的)三格木櫃">
     </div>
     <div class="form-row">
+      <label>分類（選填）</label>
+      <select id="f-category">
+        <option value="">— 請選擇 —</option>
+        <option value="遙控器">遙控器</option>
+        <option value="電子零件">電子零件</option>
+        <option value="電氣配件">電氣配件</option>
+        <option value="管材">管材</option>
+        <option value="化學品">化學品</option>
+        <option value="過濾耗材">過濾耗材</option>
+        <option value="動力設備">動力設備</option>
+        <option value="外觀/結構">外觀/結構</option>
+      </select>
+    </div>
+    <div class="form-row">
       <label>備註</label>
       <textarea id="f-note" placeholder="例如：第一層 右二"></textarea>
     </div>
@@ -193,6 +227,20 @@
       <div class="form-row">
         <label>低庫存警示值</label>
         <input type="number" id="e-lowstock" min="0" step="any" placeholder="0 = 不警示">
+      </div>
+      <div class="form-row">
+        <label>分類</label>
+        <select id="e-category">
+          <option value="">— 請選擇 —</option>
+          <option value="遙控器">遙控器</option>
+          <option value="電子零件">電子零件</option>
+          <option value="電氣配件">電氣配件</option>
+          <option value="管材">管材</option>
+          <option value="化學品">化學品</option>
+          <option value="過濾耗材">過濾耗材</option>
+          <option value="動力設備">動力設備</option>
+          <option value="外觀/結構">外觀/結構</option>
+        </select>
       </div>
       <div class="form-row">
         <label>分類位置</label>

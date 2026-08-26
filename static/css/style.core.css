@@ -166,43 +166,29 @@
   }
   .nav-item-wrap { position: relative; flex: 1; display: flex; justify-content: center; }
 
-  /* 廠牌 tab */
-  .brand-tabs {
-    display: flex;
-    overflow-x: auto;
-    gap: 8px;
-    padding: 10px 16px;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
-    position: sticky;
-    top: 92px;
-    z-index: 90;
-    -webkit-overflow-scrolling: touch;
-  }
-  .brand-tab {
-    flex-shrink: 0;
-    padding: 6px 13px;
-    border-radius: 20px;
-    border: 1.5px solid #d0d0d0;
-    background: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    color: #555;
-    white-space: nowrap;
-    transition: all 0.15s;
-  }
-  .brand-tab .count {
-    font-size: 11px;
-    background: #eee;
-    border-radius: 10px;
-    padding: 1px 6px;
-    margin-left: 4px;
-    color: #888;
-  }
-  .brand-tab.active { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }
-  .brand-tab.active .count { background: rgba(255,255,255,0.25); color: #fff; }
 
+
+  /* ===== 篩選面板（品牌+分類 chips） ===== */
+  .filter-panel { background: #fff; padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
+  .filter-section { margin-bottom: 10px; }
+  .filter-section:last-child { margin-bottom: 0; }
+  .filter-label { font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .filter-label .left { display: flex; align-items: center; gap: 6px; }
+  .filter-label .count { font-weight: 400; color: #9ca3af; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; transition: max-height 0.2s ease; }
+  .filter-chips.collapsed { max-height: 32px; overflow: hidden; }
+  .filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 500; cursor: pointer; border: 1.5px solid #e0e0e0; background: #f9fafb; color: #374151; transition: all 0.15s; user-select: none; white-space: nowrap; }
+  .filter-chip:hover { border-color: #3b82f6; background: #eff6ff; }
+  .filter-chip.active { border-color: #3b82f6; background: #3b82f6; color: #fff; }
+  .filter-chip .badge { font-size: 10.5px; background: rgba(0,0,0,0.08); padding: 1px 6px; border-radius: 10px; }
+  .filter-chip.active .badge { background: rgba(255,255,255,0.25); }
+  .filter-clear { font-size: 12px; color: #6b7280; cursor: pointer; border: none; background: none; text-decoration: underline; }
+  .filter-clear:hover { color: #dc2626; }
+  .filter-summary { font-size: 12px; color: #9ca3af; }
+  .toggle-btn { font-size: 12px; color: #3b82f6; background: none; border: none; cursor: pointer; font-weight: 500; }
+  @media (max-width: 767px) {
+    .filter-chips.collapsed { max-height: 32px; }
+  }
   /* 內容區 */
   .content { padding: 14px 16px 20px; max-width: 640px; margin: 0 auto; }
   /* 庫存清單頂部匯出列（2026-08-13 Sarah：匯出按鈕從 topbar 移到這裡，靠右） */

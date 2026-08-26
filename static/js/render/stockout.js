@@ -2,15 +2,18 @@
 // ========== 出庫紀錄頁 ==========
 async function renderStockOuts() {
   const isViewer = !hasPerm('stockout');
-  document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入紀錄…</div></div>';
 
   try {
     const res = await fetch(`/api/stockouts?limit=200&site=${currentSite}`);
-    const outs = await res.json();
+    let outs = await res.json();
     stockoutRecords = outs;  // 供退回/編輯 modal 查品項資訊
-
+
+    // 搜尋過濾
+    outs = filterBySearch(outs, function(o) {
+      return [o.name, o.code, o.brand, o.destination, o.note].join(' ');
+    });
     if (!outs.length) {
       content.innerHTML = '<div class="empty">🚚 還沒有已領出紀錄<br><small>在庫存頁點「已領出」就會記錄在這裡</small>' +
         (isViewer ? '' : '<br><br><button class="btn-add-inv" onclick="openNonStockOutModal()">＋ 新增已領出</button>') + '</div>';

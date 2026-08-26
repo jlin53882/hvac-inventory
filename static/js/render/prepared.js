@@ -1,16 +1,19 @@
 // 庫存管理系統 - 待領出頁渲染（v8 拆分）
 // ========== 待領出頁籤 ==========
 async function renderPrepared() {
-  document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入待領出清單…</div></div>';
   const isViewer = !hasPerm('stockout');
 
   try {
     const res = await fetch(`/api/prepared?site=${currentSite}`);
-    const items = await res.json();
+    let items = await res.json();
     preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
-
+
+    // 搜尋過濾
+    items = filterBySearch(items, function(i) {
+      return [i.name, i.code, i.brand, i.note, i.destination].join(' ');
+    });
     if (!items.length) {
       content.innerHTML = '<div class="empty">📤 目前沒有待領出的品項<br><small>在庫存頁點「待領出」把要帶的材料先準備好</small>' +
         (isViewer ? '' : '<br><br><button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>') + '</div>';

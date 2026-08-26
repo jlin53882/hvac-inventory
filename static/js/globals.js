@@ -7,6 +7,8 @@
 var ALL_ITEMS = [];
 var preparedItems = [];  // 待領出清單（含非庫存品項；openPreparedSheet 資料源，2026-08-16 家豪）
 var currentBrand = '全部';
+var currentBrands = [];   // 多選品牌篩選（空=全部）
+var currentCategories = [];  // 多選分類篩選（空=全部）
 var pending = {};   // itemId -> delta
 // 目前頁籤（inventory/prepared/stockout/stocktake/kit/calendar）
 // 2026-08-13 Sarah：登入預設顯示行事曆（原本 inventory）

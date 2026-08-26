@@ -9,6 +9,11 @@ function openAddModal() {
   warnBox.style.display = 'none';
   warnBox.innerHTML = '';
   bindSimilarCheck('f-name', 'f-code', 'f-similar-warn', 0);
+  // 分類：重置為「— 請選擇 —」
+  document.getElementById('f-category').value = '';
+  // 名稱輸入時自動推斷分類
+  document.getElementById('f-name').removeEventListener('input', _autoInferCategory);
+  document.getElementById('f-name').addEventListener('input', _autoInferCategory);
   // 2026-08-16：單位動態清單（寫死 options 移除）
   fillUnitSelect(document.getElementById('f-unit'), '個');
   const fUnitSearch = document.getElementById('f-unit-search');
@@ -21,6 +26,20 @@ function openAddModal() {
 }
 
 // 渲染新增 modal 的照片上傳區塊（無品項 ID，建立後自動上傳）
+function _autoInferCategory() {
+  var name = document.getElementById('f-name').value || '';
+  var cat = '';
+  if (/遙控|遙器|控制器|線控/.test(name)) cat = '遙控器';
+  else if (/基板|控制板|PCB|電路/.test(name)) cat = '電子零件';
+  else if (/線圈|接觸器|繼電器|開關|插座|斷路|跳脫/.test(name)) cat = '電氣配件';
+  else if (/管|銅|鐵氟龍|配管/.test(name)) cat = '管材';
+  else if (/劑|脂|膠|發泡|樹脂/.test(name)) cat = '化學品';
+  else if (/濾|網|棉|濾網/.test(name)) cat = '過濾耗材';
+  else if (/馬達|風扇|壓縮|軸流/.test(name)) cat = '動力設備';
+  else if (/面板|蓋板|外殼|支架|固定/.test(name)) cat = '外觀/結構';
+  if (cat) document.getElementById('f-category').value = cat;
+}
+
 function renderAddPhotoBox() {
   const box = document.getElementById('f-photo-box');
   if (!box) return;
@@ -62,6 +81,7 @@ async function submitAdd() {
     name: name,
     unit: document.getElementById('f-unit').value,
     site: document.getElementById('f-site').value,
+    category: document.getElementById('f-category').value,
     // v10：位置庫存陣列（一筆 = 一個位置）
     stocks: [{
       location: document.getElementById('f-location').value.trim(),
@@ -107,6 +127,7 @@ async function submitAdd() {
     ['f-brand','f-code','f-name','f-qty','f-location','f-note'].forEach(id => {
       document.getElementById(id).value = id === 'f-qty' ? '0' : '';
     });
+    document.getElementById('f-category').value = '';
     fillUnitSelect(document.getElementById('f-unit'), '個');
     await loadData();
   } catch (e) {

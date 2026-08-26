@@ -1,27 +1,14 @@
 // 庫存管理系統 - 庫存頁渲染（v8 拆分）
-// buildBrandTabs / buildDatalists / renderInventory / 數量增減
-// ========== 廠牌 tab ==========
-function buildBrandTabs() {
-  const counts = {};
-  // 廠牌 tab 只統計單一材料（整組另外在整組頁管理）
-  ALL_ITEMS.filter(i => !i.is_kit).forEach(i => { counts[i.brand] = (counts[i.brand] || 0) + 1; });
-  const brands = ['全部', ...Object.keys(counts).sort((a,b) => counts[b]-counts[a])];
-  const el = document.getElementById('brand-tabs');
-  el.innerHTML = '';
-  brands.forEach(b => {
-    const tab = document.createElement('div');
-    tab.className = 'brand-tab' + (b === currentBrand ? ' active' : '');
-    tab.innerHTML = `${esc(b)}<span class="count">${counts[b] || ALL_ITEMS.length}</span>`;
-    tab.onclick = () => {
-      currentBrand = b;
-      // 更新所有 tab 的 active 樣式（點哪個哪個變深色）
-      document.querySelectorAll('.brand-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      renderInventory();
-    };
-    el.appendChild(tab);
+// filterBySearch / buildFilterPanel / renderInventory / 數量增減
+// ========== 共用搜尋過濾（多詞 AND） ==========
+function filterBySearch(items, matchFn) {
+  var raw = document.getElementById('search-input').value.trim().toLowerCase();
+  var kws = raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
+  if (kws.length === 0) return items;
+  return items.filter(function(item) {
+    var hay = matchFn(item).toLowerCase();
+    return kws.every(function(kw) { return hay.indexOf(kw) >= 0; });
   });
-  el.style.display = 'flex';
 }
 
 // 從 ALL_ITEMS 建立廠牌與位置的 datalist 建議清單，並載入去向建議
@@ -36,21 +23,28 @@ function buildDatalists() {
 // ========== 庫存頁渲染 ==========
 function renderInventory() {
   const isViewer = !(hasPerm('item-mgmt') || hasPerm('stock-mgmt') || hasPerm('photo'));
-  document.getElementById('brand-tabs').style.display = 'flex';
-  const kw = document.getElementById('search-input').value.trim().toLowerCase();
+  const raw = document.getElementById('search-input').value.trim().toLowerCase();
+  const kws = raw ? raw.split(/\s+/).filter(w => w.length > 0) : [];
   // 庫存頁只顯示單一材料（整組在「🔧 整組」頁籤管理）
   let list = ALL_ITEMS.filter(i => !i.is_kit);
-  if (currentBrand !== '全部') list = list.filter(i => i.brand === currentBrand);
-  if (kw) {
-      list = list.filter(i => {
-        // 品項本身 + 每個位置的 location/note 都列入搜尋
-        const stockStr = (i.stocks || []).map(s => `${s.location} ${s.note}`).join(' ');
-        return (i.name || '').toLowerCase().includes(kw) ||
-        (i.code || '').toLowerCase().includes(kw) ||
-        (i.brand || '').toLowerCase().includes(kw) ||
-        stockStr.toLowerCase().includes(kw);
-      });
-    }
+  // 品牌篩選：多選模式（currentBrands 為空 = 全部）
+  if (currentBrands.length > 0) {
+    list = list.filter(i => currentBrands.includes(i.brand));
+  } else if (currentBrand !== '全部') {
+    list = list.filter(i => i.brand === currentBrand);
+  }
+  // 分類篩選
+  if (currentCategories.length > 0) {
+    list = list.filter(i => currentCategories.includes(i.category || ''));
+  }
+  // 多詞 AND 搜尋：空白拆詞，每個詞都要比對到
+  if (kws.length > 0) {
+    list = list.filter(i => {
+      const stockStr = (i.stocks || []).map(s => `${s.location} ${s.note}`).join(' ').toLowerCase();
+      const hay = `${i.name||''} ${i.code||''} ${i.brand||''} ${stockStr}`.toLowerCase();
+      return kws.every(kw => hay.includes(kw));
+    });
+  }
 
   const content = document.getElementById('content');
   if (!list.length) {
@@ -255,4 +249,89 @@ function toggleLoc(titleEl, loc) {
     const groups = document.querySelectorAll('.loc-group[data-loc="' + CSS.escape(loc) + '"]');
     groups.forEach(g => g.classList.toggle('collapsed', nowCollapsed));
   } catch (e) {}
+}
+
+// ========== 篩選面板（品牌+分類 chips） ==========
+function buildFilterPanel() {
+  var brandCounts = {};
+  ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+    var b = i.brand || '無廠牌';
+    brandCounts[b] = (brandCounts[b] || 0) + 1;
+  });
+  var brands = Object.entries(brandCounts).sort(function(a, b) { return b[1] - a[1]; });
+  document.getElementById('fp-brand-count').textContent = '(' + brands.length + ' 個品牌)';
+  renderFilterChips('fp-brand-chips', brands, currentBrands, 'brand', 'fp-brand-toggle');
+  var catCounts = {};
+  ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+    var c = i.category || '';
+    if (c) catCounts[c] = (catCounts[c] || 0) + 1;
+  });
+  var cats = Object.entries(catCounts).sort(function(a, b) { return b[1] - a[1]; });
+  document.getElementById('fp-cat-count').textContent = '(' + cats.length + ' 類)';
+  renderFilterChips('fp-cat-chips', cats, currentCategories, 'category', 'fp-cat-toggle');
+  var list = getFilteredItems();
+  document.getElementById('fp-summary').textContent = '共 ' + list.length + ' 項';
+}
+
+function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) {
+  var el = document.getElementById(containerId);
+  el.innerHTML = '';
+  var allChip = document.createElement('span');
+  allChip.className = 'filter-chip' + (selectedArr.length === 0 ? ' active' : '');
+  allChip.textContent = '全部';
+  allChip.onclick = function() { selectedArr.length = 0; buildFilterPanel(); renderInventory(); };
+  el.appendChild(allChip);
+  counts.forEach(function(pair) {
+    var name = pair[0], count = pair[1];
+    var chip = document.createElement('span');
+    var isSelected = selectedArr.includes(name);
+    chip.className = 'filter-chip' + (isSelected ? ' active' : '');
+    chip.innerHTML = esc(name) + ' <span class="badge">' + count + '</span>';
+    chip.onclick = function() {
+      var idx = selectedArr.indexOf(name);
+      if (idx >= 0) selectedArr.splice(idx, 1);
+      else selectedArr.push(name);
+      buildFilterPanel();
+      renderInventory();
+    };
+    el.appendChild(chip);
+  });
+  if (toggleBtnId) {
+    var btn = document.getElementById(toggleBtnId);
+    if (btn && el.classList.contains('collapsed')) {
+      var hidden = counts.length - 3;
+      if (hidden > 0) btn.textContent = '還有 ' + hidden + ' 個' + (type === 'brand' ? '品牌' : '分類') + ' ▼';
+    }
+  }
+}
+
+function getFilteredItems() {
+  var raw = document.getElementById('search-input').value.trim().toLowerCase();
+  var kws = raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
+  var list = ALL_ITEMS.filter(function(i) { return !i.is_kit; });
+  if (currentBrands.length > 0) list = list.filter(function(i) { return currentBrands.includes(i.brand); });
+  if (currentCategories.length > 0) list = list.filter(function(i) { return currentCategories.includes(i.category || ''); });
+  if (kws.length > 0) {
+    list = list.filter(function(i) {
+      var stockStr = (i.stocks || []).map(function(s) { return s.location + ' ' + s.note; }).join(' ').toLowerCase();
+      var hay = ((i.name || '') + ' ' + (i.code || '') + ' ' + (i.brand || '') + ' ' + stockStr).toLowerCase();
+      return kws.every(function(kw) { return hay.indexOf(kw) >= 0; });
+    });
+  }
+  return list;
+}
+
+function toggleFilterCollapse(containerId, toggleBtnId) {
+  var el = document.getElementById(containerId);
+  var btn = document.getElementById(toggleBtnId);
+  var isCollapsed = el.classList.toggle('collapsed');
+  btn.textContent = isCollapsed ? '展開 ▼' : '收合 ▲';
+}
+
+function clearFilterPanel() {
+  currentBrands.length = 0;
+  currentCategories.length = 0;
+  document.getElementById('search-input').value = '';
+  buildFilterPanel();
+  renderInventory();
 }

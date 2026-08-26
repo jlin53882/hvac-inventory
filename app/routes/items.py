@@ -143,8 +143,8 @@ def create_item(item: ItemCreate):
             raise HTTPException(400, f"該品項已存在（id={exists['id']}）！要放新位置請用「編輯」→「新增位置」")
 
         cur = conn.execute(
-            "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
-            (item.brand, item.code, item.name, item.unit, item.low_stock, item.site),
+            "INSERT INTO items (brand, code, name, unit, low_stock, site, category) VALUES (?,?,?,?,?,?,?)",
+            (item.brand, item.code, item.name, item.unit, item.low_stock, item.site, item.category),
         )
         new_id = cur.lastrowid
         # 位置庫存

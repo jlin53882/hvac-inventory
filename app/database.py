@@ -233,6 +233,29 @@ def _exec_init(conn):
     if "is_deleted" not in item_cols:
         conn.execute("ALTER TABLE items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
         print("[migrate] items.is_deleted 欄位已新增（soft-delete）")
+    if "category" not in item_cols:
+        conn.execute("ALTER TABLE items ADD COLUMN category TEXT DEFAULT ''")
+        print("[migrate] items.category 欄位已新增（品項分類）")
+        # 批量填入：從品項名稱自動推斷分類（一次性 migration）
+        import re
+        def _infer(name):
+            n = (name or '').lower()
+            if re.search(r'遙控|遙器|控制器|線控', n): return '遙控器'
+            if re.search(r'基板|控制板|PCB|電路', n): return '電子零件'
+            if re.search(r'線圈|接觸器|繼電器|開關|插座|斷路|跳脫', n): return '電氣配件'
+            if re.search(r'管|銅|鐵氟龍|配管', n): return '管材'
+            if re.search(r'劑|脂|膠|發泡|樹脂', n): return '化學品'
+            if re.search(r'濾|網|棉|濾網', n): return '過濾耗材'
+            if re.search(r'馬達|風扇|壓縮|軸流', n): return '動力設備'
+            if re.search(r'面板|蓋板|外殼|支架|固定', n): return '外觀/結構'
+            return ''
+        rows = conn.execute("SELECT id, name FROM items WHERE is_deleted=0 AND (category IS NULL OR category='')").fetchall()
+        for r in rows:
+            cat = _infer(r["name"])
+            if cat:
+                conn.execute("UPDATE items SET category=? WHERE id=?", (cat, r["id"]))
+        if rows:
+            print(f"[migrate] items.category 批量推斷填入完成（{len(rows)} 筆待填）")
     kit_cols = [r[1] for r in conn.execute("PRAGMA table_info(kits)").fetchall()]
     if "updated_at" not in kit_cols:
         conn.execute("ALTER TABLE kits ADD COLUMN updated_at TIMESTAMP")

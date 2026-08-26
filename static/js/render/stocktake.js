@@ -3,7 +3,6 @@
 async function renderStocktake() {
   // 2026-08-14 家豪裁決：盤點頁瀏覽掛 view（所有人看得到）；「本次盤點」操作區僅限 stocktake 權限（admin/user）
   const canStocktake = !!(currentUser && currentUser.permissions && currentUser.permissions['stocktake']);
-  document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
 
   // 載入盤點日期歷史 + 品項
@@ -90,12 +89,20 @@ async function renderStocktake() {
   const kitRows = rows.filter(r => r.item.is_kit);
   const singleRows = rows.filter(r => !r.item.is_kit);
 
+  // 搜尋過濾（盤點頁：過濾品項名稱/型號/品牌/位置）
+  const searchFiltered = function(arr) {
+    return filterBySearch(arr, function(r) {
+      return [r.item.name, r.item.code, r.item.brand, r.stock.location].join(' ');
+    });
+  };
+  const filteredKitRows = searchFiltered(kitRows);
+  const filteredSingleRows = searchFiltered(singleRows);
   html += `<div class="stk-tabs">
     <button class="stk-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${kitRows.length} 項</span></button>
     <button class="stk-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${singleRows.length} 項</span></button>
   </div>`;
-  html += `<div id="stk-pane-kit">${stkGroupByLoc(kitRows)}</div>`;
-  html += `<div id="stk-pane-single" style="display:none">${stkGroupByLoc(singleRows)}</div>`;
+  html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div>`;
+  html += `<div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;
 
   html += `<div style="margin-top:16px">
     <button class="btn-save" style="width:100%;padding:13px;font-size:15px" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>

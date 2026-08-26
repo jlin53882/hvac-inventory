@@ -1,7 +1,6 @@
 // 庫存管理系統 - 整組頁渲染（v8 拆分）
 // ========== 整組（套件）頁籤 ==========
 async function renderKits() {
-  document.getElementById('brand-tabs').style.display = 'none';
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入整組清單…</div></div>';
   const isViewer = !hasPerm('kit-mgmt');
@@ -9,19 +8,23 @@ async function renderKits() {
   try {
     const res = await fetch(`/api/kits?site=${currentSite}`);
     const kits = await res.json();
-
+
+    // 搜尋過濾
+    const filteredKits = filterBySearch(kits, function(k) {
+      return [k.name, k.note, (k.components || []).map(function(c) { return c.brand + ' ' + c.name + ' ' + (c.code || ''); }).join(' ')].join(' ');
+    });
     const isM = (typeof isMobileView === 'function') && isMobileView();
     let html = '';
     if (isM) {
       // ===== 手機版：卡片式（⋯ 動作選單） =====
-      html += `<div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${kits.length} 個</span></div>`;
+      html += `<div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${filteredKits.length} 個</span></div>`;
       if (!isViewer) {
         html += `<button class="btn-save" style="width:100%;padding:11px;font-size:13.5px;margin-bottom:12px" onclick="openKitModal()">➕ 新增整組</button>`;
       }
-      if (!kits.length) {
+      if (!filteredKits.length) {
         html += '<div class="empty">🔧 還沒有整組定義<br><small>例如「電磁閥套組」由線圈+本體組成，可一鍵組裝/拆解</small></div>';
       } else {
-        kits.forEach(k => {
+        filteredKits.forEach(k => {
           const canAssemble = k.components.every(c => c.stock >= c.need_qty);
           html += `<div class="m-card">
             ${isViewer ? '' : `<button class="more-btn" onclick="openKitSheet(${k.id})">⋯</button>`}
@@ -47,17 +50,17 @@ async function renderKits() {
     } else {
       // ===== 桌面版：原卡片+表格 =====
     html = `
-      <div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${kits.length} 個</span></div>`;
+      <div class="section-title"><span class="loc">🔧 整組（套件）</span><span>${filteredKits.length} 個</span></div>`;
     if (!isViewer) {
       html += `<div style="display:flex;gap:8px;margin-bottom:14px">
         <button class="btn-save" style="flex:1;padding:11px;font-size:13.5px" onclick="openKitModal()">➕ 新增整組</button>
       </div>`;
     }
 
-    if (!kits.length) {
+    if (!filteredKits.length) {
       html += '<div class="empty">🔧 還沒有整組定義<br><small>例如「電磁閥套組」由線圈+本體組成，可一鍵組裝/拆解</small></div>';
     } else {
-      kits.forEach(k => {
+      filteredKits.forEach(k => {
         const canAssemble = k.components.every(c => c.stock >= c.need_qty);
         html += `<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">

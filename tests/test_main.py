@@ -2185,3 +2185,79 @@ class TestLifespanCleanup:
             _conn2.close()
         assert "expired_token_hash" not in hashes
         assert "valid_token_hash" in hashes
+
+
+# ---------- 2026-08-26 category 欄位 ----------
+
+
+
+# ---------- 2026-08-26 category 欄位 ----------
+
+class TestCategory:
+    """品項分類（category）欄位測試"""
+
+    def test_create_item_with_category(self, client):
+        """新增品項含 category"""
+        resp = client.post("/api/items", json={
+            "brand": "TEST-CAT", "code": "CAT001", "name": "測試分類品項",
+            "unit": "個", "site": "office", "category": "遙控器",
+            "stocks": [{"location": "測試位置A", "qty": 5}]
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["category"] == "遙控器"
+        assert data["brand"] == "TEST-CAT"
+        # 清理
+        client.delete(f"/api/items/{data['id']}")
+
+    def test_create_item_without_category(self, client):
+        """新增品項不含 category（預設空字串）"""
+        resp = client.post("/api/items", json={
+            "brand": "TEST-NO-CAT", "code": "NC001", "name": "無分類品項",
+            "unit": "個", "site": "office",
+            "stocks": [{"location": "測試位置B", "qty": 1}]
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data.get("category", "") == ""
+        # 清理
+        client.delete(f"/api/items/{data['id']}")
+
+    def test_update_item_category(self, client):
+        """編輯品項修改 category"""
+        # 新增
+        resp = client.post("/api/items", json={
+            "brand": "TEST-UPD-CAT", "code": "UC001", "name": "待改分類",
+            "unit": "個", "site": "office", "category": "管材",
+            "stocks": [{"location": "測試位置C", "qty": 1}]
+        })
+        item_id = resp.json()["id"]
+        # 修改 category
+        resp = client.patch(f"/api/items/{item_id}", json={
+            "category": "電氣配件"
+        })
+        assert resp.status_code == 200
+        assert resp.json()["category"] == "電氣配件"
+        # 清理
+        client.delete(f"/api/items/{item_id}")
+
+    def test_items_list_includes_category(self, client):
+        """GET /api/items 回傳含 category 欄位"""
+        # 先新增一筆測試資料
+        resp = client.post("/api/items", json={
+            "brand": "TEST-LIST-CAT", "code": "LC001", "name": "列表測試",
+            "unit": "個", "site": "office", "category": "化學品",
+            "stocks": [{"location": "測試位置D", "qty": 1}]
+        })
+        assert resp.status_code == 201
+        item_id = resp.json()["id"]
+        # 再查列表
+        resp = client.get("/api/items?site=office")
+        assert resp.status_code == 200
+        items = resp.json()
+        assert len(items) > 0
+        # 每筆都應有 category 欄位
+        for item in items:
+            assert "category" in item, f"品項 {item.get('name')} 缺 category 欄位"
+        # 清理
+        client.delete(f"/api/items/{item_id}")
