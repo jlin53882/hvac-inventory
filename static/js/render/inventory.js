@@ -29,9 +29,7 @@ function renderInventory() {
   let list = ALL_ITEMS.filter(i => !i.is_kit);
   // 品牌篩選：多選模式（currentBrands 為空 = 全部）
   if (currentBrands.length > 0) {
-    list = list.filter(i => currentBrands.includes(i.brand));
-  } else if (currentBrand !== '全部') {
-    list = list.filter(i => i.brand === currentBrand);
+    list = list.filter(i => currentBrands.includes(i.brand || '無廠牌'));
   }
   // 分類篩選
   if (currentCategories.length > 0) {
@@ -309,7 +307,7 @@ function getFilteredItems() {
   var raw = document.getElementById('search-input').value.trim().toLowerCase();
   var kws = raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
   var list = ALL_ITEMS.filter(function(i) { return !i.is_kit; });
-  if (currentBrands.length > 0) list = list.filter(function(i) { return currentBrands.includes(i.brand); });
+  if (currentBrands.length > 0) list = list.filter(function(i) { return currentBrands.includes(i.brand || '無廠牌'); });
   if (currentCategories.length > 0) list = list.filter(function(i) { return currentCategories.includes(i.category || ''); });
   if (kws.length > 0) {
     list = list.filter(function(i) {

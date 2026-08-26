@@ -23,7 +23,7 @@ class ItemCreate(BaseModel):
     unit: str = "個"
     low_stock: float = 0
     site: str = "office"  # office=辦公室 / warehouse=倉庫
-    category: str = ""  # 品項分類（遙控器/電子零件/管材/...）
+    category: str = Field("", max_length=50)  # 品項分類（遙控器/電子零件/管材/...）
     stocks: List[StockItem] = []  # 位置庫存清單（第一筆為預設位置）
 
 
@@ -34,7 +34,7 @@ class ItemUpdate(BaseModel):
     unit: Optional[str] = None
     low_stock: Optional[float] = Field(None, ge=0)
     site: Optional[str] = None
-    category: Optional[str] = None  # 品項分類
+    category: Optional[str] = Field(None, max_length=50)  # 品項分類
     stocks: Optional[List[StockItem]] = None  # v10：完整位置清單全量替換
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯 modal 開啟時的快照值
 

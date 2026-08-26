@@ -98,8 +98,8 @@ async function renderStocktake() {
   const filteredKitRows = searchFiltered(kitRows);
   const filteredSingleRows = searchFiltered(singleRows);
   html += `<div class="stk-tabs">
-    <button class="stk-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${kitRows.length} 項</span></button>
-    <button class="stk-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${singleRows.length} 項</span></button>
+    <button class="stk-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${filteredKitRows.length} 項</span></button>
+    <button class="stk-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${filteredSingleRows.length} 項</span></button>
   </div>`;
   html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div>`;
   html += `<div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;

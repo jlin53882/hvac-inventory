@@ -1688,3 +1688,15 @@ def test_all_js_syntax_valid():
             capture_output=True, text=True, timeout=10
         )
         assert result.returncode == 0, f"{os.path.basename(f)} 語法錯誤: {result.stderr[:200]}"
+
+
+def test_brand_filter_normalizes_no_brand():
+    """A1 防回歸：「無廠牌」品牌 chip 篩選必須正規化（i.brand || '無廠牌'）。
+    bug 版：顯示層把空 brand 正規化成「無廠牌」，過濾層卻用原始 i.brand 比對，
+    兩者對不上 → 點「無廠牌」(最大群 52.8%) 整頁 0 結果。此斷言鎖住正規化。"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "currentBrands.includes(i.brand || '無廠牌')" in js, \
+        "renderInventory/getFilteredItems 品牌過濾須正規化空品牌為『無廠牌』"
+    # 不得退回原始空值比對（會讓無廠牌 chip 篩選失效）
+    assert "currentBrands.includes(i.brand);" not in js, \
+        "品牌過濾不得用原始 i.brand（空品牌會對不上『無廠牌』chip）"

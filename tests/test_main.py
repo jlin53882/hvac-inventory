@@ -2191,8 +2191,6 @@ class TestLifespanCleanup:
 
 
 
-# ---------- 2026-08-26 category 欄位 ----------
-
 class TestCategory:
     """品項分類（category）欄位測試"""
 
