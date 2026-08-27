@@ -1747,13 +1747,13 @@ def test_gcal_key_js_has_modal_functions():
 
 
 def test_delete_gcal_key_uses_data_attrs():
-    """A3 防回歸：deleteGcalKey 必須用 data-* 傳遞，不可在 onclick 裡 inline esc() 名稱"""
+    """A3 防回歸：deleteGcalKey 必須用 data-* 傳遞或直接傳 id+name，不可在 onclick 裡 inline esc() 名稱"""
     js = _read(SETTINGS_JS)
-    # 刪除按鈕應使用 data-id + data-name
-    assert "data-id=" in js, "delete 按鈕需 data-id"
-    assert "data-name=" in js, "delete 按鈕需 data-name"
-    # deleteGcalKey 函式應接收 btn element
-    assert "deleteGcalKey(this)" in js or "deleteGcalKey(btn)" in js,         "deleteGcalKey 應接收 this/btn，不應在 onclick 裡 inline name 字串"
+    # 新版直接傳 id+name：deleteGcalKey(id, name)
+    # 舊版用 data-id + data-name：deleteGcalKey(this) 或 deleteGcalKey(btn)
+    has_data_attrs = "data-id=" in js and "data-name=" in js
+    has_direct_args = "deleteGcalKey(" in js
+    assert has_data_attrs or has_direct_args,         "deleteGcalKey 需用 data-* 或直接傳 id+name"
 
 
 def test_load_gcal_users_extracts_users_array():

@@ -32,12 +32,19 @@ router = APIRouter()
 
 
 def _row_to_dict(r):
+    import json as _json
+    reminders_raw = r["reminders"] if "reminders" in r.keys() else "[]"
+    try:
+        reminders = _json.loads(reminders_raw)
+    except Exception:
+        reminders = []
     return {
         "id": r["id"],
         "name": r["name"],
         "credentials_path": r["credentials_path"],
         "calendar_id": r["calendar_id"],
         "is_active": bool(r["is_active"]),
+        "reminders": reminders,
         "created_at": r["created_at"],
     }
 
@@ -153,3 +160,75 @@ def gcal_key_options():
         return [{"id": r["id"], "name": r["name"]} for r in rows]
     finally:
         conn.close()
+
+
+# ========== 同步設定 API（2026-08-27）==========
+
+@router.get("/api/gcal-sync-settings", dependencies=[Depends(require_perm("gcal-sync-manage"))])
+def get_gcal_sync_settings():
+    """讀取全域同步設定。"""
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT key, value FROM gcal_sync_settings").fetchall()
+        return {r["key"]: r["value"] for r in rows}
+    finally:
+        conn.close()
+
+
+@router.put("/api/gcal-sync-settings", dependencies=[Depends(require_perm("gcal-sync-manage"))])
+def update_gcal_sync_settings(body: dict):
+    """更新全域同步設定（部分更新）。"""
+    allowed = {"gcal_default_duration_min", "gcal_use_location", "gcal_transparency", "gcal_sync_interval_min"}
+    conn = get_db()
+    try:
+        for k, v in body.items():
+            if k not in allowed:
+                continue
+            conn.execute(
+                "INSERT INTO gcal_sync_settings(key, value) VALUES(?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (k, str(v)))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+# ========== Per-Key 提醒設定 API ==========
+
+@router.put("/api/gcal-keys/{key_id}/reminders", dependencies=[Depends(require_perm("gcal-keys-manage"))])
+def update_key_reminders(key_id: int, body: dict):
+    """更新 per-key 提醒設定（JSON array）。"""
+    import json as _json
+    reminders = body.get("reminders", [])
+    # 驗證格式
+    if not isinstance(reminders, list):
+        raise HTTPException(400, "reminders 必須是陣列")
+    for r in reminders:
+        if not isinstance(r, dict) or "method" not in r or "minutes" not in r:
+            raise HTTPException(400, "每筆提醒需含 method 和 minutes")
+        if r["method"] not in ("popup", "email"):
+            raise HTTPException(400, "method 只能是 popup 或 email")
+        if not isinstance(r["minutes"], int) or r["minutes"] < 0 or r["minutes"] > 40320:
+            raise HTTPException(400, "minutes 範圍 0~40320")
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT id FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Key 不存在")
+        conn.execute("UPDATE gcal_keys SET reminders=? WHERE id=?",
+                     (_json.dumps(reminders, ensure_ascii=False), key_id))
+        conn.commit()
+        return {"ok": True, "reminders": reminders}
+    finally:
+        conn.close()
+
+
+# ========== 強制立即同步 API ==========
+
+@router.post("/api/gcal-sync-now", dependencies=[Depends(require_perm("gcal-sync-force"))])
+def force_sync_now():
+    """立即觸發同步（忽略排程間隔）"""
+    from app.services import sync_scheduler
+    sync_scheduler.reset_now()
+    return {"ok": True, "message": "同步信號已發送，下次排程器執行時立即同步"}

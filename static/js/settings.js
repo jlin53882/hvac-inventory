@@ -1,8 +1,18 @@
-// settings.js — 設定中心（2026-08-16 家豪 B-1 定案：左右清單）
+// settings.js — 設定中心（2026-08-27 gcal-sync-settings 重寫）
 // 依賴：utils.js（esc/jsStr/hasPerm/toast）、units.js（unitList/unitListActive/loadUnits）、
 //       changepw.js（submitChangePw/cpwResetChecks/cpwCheckStrength/cpwCheckMatch）
-var orphanItems = [];  // 逐筆收編資料源（GET /api/units/orphans，2026-08-16 方案 B）
-var orphanLoadFailed = false;  // 2026-08-16 no-op 修復：載入失敗時顯示警告而非「✅ 全在清單」假成功
+var orphanItems = [];
+var orphanLoadFailed = false;
+
+// ========== GCal 同步設定 ==========
+var gcalKeys = [];
+var gcalUsers = [];
+var gcalSettings = {};
+var selectedKeyId = null;
+
+// 提醒時間單位上限（換算成分鐘）
+var REMINDER_LIMITS = { minutes: 40320, hours: 672, days: 28, weeks: 4 };
+var REMINDER_UNIT_LABELS = { minutes: '分鐘', hours: '小時', days: '天', weeks: '週' };
 
 function settingsSwitch(panel) {
   document.querySelectorAll('#settingsSideList .side-item').forEach(el =>
@@ -18,15 +28,15 @@ function settingsSwitch(panel) {
   if (showGcal) renderGcalPanel();
 }
 
+// ========== 單位管理面板 ==========
 async function loadOrphans() {
   try {
     const res = await fetch('/api/units/orphans');
     if (res.ok) { orphanItems = await res.json(); orphanLoadFailed = false; }
-    else { console.error('[loadOrphans] /api/units/orphans 失敗', res.status); orphanLoadFailed = true; }
-  } catch (e) { console.error('[loadOrphans] 網路錯誤', e); orphanLoadFailed = true; }
+    else { orphanLoadFailed = true; }
+  } catch (e) { orphanLoadFailed = true; }
 }
 
-// 依 unit 分組（'' 顯示「（空白）」）；順序依 orphans API 的 ORDER BY unit
 function groupOrphans(items) {
   const map = new Map();
   items.forEach(it => {
@@ -34,13 +44,10 @@ function groupOrphans(items) {
     map.get(it.unit).push(it);
   });
   return Array.from(map.entries()).map(([unit, arr]) => ({
-    unit,
-    label: unit === '' ? '（空白）' : unit,
-    items: arr
+    unit, label: unit === '' ? '（空白）' : unit, items: arr
   }));
 }
 
-// ========== 單位管理面板 ==========
 function renderUnitsPanel() {
   const canManage = hasPerm('unit-mgmt');
   const canAdd = hasPerm('item-mgmt');
@@ -51,11 +58,11 @@ function renderUnitsPanel() {
   }
   html += '<table class="u-table">';
   unitList.forEach(u => {
-    html += `<tr><td class="${u.is_active ? '' : 'off'}">${esc(u.name)}${u.is_active ? '' : ' <small>（停用）</small>'}</td><td style="text-align:right">`;
+    html += '<tr><td class="' + (u.is_active ? '' : 'off') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td style="text-align:right">';
     if (canManage) {
-      html += `<a class="updown" onclick="moveUnit(${u.id}, -1)" title="上移">↑</a>` +
-              `<a class="updown" onclick="moveUnit(${u.id}, 1)" title="下移">↓</a> ` +
-              `<label class="settings-switch"><input type="checkbox" ${u.is_active ? 'checked' : ''} onchange="toggleUnit(${u.id}, this.checked)"><span class="slider"></span></label>`;
+      html += '<a class="updown" onclick="moveUnit(' + u.id + ', -1)" title="上移">↑</a>' +
+              '<a class="updown" onclick="moveUnit(' + u.id + ', 1)" title="下移">↓</a> ' +
+              '<label class="settings-switch"><input type="checkbox" ' + (u.is_active ? 'checked' : '') + ' onchange="toggleUnit(' + u.id + ', this.checked)"><span class="slider"></span></label>';
     }
     html += '</td></tr>';
   });
@@ -66,27 +73,24 @@ function renderUnitsPanel() {
       html += '<div class="hist-clean"><b>⚠️ 不在清單的歷史單位（點開逐筆處理）</b>';
       html += '<div style="font-size:11.5px;color:#a08a3e;margin:4px 0 8px">每筆品項各自指定正確單位；處理完自動消失。組底可整組快速套用。</div>';
       groups.forEach(g => {
-        html += `<div class="grp">
-          <div class="grp-head" onclick="this.parentElement.classList.toggle('open')">
-            <span class="grp-title"><span class="arrow">▶</span> ${esc(g.label)}</span>
-            <span class="grp-count">${g.items.length} 筆</span></div>
-          <div class="grp-body"><table class="g-table">`;
+        html += '<div class="grp"><div class="grp-head" onclick="this.parentElement.classList.toggle(\'open\')">' +
+          '<span class="grp-title"><span class="arrow">▶</span> ' + esc(g.label) + '</span>' +
+          '<span class="grp-count">' + g.items.length + ' 筆</span></div>' +
+          '<div class="grp-body"><table class="g-table">';
         g.items.forEach(it => {
-          html += `<tr><td class="p-name">${esc(it.name)}${it.is_deleted ? ' <small>（非庫存）</small>' : ''}</td>
-            <td class="qty">×${absNum(it.total_qty)}</td>
-            <td style="text-align:right"><select class="u-ci-to" required><option value="">— 請選擇 —</option>`;
-          unitListActive.forEach(u => { html += `<option>${esc(u.name)}</option>`; });
-          html += `</select> <button class="btn-primary" onclick="consolidateItem(${it.item_id}, this)">改為</button></td></tr>`;
+          html += '<tr><td class="p-name">' + esc(it.name) + (it.is_deleted ? ' <small>（非庫存）</small>' : '') + '</td>' +
+            '<td class="qty">×' + absNum(it.total_qty) + '</td>' +
+            '<td style="text-align:right"><select class="u-ci-to" required><option value="">— 請選擇 —</option>';
+          unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
+          html += '</select> <button class="btn-primary" onclick="consolidateItem(' + it.item_id + ', this)">改為</button></td></tr>';
         });
-        html += `</table>
-          <div class="grp-fast">整組快速套用：<select class="u-ci-fast" required><option value="">— 請選擇 —</option>`;
-        unitListActive.forEach(u => { html += `<option>${esc(u.name)}</option>`; });
-        html += `</select><button class="btn-primary" data-from="${esc(g.unit)}" onclick="consolidateGroup(this)">套用全部</button></div>
-          </div></div>`;
+        html += '</table><div class="grp-fast">整組快速套用：<select class="u-ci-fast" required><option value="">— 請選擇 —</option>';
+        unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
+        html += '</select><button class="btn-primary" data-from="' + esc(g.unit) + '" onclick="consolidateGroup(this)">套用全部</button></div></div></div>';
       });
       html += '</div>';
     } else if (orphanLoadFailed) {
-      html += '<div class="hist-clean" style="color:#c62828">⚠️ 歷史單位載入失敗（無法確認是否收編乾淨）</div>';
+      html += '<div class="hist-clean" style="color:#c62828">⚠️ 歷史單位載入失敗</div>';
     } else {
       html += '<div class="hist-clean" style="color:#2e7d32">✅ 所有品項單位皆在清單中</div>';
     }
@@ -100,8 +104,7 @@ async function addUnitFromSettings() {
   if (!name) { toast('請輸入單位名稱', 'error'); return; }
   try {
     const res = await fetch('/api/units', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
     });
     const data = await res.json();
@@ -110,40 +113,34 @@ async function addUnitFromSettings() {
     unitListActive = unitList.filter(u => u.is_active);
     if (inp) inp.value = '';
     renderUnitsPanel();
-    toast(`✅ 單位「${name}」已新增`, 'success');
+    toast('✅ 單位「' + name + '」已新增', 'success');
   } catch (e) { toast('新增失敗', 'error'); }
 }
 
 async function toggleUnit(id, on) {
   try {
-    const res = await fetch(`/api/units/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch('/api/units/' + id, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: on })
     });
-    const data = await res.json();
-    if (!res.ok) { toast(data.detail || '操作失敗', 'error'); renderUnitsPanel(); return; }
+    if (!res.ok) { toast((await res.json()).detail || '操作失敗', 'error'); renderUnitsPanel(); return; }
     const u = unitList.find(x => x.id === id);
     if (u) u.is_active = on;
     unitListActive = unitList.filter(x => x.is_active);
     renderUnitsPanel();
-    toast(on ? '✅ 已啟用' : '已停用（歷史品項仍顯示原單位）', on ? 'success' : '');
+    toast(on ? '✅ 已啟用' : '已停用', on ? 'success' : '');
   } catch (e) { toast('操作失敗', 'error'); }
 }
 
 async function moveUnit(id, dir) {
   const u = unitList.find(x => x.id === id);
   if (!u) return;
-  const target = u.sort_order + dir;
   try {
-    const res = await fetch(`/api/units/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sort_order: target })
+    await fetch('/api/units/' + id, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sort_order: u.sort_order + dir })
     });
-    const data = await res.json();
-    if (!res.ok) { toast(data.detail || '排序失敗', 'error'); return; }
-    await loadUnits();  // 重載排序（可能與鄰居互換）
+    await loadUnits();
     renderUnitsPanel();
   } catch (e) { toast('排序失敗', 'error'); }
 }
@@ -156,12 +153,10 @@ async function consolidateItem(itemId, btn) {
   if (!confirm('將「' + (nameEl ? nameEl.textContent : '') + '」的單位改為「' + to + '」？')) return;
   try {
     const res = await fetch('/api/units/consolidate-item', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_id: itemId, to_unit: to })
     });
-    const data = await res.json();
-    if (!res.ok) { toast(data.detail || '改單位失敗', 'error'); return; }
+    if (!res.ok) { toast((await res.json()).detail || '改單位失敗', 'error'); return; }
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
     toast('✅ 已改為「' + to + '」', 'success');
@@ -175,25 +170,22 @@ async function consolidateGroup(btn) {
   if (!to) { toast('請先選擇目標單位', 'error'); return; }
   const label = from === '' ? '（空白）' : from;
   const n = orphanItems.filter(o => o.unit === from).length;
-  if (!confirm('將「' + label + '」全部 ' + n + ' 筆的單位改為「' + to + '」？此操作一次套用整組。')) return;
+  if (!confirm('將「' + label + '」全部 ' + n + ' 筆的單位改為「' + to + '」？')) return;
   try {
     const res = await fetch('/api/units/consolidate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from_unit: from, to_unit: to })
     });
-    const data = await res.json();
-    if (!res.ok) { toast(data.detail || '收編失敗', 'error'); return; }
+    if (!res.ok) { toast((await res.json()).detail || '收編失敗', 'error'); return; }
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
     toast('✅ 已收編 ' + data.affected + ' 筆為「' + to + '」', 'success');
   } catch (e) { toast('收編失敗', 'error'); }
 }
 
-// ========== 修改密碼（內嵌表單，複用 changepw.js）==========
+// ========== 修改密碼 ==========
 async function settingsSubmitPw() {
   await submitChangePw();
-  // 成功/失敗都清空（密碼欄位殘留是安全問題）；submitChangePw 內部已 toast
   setTimeout(clearPwForm, 500);
 }
 
@@ -203,14 +195,9 @@ function clearPwForm() {
     if (el) el.value = '';
   });
   cpwResetChecks();
-  const mm = document.getElementById('cpw-mismatch');
-  if (mm) mm.style.display = 'none';
 }
 
-// ========== 行事曆同步面板 ==========
-var gcalKeys = [];
-var gcalUsers = [];  // 使用者清單（含 gcal_key）
-
+// ========== 行事曆同步面板（左右佈局 v3）==========
 async function loadGcalKeys() {
   try {
     const res = await fetch('/api/gcal-keys');
@@ -225,72 +212,282 @@ async function loadGcalUsers() {
   } catch (e) { console.error('[loadGcalUsers]', e); }
 }
 
+async function loadGcalSettings() {
+  try {
+    const res = await fetch('/api/gcal-sync-settings');
+    if (res.ok) gcalSettings = await res.json();
+  } catch (e) { console.error('[loadGcalSettings]', e); }
+}
+
 function renderGcalPanel() {
-  const canManage = hasPerm('unit-mgmt');
-  let html = '<h4>📅 行事曆同步（Google Calendar）</h4>';
-  html += '<p style="font-size:12.5px;color:#888;margin-bottom:14px">將本地派工行程單向同步到 Google 行事曆。每個 Key 對應一個廠商的 Service Account。</p>';
+  const canManage = hasPerm('gcal-keys-manage');
+  const canSync = hasPerm('gcal-sync-manage');
+  const canForce = hasPerm('gcal-sync-force');
 
-  if (gcalKeys.length === 0) {
-    html += '<div class="gcal-empty"><div class="icon">📅</div>';
-    html += '<p>尚未設定任何 Service Account Key</p>';
-    html += '<p style="font-size:12px;margin-top:6px;color:#bbb">點擊下方按鈕新增第一把 Key，開始同步行程到 Google 行事曆</p>';
-    if (canManage) html += '<button class="btn-primary" style="margin-top:14px" onclick="openGcalKeyModal()">＋ 新增第一把 Key</button>';
-    html += '</div>';
-  } else {
-    html += '<table class="gcal-table"><thead><tr>';
-    html += '<th>名稱</th><th>行事曆 ID</th><th>狀態</th>';
-    if (canManage) html += '<th>操作</th>';
-    html += '</tr></thead><tbody>';
-    gcalKeys.forEach(k => {
-      html += '<tr>';
-      html += '<td class="gcal-name">' + esc(k.name) + '</td>';
-      html += '<td class="gcal-cal-id" title="' + esc(k.calendar_id) + '">' + esc(k.calendar_id) + '</td>';
-      html += '<td><label class="settings-switch"><input type="checkbox" ' + (k.is_active ? 'checked' : '') + ' onchange="toggleGcalKey(' + k.id + ', this.checked)"><span class="slider"></span></label></td>';
-      if (canManage) {
-        html += '<td class="gcal-actions">';
-        html += '<button class="btn-ghost" style="padding:4px 8px;font-size:12px" onclick="openGcalKeyModal(' + k.id + ')">✏️ 編輯</button> ';
-        html += '<button class="btn-danger" data-id="' + k.id + '" data-name="' + esc(k.name) + '" onclick="deleteGcalKey(this)">🗑️ 刪除</button>';
-        html += '</td>';
-      }
-      html += '</tr>';
-    });
-    html += '</tbody></table>';
-    if (canManage) html += '<div style="margin-top:12px"><button class="btn-primary" onclick="openGcalKeyModal()">＋ 新增 Key</button></div>';
-  }
+  let html = '<h4>📅 行事曆同步</h4>';
 
-  html += '<div class="gcal-hint">📌 行程依「指派人員綁定的 Key」決定同步到哪本行事曆 ｜ 🔄 同一行程可同步到多本（一對多） ｜ ⏱ 同步間隔 5 分鐘</div>';
+  // 左側 Key 列表 + 右側面板（用 CSS flex 模擬）
+  html += '<div style="display:flex;gap:16px;margin-top:12px;align-items:flex-start">';
 
-  // 使用者綁 key
-  html += '<div class="gcal-user-section"><h5>👤 使用者綁定 Key（指派人 → 同步到該 Key 的行事曆）</h5>';
-  if (gcalUsers.length && gcalKeys.length) {
-    html += '<table class="gcal-user-table"><thead><tr><th>使用者</th><th>綁定 Key</th></tr></thead><tbody>';
-    gcalUsers.forEach(u => {
-      html += '<tr><td>👤 ' + esc(u.display_name || u.username) + '</td><td>';
-      html += '<select onchange="bindGcalUser(' + u.id + ', this.value)">';
-      html += '<option value=""' + (!u.gcal_key ? ' selected' : '') + '>— 未綁定 —</option>';
-      gcalKeys.filter(k => k.is_active).forEach(k => {
-        html += '<option value="' + esc(k.name) + '"' + (u.gcal_key === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>';
-      });
-      html += '</select></td></tr>';
-    });
-    html += '</tbody></table>';
-    html += '<p style="font-size:11px;color:#999;margin-top:6px">未綁定 Key 的使用者，其指派的行程不會同步到任何行事曆。</p>';
-  } else if (!gcalKeys.length) {
-    html += '<p style="font-size:12px;color:#999">請先新增至少一把 Key，再綁定使用者。</p>';
+  // 左側 Key 列表
+  html += '<div class="gcal-key-list" style="width:220px;flex-shrink:0;background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden">';
+  gcalKeys.forEach(k => {
+    const isActive = k.id === selectedKeyId;
+    const cls = k.is_active ? 'on' : 'off';
+    html += '<div class="gcal-key-item' + (isActive ? ' active' : '') + '" onclick="selectGcalKey(' + k.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s' + (isActive ? ';background:#e6f4ff;border-left:3px solid #1890ff' : '') + '">' +
+      '<div style="width:30px;height:30px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#bbb') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📅</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(k.name) + '</div>' +
+        '<div style="font-size:11px;color:#888;margin-top:1px">' + (k.is_active ? '✅ 啟用' : '⏸ 停用') + '</div>' +
+      '</div>' +
+      '<div style="width:8px;height:8px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#ff4d4f') + ';flex-shrink:0"></div>' +
+      '</div>';
+  });
+  if (canManage) {
+    html += '<div onclick="openGcalKeyModal()" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-top:1px solid #f0f0f0;color:#1890ff;font-size:13px;cursor:pointer">＋ 新增 Key</div>';
   }
   html += '</div>';
 
+  // 右側面板
+  html += '<div style="flex:1;min-width:0;background:#fff;border-radius:12px;border:1px solid #eee;padding:18px 20px">';
+
+  if (selectedKeyId) {
+    const key = gcalKeys.find(k => k.id === selectedKeyId);
+    if (key) {
+      // Panel Head
+      html += '<div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">' +
+        '<div style="width:40px;height:40px;border-radius:50%;background:#52c41a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px">📅</div>' +
+        '<div><div style="font-size:16px;font-weight:700">' + esc(key.name) + '</div>' +
+        '<div style="font-size:12px;color:#888;margin-top:2px">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div></div></div>';
+
+      // Tabs
+      html += '<div style="display:flex;gap:6px;margin:14px 0 4px;border-bottom:1px solid #eee">' +
+        '<button class="gcal-tab active" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
+        '<button class="gcal-tab" onclick="switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
+        '</div>';
+
+      // Tab 1: 同步設定
+      html += '<div id="gcal-tab-sync">';
+      if (canSync) {
+        html += renderGcalSyncSettings(key);
+      } else {
+        html += '<p style="color:#999;font-size:13px;margin-top:16px">無權限修改同步設定</p>';
+      }
+      html += '</div>';
+
+      // Tab 2: 使用者綁定
+      html += '<div id="gcal-tab-users" style="display:none">';
+      html += renderGcalUserBind(key);
+      html += '</div>';
+    }
+  } else {
+    html += '<div style="text-align:center;padding:40px 20px;color:#999">' +
+      '<div style="font-size:36px;margin-bottom:10px">📅</div>' +
+      '<p>請選擇左側的 Key 查看設定</p></div>';
+  }
+
+  html += '</div>'; // 右側面板結束
+  html += '</div>'; // flex 結束
+
+  // 直接同步按鈕
+  if (canForce) {
+    html += '<div style="margin-top:16px;padding:12px 16px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:8px;display:flex;align-items:center;justify-content:space-between">' +
+      '<div><b>🔄 強制立即同步</b><div style="font-size:12px;color:#666;margin-top:2px">忽略排程間隔，立即執行同步</div></div>' +
+      '<button class="btn-primary" onclick="forceSyncNow()">立即同步</button></div>';
+  }
+
   document.getElementById('panel-gcal').innerHTML = html;
+}
+
+function renderGcalSyncSettings(key) {
+  let html = '';
+
+  // Event 內容區塊
+  html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">📍 Event 內容</div>';
+
+  // 地址→地點欄位
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">地址同步到地點欄位</label>' +
+    '<label class="settings-switch"><input type="checkbox" ' + (gcalSettings.gcal_use_location === '1' ? 'checked' : '') + ' onchange="saveGcalSetting(\'gcal_use_location\', this.checked ? \'1\' : \'0\')"><span class="slider"></span></label>' +
+    '<span style="font-size:11px;color:#999">客戶地址顯示在 Google Calendar 的「地點」欄位</span></div>';
+
+  // 顯示為
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">顯示為</label>' +
+    '<select onchange="saveGcalSetting(\'gcal_transparency\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px">' +
+    '<option value="transparent"' + (gcalSettings.gcal_transparency === 'transparent' ? ' selected' : '') + '>🟢 空閒（不阻塞時段）</option>' +
+    '<option value="opaque"' + (gcalSettings.gcal_transparency === 'opaque' ? ' selected' : '') + '>🔴 忙碌（阻塞時段）</option></select>' +
+    '<span style="font-size:11px;color:#999">空閒 = 不會阻塞行事曆上的其他邀請</span></div>';
+  html += '</div>';
+
+  // 時間設定區塊
+  html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">⏰ 時間設定</div>';
+
+  // 預設截止時間
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">預設截止時間</label>' +
+    '<select onchange="saveGcalSetting(\'gcal_default_duration_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px">' +
+    ['15', '30', '45', '60', '90', '120'].map(v => {
+      var label = v === '60' ? '60 分鐘（1 小時）' : v === '120' ? '120 分鐘（2 小時）' : v + ' 分鐘';
+      return '<option value="' + v + '"' + (gcalSettings.gcal_default_duration_min === v ? ' selected' : '') + '>' + label + '</option>';
+    }).join('') + '</select>' +
+    '<span style="font-size:11px;color:#999">未填截止時間的行程，同步時使用此時長</span></div>';
+
+  // 同步間隔
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">同步間隔</label>' +
+    '<input type="number" value="' + (gcalSettings.gcal_sync_interval_min || '5') + '" min="1" max="30" ' +
+    'onchange="saveGcalSetting(\'gcal_sync_interval_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px;width:70px"> 分鐘' +
+    '<span style="font-size:11px;color:#999">背景排程器每 N 分鐘掃描待同步隊列（1~30）</span></div>';
+  html += '</div>';
+
+  // Per-Key 提醒設定
+  html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">🔔 事件提醒（此 Key 專用）</div>';
+  html += '<p style="font-size:12px;color:#999;margin-bottom:12px">同步到 Google Calendar 時附帶的提醒通知。</p>';
+
+  var reminders = key.reminders || [];
+  // Popup
+  var popup = reminders.find(r => r.method === 'popup') || { method: 'popup', minutes: 30 };
+  var email = reminders.find(r => r.method === 'email') || { method: 'email', minutes: 60 };
+
+  html += '<div style="display:flex;flex-direction:column;gap:10px">';
+  // Popup row
+  html += '<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e8ecf0;border-radius:8px;padding:10px 12px;flex-wrap:wrap">' +
+    '<div style="font-size:13px;font-weight:600;min-width:120px">🔔 Popup 通知</div>' +
+    '<div style="display:flex;align-items:center;gap:6px">' +
+    '<input type="number" id="popup-val-' + key.id + '" value="' + popup.minutes + '" min="0" max="40320" ' +
+    'onchange="checkReminderLimit(' + key.id + ', \'popup\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px;width:70px;text-align:center">' +
+    '<select id="popup-unit-' + key.id + '" onchange="checkReminderLimit(' + key.id + ', \'popup\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px">' +
+    '<option value="minutes">分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div>' +
+    '<span style="font-size:11px;color:#999;margin-left:8px">瀏覽器/App 彈出通知</span></div>';
+  html += '<div id="popup-warn-' + key.id + '" style="display:none;background:#fff7e6;border:1px solid #ffd591;border-radius:6px;padding:6px 10px;font-size:12px;color:#ad6800"></div>';
+
+  // Email row
+  html += '<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e8ecf0;border-radius:8px;padding:10px 12px;flex-wrap:wrap">' +
+    '<div style="font-size:13px;font-weight:600;min-width:120px">📧 Email 通知</div>' +
+    '<div style="display:flex;align-items:center;gap:6px">' +
+    '<input type="number" id="email-val-' + key.id + '" value="' + email.minutes + '" min="0" max="40320" ' +
+    'onchange="checkReminderLimit(' + key.id + ', \'email\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px;width:70px;text-align:center">' +
+    '<select id="email-unit-' + key.id + '" onchange="checkReminderLimit(' + key.id + ', \'email\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px">' +
+    '<option value="minutes">分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div>' +
+    '<span style="font-size:11px;color:#999;margin-left:8px">寄到帳號綁定的信箱</span></div>';
+  html += '<div id="email-warn-' + key.id + '" style="display:none;background:#fff7e6;border:1px solid #ffd591;border-radius:6px;padding:6px 10px;font-size:12px;color:#ad6800"></div>';
+  html += '</div>';
+
+  html += '<div style="margin-top:10px;padding:8px 12px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:6px;font-size:11.5px;color:#2d5a8e">' +
+    '💡 Google Calendar API 上限：最長 4 週（40320 分鐘）= 672 小時 = 28 天 = 4 週</div>';
+
+  // 儲存提醒按鈕
+  html += '<button class="btn-primary" style="margin-top:12px" onclick="saveKeyReminders(' + key.id + ')">💾 儲存提醒設定</button>';
+  html += '</div>';
+
+  return html;
+}
+
+function renderGcalUserBind(key) {
+  let html = '<p style="font-size:13px;color:#666;margin:12px 0">指派人員綁定此 Key → 該人員的行程同步到這本行事曆。</p>';
+  html += '<table style="width:100%;font-size:12.5px;border-collapse:collapse"><thead><tr>' +
+    '<th style="text-align:left;padding:7px 6px;border-bottom:2px solid #e0e0e0;color:#666;font-size:12px">使用者</th>' +
+    '<th style="text-align:left;padding:7px 6px;border-bottom:2px solid #e0e0e0;color:#666;font-size:12px">綁定 Key</th></tr></thead><tbody>';
+  gcalUsers.forEach(u => {
+    html += '<tr><td style="padding:7px 6px;border-bottom:1px solid #f0f0f0">👤 ' + esc(u.display_name || u.username) + '</td><td style="padding:7px 6px;border-bottom:1px solid #f0f0f0">' +
+      '<select onchange="bindGcalUser(' + u.id + ', this.value)" style="padding:4px 8px;border:1px solid #cfd6df;border-radius:6px;font-size:12px">' +
+      '<option value=""' + (!u.gcal_key ? ' selected' : '') + '>— 未綁定 —</option>';
+    gcalKeys.filter(k => k.is_active).forEach(k => {
+      html += '<option value="' + esc(k.name) + '"' + (u.gcal_key === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>';
+    });
+    html += '</select></td></tr>';
+  });
+  html += '</tbody></table>';
+  html += '<p style="font-size:11px;color:#999;margin-top:8px">未綁定 Key 的使用者，其指派的行程不會同步到任何行事曆。</p>';
+  return html;
+}
+
+function selectGcalKey(id) {
+  selectedKeyId = id;
+  renderGcalPanel();
+}
+
+function switchGcalTab(tab) {
+  document.querySelectorAll('.gcal-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.gcal-tab[data-tab="' + tab + '"]').classList.add('active');
+  document.getElementById('gcal-tab-sync').style.display = tab === 'sync' ? '' : 'none';
+  document.getElementById('gcal-tab-users').style.display = tab === 'users' ? '' : 'none';
+}
+
+async function saveGcalSetting(key, value) {
+  try {
+    await fetch('/api/gcal-sync-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: value })
+    });
+    gcalSettings[key] = value;
+    toast('✅ 已儲存', 'success');
+  } catch (e) { toast('儲存失敗', 'error'); }
+}
+
+function checkReminderLimit(keyId, type) {
+  var val = parseInt(document.getElementById(type + '-val-' + keyId).value) || 0;
+  var unit = document.getElementById(type + '-unit-' + keyId).value;
+  var limit = REMINDER_LIMITS[unit];
+  var warn = document.getElementById(type + '-warn-' + keyId);
+  if (val > limit) {
+    warn.textContent = '⚠️ 超過上限！' + REMINDER_UNIT_LABELS[unit] + '最大值為 ' + limit;
+    warn.style.display = 'block';
+    toast('⚠️ 數值超過 ' + REMINDER_UNIT_LABELS[unit] + ' 上限 (' + limit + ')');
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+async function saveKeyReminders(keyId) {
+  var popupVal = parseInt(document.getElementById('popup-val-' + keyId).value) || 0;
+  var popupUnit = document.getElementById('popup-unit-' + keyId).value;
+  var emailVal = parseInt(document.getElementById('email-val-' + keyId).value) || 0;
+  var emailUnit = document.getElementById('email-unit-' + keyId).value;
+
+  // 換算成分鐘
+  var toMinutes = function(val, unit) {
+    if (unit === 'hours') return val * 60;
+    if (unit === 'days') return val * 60 * 24;
+    if (unit === 'weeks') return val * 60 * 24 * 7;
+    return val;
+  };
+
+  var reminders = [
+    { method: 'popup', minutes: toMinutes(popupVal, popupUnit) },
+    { method: 'email', minutes: toMinutes(emailVal, emailUnit) }
+  ];
+
+  try {
+    var res = await fetch('/api/gcal-keys/' + keyId + '/reminders', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reminders: reminders })
+    });
+    if (!res.ok) { toast((await res.json()).detail || '儲存失敗', 'error'); return; }
+    // 更新本地資料
+    var key = gcalKeys.find(k => k.id === keyId);
+    if (key) key.reminders = reminders;
+    toast('✅ 提醒設定已儲存', 'success');
+  } catch (e) { toast('儲存失敗', 'error'); }
+}
+
+async function forceSyncNow() {
+  if (!confirm('確定要立即執行同步？')) return;
+  try {
+    var res = await fetch('/api/gcal-sync-now', { method: 'POST' });
+    if (!res.ok) { toast((await res.json()).detail || '同步失敗', 'error'); return; }
+    toast('✅ 同步信號已發送', 'success');
+  } catch (e) { toast('同步失敗', 'error'); }
 }
 
 async function toggleGcalKey(id, on) {
   try {
     const res = await fetch('/api/gcal-keys/' + id, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: on })
     });
-    if (!res.ok) { toast((await res.json()).detail || '操作失敗', 'error'); renderGcalPanel(); return; }
+    if (!res.ok) { toast((await res.json()).detail || '操作失敗', 'error'); return; }
     const k = gcalKeys.find(x => x.id === id);
     if (k) k.is_active = on;
     renderGcalPanel();
@@ -298,14 +495,13 @@ async function toggleGcalKey(id, on) {
   } catch (e) { toast('操作失敗', 'error'); }
 }
 
-async function deleteGcalKey(btn) {
-  var id = parseInt(btn.dataset.id);
-  var name = btn.dataset.name;
+async function deleteGcalKey(id, name) {
   if (!confirm('確定要刪除 Key「' + name + '」？')) return;
   try {
     const res = await fetch('/api/gcal-keys/' + id, { method: 'DELETE' });
     if (!res.ok) { toast((await res.json()).detail || '刪除失敗', 'error'); return; }
     gcalKeys = gcalKeys.filter(k => k.id !== id);
+    if (selectedKeyId === id) selectedKeyId = gcalKeys.length ? gcalKeys[0].id : null;
     renderGcalPanel();
     toast('✅ 已刪除', 'success');
   } catch (e) { toast('刪除失敗', 'error'); }
@@ -314,8 +510,7 @@ async function deleteGcalKey(btn) {
 async function bindGcalUser(userId, keyName) {
   try {
     const res = await fetch('/api/users/' + userId, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ gcal_key: keyName })
     });
     if (!res.ok) { toast((await res.json()).detail || '綁定失敗', 'error'); return; }
@@ -328,14 +523,12 @@ async function bindGcalUser(userId, keyName) {
 // ========== 初始化 ==========
 (async function initSettings() {
   const user = await checkAuth();
-  if (!user) return;  // checkAuth 內跳登入
+  if (!user) return;
   const canUnits = hasPerm('unit-mgmt');
-  // B3 權限 gating：無 unit-mgmt 隱藏左清單「單位管理」項
   if (!canUnits) {
     const item = document.querySelector('#settingsSideList .side-item[data-panel="units"]');
     if (item) item.style.display = 'none';
   }
-  // 手機 chip-bar
   const chipBar = document.getElementById('settingsChipBar');
   if (chipBar) {
     chipBar.innerHTML = [
@@ -346,6 +539,8 @@ async function bindGcalUser(userId, keyName) {
      .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
-  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers()]);
+  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings()]);
+  // 預選第一個 key
+  if (gcalKeys.length && !selectedKeyId) selectedKeyId = gcalKeys[0].id;
   settingsSwitch(canUnits ? 'units' : 'pw');
 })();

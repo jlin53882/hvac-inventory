@@ -56,7 +56,9 @@ class TestBuildEvent:
         from app.services.gcal_sync import build_event
         ev = build_event(self._make_appt(), self._make_assignees())
         assert ev["summary"] == "陳先生｜維修"
-        assert "地址：台北市中正區" in ev["description"]
+        # use_location=True（預設）→ address 放到 location 欄位
+        assert ev["location"] == "台北市中正區"
+        assert "地址" not in ev["description"]
         assert "人員：管理員" in ev["description"]
         assert "備註：車馬費 800" in ev["description"]
         assert ev["start"]["dateTime"] == "2026-08-28T09:00:00"
@@ -75,11 +77,13 @@ class TestBuildEvent:
         assert ev["end"]["dateTime"] == "2026-08-28T10:00:00"
 
     def test_all_day_event(self):
-        """無時間 -> 全日事件"""
+        """無時間 -> 預設 08:00~17:00（不是全日事件）"""
         from app.services.gcal_sync import build_event
         ev = build_event(self._make_appt(start_time="", end_time=""), self._make_assignees())
-        assert ev["start"]["date"] == "2026-08-28"
-        assert "dateTime" not in ev["start"]
+        # 預設起始 08:00，預設時長 60 分鐘 → 09:00
+        assert ev["start"]["dateTime"] == "2026-08-28T08:00:00"
+        assert ev["end"]["dateTime"] == "2026-08-28T09:00:00"
+        assert "dateTime" in ev["start"]
 
     def test_no_assignees(self):
         from app.services.gcal_sync import build_event

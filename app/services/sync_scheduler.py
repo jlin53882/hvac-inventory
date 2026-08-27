@@ -37,11 +37,12 @@ logger.setLevel(logging.INFO)
 # ---------- Discord Webhook 設定（從 .env 讀取）----------
 import app.config as _cfg
 
-_INTERVAL = 300   # 5 分鐘
+_INTERVAL = 300   # 預設 5 分鐘（動態讀取 settings）
 _WINDOW = 300     # debounce 窗口 5 分鐘
 _MAX_ATTEMPTS = 5
 _stop = threading.Event()
 _thread = None
+_reset_event = threading.Event()  # 立即同步 reset 信號
 
 
 def _notify_discord(message: str) -> None:
@@ -83,9 +84,34 @@ def stop():
     logger.info("gcal 同步排程器已停止")
 
 
+def reset_now():
+    """立即觸發同步（重置計時器 + 設定 reset 信號）"""
+    _reset_event.set()
+    logger.info("gcal 同步排程器 reset 信號已發送")
+
+
+def _get_sync_interval() -> int:
+    """從 gcal_sync_settings 讀取同步間隔（分鐘），回傳秒數。"""
+    try:
+        conn = get_db()
+        try:
+            row = conn.execute("SELECT value FROM gcal_sync_settings WHERE key='gcal_sync_interval_min'").fetchone()
+            minutes = int(row["value"]) if row else 5
+            return max(1, min(30, minutes)) * 60  # 限制 1~30 分鐘
+        finally:
+            conn.close()
+    except Exception:
+        return _INTERVAL  # fallback 5 分鐘
+
+
 def _loop():
-    """主迴圈：每 _INTERVAL 秒執行一次"""
-    while not _stop.wait(_INTERVAL):
+    """主迴圈：每 N 秒執行一次（動態讀取 settings），支援 reset 即時同步"""
+    while not _stop.is_set():
+        interval = _get_sync_interval()
+        # 等待 interval 秒，或收到 reset 信號
+        if _reset_event.wait(timeout=interval):
+            _reset_event.clear()
+            logger.info("gcal 同步排程器收到 reset 信號，立即執行")
         try:
             _run_once()
         except Exception:

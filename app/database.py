@@ -144,10 +144,15 @@ def _exec_init(conn):
             credentials_path TEXT NOT NULL,
             calendar_id      TEXT NOT NULL,
             is_active        INTEGER NOT NULL DEFAULT 1,
+            reminders        TEXT DEFAULT '[{"method":"popup","minutes":30},{"method":"email","minutes":60}]',
             created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Google 行事曆同步隊列（複合主鍵一對多）
+        -- Google 行事曆同步設定（2026-08-27 設定頁）
+    CREATE TABLE IF NOT EXISTS gcal_sync_settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
     CREATE TABLE IF NOT EXISTS appointment_sync_queue (
         appointment_id   INTEGER NOT NULL,
         key_id           INTEGER NOT NULL REFERENCES gcal_keys(id) ON DELETE CASCADE,
@@ -309,6 +314,16 @@ def _exec_init(conn):
     if "reverted_at" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN reverted_at TIMESTAMP")
         print("[migrate] movements.reverted_at 欄位已新增（退回已領出防重複）")
+    # M6：gcal_keys.reminders 欄位（2026-08-27 per-key 提醒）
+    gcal_cols = [r[1] for r in conn.execute("PRAGMA table_info(gcal_keys)").fetchall()]
+    if "reminders" not in gcal_cols:
+        conn.execute("ALTER TABLE gcal_keys ADD COLUMN reminders TEXT DEFAULT '[{\"method\":\"popup\",\"minutes\":30},{\"method\":\"email\",\"minutes\":60}]'")
+        print("[migrate] gcal_keys.reminders 欄位已新增（per-key 提醒）")
+    # M7：gcal_sync_settings 表（2026-08-27 同步設定頁）
+    conn.execute("""CREATE TABLE IF NOT EXISTS gcal_sync_settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )""")
     # 行事曆：service_types 種子（2026-08-13 Sarah：工程項目 安裝/配管 → 施工/場勘）
     # id 1/2 = 保養/維修 active；3/4 = 安裝/配管 停用（歷史保留）；5/6 = 施工/場勘 active
     conn.executescript("""
@@ -350,6 +365,9 @@ def _exec_init(conn):
         ('photo',                '照片 上傳/刪除',       'stock'),
         ('cal-mgmt',             '行事曆派工（新增/編輯/刪除）', 'calendar'),
         ('svc-type-mgmt',        '服務項目管理',         'calendar'),
+        ('gcal-sync-manage',     '行事曆同步設定',       'calendar'),
+        ('gcal-sync-force',      '強制立即同步',         'calendar'),
+        ('gcal-keys-manage',     'Service Account Key 管理', 'calendar'),
         ('unit-mgmt',            '單位整理（停用/排序/收編）', 'stock'),
         ('user-mgmt',            '使用者管理',           'system'),
         ('change-own-password',  '自行改密碼',           'system');
@@ -370,6 +388,9 @@ def _exec_init(conn):
         'photo':       {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'cal-mgmt':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
         'svc-type-mgmt':      {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'gcal-sync-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'gcal-sync-force':    {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'gcal-keys-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
@@ -382,4 +403,13 @@ def _exec_init(conn):
             if _on:
                 _rows.append((_role_ids[_role], _perm_ids[_key]))
     conn.executemany("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)", _rows)
+    # ---------- GCal 同步設定預設值（2026-08-27）----------
+    _GCAL_DEFAULTS = {
+        "gcal_default_duration_min": "60",
+        "gcal_use_location": "1",
+        "gcal_transparency": "transparent",
+        "gcal_sync_interval_min": "5",
+    }
+    for _k, _v in _GCAL_DEFAULTS.items():
+        conn.execute("INSERT OR IGNORE INTO gcal_sync_settings(key, value) VALUES(?, ?)", (_k, _v))
     conn.commit()

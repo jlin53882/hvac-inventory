@@ -33,6 +33,9 @@ EXPECTED_MATRIX = {
     'photo':       {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'cal-mgmt':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
     'svc-type-mgmt':      {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'gcal-sync-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'gcal-sync-force':    {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'gcal-keys-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
@@ -49,7 +52,7 @@ def test_seed_roles_permissions(rbac_db):
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 17
+        assert len(perms) == 20
     finally:
         conn.close()
 
@@ -90,6 +93,9 @@ def test_seed_labels_and_modules(rbac_db):
         'photo': ('照片 上傳/刪除', 'stock'),
         'cal-mgmt': ('行事曆派工（新增/編輯/刪除）', 'calendar'),
         'svc-type-mgmt': ('服務項目管理', 'calendar'),
+        'gcal-sync-manage': ('行事曆同步設定', 'calendar'),
+        'gcal-sync-force': ('強制立即同步', 'calendar'),
+        'gcal-keys-manage': ('Service Account Key 管理', 'calendar'),
         'unit-mgmt': ('單位整理（停用/排序/收編）', 'stock'),
         'user-mgmt': ('使用者管理', 'system'),
         'change-own-password': ('自行改密碼', 'system'),
@@ -141,7 +147,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 17
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 20
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:

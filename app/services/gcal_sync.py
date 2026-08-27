@@ -61,13 +61,24 @@ def _add_minutes(hhmm: str, minutes: int) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-def build_event(appt_row: dict, assignees: List[dict]) -> dict:
-    """純函式：本地行程 → Google Event。assignees 用既有 [{id,name,color}] 形狀。"""
+def build_event(appt_row: dict, assignees: List[dict], settings: dict = None) -> dict:
+    """純函式：本地行程 → Google Event。assignees 用既有 [{id,name,color}] 形狀。
+    settings: {duration_min, reminders, use_location, transparency}
+    """
+    # 設定值（fallback 到預設）
+    duration = (settings or {}).get("duration_min", DEFAULT_DURATION_MIN)
+    reminders = (settings or {}).get("reminders", [])
+    use_location = (settings or {}).get("use_location", True)
+    transparency = (settings or {}).get("transparency", "transparent")
+
     client = appt_row["client_name"] or ""
     svc = appt_row.get("service_name") or ""
     summary = f"{client}｜{svc}" if svc else client
     lines = []
-    if appt_row.get("address"):
+    # location 欄位（拆出 address，不塞 description）
+    if use_location and appt_row.get("address"):
+        pass  # location 獨立欄位，不塞 description
+    elif appt_row.get("address"):
         lines.append(f"地址：{appt_row['address']}")
     owners = "、".join(a["name"] for a in assignees)
     if owners:
@@ -78,13 +89,30 @@ def build_event(appt_row: dict, assignees: List[dict]) -> dict:
     start_time = (appt_row.get("start_time") or "").strip()
     end_time = (appt_row.get("end_time") or "").strip()
     date = appt_row["date"]
-    if start_time and end_time:
-        end = end_time if end_time > start_time else _add_minutes(start_time, DEFAULT_DURATION_MIN)
-        return {"summary": summary, "description": description,
-                "start": {"dateTime": f"{date}T{start_time}:00", "timeZone": TZ},
-                "end": {"dateTime": f"{date}T{end}:00", "timeZone": TZ}}
-    return {"summary": summary, "description": description,
-            "start": {"date": date}, "end": {"date": date}}
+    # 預設起始/截止時間（未填時用 08:00~17:00）
+    DEFAULT_START = "08:00"
+    DEFAULT_END = "17:00"
+    if not start_time:
+        start_time = DEFAULT_START
+    if not end_time:
+        end_time = _add_minutes(start_time, duration)
+    # 確保 end > start
+    if end_time <= start_time:
+        end_time = _add_minutes(start_time, duration)
+    event = {
+        "summary": summary,
+        "description": description,
+        "start": {"dateTime": f"{date}T{start_time}:00", "timeZone": TZ},
+        "end": {"dateTime": f"{date}T{end_time}:00", "timeZone": TZ},
+        "transparency": transparency,
+    }
+    # location 欄位
+    if use_location and appt_row.get("address"):
+        event["location"] = appt_row["address"]
+    # reminders
+    if reminders:
+        event["reminders"] = {"useDefault": False, "overrides": reminders}
+    return event
 
 
 def resolve_target_keys(conn, appt_id: int) -> List[int]:
@@ -132,6 +160,32 @@ def _load_appointment_for_sync(conn, appt_id):
              "start_time": row["start_time"], "end_time": row["end_time"],
              "note": row["note"] or ""},
             [dict(a) for a in assignees])
+
+
+def load_sync_settings(conn) -> dict:
+    """從 gcal_sync_settings 讀取全域設定，回傳 dict。"""
+    rows = conn.execute("SELECT key, value FROM gcal_sync_settings").fetchall()
+    s = {}
+    for r in rows:
+        v = r["value"]
+        if r["key"] == "gcal_use_location":
+            s["use_location"] = v == "1"
+        elif r["key"] == "gcal_default_duration_min":
+            s["duration_min"] = int(v)
+        elif r["key"] == "gcal_transparency":
+            s["transparency"] = v
+        elif r["key"] == "gcal_sync_interval_min":
+            s["sync_interval_min"] = int(v)
+    return s
+
+
+def load_key_reminders(key_row) -> list:
+    """從 key_row 讀取 per-key reminders JSON，回傳 list。"""
+    raw = key_row.get("reminders") or "[]"
+    try:
+        return json.loads(raw)
+    except Exception:
+        return []
 
 
 # 速率限制：動態分配（per-user 600/分鐘，專案級 10000/分鐘）
@@ -207,9 +261,15 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
                 pc = get_db()
                 try:
                     appt_row, assignees = _load_appointment_for_sync(pc, appt_id)
+                    # 載入全域設定 + per-key reminders
+                    global_settings = load_sync_settings(pc)
+                    key_reminders = load_key_reminders(key_row)
+                    # per-key reminders 覆蓋全域（如有）
+                    if key_reminders:
+                        global_settings["reminders"] = key_reminders
                 finally:
                     pc.close()
-                event = build_event(appt_row, assignees)
+                event = build_event(appt_row, assignees, global_settings)
                 # A2 冪等：C op 前也先查 map（insert 成功但 map 寫入失敗時重試不重複）
                 if not gid:
                     mx = get_db()

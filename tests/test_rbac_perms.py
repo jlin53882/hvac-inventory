@@ -17,7 +17,8 @@ from main import app as fastapi_app
 EXPECTED_ROLES = ('admin', 'user', 'tech', 'viewer')
 EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt', 'stock-mgmt',
                  'import', 'stockout', 'stocktake', 'kit-mgmt', 'photo', 'cal-mgmt',
-                 'svc-type-mgmt', 'unit-mgmt', 'user-mgmt', 'change-own-password')
+                 'svc-type-mgmt', 'gcal-sync-manage', 'gcal-sync-force', 'gcal-keys-manage',
+                 'unit-mgmt', 'user-mgmt', 'change-own-password')
 
 
 @pytest.fixture()
@@ -205,7 +206,7 @@ def test_list_permissions_endpoint(admin_client):
     r = admin_client.get("/api/users/permissions")
     assert r.status_code == 200
     data = r.json()
-    assert len(data["permissions"]) == 17
+    assert len(data["permissions"]) == 20
     assert set(data["role_defaults"].keys()) == set(EXPECTED_ROLES)
     assert "cal-mgmt" in data["role_defaults"]["tech"]
 
