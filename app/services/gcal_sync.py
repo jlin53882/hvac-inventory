@@ -38,6 +38,7 @@ def compute_event_hash(appt_row: dict, assignees: list) -> str:
         "start": appt_row.get("start_time", ""),
         "end": appt_row.get("end_time", ""),
         "note": appt_row.get("note", ""),
+        "address": appt_row.get("address", ""),
         "svc": appt_row.get("service_type_id"),
         "users": sorted([a.get("user_id", a.get("id", 0)) for a in assignees]),
     }
@@ -303,14 +304,14 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
                     hc = get_db()
                     try:
                         _ar = hc.execute(
-                            "SELECT client_name, date, start_time, end_time, note, service_type_id "
+                            "SELECT client_name, date, start_time, end_time, note, service_type_id, address "
                             "FROM appointments WHERE id=?", (appt_id,)).fetchone()
                         _aa = [{"user_id": a[0]} for a in hc.execute(
                             "SELECT user_id FROM appointment_assignees WHERE appointment_id=? ORDER BY user_id",
                             (appt_id,)).fetchall()]
                         cur_hash = compute_event_hash(
                             {"client_name": _ar[0], "date": _ar[1], "start_time": _ar[2],
-                             "end_time": _ar[3], "note": _ar[4], "service_type_id": _ar[5]},
+                             "end_time": _ar[3], "note": _ar[4], "service_type_id": _ar[5], "address": _ar[6]},
                             _aa)
                     finally:
                         hc.close()

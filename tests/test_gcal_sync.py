@@ -537,6 +537,21 @@ class TestComputeEventHash:
         h = compute_event_hash(row, [])
         assert len(h) == 32
 
+    def test_address_change_changes_hash(self):
+        """A7 防回歸：address 納入 hash → 只改地址也觸發同步。
+
+        修復前 compute_event_hash 不含 address，只改地址 hash 相同 → 永不同步。
+        """
+        from app.services.gcal_sync import compute_event_hash
+        base = {"client_name": "客戶A", "date": "2026-08-28",
+                "start_time": "09:00", "end_time": "11:00",
+                "note": "", "service_type_id": 1}
+        addr1 = dict(base, address="台北市中正區")
+        addr2 = dict(base, address="新北市板橋區")
+        assert compute_event_hash(addr1, []) != compute_event_hash(addr2, [])
+        # 無 address vs 有 address 也應不同
+        assert compute_event_hash(base, []) != compute_event_hash(addr1, [])
+
 
 class TestHashSkipSync:
     """data_hash 相同 -> 跳過同步（不寫 sync_queue）"""
