@@ -225,40 +225,10 @@ async function loadGcalUsers() {
   } catch (e) { console.error('[loadGcalUsers]', e); }
 }
 
-var gcalSyncEnabled = false;  // 全域同步開關
-
-async function loadGcalSyncEnabled() {
-  try {
-    const res = await fetch('/api/gcal-sync-enabled');
-    if (res.ok) { const d = await res.json(); gcalSyncEnabled = d.enabled; }
-  } catch (e) { console.error('[loadGcalSyncEnabled]', e); }
-}
-
-async function toggleGcalSyncEnabled(on) {
-  try {
-    const res = await fetch('/api/gcal-sync-enabled', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: on })
-    });
-    if (!res.ok) { toast('操作失敗', 'error'); renderGcalPanel(); return; }
-    gcalSyncEnabled = on;
-    renderGcalPanel();
-    toast(on ? '✅ 同步已開啟' : '⏸ 同步已暫停', on ? 'success' : '');
-  } catch (e) { toast('操作失敗', 'error'); }
-}
-
 function renderGcalPanel() {
   const canManage = hasPerm('unit-mgmt');
   let html = '<h4>📅 行事曆同步（Google Calendar）</h4>';
   html += '<p style="font-size:12.5px;color:#888;margin-bottom:14px">將本地派工行程單向同步到 Google 行事曆。每個 Key 對應一個廠商的 Service Account。</p>';
-
-  // 全域同步開關
-  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 14px;background:' + (gcalSyncEnabled ? '#f0f5ff' : '#fff5f5') + ';border:1px solid ' + (gcalSyncEnabled ? '#d6e4ff' : '#ffccc7') + ';border-radius:8px">';
-  html += '<label class="settings-switch"><input type="checkbox" ' + (gcalSyncEnabled ? 'checked' : '') + ' onchange="toggleGcalSyncEnabled(this.checked)"><span class="slider"></span></label>';
-  html += '<span style="font-size:13.5px;font-weight:600;color:' + (gcalSyncEnabled ? '#2d5a8e' : '#cf1322') + '">' + (gcalSyncEnabled ? '🟢 同步已開啟' : '🔴 同步已暫停') + '</span>';
-  html += '<span style="font-size:11.5px;color:#999;margin-left:auto">' + (gcalSyncEnabled ? '每 5 分鐘自動同步' : '關閉後不同步到 Google 行事曆') + '</span>';
-  html += '</div>';
 
   if (gcalKeys.length === 0) {
     html += '<div class="gcal-empty"><div class="icon">📅</div>';
@@ -376,6 +346,6 @@ async function bindGcalUser(userId, keyName) {
      .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
-  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSyncEnabled()]);
+  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers()]);
   settingsSwitch(canUnits ? 'units' : 'pw');
 })();

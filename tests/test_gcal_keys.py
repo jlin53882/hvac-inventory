@@ -4,7 +4,6 @@ Google 行事曆同步 Key — 單元測試
 ================================
 覆蓋：
 - gcal_keys CRUD（GET/POST/PUT/DELETE）
-- gcal_sync_enabled 全域開關（GET/PUT）
 - 權限：viewer 403 / admin 正常
 - 防呆：重複名稱 400 / 空名稱 400 / 刪不存在 404
 - 使用者綁 gcal_key（PUT /api/users/{id}）
@@ -203,29 +202,6 @@ def test_key_options(client):
     assert "停用Key" not in names
 
 
-# ---------- gcal_sync_enabled 全域開關 ----------
-
-
-def test_sync_enabled_default_off(client):
-    """預設關閉"""
-    r = client.get("/api/gcal-sync-enabled")
-    assert r.status_code == 200
-    assert r.json()["enabled"] is False
-
-
-def test_sync_enabled_toggle(client):
-    """切換開關"""
-    r = client.put("/api/gcal-sync-enabled", json={"enabled": True})
-    assert r.status_code == 200
-    assert r.json()["enabled"] is True
-    # 讀回來確認
-    r2 = client.get("/api/gcal-sync-enabled")
-    assert r2.json()["enabled"] is True
-    # 再關
-    r3 = client.put("/api/gcal-sync-enabled", json={"enabled": False})
-    assert r3.json()["enabled"] is False
-
-
 # ---------- 權限：viewer 403 ----------
 
 
@@ -235,29 +211,6 @@ def test_viewer_cannot_create_key(viewer_client):
         "name": "X", "credentials_path": "x.json", "calendar_id": "x@cal",
     })
     assert r.status_code in (401, 403)
-
-
-def test_viewer_cannot_toggle_sync(viewer_client):
-    """viewer 不能切換同步開關"""
-    r = viewer_client.put("/api/gcal-sync-enabled", json={"enabled": True})
-    assert r.status_code in (401, 403)
-
-
-def test_sync_enabled_rejects_string(client):
-    """B4 防回歸：enabled="false"(字串) 不應解析為 True"""
-    r = client.put("/api/gcal-sync-enabled", json={"enabled": "false"})
-    # Pydantic bool 欄位：字串 "false" 會被 pydantic 解析為 False（strict mode）
-    # 但需確認不會變成 True
-    if r.status_code == 200:
-        assert r.json()["enabled"] is False
-    else:
-        assert r.status_code in (400, 422)
-
-
-def test_sync_enabled_rejects_non_dict(client):
-    """B4 防回歸：非 dict body 不應 500"""
-    # Pydantic 會擋非 dict → 422
-    pass  # 由 FastAPI 自動驗證
 
 
 

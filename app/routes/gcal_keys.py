@@ -1,7 +1,6 @@
 """Google 行事曆同步 Key CRUD（admin 級操作）"""
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
-from pydantic import BaseModel
 from app.models import GcalKeyIn, GcalKeyUpdate
 from app.services.auth import require_perm
 
@@ -98,35 +97,6 @@ def delete_gcal_key(key_id: int):
         conn.execute("DELETE FROM gcal_keys WHERE id=?", (key_id,))
         conn.commit()
         return {"ok": True}
-    finally:
-        conn.close()
-
-
-@router.get("/api/gcal-sync-enabled", dependencies=[Depends(require_perm("unit-mgmt"))])
-def get_sync_enabled():
-    """回傳全域同步開關狀態。"""
-    conn = get_db()
-    try:
-        row = conn.execute("SELECT value FROM settings WHERE key='gcal_sync_enabled'").fetchone()
-        return {"enabled": row["value"] == "1"} if row else {"enabled": False}
-    finally:
-        conn.close()
-
-
-class SyncEnabledIn(BaseModel):
-    enabled: bool = False
-
-@router.put("/api/gcal-sync-enabled", dependencies=[Depends(require_perm("unit-mgmt"))])
-def set_sync_enabled(body: SyncEnabledIn):
-    """切換全域同步開關。"""
-    enabled = body.enabled
-    conn = get_db()
-    try:
-        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('gcal_sync_enabled', ?)",
-                     ("1" if enabled else "0",))
-        conn.commit()
-        return {"enabled": enabled}
     finally:
         conn.close()
 

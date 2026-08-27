@@ -1728,8 +1728,7 @@ def test_settings_js_has_gcal_functions():
     assert "deleteGcalKey" in js, "settings.js 缺 deleteGcalKey"
     assert "bindGcalUser" in js, "settings.js 缺 bindGcalUser"
     assert "loadGcalKeys" in js, "settings.js 缺 loadGcalKeys"
-    assert "toggleGcalSyncEnabled" in js, "settings.js 缺 toggleGcalSyncEnabled"
-    assert "gcalSyncEnabled" in js, "settings.js 缺 gcalSyncEnabled 變數"
+
 
 
 def test_settings_js_switch_handles_gcal():
@@ -1751,7 +1750,7 @@ def test_gcal_keys_route_has_crud():
     """gcal_keys.py 有完整 CRUD"""
     code = _read(GCAL_KEYS_PY)
     assert '"/api/gcal-keys"' in code
-    assert "gcal-sync-enabled" in code
+    assert '"/api/gcal-keys/options"' in code
 
 
 def test_database_has_gcal_keys_table():

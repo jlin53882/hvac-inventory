@@ -42,15 +42,6 @@ async def lifespan(app: FastAPI):
         init_admin_if_missing(_conn)
     finally:
         _conn.close()
-    # Google 行事曆同步全域開關（預設關閉）
-    conn = get_db()
-    try:
-        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-        if not conn.execute("SELECT 1 FROM settings WHERE key='gcal_sync_enabled'").fetchone():
-            conn.execute("INSERT INTO settings (key, value) VALUES ('gcal_sync_enabled', '0')")
-        conn.commit()
-    finally:
-        conn.close()
     yield
 
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
