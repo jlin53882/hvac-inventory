@@ -423,3 +423,77 @@ def test_export_daily_report_without_service_type(client):
     assert ws["B4"].value == "09:00"              # 時間正常填
     for col in ("E", "G", "I", "K"):
         assert ws[f"{col}4"].value is None        # 所有 ✓ 欄都不勾（無服務項目）
+
+# ===== 2026-08-28 B1：_sync_status 多 key 誤報修正 =====
+class TestSyncStatus:
+    """_sync_status 多 key 情境：map 有任一列 ≠ 一定 synced。
+
+    修正前：map 有列就回 "synced"，會掩蓋其他 key 的失敗/等待。
+    用獨立 tmp DB（不接 client fixture 的 POST，避免自動 sync_queue/map 干擾）。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _conn(self, tmp_path, monkeypatch):
+        import app.database as app_db
+        monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "b1.db"))
+        app_db.init_db()
+        c = app_db.get_db()
+        try:
+            c.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                      "VALUES('k1','a.json','c1',1), ('k2','b.json','c2',1)")
+            c.execute("INSERT INTO appointments(client_name, address, date, start_time, end_time) "
+                      "VALUES('測試客戶','台北市','2026-08-28','09:00','11:00')")
+            c.commit()
+            _appt_id = c.execute("SELECT id FROM appointments").fetchone()["id"]
+            yield c, _appt_id
+        finally:
+            c.close()
+
+    def test_synced_when_map_all_success(self, _conn):
+        """map 有列、queue 無失敗 → synced"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                     "VALUES(?,1,'ev1','h1'),(?,2,'ev2','h2')", (appt_id, appt_id))
+        conn.commit()
+        assert apt._sync_status(conn, appt_id) == "synced"
+
+    def test_partial_failed_when_map_plus_queue_error(self, _conn):
+        """map 有列 + queue 有 last_error → partial_failed（不掩蓋失敗）"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                     "VALUES(?,1,'ev1','h1')", (appt_id,))
+        conn.execute("INSERT INTO appointment_sync_queue"
+                     "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                     "VALUES(?,2,'U','',datetime('now'),3,'Google 404')", (appt_id,))
+        conn.commit()
+        assert apt._sync_status(conn, appt_id) == "partial_failed"
+
+    def test_pending_when_map_plus_queue_waiting(self, _conn):
+        """map 有列 + queue 等待中（無 error）→ pending（未全部完成）"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                     "VALUES(?,1,'ev1','h1')", (appt_id,))
+        conn.execute("INSERT INTO appointment_sync_queue"
+                     "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                     "VALUES(?,2,'U','',datetime('now'),0,'')", (appt_id,))
+        conn.commit()
+        assert apt._sync_status(conn, appt_id) == "pending"
+
+    def test_failed_no_map(self, _conn):
+        """無 map + queue 失敗 → failed"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_sync_queue"
+                     "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                     "VALUES(?,1,'C','',datetime('now'),2,'network error')", (appt_id,))
+        conn.commit()
+        assert apt._sync_status(conn, appt_id) == "failed"
+
+    def test_none_no_map_no_queue(self, _conn):
+        """無 map 無 queue → none"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        assert apt._sync_status(conn, appt_id) == "none"

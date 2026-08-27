@@ -140,15 +140,29 @@ def _find_conflict(conn, user_ids, date, start_time, end_time, exclude_id=0):
 
 
 def _sync_status(conn, appt_id: int) -> str:
-    """回傳同步狀態：synced / pending / failed / none"""
-    # 有 gcal_map → 已同步
+    """回傳同步狀態：synced / partial_failed / pending / failed / none
+
+    多 key 情境：appointment_gcal_map 有任一列 = 至少一個 key 已同步，
+    但若 sync_queue 仍有失敗/等待列（其他 key 未完成）→ 不可回 synced。
+    """
+    # 有 gcal_map → 至少一個 key 已同步
     m = conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=?", (appt_id,)).fetchone()
+    # 有 sync_queue → 還有 key 待處理或失敗
+    q = conn.execute(
+        "SELECT last_error, attempts FROM appointment_sync_queue WHERE appointment_id=?",
+        (appt_id,),
+    ).fetchall()
+    has_failed = any(r["last_error"] for r in q)
+    has_pending = bool(q) and not has_failed
     if m:
+        if has_failed:
+            return "partial_failed"   # 部分 key 成功 + 部分失敗
+        if has_pending:
+            return "pending"          # 部分 key 成功 + 部分等待中
         return "synced"
-    # 有 sync_queue → 等待或失敗
-    q = conn.execute("SELECT last_error, attempts FROM appointment_sync_queue WHERE appointment_id=?", (appt_id,)).fetchone()
+    # 無 map：全看 queue
     if q:
-        return "failed" if q["last_error"] else "pending"
+        return "failed" if has_failed else "pending"
     return "none"
 
 
