@@ -43,6 +43,7 @@ def _user_out(row) -> dict:
         "failed_attempts": row["failed_attempts"],
         "locked_until": row["locked_until"],
         "created_at": row["created_at"],
+        "gcal_key": row["gcal_key"] if "gcal_key" in row.keys() else "",
     }
 
 
@@ -185,9 +186,10 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
                 if _active_admin_count(conn, exclude_id=user_id) == 0:
                     raise HTTPException(status_code=400, detail="系統至少需要一名啟用的管理員")
 
+        gcal_key = row["gcal_key"] if body.gcal_key is None else body.gcal_key.strip()
         conn.execute(
-            "UPDATE users SET display_name = ?, role = ?, is_active = ?, color = ?, updated_at = datetime('now') WHERE id = ?",
-            (display_name, role, is_active, color, user_id),
+            "UPDATE users SET display_name = ?, role = ?, is_active = ?, color = ?, gcal_key = ?, updated_at = datetime('now') WHERE id = ?",
+            (display_name, role, is_active, color, gcal_key, user_id),
         )
         # B3：帳號被停用 → 舊 session 立即失效（避免停用後仍可續用 7 天）
         if row["is_active"] == 1 and is_active == 0:

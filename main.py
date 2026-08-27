@@ -27,7 +27,7 @@ import app.config as app_config
 from app.config import STATIC_DIR
 from app.middleware import cache_control_middleware, csrf_origin_middleware, security_headers_middleware
 from app.database import get_db, init_db
-from app.routes import appointments, auth, export, items, kits, lookup, movements, photos, service_types, stats, stockout, stocktake, users, units
+from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, service_types, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 
 @asynccontextmanager
@@ -42,6 +42,15 @@ async def lifespan(app: FastAPI):
         init_admin_if_missing(_conn)
     finally:
         _conn.close()
+    # Google 行事曆同步全域開關（預設關閉）
+    conn = get_db()
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        if not conn.execute("SELECT 1 FROM settings WHERE key='gcal_sync_enabled'").fetchone():
+            conn.execute("INSERT INTO settings (key, value) VALUES ('gcal_sync_enabled', '0')")
+        conn.commit()
+    finally:
+        conn.close()
     yield
 
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
@@ -70,7 +79,7 @@ app.include_router(auth.router)
 # 其餘全部上鎖：未登入一律 401
 for _r in (items.router, movements.router, stockout.router, kits.router, stocktake.router,
            stats.router, export.router, photos.router, lookup.router, service_types.router,
-           users.router, appointments.router, units.router):
+           users.router, appointments.router, units.router, gcal_keys.router):
     app.include_router(_r, dependencies=[Depends(require_login)])
 
 # ---------- 靜態檔案（前端） ----------

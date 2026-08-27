@@ -10,9 +10,12 @@ function settingsSwitch(panel) {
   document.querySelectorAll('#settingsChipBar .chip').forEach(el =>
     el.classList.toggle('active', el.dataset.panel === panel));
   const showUnits = panel === 'units';
+  const showGcal = panel === 'gcal';
   document.getElementById('panel-units').style.display = showUnits ? '' : 'none';
-  document.getElementById('panel-pw').style.display = showUnits ? 'none' : '';
+  document.getElementById('panel-gcal').style.display = showGcal ? '' : 'none';
+  document.getElementById('panel-pw').style.display = (!showUnits && !showGcal) ? '' : 'none';
   if (showUnits) renderUnitsPanel();
+  if (showGcal) renderGcalPanel();
 }
 
 async function loadOrphans() {
@@ -204,6 +207,154 @@ function clearPwForm() {
   if (mm) mm.style.display = 'none';
 }
 
+// ========== 行事曆同步面板 ==========
+var gcalKeys = [];
+var gcalUsers = [];  // 使用者清單（含 gcal_key）
+
+async function loadGcalKeys() {
+  try {
+    const res = await fetch('/api/gcal-keys');
+    if (res.ok) gcalKeys = await res.json();
+  } catch (e) { console.error('[loadGcalKeys]', e); }
+}
+
+async function loadGcalUsers() {
+  try {
+    const res = await fetch('/api/users');
+    if (res.ok) { const d = await res.json(); gcalUsers = d.users || []; }
+  } catch (e) { console.error('[loadGcalUsers]', e); }
+}
+
+var gcalSyncEnabled = false;  // 全域同步開關
+
+async function loadGcalSyncEnabled() {
+  try {
+    const res = await fetch('/api/gcal-sync-enabled');
+    if (res.ok) { const d = await res.json(); gcalSyncEnabled = d.enabled; }
+  } catch (e) { console.error('[loadGcalSyncEnabled]', e); }
+}
+
+async function toggleGcalSyncEnabled(on) {
+  try {
+    const res = await fetch('/api/gcal-sync-enabled', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: on })
+    });
+    if (!res.ok) { toast('操作失敗', 'error'); renderGcalPanel(); return; }
+    gcalSyncEnabled = on;
+    renderGcalPanel();
+    toast(on ? '✅ 同步已開啟' : '⏸ 同步已暫停', on ? 'success' : '');
+  } catch (e) { toast('操作失敗', 'error'); }
+}
+
+function renderGcalPanel() {
+  const canManage = hasPerm('unit-mgmt');
+  let html = '<h4>📅 行事曆同步（Google Calendar）</h4>';
+  html += '<p style="font-size:12.5px;color:#888;margin-bottom:14px">將本地派工行程單向同步到 Google 行事曆。每個 Key 對應一個廠商的 Service Account。</p>';
+
+  // 全域同步開關
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 14px;background:' + (gcalSyncEnabled ? '#f0f5ff' : '#fff5f5') + ';border:1px solid ' + (gcalSyncEnabled ? '#d6e4ff' : '#ffccc7') + ';border-radius:8px">';
+  html += '<label class="settings-switch"><input type="checkbox" ' + (gcalSyncEnabled ? 'checked' : '') + ' onchange="toggleGcalSyncEnabled(this.checked)"><span class="slider"></span></label>';
+  html += '<span style="font-size:13.5px;font-weight:600;color:' + (gcalSyncEnabled ? '#2d5a8e' : '#cf1322') + '">' + (gcalSyncEnabled ? '🟢 同步已開啟' : '🔴 同步已暫停') + '</span>';
+  html += '<span style="font-size:11.5px;color:#999;margin-left:auto">' + (gcalSyncEnabled ? '每 5 分鐘自動同步' : '關閉後不同步到 Google 行事曆') + '</span>';
+  html += '</div>';
+
+  if (gcalKeys.length === 0) {
+    html += '<div class="gcal-empty"><div class="icon">📅</div>';
+    html += '<p>尚未設定任何 Service Account Key</p>';
+    html += '<p style="font-size:12px;margin-top:6px;color:#bbb">點擊下方按鈕新增第一把 Key，開始同步行程到 Google 行事曆</p>';
+    if (canManage) html += '<button class="btn-primary" style="margin-top:14px" onclick="openGcalKeyModal()">＋ 新增第一把 Key</button>';
+    html += '</div>';
+  } else {
+    html += '<table class="gcal-table"><thead><tr>';
+    html += '<th>名稱</th><th>行事曆 ID</th><th>狀態</th>';
+    if (canManage) html += '<th>操作</th>';
+    html += '</tr></thead><tbody>';
+    gcalKeys.forEach(k => {
+      html += '<tr>';
+      html += '<td class="gcal-name">' + esc(k.name) + '</td>';
+      html += '<td class="gcal-cal-id" title="' + esc(k.calendar_id) + '">' + esc(k.calendar_id) + '</td>';
+      html += '<td><label class="settings-switch"><input type="checkbox" ' + (k.is_active ? 'checked' : '') + ' onchange="toggleGcalKey(' + k.id + ', this.checked)"><span class="slider"></span></label></td>';
+      if (canManage) {
+        html += '<td class="gcal-actions">';
+        html += '<button class="btn-ghost" style="padding:4px 8px;font-size:12px" onclick="openGcalKeyModal(' + k.id + ')">✏️ 編輯</button> ';
+        html += '<button class="btn-danger" data-id="' + k.id + '" data-name="' + esc(k.name) + '" onclick="deleteGcalKey(this)">🗑️ 刪除</button>';
+        html += '</td>';
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    if (canManage) html += '<div style="margin-top:12px"><button class="btn-primary" onclick="openGcalKeyModal()">＋ 新增 Key</button></div>';
+  }
+
+  html += '<div class="gcal-hint">📌 行程依「指派人員綁定的 Key」決定同步到哪本行事曆 ｜ 🔄 同一行程可同步到多本（一對多） ｜ ⏱ 同步間隔 5 分鐘</div>';
+
+  // 使用者綁 key
+  html += '<div class="gcal-user-section"><h5>👤 使用者綁定 Key（指派人 → 同步到該 Key 的行事曆）</h5>';
+  if (gcalUsers.length && gcalKeys.length) {
+    html += '<table class="gcal-user-table"><thead><tr><th>使用者</th><th>綁定 Key</th></tr></thead><tbody>';
+    gcalUsers.forEach(u => {
+      html += '<tr><td>👤 ' + esc(u.display_name || u.username) + '</td><td>';
+      html += '<select onchange="bindGcalUser(' + u.id + ', this.value)">';
+      html += '<option value=""' + (!u.gcal_key ? ' selected' : '') + '>— 未綁定 —</option>';
+      gcalKeys.filter(k => k.is_active).forEach(k => {
+        html += '<option value="' + esc(k.name) + '"' + (u.gcal_key === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>';
+      });
+      html += '</select></td></tr>';
+    });
+    html += '</tbody></table>';
+    html += '<p style="font-size:11px;color:#999;margin-top:6px">未綁定 Key 的使用者，其指派的行程不會同步到任何行事曆。</p>';
+  } else if (!gcalKeys.length) {
+    html += '<p style="font-size:12px;color:#999">請先新增至少一把 Key，再綁定使用者。</p>';
+  }
+  html += '</div>';
+
+  document.getElementById('panel-gcal').innerHTML = html;
+}
+
+async function toggleGcalKey(id, on) {
+  try {
+    const res = await fetch('/api/gcal-keys/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: on })
+    });
+    if (!res.ok) { toast((await res.json()).detail || '操作失敗', 'error'); renderGcalPanel(); return; }
+    const k = gcalKeys.find(x => x.id === id);
+    if (k) k.is_active = on;
+    renderGcalPanel();
+    toast(on ? '✅ 已啟用' : '已停用', on ? 'success' : '');
+  } catch (e) { toast('操作失敗', 'error'); }
+}
+
+async function deleteGcalKey(btn) {
+  var id = parseInt(btn.dataset.id);
+  var name = btn.dataset.name;
+  if (!confirm('確定要刪除 Key「' + name + '」？')) return;
+  try {
+    const res = await fetch('/api/gcal-keys/' + id, { method: 'DELETE' });
+    if (!res.ok) { toast((await res.json()).detail || '刪除失敗', 'error'); return; }
+    gcalKeys = gcalKeys.filter(k => k.id !== id);
+    renderGcalPanel();
+    toast('✅ 已刪除', 'success');
+  } catch (e) { toast('刪除失敗', 'error'); }
+}
+
+async function bindGcalUser(userId, keyName) {
+  try {
+    const res = await fetch('/api/users/' + userId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gcal_key: keyName })
+    });
+    if (!res.ok) { toast((await res.json()).detail || '綁定失敗', 'error'); return; }
+    const u = gcalUsers.find(x => x.id === userId);
+    if (u) u.gcal_key = keyName;
+    toast('✅ 已綁定', 'success');
+  } catch (e) { toast('綁定失敗', 'error'); }
+}
+
 // ========== 初始化 ==========
 (async function initSettings() {
   const user = await checkAuth();
@@ -219,11 +370,12 @@ function clearPwForm() {
   if (chipBar) {
     chipBar.innerHTML = [
       ['units', '📦 單位管理'],
+      ['gcal', '📅 行事曆同步'],
       ['pw', '🔑 修改密碼']
     ].filter(([p]) => p !== 'units' || canUnits)
      .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
-  await Promise.all([loadUnits(), loadOrphans()]);
+  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSyncEnabled()]);
   settingsSwitch(canUnits ? 'units' : 'pw');
 })();

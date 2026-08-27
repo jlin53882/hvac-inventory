@@ -1690,6 +1690,88 @@ def test_all_js_syntax_valid():
         assert result.returncode == 0, f"{os.path.basename(f)} 語法錯誤: {result.stderr[:200]}"
 
 
+# ---------- Google 行事曆同步 panel ----------
+
+SETTINGS_HTML = os.path.join(STATIC, "settings.html")
+SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
+GCAL_KEY_JS = os.path.join(STATIC, "js", "modals", "gcal-key.js")
+GCAL_KEYS_PY = os.path.join(BASE_DIR, "app", "routes", "gcal_keys.py")
+DATABASE_PY = os.path.join(BASE_DIR, "app", "database.py")
+
+
+def _read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def test_settings_html_has_gcal_panel():
+    """settings.html 包含行事曆同步 panel"""
+    html = _read(SETTINGS_HTML)
+    assert 'data-panel="gcal"' in html, "settings.html 左清單缺 gcal panel"
+    assert 'id="panel-gcal"' in html, "settings.html 缺 panel-gcal div"
+    assert 'gcalKeyModal' in html, "settings.html 缺 gcalKeyModal modal"
+
+
+def test_settings_html_has_gcal_modal_fields():
+    """settings.html modal 包含三個欄位"""
+    html = _read(SETTINGS_HTML)
+    assert 'id="gk-name"' in html, "modal 缺 Key 名稱欄位"
+    assert 'id="gk-cred"' in html, "modal 缺 JSON 路徑欄位"
+    assert 'id="gk-cal"' in html, "modal 缺 Calendar ID 欄位"
+
+
+def test_settings_js_has_gcal_functions():
+    """settings.js 包含 gcal panel 函式"""
+    js = _read(SETTINGS_JS)
+    assert "renderGcalPanel" in js, "settings.js 缺 renderGcalPanel"
+    assert "toggleGcalKey" in js, "settings.js 缺 toggleGcalKey"
+    assert "deleteGcalKey" in js, "settings.js 缺 deleteGcalKey"
+    assert "bindGcalUser" in js, "settings.js 缺 bindGcalUser"
+    assert "loadGcalKeys" in js, "settings.js 缺 loadGcalKeys"
+    assert "toggleGcalSyncEnabled" in js, "settings.js 缺 toggleGcalSyncEnabled"
+    assert "gcalSyncEnabled" in js, "settings.js 缺 gcalSyncEnabled 變數"
+
+
+def test_settings_js_switch_handles_gcal():
+    """settingsSwitch 正確切換 gcal panel"""
+    js = _read(SETTINGS_JS)
+    assert "showGcal" in js, "settingsSwitch 缺 showGcal 判斷"
+    assert "panel-gcal" in js, "settingsSwitch 缺 panel-gcal 顯示控制"
+
+
+def test_gcal_key_js_has_modal_functions():
+    """gcal-key.js 包含 modal 操作函式"""
+    js = _read(GCAL_KEY_JS)
+    assert "openGcalKeyModal" in js, "gcal-key.js 缺 openGcalKeyModal"
+    assert "closeGcalKeyModal" in js, "gcal-key.js 缺 closeGcalKeyModal"
+    assert "submitGcalKey" in js, "gcal-key.js 缺 submitGcalKey"
+
+
+def test_gcal_keys_route_has_crud():
+    """gcal_keys.py 有完整 CRUD"""
+    code = _read(GCAL_KEYS_PY)
+    assert '"/api/gcal-keys"' in code
+    assert "gcal-sync-enabled" in code
+
+
+def test_database_has_gcal_keys_table():
+    """database.py 建立 gcal_keys 表"""
+    code = _read(DATABASE_PY)
+    assert "CREATE TABLE IF NOT EXISTS gcal_keys" in code, "database.py 缺 gcal_keys 表"
+
+
+def test_database_has_users_gcal_key():
+    """database.py migration 加 users.gcal_key"""
+    code = _read(DATABASE_PY)
+    assert "gcal_key" in code, "database.py 缺 users.gcal_key migration"
+
+
+def test_settings_panel_script_includes_gcal_key_js():
+    """settings.html 引入 gcal-key.js"""
+    html = _read(SETTINGS_HTML)
+    assert "gcal-key.js" in html, "settings.html 未引入 gcal-key.js"
+
+
 def test_brand_filter_normalizes_no_brand():
     """A1 防回歸：「無廠牌」品牌 chip 篩選必須正規化（i.brand || '無廠牌'）。
     bug 版：顯示層把空 brand 正規化成「無廠牌」，過濾層卻用原始 i.brand 比對，

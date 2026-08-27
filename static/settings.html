@@ -72,6 +72,33 @@
 .side-main .form-row { margin-bottom: 12px; max-width: 420px; }
 .side-main .form-row label { display: block; font-size: 12.5px; color: #444; margin-bottom: 4px; font-weight: 600; }
 .side-main .form-row input { width: 100%; padding: 9px 10px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 14px; }
+/* Google 行事曆同步 panel */
+.gcal-table { width: 100%; font-size: 13.5px; border-collapse: collapse; }
+.gcal-table th { text-align: left; padding: 8px 6px; border-bottom: 2px solid #e0e0e0; color: #666; font-size: 12px; font-weight: 600; }
+.gcal-table td { padding: 10px 6px; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
+.gcal-table tr:hover { background: #f7fbff; }
+.gcal-hint { margin-top: 14px; padding: 10px 12px; background: #f0f5ff; border: 1px solid #d6e4ff; border-radius: 8px; font-size: 12.5px; color: #2d5a8e; }
+.gcal-empty { text-align: center; padding: 40px 20px; color: #999; }
+.gcal-empty .icon { font-size: 40px; margin-bottom: 10px; }
+.gcal-name { font-weight: 600; color: #1a3a5c; }
+.gcal-cal-id { font-family: monospace; font-size: 11.5px; color: #888; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gcal-actions { display: flex; gap: 4px; }
+.gcal-user-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee; }
+.gcal-user-section h5 { font-size: 13px; color: #666; margin-bottom: 8px; }
+.gcal-user-table { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+.gcal-user-table td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; }
+.gcal-user-table select { padding: 4px 8px; border: 1px solid #cfd6df; border-radius: 6px; font-size: 12px; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal-box { background: #fff; border-radius: 14px; padding: 24px; width: 440px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
+.modal-box h4 { font-size: 16px; margin-bottom: 16px; color: #1e3a5f; }
+.modal-box .form-row { margin-bottom: 14px; }
+.modal-box .form-row label { display: block; font-size: 12.5px; color: #444; margin-bottom: 4px; font-weight: 600; }
+.modal-box .form-row input { width: 100%; padding: 9px 10px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 14px; }
+.btn-save { padding: 9px; background: #1890ff; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.btn-save:hover { background: #096dd9; }
+.btn-cancel-ghost { padding: 9px; background: #f5f5f5; color: #666; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; cursor: pointer; }
+
 @media (max-width: 768px) {
   .perm-layout { padding: 0 0 110px; display: block; }
   .side-list { display: none; }
@@ -106,10 +133,12 @@
 <div class="perm-layout">
   <aside class="side-list" id="settingsSideList">
     <div class="side-item active" data-panel="units" onclick="settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
+    <div class="side-item" data-panel="gcal" onclick="settingsSwitch('gcal')"><span class="ic">📅</span><div>行事曆同步<span class="desc">Google 行事曆同步</span></div></div>
     <div class="side-item" data-panel="pw" onclick="settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
   </aside>
   <main class="side-main">
     <div id="panel-units"></div>
+    <div id="panel-gcal" style="display:none"></div>
     <div id="panel-pw" style="display:none">
       <h4>🔑 修改密碼</h4>
       <div class="form-row">
@@ -141,12 +170,39 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Google 行事曆同步 Key Modal -->
+<div class="modal-overlay" id="gcalKeyModal">
+  <div class="modal-box">
+    <h4>＋ 新增 Service Account Key</h4>
+    <div class="form-row">
+      <label>Key 名稱</label>
+      <input type="text" id="gk-name" placeholder="例：廠商A、小陳帳號" maxlength="50">
+      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">自訂名稱，方便辨識是哪個廠商/帳號的 Key</div>
+    </div>
+    <div class="form-row">
+      <label>Service Account JSON 檔路徑</label>
+      <input type="text" id="gk-cred" placeholder="例：secrets/hvac-sync-a.json">
+      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">放在伺服器上的 JSON 金鑰檔案路徑（由管理者建立 Service Account 後下載）</div>
+    </div>
+    <div class="form-row">
+      <label>Calendar ID</label>
+      <input type="text" id="gk-cal" placeholder="例：abc123@group.calendar.google.com">
+      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">要同步到的 Google 行事曆 ID（行事曆設定頁 → 整合日曆 → 行事曆 ID）</div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn-save" style="flex:2" onclick="submitGcalKey()">💾 儲存</button>
+      <button class="btn-cancel-ghost" style="flex:1" onclick="closeGcalKeyModal()">取消</button>
+    </div>
+  </div>
+</div>
+
 <script src="/static/js/globals.js" defer></script>
 <script src="/static/js/auth.js" defer></script>
 <script src="/static/js/utils.js" defer></script>
 <script src="/static/js/api.js" defer></script>
 <script src="/static/js/units.js" defer></script>
 <script src="/static/js/modals/changepw.js" defer></script>
+<script src="/static/js/modals/gcal-key.js" defer></script>
 <script src="/static/js/settings.js" defer></script>
 </body>
 </html>

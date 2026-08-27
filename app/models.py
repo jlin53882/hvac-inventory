@@ -136,6 +136,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[int] = None
     color: Optional[str] = None  # 行事曆人員顏色（選填 hex）
+    gcal_key: Optional[str] = None  # Google 行事曆同步 key 綁定
 
 
 class UserPassword(BaseModel):
@@ -179,3 +180,20 @@ class ServiceTypeIn(BaseModel):
     name: str
     sort_order: int = 0
     is_active: int = 1
+
+
+# ---------- Google 行事曆同步 ----------
+class GcalKeyIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    credentials_path: str = Field(..., min_length=1)
+    calendar_id: str = Field(..., min_length=1)
+
+
+class GcalKeyUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    credentials_path: Optional[str] = None
+    calendar_id: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+

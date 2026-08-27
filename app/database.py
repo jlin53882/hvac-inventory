@@ -137,6 +137,15 @@ def _exec_init(conn):
         sort_order INTEGER NOT NULL DEFAULT 0,
         is_active  INTEGER NOT NULL DEFAULT 1
     );
+    -- Google 行事曆同步 key（2026-08-27 方案 C：家豪統建 SA）
+    CREATE TABLE IF NOT EXISTS gcal_keys (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        name             TEXT NOT NULL UNIQUE,     -- key 名稱（如 '廠商A'）
+        credentials_path TEXT NOT NULL,            -- Service Account JSON 檔路徑
+        calendar_id      TEXT NOT NULL,            -- 要寫入的行事曆 id
+        is_active        INTEGER NOT NULL DEFAULT 1,
+        created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS appointments (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         client_name     TEXT NOT NULL,               -- 客戶姓名與戶號 / 案場
@@ -225,6 +234,9 @@ def _exec_init(conn):
     if "color" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN color TEXT DEFAULT '#1a73e8'")
         print("[migrate] users.color 欄位已新增（行事曆人員顏色）")
+    if "gcal_key" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN gcal_key TEXT DEFAULT ''")
+        print("[migrate] users.gcal_key 欄位已新增（Google 行事曆同步 key）")
     appt_cols = [r[1] for r in conn.execute("PRAGMA table_info(appointments)").fetchall()]
     if "updated_by" not in appt_cols:
         conn.execute("ALTER TABLE appointments ADD COLUMN updated_by INTEGER REFERENCES users(id)")
