@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """背景 debounce 同步排程器（Multi-Key 複合主鍵隊列）"""
 import logging
+import os
 import threading
 from datetime import datetime, timedelta
 
@@ -8,6 +9,15 @@ from app.database import get_db
 from app.services import gcal_sync
 
 logger = logging.getLogger(__name__)
+
+# 加 file handler 方便查看同步 log
+_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_log_path = os.path.join(_log_dir, "gcal_sync.log")
+_fh = logging.FileHandler(_log_path, encoding="utf-8")
+_fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+logger.addHandler(_fh)
+logger.setLevel(logging.INFO)
 _INTERVAL = 300   # 5 分鐘
 _WINDOW = 300     # debounce 窗口 5 分鐘
 _MAX_ATTEMPTS = 5

@@ -14,6 +14,8 @@ data/stock-items.json
 data/stock-data.js
 scripts/webhook.local.ps1
 *.lnk
+logs/
+gcal_sync.log
 
 # Google Service Account 金鑰（絕不可 commit）
 secrets/
