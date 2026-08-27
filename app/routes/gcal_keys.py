@@ -4,6 +4,30 @@ from app.database import get_db
 from app.models import GcalKeyIn, GcalKeyUpdate
 from app.services.auth import require_perm
 
+
+def _backfill_all_appointments(key_id: int) -> None:
+    """新增 key 後，自動把所有旧行程加入 sync_queue（C = create）。"""
+    try:
+        conn = get_db()
+        try:
+            appt_ids = [r["id"] for r in conn.execute("SELECT id FROM appointments").fetchall()]
+            added = 0
+            for appt_id in appt_ids:
+                conn.execute(
+                    """INSERT INTO appointment_sync_queue
+                       (appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error)
+                       VALUES(?, ?, 'C', '', datetime('now'), 0, '')
+                       ON CONFLICT(appointment_id, key_id) DO UPDATE SET
+                       op_type='C', last_modified_at=datetime('now'), attempts=0, last_error=''""",
+                    (appt_id, key_id))
+                added += 1
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("backfill sync_queue 失敗 key_id=%s: %s", key_id, e)
+
 router = APIRouter()
 
 
@@ -43,10 +67,19 @@ def create_gcal_key(k: GcalKeyIn):
             "INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
             (name, k.credentials_path.strip(), k.calendar_id.strip()),
         )
+        new_key_id = cur.lastrowid
         conn.commit()
-        return _row_to_dict(conn.execute("SELECT * FROM gcal_keys WHERE id=?", (cur.lastrowid,)).fetchone())
     finally:
         conn.close()
+    # 新增 key 後，自動把所有旧行程加入 sync_queue（首次同步）
+    _backfill_all_appointments(new_key_id)
+    from app.database import get_db as _g
+    _c = _g()
+    try:
+        row = _c.execute("SELECT * FROM gcal_keys WHERE id=?", (new_key_id,)).fetchone()
+    finally:
+        _c.close()
+    return _row_to_dict(row)
 
 
 @router.put("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("unit-mgmt"))])
@@ -79,11 +112,21 @@ def update_gcal_key(key_id: int, k: GcalKeyUpdate):
         if not updates:
             raise HTTPException(400, "無可更新欄位")
         params.append(key_id)
+        was_inactive = not row["is_active"] if "is_active" in row.keys() else False
         conn.execute(f"UPDATE gcal_keys SET {','.join(updates)} WHERE id=?", params)
         conn.commit()
-        return _row_to_dict(conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone())
     finally:
         conn.close()
+    # key 從停用→啟用時，自動把旧行程加入 sync_queue
+    if was_inactive and k.is_active:
+        _backfill_all_appointments(key_id)
+    from app.database import get_db as _g
+    _c = _g()
+    try:
+        final_row = _c.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+    finally:
+        _c.close()
+    return _row_to_dict(final_row)
 
 
 @router.delete("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("unit-mgmt"))])
