@@ -30,7 +30,8 @@ router = APIRouter()
 
 def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
     """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
-    獨立短連線，失敗不影響主操作。"""
+    獨立短連線，失敗不影響主操作。
+    C/U op：比對 data_hash，相同則跳過（減少無效 API 呼叫）。"""
     if not gcal_sync.is_enabled():
         return
     try:
@@ -38,9 +39,28 @@ def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
         try:
             if op in ("C", "U"):
                 keys = gcal_sync.resolve_target_keys(c, appt_id)
+                # 計算 hash 用於比對
+                _appt = c.execute(
+                    "SELECT client_name, date, start_time, end_time, note, service_type_id "
+                    "FROM appointments WHERE id=?", (appt_id,)).fetchone()
+                _asgn = [{"user_id": a[0]} for a in c.execute(
+                    "SELECT user_id FROM appointment_assignees WHERE appointment_id=? ORDER BY user_id",
+                    (appt_id,)).fetchall()]
+                new_hash = gcal_sync.compute_event_hash(
+                    {"client_name": _appt[0], "date": _appt[1], "start_time": _appt[2],
+                     "end_time": _appt[3], "note": _appt[4], "service_type_id": _appt[5]},
+                    _asgn)
             else:  # D
                 keys = [r[0] for r in map_rows] if map_rows else []
+                new_hash = ""
             for key_id in keys:
+                # C/U op：比對 hash，相同則跳過
+                if op in ("C", "U") and new_hash:
+                    existing = c.execute(
+                        "SELECT data_hash FROM appointment_gcal_map "
+                        "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)).fetchone()
+                    if existing and existing[0] == new_hash:
+                        continue  # hash 相同，不需要同步
                 gid = next((g for (k, g) in map_rows if k == key_id), "") if map_rows else ""
                 c.execute(
                     "INSERT INTO appointment_sync_queue(appointment_id, key_id, op_type,"

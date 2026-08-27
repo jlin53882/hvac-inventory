@@ -164,6 +164,7 @@ def _exec_init(conn):
         appointment_id   INTEGER NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
         key_id           INTEGER NOT NULL REFERENCES gcal_keys(id) ON DELETE CASCADE,
         google_event_id  TEXT NOT NULL,
+        data_hash        TEXT DEFAULT '',
         synced_at        TEXT NOT NULL DEFAULT (datetime('now')),
         PRIMARY KEY (appointment_id, key_id)
     );

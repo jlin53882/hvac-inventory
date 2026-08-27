@@ -8,6 +8,8 @@ Google Calendar 單向同步（Multi-Key Service Account）
 - sync_pending(due) -> (ok, fail)               批次同步（每列對應一 key）
 - is_enabled() -> bool                          gcal_keys 有啟用 key 才 True
 """
+import hashlib
+import json
 import logging
 import os
 from typing import List, Tuple
@@ -26,6 +28,20 @@ logger.setLevel(logging.INFO)
 
 TZ = "Asia/Taipei"
 DEFAULT_DURATION_MIN = 60
+
+
+def compute_event_hash(appt_row: dict, assignees: list) -> str:
+    """計算行程資料的 hash（用於比對是否需要同步）。"""
+    payload = {
+        "client": appt_row.get("client_name", ""),
+        "date": appt_row.get("date", ""),
+        "start": appt_row.get("start_time", ""),
+        "end": appt_row.get("end_time", ""),
+        "note": appt_row.get("note", ""),
+        "svc": appt_row.get("service_type_id"),
+        "users": sorted([a.get("user_id", a.get("id", 0)) for a in assignees]),
+    }
+    return hashlib.md5(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def is_enabled() -> bool:
@@ -224,11 +240,26 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
             wc = get_db()
             try:
                 if op in ("C", "U"):
+                    # 計算並存入 data_hash（用於下次比對）
+                    hc = get_db()
+                    try:
+                        _ar = hc.execute(
+                            "SELECT client_name, date, start_time, end_time, note, service_type_id "
+                            "FROM appointments WHERE id=?", (appt_id,)).fetchone()
+                        _aa = [{"user_id": a[0]} for a in hc.execute(
+                            "SELECT user_id FROM appointment_assignees WHERE appointment_id=? ORDER BY user_id",
+                            (appt_id,)).fetchall()]
+                        cur_hash = compute_event_hash(
+                            {"client_name": _ar[0], "date": _ar[1], "start_time": _ar[2],
+                             "end_time": _ar[3], "note": _ar[4], "service_type_id": _ar[5]},
+                            _aa)
+                    finally:
+                        hc.close()
                     wc.execute(
-                        "INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id) "
-                        "VALUES(?,?,?) ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
-                        "google_event_id=excluded.google_event_id, synced_at=datetime('now')",
-                        (appt_id, key_id, gid))
+                        "INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                        "VALUES(?,?,?,?) ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+                        "google_event_id=excluded.google_event_id, data_hash=excluded.data_hash, synced_at=datetime('now')",
+                        (appt_id, key_id, gid, cur_hash))
                 wc.execute(
                     "DELETE FROM appointment_sync_queue "
                     "WHERE appointment_id=? AND key_id=? AND last_modified_at=?",
