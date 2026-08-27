@@ -119,6 +119,19 @@ def _find_conflict(conn, user_ids, date, start_time, end_time, exclude_id=0):
     return None
 
 
+def _sync_status(conn, appt_id: int) -> str:
+    """回傳同步狀態：synced / pending / failed / none"""
+    # 有 gcal_map → 已同步
+    m = conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=?", (appt_id,)).fetchone()
+    if m:
+        return "synced"
+    # 有 sync_queue → 等待或失敗
+    q = conn.execute("SELECT last_error, attempts FROM appointment_sync_queue WHERE appointment_id=?", (appt_id,)).fetchone()
+    if q:
+        return "failed" if q["last_error"] else "pending"
+    return "none"
+
+
 def _appt_row(conn, appt_id: int) -> dict:
     """行程 + 指派人員 + 服務名稱 完整 dict"""
     row = conn.execute("SELECT * FROM appointments WHERE id=?", (appt_id,)).fetchone()
@@ -155,6 +168,7 @@ def _appt_row(conn, appt_id: int) -> dict:
         "user_ids": [a["user_id"] for a in assignees],
         "assignees": [{"id": a["user_id"], "name": a["display_name"],
                        "color": a["color"] or "#1a73e8"} for a in assignees],
+        "sync_status": _sync_status(conn, appt_id),
     }
 
 

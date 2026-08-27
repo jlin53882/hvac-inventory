@@ -168,6 +168,7 @@ function calRenderDay() {
           ${(e.updated_by_name && e.updated_by_name !== (e.created_by_name || '系統')) ? `<span>✏️ 由 ${esc(e.updated_by_name)} 編輯</span>` : ''}
           <span>${calFmtCreatedAt(e.created_at)}</span>
         </div>
+        <div class="cal-sync-status" title="${e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'}">${e.sync_status === 'synced' ? '✅' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''}</div>
         ${isViewer ? '' : `<div class="cal-card-actions">
           <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">編輯</button>
           <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
