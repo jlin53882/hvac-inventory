@@ -89,9 +89,8 @@ def build_event(appt_row: dict, assignees: List[dict], settings: dict = None) ->
     start_time = (appt_row.get("start_time") or "").strip()
     end_time = (appt_row.get("end_time") or "").strip()
     date = appt_row["date"]
-    # 預設起始/截止時間（未填時用 08:00~17:00）
+    # 預設起始/截止時間（未填時用 08:00 + duration_min）
     DEFAULT_START = "08:00"
-    DEFAULT_END = "17:00"
     if not start_time:
         start_time = DEFAULT_START
     if not end_time:

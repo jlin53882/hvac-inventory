@@ -49,7 +49,7 @@ def _row_to_dict(r):
     }
 
 
-@router.get("/api/gcal-keys", dependencies=[Depends(require_perm("unit-mgmt"))])
+@router.get("/api/gcal-keys", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def list_gcal_keys():
     """admin：回傳全部 gcal key（含停用）。"""
     conn = get_db()
@@ -60,7 +60,7 @@ def list_gcal_keys():
         conn.close()
 
 
-@router.post("/api/gcal-keys", status_code=201, dependencies=[Depends(require_perm("unit-mgmt"))])
+@router.post("/api/gcal-keys", status_code=201, dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def create_gcal_key(k: GcalKeyIn):
     """＋ 新增 key。name 不可重複（含停用）。"""
     name = k.name.strip()
@@ -89,7 +89,7 @@ def create_gcal_key(k: GcalKeyIn):
     return _row_to_dict(row)
 
 
-@router.put("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("unit-mgmt"))])
+@router.put("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def update_gcal_key(key_id: int, k: GcalKeyUpdate):
     """✏️ 編輯 key（名稱/路徑/calendar_id/啟停）。"""
     conn = get_db()
@@ -136,7 +136,7 @@ def update_gcal_key(key_id: int, k: GcalKeyUpdate):
     return _row_to_dict(final_row)
 
 
-@router.delete("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("unit-mgmt"))])
+@router.delete("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def delete_gcal_key(key_id: int):
     """🗑️ 刪除 key。"""
     conn = get_db()
@@ -151,7 +151,7 @@ def delete_gcal_key(key_id: int):
         conn.close()
 
 
-@router.get("/api/gcal-keys/options", dependencies=[Depends(require_perm("unit-mgmt"))])
+@router.get("/api/gcal-keys/options", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def gcal_key_options():
     """下拉選單用：回傳啟用中的 key（id + name）。"""
     conn = get_db()
@@ -178,12 +178,30 @@ def get_gcal_sync_settings():
 @router.put("/api/gcal-sync-settings", dependencies=[Depends(require_perm("gcal-sync-manage"))])
 def update_gcal_sync_settings(body: dict):
     """更新全域同步設定（部分更新）。"""
+    import re as _re
     allowed = {"gcal_default_duration_min", "gcal_use_location", "gcal_transparency", "gcal_sync_interval_min"}
     conn = get_db()
     try:
         for k, v in body.items():
             if k not in allowed:
                 continue
+            # 值驗證
+            if k in ("gcal_default_duration_min", "gcal_sync_interval_min"):
+                try:
+                    iv = int(v)
+                except (TypeError, ValueError):
+                    raise HTTPException(400, f"{k} 必須是整數")
+                if k == "gcal_default_duration_min" and not (1 <= iv <= 480):
+                    raise HTTPException(400, "gcal_default_duration_min 範圍 1~480 分鐘")
+                if k == "gcal_sync_interval_min" and not (1 <= iv <= 30):
+                    raise HTTPException(400, "gcal_sync_interval_min 範圍 1~30 分鐘")
+                v = str(iv)
+            elif k == "gcal_use_location":
+                if str(v) not in ("0", "1"):
+                    raise HTTPException(400, "gcal_use_location 只能是 0 或 1")
+            elif k == "gcal_transparency":
+                if str(v) not in ("transparent", "opaque"):
+                    raise HTTPException(400, "gcal_transparency 只能是 transparent 或 opaque")
             conn.execute(
                 "INSERT INTO gcal_sync_settings(key, value) VALUES(?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",

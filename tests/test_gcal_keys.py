@@ -260,3 +260,109 @@ def test_rename_key_does_not_break_user_binding(client):
     r2 = client.get("/api/users")
     user = [u for u in r2.json()["users"] if u["id"] == uid][0]
     assert user["gcal_key"] == "廠商X"  # 舊名仍保留（Phase 1 同步時需處理）
+
+
+# ========== 同步設定 API 測試（2026-08-27）==========
+
+def test_get_gcal_sync_settings(client):
+    """GET /api/gcal-sync-settings 回傳設定 dict"""
+    r = client.get("/api/gcal-sync-settings")
+    assert r.status_code == 200
+    data = r.json()
+    assert "gcal_default_duration_min" in data
+    assert "gcal_use_location" in data
+    assert "gcal_transparency" in data
+    assert "gcal_sync_interval_min" in data
+
+
+def test_update_gcal_sync_settings(client):
+    """PUT /api/gcal-sync-settings 更新設定"""
+    r = client.put("/api/gcal-sync-settings", json={
+        "gcal_default_duration_min": "90",
+        "gcal_transparency": "opaque",
+    })
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    # 驗證更新
+    r2 = client.get("/api/gcal-sync-settings")
+    assert r2.json()["gcal_default_duration_min"] == "90"
+    assert r2.json()["gcal_transparency"] == "opaque"
+
+
+def test_update_gcal_sync_settings_validation(client):
+    """PUT /api/gcal-sync-settings 值驗證"""
+    # 非數字
+    r = client.put("/api/gcal-sync-settings", json={"gcal_default_duration_min": "abc"})
+    assert r.status_code == 400
+    # 超出範圍
+    r2 = client.put("/api/gcal-sync-settings", json={"gcal_sync_interval_min": "100"})
+    assert r2.status_code == 400
+    # 非法 transparency
+    r3 = client.put("/api/gcal-sync-settings", json={"gcal_transparency": "invalid"})
+    assert r3.status_code == 400
+
+
+def test_update_gcal_sync_settings_viewer_forbidden(client):
+    """viewer 無法更新同步設定"""
+    # 建 viewer 帳號並登入
+    client.post("/api/users", json={"username": "viewer1", "password": "Pass1234", "role": "viewer"})
+    r = client.post("/api/auth/login", json={"username": "viewer1", "password": "Pass1234"})
+    assert r.status_code == 200
+    # viewer 嘗試更新設定
+    r2 = client.put("/api/gcal-sync-settings", json={"gcal_default_duration_min": "30"})
+    assert r2.status_code == 403
+
+
+# ========== Per-Key 提醒 API 測試 ==========
+
+def test_update_key_reminders(client):
+    """PUT /api/gcal-keys/{id}/reminders 更新 per-key 提醒"""
+    # 建 key
+    cr = client.post("/api/gcal-keys", json={
+        "name": "提醒測試", "credentials_path": "test.json", "calendar_id": "test@cal",
+    })
+    kid = cr.json()["id"]
+    # 更新提醒
+    reminders = [{"method": "popup", "minutes": 15}, {"method": "email", "minutes": 120}]
+    r = client.put(f"/api/gcal-keys/{kid}/reminders", json={"reminders": reminders})
+    assert r.status_code == 200
+    assert r.json()["reminders"] == reminders
+    # 驗證讀取
+    r2 = client.get("/api/gcal-keys")
+    key = [k for k in r2.json() if k["id"] == kid][0]
+    assert key["reminders"] == reminders
+
+
+def test_update_key_reminders_validation(client):
+    """PUT /api/gcal-keys/{id}/reminders 值驗證"""
+    cr = client.post("/api/gcal-keys", json={
+        "name": "驗證測試", "credentials_path": "test.json", "calendar_id": "test@cal",
+    })
+    kid = cr.json()["id"]
+    # 非法 method
+    r = client.put(f"/api/gcal-keys/{kid}/reminders", json={"reminders": [{"method": "sms", "minutes": 10}]})
+    assert r.status_code == 400
+    # minutes 超限
+    r2 = client.put(f"/api/gcal-keys/{kid}/reminders", json={"reminders": [{"method": "popup", "minutes": 99999}]})
+    assert r2.status_code == 400
+    # 非陣列
+    r3 = client.put(f"/api/gcal-keys/{kid}/reminders", json={"reminders": "not_array"})
+    assert r3.status_code == 400
+
+
+# ========== 強制同步 API 測試 ==========
+
+def test_force_sync_now(client):
+    """POST /api/gcal-sync-now 立即同步"""
+    r = client.post("/api/gcal-sync-now")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+
+
+def test_force_sync_now_viewer_forbidden(client):
+    """viewer 無法觸發強制同步"""
+    client.post("/api/users", json={"username": "viewer2", "password": "Pass1234", "role": "viewer"})
+    r = client.post("/api/auth/login", json={"username": "viewer2", "password": "Pass1234"})
+    assert r.status_code == 200
+    r2 = client.post("/api/gcal-sync-now")
+    assert r2.status_code == 403
