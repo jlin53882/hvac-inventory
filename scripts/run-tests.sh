@@ -21,7 +21,7 @@ case "${1:-all}" in
   frontend)   FILES="tests/test_frontend_assets.py tests/test_security_regression.py tests/test_structure.py" ;;
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   rbac)       FILES="tests/test_rbac.py tests/test_rbac_perms.py" ;;
-  regression) FILES="tests/test_v101.py tests/test_appointments.py" ;;
+  regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py" ;;
   all)        FILES="tests/" ;;
   *) echo "用法: $0 [core|frontend|auth|rbac|regression|all]"; exit 1 ;;
 esac

@@ -139,12 +139,33 @@ def _exec_init(conn):
     );
     -- Google 行事曆同步 key（2026-08-27 方案 C：家豪統建 SA）
     CREATE TABLE IF NOT EXISTS gcal_keys (
-        id               INTEGER PRIMARY KEY AUTOINCREMENT,
-        name             TEXT NOT NULL UNIQUE,     -- key 名稱（如 '廠商A'）
-        credentials_path TEXT NOT NULL,            -- Service Account JSON 檔路徑
-        calendar_id      TEXT NOT NULL,            -- 要寫入的行事曆 id
-        is_active        INTEGER NOT NULL DEFAULT 1,
-        created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT NOT NULL UNIQUE,
+            credentials_path TEXT NOT NULL,
+            calendar_id      TEXT NOT NULL,
+            is_active        INTEGER NOT NULL DEFAULT 1,
+            created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Google 行事曆同步隊列（複合主鍵一對多）
+    CREATE TABLE IF NOT EXISTS appointment_sync_queue (
+        appointment_id   INTEGER NOT NULL,
+        key_id           INTEGER NOT NULL REFERENCES gcal_keys(id) ON DELETE CASCADE,
+        op_type          TEXT NOT NULL CHECK (op_type IN ('C','U','D')),
+        google_event_id  TEXT DEFAULT '',
+        last_modified_at TEXT NOT NULL,
+        attempts         INTEGER NOT NULL DEFAULT 0,
+        last_error       TEXT DEFAULT '',
+        PRIMARY KEY (appointment_id, key_id)
+    );
+
+    -- Google 行事曆事件對映（複合主鍵）
+    CREATE TABLE IF NOT EXISTS appointment_gcal_map (
+        appointment_id   INTEGER NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+        key_id           INTEGER NOT NULL REFERENCES gcal_keys(id) ON DELETE CASCADE,
+        google_event_id  TEXT NOT NULL,
+        synced_at        TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (appointment_id, key_id)
     );
     CREATE TABLE IF NOT EXISTS appointments (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,

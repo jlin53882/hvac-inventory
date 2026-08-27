@@ -29,6 +29,7 @@ from app.middleware import cache_control_middleware, csrf_origin_middleware, sec
 from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, service_types, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
+from app.services import sync_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,9 +41,11 @@ async def lifespan(app: FastAPI):
     try:
         cleanup_expired(_conn)      # 2026-08-15：啟動時清理過期 session（避免 sessions 表無限增長）
         init_admin_if_missing(_conn)
+        sync_scheduler.start()   # 無啟用 key → no-op
     finally:
         _conn.close()
     yield
+    sync_scheduler.stop()
 
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
 app = FastAPI(title="庫存管理系統", version="11.0.0", lifespan=lifespan)

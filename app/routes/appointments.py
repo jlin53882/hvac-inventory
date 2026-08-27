@@ -23,8 +23,39 @@ from app.database import get_db
 from app.models import AppointmentIn
 from app.services.auth import require_perm
 from app.services.report import build_daily_report
+from app.services import gcal_sync
 
 router = APIRouter()
+
+
+def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
+    """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
+    獨立短連線，失敗不影響主操作。"""
+    if not gcal_sync.is_enabled():
+        return
+    try:
+        c = get_db()
+        try:
+            if op in ("C", "U"):
+                keys = gcal_sync.resolve_target_keys(c, appt_id)
+            else:  # D
+                keys = [r[0] for r in map_rows] if map_rows else []
+            for key_id in keys:
+                gid = next((g for (k, g) in map_rows if k == key_id), "") if map_rows else ""
+                c.execute(
+                    "INSERT INTO appointment_sync_queue(appointment_id, key_id, op_type,"
+                    " google_event_id, last_modified_at, attempts, last_error) "
+                    " VALUES(?,?,?,?,datetime('now'),0,'') "
+                    " ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+                    " op_type=excluded.op_type, google_event_id=excluded.google_event_id,"
+                    " last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+                    (appt_id, key_id, op, gid))
+            c.commit()
+        finally:
+            c.close()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, e)
 
 
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -178,6 +209,7 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("c
             conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
                          (appt_id, uid))
         conn.commit()
+        mark_sync_pending(appt_id, "C")
         return _appt_row(conn, appt_id)
     except:
         conn.rollback()
@@ -225,7 +257,22 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         for uid in body.user_ids:
             conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
                          (appt_id, uid))
+        # A1：commit 前讀「新指派」對應的 key（DB 已是新 assignees）
+        new_target_ids = set(gcal_sync.resolve_target_keys(conn, appt_id))
+        # 讀 map 裡所有「曾同步過」的 key
+        map_rows_all = conn.execute(
+            "SELECT key_id, google_event_id FROM appointment_gcal_map "
+            "WHERE appointment_id=?", (appt_id,)).fetchall()
+        old_map_keys = {r["key_id"] for r in map_rows_all}
+        # 流失 key = map 裡有但新指派沒有的
+        orphan_d_rows = []
+        for mr in map_rows_all:
+            if mr["key_id"] not in new_target_ids:
+                orphan_d_rows.append((mr["key_id"], mr["google_event_id"]))
         conn.commit()
+        mark_sync_pending(appt_id, "U")
+        if orphan_d_rows:
+            mark_sync_pending(appt_id, "D", map_rows=orphan_d_rows)
         return _appt_row(conn, appt_id)
     except:
         conn.rollback()
@@ -241,8 +288,14 @@ def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt
         row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "行程不存在")
+        # A1：刪 row 前撈出全部 (key_id, google_event_id)
+        mrows = conn.execute(
+            "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
+            (appt_id,)).fetchall()
+        map_rows = [(r[0], r[1]) for r in mrows]
         conn.execute("DELETE FROM appointments WHERE id=?", (appt_id,))
         conn.commit()
+        mark_sync_pending(appt_id, "D", map_rows=map_rows)
         return {"ok": True}
     except Exception:
         conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
