@@ -40,7 +40,7 @@ def client(tmp_path, monkeypatch):
 # ============================================================
 
 class TestBuildEvent:
-    """build_event 純函式：本地行程 → Google Event"""
+    """build_event 純函式：本地行程 -> Google Event"""
 
     def _make_appt(self, **kw):
         base = {"client_name": "陳先生", "service_name": "維修",
@@ -75,7 +75,7 @@ class TestBuildEvent:
         assert ev["end"]["dateTime"] == "2026-08-28T10:00:00"
 
     def test_all_day_event(self):
-        """無時間 → 全日事件"""
+        """無時間 -> 全日事件"""
         from app.services.gcal_sync import build_event
         ev = build_event(self._make_appt(start_time="", end_time=""), self._make_assignees())
         assert ev["start"]["date"] == "2026-08-28"
@@ -118,7 +118,7 @@ class TestIsEnabled:
         assert is_enabled() is False
 
     def test_has_active_key(self, client, monkeypatch):
-        """有啟用 key → True"""
+        """有啟用 key -> True"""
         from app.services import gcal_sync
         monkeypatch.setattr(gcal_sync, "is_enabled", lambda: True)
         assert gcal_sync.is_enabled() is True
@@ -145,7 +145,7 @@ class TestResolveTargetKeys:
         conn.commit()
 
     def test_single_key(self, client, monkeypatch):
-        """單一指派人 → 一個 key"""
+        """單一指派人 -> 一個 key"""
         from app.database import get_db
         conn = get_db()
         try:
@@ -164,7 +164,7 @@ class TestResolveTargetKeys:
             conn.close()
 
     def test_multi_key(self, client, monkeypatch):
-        """Multi-Key：兩指派人跨廠商 → 兩個 key"""
+        """Multi-Key：兩指派人跨廠商 -> 兩個 key"""
         from app.database import get_db
         conn = get_db()
         try:
@@ -183,7 +183,7 @@ class TestResolveTargetKeys:
             conn.close()
 
     def test_no_gcal_key(self, client, monkeypatch):
-        """使用者沒綁 key → 回空"""
+        """使用者沒綁 key -> 回空"""
         from app.database import get_db
         from app.services.gcal_sync import resolve_target_keys
         conn = get_db()
@@ -214,7 +214,7 @@ class TestSyncPending:
         return svc
 
     def test_create_inserts_event(self, client, monkeypatch):
-        """C op → events().insert()"""
+        """C op -> events().insert()"""
         from app.database import get_db
         from app.services import gcal_sync
 
@@ -228,7 +228,7 @@ class TestSyncPending:
         finally:
             conn.close()
 
-        # 建行程（create_appointment 自動呼叫 mark_sync_pending → 隊列已有一列）
+        # 建行程（create_appointment 自動呼叫 mark_sync_pending -> 隊列已有一列）
         r = client.post("/api/appointments", json={
             "client_name": "同步測試", "date": "2026-08-28",
             "start_time": "09:00", "end_time": "11:00",
@@ -268,7 +268,7 @@ class TestSyncPending:
             conn.close()
 
     def test_delete_removes_event(self, client, monkeypatch):
-        """D op → events().delete()"""
+        """D op -> events().delete()"""
         from app.database import get_db
         from app.services import gcal_sync
 
@@ -352,7 +352,7 @@ class TestSyncPending:
         finally:
             conn.close()
 
-        # 模擬「同步途中被編輯」→ 重置 last_modified_at 為 T2
+        # 模擬「同步途中被編輯」-> 重置 last_modified_at 為 T2
         conn = get_db()
         try:
             conn.execute("UPDATE appointment_sync_queue SET last_modified_at='2026-08-28 01:00:00' "
@@ -364,11 +364,11 @@ class TestSyncPending:
         mock_svc = self._mock_service()
         monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: mock_svc)
 
-        # 用 T1 的快照嘗試同步 → sync_pending 仍會同步，但刪隊列時 T1 不符 T2 → 隊列保留
+        # 用 T1 的快照嘗試同步 -> sync_pending 仍會同步，但刪隊列時 T1 不符 T2 -> 隊列保留
         due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "C",
                 "google_event_id": "", "last_modified_at": t1}]
         ok, fail = gcal_sync.sync_pending(due)
-        # sync_pending 會嘗試同步（成功），但刪隊列 WHERE last_modified_at=t1 不符 t2 → 隊列保留
+        # sync_pending 會嘗試同步（成功），但刪隊列 WHERE last_modified_at=t1 不符 t2 -> 隊列保留
         conn = get_db()
         try:
             q2 = conn.execute("SELECT * FROM appointment_sync_queue WHERE appointment_id=?",
@@ -378,7 +378,7 @@ class TestSyncPending:
             conn.close()
 
     def test_disabled_key_skipped(self, client, monkeypatch):
-        """key 停用 → 該列直接清不阻塞"""
+        """key 停用 -> 該列直接清不阻塞"""
         from app.database import get_db
         from app.services import gcal_sync
 
@@ -406,7 +406,7 @@ class TestSyncPending:
             conn.close()
 
     def test_update_patches_event(self, client, monkeypatch):
-        """U op → events().patch()（有 gid 時）"""
+        """U op -> events().patch()（有 gid 時）"""
         from app.database import get_db
         from app.services import gcal_sync
 
@@ -452,7 +452,7 @@ class TestSyncPending:
         mock_svc.events().insert().execute.assert_not_called()
 
     def test_empty_due_returns_zero(self):
-        """空 due → (0, 0)"""
+        """空 due -> (0, 0)"""
         from app.services.gcal_sync import sync_pending
         ok, fail = sync_pending([])
         assert ok == 0
@@ -465,7 +465,7 @@ class TestSyncPending:
 
 class TestDueIds:
     def test_within_window(self):
-        """5 分鐘內 → 不 due"""
+        """5 分鐘內 -> 不 due"""
         from app.services.sync_scheduler import _due_ids
         from datetime import datetime
         now = datetime(2026, 8, 28, 10, 5, 0)
@@ -474,7 +474,7 @@ class TestDueIds:
         assert _due_ids(rows, now, window=300) == set()
 
     def test_outside_window(self):
-        """超過 5 分鐘 → due"""
+        """超過 5 分鐘 -> due"""
         from app.services.sync_scheduler import _due_ids
         from datetime import datetime
         now = datetime(2026, 8, 28, 10, 10, 0)
@@ -483,7 +483,7 @@ class TestDueIds:
         assert _due_ids(rows, now, window=300) == {(1, 1)}
 
     def test_boundary_exactly_300s(self):
-        """剛好 300 秒 → due"""
+        """剛好 300 秒 -> due"""
         from app.services.sync_scheduler import _due_ids
         from datetime import datetime
         now = datetime(2026, 8, 28, 10, 5, 0)
@@ -492,9 +492,287 @@ class TestDueIds:
         assert _due_ids(rows, now, window=300) == {(1, 1)}
 
     def test_invalid_timestamp(self):
-        """無效時間戳 → datetime.min → 永遠 due"""
+        """無效時間戳 -> datetime.min -> 永遠 due"""
         from app.services.sync_scheduler import _due_ids
         from datetime import datetime
         now = datetime(2026, 8, 28, 10, 0, 0)
         rows = [{"appointment_id": 1, "key_id": 1, "last_modified_at": None}]
         assert _due_ids(rows, now) == {(1, 1)}
+
+
+class TestComputeEventHash:
+    def test_same_data_same_hash(self):
+        """相同資料 -> 相同 hash"""
+        from app.services.gcal_sync import compute_event_hash
+        row = {"client_name": "測試客戶", "date": "2026-08-28",
+               "start_time": "09:00", "end_time": "11:00",
+               "note": "備註", "service_type_id": 1}
+        assignees = [{"user_id": 1}, {"user_id": 2}]
+        h1 = compute_event_hash(row, assignees)
+        h2 = compute_event_hash(row, assignees)
+        assert h1 == h2
+        assert len(h1) == 32  # MD5 hex
+
+    def test_different_data_different_hash(self):
+        """不同資料 -> 不同 hash"""
+        from app.services.gcal_sync import compute_event_hash
+        row1 = {"client_name": "客戶A", "date": "2026-08-28",
+                "start_time": "09:00", "end_time": "11:00",
+                "note": "", "service_type_id": 1}
+        row2 = {"client_name": "客戶B", "date": "2026-08-28",
+                "start_time": "09:00", "end_time": "11:00",
+                "note": "", "service_type_id": 1}
+        assert compute_event_hash(row1, []) != compute_event_hash(row2, [])
+
+    def test_empty_assignees(self):
+        """無指派人 -> 正常回傳"""
+        from app.services.gcal_sync import compute_event_hash
+        row = {"client_name": "test", "date": "2026-08-28",
+               "start_time": "09:00", "end_time": "11:00",
+               "note": "", "service_type_id": None}
+        h = compute_event_hash(row, [])
+        assert len(h) == 32
+
+
+class TestHashSkipSync:
+    """data_hash 相同 -> 跳過同步（不寫 sync_queue）"""
+
+    def test_same_hash_skips_queue(self, client, monkeypatch):
+        """hash 相同 -> sync_queue 不新增列"""
+        from app.database import get_db
+        from app.services import gcal_sync
+
+        # 建 key
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('hashKey', 'fake.json', 'test@cal', 1)")
+            conn.execute("UPDATE users SET gcal_key='hashKey' WHERE username='admin'")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 建行程
+        r = client.post("/api/appointments", json={
+            "client_name": "hash測試", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+        appt_id = r.json()["id"]
+
+        # 確認 sync_queue 有一列
+        conn = get_db()
+        try:
+            q1 = conn.execute("SELECT COUNT(*) FROM appointment_sync_queue").fetchone()[0]
+        finally:
+            conn.close()
+        assert q1 >= 1
+
+        # 手動寫入 gcal_map + data_hash（模擬已同步過）
+        conn = get_db()
+        try:
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                "VALUES(?, 1, 'fake-event-id', ?)",
+                (appt_id, gcal_sync.compute_event_hash(
+                    {"client_name": "hash測試", "date": "2026-08-28",
+                     "start_time": "09:00", "end_time": "11:00",
+                     "note": "", "service_type_id": None},
+                    [{"user_id": 1}])))
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 清空 sync_queue
+        conn = get_db()
+        try:
+            conn.execute("DELETE FROM appointment_sync_queue")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 編輯行程（內容不變）-> mark_sync_pending 應該跳過
+        client.put(f"/api/appointments/{appt_id}", json={
+            "client_name": "hash測試", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+
+        # sync_queue 應該仍然為空（hash 相同 -> 跳過）
+        conn = get_db()
+        try:
+            q2 = conn.execute("SELECT COUNT(*) FROM appointment_sync_queue").fetchone()[0]
+        finally:
+            conn.close()
+        assert q2 == 0, f"hash 相同應跳過，但 sync_queue 有 {q2} 列"
+
+    def test_different_hash_fills_queue(self, client, monkeypatch):
+        """hash 不同 -> sync_queue 新增列"""
+        from app.database import get_db
+        from app.services import gcal_sync
+
+        # 建 key
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('hashKey2', 'fake.json', 'test@cal', 1)")
+            conn.execute("UPDATE users SET gcal_key='hashKey2' WHERE username='admin'")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 建行程
+        r = client.post("/api/appointments", json={
+            "client_name": "hash測試2", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+        appt_id = r.json()["id"]
+
+        # 手動寫入 gcal_map + data_hash（模擬已同步過）
+        conn = get_db()
+        try:
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                "VALUES(?, 1, 'fake-event-id', ?)",
+                (appt_id, gcal_sync.compute_event_hash(
+                    {"client_name": "hash測試2", "date": "2026-08-28",
+                     "start_time": "09:00", "end_time": "11:00",
+                     "note": "", "service_type_id": None},
+                    [{"user_id": 1}])))
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 清空 sync_queue
+        conn = get_db()
+        try:
+            conn.execute("DELETE FROM appointment_sync_queue")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 編輯行程（改備註）-> hash 改變 -> 應該寫入 sync_queue
+        client.put(f"/api/appointments/{appt_id}", json={
+            "client_name": "hash測試2", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": "改了備註"
+        })
+
+        conn = get_db()
+        try:
+            q = conn.execute("SELECT COUNT(*) FROM appointment_sync_queue").fetchone()[0]
+        finally:
+            conn.close()
+        assert q >= 1, "hash 不同應寫入 sync_queue"
+
+
+class TestBackfillOnKeyCreation:
+    """新增 key -> 自動 backfill 旧行程"""
+
+    def test_new_key_backfills_existing_appointments(self, client):
+        """POST 新 key -> 旧行程自動加入 sync_queue"""
+        from app.database import get_db
+
+        # 先建一筆行程
+        client.post("/api/appointments", json={
+            "client_name": "backfill測試", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+
+        # 清空 sync_queue（排除建行程時觸發的）
+        conn = get_db()
+        try:
+            conn.execute("DELETE FROM appointment_sync_queue")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 新增 key
+        r = client.post("/api/gcal-keys", json={
+            "name": "backfillKey",
+            "credentials_path": "fake.json",
+            "calendar_id": "test@cal"
+        })
+        assert r.status_code == 201
+
+        # 檢查 sync_queue 有旧行程（key_id=新key的id）
+        conn = get_db()
+        try:
+            new_key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='backfillKey'").fetchone()[0]
+            q = conn.execute(
+                "SELECT COUNT(*) FROM appointment_sync_queue WHERE key_id=?", (new_key_id,)).fetchone()[0]
+        finally:
+            conn.close()
+        assert q >= 1, f"新增 key 後旧行程應 backfill，但 sync_queue 有 {q} 列"
+
+
+class TestBackfillOnKeyReenable:
+    """key 從停用->啟用 -> 自動 backfill"""
+
+    def test_reenable_key_backfills(self, client):
+        """PUT key is_active 0->1 -> 旧行程加入 sync_queue"""
+        from app.database import get_db
+
+        # 建 key + 停用
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('reenableKey', 'fake.json', 'test@cal', 0)")
+            conn.commit()
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='reenableKey'").fetchone()[0]
+        finally:
+            conn.close()
+
+        # 建行程
+        client.post("/api/appointments", json={
+            "client_name": "reenable測試", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+
+        # 清空 sync_queue
+        conn = get_db()
+        try:
+            conn.execute("DELETE FROM appointment_sync_queue")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 重新啟用 key
+        r = client.put(f"/api/gcal-keys/{key_id}", json={"is_active": True})
+        assert r.status_code == 200
+
+        # 檢查 sync_queue
+        conn = get_db()
+        try:
+            q = conn.execute(
+                "SELECT COUNT(*) FROM appointment_sync_queue WHERE key_id=?", (key_id,)).fetchone()[0]
+        finally:
+            conn.close()
+        assert q >= 1, f"key 重新啟用後旧行程應 backfill，但 sync_queue 有 {q} 列"
+
+
+class TestDynamicRateLimit:
+    """動態速率限制（per-user 480 + 專案級 8000）"""
+
+    def test_per_key_limit_decreases_with_more_keys(self):
+        """更多 key -> 每個 key 的限制降低"""
+        from app.services.gcal_sync import _RATE_PER_USER, _RATE_PROJECT
+
+        # 1 個 key：min(480, 8000/1) = 480
+        limit_1 = min(_RATE_PER_USER, _RATE_PROJECT // 1)
+        assert limit_1 == 480
+
+        # 10 個 key：min(480, 8000/10) = 480
+        limit_10 = min(_RATE_PER_USER, _RATE_PROJECT // 10)
+        assert limit_10 == 480
+
+        # 20 個 key：min(480, 8000/20) = 400
+        limit_20 = min(_RATE_PER_USER, _RATE_PROJECT // 20)
+        assert limit_20 == 400
+
+        # 100 個 key：min(480, 8000/100) = 80
+        limit_100 = min(_RATE_PER_USER, _RATE_PROJECT // 100)
+        assert limit_100 == 80
