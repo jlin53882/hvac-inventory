@@ -22,7 +22,7 @@
 | 🔑 帳號登入 | 登入/登出、四種角色（管理員/使用者/工程師/檢視者）+ RBAC 權限控管 |
 | 🔑 個人改密碼 | 隨時改密碼（⚙️ 設定中心）；6 個月未改進站提醒 |
 | 📦 單位動態清單 | 4 個 modal 單位欄統一動態下拉（UI 新增即全站同步）；設定中心管理（新增/停用/排序/歷史打錯值收編） |
-| ⚙️ 設定中心 | topbar「⚙️ 設定」→ 左右清單頁：單位管理 + 修改密碼 |
+| ⚙️ 設定中心 | topbar「⚙️ 設定」→ 左右清單頁：單位管理 + 行事曆同步（Google Calendar）+ 修改密碼 |
 | 📊 即時統計 | 頂部顯示總品項、廠牌數、缺貨數 |
 | 📜 異動紀錄 | 每次加減都有紀錄，可追溯 |
 | ⬇️ 匯出 Excel | 一鍵匯出完整報表（庫存明細 + 異動紀錄含去向 + 廠牌統計 + 工程日報表） |
@@ -80,8 +80,8 @@ hvac-inventory/
 ├── main.py              ← 後端入口（FastAPI + SQLite）
 ├── app/                 ← 後端套件（routes 14 個 + middleware + services + models）
 ├── static/              ← 前端（index.html + login.html + js/ + css/）
-├── tests/               ← pytest（629 條）
-├── docs/                ← 維護文件（安全性/權限/行事曆）
+├── tests/               ← pytest（686 條）
+├── docs/                ← 維護文件（安全性/權限/行事曆/Google同步）
 ├── scripts/             ← 啟動/外網/監控腳本
 ├── inventory.db         ← 資料庫（.gitignore）
 ├── start.bat            ← 一鍵啟動
@@ -109,6 +109,11 @@ hvac-inventory/
 | GET | `/api/appointments?date=` | 行事曆派工 |
 | GET | `/api/appointments/export?date=` | 匯出工程日報表 |
 
+| GET | `/api/gcal-keys` | Google 行事曆同步 Key 列表（admin） |
+| POST | `/api/gcal-keys` | 新增 Key（admin） |
+| PUT | `/api/gcal-keys/{id}` | 編輯/啟停 Key（admin） |
+| DELETE | `/api/gcal-keys/{id}` | 刪除 Key（admin） |
+
 > 全 API 需登入（viewer 對寫入端點 403）。完整清單見 `專案架構.md` §4。
 
 ---
@@ -130,5 +135,7 @@ hvac-inventory/
 | `docs/單元測試維護文件.md` | 測試分組執行 / fixture 模式 / 新增功能測試 SOP |
 | `docs/前端資料更新機制維護文件.md` | 資料自動更新時機 / 不會遺失資料的保護機制 |
 | `docs/外網維護文件.md` | 外網固定網址 / 健康監控 / 故障排除 |
+
+| `docs/gcal-sync.md` | Google 行事曆同步（架構/方案C/設定步驟/API/Phase 計畫） |
 
 > 歷史設計/規劃文件（v10 正規化、登入權限設計、行事曆設計、實作藍圖等）已移存 Obsidian vault `00-專案文件/`。
