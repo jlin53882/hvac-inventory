@@ -136,6 +136,6 @@ hvac-inventory/
 | `docs/前端資料更新機制維護文件.md` | 資料自動更新時機 / 不會遺失資料的保護機制 |
 | `docs/外網維護文件.md` | 外網固定網址 / 健康監控 / 故障排除 |
 
-| `docs/gcal-sync.md` | Google 行事曆同步（架構/方案C/設定步驟/API/Phase 計畫） |
 
 > 歷史設計/規劃文件（v10 正規化、登入權限設計、行事曆設計、實作藍圖等）已移存 Obsidian vault `00-專案文件/`。
+> Google 行事曆同步技術架構/操作手冊亦已移存 Obsidian（`hvac-inventory-Google行事曆同步-*`）。
