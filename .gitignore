@@ -21,3 +21,6 @@ gcal_sync.log
 secrets/
 *.service-account.json
 /credentials*.json
+
+# 環境變數（實際值）
+.env

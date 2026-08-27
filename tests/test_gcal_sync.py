@@ -784,6 +784,9 @@ class TestDiscordNotification:
     def test_notify_discord_sends_webhook(self, monkeypatch):
         """_notify_discord 正確呼叫 urllib"""
         from app.services.sync_scheduler import _notify_discord
+        import app.config as cfg
+        monkeypatch.setattr(cfg, "GCAL_SYNC_WEBHOOK_URL", "https://discord.com/api/webhooks/test-id/test-token")
+        monkeypatch.setattr(cfg, "GCAL_SYNC_THREAD_ID", "1234567890")
         called = {}
 
         def mock_urlopen(req, timeout=10):
@@ -797,7 +800,7 @@ class TestDiscordNotification:
         monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
         _notify_discord("test message")
 
-        assert "thread_id=1542554579697279056" in called["url"]
+        assert "thread_id=1234567890" in called["url"]
         assert "test message" in called["data"]
 
     def test_notify_discord_swallows_error(self, monkeypatch):

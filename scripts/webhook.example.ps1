@@ -1,9 +1,12 @@
 ﻿# ─────────────────────────────────────────────
-# 外網啟動 Discord webhook 設定（範例檔 — 入版控）
+# Discord Webhook 設定（已遷移至 .env）
 # ─────────────────────────────────────────────
-# 用法：
-#   1. 複製本檔為 webhook.local.ps1（與本檔同目錄）
-#   2. 在 webhook.local.ps1 內填入你的 Discord webhook 網址
-#   3. webhook.local.ps1 已在 .gitignore，不會上傳 GitHub
-# 沒設定時：tunnel-notify.ps1 會跳過 Discord 推播，外網功能不受影響
-$WEBHOOK = ''
+# 本檔已棄用。Webhook URL 統一在專案根目錄的 .env 檔案管理。
+#
+# 設定方式：
+#   1. 複製 .env.example 為 .env
+#   2. 填入 DISCORD_WEBHOOK_URL=你的webhook網址
+#   3. .env 已在 .gitignore，不會上傳 GitHub
+#
+# Python 腳本：app/config.py 自動讀取 .env
+# PS1 腳本：各腳本直接讀取 .env 的 DISCORD_WEBHOOK_URL

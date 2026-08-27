@@ -27,12 +27,15 @@ $STATE     = Join-Path $env:TEMP 'hvac_monitor_state.json'
 $INTERVAL  = 600   # 檢查間隔秒數（10 分鐘）
 $NOTIFY_AFTER = 2  # 同一問題連續 N 次才通知
 
-# Discord webhook：從 gitignored 設定檔讀取
+# Discord webhook：從 .env 讀取
 $WEBHOOK = $null
-$WEBHOOK_LOCAL = Join-Path $PSScriptRoot 'webhook.local.ps1'
-if (Test-Path $WEBHOOK_LOCAL) { . $WEBHOOK_LOCAL }
+$envFile = Join-Path (Split-Path $PSScriptRoot -Parent) '.env'
+if (Test-Path $envFile) {
+    $m = Select-String -Path $envFile -Pattern '(?m)^DISCORD_WEBHOOK_URL=(.+)$'
+    if ($m) { $WEBHOOK = $m.Matches[0].Groups[1].Value.Trim() }
+}
 if (-not $WEBHOOK) {
-    Write-Host '⚠️ 未設定 Discord webhook（scripts/webhook.local.ps1）— 通知功能停用，監控仍會重啟' -ForegroundColor Yellow
+    Write-Host '⚠️ 未設定 Discord webhook（.env DISCORD_WEBHOOK_URL）— 通知功能停用，監控仍會重啟' -ForegroundColor Yellow
 }
 $CURL = "$env:SystemRoot\System32\curl.exe"
 $JSON = Join-Path $env:TEMP 'hvac_monitor_webhook.json'

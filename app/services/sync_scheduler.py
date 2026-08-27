@@ -34,13 +34,8 @@ _fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(_fh)
 logger.setLevel(logging.INFO)
 
-# ---------- Discord Webhook 設定 ----------
-_DISCORD_WEBHOOK_URL = (
-    "https://discord.com/api/webhooks/"
-    "1542554661632868514/"
-    "aRVb1nekXAiTUR-vrMJ8i1x9pivFWoBNm4b-ejOH57njfh--a1Hk94HAZEH49jk9RebZ"
-)
-_DISCORD_THREAD_ID = "1542554579697279056"
+# ---------- Discord Webhook 設定（從 .env 讀取）----------
+import app.config as _cfg
 
 _INTERVAL = 300   # 5 分鐘
 _WINDOW = 300     # debounce 窗口 5 分鐘
@@ -51,8 +46,12 @@ _thread = None
 
 def _notify_discord(message: str) -> None:
     """發送 Discord webhook 通知（失敗時呼叫，fire-and-forget）。"""
+    webhook_url = _cfg.GCAL_SYNC_WEBHOOK_URL
+    thread_id = _cfg.GCAL_SYNC_THREAD_ID
+    if not webhook_url:
+        return  # 未設定 webhook → 靜默
     try:
-        url = f"{_DISCORD_WEBHOOK_URL}?thread_id={_DISCORD_THREAD_ID}"
+        url = f"{webhook_url}?thread_id={thread_id}" if thread_id else webhook_url
         data = json.dumps({"content": message}).encode("utf-8")
         req = urllib.request.Request(
             url, data=data,

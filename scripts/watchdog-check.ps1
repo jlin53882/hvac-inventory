@@ -11,9 +11,13 @@ $HEARTBEAT  = Join-Path $env:TEMP 'hvac_monitor_heartbeat.txt'
 $STALE_SEC  = 900   # heartbeat 超過 15 分鐘 = 卡死
 
 # Discord webhook
+# Discord webhook：從 .env 讀取
 $WEBHOOK = $null
-$WEBHOOK_LOCAL = Join-Path $SCRIPT_DIR 'webhook.local.ps1'
-if (Test-Path $WEBHOOK_LOCAL) { . $WEBHOOK_LOCAL }
+$envFile = Join-Path (Split-Path $SCRIPT_DIR -Parent) '.env'
+if (Test-Path $envFile) {
+    $m = Select-String -Path $envFile -Pattern '(?m)^DISCORD_WEBHOOK_URL=(.+)$'
+    if ($m) { $WEBHOOK = $m.Matches[0].Groups[1].Value.Trim() }
+}
 $CURL = "$env:SystemRoot\System32\curl.exe"
 $JSON = Join-Path $env:TEMP 'hvac_watchdog_webhook.json'
 
