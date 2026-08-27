@@ -257,8 +257,17 @@ function renderGcalPanel() {
       // Panel Head
       html += '<div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">' +
         '<div style="width:40px;height:40px;border-radius:50%;background:#52c41a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px">📅</div>' +
-        '<div><div style="font-size:16px;font-weight:700">' + esc(key.name) + '</div>' +
-        '<div style="font-size:12px;color:#888;margin-top:2px">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div></div></div>';
+        '<div style="flex:1"><div style="font-size:16px;font-weight:700">' + esc(key.name) + '</div>' +
+        '<div style="font-size:12px;color:#888;margin-top:2px">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div></div>';
+      // 操作按鈕
+      if (canManage) {
+        html += '<div style="display:flex;gap:6px;align-items:center">' +
+          '<label class="settings-switch" title="' + (key.is_active ? '點擊停用' : '點擊啟用') + '"><input type="checkbox" ' + (key.is_active ? 'checked' : '') + ' onchange="toggleGcalKey(' + key.id + ', this.checked)"><span class="slider"></span></label>' +
+          '<button onclick="openGcalKeyModal(' + key.id + ')" style="padding:4px 8px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer">✏️ 編輯</button>' +
+          '<button onclick="deleteGcalKey(' + key.id + ', \'' + esc(key.name).replace(/'/g, "\\'") + '\')" style="padding:4px 8px;font-size:12px;border:1px solid #fecaca;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer">🗑️ 刪除</button>' +
+          '</div>';
+      }
+      html += '</div>';
 
       // Tabs
       html += '<div style="display:flex;gap:6px;margin:14px 0 4px;border-bottom:1px solid #eee">' +
