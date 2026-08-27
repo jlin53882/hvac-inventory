@@ -1,0 +1,26 @@
+[project]
+name = "hvac-inventory"
+version = "11.0.0"
+description = "振佳空調庫存管理系統 — FastAPI + SQLite"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "openpyxl>=3.1",
+    "pillow>=10.0",
+    "pydantic>=2.0",
+    "python-multipart>=0.0.6",
+    "google-api-python-client>=2.0",
+    "google-auth>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.0",
+    "httpx>=0.24",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
