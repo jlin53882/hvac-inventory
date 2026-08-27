@@ -224,18 +224,14 @@ def test_viewer_cannot_read_keys(viewer_client):
 
 
 def test_bind_user_gcal_key(client):
-    """綁定使用者 gcal_key"""
-    # /api/users 回 {"users": [...]}
+    """綁定使用者 gcal_key（強制斷言 gcal_key 欄位存在且回傳正確）"""
     r = client.get("/api/users")
     admin_id = r.json()["users"][0]["id"]
-    # 綁定
     r2 = client.put(f"/api/users/{admin_id}", json={"gcal_key": "廠商A"})
     assert r2.status_code == 200
-    # PUT 回傳 _user_out（需確認含 gcal_key）
     data = r2.json()
-    # gcal_key 可能在回傳中或需再 GET 確認
-    if "gcal_key" in data:
-        assert data["gcal_key"] == "廠商A"
+    assert "gcal_key" in data, "PUT /api/users 回傳缺 gcal_key 欄位"
+    assert data["gcal_key"] == "廠商A"
 
 
 def test_unbind_user_gcal_key(client):
@@ -245,3 +241,22 @@ def test_unbind_user_gcal_key(client):
     client.put(f"/api/users/{admin_id}", json={"gcal_key": "廠商A"})
     r2 = client.put(f"/api/users/{admin_id}", json={"gcal_key": ""})
     assert r2.status_code == 200
+
+
+def test_rename_key_does_not_break_user_binding(client):
+    """B3 防回歸：key 改名後，使用者綁定的舊 name 懸空（不崩潰）"""
+    # 建 key
+    cr = client.post("/api/gcal-keys", json={
+        "name": "廠商X", "credentials_path": "x.json", "calendar_id": "x@cal",
+    })
+    kid = cr.json()["id"]
+    # 綁定使用者
+    r = client.get("/api/users")
+    uid = r.json()["users"][0]["id"]
+    client.put(f"/api/users/{uid}", json={"gcal_key": "廠商X"})
+    # 改名
+    client.put(f"/api/gcal-keys/{kid}", json={"name": "廠商Y"})
+    # 使用者的 gcal_key 仍是舊名（懸空但不崩潰）
+    r2 = client.get("/api/users")
+    user = [u for u in r2.json()["users"] if u["id"] == uid][0]
+    assert user["gcal_key"] == "廠商X"  # 舊名仍保留（Phase 1 同步時需處理）

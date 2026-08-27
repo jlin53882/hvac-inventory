@@ -1746,6 +1746,24 @@ def test_gcal_key_js_has_modal_functions():
     assert "submitGcalKey" in js, "gcal-key.js 缺 submitGcalKey"
 
 
+def test_delete_gcal_key_uses_data_attrs():
+    """A3 防回歸：deleteGcalKey 必須用 data-* 傳遞，不可在 onclick 裡 inline esc() 名稱"""
+    js = _read(SETTINGS_JS)
+    # 刪除按鈕應使用 data-id + data-name
+    assert "data-id=" in js, "delete 按鈕需 data-id"
+    assert "data-name=" in js, "delete 按鈕需 data-name"
+    # deleteGcalKey 函式應接收 btn element
+    assert "deleteGcalKey(this)" in js or "deleteGcalKey(btn)" in js,         "deleteGcalKey 應接收 this/btn，不應在 onclick 裡 inline name 字串"
+
+
+def test_load_gcal_users_extracts_users_array():
+    """A1 防回歸：loadGcalUsers 必須拆 .users，不可直接存 dict"""
+    js = _read(SETTINGS_JS)
+    assert "d.users" in js or ".users" in js,         "loadGcalUsers 須從回傳中取 .users 陣列（API 回 {users:[...]}）"
+    # 不應有直接存 dict 的模式
+    assert "gcalUsers = await res.json()" not in js,         "loadGcalUsers 不可直接存 res.json()（API 回傳是 {users:[...]} 不是陣列）"
+
+
 def test_gcal_keys_route_has_crud():
     """gcal_keys.py 有完整 CRUD"""
     code = _read(GCAL_KEYS_PY)
