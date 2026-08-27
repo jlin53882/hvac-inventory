@@ -297,7 +297,6 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         map_rows_all = conn.execute(
             "SELECT key_id, google_event_id FROM appointment_gcal_map "
             "WHERE appointment_id=?", (appt_id,)).fetchall()
-        old_map_keys = {r["key_id"] for r in map_rows_all}
         # 流失 key = map 裡有但新指派沒有的
         orphan_d_rows = []
         for mr in map_rows_all:

@@ -11,7 +11,6 @@ def _backfill_all_appointments(key_id: int) -> None:
         conn = get_db()
         try:
             appt_ids = [r["id"] for r in conn.execute("SELECT id FROM appointments").fetchall()]
-            added = 0
             for appt_id in appt_ids:
                 conn.execute(
                     """INSERT INTO appointment_sync_queue
@@ -20,7 +19,6 @@ def _backfill_all_appointments(key_id: int) -> None:
                        ON CONFLICT(appointment_id, key_id) DO UPDATE SET
                        op_type='C', last_modified_at=datetime('now'), attempts=0, last_error=''""",
                     (appt_id, key_id))
-                added += 1
             conn.commit()
         finally:
             conn.close()
