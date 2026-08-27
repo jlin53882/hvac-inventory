@@ -9,11 +9,20 @@ Google Calendar 單向同步（Multi-Key Service Account）
 - is_enabled() -> bool                          gcal_keys 有啟用 key 才 True
 """
 import logging
+import os
 from typing import List, Tuple
 
 from app.database import get_db
 
 logger = logging.getLogger(__name__)
+
+# 同步 log 輸出到檔案
+_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_fh = logging.FileHandler(os.path.join(_log_dir, "gcal_sync.log"), encoding="utf-8")
+_fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+logger.addHandler(_fh)
+logger.setLevel(logging.INFO)
 
 TZ = "Asia/Taipei"
 DEFAULT_DURATION_MIN = 60
@@ -63,19 +72,22 @@ def build_event(appt_row: dict, assignees: List[dict]) -> dict:
 
 
 def resolve_target_keys(conn, appt_id: int) -> List[int]:
-    """Multi-Key：行程指派人員綁定的 gcal_key 集合 → 目標 key_id 清單。"""
+    """Multi-Key：行程指派人員綁定的 gcal_key 集合 → 目標 key_id 清單。
+    找不到綁 key 的指派人時，fallback 到所有啟用 key（家豪：全部同步）。"""
     rows = conn.execute(
         "SELECT DISTINCT u.gcal_key FROM appointment_assignees aa "
         "JOIN users u ON u.id=aa.user_id "
         "WHERE aa.appointment_id=? AND u.gcal_key<>''", (appt_id,)).fetchall()
     keys = [r["gcal_key"] for r in rows]
-    if not keys:
-        return []
-    placeholders = ",".join("?" * len(keys))
-    got = conn.execute(
-        f"SELECT id FROM gcal_keys WHERE is_active=1 AND name IN ({placeholders})",
-        keys).fetchall()
-    return [r["id"] for r in got]
+    if keys:
+        placeholders = ",".join("?" * len(keys))
+        got = conn.execute(
+            f"SELECT id FROM gcal_keys WHERE is_active=1 AND name IN ({placeholders})",
+            keys).fetchall()
+        return [r["id"] for r in got]
+    # fallback：所有啟用 key 都同步
+    all_keys = conn.execute("SELECT id FROM gcal_keys WHERE is_active=1").fetchall()
+    return [r["id"] for r in all_keys]
 
 
 def get_service_for_key(key_row):
@@ -106,12 +118,17 @@ def _load_appointment_for_sync(conn, appt_id):
             [dict(a) for a in assignees])
 
 
+# 速率限制：每個 SA 每分鐘 600 次，留 100 安全邊際
+_RATE_LIMIT = 500  # 每分鐘最多 500 次
+_RATE_WINDOW = 60  # 秒
+
 def sync_pending(due: List[dict]) -> Tuple[int, int]:
-    """對 due（[{appointment_id, key_id, op_type, google_event_id, last_modified_at}]）
+    """對 due（[{appointment_id, key_id, op_type, google_event_id, last_modified_at}]
     每列對應一 key，逐列同步。回傳 (成功, 失敗)。
 
     家豪二輪：成功刪隊列帶 last_modified_at 版本條件，不吞同步途中新編輯。
     A3：網路呼叫在交易外，讀寫用獨立短連線，不持 SQLite 寫鎖跨網路。
+    R1：速率限制，每分鐘最多 _RATE_LIMIT 次 API 呼叫。
     """
     ok = fail = 0
     # 快取 key_row（一次載入全部啟用 key，避免每列重讀）
@@ -122,6 +139,11 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
     finally:
         conn.close()
     svc_cache = {}
+
+    # 速率限制追蹤（per-key）
+    rate_timestamps = {}  # key_id -> [timestamp, ...]
+
+    import time as _time
 
     for item in due:
         appt_id = item["appointment_id"]
@@ -147,6 +169,18 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
                 svc_cache[key_id] = svc
             cal_id = key_row["calendar_id"]
 
+            # R1：速率限制（per-key 每分鐘 _RATE_LIMIT 次）
+            now_ts = _time.time()
+            timestamps = rate_timestamps.get(key_id, [])
+            # 清除超過 1 分鐘的紀錄
+            timestamps = [t for t in timestamps if now_ts - t < _RATE_WINDOW]
+            if len(timestamps) >= _RATE_LIMIT:
+                wait = _RATE_WINDOW - (now_ts - timestamps[0])
+                if wait > 0:
+                    logger.info("速率限制：key=%s 等待 %.0f 秒", key_id, wait)
+                    _time.sleep(wait)
+                timestamps = [t for t in timestamps if _time.time() - t < _RATE_WINDOW]
+
             if op in ("C", "U"):
                 pc = get_db()
                 try:
@@ -165,12 +199,18 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
                         mx.close()
                 if gid:
                     svc.events().patch(calendarId=cal_id, eventId=gid, body=event).execute()
+                    timestamps.append(_time.time())
+                    rate_timestamps[key_id] = timestamps
                 else:
                     created = svc.events().insert(calendarId=cal_id, body=event).execute()
                     gid = created["id"]
+                    timestamps.append(_time.time())
+                    rate_timestamps[key_id] = timestamps
             elif op == "D":
                 if gid:
                     svc.events().delete(calendarId=cal_id, eventId=gid).execute()
+                    timestamps.append(_time.time())
+                    rate_timestamps[key_id] = timestamps
             else:
                 continue
 
