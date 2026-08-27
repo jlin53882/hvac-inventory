@@ -776,3 +776,84 @@ class TestDynamicRateLimit:
         # 100 個 key：min(480, 8000/100) = 80
         limit_100 = min(_RATE_PER_USER, _RATE_PROJECT // 100)
         assert limit_100 == 80
+
+
+class TestDiscordNotification:
+    """Discord webhook 失敗通知"""
+
+    def test_notify_discord_sends_webhook(self, monkeypatch):
+        """_notify_discord 正確呼叫 urllib"""
+        from app.services.sync_scheduler import _notify_discord
+        called = {}
+
+        def mock_urlopen(req, timeout=10):
+            called["url"] = req.full_url
+            called["data"] = req.data.decode()
+            class FakeResp:
+                status = 204
+                def read(self): return b""
+            return FakeResp()
+
+        monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+        _notify_discord("test message")
+
+        assert "thread_id=1542554579697279056" in called["url"]
+        assert "test message" in called["data"]
+
+    def test_notify_discord_swallows_error(self, monkeypatch):
+        """_notify_discord 失敗不抛異常（fire-and-forget）"""
+        from app.services.sync_scheduler import _notify_discord
+
+        def mock_urlopen(req, timeout=10):
+            raise ConnectionError("network down")
+
+        monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+        # 不应抛異常
+        _notify_discord("should not crash")
+
+    def test_run_once_no_notify_on_success(self, monkeypatch):
+        """同步成功不發 Discord 通知"""
+        from app.services import sync_scheduler
+        notified = []
+        monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+            {"appointment_id": 1, "key_id": 1, "op_type": "C",
+             "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
+        ]))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (1, 0))
+
+        sync_scheduler._run_once()
+        assert len(notified) == 0  # 成功不通知
+
+    def test_run_once_notifies_on_failure(self, monkeypatch):
+        """同步失敗發 Discord 通知"""
+        from app.services import sync_scheduler
+        notified = []
+        monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+            {"appointment_id": 1, "key_id": 1, "op_type": "C",
+             "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
+        ]))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (0, 1))
+
+        sync_scheduler._run_once()
+        assert len(notified) == 1
+        assert "失敗" in notified[0]
+
+
+class _FakeConn:
+    """測試用假 DB 連線"""
+    def __init__(self, rows=None):
+        self._rows = rows or []
+    def execute(self, sql, params=()):
+        return self
+    def fetchall(self):
+        return self._rows
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+    def close(self):
+        pass

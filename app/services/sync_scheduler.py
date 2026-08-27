@@ -1,8 +1,23 @@
 # -*- coding: utf-8 -*-
-"""背景 debounce 同步排程器（Multi-Key 複合主鍵隊列）"""
+"""背景 debounce 同步排程器（Multi-Key 複合主鍵隊列）
+
+功能：
+- 每 5 分鐘掃描 appointment_sync_queue
+- debounce：last_modified_at 距今 ≥5 分鐘才算 due
+- 失敗重試：最多 5 次
+- 失敗通知：同步失敗時發送 Discord webhook 通知
+
+Log 行為：
+- 啟動/停止：INFO
+- 同步成功：INFO（僅總數）
+- 同步失敗：WARNING + Discord 通知
+- 無 due 項目：靜默（不寫 log）
+"""
+import json
 import logging
 import os
 import threading
+import urllib.request
 from datetime import datetime, timedelta
 
 from app.database import get_db
@@ -18,11 +33,34 @@ _fh = logging.FileHandler(_log_path, encoding="utf-8")
 _fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(_fh)
 logger.setLevel(logging.INFO)
+
+# ---------- Discord Webhook 設定 ----------
+_DISCORD_WEBHOOK_URL = (
+    "https://discord.com/api/webhooks/"
+    "1542554661632868514/"
+    "aRVb1nekXAiTUR-vrMJ8i1x9pivFWoBNm4b-ejOH57njfh--a1Hk94HAZEH49jk9RebZ"
+)
+_DISCORD_THREAD_ID = "1542554579697279056"
+
 _INTERVAL = 300   # 5 分鐘
 _WINDOW = 300     # debounce 窗口 5 分鐘
 _MAX_ATTEMPTS = 5
 _stop = threading.Event()
 _thread = None
+
+
+def _notify_discord(message: str) -> None:
+    """發送 Discord webhook 通知（失敗時呼叫，fire-and-forget）。"""
+    try:
+        url = f"{_DISCORD_WEBHOOK_URL}?thread_id={_DISCORD_THREAD_ID}"
+        data = json.dumps({"content": message}).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=data,
+            headers={"Content-Type": "application/json", "User-Agent": "hvac-sync/1.0"},
+        )
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        logger.warning("Discord 通知發送失敗: %s", e)
 
 
 def start():
@@ -90,5 +128,11 @@ def _run_once():
     ok, fail = gcal_sync.sync_pending(due)
     if fail:
         logger.warning("gcal 同步完成：成功 %d / 失敗 %d", ok, fail)
+        # Discord 失敗通知
+        _notify_discord(
+            f"⚠️ **hvac Google 同步失敗**\n"
+            f"成功 {ok} / 失敗 {fail}\n"
+            f"時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
     else:
         logger.info("gcal 同步完成：成功 %d", ok)
