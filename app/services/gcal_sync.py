@@ -118,9 +118,11 @@ def _load_appointment_for_sync(conn, appt_id):
             [dict(a) for a in assignees])
 
 
-# 速率限制：每個 SA 每分鐘 600 次，留 100 安全邊際
-_RATE_LIMIT = 500  # 每分鐘最多 500 次
-_RATE_WINDOW = 60  # 秒
+# 速率限制：動態分配（per-user 600/分鐘，專案級 10000/分鐘）
+# 取 80% 安全邊際：per-user 480、專案級 8000
+_RATE_PER_USER = 480       # 每個 SA 每分鐘上限
+_RATE_PROJECT = 8000       # 專案級每分鐘上限（80%）
+_RATE_WINDOW = 60          # 秒
 
 def sync_pending(due: List[dict]) -> Tuple[int, int]:
     """對 due（[{appointment_id, key_id, op_type, google_event_id, last_modified_at}]
@@ -169,15 +171,19 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
                 svc_cache[key_id] = svc
             cal_id = key_row["calendar_id"]
 
-            # R1：速率限制（per-key 每分鐘 _RATE_LIMIT 次）
+            # R1：動態速率限制（per-user + 專案級雙重檢查）
+            # 每個 key 的上限 = min(per-user限制, 專案級/活躍key數)
+            num_keys = len(key_rows)
+            per_key_limit = min(_RATE_PER_USER, _RATE_PROJECT // max(num_keys, 1))
             now_ts = _time.time()
             timestamps = rate_timestamps.get(key_id, [])
             # 清除超過 1 分鐘的紀錄
             timestamps = [t for t in timestamps if now_ts - t < _RATE_WINDOW]
-            if len(timestamps) >= _RATE_LIMIT:
+            if len(timestamps) >= per_key_limit:
                 wait = _RATE_WINDOW - (now_ts - timestamps[0])
                 if wait > 0:
-                    logger.info("速率限制：key=%s 等待 %.0f 秒", key_id, wait)
+                    logger.info("速率限制：key=%s（%d/%d）等待 %.0f 秒",
+                                key_id, len(timestamps), per_key_limit, wait)
                     _time.sleep(wait)
                 timestamps = [t for t in timestamps if _time.time() - t < _RATE_WINDOW]
 
