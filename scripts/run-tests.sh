@@ -8,7 +8,7 @@
 #   frontend  frontend_assets+security    static/** 任何改動；新增任何後端端點（XSS/公式注入守衛）
 #   auth      test_users + test_viewer    app/routes/auth.py、users.py
 #   rbac      test_rbac + test_rbac_perms 權限系統、app/database.py seed
-#   regression v101 + appointments        appointments.py、v1.0.1 回歸
+#   regression v101+appointments+gcal appointments.py、v1.0.1 回歸、gcal 同步引擎（gcal_sync/gcal_keys/deadvar_verify）
 #
 # ⚠️ 改到以下檔 = 跑 all（所有測試的 fixture 底層）：
 #    app/database.py、app/services/auth.py、main.py、app/models.py、app/config.py
@@ -21,7 +21,7 @@ case "${1:-all}" in
   frontend)   FILES="tests/test_frontend_assets.py tests/test_security_regression.py tests/test_structure.py" ;;
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   rbac)       FILES="tests/test_rbac.py tests/test_rbac_perms.py" ;;
-  regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py" ;;
+  regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py tests/test_gcal_keys.py tests/test_deadvar_verify.py" ;;
   all)        FILES="tests/" ;;
   *) echo "用法: $0 [core|frontend|auth|rbac|regression|all]"; exit 1 ;;
 esac
