@@ -255,3 +255,42 @@ def force_sync_now():
     from app.services import sync_scheduler
     sync_scheduler.reset_now()
     return {"ok": True, "message": "同步信號已發送，下次排程器執行時立即同步"}
+
+
+# ========== 同步隊列管理 API（A6） ==========
+
+@router.get("/api/gcal-sync-queue", dependencies=[Depends(require_perm("gcal-sync-manage"))])
+def list_sync_queue():
+    """列出同步隊列（含失敗項 + last_error），admin 全覽用。"""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT q.appointment_id, q.key_id, q.op_type, q.google_event_id,"
+            " q.attempts, q.last_error, q.last_modified_at,"
+            " k.name AS key_name, a.client_name, a.date"
+            " FROM appointment_sync_queue q"
+            " LEFT JOIN gcal_keys k ON k.id=q.key_id"
+            " LEFT JOIN appointments a ON a.id=q.appointment_id"
+            " ORDER BY q.last_modified_at DESC").fetchall()
+        return {"items": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@router.put("/api/gcal-sync-queue/reset", dependencies=[Depends(require_perm("gcal-sync-manage"))])
+def reset_sync_queue(appt_id: int, key_id: int):
+    """重置某列的 attempts（歸零後下次排程器會重新嘗試同步）。"""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT appointment_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)).fetchone()
+        if not row:
+            raise HTTPException(404, "隊列列不存在")
+        conn.execute(
+            "UPDATE appointment_sync_queue SET attempts=0, last_error='' "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()

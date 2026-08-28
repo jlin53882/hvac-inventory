@@ -320,6 +320,11 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
                         "VALUES(?,?,?,?) ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
                         "google_event_id=excluded.google_event_id, data_hash=excluded.data_hash, synced_at=datetime('now')",
                         (appt_id, key_id, gid, cur_hash))
+                elif op == "D":
+                    # A3：刪除 Google 事件後同步刪 map row，防止換回時 patch 404
+                    wc.execute(
+                        "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                        (appt_id, key_id))
                 wc.execute(
                     "DELETE FROM appointment_sync_queue "
                     "WHERE appointment_id=? AND key_id=? AND last_modified_at=?",

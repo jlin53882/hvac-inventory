@@ -407,3 +407,81 @@ def test_backfill_all_appointments_returns_count(client):
         assert len(rows) == 2, f"sync_queue 應有 2 筆回填，實際 {len(rows)}"
     finally:
         conn.close()
+
+
+# ========== A6：同步隊列管理 API 測試 ==========
+
+class TestSyncQueueAPI:
+    """A6：GET /api/gcal-sync-queue + PUT /api/gcal-sync-queue/reset"""
+
+    def test_list_sync_queue(self, client):
+        """GET /api/gcal-sync-queue 回傳隊列列表"""
+        from app.database import get_db
+
+        # 手動塞一列 sync_queue
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('qKey','q.json','q@cal',1)")
+            conn.execute("INSERT INTO appointments(client_name, date, start_time, end_time) "
+                         "VALUES('Q測試','2026-08-28','09:00','11:00')")
+            appt_id = conn.execute("SELECT id FROM appointments").fetchone()["id"]
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='qKey'").fetchone()["id"]
+            conn.execute(
+                "INSERT INTO appointment_sync_queue"
+                "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
+                "VALUES(?,?,'U','',datetime('now'),3,'timeout')", (appt_id, key_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+        r = client.get("/api/gcal-sync-queue")
+        assert r.status_code == 200
+        data = r.json()
+        assert "items" in data
+        assert len(data["items"]) >= 1
+        item = data["items"][0]
+        assert item["op_type"] == "U"
+        assert item["attempts"] == 3
+        assert item["last_error"] == "timeout"
+        assert item["key_name"] == "qKey"
+
+    def test_reset_sync_queue(self, client):
+        """PUT /api/gcal-sync-queue/reset 重置 attempts 歸零"""
+        from app.database import get_db
+
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('rKey','r.json','r@cal',1)")
+            conn.execute("INSERT INTO appointments(client_name, date, start_time, end_time) "
+                         "VALUES('R測試','2026-08-28','09:00','11:00')")
+            appt_id = conn.execute("SELECT id FROM appointments").fetchone()["id"]
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='rKey'").fetchone()["id"]
+            conn.execute(
+                "INSERT INTO appointment_sync_queue"
+                "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
+                "VALUES(?,?,'C','',datetime('now'),5,'perm error')", (appt_id, key_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+        r = client.put(f"/api/gcal-sync-queue/reset?appt_id={appt_id}&key_id={key_id}")
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+        # 確認 attempts 歸零
+        conn = get_db()
+        try:
+            row = conn.execute(
+                "SELECT attempts, last_error FROM appointment_sync_queue "
+                "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)).fetchone()
+            assert row["attempts"] == 0
+            assert row["last_error"] == ""
+        finally:
+            conn.close()
+
+    def test_reset_nonexistent_returns_404(self, client):
+        """PUT reset 不存在的列 → 404"""
+        r = client.put("/api/gcal-sync-queue/reset?appt_id=99999&key_id=99999")
+        assert r.status_code == 404

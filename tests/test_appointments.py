@@ -497,3 +497,131 @@ class TestSyncStatus:
         from app.routes import appointments as apt
         conn, appt_id = _conn
         assert apt._sync_status(conn, appt_id) == "none"
+
+
+class TestB2OrphanBoundKeys:
+    """B2：orphan 判斷只看「已綁定 key」，不看 fallback 到全部 key 的情境。
+
+    修正前：fallback 觸發時 new_target_ids = 所有 key → 沒 orphan → 舊事件不刪。
+    修正後：orphan 判斷只看有使用者綁定的 key 集合。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        import app.database as app_db
+        monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "b2.db"))
+        app_db.init_db()
+        conn = app_db.get_db()
+        try:
+            # 建 2 個 key
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('keyOld','old.json','old@cal',1),('keyNew','new.json','new@cal',1)")
+            # 建 2 個使用者：admin 綁 keyOld，user2 綁 keyNew
+            conn.execute("UPDATE users SET gcal_key='keyOld' WHERE username='admin'")
+            conn.execute("INSERT INTO users(username, password_hash, display_name, role, gcal_key) "
+                         "VALUES('u2','pw','User2','editor','keyNew')")
+            conn.commit()
+            self.conn = conn
+            self.key_old_id = conn.execute("SELECT id FROM gcal_keys WHERE name='keyOld'").fetchone()["id"]
+            self.key_new_id = conn.execute("SELECT id FROM gcal_keys WHERE name='keyNew'").fetchone()["id"]
+            self.uid2 = conn.execute("SELECT id FROM users WHERE username='u2'").fetchone()["id"]
+            yield
+        finally:
+            conn.close()
+
+    def test_orphan_delete_when_reassign_to_different_key(self):
+        """換人指派（keyOld→keyNew）→ keyOld 應 orphan 刪除"""
+        from app.routes.appointments import mark_sync_pending
+        from app.services import gcal_sync
+        import app.database as app_db
+
+        conn = self.conn
+        # 建行程（指派 admin = keyOld）
+        conn.execute("INSERT INTO appointments(client_name, date, start_time, end_time) "
+                     "VALUES('B2測試','2026-08-28','09:00','11:00')")
+        appt_id = conn.execute("SELECT id FROM appointments").fetchone()["id"]
+        conn.execute("INSERT INTO appointment_assignees(appointment_id, user_id) VALUES(?,1)", (appt_id,))
+        # 模擬已同步到 keyOld
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                     "VALUES(?,?,'old-event','hash')", (appt_id, self.key_old_id))
+        conn.commit()
+
+        # 清 queue
+        conn.execute("DELETE FROM appointment_sync_queue")
+        conn.commit()
+
+        # 模擬 update：改指派 admin→user2（keyOld→keyNew）
+        conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
+        conn.execute("INSERT INTO appointment_assignees(appointment_id, user_id) VALUES(?,?)",
+                     (appt_id, self.uid2))
+        conn.commit()
+
+        # B2：用「已綁定 key」算 orphan（直接模擬 update_appointment 的邏輯）
+        bound_rows = conn.execute(
+            "SELECT DISTINCT u.gcal_key FROM appointment_assignees aa "
+            "JOIN users u ON u.id=aa.user_id "
+            "WHERE aa.appointment_id=? AND u.gcal_key<>''", (appt_id,)).fetchall()
+        bound_key_names = [r["gcal_key"] for r in bound_rows]
+        placeholders = ",".join("?" * len(bound_key_names))
+        bound_key_ids = set(r["id"] for r in conn.execute(
+            f"SELECT id FROM gcal_keys WHERE is_active=1 AND name IN ({placeholders})",
+            bound_key_names).fetchall())
+
+        map_rows = conn.execute(
+            "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
+            (appt_id,)).fetchall()
+        orphan = [(r["key_id"], r["google_event_id"]) for r in map_rows
+                  if r["key_id"] not in bound_key_ids]
+
+        # keyOld 不在 bound_key_ids（新指派只有 user2=keyNew）→ 應 orphan
+        assert self.key_old_id not in bound_key_ids
+        assert len(orphan) == 1
+        assert orphan[0][0] == self.key_old_id
+
+    def test_no_orphan_when_all_unbound_uses_fallback(self, client, monkeypatch):
+        """B2 防回歸：全沒綁 key（fallback）→ 不刪 orphan（guard 命中）"""
+        from app.database import get_db
+
+        # 建 key + 使用者（admin 不綁 key）
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('keyOld','old.json','old@cal',1)")
+            conn.execute("UPDATE users SET gcal_key='' WHERE username='admin'")
+            conn.commit()
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='keyOld'").fetchone()["id"]
+        finally:
+            conn.close()
+
+        # 建行程 + map（模擬已同步）
+        r = client.post("/api/appointments", json={
+            "client_name": "B2_fb", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+        appt_id = r.json()["id"]
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                         "VALUES(?,?,'fb-event','hash')", (appt_id, key_id))
+            conn.execute("DELETE FROM appointment_sync_queue")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 編輯行程（admin 仍沒綁 key → fallback）
+        client.put(f"/api/appointments/{appt_id}", json={
+            "client_name": "B2_fb", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": "edited"
+        })
+
+        # B2：fallback 時不刪 orphan → queue 中不應有 D op
+        conn = get_db()
+        try:
+            d_ops = conn.execute(
+                "SELECT COUNT(*) FROM appointment_sync_queue "
+                "WHERE appointment_id=? AND op_type='D'", (appt_id,)).fetchone()[0]
+        finally:
+            conn.close()
+        assert d_ops == 0, f"B2：fallback 時不應有 D orphan，但有 {d_ops} 列"

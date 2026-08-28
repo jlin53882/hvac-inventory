@@ -324,6 +324,69 @@ class TestSyncPending:
         assert ok == 1
         mock_svc.events().delete().execute.assert_called_once()
 
+    def test_delete_also_removes_map_row(self, client, monkeypatch):
+        """A3 防回歸：D op 成功後同步刪 appointment_gcal_map，防止換回時 patch 404"""
+        from app.database import get_db
+        from app.services import gcal_sync
+
+        # 建 key
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('A3Key', 'fake.json', 'a3@cal', 1)")
+            conn.execute("UPDATE users SET gcal_key='A3Key' WHERE username='admin'")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 建行程
+        r = client.post("/api/appointments", json={
+            "client_name": "A3測試", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+        appt_id = r.json()["id"]
+
+        # 寫 map（模擬已同步過）
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                         "VALUES(?, 1, 'a3-event-789', 'fakehash')", (appt_id,))
+            conn.commit()
+            # 確認 map 存在
+            assert conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=?", (appt_id,)).fetchone()
+        finally:
+            conn.close()
+
+        # 刪行程
+        client.delete(f"/api/appointments/{appt_id}")
+
+        # 取 queue row
+        conn = get_db()
+        try:
+            q = conn.execute("SELECT * FROM appointment_sync_queue WHERE appointment_id=? AND op_type='D'",
+                             (appt_id,)).fetchone()
+            assert q is not None
+        finally:
+            conn.close()
+
+        # mock + sync
+        mock_svc = self._mock_service()
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: mock_svc)
+        due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "D",
+                "google_event_id": "a3-event-789", "last_modified_at": q["last_modified_at"]}]
+        ok, fail = gcal_sync.sync_pending(due)
+        assert ok == 1
+
+        # A3：map row 應被刪除
+        conn = get_db()
+        try:
+            map_row = conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=?",
+                                   (appt_id,)).fetchone()
+            assert map_row is None, "A3：D 成功後 map row 應被刪除"
+        finally:
+            conn.close()
+
     def test_version_condition_prevents_lost_edit(self, client, monkeypatch):
         """🔴 防回歸：成功刪隊列帶 last_modified_at 版本條件"""
         from app.database import get_db
@@ -553,11 +616,11 @@ class TestComputeEventHash:
         assert compute_event_hash(base, []) != compute_event_hash(addr1, [])
 
 
-class TestHashSkipSync:
-    """data_hash 相同 -> 跳過同步（不寫 sync_queue）"""
+class TestHashSkipRemoved:
+    """A4：hash-skip 已移除，C/U op 每次都進 queue（不論 hash 是否相同）"""
 
-    def test_same_hash_skips_queue(self, client, monkeypatch):
-        """hash 相同 -> sync_queue 不新增列"""
+    def test_same_hash_still_queues(self, client, monkeypatch):
+        """A4 防回歸：hash 相同 → sync_queue 仍新增列（不再跳過）"""
         from app.database import get_db
         from app.services import gcal_sync
 
@@ -587,7 +650,7 @@ class TestHashSkipSync:
             conn.close()
         assert q1 >= 1
 
-        # 手動寫入 gcal_map + data_hash（模擬已同步過）
+        # 手動寫入 gcal_map + data_hash（模擬已同步過，hash 相同）
         conn = get_db()
         try:
             conn.execute(
@@ -596,7 +659,7 @@ class TestHashSkipSync:
                 (appt_id, gcal_sync.compute_event_hash(
                     {"client_name": "hash測試", "date": "2026-08-28",
                      "start_time": "09:00", "end_time": "11:00",
-                     "note": "", "service_type_id": None},
+                     "note": "", "service_type_id": None, "address": ""},
                     [{"user_id": 1}])))
             conn.commit()
         finally:
@@ -610,20 +673,77 @@ class TestHashSkipSync:
         finally:
             conn.close()
 
-        # 編輯行程（內容不變）-> mark_sync_pending 應該跳過
+        # 編輯行程（內容不變）-> A4：hash 相同但仍進 queue
         client.put(f"/api/appointments/{appt_id}", json={
             "client_name": "hash測試", "date": "2026-08-28",
             "start_time": "09:00", "end_time": "11:00",
             "user_ids": [1], "note": ""
         })
 
-        # sync_queue 應該仍然為空（hash 相同 -> 跳過）
+        # A4：sync_queue 應有 1 列（不再跳過）
         conn = get_db()
         try:
             q2 = conn.execute("SELECT COUNT(*) FROM appointment_sync_queue").fetchone()[0]
         finally:
             conn.close()
-        assert q2 == 0, f"hash 相同應跳過，但 sync_queue 有 {q2} 列"
+        assert q2 == 1, f"A4：hash 相同仍應進 queue，但 sync_queue 有 {q2} 列"
+
+    def test_op_type_not_stale_after_reassign(self, client, monkeypatch):
+        """A4 防回歸：換人指派後 op_type 不再是舊值（hash-skip 移除前會卡在舊 C）"""
+        from app.database import get_db
+
+        # 建 2 個 key + 2 個使用者
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('keyA', 'a.json', 'a@cal', 1)")
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('keyB', 'b.json', 'b@cal', 1)")
+            conn.execute("UPDATE users SET gcal_key='keyA' WHERE username='admin'")
+            # 建第二個使用者
+            conn.execute("INSERT INTO users(username, password_hash, display_name, role, gcal_key) "
+                         "VALUES('user2', 'pw', 'User2', 'editor', 'keyB')")
+            conn.commit()
+            uid2 = conn.execute("SELECT id FROM users WHERE username='user2'").fetchone()[0]
+        finally:
+            conn.close()
+
+        # 建行程（只指派 admin = keyA）
+        r = client.post("/api/appointments", json={
+            "client_name": "op_test", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [1], "note": ""
+        })
+        appt_id = r.json()["id"]
+
+        # 模擬已同步到 keyA（建 map row）
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                         "VALUES(?,?,'keyA-event','hash')", (appt_id, 1))
+            conn.execute("DELETE FROM appointment_sync_queue")
+            conn.commit()
+        finally:
+            conn.close()
+
+        # 改指派給 user2（keyB）→ keyA 應 orphan 刪除
+        client.put(f"/api/appointments/{appt_id}", json={
+            "client_name": "op_test", "date": "2026-08-28",
+            "start_time": "09:00", "end_time": "11:00",
+            "user_ids": [uid2], "note": ""
+        })
+
+        # queue 應有 D（keyA orphan）+ U（keyB new）= 2 列，且 op_type 正確
+        conn = get_db()
+        try:
+            rows = conn.execute(
+                "SELECT key_id, op_type FROM appointment_sync_queue "
+                "WHERE appointment_id=? ORDER BY key_id", (appt_id,)).fetchall()
+        finally:
+            conn.close()
+        ops = {r["key_id"]: r["op_type"] for r in rows}
+        # keyA 應是 D（orphan），keyB 應是 U（新 target）
+        assert any(v == "D" for v in ops.values()), f"應有 D orphan，但 ops={ops}"
 
     def test_different_hash_fills_queue(self, client, monkeypatch):
         """hash 不同 -> sync_queue 新增列"""
