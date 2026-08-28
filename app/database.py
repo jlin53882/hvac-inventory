@@ -324,6 +324,11 @@ def _exec_init(conn):
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
         )""")
+    # M8：appointment_gcal_map.data_hash（2026-08-28 同步 hash 比對用）
+    map_cols = [r[1] for r in conn.execute("PRAGMA table_info(appointment_gcal_map)").fetchall()]
+    if "data_hash" not in map_cols:
+        conn.execute("ALTER TABLE appointment_gcal_map ADD COLUMN data_hash TEXT DEFAULT ''")
+        print("[migrate] appointment_gcal_map.data_hash 欄位已新增（同步 hash 比對）")
     # 行事曆：service_types 種子（2026-08-13 Sarah：工程項目 安裝/配管 → 施工/場勘）
     # id 1/2 = 保養/維修 active；3/4 = 安裝/配管 停用（歷史保留）；5/6 = 施工/場勘 active
     conn.executescript("""
