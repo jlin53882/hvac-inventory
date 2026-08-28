@@ -167,14 +167,18 @@ function calRenderDay() {
           <span>📝 由 ${esc(e.created_by_name || '系統')} 新增</span>
           ${(e.updated_by_name && e.updated_by_name !== (e.created_by_name || '系統')) ? `<span>✏️ 由 ${esc(e.updated_by_name)} 編輯</span>` : ''}
           <span>${calFmtCreatedAt(e.created_at)}</span>
+          <span class="cal-sync-status" title="${e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'partial_failed' ? '部分同步失敗' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'}">${e.sync_status === 'synced' ? '✅' : e.sync_status === 'partial_failed' ? '⚠️' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''}</span>
         </div>
-        <div class="cal-sync-status" title="${e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'partial_failed' ? '部分同步失敗' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'}">${e.sync_status === 'synced' ? '✅' : e.sync_status === 'partial_failed' ? '⚠️' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''}</div>
-        ${isViewer ? '' : `<div class="cal-card-actions">
-          <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">編輯</button>
-          <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
-        </div>`}
-        <div class="cal-time">${e.start_time ? `⏰ ${esc(e.start_time)}　` : ''}${who}</div>
-        <div class="cal-client">${e.service_name ? `[${esc(e.service_name)}] ` : ''}${esc(e.client_name)}</div>
+        <div class="cal-head">
+          <div class="cal-head-col">
+            <div class="cal-time">${e.start_time ? `⏰ ${esc(e.start_time)}　` : ''}${who}</div>
+            <div class="cal-client">${e.service_name ? `[${esc(e.service_name)}] ` : ''}${esc(e.client_name)}</div>
+          </div>
+          ${isViewer ? '' : `<div class="cal-card-actions">
+            <button class="btn-card btn-edit" onclick="calOpenAppt(${e.id})">編輯</button>
+            <button class="btn-card btn-delete" onclick="calDeleteAppt(${e.id})">✕</button>
+          </div>`}
+        </div>
         ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
         <div class="cal-note">${esc(e.note || '無備註')}</div>
       </div>
