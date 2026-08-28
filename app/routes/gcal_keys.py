@@ -5,8 +5,11 @@ from app.models import GcalKeyIn, GcalKeyUpdate
 from app.services.auth import require_perm
 
 
-def _backfill_all_appointments(key_id: int) -> None:
-    """新增 key 後，自動把所有旧行程加入 sync_queue（C = create）。"""
+def _backfill_all_appointments(key_id: int):
+    """新增 key 後，自動把所有旧行程加入 sync_queue（C = create）。
+
+    回傳成功 backfill 的筆數；失敗回傳 None 並 log ERROR（不再靜默吞掉）。
+    """
     try:
         conn = get_db()
         try:
@@ -20,11 +23,15 @@ def _backfill_all_appointments(key_id: int) -> None:
                        op_type='C', last_modified_at=datetime('now'), attempts=0, last_error=''""",
                     (appt_id, key_id))
             conn.commit()
+            return len(appt_ids)
         finally:
             conn.close()
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning("backfill sync_queue 失敗 key_id=%s: %s", key_id, e)
+        logging.getLogger(__name__).error(
+            "backfill sync_queue 失敗 key_id=%s: %s （新增 key 已成功但舊行程未加入同步佇列，需重新啟用該 key 觸發回填）",
+            key_id, e)
+        return None
 
 router = APIRouter()
 

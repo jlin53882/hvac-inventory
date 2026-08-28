@@ -366,3 +366,44 @@ def test_force_sync_now_viewer_forbidden(client):
     assert r.status_code == 200
     r2 = client.post("/api/gcal-sync-now")
     assert r2.status_code == 403
+
+
+def test_backfill_all_appointments_returns_count(client):
+    """C1 防回歸：新增 key 自動 backfill 舊行程，回傳正確筆數（不再靜默）。
+
+    修正前 _backfill_all_appointments 吞掉例外不回傳 → 建立 key 後舊行程
+    是否加入 sync_queue 完全無從得知。
+    """
+    from app.routes import gcal_keys as gk
+    import app.database as app_db
+
+    # 建 2 個 appointment
+    # 2 個不同時段的 appointment（避免同 user 同時間衝突 409）
+    appts = [("客戶A", "09:00", "10:00"), ("客戶B", "11:00", "12:00")]
+    for name, st, en in appts:
+        r = client.post("/api/appointments", json={
+            "client_name": name, "address": "台北市", "date": "2026-08-28",
+            "start_time": st, "end_time": en, "note": "", "user_ids": [1],
+        })
+        assert r.status_code == 200, r.text
+
+    conn = app_db.get_db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO gcal_keys(name, credentials_path, calendar_id) VALUES('bk1','a.json','c1')")
+        key_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 直接呼叫 _backfill_all_appointments，驗證回傳筆數
+    count = gk._backfill_all_appointments(key_id)
+    assert count == 2  # 2 個 appointment 都回填
+
+    conn = app_db.get_db()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT appointment_id FROM appointment_sync_queue WHERE key_id=?", (key_id,)).fetchall()
+        assert len(rows) == 2, f"sync_queue 應有 2 筆回填，實際 {len(rows)}"
+    finally:
+        conn.close()
