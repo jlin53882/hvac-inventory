@@ -485,3 +485,99 @@ class TestSyncQueueAPI:
         """PUT reset 不存在的列 → 404"""
         r = client.put("/api/gcal-sync-queue/reset?appt_id=99999&key_id=99999")
         assert r.status_code == 404
+
+
+# ========== 刪除 key 時清 Google 事件 ==========
+
+class TestDeleteKeyCleansGoogleEvents:
+    """刪除 key 前，先打 Google API 刪掉已同步的事件"""
+
+    def test_delete_key_removes_google_events(self, client, monkeypatch):
+        """刪除有同步事件的 key → Google 事件被刪除，本地 map 清空"""
+        from app.database import get_db
+        from app.services import gcal_sync
+        from unittest.mock import MagicMock
+
+        # 建 key
+        conn = get_db()
+        try:
+            cur = conn.execute(
+                "INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                "VALUES('delTest', 'fake.json', 'del@cal', 1)")
+            key_id = cur.lastrowid
+            conn.execute("UPDATE users SET gcal_key='delTest' WHERE username='admin'")
+            # 建行程 + map（模擬已同步 2 筆）
+            conn.execute("INSERT INTO appointments(client_name, date, start_time, end_time) "
+                         "VALUES('dk1','2026-08-28','09:00','11:00')")
+            a1 = conn.execute("SELECT id FROM appointments WHERE client_name='dk1'").fetchone()["id"]
+            conn.execute("INSERT INTO appointments(client_name, date, start_time, end_time) "
+                         "VALUES('dk2','2026-08-28','13:00','15:00')")
+            a2 = conn.execute("SELECT id FROM appointments WHERE client_name='dk2'").fetchone()["id"]
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                         "VALUES(?,?, 'ev1', 'h1'),(?,? , 'ev2', 'h2')", (a1, key_id, a2, key_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Mock Google service
+        mock_svc = MagicMock()
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: mock_svc)
+
+        # 刪 key
+        r = client.delete(f"/api/gcal-keys/{key_id}")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["ok"] is True
+        assert data["google_deleted"] == 2
+        assert data["google_failed"] == 0
+
+        # Google delete 應被呼叫 2 次
+        assert mock_svc.events().delete.call_count == 2
+
+        # 本地 map 應被 CASCADE 清空
+        conn = get_db()
+        try:
+            remaining = conn.execute(
+                "SELECT COUNT(*) FROM appointment_gcal_map WHERE key_id=?", (key_id,)).fetchone()[0]
+            assert remaining == 0
+        finally:
+            conn.close()
+
+    def test_delete_key_still_works_if_google_fails(self, client, monkeypatch):
+        """Google API 失敗時，key 仍被刪除（不阻斷）"""
+        from app.database import get_db
+        from app.services import gcal_sync
+        from unittest.mock import MagicMock
+
+        conn = get_db()
+        try:
+            cur = conn.execute(
+                "INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                "VALUES('failKey', 'fake.json', 'fail@cal', 1)")
+            key_id = cur.lastrowid
+            conn.execute("INSERT INTO appointments(client_name, date, start_time, end_time) "
+                         "VALUES('fk1','2026-08-28','09:00','11:00')")
+            a1 = conn.execute("SELECT id FROM appointments WHERE client_name='fk1'").fetchone()["id"]
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                         "VALUES(?,?, 'fail-ev', 'h')", (a1, key_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Mock Google service 拋例外
+        mock_svc = MagicMock()
+        mock_svc.events().delete().execute.side_effect = Exception("Google API 403")
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: mock_svc)
+
+        r = client.delete(f"/api/gcal-keys/{key_id}")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["ok"] is True
+        assert data["google_failed"] == 1  # 事件刪除失敗
+
+        # Key 仍被刪除
+        conn = get_db()
+        try:
+            assert conn.execute("SELECT id FROM gcal_keys WHERE id=?", (key_id,)).fetchone() is None
+        finally:
+            conn.close()

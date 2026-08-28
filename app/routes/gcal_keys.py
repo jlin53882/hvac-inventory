@@ -143,15 +143,49 @@ def update_gcal_key(key_id: int, k: GcalKeyUpdate):
 
 @router.delete("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def delete_gcal_key(key_id: int):
-    """🗑️ 刪除 key。"""
+    """🗑️ 刪除 key。先清 Google 行事曆上的事件，再刪 key（DB CASCADE 清本地對映）。"""
+    import logging
+    from app.services import gcal_sync
+    logger = logging.getLogger(__name__)
+
     conn = get_db()
     try:
         row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Key 不存在")
+
+        # 查出該 key 已同步的 Google 事件
+        maps = conn.execute(
+            "SELECT appointment_id, google_event_id FROM appointment_gcal_map WHERE key_id=?",
+            (key_id,)).fetchall()
+
+        # 逐筆刪除 Google 端事件（失敗不阻斷 key 刪除）
+        deleted_ok = deleted_fail = 0
+        if maps:
+            try:
+                svc = gcal_sync.get_service_for_key(dict(row))
+                cal_id = row["calendar_id"]
+                for m in maps:
+                    gid = m["google_event_id"]
+                    if not gid:
+                        continue
+                    try:
+                        svc.events().delete(calendarId=cal_id, eventId=gid).execute()
+                        deleted_ok += 1
+                    except Exception as e:
+                        logger.warning("刪除 key 時 Google 事件刪除失敗 appt=%s gid=%s: %s",
+                                        m["appointment_id"], gid, e)
+                        deleted_fail += 1
+            except Exception as e:
+                logger.warning("刪除 key 時無法建立 Google service（憑證可能無效）: %s", e)
+                deleted_fail += len(maps)
+
+        # 刪 key（DB CASCADE 自動清 appointment_gcal_map + appointment_sync_queue）
         conn.execute("DELETE FROM gcal_keys WHERE id=?", (key_id,))
         conn.commit()
-        return {"ok": True}
+        msg = f"Key 已刪除（Google 事件：{deleted_ok} 成功 / {deleted_fail} 失敗）"
+        logger.info(msg)
+        return {"ok": True, "google_deleted": deleted_ok, "google_failed": deleted_fail}
     finally:
         conn.close()
 
