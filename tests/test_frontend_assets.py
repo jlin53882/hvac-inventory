@@ -359,6 +359,12 @@ def test_settings_js_orphan_group_ui():
     assert "consolidate-item" in js            # 新端點呼叫（舊 code 無）
     assert "grp-head" in js and "grp-body" in js  # 分組展開結構（舊 code 無）
     assert "consolidateGroup(" in js           # 組底整組快速套用（複用既有 consolidate）
+    # 2026-08-28 稽核：consolidateGroup 曾用 `data.affected` 但 `const data`/`res` 未宣告
+    # → 收編成功 toast 拋 ReferenceError。鎖定 res+data 都被宣告（bug 版必紅）。
+    grp_func = js[js.find("function consolidateGroup"):]
+    assert "const res = await fetch('/api/units/consolidate'" in grp_func
+    assert "const data = await res.json();" in grp_func
+    assert "data.affected" in grp_func
 
 
 def test_settings_js_unit_select_placeholder():

@@ -176,7 +176,8 @@ async function consolidateGroup(btn) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from_unit: from, to_unit: to })
     });
-    if (!res.ok) { toast((await res.json()).detail || '收編失敗', 'error'); return; }
+    const data = await res.json();
+    if (!res.ok) { toast(data.detail || '收編失敗', 'error'); return; }
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
     toast('✅ 已收編 ' + data.affected + ' 筆為「' + to + '」', 'success');
