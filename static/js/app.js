@@ -56,6 +56,18 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// 頭像下拉選單
+function toggleAvatarMenu() {
+  document.getElementById('avatarMenu').classList.toggle('open');
+}
+function closeAvatarMenu() {
+  var m = document.getElementById('avatarMenu');
+  if (m) m.classList.remove('open');
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.avatar-dropdown')) closeAvatarMenu();
+});
+
 // Sidebar 使用者
 function renderSidebarUser(user) {
   if (!user) return;
@@ -63,14 +75,13 @@ function renderSidebarUser(user) {
   var sbName = document.getElementById('sb-user-name');
   var sbRole = document.getElementById('sb-user-role');
   var sbAv   = document.getElementById('sb-user-av');
-  var sbActs = document.getElementById('sb-user-actions');
+  
   var hAv    = document.getElementById('h-av');
   if (sbUser) sbUser.style.display = '';
   if (sbName) sbName.textContent = user.display_name || user.username;
   if (sbRole) sbRole.textContent = user.role === 'admin' ? '管理員' : user.role === 'viewer' ? '檢視者' : '使用者';
   if (sbAv) sbAv.textContent = (user.display_name || user.username || '—').charAt(0);
   if (hAv) hAv.textContent = (user.display_name || user.username || '—').charAt(0);
-  if (sbActs) sbActs.style.display = 'flex';
 }
 
 // ========== 頁籤切換 ==========

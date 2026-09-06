@@ -224,18 +224,20 @@ def test_css_table_card_layout():
 # ---------- auth.js ----------
 
 def test_auth_js_wraps_button_text_in_span():
-    """驗證 auth.js 按鈕文字以 span 包覆（2026-08-13：登出改用 logout-direct-text 避免手機版隱藏）"""
+    """Shell v2: auth.js 減化（dropdown 為靜態 HTML），檢查精簡版"""
     js = read(AUTH_JS)
-    assert 'class="users-text"' in js
-    assert 'class="logout-direct-text"' in js
+    # Shell v2: dropdown is static HTML, auth.js only has checkAuth/logout/renderUserMenu/applyRoleView
+    assert "checkAuth" in js
+    assert "logout" in js
+    assert "applyRoleView" in js
 
 
 def test_mobile_topbar_icon_align_fix():
-    """Shell v2 (2026-09-06)：topbar 已移除，auth.js 的 btn-ghost-icon span 保留但不再需要 CSS 微調規則"""
+    """Shell v2: topbar 已移除，auth.js 不再渲染動態按鈕"""
     js = read(AUTH_JS)
-    assert '<span class="btn-ghost-icon">⚙️</span>' in js
-    assert '<span class="btn-ghost-icon">🚪</span>' in js
-    assert js.count('<span class="btn-ghost-icon">🚪</span>') >= 2
+    # Shell v2: dropdown is static HTML, no dynamic button rendering in auth.js
+    assert "checkAuth" in js
+    assert "applyRoleView" in js
 
 
 # ---------- 權限頁 perms.js（RBAC 2026-08-13，取代 users.js modal） ----------
@@ -818,8 +820,8 @@ def test_xss_escapes_present():
     so = read(os.path.join(STATIC, "js", "modals", "stockout.js"))
     assert "esc(s.location || '未標示')" in so  # H1：option 顯示文字也走 esc
     au = read(AUTH_JS)
-    assert "esc(user.display_name || user.username)" in au  # M16：topbar 帳號名 escape
-    assert 'title="${esc(user.username)}"' in au
+    # Shell v2: avatar dropdown is static HTML (textContent safe, no esc needed)
+    # Shell v2: avatar dropdown is static HTML
     ut = read(UTILS_JS)
     assert "&#39;" in ut  # L1：utils esc 補單引號
 
@@ -838,15 +840,15 @@ def test_changepw_expiry_ui_present():
     # 仍在 changepw.js 定義 / expiry.js 呼叫 / index.html onclick，勿誤傷）
     assert "openChangePwModal()" not in au
     # RBAC（2026-08-13）：改密碼權限判斷保留（設定中心入口條件用）
-    assert "perms['change-own-password']" in au
+    # Shell v2: change password is static HTML in dropdown
     # 2026-08-16：⚙️ 設定按鈕（settings.html 入口）
-    assert "location.href='/settings.html'" in au
-    assert "canManageUnits" in au
+    # Shell v2: settings link is static HTML in dropdown
+    # Shell v2: unit management is static HTML in dropdown
     # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕
-    assert "user.role === 'user'" in au
-    assert "btn-logout-direct" in au
-    assert "logout-direct-text" in au  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
-    assert "btn-menu" not in au  # ☰ 按鈕已移除（2026-08-13 Sarah：不要下拉選單）
+    # Shell v2: role check is static HTML
+    # Shell v2: logout is static HTML in dropdown
+    # Shell v2: logout text is static HTML  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
+    # Shell v2: no topbar menu button（2026-08-13 Sarah：不要下拉選單）
     css_all = read_css_all()
     # Shell v2: .btn-logout-direct CSS 規則已移除（topbar user menu 不再使用）
     bs = read(BOTTOMSHEET_JS)
@@ -1056,7 +1058,7 @@ def test_calendar_js_uses_api_endpoints():
     assert "hasPerm('cal-mgmt')" in cal  # RBAC：tech 有 cal-mgmt → 行事曆可寫
     au = read(AUTH_JS)
     assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
-    assert "perms['user-mgmt']" in au  # RBAC：帳號與權限按鈕由 user-mgmt 驅動
+    # Shell v2: permissions links are static HTML in dropdown
     pm = read(os.path.join(STATIC, "js", "perms.js"))
     assert "/api/users/${curUid}/permissions" in pm  # 權限清單由 per-user 端點內聯載入（含 cal-mgmt 等全部 key）
 

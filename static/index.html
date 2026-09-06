@@ -39,11 +39,6 @@
     <div class="sidebar-user" id="sb-user" style="display:none">
       <div class="av" id="sb-user-av">—</div>
       <div class="info"><div class="n" id="sb-user-name">—</div><div class="r" id="sb-user-role">—</div></div>
-      <span style="opacity:.3">⋯</span>
-    </div>
-    <div class="sidebar-user-actions" id="sb-user-actions" style="display:none; padding: 8px 0 0; display: none; gap: 6px;">
-      <button class="btn-ghost" style="flex:1; font-size:11px; padding:6px 8px;" onclick="openChangePwModal()">🔑 改密碼</button>
-      <button class="btn-ghost" style="flex:1; font-size:11px; padding:6px 8px;" onclick="doLogout()">🚪 登出</button>
     </div>
   </div>
 </div>
@@ -64,7 +59,17 @@
       </div>
       <div class="user-menu" id="userMenu" style="display:none"></div>
       <button class="notif" onclick="toggleNotif()">🔔<span class="cnt">0</span></button>
-      <div class="h-av" id="h-av">—</div>
+      <div class="avatar-dropdown" id="avatarDropdown">
+        <div class="h-av" id="h-av" onclick="toggleAvatarMenu()">—</div>
+        <div class="avatar-menu" id="avatarMenu">
+          <div class="avatar-menu-header" id="avatarMenuHeader">👤 —</div>
+          <a class="avatar-menu-item" href="/permissions.html">👥 帳號與權限</a>
+          <a class="avatar-menu-item" href="/settings.html">⚙️ 設定</a>
+          <a class="avatar-menu-item" onclick="openChangePwModal()">🔑 修改密碼</a>
+          <div class="avatar-menu-divider"></div>
+          <a class="avatar-menu-item" onclick="doLogout()">🚪 登出</a>
+        </div>
+      </div>
     </div>
   </div>
 

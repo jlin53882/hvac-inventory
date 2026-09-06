@@ -51,6 +51,14 @@
   .h-right .btn-ghost{background:#f1f5f9;border:1px solid #e5e7eb;color:#1a1a1a;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap}
   .h-right .btn-ghost:hover{background:#e2e8f0}
   .h-right .user-chip{font-size:12px;font-weight:600;color:#1a1a1a;white-space:nowrap}
+  /* Avatar dropdown */
+  .avatar-dropdown{position:relative}
+  .avatar-menu{position:absolute;top:100%;right:0;margin-top:6px;width:180px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;padding:6px;display:none}
+  .avatar-menu.open{display:block}
+  .avatar-menu-header{padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;border-bottom:1px solid #f1f5f9;margin-bottom:4px}
+  .avatar-menu-item{display:block;padding:8px 12px;font-size:13px;color:#1a1a1a;text-decoration:none;border-radius:6px;cursor:pointer;transition:background .12s}
+  .avatar-menu-item:hover{background:#f1f5f9}
+  .avatar-menu-divider{height:1px;background:#f1f5f9;margin:4px 0}
   /* Notification Panel */
   .notif-panel{position:fixed;top:48px;right:80px;width:280px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.12);z-index:150;padding:0;overflow:hidden;display:none}
   .notif-panel.open{display:block}
