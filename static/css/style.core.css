@@ -230,8 +230,8 @@
   @media (max-width: 767px) {
     .filter-chips.collapsed { max-height: 32px; }
   }
-  /* 內容區 */
-  .content { padding: 14px 16px 20px; max-width: 640px; margin: 0 auto; }
+  /* 內容區：flex child 需 width:100% 才能正確填滿 sidebar 右側空間 */
+  .content { padding: 14px 16px 20px; max-width: 640px; margin: 0 auto; width: 100%; }
   /* 庫存清單頂部匯出列（2026-08-13 Sarah：匯出按鈕從 topbar 移到這裡，靠右） */
   .loc-export-bar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: 10px 2px 4px; }
   .btn-export { background: #1a73e8; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
