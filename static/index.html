@@ -50,28 +50,36 @@
 
 <!-- Main (header + content) -->
 <div class="main">
-  <!-- Header (white, sticky) -->
+  <!-- Header -->
   <div class="header">
     <button class="hamburger" id="hamburger" onclick="openSidebar()" aria-label="選單">☰</button>
     <div class="breadcrumb" id="breadcrumb">📅 <b>行事曆</b></div>
-    <div class="search-box" id="header-search-box">
-      <input type="search" id="search-input" placeholder="🔍 搜尋（空白多詞篩選，如：米多力 面板）" autocomplete="new-password" autocapitalize="off" spellcheck="false">
-    </div>
-    <div class="site-tabs" id="header-site-tabs">
-      <button class="site-tab active" id="site-office" onclick="switchSite('office')">
-        🏢 辦公室<span class="sub" id="site-office-sub">…</span>
-      </button>
-      <button class="site-tab" id="site-warehouse" onclick="switchSite('warehouse')">
-        🏭 倉庫<span class="sub" id="site-warehouse-sub">…</span>
-      </button>
+    <div class="h-search">
+      <input type="search" id="search-input" placeholder="搜尋品項、品牌、位置" autocomplete="new-password" autocapitalize="off" spellcheck="false">
     </div>
     <div class="h-right">
-      <div class="user-menu" id="userMenu" style="display:none"></div>
+      <div class="h-site">
+        <button class="on" id="site-office" onclick="switchSite('office')">🏢 辦公室</button>
+        <button id="site-warehouse" onclick="switchSite('warehouse')">🏭 倉庫</button>
+      </div>
+      <button class="notif" onclick="toggleNotif()">🔔<span class="cnt">0</span></button>
+      <div class="h-av" id="h-av">—</div>
     </div>
   </div>
 
-  <!-- 舊 topbar 的 sub-info 併入 header 下方（桌面隱藏，僅作 JS 兼容，實際顯示在 sidebar brand 下） -->
-  <div id="sub-info" style="display:none">載入中…</div>
+  <!-- Hidden elements for api.js stats updates (sub-info, site tab counts) -->
+  <div id="sub-info" style="display:none"></div>
+  <span id="site-office-sub" style="display:none"></span>
+  <span id="site-warehouse-sub" style="display:none"></span>
+  <div id="userMenu" style="display:none"></div>
+
+  <!-- Notification Panel -->
+  <div class="notif-panel" id="notifPanel">
+    <div class="nh">🔔 通知</div>
+    <div class="ni"><span class="dot-w"></span>低庫存警示：控制基板 僅剩 3 片</div>
+    <div class="ni"><span class="dot-w"></span>低庫存警示：過濾網 已缺貨</div>
+    <div class="ni"><span class="dot-r"></span>盤點已逾期 3 天</div>
+  </div>
 
   <!-- 每月25日盤點提醒 -->
   <div class="reminder" id="reminder" style="display:none">
