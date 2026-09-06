@@ -231,17 +231,11 @@ def test_auth_js_wraps_button_text_in_span():
 
 
 def test_mobile_topbar_icon_align_fix():
-    """2026-08-17 家豪：手機 topbar ⚙️ 設定 / 🚪 登出圖示在按鈕內偏上 → 圖示包 .btn-ghost-icon span，
-    CSS 僅對 span translateY(2px) 下移（文字不動）。防回歸：
-    - auth.js 兩角色（user/admin）的設定/登出圖示都必須包在 .btn-ghost-icon span 內（不包 = 無法只動圖示）
-    - CSS 手機版有 .btn-ghost-icon 的 translateY 微調規則（移除 = 圖示退回偏上）"""
+    """Shell v2 (2026-09-06)：topbar 已移除，auth.js 的 btn-ghost-icon span 保留但不再需要 CSS 微調規則"""
     js = read(AUTH_JS)
-    assert '<span class="btn-ghost-icon">⚙️</span>' in js      # admin：設定
-    assert '<span class="btn-ghost-icon">🚪</span>' in js       # 登出（user + admin 兩處都有）
-    assert js.count('<span class="btn-ghost-icon">🚪</span>') >= 2  # 兩個角色分支各一處
-    css = read_css_all()
-    assert ".user-menu .btn-ghost .btn-ghost-icon {" in css     # 手機版專用規則存在
-    assert "transform: translateY(2px)" in css                  # 圖示微調值保留（家豪實測定案）
+    assert '<span class="btn-ghost-icon">⚙️</span>' in js
+    assert '<span class="btn-ghost-icon">🚪</span>' in js
+    assert js.count('<span class="btn-ghost-icon">🚪</span>') >= 2
 
 
 # ---------- 權限頁 perms.js（RBAC 2026-08-13，取代 users.js modal） ----------
@@ -854,7 +848,7 @@ def test_changepw_expiry_ui_present():
     assert "logout-direct-text" in au  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
     assert "btn-menu" not in au  # ☰ 按鈕已移除（2026-08-13 Sarah：不要下拉選單）
     css_all = read_css_all()
-    assert ".btn-logout-direct" in css_all  # 手機版覆蓋 .user-menu .btn-ghost 隱藏
+    # Shell v2: .btn-logout-direct CSS 規則已移除（topbar user menu 不再使用）
     bs = read(BOTTOMSHEET_JS)
     # 2026-08-13 Sarah：☰ 功能選單整個移除（不要下拉選單）——openTopMenu 已刪
     assert "openTopMenu" not in bs

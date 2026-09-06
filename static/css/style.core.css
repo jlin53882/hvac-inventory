@@ -60,21 +60,7 @@
   .more-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:none;background:none;font-size:13px;cursor:pointer;border-radius:6px;text-align:left;color:#1a1a1a}
   .more-menu button:hover{background:#f1f5f9}
   .more-menu button .ic{font-size:15px;width:20px;text-align:center}
-  /* 頂部 */
-  .topbar {
-    background: linear-gradient(135deg, #1e3a5f, #2d5a8e);
-    color: #fff;
-    padding: 14px 20px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .topbar-row { display: flex; justify-content: space-between; align-items: center; }
-  .topbar h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-  .topbar h1 .topbar-logo { width: 32px; height: 32px; border-radius: 0; object-fit: contain; background: #fff; }
-  .topbar .sub { font-size: 12px; opacity: 0.75; margin-top: 2px; }
-  /* 2026-08-13：標題兩行 wrapper——桌面 inline-flex（兩字連在一起無間距）；手機版覆蓋成 flex column */
-  .topbar h1 .t-wrap { display: inline-flex; }
+  /* ===== 舊 topbar 樣式已移除（Phase 1 Shell v2） ===== */
   .top-actions { display: flex; gap: 8px; }
   .btn-ghost {
     background: rgba(255,255,255,0.15);
@@ -130,19 +116,7 @@
   /* topbar（深藍底）上的主按鈕反白：白底深藍字才看得清楚 */
   .topbar .btn-primary { background: #fff; color: #1e3a5f; border: 1.5px solid rgba(255,255,255,0.4); }
   .topbar .btn-primary:hover { background: #f0f4f8; }
-  .search-box { margin-top: 10px; display: flex; gap: 8px; }
-  .search-box input {
-    flex: 1;
-    padding: 10px 14px;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    outline: none;
-  }
-  .search-box input::placeholder { color: rgba(255,255,255,0.6); }
-  .search-box input:focus { background: rgba(255,255,255,0.25); }
+  /* ===== 舊 search-box 樣式已移至 .h-search（Phase 1 Shell v2） ===== */
 
   /* 盤點提醒橫幅 */
   .reminder {
@@ -714,35 +688,7 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ===== 分片切換（辦公室 / 倉庫） ===== */
-  .site-tabs {
-    display: flex;
-    gap: 8px;
-    background: rgba(255,255,255,0.14);
-    border-radius: 12px;
-    padding: 4px;
-    margin-top: 12px;
-  }
-  .site-tab {
-    flex: 1;
-    padding: 8px 0;
-    border: none;
-    border-radius: 9px;
-    font-size: 13.5px;
-    font-weight: 600;
-    cursor: pointer;
-    background: transparent;
-    color: rgba(255,255,255,0.75);
-    transition: all 0.2s;
-    line-height: 1.3;
-  }
-  .site-tab.active {
-    background: #fff;
-    color: #1e3a5f;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  }
-  .site-tab .sub { display: block; font-size: 10.5px; font-weight: 400; opacity: 0.7; margin-top: 1px; }
-  .site-tab.active .sub { opacity: 0.85; }
+  /* ===== 舊分片切換已移至 .h-site（Phase 1 Shell v2） ===== */
 
   @media (min-width: 768px) {
     .content { max-width: 900px; }
@@ -959,24 +905,7 @@
   .h-search{display:none}
   .h-site{display:none}
   .breadcrumb{font-size:12px}
-  /* topbar 手機版：保留 👤 使用者 chip；匯出/改密碼/使用者/登出 按鈕收進 ☰ */
-  .top-actions .btn-ghost { display: none; }
-  /* 2026-08-13 Sarah：手機 topbar 右邊四個（管理員/改密碼/使用者/登出）2×2 排列 */
-  .user-menu { display: grid !important; grid-template-columns: auto auto; gap: 4px 6px; margin-left: 0; }
-  .user-menu .btn-ghost { display: flex; padding: 6px 10px; font-size: 12.5px; white-space: nowrap; }
-  /* 2026-08-17 家豪：手機板 ⚙️/🚪 圖示偏上，僅圖示往下 2px（文字不動） */
-  .user-menu .btn-ghost .btn-ghost-icon { display: inline-block; transform: translateY(2px); }
-  .user-menu .btn-logout-direct { display: flex !important; }
-  .topbar .sub { display: none; }
-  /* 2026-08-13 Sarah：左邊 logo 圖案放上、兩行字對齊（logo 左、兩行字右，左緣對齊） */
-  .topbar h1 { display: flex; align-items: center; gap: 7px; font-size: 15px; margin: 0; }
-  .topbar h1 .topbar-logo { width: 32px; height: 32px; flex-shrink: 0; }
-  .topbar h1 .t-wrap { display: flex; flex-direction: column; line-height: 1.3; }
-  .topbar h1 .t-title, .topbar h1 .t-title-2 { display: block; white-space: nowrap; }
-
-
-  /* topbar + 搜尋 + 分頁 固定頂部（sticky） */
-  .topbar { position: sticky; top: 0; z-index: 900; }
+  /* 舊 topbar 手機版規則已移除（Phase 1 Shell v2） */
 
   /* 內容區留給底部導覽 */
   .content { padding-bottom: 92px; }
