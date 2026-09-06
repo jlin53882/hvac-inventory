@@ -196,4 +196,9 @@ class GcalKeyUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class BatchLocationRequest(BaseModel):
+    stock_ids: List[int] = Field(..., min_length=1)
+    new_location: str = Field(..., min_length=1)
+
+
 

@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, Body, HTTPException
 
 from app.database import get_db
-from app.models import AdjustRequest, ItemCreate, ItemUpdate, StockUpdate
+from app.models import AdjustRequest, BatchLocationRequest, ItemCreate, ItemUpdate, StockUpdate
 from app.routes.photos import has_photo, list_photo_ids
 from app.services.auth import require_perm
 
@@ -488,3 +488,45 @@ def import_items(items: list = Body(..., embed=True)):
         raise
     finally:
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
+
+
+@router.post("/api/stocks/batch-location", dependencies=[Depends(require_perm("stock-mgmt"))])
+def batch_update_location(body: BatchLocationRequest):
+    """批量更新多筆 stock 記錄的位置。"""
+    conn = get_db()
+    try:
+        # 驗證所有 stock_ids 存在
+        placeholders = ",".join("?" * len(body.stock_ids))
+        rows = conn.execute(
+            f"SELECT id, item_id, location FROM item_stocks WHERE id IN ({placeholders})",
+            body.stock_ids
+        ).fetchall()
+        if len(rows) != len(body.stock_ids):
+            found_ids = {r["id"] for r in rows}
+            missing = [i for i in body.stock_ids if i not in found_ids]
+            raise HTTPException(400, f"找不到 stock IDs: {missing}")
+
+        # 檢查目標位置衝突（同一品項不能有兩筆相同位置）
+        for row in rows:
+            conflict = conn.execute(
+                "SELECT id FROM item_stocks WHERE item_id=? AND location=? AND id!=?",
+                (row["item_id"], body.new_location, row["id"])
+            ).fetchone()
+            if conflict:
+                item = conn.execute("SELECT name FROM items WHERE id=?", (row["item_id"],)).fetchone()
+                raise HTTPException(400, f"「{item['name']}」在「{body.new_location}」已有庫存記錄")
+
+        # 批次更新
+        conn.execute(
+            f"UPDATE item_stocks SET location=?, updated_at=datetime('now') WHERE id IN ({placeholders})",
+            [body.new_location] + body.stock_ids
+        )
+        conn.commit()
+        return {"ok": True, "updated": len(body.stock_ids)}
+    except HTTPException:
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

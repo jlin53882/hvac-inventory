@@ -71,10 +71,12 @@ async function submitAdd() {
   if (!name) { toast('品項名稱必填', 'error'); return; }
   const brand = document.getElementById('f-brand').value.trim();
   const code = document.getElementById('f-code').value.trim();
-  const location = document.getElementById('f-location').value.trim();
+  const cabinet = document.getElementById('f-cabinet').value;
+  const sub = document.getElementById('f-sub').value.trim();
+  const location = cabinet ? (sub ? `${cabinet} | ${sub}` : cabinet) : '';
   if (!brand) { toast('廠牌必填', 'error'); return; }
   if (!code) { toast('型號必填', 'error'); return; }
-  if (!location) { toast('位置必填', 'error'); return; }
+  if (!location) { toast('位置必填（至少選櫃子）', 'error'); return; }
   const payload = {
     brand: brand,
     code: code,
@@ -84,7 +86,7 @@ async function submitAdd() {
     category: document.getElementById('f-category').value,
     // v10：位置庫存陣列（一筆 = 一個位置）
     stocks: [{
-      location: document.getElementById('f-location').value.trim(),
+      location: location,
       qty: parseFloat(document.getElementById('f-qty').value) || 0,
       note: document.getElementById('f-note').value.trim(),
     }],
@@ -124,9 +126,10 @@ async function submitAdd() {
     toast(`✅ 已新增「${name}」${photoMsg}`, 'success');
     closeModalForce('add-modal');
     // f-unit 是動態 select（2026-08-16）→ 不參與 value reset，改重填
-    ['f-brand','f-code','f-name','f-qty','f-location','f-note'].forEach(id => {
+    ['f-brand','f-code','f-name','f-qty','f-sub','f-note'].forEach(id => {
       document.getElementById(id).value = id === 'f-qty' ? '0' : '';
     });
+    document.getElementById('f-cabinet').value = '';
     document.getElementById('f-category').value = '';
     fillUnitSelect(document.getElementById('f-unit'), '個');
     await loadData();

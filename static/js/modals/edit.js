@@ -33,20 +33,32 @@ function openEditModal(id) {
   bindSimilarCheck('e-name', 'e-code', 'e-similar-warn', id);
 }
 
-// 渲染編輯 modal 的位置清單列
+// 渲染編輯 modal 的位置清單列（兩段式：櫃子下拉 + 位置輸入）
 function renderEditStockRows(stocks) {
   const box = document.getElementById('edit-stock-rows');
-  box.innerHTML = stocks.map((s, idx) => `
+  box.innerHTML = stocks.map((s, idx) => {
+    // 解析 location：「編號A | 1-1」→ cabinet=編號A, sub=1-1
+    const loc = s.location || '';
+    const pipeIdx = loc.indexOf(' | ');
+    const cabinet = pipeIdx >= 0 ? loc.substring(0, pipeIdx) : loc;
+    const sub = pipeIdx >= 0 ? loc.substring(pipeIdx + 3) : '';
+    return `
     <div class="stock-row" data-idx="${idx}">
-      <input type="text" class="stock-loc" value="${esc(s.location || '')}" list="location-list" placeholder="位置">
+      <select class="stock-cabinet">${_cabinetOptions(cabinet)}</select>
+      <input type="text" class="stock-sub" value="${esc(sub)}" list="location-list" placeholder="位置">
       <input type="number" class="stock-qty" value="${s.qty ?? 0}" min="0" step="any" placeholder="數量">
       <input type="text" class="stock-note" value="${esc(s.note || '')}" placeholder="備註（選填）">
-      <button type="button" class="btn-cancel stock-del" onclick="deleteEditStockRow(this)" ${stocks.length <= 1 ? 'disabled' : ''}>✕</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
-// 在編輯 Modal 新增一列位置庫存輸入列，並自動 focus 位置欄位方便連續輸入
+// 產生櫃子下拉 options
+function _cabinetOptions(selected) {
+  const cabs = ['','編號A','編號B','編號C','編號D','編號E','編號F','鐵架','二樓'];
+  return cabs.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c || '— 請選擇 —'}</option>`).join('');
+}
+
+// 在編輯 Modal 新增一列位置庫存輸入列
 function addEditStockRow() {
   const box = document.getElementById('edit-stock-rows');
   const idx = box.children.length;
@@ -54,14 +66,13 @@ function addEditStockRow() {
   row.className = 'stock-row';
   row.dataset.idx = idx;
   row.innerHTML = `
-    <input type="text" class="stock-loc" list="location-list" placeholder="位置">
+    <select class="stock-cabinet">${_cabinetOptions('')}</select>
+    <input type="text" class="stock-sub" list="location-list" placeholder="位置">
     <input type="number" class="stock-qty" value="0" min="0" step="any" placeholder="數量">
     <input type="text" class="stock-note" placeholder="備註（選填）">
-    <button type="button" class="btn-cancel stock-del" onclick="this.closest('.stock-row').remove()">✕</button>
   `;
-  // 新增後第一個 input（位置）自動 focus，方便連續輸入
   box.appendChild(row);
-  row.querySelector('.stock-loc').focus();
+  row.querySelector('.stock-sub').focus();
 }
 
 // 刪除編輯 Modal 中指定按鈕所在的庫存列（至少保留一列）
@@ -90,9 +101,12 @@ async function submitEdit() {
     category: document.getElementById('e-category').value,
     // v10：完整位置清單（全量替換）
     stocks: [...document.querySelectorAll('#edit-stock-rows .stock-row')].map(row => {
+      const cab = row.querySelector('.stock-cabinet').value;
+      const sub = row.querySelector('.stock-sub').value.trim();
+      const location = cab ? (sub ? `${cab} | ${sub}` : cab) : '';
       const q = parseFloat(row.querySelector('.stock-qty').value);
       return {
-        location: row.querySelector('.stock-loc').value.trim(),
+        location: location,
         qty: isNaN(q) || q < 0 ? 0 : q,
         note: row.querySelector('.stock-note').value.trim(),
       };

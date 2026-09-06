@@ -596,12 +596,14 @@ def test_kit_comp_left_align():
 def test_inventory_loc_pill_no_qty_and_note_merged():
     """庫存卡位置標：只顯示位置、不顯示 ×數量；備註併入同一框（｜分隔）、無獨立 .item-note"""
     js = read(INVENTORY_RENDER_JS)
-    assert "位置：${esc(s.location" in js                      # 位置標存在
-    assert "item-loc" in js
-    assert "×${s.qty}" not in js                               # 不得再有 ×數量
-    assert "loc-qty" not in js                                 # 相關 CSS class 已移除
-    assert ".item-note" not in js                              # 備註不再單獨一行
-    assert "'｜'" in js or "｜" in js or "｜" in js         # 備註以｜併入位置框
+    # 位置渲染已移至 card.js buildLocHTML（2026-09-06 兩段式位置）
+    card_js = read(CARD_JS)
+    assert "位置：" in card_js or "未標示" in card_js              # 位置標在 card.js
+    assert "item-loc" in js or "buildLocHTML" in js               # inventory 呼叫 buildLocHTML
+    assert "×${s.qty}" not in js                                 # 不得再有 ×數量
+    assert "loc-qty" not in js                                   # 相關 CSS class 已移除
+    assert ".item-note" not in js                                # 備註不再單獨一行
+    assert "｜" in card_js or "'｜'" in card_js                  # 備註以｜併入位置框
 
 def test_inventory_del_btn_is_text():
     """刪除按鈕用文字「刪除」而非 ✕ 圖案（Sarah 修正）"""
@@ -1856,3 +1858,69 @@ def test_stockout_date_display_only_date():
     # 不得殘留 slice(5,16)（含時間）
     assert "slice(5,16)" not in js, \
         "已領出頁日期顯示不得含時間（slice(5,16) 已廢棄）"
+
+
+# ===== 2026-09-06 兩段式位置（櫃子 | 位置）防回歸 =====
+
+def test_add_modal_has_cabinet_and_sub_inputs():
+    """防回歸：新增品項 modal 有 f-cabinet 下拉和 f-sub 輸入框。"""
+    html = read(INDEX)
+    assert 'id="f-cabinet"' in html, "新增品項需有 f-cabinet 櫃子下拉"
+    assert 'id="f-sub"' in html, "新增品項需有 f-sub 位置輸入框"
+    # 舊的 f-location 不應存在
+    assert 'id="f-location"' not in html, "f-location 已廢棄，應改為 f-cabinet + f-sub"
+
+
+def test_edit_modal_has_cabinet_and_sub_per_row():
+    """防回歸：編輯品項 modal 的 stock-row 使用 stock-cabinet + stock-sub。"""
+    js = read(EDIT_JS)
+    assert "stock-cabinet" in js, "edit.js stock-row 需有 stock-cabinet class"
+    assert "stock-sub" in js, "edit.js stock-row 需有 stock-sub class"
+    # 舊的 stock-loc 不應存在
+    assert "stock-loc" not in js, "stock-loc 已廢棄，應改為 stock-cabinet + stock-sub"
+
+
+def test_cabinet_options_function_exists():
+    """防回歸：_cabinetOptions 函式存在（產生櫃子下拉選項）。"""
+    js = read(EDIT_JS)
+    assert "function _cabinetOptions" in js, "_cabinetOptions 函式需存在"
+    assert "編號A" in js, "_cabinetOptions 需含編號A選項"
+    assert "鐵架" in js, "_cabinetOptions 需含鐵架選項"
+
+
+def test_add_js_composes_cabinet_sub_location():
+    """防回歸：submitAdd 組合 f-cabinet + f-sub 為 location 字串。"""
+    js = read(ADD_JS)
+    assert "f-cabinet" in js, "submitAdd 需讀取 f-cabinet"
+    assert "f-sub" in js, "submitAdd 需讀取 f-sub"
+    # 確認組合邏輯存在（cabinet + ' | ' + sub）
+    assert "cabinet" in js and "sub" in js, \
+        "submitAdd 需組合 cabinet + sub 為 location 字串"
+
+
+def test_edit_js_composes_cabinet_sub_location():
+    """防回歸：submitEdit 組合 stock-cabinet + stock-sub 為 location 字串。"""
+    js = read(EDIT_JS)
+    assert "stock-cabinet" in js, "submitEdit 需讀取 stock-cabinet"
+    assert "stock-sub" in js, "submitEdit 需讀取 stock-sub"
+    # 確認組合邏輯存在
+    assert "cab" in js and "sub" in js, \
+        "submitEdit 需組合 cab + sub 為 location 字串"
+
+
+def test_card_buildlochtml_parses_pipe():
+    """防回歸：buildLocHTML 解析 location 字串中的 ' | ' 分隔。"""
+    js = read(CARD_JS)
+    assert "indexOf(' | ')" in js or 'indexOf(" | ")' in js, \
+        "buildLocHTML 需用 indexOf(' | ') 解析 location"
+    assert "buildLocHTML" in js, "buildLocHTML 函式需存在"
+
+
+def test_edit_modal_has_col_headers():
+    """防回歸：編輯 modal 有欄位標頭（櫃子/位置/數量/備註）。"""
+    html = read(INDEX)
+    assert "col-headers" in html, "edit modal 需有 col-headers 欄位標頭"
+    assert 'ch-cabinet' in html, "欄位標頭需有 ch-cabinet"
+    assert 'ch-pos' in html, "欄位標頭需有 ch-pos"
+    assert 'ch-qty' in html, "欄位標頭需有 ch-qty"
+    assert 'ch-note' in html, "欄位標頭需有 ch-note"

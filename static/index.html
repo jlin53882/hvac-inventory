@@ -117,6 +117,39 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- 批次改位置底部操作列 -->
+<div class="batch-bar" id="batch-bar">
+  <div class="batch-bar-top">
+    <div class="batch-count">已選 <b id="batch-num">0</b> 項</div>
+    <select class="batch-loc-sel" id="batch-cabinet">
+      <option value="">— 目標櫃子 —</option>
+      <option>編號A</option><option>編號B</option><option>編號C</option>
+      <option>編號D</option><option>編號E</option><option>編號F</option>
+      <option>鐵架</option><option>二樓</option>
+    </select>
+    <input type="text" class="batch-sub-input" id="batch-sub" placeholder="位置（選填）" list="location-list">
+  </div>
+  <div class="batch-bar-btns">
+    <button class="btn-cancel" onclick="cancelBatch()">取消</button>
+    <button class="btn-confirm" id="batch-confirm" disabled onclick="showBatchConfirm()">確認修改</button>
+  </div>
+</div>
+
+<!-- 批次改位置確認 Modal -->
+<div class="modal-overlay" id="batch-confirm-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">📦 確認批量修改位置</div>
+    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+      以下 <b id="batch-confirm-count">0</b> 筆庫存位置將改為 <b id="batch-confirm-loc">—</b>：
+    </p>
+    <div class="modal-items" id="batch-confirm-items" style="background:#f9fafb;border-radius:10px;padding:10px;max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div class="modal-actions" style="display:flex;gap:8px;">
+      <button class="btn-cancel" onclick="closeBatchConfirm()" style="flex:1">取消</button>
+      <button class="btn-confirm" onclick="submitBatchLocation()" style="flex:1">✅ 確認修改</button>
+    </div>
+  </div>
+</div>
+
 <!-- 新增品項 Modal -->
 <div class="modal-overlay" id="add-modal">
   <div class="modal">
@@ -158,9 +191,15 @@
         <button type="button" class="unit-add-link" id="f-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('f-unit'), this)">＋ 新增單位</button>
       </div>
     </div>
-    <div class="form-row">
-      <label>位置</label>
-      <input type="text" id="f-location" list="location-list" placeholder="例如：(有門的)三格木櫃">
+    <div class="form-row form-2col" style="align-items:flex-end">
+      <div class="form-row" style="flex:1;margin-bottom:0">
+        <label>櫃子</label>
+        <select id="f-cabinet"><option value="">— 請選擇 —</option><option>編號A</option><option>編號B</option><option>編號C</option><option>編號D</option><option>編號E</option><option>編號F</option><option>鐵架</option><option>二樓</option></select>
+      </div>
+      <div class="form-row" style="flex:1;margin-bottom:0">
+        <label>位置</label>
+        <input type="text" id="f-sub" list="location-list" placeholder="例：1-1">
+      </div>
     </div>
     <div class="form-row">
       <label>分類（選填）</label>
@@ -256,6 +295,12 @@
         </div>
         <div class="form-row">
           <label>位置清單（多位置管理）</label>
+          <div class="col-headers">
+            <span class="ch-cabinet">櫃子</span>
+            <span class="ch-pos">位置</span>
+            <span class="ch-qty">數量</span>
+            <span class="ch-note">備註</span>
+          </div>
           <div id="edit-stock-rows"></div>
           <button type="button" class="btn-prepare" style="margin-top:0" onclick="addEditStockRow()">＋ 新增位置</button>
         </div>

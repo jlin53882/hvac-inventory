@@ -165,6 +165,16 @@ REVIEWED_SAFE_BODIES = {
     # stocktake.js 盤點表分組渲染（2026-08-26 搜尋過濾）：stkGroupByLoc 回傳內部已 esc 的 HTML，
     # filteredKitRows/filteredSingleRows 為 kitRows/singleRows 過濾後陣列（同 kitCompsHTML 安全模式）
     "stkGroupByLoc(filteredKitRows)", "stkGroupByLoc(filteredSingleRows)",
+    # edit.js 兩段式位置（2026-09-06）：_cabinetOptions 從固定清單產生 select options，
+    # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
+    "_cabinetOptions(cabinet)", "_cabinetOptions('')", "c",
+    "c === selected ? 'selected' : ''", "c || '— 請選擇 —'",
+    # card.js 批次改位置 checkbox（2026-09-06）：selectedStockIds 為內部 Set、i.id 為 DB 數字主鍵
+    "selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : ''",
+    "batchMode ? `<input type=\"checkbox\"",
+    "p.checkboxHTML || ''",
+    "_allSelected() ? '☐ 取消全選' : '☑ 全選'",
+    "batchMode ? 'style=\"padding-left:32px\"' : ''",
 }
 
 
