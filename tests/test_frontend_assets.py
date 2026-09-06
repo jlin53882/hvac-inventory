@@ -1327,6 +1327,76 @@ def test_app_js_core_functions():
     assert "renderStocktake" in js  # 盤點 tab 分派（防分派被拔掉 → 盤點頁開不了）
 
 
+def test_shell_v2_header_functions():
+    """Shell v2 Phase 1：header 相關函式存在"""
+    js = read(APP_JS)
+    # Avatar dropdown
+    assert "toggleAvatarMenu" in js, "app.js 缺 toggleAvatarMenu"
+    assert "closeAvatarMenu" in js, "app.js 缺 closeAvatarMenu"
+    # Notification badge
+    assert "updateNotifCount" in js, "app.js 缺 updateNotifCount"
+    # Sidebar user
+    assert "renderSidebarUser" in js, "app.js 缺 renderSidebarUser"
+    # Sidebar open/close
+    assert "openSidebar" in js, "app.js 缺 openSidebar"
+    assert "closeSidebar" in js, "app.js 缺 closeSidebar"
+    # More menu
+    assert "toggleMoreMenu" in js, "app.js 缺 toggleMoreMenu"
+    assert "closeMoreMenu" in js, "app.js 缺 closeMoreMenu"
+
+
+def test_shell_v2_header_html_structure():
+    """Shell v2 Phase 1：header HTML 結構完整"""
+    idx = read(INDEX)
+    # Sidebar exists
+    assert 'id="sidebar"' in idx, "sidebar element 缺失"
+    assert 'id="sbOverlay"' in idx, "sidebar overlay 缺失"
+    # Header elements
+    assert 'class="hamburger"' in idx, "hamburger button 缺失"
+    assert 'id="breadcrumb"' in idx, "breadcrumb 缺失"
+    assert 'class="h-search"' in idx, "h-search 缺失"
+    assert 'class="h-site"' in idx, "h-site 站點切換 缺失"
+    assert 'class="notif"' in idx, "notification bell 缺失"
+    assert 'class="avatar-dropdown"' in idx, "avatar dropdown 缺失"
+    assert 'id="avatarMenu"' in idx, "avatar menu 缺失"
+    # Avatar menu items
+    assert '帳號與權限' in idx, "帳號與權限 連結 缺失"
+    assert '修改密碼' in idx, "修改密碼 連結 缺失"
+    assert '登出' in idx, "登出 連結 缺失"
+    # Bottom nav 5+1
+    assert 'id="nav-calendar"' in idx, "bottom nav calendar 缺失"
+    assert 'id="nav-inventory"' in idx, "bottom nav inventory 缺失"
+    assert 'id="nav-prepared"' in idx, "bottom nav prepared 缺失"
+    assert 'id="nav-stockout"' in idx, "bottom nav stockout 缺失"
+    assert 'id="nav-stocktake"' in idx, "bottom nav stocktake 缺失"
+    assert 'id="nav-more"' in idx, "bottom nav more 缺失"
+    # More menu
+    assert 'id="moreMenu"' in idx, "more menu 缺失"
+
+
+def test_shell_v2_notification_badge():
+    """Shell v2：通知徽章計數存在"""
+    idx = read(INDEX)
+    # Notification items have data-notif attribute
+    assert 'data-notif' in idx, "通知項目缺 data-notif 屬性"
+    # Badge element exists
+    assert 'class="cnt"' in idx, "通知徽章 .cnt 缺失"
+    # JS updates badge count
+    js = read(APP_JS)
+    assert "updateNotifCount" in js, "updateNotifCount 函式 缺失"
+    assert "data-notif" in js, "updateNotifCount 未使用 data-notif 選擇器"
+
+
+def test_shell_v2_calendar_no_settings_button():
+    """Shell v2：行事曆工具列已移除設定按鈕"""
+    cal = read(CALENDAR_RENDER_JS)
+    # Settings button should NOT be in the toolbar
+    assert "calOpenSettings" not in cal, "行事曆工具列仍含 calOpenSettings（應已移除）"
+    # But the function should still exist in calendar-settings.js (for future use)
+    cs = read(CALENDAR_SETTINGS_JS)
+    assert "function calOpenSettings()" in cs, "calOpenSettings 函式應仍定義於 calendar-settings.js"
+
+
 def test_bottomsheet_js_core_functions():
     """bottomsheet.js 核心：手機底部選單（openTopMenu 已刪除——2026-08-13 Sarah：不要下拉選單）"""
     js = read(BOTTOMSHEET_JS)
