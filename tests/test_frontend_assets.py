@@ -1844,3 +1844,15 @@ def test_brand_filter_normalizes_no_brand():
     # 不得退回原始空值比對（會讓無廠牌 chip 篩選失效）
     assert "currentBrands.includes(i.brand);" not in js, \
         "品牌過濾不得用原始 i.brand（空品牌會對不上『無廠牌』chip）"
+
+def test_stockout_date_display_only_date():
+    """防回歸：已領出頁日期欄只顯示日期（MM-DD），不含時間。
+    2026-09-06 家豪需求：日期上面不要顯示時間，只要顯示日期。
+    修正前 slice(5,16) 會取 'MM-DDTHH:MM'，修正後 slice(5,10) 取 'MM-DD'。"""
+    js = read(STOCKOUT_RENDER_JS)
+    # 必須用 slice(5,10) 只取日期部分
+    assert "slice(5,10)" in js, \
+        "已領出頁日期顯示須用 slice(5,10) 只取 MM-DD"
+    # 不得殘留 slice(5,16)（含時間）
+    assert "slice(5,16)" not in js, \
+        "已領出頁日期顯示不得含時間（slice(5,16) 已廢棄）"
