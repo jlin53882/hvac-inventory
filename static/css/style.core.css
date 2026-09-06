@@ -298,7 +298,7 @@
       position: fixed; inset: 0; z-index: 9999;
       background: rgba(15, 18, 28, .88);
       display: flex; align-items: center; justify-content: center;
-      cursor: zoom-out; animation: lb-fade .15s ease;
+      cursor: zoom-out; animation: fade .15s ease;
     }
     #photo-lightbox .lightbox-content { position: relative; max-width: 94vw; max-height: 92vh; }
     #photo-lightbox img {
@@ -576,7 +576,7 @@
   /* Modal */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-    z-index: 950; display: none; align-items: flex-end; justify-content: center;  /* 950: 手機 topbar sticky z-900 會蓋住 modal 頂部（2026-08-25 截圖實證），須高於 900；低於 sheet 3000/lightbox 9999 */
+    z-index: 950; display: none; align-items: flex-end; justify-content: center;  /* 950: 須高於 header z-900，低於 sheet 3000/lightbox 9999（2026-08-25 截圖實證），須高於 900；低於 sheet 3000/lightbox 9999 */
   }
   .modal-overlay.show { display: flex; }
   .modal {
