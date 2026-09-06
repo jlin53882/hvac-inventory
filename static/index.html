@@ -4,75 +4,106 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>振佳空調管理系統</title>
-<!-- ============================================================
-     資源版本號（?v=N）統一說明：
-     本檔資源「不寫」版本號（刻意保持乾淨）——對外服務時，
-     後端 main.py 的 _versioned_html() 會自動為每個 static 資源
-     加上 ?v=檔案最後修改時間（mtime）。
-     因此改 JS / CSS / 圖片「不需要」也「不應該」手動加版本號，
-     存檔即自動生效；若手動加了，也會被自動取代。
-     多 PR 並行也不衝突：每個資源各自獨立計算 mtime。
-     ============================================================ -->
 <link rel="stylesheet" href="/static/css/style.core.css">
 <link rel="stylesheet" href="/static/css/style.calendar.css">
 </head>
 <body>
 
-<div class="topbar">
-  <div class="topbar-row">
-    <div>
-      <h1><img src="/static/img/logo-topbar.png" alt="振佳空調" class="topbar-logo">
-        <span class="t-wrap"><span class="t-title">振佳空調</span><span class="t-title-2">管理系統</span></span></h1>
-      <div class="sub" id="sub-info">載入中…</div>
+<!-- Sidebar Overlay (mobile) -->
+<div class="sidebar-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
+
+<!-- Left Sidebar (desktop fixed / mobile drawer) -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="brand">
+      <div class="logo">振</div>
+      <div class="brand-text">
+        <div class="name">振佳空調</div>
+        <div class="sub">管理系統</div>
+      </div>
     </div>
-    <div class="top-actions">
-          <div class="user-menu" id="userMenu" style="display:none"></div>
-        </div>
   </div>
-  <div class="search-box">
-    <input type="search" id="search-input" placeholder="🔍 搜尋（空白多詞篩選，如：米多力 面板）" autocomplete="new-password" autocapitalize="off" spellcheck="false">
+  <div class="sidebar-nav">
+    <div class="nav-section">主要功能</div>
+    <a class="sb-nav-link active" id="sb-nav-calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
+    <a class="sb-nav-link" id="sb-nav-inventory" onclick="switchTab('inventory')"><span class="ic">📦</span>單一庫存</a>
+    <a class="sb-nav-link" id="sb-nav-prepared" onclick="switchTab('prepared')"><span class="ic">📤</span>待領出<span class="badge" id="sb-prepared-badge" style="display:none">0</span></a>
+    <a class="sb-nav-link" id="sb-nav-stockout" onclick="switchTab('stockout')"><span class="ic">🚚</span>已領出</a>
+    <a class="sb-nav-link" id="sb-nav-stocktake" onclick="switchTab('stocktake')"><span class="ic">📋</span>盤點</a>
+    <a class="sb-nav-link" id="sb-nav-kit" onclick="switchTab('kit')"><span class="ic">🔧</span>整組庫存</a>
+    <div class="nav-section">管理</div>
+    <a class="sb-nav-link" id="sb-nav-perms" href="/permissions.html"><span class="ic">👥</span>帳號與權限</a>
+    <a class="sb-nav-link" id="sb-nav-settings" href="/settings.html"><span class="ic">⚙️</span>系統設定</a>
   </div>
-  <div class="site-tabs">
-    <button class="site-tab active" id="site-office" onclick="switchSite('office')">
-      🏢 辦公室<span class="sub" id="site-office-sub">…</span>
-    </button>
-    <button class="site-tab" id="site-warehouse" onclick="switchSite('warehouse')">
-      🏭 倉庫<span class="sub" id="site-warehouse-sub">…</span>
-    </button>
+  <div class="sidebar-footer">
+    <div class="sidebar-user" id="sb-user" style="display:none">
+      <div class="av" id="sb-user-av">—</div>
+      <div class="info"><div class="n" id="sb-user-name">—</div><div class="r" id="sb-user-role">—</div></div>
+      <span style="opacity:.3">⋯</span>
+    </div>
+    <div class="sidebar-user-actions" id="sb-user-actions" style="display:none; padding: 8px 0 0; display: none; gap: 6px;">
+      <button class="btn-ghost" style="flex:1; font-size:11px; padding:6px 8px;" onclick="openChangePwModal()">🔑 改密碼</button>
+      <button class="btn-ghost" style="flex:1; font-size:11px; padding:6px 8px;" onclick="doLogout()">🚪 登出</button>
+    </div>
   </div>
 </div>
 
-<!-- 每月25日盤點提醒 -->
-<div class="reminder" id="reminder" style="display:none">
-  <span>📋 今天是 <b id="today-str"></b>，每月盤點日！請完成庫存盤點</span>
-  <button onclick="switchTab('stocktake')">開始盤點</button>
-</div>
-
-
-<!-- 篩選面板（品牌+分類 chips） -->
-<div class="filter-panel" id="filter-panel" style="display:none">
-  <div class="filter-section">
-    <div class="filter-label">
-      <div class="left">🏷️ 品牌 <span class="count" id="fp-brand-count"></span></div>
-      <button class="toggle-btn" id="fp-brand-toggle" onclick="toggleFilterCollapse('fp-brand-chips','fp-brand-toggle')">展開 ▼</button>
+<!-- Main (header + content) -->
+<div class="main">
+  <!-- Header (white, sticky) -->
+  <div class="header">
+    <button class="hamburger" id="hamburger" onclick="openSidebar()" aria-label="選單">☰</button>
+    <div class="breadcrumb" id="breadcrumb">📅 <b>行事曆</b></div>
+    <div class="search-box" id="header-search-box">
+      <input type="search" id="search-input" placeholder="🔍 搜尋（空白多詞篩選，如：米多力 面板）" autocomplete="new-password" autocapitalize="off" spellcheck="false">
     </div>
-    <div class="filter-chips collapsed" id="fp-brand-chips"></div>
-  </div>
-  <div class="filter-section">
-    <div class="filter-label">
-      <div class="left">📦 項目分類 <span class="count" id="fp-cat-count"></span></div>
-      <button class="toggle-btn" id="fp-cat-toggle" onclick="toggleFilterCollapse('fp-cat-chips','fp-cat-toggle')">展開 ▼</button>
+    <div class="site-tabs" id="header-site-tabs">
+      <button class="site-tab active" id="site-office" onclick="switchSite('office')">
+        🏢 辦公室<span class="sub" id="site-office-sub">…</span>
+      </button>
+      <button class="site-tab" id="site-warehouse" onclick="switchSite('warehouse')">
+        🏭 倉庫<span class="sub" id="site-warehouse-sub">…</span>
+      </button>
     </div>
-    <div class="filter-chips collapsed" id="fp-cat-chips"></div>
+    <div class="h-right">
+      <div class="user-menu" id="userMenu" style="display:none"></div>
+    </div>
   </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-    <button class="filter-clear" onclick="clearFilterPanel()">清除篩選</button>
-    <div class="filter-summary" id="fp-summary"></div>
-  </div>
-</div>
 
-<div class="content" id="content">
-  <div class="loading"><div class="spin"></div><div>載入庫存資料…</div></div>
+  <!-- 舊 topbar 的 sub-info 併入 header 下方（桌面隱藏，僅作 JS 兼容，實際顯示在 sidebar brand 下） -->
+  <div id="sub-info" style="display:none">載入中…</div>
+
+  <!-- 每月25日盤點提醒 -->
+  <div class="reminder" id="reminder" style="display:none">
+    <span>📋 今天是 <b id="today-str"></b>，每月盤點日！請完成庫存盤點</span>
+    <button onclick="switchTab('stocktake')">開始盤點</button>
+  </div>
+
+  <!-- 篩選面板（品牌+分類 chips） -->
+  <div class="filter-panel" id="filter-panel" style="display:none">
+    <div class="filter-section">
+      <div class="filter-label">
+        <div class="left">🏷️ 品牌 <span class="count" id="fp-brand-count"></span></div>
+        <button class="toggle-btn" id="fp-brand-toggle" onclick="toggleFilterCollapse('fp-brand-chips','fp-brand-toggle')">展開 ▼</button>
+      </div>
+      <div class="filter-chips collapsed" id="fp-brand-chips"></div>
+    </div>
+    <div class="filter-section">
+      <div class="filter-label">
+        <div class="left">📦 項目分類 <span class="count" id="fp-cat-count"></span></div>
+        <button class="toggle-btn" id="fp-cat-toggle" onclick="toggleFilterCollapse('fp-cat-chips','fp-cat-toggle')">展開 ▼</button>
+      </div>
+      <div class="filter-chips collapsed" id="fp-cat-chips"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <button class="filter-clear" onclick="clearFilterPanel()">清除篩選</button>
+      <div class="filter-summary" id="fp-summary"></div>
+    </div>
+  </div>
+
+  <div class="content" id="content">
+    <div class="loading"><div class="spin"></div><div>載入庫存資料…</div></div>
+  </div>
 </div>
 
 <!-- 儲存列 -->
@@ -81,8 +112,8 @@
   <button class="btn-save" id="btn-save" onclick="saveAll()">💾 全部儲存</button>
 </div>
 
-<!-- 底部導覽 -->
-<div class="bottom-nav">
+<!-- 底部導覽（手機 5+1：kit 進更多） -->
+<div class="bottom-nav" id="bottom-nav">
   <div class="nav-item-wrap">
     <button class="nav-item active" id="nav-calendar" onclick="switchTab('calendar')">
       <span class="ic">📅</span><span class="label">行事曆</span>
@@ -109,10 +140,17 @@
     </button>
   </div>
   <div class="nav-item-wrap">
-    <button class="nav-item" id="nav-kit" onclick="switchTab('kit')">
-      <span class="ic">🔧</span><span class="label">整組庫存</span>
+    <button class="nav-item" id="nav-more" onclick="toggleMoreMenu()">
+      <span class="ic">⋯</span><span class="label">更多</span>
     </button>
   </div>
+</div>
+
+<!-- 更多選單（手機 bottom nav 彈出） -->
+<div class="more-menu" id="moreMenu">
+  <button onclick="switchTab('kit'); closeMoreMenu()"><span class="ic">🔧</span> 整組庫存</button>
+  <button onclick="location.href='/permissions.html'"><span class="ic">👥</span> 帳號與權限</button>
+  <button onclick="location.href='/settings.html'"><span class="ic">⚙️</span> 系統設定</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -168,7 +206,6 @@
       <label>品項名稱 *</label>
       <input type="text" id="f-name" placeholder="例如：變頻控制基板">
     </div>
-    <!-- v10.1：新增時相似品項提示（防重複建筆） -->
     <div id="f-similar-warn" class="similar-warn" style="display:none"></div>
     <div class="form-2col">
       <div class="form-row">
@@ -186,7 +223,7 @@
     <div class="form-2col">
       <div class="form-row">
         <label>單位</label>
-                        <input type="search" id="f-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'f-unit')">
+        <input type="search" id="f-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'f-unit')">
         <select id="f-unit"></select>
         <button type="button" class="unit-add-link" id="f-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('f-unit'), this)">＋ 新增單位</button>
       </div>
@@ -219,7 +256,6 @@
       <label>備註</label>
       <textarea id="f-note" placeholder="例如：第一層 右二"></textarea>
     </div>
-    <!-- 品項照片（手機可直接拍照） -->
     <div class="form-row">
       <label>品項照片（選填，手機可直接拍照）</label>
       <div class="photo-box" id="f-photo-box"></div>
@@ -249,9 +285,7 @@
       <label>品項名稱</label>
       <input type="text" id="e-name">
     </div>
-    <!-- v10.1：編輯時相似品項提示（排除自己） -->
     <div id="e-similar-warn" class="similar-warn" style="display:none"></div>
-    <!-- v10.1：品項照片（上傳/更換/刪除） -->
     <div class="form-row">
       <label>品項照片（手機可直接拍照）</label>
       <div class="photo-box" id="e-photo-box"></div>
@@ -259,7 +293,7 @@
     <div class="form-2col">
       <div class="form-row">
         <label>單位</label>
-                        <input type="search" id="e-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'e-unit')">
+        <input type="search" id="e-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'e-unit')">
         <select id="e-unit"></select>
         <button type="button" class="unit-add-link" id="e-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('e-unit'), this)">＋ 新增單位</button>
       </div>
@@ -290,24 +324,24 @@
       </div>
     </div>
     <div class="form-row">
-          <label>位置（放多處可之後用編輯新增）</label>
-          <input type="text" id="e-location" list="location-list" placeholder="例如：編號A">
-        </div>
-        <div class="form-row">
-          <label>位置清單（多位置管理）</label>
-          <div class="col-headers">
-            <span class="ch-cabinet">櫃子</span>
-            <span class="ch-pos">位置</span>
-            <span class="ch-qty">數量</span>
-            <span class="ch-note">備註</span>
-          </div>
-          <div id="edit-stock-rows"></div>
-          <button type="button" class="btn-prepare" style="margin-top:0" onclick="addEditStockRow()">＋ 新增位置</button>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-cancel" onclick="closeModal('edit-modal')">取消</button>
-          <button class="btn-confirm" onclick="submitEdit()">💾 儲存</button>
-        </div>
+      <label>位置（放多處可之後用編輯新增）</label>
+      <input type="text" id="e-location" list="location-list" placeholder="例如：編號A">
+    </div>
+    <div class="form-row">
+      <label>位置清單（多位置管理）</label>
+      <div class="col-headers">
+        <span class="ch-cabinet">櫃子</span>
+        <span class="ch-pos">位置</span>
+        <span class="ch-qty">數量</span>
+        <span class="ch-note">備註</span>
+      </div>
+      <div id="edit-stock-rows"></div>
+      <button type="button" class="btn-prepare" style="margin-top:0" onclick="addEditStockRow()">＋ 新增位置</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('edit-modal')">取消</button>
+      <button class="btn-confirm" onclick="submitEdit()">💾 儲存</button>
+    </div>
   </div>
 </div>
 
@@ -320,19 +354,19 @@
       <input type="text" id="o-item-name" disabled>
     </div>
     <div class="form-row">
-          <label>目前庫存</label>
-          <input type="text" id="o-item-stock" disabled>
-        </div>
-        <div class="form-row">
-          <label>從哪個位置出（選填）</label>
-          <select id="o-location">
-            <option value="">全部位置（自動依序扣）</option>
-          </select>
-        </div>
-        <div class="form-row">
-          <label>領出數量 *</label>
-          <input type="number" id="o-qty" min="0" step="any" placeholder="要扣多少">
-        </div>
+      <label>目前庫存</label>
+      <input type="text" id="o-item-stock" disabled>
+    </div>
+    <div class="form-row">
+      <label>從哪個位置出（選填）</label>
+      <select id="o-location">
+        <option value="">全部位置（自動依序扣）</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>領出數量 *</label>
+      <input type="number" id="o-qty" min="0" step="any" placeholder="要扣多少">
+    </div>
     <div class="form-row">
       <label>去哪裡（客戶 / 案場 / 工地）*</label>
       <input type="text" id="o-dest" list="dest-list" placeholder="例如：王先生-中山路案場">
@@ -348,7 +382,7 @@
   </div>
 </div>
 
-<!-- 非庫存品項出庫 Modal（2026-08-13 Sarah：已領出可直接新增不在庫存的東西） -->
+<!-- 非庫存品項出庫 Modal -->
 <div class="modal-overlay" id="nonstock-out-modal">
   <div class="modal">
     <h3>➕ 新增已領出</h3>
@@ -363,7 +397,7 @@
     </div>
     <div class="form-row">
       <label>單位</label>
-                    <input type="search" id="ns-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'ns-unit')">
+      <input type="search" id="ns-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'ns-unit')">
       <select id="ns-unit"></select>
       <button type="button" class="unit-add-link" id="ns-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('ns-unit'), this)">＋ 新增單位</button>
     </div>
@@ -386,7 +420,7 @@
   </div>
 </div>
 
-<!-- 非庫存品項待領出 Modal（2026-08-13 家豪：待領出頁也可直接新增不在庫存的東西） -->
+<!-- 非庫存品項待領出 Modal -->
 <div class="modal-overlay" id="nonstock-prepare-modal">
   <div class="modal">
     <h3>➕ 新增待領出</h3>
@@ -401,7 +435,7 @@
     </div>
     <div class="form-row">
       <label>單位</label>
-                    <input type="search" id="nsp-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'nsp-unit')">
+      <input type="search" id="nsp-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'nsp-unit')">
       <select id="nsp-unit"></select>
       <button type="button" class="unit-add-link" id="nsp-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('nsp-unit'), this)">＋ 新增單位</button>
     </div>
@@ -485,7 +519,7 @@
     <div class="form-row">
       <label>組成材料（每組需要的數量）</label>
       <div id="kit-comps"></div>
-            <button class="btn-add-row" style="margin-top:0" onclick="addKitCompRow()">＋ 加入另一材料</button>
+      <button class="btn-add-row" style="margin-top:0" onclick="addKitCompRow()">＋ 加入另一材料</button>
     </div>
     <div class="form-row">
       <label>備註（選填）</label>
@@ -525,7 +559,7 @@
   </div>
 </div>
 
-<!-- 修改密碼 modal（v11.2 變體 B：密碼強度即時打勾） -->
+<!-- 修改密碼 modal -->
 <div class="modal-overlay" id="changepw-modal">
   <div class="modal">
     <h3>🔑 修改密碼</h3>
@@ -555,7 +589,7 @@
   </div>
 </div>
 
-<!-- 密碼過期提示 modal（v11.2：6 個月未改密碼進站彈出） -->
+<!-- 密碼過期提示 modal -->
 <div class="modal-overlay" id="expiry-modal">
   <div class="modal" style="text-align:center">
     <div style="font-size:44px;margin-bottom:10px">🔒</div>
@@ -570,7 +604,7 @@
   </div>
 </div>
 
-<!-- 重設密碼 modal（v11.2 變體 B：admin 重設他人密碼，樣式同個人改密碼） -->
+<!-- 重設密碼 modal -->
 <div class="modal-overlay" id="resetpw-modal">
   <div class="modal">
     <h3>🔑 重設密碼</h3>

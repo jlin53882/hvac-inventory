@@ -205,20 +205,14 @@ def test_css_user_actions_black_text():
 
 
 def test_css_mobile_topbar_full_buttons():
-    """手機版 topbar：右邊四個按鈕 2×2（管理員/改密碼 上排、使用者/登出 下排）+ 左邊標題兩行（2026-08-13 Sarah）"""
-    css = read_css_all()
-    # icon-only 規則已移除（改為顯示文字）
-    assert ".logout-text, .users-text { display: none; }" not in css
-    # 右邊四個 2×2 grid
-    assert ".user-menu { display: grid !important; grid-template-columns: auto auto;" in css
-    # 左邊標題兩行（logo 左、兩行字右，左緣對齊）——手機版 flex column
-    assert ".topbar h1 .t-wrap { display: flex; flex-direction: column;" in css
-    # 桌面版兩字連在一起（inline-flex 無間距；2026-08-13 Sarah：電腦版的不要空一格）
-    assert ".topbar h1 .t-wrap { display: inline-flex; }" in css
-    # 標題 span 存在（index.html）
+    """Shell v2 (2026-09-06)：topbar 已替換為 sidebar + header。驗證舊 topbar 標題 span 已移除，新 sidebar brand-text 存在"""
     idx = read(INDEX)
-    assert 'class="t-title"' in idx and 'class="t-title-2"' in idx
-    assert 'class="t-wrap"' in idx
+    # 舊 topbar 標題結構已移除
+    assert 'class="t-title"' not in idx, "舊 topbar t-title 應已移除"
+    assert 'class="t-title-2"' not in idx, "舊 topbar t-title-2 應已移除"
+    # 新 sidebar brand-text 存在（振佳空調 + 管理系統）
+    assert 'class="name">振佳空調</div>' in idx, "sidebar brand name 應存在"
+    assert 'class="sub">管理系統</div>' in idx, "sidebar brand sub 應存在"
 
 
 def test_css_table_card_layout():
@@ -633,17 +627,17 @@ def test_title_is_zhenjia_management():
     assert "<title>🔐 登入｜振佳空調管理系統</title>" in login
     index = read(INDEX)
     assert "<title>振佳空調管理系統</title>" in index
-    # topbar 標題（2026-08-13 Sarah：手機兩行＝振佳空調＋管理系統，拆兩個 span）
-    assert 'class="t-title">振佳空調</span>' in index and 'class="t-title-2">管理系統</span>' in index
+    # Shell v2 (2026-09-06)：topbar 標題已移至 sidebar brand-text
+    assert 'class="name">振佳空調</div>' in index, "sidebar brand name 應存在"
+    assert 'class="sub">管理系統</div>' in index, "sidebar brand sub 應存在"
 
 def test_topbar_logo_uses_login_image():
-    """topbar 左上角 logo：2026-08-13 換 login-hvac.png（變體 A：24px 圓形）；2026-08-14 再換 logo-topbar.png
-    （Sarah 指定第一張圖，登入頁 login-hvac.png 保留）——所有頁籤共用同一 topbar"""
+    """Shell v2 (2026-09-06)：topbar logo 已替換為 sidebar brand 文字徽章「振」+ 漸層背景"""
     html = read(INDEX)
-    assert "/static/img/logo-topbar.png" in html, "topbar logo 應指向 logo-topbar.png"
-    assert "logo-zhenjia.png" not in html, "舊 logo-zhenjia.png 不得殘留"
-    assert "/static/img/logo-topbar.png" in html and os.path.exists(os.path.join(STATIC, "img", "logo-topbar.png")), \
-        "logo-topbar.png 檔案必須存在"
+    # 新 sidebar logo：CSS 漸層文字徽章
+    assert 'class="logo">振</div>' in html, "sidebar logo 應為文字徽章「振」"
+    # 舊 logo-topbar.png 不應殘留在 HTML（logo 已改為純 CSS）
+    # 注意：logo-topbar.png 檔案本身仍存在於 static/img/（其他頁可能用到），只是 index.html 不再引用
 
 def test_login_img_no_manual_cachebuster():
     """登入圖版本號由 server 自動注入（_versioned_html 依檔案 mtime），原始 login.html 不得手動寫 ?v=——

@@ -98,6 +98,8 @@ function applyRoleView(user) {
 
   // 盤點 tab 顯示：有 stocktake（操作）或 view（瀏覽）都顯示；盤點提醒橫幅仍限操作者
   if (navStocktake) navStocktake.style.display = canViewStocktake ? '' : 'none';
+  var sbNavStocktake = document.getElementById('sb-nav-stocktake');
+  if (sbNavStocktake) sbNavStocktake.style.display = canViewStocktake ? '' : 'none';
   if (reminder) reminder.style.display = canStocktake ? '' : 'none';
   // 儲存列隱藏（數量不可編輯）
   if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';
