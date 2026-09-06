@@ -40,8 +40,9 @@
   .header .search-box input{flex:1;padding:7px 12px 7px 30px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;background:#f8fafc;color:#1a1a1a;outline:none}
   .header .search-box input::placeholder{color:#94a3b8}
   .header .search-box input:focus{border-color:#2d5a8e;background:#fff}
-  .header .site-tabs{margin-top:0;background:#f1f5f9;border-radius:8px;padding:3px;gap:4px}
-  .header .site-tab{padding:6px 12px;font-size:12px;border-radius:6px}
+  .header .site-tabs{margin-top:0;display:flex;gap:4px}
+  .header .site-tab{padding:4px 12px;font-size:11px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;color:#1a1a1a;font-weight:500;cursor:pointer;transition:all .12s}
+  .header .site-tab.active{background:#2d5a8e;color:#fff;border-color:#2d5a8e}
   .header .site-tab .sub{display:none}
   .h-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
   .more-menu{position:fixed;bottom:60px;right:14px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 -4px 20px rgba(0,0,0,.1);z-index:101;padding:8px;display:none;width:160px}
