@@ -45,6 +45,14 @@ document.addEventListener('click', function(e) {
   if (!e.target.closest('#moreMenu') && !e.target.closest('#nav-more')) closeMoreMenu();
 });
 
+// 通知計數
+function updateNotifCount() {
+  var items = document.querySelectorAll('#notifPanel .ni[data-notif]');
+  var cnt = document.querySelector('.notif .cnt');
+  if (cnt) cnt.textContent = items.length;
+}
+setTimeout(updateNotifCount, 500);
+
 // 通知面板
 function toggleNotif() {
   document.getElementById('notifPanel').classList.toggle('open');
