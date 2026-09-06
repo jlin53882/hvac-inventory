@@ -1722,6 +1722,19 @@ def test_filter_panel_only_inventory_tab():
     assert "filter-panel" in js, "app.js switchTab 缺 filter-panel 控制"
 
 
+def test_batch_bar_only_inventory_tab():
+    """防回歸：batch-bar 僅限 inventory，切頁自動清理（跨頁殘留修正 2026-09-06）"""
+    js = read(APP_JS)
+    # switchTab 內必須有 isInventory 分支清理 batch-bar（方案A）
+    assert "batch-bar" in js, "app.js switchTab 缺 batch-bar 清理（跨頁殘留）"
+    assert "batchMode" in js, "app.js switchTab 缺 batchMode 重置"
+    assert "selectedStockIds" in js, "app.js switchTab 缺 selectedStockIds 清空"
+    # 確保是以 !isInventory 為條件（非 inventory 才清理）
+    assert "!isInventory" in js, "app.js switchTab 應以 !isInventory 條件清理 batch-bar"
+    # 同時驗證 batch-bar 隱藏與櫃子欄位重置
+    assert "batch-cabinet" in js and "batch-sub" in js, "app.js switchTab 清理需重置 batch-cabinet/batch-sub"
+
+
 def test_all_js_syntax_valid():
     """所有關鍵 JS 檔案語法正確（node --check）"""
     js_files = [

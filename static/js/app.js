@@ -40,6 +40,24 @@ function switchTab(tab) {
   if (st) st.style.display = isCal ? 'none' : '';
   // 篩選面板：只在單一庫存頁顯示
   if (fp) fp.style.display = isInventory ? '' : 'none';
+  // 批次改位置僅限單一庫存：切離時自動退出批次模式並隱藏 batch-bar（避免跨頁殘留）
+  if (!isInventory) {
+    if (typeof batchMode !== 'undefined' && batchMode) {
+      batchMode = false;
+      const bt = document.getElementById('batch-toggle');
+      if (bt) bt.classList.remove('active');
+    }
+    if (typeof selectedStockIds !== 'undefined') selectedStockIds.clear();
+    const bn = document.getElementById('batch-num');
+    if (bn) bn.textContent = '0';
+    const bc = document.getElementById('batch-confirm');
+    if (bc) bc.disabled = true;
+    document.getElementById('batch-bar')?.classList.remove('show');
+    const cab = document.getElementById('batch-cabinet');
+    if (cab) cab.value = '';
+    const sub = document.getElementById('batch-sub');
+    if (sub) sub.value = '';
+  }
   if (tab === 'inventory') renderInventory();
   else if (tab === 'prepared') renderPrepared();
   else if (tab === 'stockout') renderStockOuts();
