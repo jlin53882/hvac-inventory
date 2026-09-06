@@ -24,3 +24,6 @@ secrets/
 
 # 環境變數（實際值）
 .env
+
+# 收尾紀錄（只放 Obsidian vault，不上傳 GitHub）
+docs/收尾紀錄/
