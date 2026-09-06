@@ -1257,6 +1257,45 @@ def test_stocktake_kit_tab_expands_components():
     assert "var stocktakeKits = []" in gl
 
 
+def test_stocktake_submit_includes_equal_qty():
+    """盤點送出：實際數量=系統數量也送出（2026-09-06）：
+    - 移除 v !== stock.qty 過濾 → if (item && stock) 就 push
+    - 空白 fallback 到 stock.qty（留空表示確認）"""
+    js = read(STOCKTAKE_JS)
+    # 移除 v !== stock.qty 過濾（舊版有，新版無）
+    assert "v !== stock.qty" not in js, "v !== stock.qty 過濾應已移除"
+    # 空白 fallback 到系統數量
+    assert "if (isNaN(v))" in js
+    assert "v = stock ? stock.qty : 0" in js
+    # 只要 item 和 stock 存在就 push（不限 diff）
+    assert "if (item && stock) {" in js
+    assert "items.push({ item_id: item.id, location: location, actual_qty: v })" in js
+
+
+def test_stocktake_reminder_hides_after_submit():
+    """完成盤點後隱藏提醒橫幅（2026-09-06）：
+    - 25-31日盤點才記錄 localStorage
+    - 立即隱藏提醒橫幅"""
+    js = read(STOCKTAKE_JS)
+    # 25日後才記錄
+    assert "if (now.getDate() >= 25)" in js
+    assert "localStorage.setItem('lastStocktakeMonth'" in js
+    # 立即隱藏提醒
+    assert "const reminder = document.getElementById('reminder')" in js
+    assert "reminder.style.display = 'none'" in js
+
+
+def test_checkreminder_uses_localstorage():
+    """checkReminder 檢查 localStorage（2026-09-06）：
+    - 讀取 lastStocktakeMonth
+    - 當月已盤過則不顯示提醒"""
+    ap = read(APP_JS)
+    assert "function checkReminder()" in ap
+    assert "localStorage.getItem('lastStocktakeMonth')" in ap
+    assert "lastStocktakeMonth !== currentMonth" in ap
+    assert "day >= 25 && lastStocktakeMonth !== currentMonth" in ap
+
+
 def test_css_stat_cards_four_columns():
     """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
     css = read_css_all()

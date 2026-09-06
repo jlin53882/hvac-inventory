@@ -50,11 +50,15 @@ function switchTab(tab) {
 }
 
 // 檢查今天日期，每月 25 號（含）後顯示「月底記得盤點」提醒橫幅
+// 2026-09-06：完成盤點後當月不再顯示（localStorage 追蹤）
 function checkReminder() {
   const now = new Date();
   const day = now.getDate();
   const el = document.getElementById('reminder');
-  if (day >= 25) {
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const lastStocktakeMonth = localStorage.getItem('lastStocktakeMonth');
+
+  if (day >= 25 && lastStocktakeMonth !== currentMonth) {
     el.style.display = 'flex';
     document.getElementById('today-str').textContent =
       `${now.getMonth()+1}月${day}日`;

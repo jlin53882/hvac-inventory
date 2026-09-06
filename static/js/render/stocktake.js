@@ -235,21 +235,26 @@ function markChanged(input, key) {
 async function submitStocktake() {
   const items = [];
   for (const key of Object.keys(stocktakeValues)) {
-    const v = parseFloat(stocktakeValues[key]);
-    if (isNaN(v)) continue;
     const parts = key.split(':');
     const itemId = parseInt(parts[0]);
     const location = parts[1];
     const item = ALL_ITEMS.find(i => i.id === itemId);
     const stock = (item && item.stocks || []).find(s => s.location === location);
-    if (item && stock && v !== stock.qty) {
+
+    let v = parseFloat(stocktakeValues[key]);
+    if (isNaN(v)) {
+      // 空白 → 視同實際數量 = 系統數量（留空表示確認）
+      v = stock ? stock.qty : 0;
+    }
+
+    if (item && stock) {
       items.push({ item_id: item.id, location: location, actual_qty: v });
     }
   }
 
-  if (!items.length) { toast('沒有需要調整的品項（實際數量 = 系統數量）', 'error'); return; }
+  if (!items.length) { toast('沒有品項可盤點', 'error'); return; }
 
-  const confirmed = confirm(`盤點 ${items.length} 項有差異，將更新庫存並記錄。\n確定送出？`);
+  const confirmed = confirm(`盤點 ${items.length} 項，將更新庫存並記錄。\n確定送出？`);
   if (!confirmed) return;
 
   try {
@@ -261,6 +266,14 @@ async function submitStocktake() {
     if (!res.ok) throw new Error();
     const r = await res.json();
     stocktakeValues = {};
+    // 記錄本月已盤點，當月不再顯示提醒（僅 25-31日盤點才記錄）
+    const now = new Date();
+    if (now.getDate() >= 25) {
+      localStorage.setItem('lastStocktakeMonth', `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
+      // 立即隱藏提醒橫幅
+      const reminder = document.getElementById('reminder');
+      if (reminder) reminder.style.display = 'none';
+    }
     toast(`✅ 盤點完成：${r.count} 項已更新`, 'success');
     await loadData();
   } catch (e) {
