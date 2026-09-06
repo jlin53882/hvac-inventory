@@ -27,3 +27,6 @@ secrets/
 
 # 收尾紀錄（只放 Obsidian vault，不上傳 GitHub）
 docs/收尾紀錄/
+start-8002.bat
+launch-hvac-8002.sh
+scripts/tunnel-8002.ps1

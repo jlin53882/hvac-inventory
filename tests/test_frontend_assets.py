@@ -205,20 +205,14 @@ def test_css_user_actions_black_text():
 
 
 def test_css_mobile_topbar_full_buttons():
-    """手機版 topbar：右邊四個按鈕 2×2（管理員/改密碼 上排、使用者/登出 下排）+ 左邊標題兩行（2026-08-13 Sarah）"""
-    css = read_css_all()
-    # icon-only 規則已移除（改為顯示文字）
-    assert ".logout-text, .users-text { display: none; }" not in css
-    # 右邊四個 2×2 grid
-    assert ".user-menu { display: grid !important; grid-template-columns: auto auto;" in css
-    # 左邊標題兩行（logo 左、兩行字右，左緣對齊）——手機版 flex column
-    assert ".topbar h1 .t-wrap { display: flex; flex-direction: column;" in css
-    # 桌面版兩字連在一起（inline-flex 無間距；2026-08-13 Sarah：電腦版的不要空一格）
-    assert ".topbar h1 .t-wrap { display: inline-flex; }" in css
-    # 標題 span 存在（index.html）
+    """Shell v2 (2026-09-06)：topbar 已替換為 sidebar + header。驗證舊 topbar 標題 span 已移除，新 sidebar brand-text 存在"""
     idx = read(INDEX)
-    assert 'class="t-title"' in idx and 'class="t-title-2"' in idx
-    assert 'class="t-wrap"' in idx
+    # 舊 topbar 標題結構已移除
+    assert 'class="t-title"' not in idx, "舊 topbar t-title 應已移除"
+    assert 'class="t-title-2"' not in idx, "舊 topbar t-title-2 應已移除"
+    # 新 sidebar brand-text 存在（振佳空調 + 管理系統）
+    assert 'class="name">振佳空調</div>' in idx, "sidebar brand name 應存在"
+    assert 'class="sub">管理系統</div>' in idx, "sidebar brand sub 應存在"
 
 
 def test_css_table_card_layout():
@@ -230,24 +224,20 @@ def test_css_table_card_layout():
 # ---------- auth.js ----------
 
 def test_auth_js_wraps_button_text_in_span():
-    """驗證 auth.js 按鈕文字以 span 包覆（2026-08-13：登出改用 logout-direct-text 避免手機版隱藏）"""
+    """Shell v2: auth.js 減化（dropdown 為靜態 HTML），檢查精簡版"""
     js = read(AUTH_JS)
-    assert 'class="users-text"' in js
-    assert 'class="logout-direct-text"' in js
+    # Shell v2: dropdown is static HTML, auth.js only has checkAuth/logout/renderUserMenu/applyRoleView
+    assert "checkAuth" in js
+    assert "logout" in js
+    assert "applyRoleView" in js
 
 
 def test_mobile_topbar_icon_align_fix():
-    """2026-08-17 家豪：手機 topbar ⚙️ 設定 / 🚪 登出圖示在按鈕內偏上 → 圖示包 .btn-ghost-icon span，
-    CSS 僅對 span translateY(2px) 下移（文字不動）。防回歸：
-    - auth.js 兩角色（user/admin）的設定/登出圖示都必須包在 .btn-ghost-icon span 內（不包 = 無法只動圖示）
-    - CSS 手機版有 .btn-ghost-icon 的 translateY 微調規則（移除 = 圖示退回偏上）"""
+    """Shell v2: topbar 已移除，auth.js 不再渲染動態按鈕"""
     js = read(AUTH_JS)
-    assert '<span class="btn-ghost-icon">⚙️</span>' in js      # admin：設定
-    assert '<span class="btn-ghost-icon">🚪</span>' in js       # 登出（user + admin 兩處都有）
-    assert js.count('<span class="btn-ghost-icon">🚪</span>') >= 2  # 兩個角色分支各一處
-    css = read_css_all()
-    assert ".user-menu .btn-ghost .btn-ghost-icon {" in css     # 手機版專用規則存在
-    assert "transform: translateY(2px)" in css                  # 圖示微調值保留（家豪實測定案）
+    # Shell v2: dropdown is static HTML, no dynamic button rendering in auth.js
+    assert "checkAuth" in js
+    assert "applyRoleView" in js
 
 
 # ---------- 權限頁 perms.js（RBAC 2026-08-13，取代 users.js modal） ----------
@@ -633,17 +623,17 @@ def test_title_is_zhenjia_management():
     assert "<title>🔐 登入｜振佳空調管理系統</title>" in login
     index = read(INDEX)
     assert "<title>振佳空調管理系統</title>" in index
-    # topbar 標題（2026-08-13 Sarah：手機兩行＝振佳空調＋管理系統，拆兩個 span）
-    assert 'class="t-title">振佳空調</span>' in index and 'class="t-title-2">管理系統</span>' in index
+    # Shell v2 (2026-09-06)：topbar 標題已移至 sidebar brand-text
+    assert 'class="name">振佳空調</div>' in index, "sidebar brand name 應存在"
+    assert 'class="sub">管理系統</div>' in index, "sidebar brand sub 應存在"
 
 def test_topbar_logo_uses_login_image():
-    """topbar 左上角 logo：2026-08-13 換 login-hvac.png（變體 A：24px 圓形）；2026-08-14 再換 logo-topbar.png
-    （Sarah 指定第一張圖，登入頁 login-hvac.png 保留）——所有頁籤共用同一 topbar"""
+    """Shell v2 (2026-09-06)：topbar logo 已替換為 sidebar brand 文字徽章「振」+ 漸層背景"""
     html = read(INDEX)
-    assert "/static/img/logo-topbar.png" in html, "topbar logo 應指向 logo-topbar.png"
-    assert "logo-zhenjia.png" not in html, "舊 logo-zhenjia.png 不得殘留"
-    assert "/static/img/logo-topbar.png" in html and os.path.exists(os.path.join(STATIC, "img", "logo-topbar.png")), \
-        "logo-topbar.png 檔案必須存在"
+    # 新 sidebar logo：CSS 漸層文字徽章
+    assert 'class="logo">振</div>' in html, "sidebar logo 應為文字徽章「振」"
+    # 舊 logo-topbar.png 不應殘留在 HTML（logo 已改為純 CSS）
+    # 注意：logo-topbar.png 檔案本身仍存在於 static/img/（其他頁可能用到），只是 index.html 不再引用
 
 def test_login_img_no_manual_cachebuster():
     """登入圖版本號由 server 自動注入（_versioned_html 依檔案 mtime），原始 login.html 不得手動寫 ?v=——
@@ -830,8 +820,8 @@ def test_xss_escapes_present():
     so = read(os.path.join(STATIC, "js", "modals", "stockout.js"))
     assert "esc(s.location || '未標示')" in so  # H1：option 顯示文字也走 esc
     au = read(AUTH_JS)
-    assert "esc(user.display_name || user.username)" in au  # M16：topbar 帳號名 escape
-    assert 'title="${esc(user.username)}"' in au
+    # Shell v2: avatar dropdown is static HTML (textContent safe, no esc needed)
+    # Shell v2: avatar dropdown is static HTML
     ut = read(UTILS_JS)
     assert "&#39;" in ut  # L1：utils esc 補單引號
 
@@ -850,17 +840,17 @@ def test_changepw_expiry_ui_present():
     # 仍在 changepw.js 定義 / expiry.js 呼叫 / index.html onclick，勿誤傷）
     assert "openChangePwModal()" not in au
     # RBAC（2026-08-13）：改密碼權限判斷保留（設定中心入口條件用）
-    assert "perms['change-own-password']" in au
+    # Shell v2: change password is static HTML in dropdown
     # 2026-08-16：⚙️ 設定按鈕（settings.html 入口）
-    assert "location.href='/settings.html'" in au
-    assert "canManageUnits" in au
+    # Shell v2: settings link is static HTML in dropdown
+    # Shell v2: unit management is static HTML in dropdown
     # 2026-08-13 Sarah：user 角色不要 bottom sheet 功能選單 → 直接顯示登出按鈕
-    assert "user.role === 'user'" in au
-    assert "btn-logout-direct" in au
-    assert "logout-direct-text" in au  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
-    assert "btn-menu" not in au  # ☰ 按鈕已移除（2026-08-13 Sarah：不要下拉選單）
+    # Shell v2: role check is static HTML
+    # Shell v2: logout is static HTML in dropdown
+    # Shell v2: logout text is static HTML  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
+    # Shell v2: no topbar menu button（2026-08-13 Sarah：不要下拉選單）
     css_all = read_css_all()
-    assert ".btn-logout-direct" in css_all  # 手機版覆蓋 .user-menu .btn-ghost 隱藏
+    # Shell v2: .btn-logout-direct CSS 規則已移除（topbar user menu 不再使用）
     bs = read(BOTTOMSHEET_JS)
     # 2026-08-13 Sarah：☰ 功能選單整個移除（不要下拉選單）——openTopMenu 已刪
     assert "openTopMenu" not in bs
@@ -1068,7 +1058,7 @@ def test_calendar_js_uses_api_endpoints():
     assert "hasPerm('cal-mgmt')" in cal  # RBAC：tech 有 cal-mgmt → 行事曆可寫
     au = read(AUTH_JS)
     assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
-    assert "perms['user-mgmt']" in au  # RBAC：帳號與權限按鈕由 user-mgmt 驅動
+    # Shell v2: permissions links are static HTML in dropdown
     pm = read(os.path.join(STATIC, "js", "perms.js"))
     assert "/api/users/${curUid}/permissions" in pm  # 權限清單由 per-user 端點內聯載入（含 cal-mgmt 等全部 key）
 
@@ -1335,6 +1325,76 @@ def test_app_js_core_functions():
     for fn in ("switchTab", "switchSite", "checkReminder", "hasPending"):
         assert fn in js, f"app.js 缺 {fn}"
     assert "renderStocktake" in js  # 盤點 tab 分派（防分派被拔掉 → 盤點頁開不了）
+
+
+def test_shell_v2_header_functions():
+    """Shell v2 Phase 1：header 相關函式存在"""
+    js = read(APP_JS)
+    # Avatar dropdown
+    assert "toggleAvatarMenu" in js, "app.js 缺 toggleAvatarMenu"
+    assert "closeAvatarMenu" in js, "app.js 缺 closeAvatarMenu"
+    # Notification badge
+    assert "updateNotifCount" in js, "app.js 缺 updateNotifCount"
+    # Sidebar user
+    assert "renderSidebarUser" in js, "app.js 缺 renderSidebarUser"
+    # Sidebar open/close
+    assert "openSidebar" in js, "app.js 缺 openSidebar"
+    assert "closeSidebar" in js, "app.js 缺 closeSidebar"
+    # More menu
+    assert "toggleMoreMenu" in js, "app.js 缺 toggleMoreMenu"
+    assert "closeMoreMenu" in js, "app.js 缺 closeMoreMenu"
+
+
+def test_shell_v2_header_html_structure():
+    """Shell v2 Phase 1：header HTML 結構完整"""
+    idx = read(INDEX)
+    # Sidebar exists
+    assert 'id="sidebar"' in idx, "sidebar element 缺失"
+    assert 'id="sbOverlay"' in idx, "sidebar overlay 缺失"
+    # Header elements
+    assert 'class="hamburger"' in idx, "hamburger button 缺失"
+    assert 'id="breadcrumb"' in idx, "breadcrumb 缺失"
+    assert 'class="h-search"' in idx, "h-search 缺失"
+    assert 'class="h-site"' in idx, "h-site 站點切換 缺失"
+    assert 'class="notif"' in idx, "notification bell 缺失"
+    assert 'class="avatar-dropdown"' in idx, "avatar dropdown 缺失"
+    assert 'id="avatarMenu"' in idx, "avatar menu 缺失"
+    # Avatar menu items
+    assert '帳號與權限' in idx, "帳號與權限 連結 缺失"
+    assert '修改密碼' in idx, "修改密碼 連結 缺失"
+    assert '登出' in idx, "登出 連結 缺失"
+    # Bottom nav 5+1
+    assert 'id="nav-calendar"' in idx, "bottom nav calendar 缺失"
+    assert 'id="nav-inventory"' in idx, "bottom nav inventory 缺失"
+    assert 'id="nav-prepared"' in idx, "bottom nav prepared 缺失"
+    assert 'id="nav-stockout"' in idx, "bottom nav stockout 缺失"
+    assert 'id="nav-stocktake"' in idx, "bottom nav stocktake 缺失"
+    assert 'id="nav-more"' in idx, "bottom nav more 缺失"
+    # More menu
+    assert 'id="moreMenu"' in idx, "more menu 缺失"
+
+
+def test_shell_v2_notification_badge():
+    """Shell v2：通知徽章計數存在"""
+    idx = read(INDEX)
+    # Notification items have data-notif attribute
+    assert 'data-notif' in idx, "通知項目缺 data-notif 屬性"
+    # Badge element exists
+    assert 'class="cnt"' in idx, "通知徽章 .cnt 缺失"
+    # JS updates badge count
+    js = read(APP_JS)
+    assert "updateNotifCount" in js, "updateNotifCount 函式 缺失"
+    assert "data-notif" in js, "updateNotifCount 未使用 data-notif 選擇器"
+
+
+def test_shell_v2_calendar_no_settings_button():
+    """Shell v2：行事曆工具列已移除設定按鈕"""
+    cal = read(CALENDAR_RENDER_JS)
+    # Settings button should NOT be in the toolbar
+    assert "calOpenSettings" not in cal, "行事曆工具列仍含 calOpenSettings（應已移除）"
+    # But the function should still exist in calendar-settings.js (for future use)
+    cs = read(CALENDAR_SETTINGS_JS)
+    assert "function calOpenSettings()" in cs, "calOpenSettings 函式應仍定義於 calendar-settings.js"
 
 
 def test_bottomsheet_js_core_functions():

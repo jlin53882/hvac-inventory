@@ -18,7 +18,6 @@ async function renderCalendar() {
   el.innerHTML = `
     <div class="cal-wrap">
       <div class="cal-toolbar">
-        ${isAdmin ? '<button class="cal-tb-btn" onclick="calOpenSettings()">⚙️ 設定</button>' : ''}
         <div class="cal-toolbar-mid">
           <div class="cal-title">📅 行事曆派工</div>
         </div>
