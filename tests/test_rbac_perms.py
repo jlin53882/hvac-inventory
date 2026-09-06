@@ -15,7 +15,7 @@ from main import app as fastapi_app
 
 # 與 test_rbac.py 同源常數（設計 §5；稽核 C4：測試手抄可接受）
 EXPECTED_ROLES = ('admin', 'user', 'tech', 'viewer')
-EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt', 'stock-mgmt',
+EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt', 'stock-mgmt', 'batch-loc-mgmt',
                  'import', 'stockout', 'stocktake', 'kit-mgmt', 'photo', 'cal-mgmt',
                  'svc-type-mgmt', 'gcal-sync-manage', 'gcal-sync-force', 'gcal-keys-manage',
                  'unit-mgmt', 'user-mgmt', 'change-own-password')
@@ -206,7 +206,7 @@ def test_list_permissions_endpoint(admin_client):
     r = admin_client.get("/api/users/permissions")
     assert r.status_code == 200
     data = r.json()
-    assert len(data["permissions"]) == 20
+    assert len(data["permissions"]) == 21
     assert set(data["role_defaults"].keys()) == set(EXPECTED_ROLES)
     assert "cal-mgmt" in data["role_defaults"]["tech"]
 
@@ -309,6 +309,7 @@ WRITE_ENDPOINTS = [
     ("POST", "/api/items/1/stocks", "stock-mgmt"),
     ("PATCH", "/api/stocks/1", "stock-mgmt"),
     ("DELETE", "/api/stocks/1", "stock-mgmt"),
+    ("POST", "/api/stocks/batch-location", "batch-loc-mgmt"),
     ("POST", "/api/items/1/adjust", "stock-mgmt"),
     ("POST", "/api/import", "import"),
     ("POST", "/api/stockout", "stockout"),

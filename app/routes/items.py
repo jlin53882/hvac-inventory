@@ -490,7 +490,7 @@ def import_items(items: list = Body(..., embed=True)):
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
-@router.post("/api/stocks/batch-location", dependencies=[Depends(require_perm("stock-mgmt"))])
+@router.post("/api/stocks/batch-location", dependencies=[Depends(require_perm("batch-loc-mgmt"))])
 def batch_update_location(body: BatchLocationRequest):
     """批量更新多筆 stock 記錄的位置。"""
     conn = get_db()

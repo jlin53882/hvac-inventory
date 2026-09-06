@@ -26,6 +26,7 @@ EXPECTED_MATRIX = {
     'export':  {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
     'item-mgmt':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'stock-mgmt':  {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'batch-loc-mgmt': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'import':      {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'stockout':    {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'stocktake':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
@@ -52,7 +53,7 @@ def test_seed_roles_permissions(rbac_db):
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 20
+        assert len(perms) == 21
     finally:
         conn.close()
 
@@ -86,6 +87,7 @@ def test_seed_labels_and_modules(rbac_db):
         'export': ('匯出 Excel', 'view'),
         'item-mgmt': ('品項 新增/編輯/刪除', 'stock'),
         'stock-mgmt': ('庫存位置/數量調整', 'stock'),
+        'batch-loc-mgmt': ('批量修改位置', 'stock'),
         'import': ('匯入 JSON', 'stock'),
         'stockout': ('出庫作業', 'stock'),
         'stocktake': ('盤點作業', 'stock'),
@@ -147,7 +149,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 20
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 21
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:

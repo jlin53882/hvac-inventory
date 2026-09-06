@@ -138,7 +138,7 @@ function renderInventory() {
 
     ${isViewer ? '' : `<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>`}
 
-    ${!isViewer ? `<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>` : ''}
+    ${hasPerm('batch-loc-mgmt') ? `<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>` : ''}
     ${batchMode ? `<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">${_allSelected() ? '☐ 取消全選' : '☑ 全選'}</button>` : ''}
     <button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>
 

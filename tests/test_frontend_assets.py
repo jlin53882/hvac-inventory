@@ -1924,3 +1924,13 @@ def test_edit_modal_has_col_headers():
     assert 'ch-pos' in html, "欄位標頭需有 ch-pos"
     assert 'ch-qty' in html, "欄位標頭需有 ch-qty"
     assert 'ch-note' in html, "欄位標頭需有 ch-note"
+
+
+def test_batch_button_uses_batch_loc_mgmt_perm():
+    """防回歸：批次改位置按鈕使用 batch-loc-mgmt 權限（非 isViewer）。"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "hasPerm('batch-loc-mgmt')" in js or 'hasPerm("batch-loc-mgmt")' in js, \
+        "批次按鈕需用 hasPerm('batch-loc-mgmt') 控制顯示"
+    # 不應再用 !isViewer 控制批次按鈕
+    assert "isViewer ? '' : `<button class=\"btn-sm btn-batch\"" not in js, \
+        "批次按鈕不應再用 isViewer 控制"
