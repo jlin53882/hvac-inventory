@@ -1,0 +1,140 @@
+# -*- coding: utf-8 -*-
+"""每日簽名報表 API 防回歸測試。
+
+涵蓋：安全上傳、查詢/預覽、上傳者刪除自己的檔案、管理員全域刪除，
+以及輸入驗證。所有檔案與資料庫均使用 pytest tmp_path，絕不碰正式上傳目錄。
+"""
+
+import app.database as app_db
+import app.routes.signed_reports as signed_reports
+import main as app_main
+import pytest
+from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture()
+def signed_env(tmp_path, monkeypatch):
+    """隔離 DB 與上傳目錄，回傳可建立已登入 client 的工廠。"""
+    monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "signed_reports.db"))
+    monkeypatch.setattr(signed_reports, "STATIC_DIR", str(tmp_path / "static"))
+    app_db.init_db()
+    conn = app_db.get_db()
+    try:
+        init_admin_if_missing(conn)
+    finally:
+        conn.close()
+
+    def make_client(username="admin", role="admin"):
+        conn = app_db.get_db()
+        try:
+            if username == "admin":
+                user_id = conn.execute(
+                    "SELECT id FROM users WHERE username='admin'"
+                ).fetchone()["id"]
+            else:
+                conn.execute(
+                    "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, ?)",
+                    (username, username, role),
+                )
+                conn.commit()
+                user_id = conn.execute(
+                    "SELECT id FROM users WHERE username=?", (username,)
+                ).fetchone()["id"]
+            token = create_session(conn, user_id)
+        finally:
+            conn.close()
+        client = TestClient(app_main.app)
+        client.cookies.set(SESSION_COOKIE, token)
+        return client
+
+    yield make_client, tmp_path / "static"
+
+
+def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b"signed"):
+    return client.post(
+        "/api/signed-reports",
+        data={"report_date": report_date, "uploader_name": "王小明", "note": "已簽回"},
+        files={"file": (filename, content, "application/pdf")},
+    )
+
+
+def test_upload_list_preview_and_safe_storage(signed_env):
+    """上傳後可查詢/預覽，原始檔名不會成為實際路徑控制字元。"""
+    make_client, static_dir = signed_env
+    client = make_client()
+
+    response = _upload(client, filename="../../=daily report.pdf", content=b"%PDF-demo")
+    assert response.status_code == 200, response.text
+    item = response.json()
+    assert item["file_name"] == "_daily_report.pdf"
+    assert item["can_delete"] is True
+
+    stored = list((static_dir / "uploads" / "signed_reports" / "2026-09").iterdir())
+    assert len(stored) == 1
+    assert stored[0].read_bytes() == b"%PDF-demo"
+    assert stored[0].name.startswith(f"{item['id']}_")
+    assert ".." not in stored[0].name
+
+    listed = client.get("/api/signed-reports", params={"q": "王小明"})
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert listed.json()["items"][0]["id"] == item["id"]
+
+    preview = client.get(f"/api/signed-reports/{item['id']}/preview")
+    assert preview.status_code == 200
+    assert preview.content == b"%PDF-demo"
+    assert preview.headers["content-disposition"].startswith("inline;")
+
+    download = client.get(f"/api/signed-reports/{item['id']}/download")
+    assert download.status_code == 200
+    assert download.content == b"%PDF-demo"
+    assert download.headers["content-disposition"].startswith("attachment;")
+
+
+def test_upload_rejects_invalid_date_empty_file_and_overlong_note(signed_env):
+    """輸入錯誤必回 400，不能留下上傳檔或資料列。"""
+    make_client, static_dir = signed_env
+    client = make_client()
+
+    invalid_date = _upload(client, report_date="2026/09/07")
+    assert invalid_date.status_code == 400
+    assert "YYYY-MM-DD" in invalid_date.json()["detail"]
+
+    empty = _upload(client, content=b"")
+    assert empty.status_code == 400
+    assert empty.json()["detail"] == "空檔案不可上傳"
+
+    long_note = client.post(
+        "/api/signed-reports",
+        data={"report_date": "2026-09-07", "uploader_name": "王小明", "note": "x" * 501},
+        files={"file": ("daily.pdf", b"x", "application/pdf")},
+    )
+    assert long_note.status_code == 400
+    assert long_note.json()["detail"] == "備註最多 500 字"
+    assert not (static_dir / "uploads").exists()
+
+
+def test_delete_is_limited_to_owner_or_global_permission(signed_env):
+    """一般使用者僅可刪自己的檔；管理員可刪所有檔且清除實體檔。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    admin = make_client()
+
+    first = _upload(owner, filename="owner.pdf").json()
+    second = _upload(owner, filename="admin-delete.pdf").json()
+    files_before = list((static_dir / "uploads" / "signed_reports" / "2026-09").iterdir())
+    assert len(files_before) == 2
+
+    forbidden = other.delete(f"/api/signed-reports/{first['id']}")
+    assert forbidden.status_code == 403
+
+    owner_delete = owner.delete(f"/api/signed-reports/{first['id']}")
+    assert owner_delete.status_code == 200
+    assert owner_delete.json() == {"ok": True}
+
+    admin_delete = admin.delete(f"/api/signed-reports/{second['id']}")
+    assert admin_delete.status_code == 200
+    assert not (static_dir / "uploads" / "signed_reports" / "2026-09").exists()
+    assert admin.get("/api/signed-reports").json()["total"] == 0

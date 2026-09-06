@@ -1,0 +1,393 @@
+// 庫存管理系統 - 每日簽名報表頁（2026-09-07 v2 對齊 demo）
+// 權限：登入可查/預覽/下載；刪除：有 signed-report-delete-all 可刪全部，其餘僅刪自己的
+
+var dsrEvents = [];
+var dsrFiltered = [];
+var dsrPage = 1;
+var dsrPageSize = 20;
+var dsrTotal = 0;
+var dsrSelectedFile = null;
+
+// 將 Date 物件轉為 YYYY-MM-DD 字串
+function _dsrIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// 渲染每日簽名報表頁面（含上傳區、KPI、歷史查詢）
+async function renderSignedReports() {
+  const el = document.getElementById('content');
+  const today = _dsrIso(new Date());
+  el.innerHTML = `
+    <div class="dsr-wrap">
+      <div class="dsr-page-header">
+        <div class="dsr-page-title">
+          <h1>🗂 每日簽名報表 <span class="dsr-new-badge">NEW</span></h1>
+          <p>位置：底部導覽「行事曆」旁新增「報表」Tab。讀取需登入，刪除見下方權限規則。</p>
+        </div>
+        <div class="dsr-page-actions">
+          <button class="dsr-btn dsr-btn--ghost" onclick="document.getElementById('dsr-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
+          <button class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳簽名報表</button>
+        </div>
+      </div>
+
+      <div class="dsr-layout">
+        <!-- 左：上傳區 -->
+        <section class="dsr-card" aria-labelledby="dsr-upload-title">
+          <div class="dsr-card__hd">
+            <h2 id="dsr-upload-title">⬆️ 上傳簽名報表</h2>
+            <p>支援任意格式 · 單檔 ≤ 20MB · 自動記錄上傳時間</p>
+          </div>
+          <div class="dsr-card__bd">
+            <div class="dsr-form-grid dsr-form-grid--two">
+              <div class="dsr-field">
+                <label>上傳人姓名 <span class="dsr-required">*</span></label>
+                <input id="dsr-uploader" type="text" placeholder="例：蘇昱豪">
+              </div>
+              <div class="dsr-field">
+                <label>報表日期（業務日期） <span class="dsr-required">*</span></label>
+                <input id="dsr-report-date" type="date" value="${esc(today)}">
+              </div>
+            </div>
+            <div class="dsr-field" style="margin-top:12px">
+              <label>備註 / 備忘（選填）</label>
+              <textarea id="dsr-note" rows="2" placeholder="例：今日有現場工安檢查，客戶臨時增加 2 台保養"></textarea>
+            </div>
+            <!-- 拖曳上傳 -->
+            <div id="dsr-drop" class="dsr-drop" style="margin-top:12px" onclick="document.getElementById('dsr-file-input').click()">
+              <div class="dsr-drop__icon">📎</div>
+              <div class="dsr-drop__title">拖曳檔案到此，或點擊選擇</div>
+              <div class="dsr-drop__sub">支援 .pdf .png .jpg .jpeg .webp .docx .xlsx .heic 等任意格式（不限制副檔名）</div>
+              <div class="dsr-drop__actions">
+                <span class="dsr-btn dsr-btn--primary">選擇檔案</span>
+              </div>
+              <input id="dsr-file-input" type="file" style="display:none">
+            </div>
+            <!-- 選檔後預覽 -->
+            <div id="dsr-file-preview" style="display:none">
+              <div class="dsr-file-preview">
+                <div id="dsr-fp-icon" class="dsr-file-preview__icon" style="background:#fee2e2">📄</div>
+                <div class="dsr-file-preview__meta">
+                  <div id="dsr-fp-name" class="dsr-file-preview__name"></div>
+                  <div id="dsr-fp-sub" class="dsr-file-preview__sub"></div>
+                  <div class="dsr-progress"><div id="dsr-progress-bar" class="dsr-progress__bar"></div></div>
+                </div>
+                <button class="dsr-btn-sm" onclick="dsrClearFile()">移除</button>
+              </div>
+              <div class="dsr-upload-actions">
+                <button class="dsr-btn dsr-btn--primary" onclick="dsrSubmitUpload()">⬆️ 確認上傳</button>
+                <button class="dsr-btn dsr-btn--ghost" onclick="dsrOpenPreviewFile()">👁 預覽</button>
+              </div>
+            </div>
+            <div class="dsr-tags">
+              <span class="dsr-tag">✦ 自動寫入上傳時間</span>
+              <span class="dsr-tag">✦ 檔名自動 esc / 公式注入防護</span>
+              <span class="dsr-tag">✦ 刪除：有「全域刪除」權限者可刪全部，其餘僅能刪自己上傳的</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 右：說明 / KPI -->
+        <aside class="dsr-side">
+          <div class="dsr-info">
+            <h3>💡 使用流程</h3>
+            <ul>
+              <li><span class="dsr-badge">1</span> 行事曆「📤 匯出日報表」下載 xlsx → 列印簽名</li>
+              <li><span class="dsr-badge">2</span> 隔日掃描成 PDF/圖片 → 回到本頁拖曳上傳</li>
+              <li><span class="dsr-badge">3</span> 選擇「報表日期」= 簽名所屬的工作日（非上傳當天）</li>
+              <li><span class="dsr-badge">4</span> 歷史區以日期/關鍵字篩選，支援預覽與下載</li>
+            </ul>
+            <div class="dsr-info-badges">
+              <span class="dsr-badge">🔒 登入可查</span>
+              <span class="dsr-badge">✏️ 自己刪自己的；有「全域刪除」權限者可刪全部</span>
+              <span class="dsr-badge">📱 手機可掃描直傳</span>
+            </div>
+          </div>
+          <div class="dsr-card">
+            <div class="dsr-card__hd"><h2>📊 本月概況</h2><p id="dsr-kpi-month"></p></div>
+            <div class="dsr-card__bd">
+              <div class="dsr-kpi">
+                <div class="dsr-kpi__card"><div class="dsr-kpi__num" id="dsr-kpi-total">—</div><div class="dsr-kpi__label">已歸檔</div></div>
+                <div class="dsr-kpi__card"><div class="dsr-kpi__num" id="dsr-kpi-missing">—</div><div class="dsr-kpi__label">缺檔日</div></div>
+                <div class="dsr-kpi__card"><div class="dsr-kpi__num" id="dsr-kpi-rate">—</div><div class="dsr-kpi__label">歸檔率</div></div>
+              </div>
+              <div class="dsr-hint">缺檔日 = 行事曆有派工但未上傳簽名檔的日期（可一鍵跳至行事曆該日）</div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 歷史查詢（全寬） -->
+        <section id="dsr-history" class="dsr-card dsr-history">
+          <div class="dsr-card__hd">
+            <div class="dsr-history-heading">
+              <h2>🔍 歷史報表查詢</h2>
+              <p>可查單日 / 週 / 自訂區間 · 關鍵字搜尋上傳人或備註</p>
+            </div>
+            <div class="dsr-filter-bar">
+              <div class="dsr-field"><label>起始日</label><input id="dsr-f-from" type="date"></div>
+              <div class="dsr-field"><label>迄止日</label><input id="dsr-f-to" type="date"></div>
+              <div class="dsr-field dsr-field--search"><label>關鍵字（上傳人 / 備註 / 檔名）</label><input id="dsr-f-q" type="text" placeholder="例：昱豪、工安"></div>
+              <div class="dsr-filter-actions">
+                <button class="dsr-btn dsr-btn--primary" onclick="dsrLoadHistory(true)">搜尋</button>
+                <button class="dsr-btn dsr-btn--ghost" onclick="dsrResetFilter()">清除</button>
+              </div>
+            </div>
+            <div class="dsr-chips">
+              <button class="dsr-chip" onclick="dsrQuickRange('today',this)">今天</button>
+              <button class="dsr-chip" onclick="dsrQuickRange('week',this)">本週</button>
+              <button class="dsr-chip active" onclick="dsrQuickRange('month',this)">本月</button>
+              <button class="dsr-chip" onclick="dsrQuickRange('all',this)">全部</button>
+              <span class="dsr-result-count"><span id="dsr-result-count">0 筆</span></span>
+            </div>
+          </div>
+          <div class="dsr-card__bd" style="padding-top:0">
+            <div class="dsr-table-wrap">
+              <table class="dsr-table">
+                <thead><tr><th>報表日期</th><th>上傳人</th><th>上傳時間</th><th>檔案</th><th>備註</th><th style="width:130px">操作</th></tr></thead>
+                <tbody id="dsr-tbody"></tbody>
+              </table>
+              <div id="dsr-empty" class="dsr-empty" style="display:none">
+                <div class="dsr-empty__icon">🗂</div>
+                <div>沒有符合條件的報表</div>
+                <div class="dsr-hint">試試放寬日期或關鍵字，或切換「全部」</div>
+              </div>
+            </div>
+            <div class="dsr-pagination">
+              <span id="dsr-page-info"></span>
+              <span style="display:flex;gap:6px">
+                <button class="dsr-btn-sm" onclick="dsrChangePage(-1)">‹ 上一頁</button>
+                <button class="dsr-btn-sm dsr-btn-sm--primary" onclick="dsrChangePage(1)">下一頁 ›</button>
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- 預覽 Modal -->
+    <div id="dsr-overlay" class="dsr-overlay" onclick="if(event.target===this)dsrClosePreview()">
+      <div class="dsr-modal">
+        <div class="dsr-modal__hd"><h3 id="dsr-preview-title">👁 預覽</h3><button class="dsr-btn-sm" onclick="dsrClosePreview()">✕ 關閉</button></div>
+        <div class="dsr-modal__bd" id="dsr-preview-body"></div>
+        <div class="dsr-modal__ft">
+          <span class="dsr-modal__note">若預覽失敗，請直接下載原檔</span>
+          <span class="dsr-modal__actions">
+            <button class="dsr-btn dsr-btn--ghost" onclick="dsrClosePreview()">關閉</button>
+            <button class="dsr-btn dsr-btn--primary" id="dsr-dl-btn">⬇️ 下載原檔</button>
+          </span>
+        </div>
+      </div>
+    </div>`;
+
+  // 帶入登入者姓名
+  try {
+    const me = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);
+    if (me && me.display_name) document.getElementById('dsr-uploader').value = me.display_name;
+  } catch(e) {}
+
+  // 預設日期範圍 = 本月
+  const now = new Date();
+  document.getElementById('dsr-f-from').value = _dsrIso(new Date(now.getFullYear(), now.getMonth(), 1));
+  document.getElementById('dsr-f-to').value = _dsrIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
+
+  // 拖曳事件
+  const drop = document.getElementById('dsr-drop');
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) dsrHandleFile(e.dataTransfer.files[0]); });
+  document.getElementById('dsr-file-input').addEventListener('change', e => { if (e.target.files[0]) dsrHandleFile(e.target.files[0]); });
+
+  dsrLoadHistory();
+}
+
+// 依副檔名回傳圖示 emoji 與背景色
+function _dsrIconFor(mime) {
+  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', bg:'#e0f2fe'};
+  if (mime === 'pdf') return {icon:'📄', bg:'#fee2e2'};
+  if (['docx','doc'].includes(mime)) return {icon:'📝', bg:'#dbeafe'};
+  if (['xlsx','xls'].includes(mime)) return {icon:'📊', bg:'#dcfce7'};
+  return {icon:'📎', bg:'#f1f5f9'};
+}
+
+// 處理使用者選擇/拖曳的檔案，更新預覽區
+function dsrHandleFile(f) {
+  const ext = (f.name.split('.').pop() || '').toLowerCase();
+  const ic = _dsrIconFor(ext);
+  document.getElementById('dsr-fp-icon').textContent = ic.icon;
+  document.getElementById('dsr-fp-icon').style.background = ic.bg;
+  document.getElementById('dsr-fp-name').textContent = f.name;
+  document.getElementById('dsr-fp-sub').textContent = ext.toUpperCase() + ' · ' + (f.size/1024/1024).toFixed(1) + ' MB';
+  document.getElementById('dsr-file-preview').style.display = 'block';
+  document.getElementById('dsr-progress-bar').style.width = '0%';
+  document.getElementById('dsr-drop').style.display = 'none';
+  dsrSelectedFile = f;
+}
+
+// 清除已選檔案，恢復拖曳區
+function dsrClearFile() {
+  document.getElementById('dsr-file-preview').style.display = 'none';
+  document.getElementById('dsr-drop').style.display = 'block';
+  document.getElementById('dsr-file-input').value = '';
+  dsrSelectedFile = null;
+}
+
+// 預覽已選的本地檔案（上傳前）
+function dsrOpenPreviewFile() {
+  if (!dsrSelectedFile) return;
+  const url = URL.createObjectURL(dsrSelectedFile);
+  dsrShowPreview(dsrSelectedFile.name, (dsrSelectedFile.name.split('.').pop()||'').toLowerCase(), url, url);
+}
+
+// 上傳簽名報表到伺服器
+async function dsrSubmitUpload() {
+  const file = dsrSelectedFile;
+  if (!file) return toast('⚠️ 請先選擇檔案');
+  const uploader = document.getElementById('dsr-uploader').value.trim();
+  const reportDate = document.getElementById('dsr-report-date').value;
+  const note = document.getElementById('dsr-note').value.trim();
+  if (!uploader) return toast('⚠️ 請填上傳人姓名');
+  if (!reportDate) return toast('⚠️ 請選擇報表日期');
+  const bar = document.getElementById('dsr-progress-bar');
+  bar.style.width = '10%';
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('report_date', reportDate);
+  fd.append('uploader_name', uploader);
+  fd.append('note', note);
+  try {
+    bar.style.width = '30%';
+    const res = await fetch('/api/signed-reports', { method: 'POST', body: fd });
+    bar.style.width = '70%';
+    const data = await res.json();
+    if (!res.ok) return toast('⚠️ ' + (data.detail || '上傳失敗'));
+    bar.style.width = '100%';
+    setTimeout(() => toast('✅ 上傳成功'), 300);
+    dsrClearFile();
+    dsrLoadHistory();
+  } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
+}
+
+// 載入歷史報表列表（分頁 + 篩選）
+async function dsrLoadHistory(resetPage) {
+  if (resetPage) dsrPage = 1;
+  const from = document.getElementById('dsr-f-from').value || '';
+  const to = document.getElementById('dsr-f-to').value || '';
+  const q = document.getElementById('dsr-f-q').value.trim();
+  const p = new URLSearchParams({ from_date: from, to_date: to, q, page: dsrPage, page_size: dsrPageSize });
+  try {
+    const res = await fetch('/api/signed-reports?' + p);
+    if (!res.ok) return;
+    const data = await res.json();
+    dsrEvents = data.items || [];
+    dsrFiltered = dsrEvents;
+    dsrTotal = data.total || 0;
+    dsrPage = data.page || dsrPage;
+    document.getElementById('dsr-result-count').textContent = dsrTotal + ' 筆';
+    dsrRenderTable();
+    dsrUpdateKPI();
+  } catch(e) {}
+}
+
+// 渲染歷史報表表格
+function dsrRenderTable() {
+  const tb = document.getElementById('dsr-tbody');
+  const empty = document.getElementById('dsr-empty');
+  if (!dsrFiltered.length) { tb.innerHTML = ''; empty.style.display = 'block'; }
+  else {
+    empty.style.display = 'none';
+    tb.innerHTML = dsrFiltered.map(r => {
+      const ext = (r.file_name || '').split('.').pop().toLowerCase();
+      const ic = _dsrIconFor(ext);
+      const note = r.note ? esc(r.note) : '<span style="color:#cbd5e1">—</span>';
+      return `<tr>
+        <td data-label="報表日期"><span style="font-weight:800">${esc(r.report_date)}</span></td>
+        <td data-label="上傳人"><span class="dsr-tag">${esc(r.uploader_name)}</span></td>
+        <td data-label="上傳時間" style="white-space:nowrap">${esc(r.upload_time)}</td>
+        <td data-label="檔案"><div class="dsr-file-cell"><div class="dsr-file-icon" style="background:${ic.bg}">${ic.icon}</div><div style="min-width:0"><div class="dsr-ellipsis" style="font-weight:700">${esc(r.file_name)}</div><div style="font-size:11px;color:#64748b">${esc((r.mime_type||'').toUpperCase())}</div></div></div></td>
+        <td data-label="備註" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${note}</td>
+        <td data-label="操作"><div class="dsr-actions-cell">
+          <button class="dsr-icon-btn" title="預覽" onclick="dsrPreview(${r.id})">👁</button>
+          <button class="dsr-icon-btn" title="下載" onclick="dsrDownload(${r.id})">⬇️</button>
+          ${r.can_delete ? `<button class="dsr-icon-btn dsr-icon-btn--danger" onclick="dsrDelete(${r.id})">🗑</button>` : `<button class="dsr-icon-btn" disabled style="opacity:.4">🗑</button>`}
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+  const max = Math.max(1, Math.ceil(dsrTotal / dsrPageSize));
+  document.getElementById('dsr-page-info').textContent = `第 ${dsrPage} / ${max} 頁 · 共 ${dsrTotal} 筆`;
+}
+
+// 從伺服器載入月級 KPI 統計
+async function dsrUpdateKPI() {
+  try {
+    const res = await fetch('/api/signed-reports/kpi');
+    if (!res.ok) return;
+    const k = await res.json();
+    document.getElementById('dsr-kpi-month').textContent = k.month;
+    document.getElementById('dsr-kpi-total').textContent = k.archived;
+    document.getElementById('dsr-kpi-missing').textContent = k.missing;
+    document.getElementById('dsr-kpi-rate').textContent = k.total > 0 ? k.rate + '%' : '\u2014';
+  } catch(e) {}
+}
+
+// 重設篩選條件為本月並重新查詢
+function dsrResetFilter() {
+  const now = new Date();
+  document.getElementById('dsr-f-from').value = _dsrIso(new Date(now.getFullYear(), now.getMonth(), 1));
+  document.getElementById('dsr-f-to').value = _dsrIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
+  document.getElementById('dsr-f-q').value = '';
+  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.dsr-chip')[2].classList.add('active');
+  dsrPage = 1;
+  dsrLoadHistory();
+}
+
+// 快捷日期範圍（今天/本週/本月/全部）
+function dsrQuickRange(k, btn) {
+  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  const now = new Date();
+  if (k === 'today') { document.getElementById('dsr-f-from').value = _dsrIso(now); document.getElementById('dsr-f-to').value = _dsrIso(now); }
+  else if (k === 'week') { const d = new Date(now); d.setDate(d.getDate()-d.getDay()); document.getElementById('dsr-f-from').value = _dsrIso(d); const e = new Date(d); e.setDate(e.getDate()+6); document.getElementById('dsr-f-to').value = _dsrIso(e); }
+  else if (k === 'month') { document.getElementById('dsr-f-from').value = _dsrIso(new Date(now.getFullYear(), now.getMonth(), 1)); document.getElementById('dsr-f-to').value = _dsrIso(new Date(now.getFullYear(), now.getMonth()+1, 0)); }
+  else { document.getElementById('dsr-f-from').value = ''; document.getElementById('dsr-f-to').value = ''; }
+  dsrPage = 1; dsrLoadHistory();
+}
+
+// 翻頁（觸發重新查詢）
+function dsrChangePage(d) {
+  const max = Math.max(1, Math.ceil(dsrTotal / dsrPageSize));
+  const next = Math.min(max, Math.max(1, dsrPage + d));
+  if (next === dsrPage) return;
+  dsrPage = next;
+  dsrLoadHistory();
+}
+
+// 開啟預覽 Modal（從歷史列表）
+function dsrPreview(id) {
+  const report = dsrFiltered.find(item => item.id === id);
+  if (!report) return;
+  const base = '/api/signed-reports/' + id;
+  const ext = (report.file_name || '').split('.').pop().toLowerCase();
+  dsrShowPreview(report.file_name, ext, base + '/preview', base + '/download');
+}
+// 依檔案類型顯示預覽（圖片/PDF/不支援格式）
+function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
+  const body = document.getElementById('dsr-preview-body');
+  document.getElementById('dsr-preview-title').textContent = '👁 預覽 — ' + name;
+  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" style="width:100%">';
+  else if (mime === 'pdf') body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+  else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
+  document.getElementById('dsr-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
+  document.getElementById('dsr-overlay').classList.add('open');
+}
+// 關閉預覽 Modal
+function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
+// 下載簽名報表原檔
+function dsrDownload(id) { window.open('/api/signed-reports/' + id + '/download', '_blank'); }
+// 刪除簽名報表（二次確認）
+async function dsrDelete(id) {
+  if (!confirm('確定刪除？')) return;
+  const res = await fetch('/api/signed-reports/' + id, { method: 'DELETE' });
+  const data = await res.json();
+  if (res.ok) { toast('🗑 已刪除'); dsrLoadHistory(); } else toast('⚠️ ' + (data.detail || '刪除失敗'));
+}

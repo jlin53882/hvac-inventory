@@ -175,6 +175,8 @@ function updateBreadcrumb(tab) {
 
 function switchTab(tab) {
   currentTab = tab;
+  var content = document.getElementById('content');
+  if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
   var nav = document.getElementById('nav-' + tab);
@@ -187,8 +189,8 @@ function switchTab(tab) {
   closeSidebar();
   closeMoreMenu();
 
-  // 行事曆頁不需要搜尋框、辦公室/倉庫分片與廠牌 tab（家豪 2026-08-12 指定）
-  var isCal = tab === 'calendar';
+  // 行事曆與簽名報表不需要搜尋框、辦公室/倉庫分片與廠牌 tab
+  var isCal = tab === 'calendar' || tab === 'signed-reports';
   var isInventory = tab === 'inventory';
   var sb = document.querySelector('.h-search');
   var st = document.querySelector('.h-site');
@@ -219,6 +221,7 @@ function switchTab(tab) {
   else if (tab === 'stocktake') renderStocktake();
   else if (tab === 'kit') renderKits();
   else if (tab === 'calendar') renderCalendar();
+  else if (tab === 'signed-reports') renderSignedReports();
   syncViewUrl();
 }
 
@@ -259,7 +262,7 @@ window.addEventListener('load', function() {
 });
 
 // 多使用者即時性與畫面狀態持久化
-var _TABS = ['inventory', 'prepared', 'stockout', 'stocktake', 'kit', 'calendar'];
+var _TABS = ['inventory', 'prepared', 'stockout', 'stocktake', 'kit', 'calendar', 'signed-reports'];
 var _SITES = ['office', 'warehouse'];
 
 var _focusReloadTimer = null;
@@ -305,6 +308,8 @@ function syncViewUrl() {
     var sbNav = document.getElementById('sb-nav-' + currentTab);
     if (sbNav) sbNav.classList.add('active');
     loadData();
+    // loadData 不重繪 DSR；F5 直接以 ?tab=signed-reports 開啟時在此建立頁面。
+    if (currentTab === 'signed-reports') switchTab(currentTab);
   } else {
     var content = document.getElementById('content');
     if (content) content.innerHTML = '<div class="empty">⚠️ 無法連線伺服器，請重新整理頁面<br><small>若持續發生請聯絡管理員</small></div>';

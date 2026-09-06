@@ -6,6 +6,7 @@
 <title>振佳空調管理系統</title>
 <link rel="stylesheet" href="/static/css/style.core.css">
 <link rel="stylesheet" href="/static/css/style.calendar.css">
+<link rel="stylesheet" href="/static/css/style.signed-reports.css">
 </head>
 <body>
 
@@ -128,6 +129,11 @@
   <div class="nav-item-wrap">
     <button class="nav-item active" id="nav-calendar" onclick="switchTab('calendar')">
       <span class="ic">📅</span><span class="label">行事曆</span>
+    </button>
+  </div>
+  <div class="nav-item-wrap">
+    <button class="nav-item" id="nav-signed-reports" onclick="switchTab('signed-reports')">
+      <span class="ic">🗂</span><span class="label">簽名報表</span>
     </button>
   </div>
   <div class="nav-item-wrap">
@@ -693,6 +699,7 @@
 <script src="/static/js/render/stocktake.js" defer></script>
 <script src="/static/js/render/kits.js" defer></script>
 <script src="/static/js/render/calendar.js" defer></script>
+<script src="/static/js/render/signed-reports.js" defer></script>
 <script src="/static/js/modals/calendar.js" defer></script>
 <script src="/static/js/modals/calendar-settings.js" defer></script>
 <script src="/static/js/modals/edit.js" defer></script>

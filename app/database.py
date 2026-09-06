@@ -238,6 +238,23 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_appt_date ON appointments(date);
     CREATE INDEX IF NOT EXISTS idx_appt_svc ON appointments(service_type_id);
     CREATE INDEX IF NOT EXISTS idx_assignees_appt ON appointment_assignees(appointment_id);
+    -- 每日簽名報表（2026-09-06 簽名報表模組）
+    CREATE TABLE IF NOT EXISTS daily_signed_reports (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_date       TEXT NOT NULL,
+        uploader_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        uploader_name     TEXT NOT NULL,
+        upload_time       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        file_name         TEXT NOT NULL,
+        stored_path       TEXT NOT NULL,
+        file_size         INTEGER NOT NULL DEFAULT 0,
+        mime_type         TEXT DEFAULT '',
+        note              TEXT DEFAULT '',
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_dsr_date ON daily_signed_reports(report_date);
+    CREATE INDEX IF NOT EXISTS idx_dsr_upload_time ON daily_signed_reports(upload_time);
+    CREATE INDEX IF NOT EXISTS idx_dsr_uploader ON daily_signed_reports(uploader_user_id);
     """);
 
     # 舊資料庫遷移（v10 前）：items 若有 qty/location/note 欄位 → 需跑 scripts/migrate_v10.py
@@ -379,7 +396,8 @@ def _exec_init(conn):
         ('gcal-keys-manage',     'Service Account Key 管理', 'calendar'),
         ('unit-mgmt',            '單位整理（停用/排序/收編）', 'stock'),
         ('user-mgmt',            '使用者管理',           'system'),
-        ('change-own-password',  '自行改密碼',           'system');
+        ('change-own-password',  '自行改密碼',           'system'),
+        ('signed-report-delete-all', '簽名報表 全域刪除', 'calendar');
     """)
     # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
     _RBAC_DEFAULT = {
@@ -404,6 +422,7 @@ def _exec_init(conn):
         'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'signed-report-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     }
     _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
     _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}
