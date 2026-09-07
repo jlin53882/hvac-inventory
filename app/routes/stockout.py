@@ -158,16 +158,16 @@ def stock_out_nonstock(req: NonStockOutRequest):
 
 @router.get("/api/stockouts", dependencies=[Depends(require_perm("prepared"))])
 def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[str] = None):
-    """出庫紀錄（含去向）"""
+    """出庫紀錄（含去向）+ 退回紀錄（2026-09-07 Sarah：退回要顯示在已領出頁）"""
     conn = get_db()
     sql = """
         SELECT m.*, i.name as item_name, i.brand, i.code, i.unit, i.is_deleted as item_deleted
         FROM movements m JOIN items i ON i.id = m.item_id
-        WHERE m.delta < 0 AND m.reason LIKE '出庫%'
+        WHERE ((m.delta < 0 AND m.reason LIKE '出庫%')
+           OR (m.reason = '退回已領出'))
     """
     params = []
     if site and site != "all":
-        # 非庫存品項（is_deleted=1）不分 site 永遠顯示（2026-08-13：已領出隨 site 過濾，但非庫存品項不屬於任何 site）
         sql += " AND (i.site = ? OR i.is_deleted = 1)"
         params.append(site)
     if search:
@@ -181,7 +181,7 @@ def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", sit
     outs = []
     for r in rows:
         d = dict(r)
-        d["has_photo"] = has_photo(d["item_id"])  # 已領出列表顯示品項照片縮圖
+        d["has_photo"] = has_photo(d["item_id"])
         outs.append(d)
     return outs
 

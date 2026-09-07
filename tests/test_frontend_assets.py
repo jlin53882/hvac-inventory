@@ -557,9 +557,9 @@ def test_prepared_js_chip_out_of_name_line():
 
 
 def test_stockout_js_shows_model():
-    """已領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處"""
+    """已領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片（一般+退回）+ 桌面表格各一處"""
     js = read(STOCKOUT_RENDER_JS)
-    assert js.count("型號 ") == 2
+    assert js.count("型號 ") == 3  # mobile normal + mobile return + desktop table
     assert "color:#1890FF;font-weight:600" in js
     # 型號從 subHTML 移到 nameHTML 下方：subHTML 只剩日期（不再有「· 型號」）
     assert "· 型號" not in js

@@ -179,7 +179,7 @@ async function submitPrepare() {
 
 // 開啟「待領出轉已領出」Modal，帶入品項名稱與已準備數量
 function openPreparedOutModal(id) {
-  const item = ALL_ITEMS.find(i => i.id === id);
+  const item = ALL_ITEMS.find(i => i.id === id) || preparedItems.find(i => i.id === id);  // 非庫存品項不在 ALL_ITEMS（2026-09-07 Sarah）
   if (!item) return;
   preparedOutItemId = id;
   document.getElementById('po-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;

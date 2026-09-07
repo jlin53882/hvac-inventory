@@ -128,6 +128,10 @@ REVIEWED_SAFE_BODIES = {
     "enough ? 'ok' : 'low'", "enough ? '#16a34a' : '#dc2626'",
     "locCollapsed ? ' collapsed' : ''", "i.site === 'warehouse' ? ' 🏭' : ''",
     "reverted ? ' style=\"opacity:0.55\"' : ''", "p.reverted ? ' reverted' : ''",
+    # stockout.js 退回紀錄列（2026-09-07 Sarah：退回顯示在已領出頁）
+    "isReturn ? ' style=\"background:#f6ffed\"' : ''",
+    "isReturn ? 'qty-pos' : 'qty-neg'",
+    "isReturn ? '+' : '-'",
     "f && f.user_ids.includes(p.id) ? 'checked' : ''",
     "f && f.service_type_id === s.id ? 'selected' : ''",
     "s.is_active ? 'on' : ''", "low ? 'warn' : ''", "zero ? 'danger' : ''",
