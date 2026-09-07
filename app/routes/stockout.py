@@ -27,6 +27,14 @@ from app.services.auth import require_perm
 # 出庫/待領出 API 路由
 router = APIRouter()
 
+import re as _re
+_ISO_DATETIME_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$")
+
+def _validate_date(s: str, field: str = "日期"):
+    """驗證 ISO 日期/時間格式，不合法則 400"""
+    if s and not _ISO_DATETIME_RE.match(s.strip()):
+        raise HTTPException(400, f"{field}格式需為 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")
+
 
 def _total_qty(conn, item_id) -> float:
     """計算單一品項的位置庫存總量，回傳 float"""
@@ -250,6 +258,8 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
 
         # 退回日期：預設=當前時間
         now = (req.created_at if req and req.created_at else None) or datetime.datetime.now().isoformat()
+        if req and req.created_at:
+            _validate_date(req.created_at, "退回日期")
 
         # 只有全數退回才設 reverted_at（部分退回允許再次退回）
         if is_full_return:
@@ -312,6 +322,7 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
             conn.execute("UPDATE movements SET destination=? WHERE id=?",
                          (upd.destination, movement_id))
         if upd.created_at is not None:
+            _validate_date(upd.created_at, "出庫日期")
             conn.execute("UPDATE movements SET created_at=? WHERE id=?",
                          (upd.created_at, movement_id))
         conn.commit()

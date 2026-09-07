@@ -1456,21 +1456,25 @@ class TestV10CompatAndCascade:
         assert len(it["stocks"]) == 1
 
     def test_delete_item_with_movements(self, client):
-        """有異動紀錄的品項刪除（M6 soft-delete）：movements 稽核軌跡保留（不再銷毀）"""
+        """有異動紀錄的品項刪除（M6 soft-delete）：movements 稽核軌跡保留 + 庫存清零流水"""
         item = _add_item(client, name="要刪的", qty=5)
         client.post(f"/api/items/{item['id']}/adjust", json={"delta": -2, "reason": "出庫"})
         assert len(client.get("/api/movements").json()) == 1
 
         r = client.delete(f"/api/items/{item['id']}")
         assert r.status_code == 200
-        assert len(client.get("/api/movements").json()) == 1  # soft-delete：流水保留
+        # soft-delete：保留原有流水 + 新增「品項刪除清零」流水（剩餘 3）
+        movements = client.get("/api/movements").json()
+        assert len(movements) == 2
+        clear_down = [m for m in movements if m["reason"] == "品項刪除清零"]
+        assert len(clear_down) == 1
+        assert clear_down[0]["delta"] == -3  # 原 5 - 已出 2 = 剩 3 清零
 
     def test_delete_item_with_stocktake(self, client):
         """有盤點紀錄的品項刪除（M6 soft-delete）：已刪品項不再出現在準備清單"""
         item = _add_item(client, name="盤點過", qty=10)
         client.post("/api/stocktake", json={
             "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 10}]})
-        assert client.post(f"/api/items/{item['id']}/prepare", json={"qty": 3}).status_code == 200
 
         r = client.delete(f"/api/items/{item['id']}")
         assert r.status_code == 200

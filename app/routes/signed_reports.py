@@ -93,6 +93,7 @@ def upload_signed_report(
     mime = (file.content_type or "").strip()[:120]
 
     conn = get_db()
+    written_path = None
     try:
         cur = conn.execute(
             "INSERT INTO daily_signed_reports(report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size, mime_type, note) VALUES(?,?,?,?,?,?,?,?)",
@@ -104,11 +105,21 @@ def upload_signed_report(
         full = Path(STATIC_DIR) / "uploads" / stored
         full.parent.mkdir(parents=True, exist_ok=True)
         full.write_bytes(data)
+        written_path = full  # 記錄已寫入的檔案路徑，供回滾清理
         conn.execute("UPDATE daily_signed_reports SET stored_path=? WHERE id=?", (stored, rid))
         conn.commit()
         row = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
         can_del = _can_delete_all(conn, user) or (row["uploader_user_id"] == user["id"])
         return _row_to_out(row, can_del)
+    except Exception:
+        conn.rollback()
+        # 回滾時清理已寫入的實體檔案，避免孤兒檔
+        if written_path and written_path.exists():
+            try:
+                written_path.unlink()
+            except OSError:
+                pass
+        raise
     finally:
         conn.close()
 

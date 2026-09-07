@@ -35,7 +35,7 @@ async function renderSignedReports() {
         <section class="dsr-card" aria-labelledby="dsr-upload-title">
           <div class="dsr-card__hd">
             <h2 id="dsr-upload-title">⬆️ 上傳每日簽名日報表</h2>
-            <p>支援任意格式 · 單檔 ≤ 20MB · 自動記錄上傳時間</p>
+            <p>支援 PDF / 圖片格式 · 單檔 ≤ 20MB · 自動記錄上傳時間</p>
           </div>
           <div class="dsr-card__bd">
             <div class="dsr-form-grid dsr-form-grid--two">
@@ -56,12 +56,12 @@ async function renderSignedReports() {
             <div id="dsr-drop" class="dsr-drop" style="margin-top:12px" onclick="document.getElementById('dsr-file-input').click()">
               <div class="dsr-drop__icon">📎</div>
               <div class="dsr-drop__title">拖曳檔案到此，或點擊選擇</div>
-              <div class="dsr-drop__sub">支援 .pdf .png .jpg .jpeg .webp .docx .xlsx .heic 等任意格式（不限制副檔名）</div>
+              <div class="dsr-drop__sub">支援 PDF / PNG / JPG / GIF / WebP 格式</div>
               <div class="dsr-drop__actions">
                 <span class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">選擇檔案</span>
                 <span class="dsr-btn dsr-btn--ghost" onclick="document.getElementById('dsr-camera-input').click()">📷 相機拍攝</span>
               </div>
-              <input id="dsr-file-input" type="file" style="display:none" accept="image/*,.pdf,.docx,.xlsx">
+              <input id="dsr-file-input" type="file" style="display:none" accept="image/*,.pdf">
               <input id="dsr-camera-input" type="file" style="display:none" accept="image/*" capture="environment">
             </div>
             <!-- 選檔後預覽 -->

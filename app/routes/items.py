@@ -241,6 +241,20 @@ def delete_item(item_id: int):
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
+        # 安全檢查：有待領出數量時不可刪除
+        prepared = row["prepared_qty"] or 0
+        if prepared > 0:
+            raise HTTPException(400, f"該品項有待領出數量 {prepared}，請先處理待領出再刪除")
+        # 檢查是否還有庫存，有庫存則記錄稽核流水後清零
+        stocks = conn.execute(
+            "SELECT id, location, qty FROM item_stocks WHERE item_id=? AND qty != 0",
+            (item_id,)).fetchall()
+        for s in stocks:
+            if s["qty"] > 0:
+                # 寫入「品項刪除清零」流水，保留稽核軌跡
+                conn.execute(
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or ""))
         conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
                      (datetime.datetime.now().isoformat(), item_id))
         conn.commit()
