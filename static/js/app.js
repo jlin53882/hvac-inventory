@@ -106,24 +106,15 @@ function openDrawer(type, data) {
   title.textContent = titles[type] || type;
   body.innerHTML = '';
   footer.innerHTML = '';
-  // Move modal content to drawer
-  var modalMap = {add:'add-modal', edit:'edit-modal', stockout:'out-modal', prepare:'prepare-modal', kit:'kit-modal'};
-  var modalId = modalMap[type];
-  if (modalId) {
-    var modal = document.getElementById(modalId);
-    if (modal) {
-      var modalContent = modal.querySelector('.modal');
-      if (modalContent) {
-        body.innerHTML = modalContent.innerHTML;
-        // Rename form IDs to avoid duplicates
-        body.querySelectorAll('input, select, textarea').forEach(function(el) {
-          if (el.id) el.id = 'dr-' + el.id;
-        });
-      }
-    }
-  }
-  // Add footer buttons
-  footer.innerHTML = '<button class="bg-ghost" onclick="closeDrawer()">\u53d6\u6d88</button><button class="bg-primary" onclick="submitDrawer(\'' + type + '\')">\u78ba\u8a8d</button>';
+  // Show drawer as visual container (form stays in modal HTML)
+  body.innerHTML = '<div style="padding:20px;color:#64748b;text-align:center">載入中...</div>';
+  footer.innerHTML = '<button class="bg-ghost" onclick="closeDrawer()">取消</button><button class="bg-primary" onclick="submitDrawer(\'' + type + '\')">確認</button>';
+  // Trigger the original modal function (form renders in modal, drawer is visual overlay)
+  if (type === 'add' && typeof openAddModal === 'function') openAddModal();
+  else if (type === 'edit' && typeof openEditModal === 'function') openEditModal(data);
+  else if (type === 'stockout' && typeof openOutModal === 'function') openOutModal(data);
+  else if (type === 'prepare' && typeof openPrepareModal === 'function') openPrepareModal(data);
+  else if (type === 'kit' && typeof openKitModal === 'function') openKitModal(data);
   overlay.classList.add('open');
   drawer.classList.add('open');
   document.body.style.overflow = 'hidden';

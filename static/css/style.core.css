@@ -972,8 +972,8 @@ tr.row-danger td{background:#fff5f5}
 .view-toggle button.active{background:#2d5a8e;color:#fff;border-color:#2d5a8e}
 
 /* ===== Card warn/danger (Phase 5) ===== */
-.item-card.warn{background:#fffbeb;border-color:#f59e0b}
-.item-card.danger{background:#fff5f5;border-color:#ef4444}
+.item-card.warn{background:#fffbeb;border:1px solid #f59e0b}
+.item-card.danger{background:#fff5f5;border:1px solid #ef4444}
 
 /* ===== Dashboard stat cards ===== */
 .dash-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}

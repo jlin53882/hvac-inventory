@@ -5,7 +5,6 @@ async function loadData() {
     const res = await fetch(`/api/items?site=${currentSite}`);
     if (!res.ok) throw new Error('API 錯誤: ' + res.status);
     ALL_ITEMS = await res.json();
-    buildFilterPanel();
     buildDatalists();
     checkReminder();
     updateNotifications();
