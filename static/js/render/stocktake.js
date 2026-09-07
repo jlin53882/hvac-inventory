@@ -148,7 +148,7 @@ function stkGroupByLoc(rows) {
               <span style="margin-left:auto;white-space:nowrap;color:#64748b">需 <b>${c.need_qty}</b> ・ 系統 <b>${mSysQty}</b> ${esc(c.unit || '')}</span>
               <input type="number" step="any" min="0" value="${mVal}" placeholder="實際"
                 style="width:64px;padding:3px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;text-align:center"
-                oninput="stocktakeValues['${jsStr(mKey)}'] = this.value"
+                data-sysqty="${mSysQty}" oninput="stocktakeValues['${jsStr(mKey)}'] = this.value; calcDiff(this)"
                 onchange="stocktakeValues['${jsStr(mKey)}'] = this.value; markChanged(this, '${jsStr(mKey)}')"
                 data-key="${esc(mKey)}">
             </div>`;}).join('')}
@@ -158,7 +158,7 @@ function stkGroupByLoc(rows) {
         <td style="text-align:center;font-weight:700">${absNum(s.qty)} ${esc(i.unit)}</td>
         <td><div class="count-row">
           <input type="number" step="any" min="0" value="${val}"
-            oninput="stocktakeValues['${jsStr(key)}'] = this.value"
+            data-sysqty="${s.qty}" oninput="stocktakeValues['${jsStr(key)}'] = this.value; calcDiff(this)"
             onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')"
             data-key="${esc(key)}">
         </div></td>

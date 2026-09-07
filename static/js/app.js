@@ -52,16 +52,20 @@ function updateNotifCount() {
   if (cnt) cnt.textContent = items.length;
 }
 
-// 動態生成通知（低庫存 / 缺貨 / 盤點提醒）
+// 動態生成通知（缺貨 / 低庫存 / 盤點提醒）
 function updateNotifications() {
   var html = '';
-  // 低庫存警示（low_stock > 0 且 qty <= low_stock，排除整組）
-  var lowItems = ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && i.qty <= i.low_stock; });
+  // 缺貨警示（qty <= 0，排除整組）
+  var zeroItems = ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
+  zeroItems.forEach(function(i) {
+    html += '<div class="ni" data-notif><span class="dot-r"></span>缺貨：' + esc(i.name) + '</div>';
+  });
+  // 低庫存警示（low_stock > 0 且 0 < qty <= low_stock，排除整組與已缺貨）
+  var lowItems = ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
   lowItems.forEach(function(i) {
     var qty = i.qty || 0;
     var unit = i.unit || '';
-    var label = qty <= 0 ? '已缺貨' : '僅剩 ' + qty + ' ' + unit;
-    html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' ' + label + '</div>';
+    html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' 僅剩 ' + qty + ' ' + esc(unit) + '</div>';
   });
   // 盤點提醒（25號後 + 本月未盤點）
   var now = new Date();

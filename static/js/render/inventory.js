@@ -798,3 +798,22 @@ async function submitBatchLocation() {
     toast('\u26a0\ufe0f ' + e.message, 'error');
   }
 }
+
+
+// ========== Chip 篩選 toggler ==========
+function toggleInventoryBrand(brand) {
+  if (!brand) { currentBrands = []; }
+  else {
+    var idx = currentBrands.indexOf(brand);
+    if (idx >= 0) currentBrands.splice(idx, 1); else currentBrands.push(brand);
+  }
+  renderInventory();
+}
+function toggleInventoryCategory(cat) {
+  if (!cat) { currentCategories = []; }
+  else {
+    var idx = currentCategories.indexOf(cat);
+    if (idx >= 0) currentCategories.splice(idx, 1); else currentCategories.push(cat);
+  }
+  renderInventory();
+}
