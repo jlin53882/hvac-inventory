@@ -26,7 +26,7 @@ async function renderSignedReports() {
         </div>
         <div class="dsr-page-actions">
           <button class="dsr-btn dsr-btn--ghost" onclick="document.getElementById('dsr-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
-          <button class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳簽名報表</button>
+          <button class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳每日簽名日報表</button>
         </div>
       </div>
 
@@ -34,7 +34,7 @@ async function renderSignedReports() {
         <!-- 左：上傳區 -->
         <section class="dsr-card" aria-labelledby="dsr-upload-title">
           <div class="dsr-card__hd">
-            <h2 id="dsr-upload-title">⬆️ 上傳簽名報表</h2>
+            <h2 id="dsr-upload-title">⬆️ 上傳每日簽名日報表</h2>
             <p>支援任意格式 · 單檔 ≤ 20MB · 自動記錄上傳時間</p>
           </div>
           <div class="dsr-card__bd">
@@ -237,7 +237,7 @@ function dsrOpenPreviewFile() {
   dsrShowPreview(dsrSelectedFile.name, (dsrSelectedFile.name.split('.').pop()||'').toLowerCase(), url, url);
 }
 
-// 上傳簽名報表到伺服器
+// 上傳每日簽名日報表到伺服器
 async function dsrSubmitUpload() {
   const file = dsrSelectedFile;
   if (!file) return toast('⚠️ 請先選擇檔案');
