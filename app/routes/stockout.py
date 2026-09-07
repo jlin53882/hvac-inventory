@@ -204,6 +204,7 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
     - created_at：退回日期（YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DD）
     部分退回時不設 reverted_at，可再次退回剩餘數量。
     全數退回時設 reverted_at，防止重複退回。
+    退回紀錄透過 source_movement_id 精確連結到原始出庫。
     """
     try:
         conn = get_db()
@@ -225,11 +226,11 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
                 raise HTTPException(400, f"退回數量不可超過原出庫數量 {original_qty}")
             return_qty = req.qty
 
-        # 計算已退回數量（查同品項的「退回已領出」流水，created_at >= 原記錄）
+        # 精確計算已退回數量（用 source_movement_id 連結，不用 created_at 推斷）
         already_returned_row = conn.execute(
             "SELECT COALESCE(SUM(delta),0) as total FROM movements "
-            "WHERE item_id=? AND reason='退回已領出' AND created_at>=?",
-            (m["item_id"], m["created_at"])).fetchone()
+            "WHERE source_movement_id=? AND reason='退回已領出'",
+            (movement_id,)).fetchone()
         already_returned = already_returned_row["total"] if already_returned_row else 0
 
         # 全數退回判斷：累計退回量 + 本次 >= 原出庫數量
@@ -252,10 +253,10 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
             if cur.rowcount == 0:
                 raise HTTPException(400, "該記錄已全數退回過")
 
-        # 寫反向流水（退回已領出）
+        # 寫反向流水（退回已領出），source_movement_id 連結原始出庫
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-            (m["item_id"], return_qty, current, current + return_qty, "退回已領出", dest, now))
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at, source_movement_id) VALUES (?,?,?,?,?,?,?,?)",
+            (m["item_id"], return_qty, current, current + return_qty, "退回已領出", dest, now, movement_id))
         conn.commit()
         return {"ok": True, "movement_id": movement_id, "returned_qty": return_qty,
                 "fully_returned": is_full_return}

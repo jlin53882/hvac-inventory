@@ -244,13 +244,23 @@ function openReturnStockoutModal(movementId) {
   if (!rec) return;
   returnStockoutId = movementId;
   const origQty = Math.abs(rec.delta);
+  // 精確計算已退回數量（用 source_movement_id 連結，不用 created_at 推斷）
+  const returned = (stockoutRecords || []).filter(r =>
+    r.source_movement_id === movementId && r.reason === '退回已領出'
+  ).reduce((sum, r) => sum + Math.abs(r.delta), 0);
+  const remaining = origQty - returned;
   document.getElementById('rs-item-name').value = `${rec.brand} ${rec.item_name}${rec.code ? ' (' + rec.code + ')' : ''}`;
-  document.getElementById('rs-original-qty').textContent = origQty;
-  document.getElementById('rs-qty').value = origQty;  // 預設全數退回
+  document.getElementById('rs-original-qty').textContent = remaining > 0 ? `${origQty}（已退 ${returned}，剩 ${remaining}）` : `${origQty}（已全數退回）`;
+  document.getElementById('rs-qty').value = remaining > 0 ? remaining : 0;
+  document.getElementById('rs-qty').max = remaining;
   document.getElementById('rs-dest').value = rec.destination || '';
   // 日期預設今天
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('rs-datetime').value = today;
+  if (remaining <= 0) {
+    toast('此記錄已全數退回', 'error');
+    return;
+  }
   openModal('return-stockout-modal');
 }
 

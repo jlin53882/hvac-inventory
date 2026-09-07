@@ -653,6 +653,47 @@ class TestStockoutReturn:
         assert len(backs) == 2
         assert backs[0]["delta"] + backs[1]["delta"] == 5
 
+    def test_multiple_stockouts_same_item_independent(self, client):
+        """2026-09-07（Codex CRITICAL 修正）：同品項多筆出庫的部分退回互不干擾
+        - 出庫 A：5 個，退回 2 個
+        - 出庫 B：3 個，退回 1 個
+        - 兩筆的 source_movement_id 精確連結，不會互相計算
+        """
+        item = _add_item(client, name="冷媒", qty=20)
+        # 兩筆出庫
+        rec_a = self._out(client, item["id"], qty=5, dest="台北")
+        rec_b = self._out(client, item["id"], qty=3, dest="台中")
+        assert _get_item(client, item["id"])["total_qty"] == 12  # 20-5-3=12
+
+        # 從 A 退回 2
+        r1 = client.post(f"/api/stockouts/{rec_a['id']}/return", json={"qty": 2})
+        assert r1.status_code == 200
+        assert r1.json()["fully_returned"] is False
+        assert _get_item(client, item["id"])["total_qty"] == 14  # 12+2=14
+
+        # 從 B 退回 1（不應受 A 的 2 影響）
+        r2 = client.post(f"/api/stockouts/{rec_b['id']}/return", json={"qty": 1})
+        assert r2.status_code == 200
+        assert r2.json()["fully_returned"] is False  # B 只退了 1/3，不應是全數退回
+        assert _get_item(client, item["id"])["total_qty"] == 15  # 14+1=15
+
+        # B 的 reverted_at 不應被設（只退了 1/3）
+        mov_b = client.get("/api/movements").json()
+        orig_b = [m for m in mov_b if m["id"] == rec_b["id"]][0]
+        assert not orig_b["reverted_at"], "B 只退 1/3 不應設 reverted_at"
+
+        # B 可再退 2（剩餘）
+        r3 = client.post(f"/api/stockouts/{rec_b['id']}/return", json={"qty": 2})
+        assert r3.status_code == 200
+        assert r3.json()["fully_returned"] is True  # B 全數退回
+        assert _get_item(client, item["id"])["total_qty"] == 17  # 15+2=17
+
+        # A 仍可再退 3（剩餘）
+        r4 = client.post(f"/api/stockouts/{rec_a['id']}/return", json={"qty": 3})
+        assert r4.status_code == 200
+        assert r4.json()["fully_returned"] is True
+        assert _get_item(client, item["id"])["total_qty"] == 20  # 全部回來
+
     def test_return_qty_exceeds_original_rejected(self, client):
         """2026-09-07 Sarah：退回數量超過原出庫數量 → 400"""
         item = _add_item(client, name="冷媒", qty=10)

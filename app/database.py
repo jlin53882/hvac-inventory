@@ -314,6 +314,9 @@ def _exec_init(conn):
     if "reverted_at" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN reverted_at TIMESTAMP")
         print("[migrate] movements.reverted_at 欄位已新增（退回已領出防重複）")
+    if "source_movement_id" not in mov_cols:
+        conn.execute("ALTER TABLE movements ADD COLUMN source_movement_id INTEGER REFERENCES movements(id)")
+        print("[migrate] movements.source_movement_id 欄位已新增（退回連結原始出庫）")
     # M6：gcal_keys.reminders 欄位（2026-08-27 per-key 提醒）
     gcal_cols = [r[1] for r in conn.execute("PRAGMA table_info(gcal_keys)").fetchall()]
     if "reminders" not in gcal_cols:
