@@ -64,276 +64,183 @@ function buildDatalists() {
 
 
 
-// ========== 庫存頁渲染 ==========
+// ========== 庫存頁渲染（Phase 5 重構版） ==========
 
 function renderInventory() {
-
   const isViewer = !(hasPerm('item-mgmt') || hasPerm('stock-mgmt') || hasPerm('photo'));
-
-  // 共用篩選邏輯（搜尋 + 品牌 + 分類）
   let list = getFilteredInventoryItems();
-
   const content = document.getElementById('content');
-
   if (!list.length) {
-
     content.innerHTML = '<div class="empty">沒有符合的品項 🔍</div>';
-
     updateSaveBar();
-
     return;
-
   }
+  const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
+  const isM = (typeof isMobileView === 'function') && isMobileView();
+  let html = renderInventoryDashboard(list);
+  html += renderInventoryChips();
+  html += renderInventoryToolbar(list, isViewer);
+  if (viewMode === 'table' && !isM) {
+    html += renderInventoryTable(list, isViewer);
+  } else {
+    html += renderInventoryCard(list, isViewer, isM);
+  }
+  content.innerHTML = html;
+  updateSaveBar();
+}
 
-
-
-  // Dashboard 摘要卡
-  const totalItems = ALL_ITEMS.filter(i => !i.is_kit).length;
+function renderInventoryDashboard(list) {
   const totalQty = list.reduce((s, i) => s + (i.stocks || []).reduce((ss, st) => ss + (st.qty || 0), 0), 0);
   const lowCount = list.filter(i => i.low_stock > 0 && i.qty <= i.low_stock).length;
   const zeroCount = list.filter(i => !i.is_kit && i.qty <= 0).length;
-
-  // Chip 即時篩選列
-  const brands = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
-  const cats = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
-  let chipHTML = '<div class="chip-bar">';
-  chipHTML += '<span class="chip' + (currentBrands.length === 0 ? ' on' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
-  brands.forEach(b => { chipHTML += '<span class="chip' + (currentBrands.includes(b) ? ' on' : '') + '" onclick="toggleInventoryBrand(\'' + b.replace(/'/g, "\\'") + '\')">' + esc(b) + '</span>'; });
-  chipHTML += '</div>';
-
-  let catChipHTML = '<div class="chip-bar">';
-  catChipHTML += '<span class="chip' + (currentCategories.length === 0 ? ' on' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
-  cats.forEach(c => { catChipHTML += '<span class="chip' + (currentCategories.includes(c) ? ' on' : '') + '" onclick="toggleInventoryCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + esc(c) + '</span>'; });
-  catChipHTML += '</div>';
-
-  const dashHTML = '<div class="dash-cards">' +
+  return '<div class="dash-cards">' +
     '<div class="dash-card"><div class="dc-num">' + list.length + '</div><div class="dc-lbl">篩選品項</div></div>' +
     '<div class="dash-card"><div class="dc-num">' + totalQty + '</div><div class="dc-lbl">庫存總數</div></div>' +
     '<div class="dash-card' + (lowCount > 0 ? ' warn' : '') + '"><div class="dc-num">' + lowCount + '</div><div class="dc-lbl">低庫存</div></div>' +
     '<div class="dash-card' + (zeroCount > 0 ? ' danger' : '') + '"><div class="dc-num">' + zeroCount + '</div><div class="dc-lbl">缺貨</div></div>' +
     '</div>';
-
-  const byLoc = {};
-
-  // 多位置品項：以「第一個位置」為主分組（卡片上會列出全部位置）
-
-  list.forEach(i => {
-
-    const mainLoc = (i.stocks && i.stocks.length && i.stocks[0].location) || '未標示';
-
-    (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
-
-  });
-
-
-
-  // 位置折疊狀態（localStorage 記住，登出清除；per site 分開存）
-
-  const collapsedKey = 'hvac_collapsed_locs_' + (typeof currentSite !== 'undefined' ? currentSite : 'office');
-
-  let collapsedLocs = [];
-
-  try { collapsedLocs = JSON.parse(localStorage.getItem(collapsedKey) || '[]') || []; } catch (e) { collapsedLocs = []; }
-
-  const isM = (typeof isMobileView === 'function') && isMobileView();
-
-  let html = '';
-
-  // 2026-08-13 Sarah：新增/匯出按鈕從 topbar 移到庫存清單頂部（位置分組前，靠右；viewer 不顯示新增）
-
-  html += dashHTML + chipHTML + catChipHTML;
-  html += `<div class="loc-export-bar">
-
-    ${list.length ? `<span class="loc-export-count">共 ${list.length} 項</span>` : ''}
-
-    ${isViewer ? '' : `<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>`}
-
-    ${hasPerm('batch-loc-mgmt') ? `<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>` : ''}
-    ${batchMode ? `<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">${_allSelected() ? '☐ 取消全選' : '☑ 全選'}</button>` : ''}
-    <button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>
-
-  </div>`;
-
-  if (isM) {
-
-    // ===== 手機版：卡片式（⋯ 動作選單 + −/＋ 數量列） =====
-
-    Object.keys(byLoc).sort().forEach(loc => {
-
-      const locItems = byLoc[loc];
-
-      const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
-
-      html += `<div class="section-title${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}" onclick="toggleLoc(this, '${esc(loc)}')">
-
-        <button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>
-
-        <span class="loc">位置：${esc(loc)}</span><span>${locItems.length} 項</span>
-
-      </div>`;
-
-      html += `<div class="loc-group${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}">`;
-
-      locItems.forEach(i => {
-
-        const delta = pending[i.id] || 0;
-
-        const display = Math.round((i.qty + delta) * 1000) / 1000;
-
-        const isZero = display <= 0;
-
-        const prepared = i.prepared_qty || 0;
-
-        const locs = (i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}]);
-
-        const locStr = buildLocHTML(locs);
-
-        html += mobileCardShell({
-
-          reverted: false,
-
-          moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openItemSheet(${i.id})">⋯</button>`,
-          checkboxHTML: batchMode ? `<input type="checkbox" class="stock-checkbox" ${selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : ''} onchange="toggleStockSelect('item-${i.id}')">` : '',
-
-          thumb: buildThumb(i.id, i.has_photo, i.name, '📦'),
-
-          nameHTML: `${esc(i.name)}${i.site === 'warehouse' ? ' 🏭' : ''}`,  // V1b 2026-08-16：chip 移出品名行（防長名截出誤導 ⋯）
-          subHTML: `${prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : ''}${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}`,
-          extraHTML: locStr,
-
-          qtyHTML: buildQtyControl({id: i.id, display, unit: i.unit, isZero, delta, viewer: isViewer}),
-
-          actionsHTML: isViewer ? '' : `<div class="m-card-actions">
-
-            ${!i.is_kit ? `<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(${i.id}, event)">📤 待領出</button>` : ''}
-
-            <button class="btn-out" style="margin:0" onclick="openOutModal(${i.id}, event)">🚚 已領出</button>
-
-          </div>`
-
-        });
-
-      });
-
-      html += `</div>`;
-
-    });
-
-  } else {
-
-    // ===== 桌面版：原 item-card =====
-
-    Object.keys(byLoc).sort().forEach(loc => {
-
-    const locItems = byLoc[loc];
-
-    const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
-
-    html += `<div class="section-title${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}" onclick="toggleLoc(this, '${esc(loc)}')">
-
-      <button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>
-
-      <span class="loc">位置：${esc(loc)}</span><span>${locItems.length} 項</span>
-
-    </div>`;
-
-    html += `<div class="loc-group${locCollapsed ? ' collapsed' : ''}" data-loc="${esc(loc)}">`;
-
-    locItems.forEach(i => {
-
-      const delta = pending[i.id] || 0;
-
-      const display = Math.round((i.qty + delta) * 1000) / 1000;
-
-      const isZero = display <= 0;
-
-      const prepared = i.prepared_qty || 0;
-
-      // 位置標籤（位置：文字）與備註（📝 具體位置/說明）分開兩行顯示
-
-      // v10：多位置品項列出所有位置行；單一位置維持原本兩行樣式
-
-      const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
-
-      const locHtml = buildLocHTML(stocks);
-
-      html += `
-
-      <div class="item-card" id="card-${i.id}" ${batchMode ? 'style="padding-left:32px"' : ''}>
-
-        ${batchMode ? `<input type="checkbox" class="stock-checkbox" ${selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : ''} onchange="toggleStockSelect('item-${i.id}')">` : ''}
-        ${i.has_photo
-
-                  ? `<img class="item-photo" src="/uploads/${i.id}.jpg" alt="${esc(i.name)}" loading="lazy"
-
-                       onclick="openPhotoLightbox(${i.id})" title="點擊看大圖"
-
-                       onerror="this.style.display='none'">`
-
-                  : ''}
-
-        ${isViewer ? '' : `<button class="edit-btn" onclick="openEditModal(${i.id})" title="編輯品項">編輯</button>
-
-        <button class="del-btn" onclick="deleteItem(${i.id})" title="刪除材料">刪除</button>`}
-
-        <div class="item-info" ${isViewer ? '' : `onclick="openEditModal(${i.id})"`}>
-
-          <div class="item-name">${esc(i.name) || '—'}${i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : ''}</div>
-
-          <div class="item-code">${esc(i.brand)}${i.code ? ' · ' + esc(i.code) : ''}</div>
-
-          ${locHtml}
-
-          
-
-          ${i.is_kit ? `<div class="kit-tag">🔧 整組</div>` : ''}
-
-          ${prepared > 0 ? `<div class="prepared-tag">📤 待領出 ${prepared} ${esc(i.unit)}</div>` : ''}
-
-          ${isViewer ? '' : `<div style="margin-top:4px">
-
-            <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
-
-              ${!i.is_kit ? `<button class="btn-prepare" onclick="openPrepareModal(${i.id}, event)">📤 待領出</button>` : ''}
-
-              <button class="btn-out" onclick="openOutModal(${i.id}, event)">🚚 已領出</button>
-
-            </div>
-
-          </div>`}
-
-        </div>
-
-        ${isViewer
-
-          ? `<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">${display}<span class="unit"> ${esc(i.unit)}</span></div></div>`
-
-          : `<div class="qty-control">
-
-          <button class="qty-btn qty-minus" onclick="changeQty(${i.id}, -1)" ${isZero && delta <= 0 ? 'disabled' : ''}>−</button>
-
-          <div class="qty-value" onclick="quickSet(${i.id})" title="點數字可輸入">${display}<span class="unit"> ${esc(i.unit)}</span></div>
-
-          <button class="qty-btn qty-plus" onclick="changeQty(${i.id}, 1)">+</button>
-
-        </div>`}
-
-      </div>`;
-
-    });
-
-    html += `</div>`;
-
-  });
-
-  }
-
-  content.innerHTML = html;
-
-  updateSaveBar();
-
 }
 
+function renderInventoryChips() {
+  const brands = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
+  const cats = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
+  let h = '<div class="chip-bar">';
+  h += '<span class="chip' + (currentBrands.length === 0 ? ' on' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
+  brands.forEach(b => { h += '<span class="chip' + (currentBrands.includes(b) ? ' on' : '') + '" onclick="toggleInventoryBrand(\'' + b.replace(/'/g, "\\'") + '\')">' + esc(b) + '</span>'; });
+  h += '</div>';
+  h += '<div class="chip-bar">';
+  h += '<span class="chip' + (currentCategories.length === 0 ? ' on' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
+  cats.forEach(c => { h += '<span class="chip' + (currentCategories.includes(c) ? ' on' : '') + '" onclick="toggleInventoryCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + esc(c) + '</span>'; });
+  h += '</div>';
+  return h;
+}
+
+function renderInventoryToolbar(list, isViewer) {
+  const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
+  let h = '<div class="loc-export-bar">';
+  h += '<span class="loc-export-count">共 ' + list.length + ' 項</span>';
+  h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'active' : '') + '">🃏 卡片</button></div>';
+  if (!isViewer) h += '<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
+  if (hasPerm('batch-loc-mgmt')) h += '<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
+  if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
+  h += '<button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>';
+  h += '</div>';
+  return h;
+}
+
+function renderInventoryTable(list, isViewer) {
+  const byLoc = {};
+  list.forEach(i => {
+    const mainLoc = (i.stocks && i.stocks.length && i.stocks[0].location) || '未標示';
+    (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
+  });
+  let h = '<div class="tbl-wrap"><table class="data-table"><thead><tr>';
+  if (hasPerm('batch-loc-mgmt')) h += '<th style="width:30px"></th>';
+  h += '<th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
+  h += '</tr></thead><tbody>';
+  Object.keys(byLoc).sort().forEach(loc => {
+    byLoc[loc].forEach(i => {
+      const delta = pending[i.id] || 0;
+      const display = Math.round((i.qty + delta) * 1000) / 1000;
+      const isZero = display <= 0;
+      const isLow = i.low_stock > 0 && display > 0 && display <= i.low_stock;
+      const rowClass = isZero ? 'row-danger' : (isLow ? 'row-warn' : '');
+      const statusHTML = isZero ? '<span class="status-danger">⛔ 缺貨</span>' : (isLow ? '<span class="status-warn">⚠ 低庫存</span>' : '<span class="status-ok">✓ 正常</span>');
+      const stocks = i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}];
+      const locStr = stocks.map(s => esc(s.location)).join(', ');
+      h += '<tr class="' + rowClass + '">';
+      if (hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
+      h += '<td class="col-name">' + esc(i.name) + '</td>';
+      h += '<td>' + esc(i.brand) + '</td>';
+      h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + display + '</td>';
+      h += '<td>' + esc(i.unit) + '</td>';
+      h += '<td class="col-loc">' + locStr + '</td>';
+      h += '<td class="col-status">' + statusHTML + '</td>';
+      h += '<td class="col-actions">';
+      if (!isViewer) {
+        h += '<button onclick="openEditModal(' + i.id + ')" title="編輯">✏️</button> ';
+        h += '<button onclick="openOutModal(' + i.id + ')" title="已領出">📤</button> ';
+        h += '<button onclick="deleteItem(' + i.id + ')" title="刪除">🗑️</button>';
+      }
+      h += '</td></tr>';
+    });
+  });
+  h += '</tbody></table></div>';
+  return h;
+}
+
+function renderInventoryCard(list, isViewer, isM) {
+  const collapsedKey = 'hvac_collapsed_locs_' + (typeof currentSite !== 'undefined' ? currentSite : 'office');
+  let collapsedLocs = [];
+  try { collapsedLocs = JSON.parse(localStorage.getItem(collapsedKey) || '[]') || []; } catch (e) { collapsedLocs = []; }
+  const byLoc = {};
+  list.forEach(i => {
+    const mainLoc = (i.stocks && i.stocks.length && i.stocks[0].location) || '未標示';
+    (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
+  });
+  let h = '';
+  Object.keys(byLoc).sort().forEach(loc => {
+    const locItems = byLoc[loc];
+    const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
+    h += '<div class="section-title' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="toggleLoc(this, \'' + esc(loc) + '\')">';
+    h += '<button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>';
+    h += '<span class="loc">位置：' + esc(loc) + '</span><span>' + locItems.length + ' 項</span>';
+    h += '</div>';
+    h += '<div class="loc-group' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '">';
+    locItems.forEach(i => {
+      const delta = pending[i.id] || 0;
+      const display = Math.round((i.qty + delta) * 1000) / 1000;
+      const isZero = display <= 0;
+      const isLow = i.low_stock > 0 && display > 0 && display <= i.low_stock;
+      const cardClass = isZero ? 'item-card danger' : (isLow ? 'item-card warn' : 'item-card');
+      const prepared = i.prepared_qty || 0;
+      if (isM) {
+        const locs = (i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}]);
+        const locStr = buildLocHTML(locs);
+        h += mobileCardShell({
+          reverted: false,
+          cardClass: cardClass,
+          moreBtnHTML: isViewer ? '' : '<button class="more-btn" onclick="openItemSheet(' + i.id + ')">⋯</button>',
+          checkboxHTML: batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">' : '',
+          thumb: buildThumb(i.id, i.has_photo, i.name, '📦'),
+          nameHTML: esc(i.name) + (i.site === 'warehouse' ? ' 🏭' : ''),
+          subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + esc(i.brand) + (i.code ? ' · ' + esc(i.code) : ''),
+          extraHTML: locStr,
+          qtyHTML: buildQtyControl({id: i.id, display, unit: i.unit, isZero, delta, viewer: isViewer}),
+          actionsHTML: isViewer ? '' : '<div class="m-card-actions">' + (!i.is_kit ? '<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>' : '') + '<button class="btn-out" style="margin:0" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button></div>'
+        });
+      } else {
+        const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
+        const locHtml = buildLocHTML(stocks);
+        h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' style="padding-left:32px"' : '') + '>';
+        if (batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">';
+        if (i.has_photo) h += '<img class="item-photo" src="/uploads/' + i.id + '.jpg" alt="' + esc(i.name) + '" loading="lazy" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
+        if (!isViewer) h += '<button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="編輯品項">編輯</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="刪除材料">刪除</button>';
+        h += '<div class="item-info"' + (isViewer ? '' : ' onclick="openEditModal(' + i.id + ')"') + '>';
+        h += '<div class="item-name">' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + '</div>';
+        h += '<div class="item-code">' + esc(i.brand) + (i.code ? ' · ' + esc(i.code) : '') + '</div>';
+        h += locHtml;
+        if (i.is_kit) h += '<div class="kit-tag">🔧 整組</div>';
+        if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + prepared + ' ' + esc(i.unit) + '</div>';
+        if (!isViewer) h += '<div style="margin-top:4px"><div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">' + (!i.is_kit ? '<button class="btn-prepare" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>' : '') + '<button class="btn-out" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button></div></div>';
+        h += '</div>';
+        if (isViewer) {
+          h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + display + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
+        } else {
+          h += '<div class="qty-control"><button class="qty-btn qty-minus" onclick="changeQty(' + i.id + ', -1)"' + (isZero && delta <= 0 ? ' disabled' : '') + '>−</button><div class="qty-value" onclick="quickSet(' + i.id + ')" title="點數字可輸入">' + display + '<span class="unit"> ' + esc(i.unit) + '</span></div><button class="qty-btn qty-plus" onclick="changeQty(' + i.id + ', 1)">+</button></div>';
+        }
+        h += '</div>';
+      }
+    });
+    h += '</div>';
+  });
+  return h;
+}
+
+function setInventoryView(mode) {
+  localStorage.setItem('inventoryViewMode', mode);
+  renderInventory();
+}
 
 
 // ========== 數量增減（暫存） ==========

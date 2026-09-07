@@ -948,6 +948,33 @@
 tr.row-warn td{background:#fffbeb}
 tr.row-danger td{background:#fff5f5}
 
+/* ===== Table View (Phase 5) ===== */
+.tbl-wrap{overflow-x:auto;border:1px solid #e5e7eb;border-radius:10px;background:#fff;margin-top:12px}
+.tbl-wrap table.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.tbl-wrap table.data-table th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:600;color:#64748b;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+.tbl-wrap table.data-table td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
+.tbl-wrap table.data-table tr:last-child td{border-bottom:none}
+.tbl-wrap table.data-table tr.row-warn td{background:#fffbeb}
+.tbl-wrap table.data-table tr.row-danger td{background:#fff5f5}
+.tbl-wrap .col-name{font-weight:600}
+.tbl-wrap .col-qty{text-align:center;font-weight:700}
+.tbl-wrap .col-loc{color:#64748b;font-size:12px}
+.tbl-wrap .col-status{text-align:center}
+.tbl-wrap .col-actions{text-align:right;white-space:nowrap}
+.tbl-wrap .col-actions button{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px}
+.tbl-wrap .status-ok{color:#16a34a;font-size:11px}
+.tbl-wrap .status-warn{color:#d97706;font-size:11px;font-weight:600}
+.tbl-wrap .status-danger{color:#dc2626;font-size:11px;font-weight:600}
+
+/* ===== View Toggle ===== */
+.view-toggle{display:inline-flex;gap:4px;margin-left:8px}
+.view-toggle button{padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:6px;font-size:11px;cursor:pointer}
+.view-toggle button.active{background:#2d5a8e;color:#fff;border-color:#2d5a8e}
+
+/* ===== Card warn/danger (Phase 5) ===== */
+.item-card.warn{background:#fffbeb;border-color:#f59e0b}
+.item-card.danger{background:#fff5f5;border-color:#ef4444}
+
 /* ===== Dashboard stat cards ===== */
 .dash-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
 .dash-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center}

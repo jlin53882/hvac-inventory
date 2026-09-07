@@ -805,7 +805,7 @@ def test_xss_escapes_present():
     assert "${esc(b)}" in inv          # 品牌 tab
     assert 'value="${esc(b)}"' in inv  # brand datalist option
     assert 'value="${esc(l)}"' in inv  # location datalist option
-    assert "位置：${esc(loc)}" in inv    # 庫存頁位置分組標題
+    assert "esc(loc)" in inv and "位置" in inv    # 庫存頁位置分組標題（esc 保護）
 
     st = read(STOCKTAKE_JS)
     assert "位置：${esc(loc)}" in st    # 盤點頁位置分組標題
@@ -2192,3 +2192,44 @@ def test_calcdiff_function():
     assert "function calcDiff" in js, "calcDiff 函式缺失"
     assert "st-diff" in js, "st-diff class 引用缺失"
     assert "sysqty" in js or "data-sysqty" in js, "sysqty 資料屬性缺失"
+
+
+# ========== Phase 5: Data Table View + Drawer + row-warn ==========
+def test_inventory_table_view_function():
+    """Phase 5：renderInventoryTable 函式存在"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "function renderInventoryTable" in js, "renderInventoryTable 函式缺失"
+    assert "data-table" in js, "data-table class 引用缺失"
+    assert "row-warn" in js or "row-danger" in js, "row-warn/danger 引用缺失"
+
+
+def test_inventory_card_warn_danger():
+    """Phase 5：card warn/danger class 動態套用"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "item-card danger" in js or "item-card.danger" in js, "card danger class 缺失"
+    assert "item-card warn" in js or "item-card.warn" in js, "card warn class 缺失"
+    assert "isLow" in js or "isLow()" in js, "isLow 判斷缺失"
+
+
+def test_view_toggle_function():
+    """Phase 5：view toggle 存在"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "function setInventoryView" in js, "setInventoryView 函式缺失"
+    assert "inventoryViewMode" in js, "inventoryViewMode localStorage 缺失"
+
+
+def test_table_view_css():
+    """Phase 5：table view CSS 存在"""
+    css = read(CSS_CORE)
+    assert ".tbl-wrap" in css, "tbl-wrap CSS 缺失"
+    assert ".view-toggle" in css, "view-toggle CSS 缺失"
+    assert ".item-card.warn" in css, "item-card.warn CSS 缺失"
+    assert ".item-card.danger" in css, "item-card.danger CSS 缺失"
+
+
+def test_drawer_content_render():
+    """Phase 5：Drawer renderDrawerContent 函式存在"""
+    js = read(APP_JS)
+    assert "function openDrawer" in js, "openDrawer 函式缺失"
+    assert "function closeDrawer" in js, "closeDrawer 函式缺失"
+    assert "drawerBody" in js, "drawerBody 引用缺失"

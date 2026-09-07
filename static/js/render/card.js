@@ -49,7 +49,7 @@ function buildQtyNum(display, unit, cls) {
 // 手機卡片外框：共用 thumb/info/qty-col 結構（各頁填內容）
 // p: { reverted, moreBtnHTML, thumb, nameHTML, subHTML, extraHTML, qtyHTML, actionsHTML, checkboxHTML }
 function mobileCardShell(p) {
-  return `<div class="m-card${p.reverted ? ' reverted' : ''}">
+  return `<div class="m-card${p.reverted ? ' reverted' : ''}${p.cardClass ? ' ' + p.cardClass : ''}">
     ${p.moreBtnHTML || ''}
     <div class="card-main">
       ${p.checkboxHTML || ''}

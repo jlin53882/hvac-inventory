@@ -122,7 +122,9 @@ REVIEWED_SAFE_BODIES = {
     "it.item_id",
     "absNum(it.total_qty)",
     "g.items.length",
-    "isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'", "isLow ? '警示值' : '位置'",
+    "isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'",
+    # card.js mobileCardShell cardClass（2026-09-07 Phase 5：CSS class 為開發者傳入常數）
+    "p.cardClass ? ' ' + p.cardClass : ''", "isLow ? '警示值' : '位置'",
     "isLow ? '#92400e' : '#991b1b'", "isLow ? '#fffbeb' : '#fef2f2'",
     "isLow ? '⚠️ 低庫存品項' : '⛔ 缺貨品項'", "isLow ? (i.low_stock || 0) : esc(locStr || '—')",
     "enough ? 'ok' : 'low'", "enough ? '#16a34a' : '#dc2626'",
