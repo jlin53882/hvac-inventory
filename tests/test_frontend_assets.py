@@ -1510,6 +1510,40 @@ def test_stockout_modal_core_functions():
         assert fn in js, f"stockout.js(modals) 缺 {fn}"
 
 
+def test_edit_stockout_modal_date_only():
+    """2026-09-07 Sarah：編輯已領出日期欄只選日期不含時間
+    - HTML input type='date'（非 datetime-local）
+    - JS 回填用 .slice(0, 10) 只取 YYYY-MM-DD
+    - JS 送出時自動補 ' 00:00:00'（後端 DB 格式 YYYY-MM-DD HH:MM:SS）
+    """
+    html = read(INDEX)
+    # HTML：編輯已領出 modal 的日期欄必須是 type="date"
+    assert 'type="date"' in html, "編輯已領出日期欄應為 type=date"
+    assert 'type="datetime-local"' not in html, "編輯已領出不應再用 datetime-local"
+
+    js = read(STOCKOUT_MODAL_JS)
+    # JS 回填：只取前 10 碼（YYYY-MM-DD），而非 16 碼（YYYY-MM-DDTHH:MM）
+    assert ".slice(0, 10)" in js, "openEditStockoutModal 應用 .slice(0, 10) 取日期"
+    assert ".slice(0, 16)" not in js, "openEditStockoutModal 不應再用 .slice(0, 16)"
+
+    # JS 送出：date input 只有 YYYY-MM-DD，需補完整時間格式存 DB
+    assert "00:00:00" in js, "submitEditStockout 送出時應補 00:00:00"
+
+
+def test_edit_created_at_date_only_api():
+    """2026-09-07 Sarah：後端 PATCH /api/stockouts 應接受 date-only 格式
+    StockoutUpdate model 的 created_at 是 Optional[str]，
+    驗證 Pydantic model 接受 date-only 與完整 datetime 兩種格式
+    """
+    from app.models import StockoutUpdate
+    # 驗證 Pydantic model 接受 date-only 字串
+    s = StockoutUpdate(created_at="2026-09-04")
+    assert s.created_at == "2026-09-04"
+    # 也接受完整 datetime（向後相容）
+    s2 = StockoutUpdate(created_at="2026-09-04 02:05:00")
+    assert s2.created_at == "2026-09-04 02:05:00"
+
+
 def test_stocktake_view_for_all_roles():
     """2026-08-14 家豪裁決（Sarah：藍政達/蘇昱豪手機看不到盤點）：盤點頁瀏覽掛 view 基底權限——
     所有角色看得到盤點 tab；「本次盤點」操作區僅限 stocktake 權限（admin/user）"""

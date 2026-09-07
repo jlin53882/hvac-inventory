@@ -263,7 +263,7 @@ function openEditStockoutModal(movementId) {
   document.getElementById('es-qty').value = Math.abs(rec.delta);
   document.getElementById('es-dest').value = rec.destination || '';
   const dt = (rec.created_at || '').replace(' ', 'T');
-  document.getElementById('es-datetime').value = dt ? dt.slice(0, 16) : '';
+  document.getElementById('es-datetime').value = dt ? dt.slice(0, 10) : '';
   openModal('edit-stockout-modal');
 }
 
@@ -280,7 +280,7 @@ async function submitEditStockout() {
   }
   const body = { qty: qty };
   if (dest) body.destination = dest;
-  if (dt) body.created_at = dt.replace('T', ' ') + ':00';
+  if (dt) body.created_at = dt + ' 00:00:00';
   try {
     const res = await fetch(`/api/stockouts/${editStockoutId}`, {
       method: 'PATCH',
