@@ -513,6 +513,7 @@ class TestStockoutReturn:
         r = client.post(f"/api/stockouts/{rec['id']}/return")
         assert r.status_code == 200
         assert r.json()["returned_qty"] == 3
+        assert r.json()["fully_returned"] is True
 
         assert _get_item(client, item["id"])["total_qty"] == 10  # 庫存加回
 
@@ -598,6 +599,102 @@ class TestStockoutReturn:
         r = client.post(f"/api/stockouts/{adj['id']}/return")
         assert r.status_code == 400
         assert _get_item(client, item["id"])["total_qty"] == 3  # 庫存沒有被加回
+
+    def test_partial_return(self, client):
+        """2026-09-07 Sarah：部分退回——只退 N 個，庫存只加回 N"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=5)
+        assert _get_item(client, item["id"])["total_qty"] == 5
+
+        # 退回 2 個（非全數 5）
+        r = client.post(f"/api/stockouts/{rec['id']}/return", json={"qty": 2})
+        assert r.status_code == 200
+        assert r.json()["returned_qty"] == 2
+        assert r.json()["fully_returned"] is False
+        assert _get_item(client, item["id"])["total_qty"] == 7  # 5+2=7
+
+        # 反向流水 delta=2（非全數 5）
+        mov = client.get("/api/movements").json()
+        backs = [m for m in mov if m["reason"] == "退回已領出"]
+        assert len(backs) == 1
+        assert backs[0]["delta"] == 2
+
+        # 部分退回後不設 reverted_at，可再退
+        outs = client.get("/api/stockouts").json()
+        orig = [o for o in outs if o["id"] == rec["id"]][0]
+        assert not orig["reverted_at"], "部分退回不應設 reverted_at"
+
+    def test_partial_then_full_return(self, client):
+        """2026-09-07 Sarah（Codex 審查）：部分退回後可再退剩餘"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=5)
+        assert _get_item(client, item["id"])["total_qty"] == 5
+
+        # 第一次：退回 2
+        r1 = client.post(f"/api/stockouts/{rec['id']}/return", json={"qty": 2})
+        assert r1.status_code == 200
+        assert r1.json()["fully_returned"] is False
+        assert _get_item(client, item["id"])["total_qty"] == 7
+
+        # 第二次：退回剩餘 3（全數）
+        r2 = client.post(f"/api/stockouts/{rec['id']}/return", json={"qty": 3})
+        assert r2.status_code == 200
+        assert r2.json()["returned_qty"] == 3
+        assert r2.json()["fully_returned"] is True
+        assert _get_item(client, item["id"])["total_qty"] == 10
+
+        # 全數退回後設 reverted_at，不能再退
+        r3 = client.post(f"/api/stockouts/{rec['id']}/return", json={"qty": 1})
+        assert r3.status_code == 400
+
+        # 反向流水共 2 筆（2+3=5）
+        mov = client.get("/api/movements").json()
+        backs = [m for m in mov if m["reason"] == "退回已領出"]
+        assert len(backs) == 2
+        assert backs[0]["delta"] + backs[1]["delta"] == 5
+
+    def test_return_qty_exceeds_original_rejected(self, client):
+        """2026-09-07 Sarah：退回數量超過原出庫數量 → 400"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)
+        r = client.post(f"/api/stockouts/{rec['id']}/return", json={"qty": 5})
+        assert r.status_code == 400
+        assert "超過" in r.json()["detail"]
+
+    def test_return_with_custom_destination(self, client):
+        """2026-09-07 Sarah：退回時可自訂去向"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3, dest="台北案場")
+        r = client.post(f"/api/stockouts/{rec['id']}/return",
+                        json={"qty": 3, "destination": "退回倉庫"})
+        assert r.status_code == 200
+
+        # 反向流水的去向 = 自訂去向（非原出庫去向）
+        mov = client.get("/api/movements").json()
+        backs = [m for m in mov if m["reason"] == "退回已領出"]
+        assert backs[0]["destination"] == "退回倉庫"
+
+    def test_return_with_custom_date(self, client):
+        """2026-09-07 Sarah：退回時可自訂日期"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=3)
+        r = client.post(f"/api/stockouts/{rec['id']}/return",
+                        json={"qty": 3, "created_at": "2026-09-05 00:00:00"})
+        assert r.status_code == 200
+
+        # 反向流水的 created_at = 自訂日期
+        mov = client.get("/api/movements").json()
+        backs = [m for m in mov if m["reason"] == "退回已領出"]
+        assert backs[0]["created_at"].startswith("2026-09-05")
+
+    def test_return_full_without_body(self, client):
+        """2026-09-07：不帶 body 退回 = 全數退回（向後相容）"""
+        item = _add_item(client, name="冷媒", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        r = client.post(f"/api/stockouts/{rec['id']}/return")
+        assert r.status_code == 200
+        assert r.json()["returned_qty"] == 4
+        assert _get_item(client, item["id"])["total_qty"] == 10
 
 
 # ========== 已領出：編輯（2026-08-10 新增） ==========

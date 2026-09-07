@@ -579,6 +579,33 @@
   </div>
 </div>
 
+<!-- 退回已領出 Modal -->
+<div class="modal-overlay" id="return-stockout-modal">
+  <div class="modal">
+    <h3>↩️ 退回已領出</h3>
+    <div class="form-row">
+      <label>品項</label>
+      <input type="text" id="rs-item-name" disabled>
+    </div>
+    <div class="form-row">
+      <label>退回數量 *（原領出 <span id="rs-original-qty"></span>）</label>
+      <input type="number" id="rs-qty" min="0" step="any" placeholder="退回數量（預設全數）">
+    </div>
+    <div class="form-row">
+      <label>退回去向</label>
+      <input type="text" id="rs-dest" list="dest-list" placeholder="例如：退回倉庫">
+    </div>
+    <div class="form-row">
+      <label>日期</label>
+      <input type="date" id="rs-datetime">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('return-stockout-modal')">取消</button>
+      <button class="btn-confirm orange" onclick="submitReturnStockout()">↩️ 退回</button>
+    </div>
+  </div>
+</div>
+
 <!-- 修改密碼 modal -->
 <div class="modal-overlay" id="changepw-modal">
   <div class="modal">

@@ -1544,6 +1544,26 @@ def test_edit_created_at_date_only_api():
     assert s2.created_at == "2026-09-04 02:05:00"
 
 
+def test_return_stockout_modal_present():
+    """2026-09-07 Sarah：退回已領出 Modal 存在且含必要欄位
+    - HTML 有 return-stockout-modal
+    - JS 有 openReturnStockoutModal / submitReturnStockout
+    - JS 退回函式帶 body（非空 POST）
+    """
+    html = read(INDEX)
+    assert 'id="return-stockout-modal"' in html, "退回 Modal DOM 缺失"
+    assert 'id="rs-qty"' in html, "退回 Modal 數量欄缺失"
+    assert 'id="rs-dest"' in html, "退回 Modal 去向欄缺失"
+    assert 'id="rs-datetime"' in html, "退回 Modal 日期欄缺失"
+
+    js = read(STOCKOUT_MODAL_JS)
+    assert "openReturnStockoutModal" in js, "JS 缺 openReturnStockoutModal"
+    assert "submitReturnStockout" in js, "JS 缺 submitReturnStockout"
+    # 送出時帶 body（JSON），不再是空 POST
+    assert "JSON.stringify(body)" in js, "退回送出應帶 JSON body"
+    assert "Content-Type" in js, "退回送出應帶 Content-Type header"
+
+
 def test_stocktake_view_for_all_roles():
     """2026-08-14 家豪裁決（Sarah：藍政達/蘇昱豪手機看不到盤點）：盤點頁瀏覽掛 view 基底權限——
     所有角色看得到盤點 tab；「本次盤點」操作區僅限 stocktake 權限（admin/user）"""

@@ -234,24 +234,60 @@ async function returnPrepared(id) {
   }
 }
 
-// ========== 已領出：退回 / 編輯（v11） ==========
+// ========== 已領出：退回 / 編輯（v11 + 退回 Modal） ==========
 
-// 退回一筆已領出記錄（POST /api/stockouts/{id}/return）：數量加回庫存
-async function returnStockout(movementId) {
+var returnStockoutId = null;  // 當前退回的記錄 ID
+
+// 開啟「退回已領出」Modal，帶入原記錄資料
+function openReturnStockoutModal(movementId) {
   const rec = (stockoutRecords || []).find(r => r.id === movementId);
-  const label = rec ? `${rec.brand} ${rec.item_name} ${Math.abs(rec.delta)} ${rec.unit}` : `這筆已領出（#${movementId}）`;
-  if (!confirm(`退回已領出「${label}」？數量會加回庫存`)) return;
+  if (!rec) return;
+  returnStockoutId = movementId;
+  const origQty = Math.abs(rec.delta);
+  document.getElementById('rs-item-name').value = `${rec.brand} ${rec.item_name}${rec.code ? ' (' + rec.code + ')' : ''}`;
+  document.getElementById('rs-original-qty').textContent = origQty;
+  document.getElementById('rs-qty').value = origQty;  // 預設全數退回
+  document.getElementById('rs-dest').value = rec.destination || '';
+  // 日期預設今天
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('rs-datetime').value = today;
+  openModal('return-stockout-modal');
+}
+
+// 送出「退回已領出」（POST /api/stockouts/{id}/return）：部分退回 + 去向 + 日期
+async function submitReturnStockout() {
+  const qty = parseFloat(document.getElementById('rs-qty').value);
+  const dest = document.getElementById('rs-dest').value.trim();
+  const dt = document.getElementById('rs-datetime').value;
+  if (!qty || qty <= 0) { toast('請輸入有效退回數量', 'error'); return; }
+  // 上限檢查
+  const rec = stockoutRecords.find(r => r.id === returnStockoutId);
+  const origQty = rec ? Math.abs(rec.delta) : 0;
+  if (qty > origQty) { toast(`退回數量不可超過原出庫數量 ${origQty}`, 'error'); return; }
+  const body = { qty: qty };
+  if (dest) body.destination = dest;
+  if (dt) body.created_at = dt + ' 00:00:00';
   try {
-    const res = await fetch(`/api/stockouts/${movementId}/return`, { method: 'POST' });
+    const res = await fetch(`/api/stockouts/${returnStockoutId}/return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.detail || '退回失敗');
     }
+    closeModalForce('return-stockout-modal');
     toast('↩️ 已退回，數量已加回庫存', 'success');
     await loadData();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
+}
+
+// 向後相容：直接呼叫 returnStockout(id) 開 Modal
+function returnStockout(movementId) {
+  openReturnStockoutModal(movementId);
 }
 
 // 開啟「編輯已領出」Modal，帶入原記錄資料

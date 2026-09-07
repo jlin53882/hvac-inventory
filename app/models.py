@@ -77,6 +77,13 @@ class StockoutUpdate(BaseModel):
     created_at: Optional[str] = None
 
 
+class StockoutReturnRequest(BaseModel):
+    """退回已領出：數量（部分退回）/ 去向 / 日期"""
+    qty: Optional[float] = Field(None, gt=0)
+    destination: Optional[str] = None
+    created_at: Optional[str] = None
+
+
 class PrepareRequest(BaseModel):
     qty: float
     note: str = ""

@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
-from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutUpdate
+from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRequest, StockoutUpdate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
 
@@ -197,9 +197,15 @@ def _add_back_to_first_stock(conn, item_id, qty):
 
 
 @router.post("/api/stockouts/{movement_id}/return", dependencies=[Depends(require_perm("stockout"))])
-def return_stockout(movement_id: int):
+def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
+    """退回已領出：支援部分退回 + 自訂去向 + 日期
+    - qty：退回數量（預設=全數退回）
+    - destination：退回去向（預設=原出庫去向）
+    - created_at：退回日期（YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DD）
+    部分退回時不設 reverted_at，可再次退回剩餘數量。
+    全數退回時設 reverted_at，防止重複退回。
+    """
     try:
-        """退回已領出：把該筆出庫數量加回庫存 + 標記原記錄（reverted_at）+ 寫反向流水"""
         conn = get_db()
         m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not m:
@@ -207,24 +213,52 @@ def return_stockout(movement_id: int):
         if m["delta"] >= 0 or not str(m["reason"]).startswith("出庫"):
             raise HTTPException(400, "只有已領出（出庫）記錄可以退回")
         if m["reverted_at"]:
-            raise HTTPException(400, "該記錄已退回過")
+            raise HTTPException(400, "該記錄已全數退回過")
 
-        qty = -m["delta"]
-        current = _total_qty(conn, m["item_id"])  # M9：before_qty 用當前實際庫存（原用歷史值 m["after_qty"]）
-        _add_back_to_first_stock(conn, m["item_id"], qty)
-        now = datetime.datetime.now().isoformat()
-        # 2026-08-12 補：守衛式 UPDATE（WHERE reverted_at IS NULL）+ rowcount——
-        # 併發雙請求都通過上方讀取檢查時，只允許一個成功，另一個 rollback 撤銷已加庫存
-        cur = conn.execute(
-            "UPDATE movements SET reverted_at=? WHERE id=? AND reverted_at IS NULL", (now, movement_id))
-        if cur.rowcount == 0:
-            raise HTTPException(400, "該記錄已退回過")
+        original_qty = -m["delta"]
+        # 部分退回：qty 預設=全數
+        return_qty = original_qty
+        if req and req.qty is not None:
+            if req.qty <= 0:
+                raise HTTPException(400, "退回數量必須大於 0")
+            if req.qty > original_qty:
+                raise HTTPException(400, f"退回數量不可超過原出庫數量 {original_qty}")
+            return_qty = req.qty
+
+        # 計算已退回數量（查同品項的「退回已領出」流水，created_at >= 原記錄）
+        already_returned_row = conn.execute(
+            "SELECT COALESCE(SUM(delta),0) as total FROM movements "
+            "WHERE item_id=? AND reason='退回已領出' AND created_at>=?",
+            (m["item_id"], m["created_at"])).fetchone()
+        already_returned = already_returned_row["total"] if already_returned_row else 0
+
+        # 全數退回判斷：累計退回量 + 本次 >= 原出庫數量
+        is_full_return = (already_returned + return_qty) >= original_qty
+
+        # 去向：預設=原出庫去向
+        dest = ((req.destination.strip() if req and req.destination else None) or m["destination"] or "")
+
+        current = _total_qty(conn, m["item_id"])
+        _add_back_to_first_stock(conn, m["item_id"], return_qty)
+
+        # 退回日期：預設=當前時間
+        now = (req.created_at if req and req.created_at else None) or datetime.datetime.now().isoformat()
+
+        # 只有全數退回才設 reverted_at（部分退回允許再次退回）
+        if is_full_return:
+            cur = conn.execute(
+                "UPDATE movements SET reverted_at=? WHERE id=? AND reverted_at IS NULL",
+                (now, movement_id))
+            if cur.rowcount == 0:
+                raise HTTPException(400, "該記錄已全數退回過")
+
+        # 寫反向流水（退回已領出）
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (m["item_id"], qty, current, current + qty, "退回已領出", m["destination"]),
-        )
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+            (m["item_id"], return_qty, current, current + return_qty, "退回已領出", dest, now))
         conn.commit()
-        return {"ok": True, "movement_id": movement_id, "returned_qty": qty}
+        return {"ok": True, "movement_id": movement_id, "returned_qty": return_qty,
+                "fully_returned": is_full_return}
     except Exception:
         conn.rollback()
         raise
