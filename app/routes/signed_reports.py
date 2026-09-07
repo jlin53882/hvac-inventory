@@ -27,6 +27,7 @@ from app.services.auth import get_user_permissions, require_login
 router = APIRouter()
 
 MAX_SIZE = 20 * 1024 * 1024  # 20MB
+ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"}  # 副檔名白名單防 XSS
 
 def _safe_name(name: str) -> str:
     name = os.path.basename((name or "file").strip()) or "file"
@@ -85,6 +86,10 @@ def upload_signed_report(
         raise HTTPException(400, "單檔上限 20MB")
     data = data[:MAX_SIZE]  # truncate to exact limit after size check
     safe = _safe_name(file.filename or "file")
+    # 副檔名白名單：防止上傳 SVG/HTML 等含腳本的檔案類型
+    ext = Path(safe).suffix.lower()
+    if ext not in ALLOWED_EXTS:
+        raise HTTPException(400, f"不支援的檔案格式 {ext}，僅允許 PDF/PNG/JPG/GIF/WebP")
     mime = (file.content_type or "").strip()[:120]
 
     conn = get_db()
@@ -209,9 +214,12 @@ def preview_signed_report(rid: int, user: dict = Depends(require_login)):
         path = Path(STATIC_DIR) / "uploads" / row["stored_path"]
         if not path.exists():
             raise HTTPException(404, "檔案遺失")
-        # inline 預覽：僅圖片/PDF 可 inline，其餘強制 attachment 防 XSS
+        # inline 預覽：僅圖片/PDF 可 inline，SVG/HTML 強制 attachment 防 XSS
         mime = (row["mime_type"] or "").lower()
-        safe_inline = mime in ("application/pdf",) or mime.startswith("image/")
+        fname = (row["file_name"] or "").lower()
+        is_svg = mime == "image/svg+xml" or fname.endswith(".svg")
+        is_html = mime in ("text/html", "application/xhtml+xml") or fname.endswith((".html", ".htm"))
+        safe_inline = (mime in ("application/pdf",) or mime.startswith("image/")) and not is_svg and not is_html
         disp = "inline" if safe_inline else "attachment"
         return FileResponse(path, filename=row["file_name"], content_disposition_type=disp)
     finally:

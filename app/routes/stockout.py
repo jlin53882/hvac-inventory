@@ -222,9 +222,6 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
         if req and req.qty is not None:
             if req.qty <= 0:
                 raise HTTPException(400, "退回數量必須大於 0")
-            if req.qty > original_qty:
-                raise HTTPException(400, f"退回數量不可超過原出庫數量 {original_qty}")
-            return_qty = req.qty
 
         # 精確計算已退回數量（用 source_movement_id 連結，不用 created_at 推斷）
         already_returned_row = conn.execute(
@@ -232,6 +229,15 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
             "WHERE source_movement_id=? AND reason='退回已領出'",
             (movement_id,)).fetchone()
         already_returned = already_returned_row["total"] if already_returned_row else 0
+
+        # 餘量檢查：已退回 + 本次不可超過原出庫（防多筆部分退回累計超退）
+        remaining = original_qty - already_returned
+        if req and req.qty is not None:
+            if req.qty > remaining:
+                raise HTTPException(400, f"退回數量不可超過剩餘可退量 {remaining}")
+            return_qty = req.qty
+        else:
+            return_qty = remaining  # 全數退回 = 退剩餘全部
 
         # 全數退回判斷：累計退回量 + 本次 >= 原出庫數量
         is_full_return = (already_returned + return_qty) >= original_qty
