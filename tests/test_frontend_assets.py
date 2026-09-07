@@ -2262,3 +2262,26 @@ def test_drawer_content_render():
     assert "function openDrawer" in js, "openDrawer 函式缺失"
     assert "function closeDrawer" in js, "closeDrawer 函式缺失"
     assert "drawerBody" in js, "drawerBody 引用缺失"
+
+
+# ========== signed-reports 遺漏測試 ==========
+def test_sidebar_has_signed_reports_nav():
+    """sidebar 有簽名報表 nav link"""
+    html = read(INDEX)
+    assert 'sb-nav-signed-reports' in html, "sidebar 缺 sb-nav-signed-reports"
+    assert '每日簽名日報表' in html, "sidebar 標題未統一為每日簽名日報表"
+
+
+def test_tab_label_includes_signed_reports():
+    """_TAB_LABEL 包含 signed-reports"""
+    js = read(APP_JS)
+    assert "'signed-reports':'每日簽名日報表'" in js, "_TAB_LABEL 缺 signed-reports"
+    assert "'signed-reports':'🗂'" in js, "_TAB_ICON 缺 signed-reports"
+
+
+def test_camera_button_exists():
+    """簽名報表有相機拍攝按鈕"""
+    js = read(os.path.join(STATIC, 'js', 'render', 'signed-reports.js'))
+    assert 'dsr-camera-input' in js, "相機 input 缺失"
+    assert 'capture="environment"' in js or "capture='environment'" in js, "capture 屬性缺失"
+    assert '相機拍攝' in js, "相機拍攝按鈕文字缺失"
