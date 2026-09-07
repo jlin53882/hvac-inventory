@@ -256,7 +256,7 @@ class TestSyncPending:
         # 執行同步（用 mark_sync_pending 自動建的隊列）
         due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "C",
                 "google_event_id": "", "last_modified_at": la}]
-        ok, fail = gcal_sync.sync_pending(due)
+        ok, fail, _ = gcal_sync.sync_pending(due)
         assert ok == 1
         assert fail == 0
         mock_svc.events().insert().execute.assert_called_once()
@@ -320,7 +320,7 @@ class TestSyncPending:
 
         due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "D",
                 "google_event_id": "del-event-456", "last_modified_at": q["last_modified_at"]}]
-        ok, fail = gcal_sync.sync_pending(due)
+        ok, fail, _ = gcal_sync.sync_pending(due)
         assert ok == 1
         mock_svc.events().delete().execute.assert_called_once()
 
@@ -375,7 +375,7 @@ class TestSyncPending:
         monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: mock_svc)
         due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "D",
                 "google_event_id": "a3-event-789", "last_modified_at": q["last_modified_at"]}]
-        ok, fail = gcal_sync.sync_pending(due)
+        ok, fail, _ = gcal_sync.sync_pending(due)
         assert ok == 1
 
         # A3：map row 應被刪除
@@ -434,7 +434,7 @@ class TestSyncPending:
         # 用 T1 的快照嘗試同步 -> sync_pending 仍會同步，但刪隊列時 T1 不符 T2 -> 隊列保留
         due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "C",
                 "google_event_id": "", "last_modified_at": t1}]
-        ok, fail = gcal_sync.sync_pending(due)
+        ok, fail, _ = gcal_sync.sync_pending(due)
         # sync_pending 會嘗試同步（成功），但刪隊列 WHERE last_modified_at=t1 不符 t2 -> 隊列保留
         conn = get_db()
         try:
@@ -460,7 +460,7 @@ class TestSyncPending:
 
         due = [{"appointment_id": 999, "key_id": key_id, "op_type": "C",
                 "google_event_id": "", "last_modified_at": "2026-08-28 00:00:00"}]
-        ok, fail = gcal_sync.sync_pending(due)
+        ok, fail, _ = gcal_sync.sync_pending(due)
         assert ok == 0
         assert fail == 0
         # 隊列應被清掉
@@ -513,7 +513,7 @@ class TestSyncPending:
 
         due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "U",
                 "google_event_id": "upd-event-789", "last_modified_at": q["last_modified_at"]}]
-        ok, fail = gcal_sync.sync_pending(due)
+        ok, fail, _ = gcal_sync.sync_pending(due)
         assert ok == 1
         mock_svc.events().patch().execute.assert_called_once()
         mock_svc.events().insert().execute.assert_not_called()
@@ -521,7 +521,7 @@ class TestSyncPending:
     def test_empty_due_returns_zero(self):
         """空 due -> (0, 0)"""
         from app.services.gcal_sync import sync_pending
-        ok, fail = sync_pending([])
+        ok, fail, _ = sync_pending([])
         assert ok == 0
         assert fail == 0
 
@@ -964,7 +964,7 @@ class TestDiscordNotification:
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (1, 0))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (1, 0, {}))
 
         sync_scheduler._run_once()
         assert len(notified) == 0  # 成功不通知
@@ -980,12 +980,250 @@ class TestDiscordNotification:
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (0, 1))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (0, 1, {}))
 
         sync_scheduler._run_once()
         assert len(notified) == 1
         assert "失敗" in notified[0]
 
+
+
+class TestGcalLog:
+    """gcal_log.py 共用 logging 模組"""
+
+    def test_today_dir_format(self):
+        """_today_dir() 回傳 logs/MMDD/ 格式"""
+        from app.services.gcal_log import _today_dir
+        import os
+        d = _today_dir()
+        basename = os.path.basename(d)
+        assert len(basename) == 4 and basename.isdigit()
+
+    def test_archive_legacy_log(self, tmp_path):
+        """舊 logs/gcal_sync.log 歸檔為 archive_legacy_gcal_sync.log"""
+        from app.services import gcal_log
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+        legacy = logs_dir / "gcal_sync.log"
+        legacy.write_text("old log content")
+        old_base = gcal_log._LOG_BASE
+        gcal_log._LOG_BASE = str(logs_dir)
+        try:
+            gcal_log._archive_legacy_log()
+            assert not legacy.exists()
+            archive = logs_dir / "archive_legacy_gcal_sync.log"
+            assert archive.exists()
+            assert archive.read_text() == "old log content"
+        finally:
+            gcal_log._LOG_BASE = old_base
+
+    def test_get_logger_returns_logger(self):
+        """get_logger() 回傳帶 handler 的 logger"""
+        from app.services.gcal_log import get_logger
+        logger = get_logger("test_gcal_log_module")
+        assert logger is not None
+        assert logger.level <= 20  # INFO or lower
+
+
+class TestErrorSummary:
+    """sync_pending() error_summary 回傳"""
+
+    def test_error_summary_classifies_http_error(self, client, monkeypatch):
+        """HttpError 被分類為 'HttpError NNN'"""
+        from app.services import gcal_sync
+        conn = gcal_sync.get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
+                         ("test_key", "fake.json", "test@gmail.com"))
+            conn.commit()
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='test_key'").fetchone()["id"]
+        finally:
+            conn.close()
+
+        from unittest.mock import MagicMock
+        fake_service = MagicMock()
+        fake_service.events().insert().execute.side_effect = Exception(
+            "HttpError 404 when requesting https://www.googleapis.com/calendar/v3/calendars/test%40gmail.com/events"
+        )
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: fake_service)
+        monkeypatch.setattr(gcal_sync, "_load_appointment_for_sync", lambda c, a: (
+            {"client_name": "Test", "service_name": None, "address": "", "date": "2026-01-01",
+             "start_time": "09:00", "end_time": "10:00", "note": ""},
+            [{"id": 1, "name": "Test", "color": "#000"}]
+        ))
+        monkeypatch.setattr(gcal_sync, "load_sync_settings", lambda c: {})
+        monkeypatch.setattr(gcal_sync, "load_key_reminders", lambda kr: [])
+
+        due = [{"appointment_id": 999, "key_id": key_id, "op_type": "C",
+                "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}]
+        ok, fail, error_summary = gcal_sync.sync_pending(due)
+
+        assert fail == 1
+        assert key_id in error_summary
+        assert error_summary[key_id]["cal_id"] == "test@gmail.com"
+        assert any("HttpError 404" in k for k in error_summary[key_id]["errors"])
+
+    def test_error_summary_classifies_network_error(self, client, monkeypatch):
+        """network down 被分類"""
+        from app.services import gcal_sync
+        conn = gcal_sync.get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
+                         ("test_net", "fake.json", "net@gmail.com"))
+            conn.commit()
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='test_net'").fetchone()["id"]
+        finally:
+            conn.close()
+
+        fake_service = MagicMock()
+        fake_service.events().insert().execute.side_effect = OSError("network down")
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: fake_service)
+        monkeypatch.setattr(gcal_sync, "_load_appointment_for_sync", lambda c, a: (
+            {"client_name": "Test", "service_name": None, "address": "", "date": "2026-01-01",
+             "start_time": "09:00", "end_time": "10:00", "note": ""},
+            [{"id": 1, "name": "Test", "color": "#000"}]
+        ))
+        monkeypatch.setattr(gcal_sync, "load_sync_settings", lambda c: {})
+        monkeypatch.setattr(gcal_sync, "load_key_reminders", lambda kr: [])
+
+        due = [{"appointment_id": 998, "key_id": key_id, "op_type": "C",
+                "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}]
+        ok, fail, error_summary = gcal_sync.sync_pending(due)
+
+        assert fail == 1
+        assert "network down" in error_summary[key_id]["errors"]
+
+    def test_error_summary_groups_by_key(self, client, monkeypatch):
+        """多個 appointment 同 key 的錯誤被分組計數"""
+        from app.services import gcal_sync
+        conn = gcal_sync.get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
+                         ("test_grp", "fake.json", "grp@gmail.com"))
+            conn.commit()
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='test_grp'").fetchone()["id"]
+        finally:
+            conn.close()
+
+        fake_service = MagicMock()
+        def fail_insert(**kwargs):
+            raise OSError("network down")
+        fake_service.events().insert.side_effect = fail_insert
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: fake_service)
+        monkeypatch.setattr(gcal_sync, "_load_appointment_for_sync", lambda c, a: (
+            {"client_name": "Test", "service_name": None, "address": "", "date": "2026-01-01",
+             "start_time": "09:00", "end_time": "10:00", "note": ""},
+            [{"id": 1, "name": "Test", "color": "#000"}]
+        ))
+        monkeypatch.setattr(gcal_sync, "load_sync_settings", lambda c: {})
+        monkeypatch.setattr(gcal_sync, "load_key_reminders", lambda kr: [])
+
+        due = [
+            {"appointment_id": i, "key_id": key_id, "op_type": "C",
+             "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
+            for i in (997, 996, 995)
+        ]
+        ok, fail, error_summary = gcal_sync.sync_pending(due)
+
+        assert fail == 3
+        assert error_summary[key_id]["errors"]["network down"] == 3
+
+    def test_empty_due_returns_empty_summary(self):
+        """空 due 回傳空 error_summary"""
+        from app.services.gcal_sync import sync_pending
+        ok, fail, error_summary = sync_pending([])
+        assert ok == 0
+        assert fail == 0
+        assert error_summary == {}
+
+
+class TestStopGuard:
+    """sync_scheduler.stop() 防重入"""
+
+    def test_stop_when_not_started_no_log(self, monkeypatch):
+        """stop() 在未啟動時不寫 log"""
+        from app.services import sync_scheduler
+        import logging
+        log_msgs = []
+        handler = logging.Handler()
+        handler.emit = lambda record: log_msgs.append(record.getMessage())
+        sync_scheduler.logger.addHandler(handler)
+        try:
+            sync_scheduler._thread = None
+            sync_scheduler.stop()
+            assert not any("已停止" in m for m in log_msgs)
+        finally:
+            sync_scheduler.logger.removeHandler(handler)
+
+    def test_stop_idempotent(self, monkeypatch):
+        """連續呼叫 stop() 兩次只 log 一次"""
+        from app.services import sync_scheduler
+        import threading, logging
+        log_msgs = []
+        handler = logging.Handler()
+        handler.emit = lambda record: log_msgs.append(record.getMessage())
+        sync_scheduler.logger.addHandler(handler)
+        try:
+            # 建立並啟動假 thread（這樣 join 才不會卡住）
+            fake_thread = threading.Thread(target=lambda: None)
+            fake_thread.daemon = True
+            fake_thread.start()
+            sync_scheduler._thread = fake_thread
+            sync_scheduler._stop.clear()
+            sync_scheduler.stop()
+            count_first = sum(1 for m in log_msgs if "已停止" in m)
+            sync_scheduler.stop()
+            count_second = sum(1 for m in log_msgs if "已停止" in m)
+            assert count_first == 1
+            assert count_second == 1
+        finally:
+            sync_scheduler.logger.removeHandler(handler)
+            sync_scheduler._thread = None
+
+
+class TestDiscordNotificationFormat:
+    """Discord 通知格式包含錯誤分類"""
+
+    def test_failure_message_includes_key_and_error_type(self, monkeypatch):
+        """失敗通知包含 key email 和錯誤類型"""
+        from app.services import sync_scheduler
+        notified = []
+        monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+            {"appointment_id": 1, "key_id": 1, "op_type": "C",
+             "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
+        ]))
+        error_summary = {
+            1: {"cal_id": "test@gmail.com", "errors": {"HttpError 404": 5, "network down": 2}}
+        }
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending",
+                            lambda due: (0, 7, error_summary))
+
+        sync_scheduler._run_once()
+        assert len(notified) == 1
+        msg = notified[0]
+        assert "test@gmail.com" in msg
+        assert "HttpError 404" in msg
+        assert "network down" in msg
+
+    def test_success_no_notification(self, monkeypatch):
+        """成功不發通知"""
+        from app.services import sync_scheduler
+        notified = []
+        monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+            {"appointment_id": 1, "key_id": 1, "op_type": "C",
+             "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
+        ]))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending",
+                            lambda due: (5, 0, {}))
+
+        sync_scheduler._run_once()
+        assert len(notified) == 0
 
 class _FakeConn:
     """測試用假 DB 連線"""

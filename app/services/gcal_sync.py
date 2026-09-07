@@ -5,26 +5,19 @@ Google Calendar 單向同步（Multi-Key Service Account）
 - build_event(appt_row, assignees) -> dict      純函式：本地行程 → Google Event
 - get_service_for_key(key_row) -> service       對單一 key 建 service
 - resolve_target_keys(conn, appt_id) -> [key_id] 依指派人員綁定的 key 解析目標（Multi-Key）
-- sync_pending(due) -> (ok, fail)               批次同步（每列對應一 key）
+- sync_pending(due) -> (ok, fail, error_summary)   批次同步（每列對應一 key）
 - is_enabled() -> bool                          gcal_keys 有啟用 key 才 True
 """
 import hashlib
 import json
-import logging
 import os
+import re
 from typing import List, Tuple
 
 from app.database import get_db
+from app.services.gcal_log import get_logger
 
-logger = logging.getLogger(__name__)
-
-# 同步 log 輸出到檔案
-_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
-os.makedirs(_log_dir, exist_ok=True)
-_fh = logging.FileHandler(os.path.join(_log_dir, "gcal_sync.log"), encoding="utf-8")
-_fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-logger.addHandler(_fh)
-logger.setLevel(logging.INFO)
+logger = get_logger(__name__)
 
 TZ = "Asia/Taipei"
 DEFAULT_DURATION_MIN = 60
@@ -196,13 +189,17 @@ _RATE_WINDOW = 60          # 秒
 
 def sync_pending(due: List[dict]) -> Tuple[int, int]:
     """對 due（[{appointment_id, key_id, op_type, google_event_id, last_modified_at}]
-    每列對應一 key，逐列同步。回傳 (成功, 失敗)。
+    每列對應一 key，逐列同步。回傳 (成功, 失敗, error_summary)。
+
+    error_summary 格式：{key_id: {"cal_id": str, "errors": {error_type: count}}}
 
     家豪二輪：成功刪隊列帶 last_modified_at 版本條件，不吞同步途中新編輯。
     A3：網路呼叫在交易外，讀寫用獨立短連線，不持 SQLite 寫鎖跨網路。
     R1：速率限制，每分鐘最多 _RATE_LIMIT 次 API 呼叫。
     """
     ok = fail = 0
+    # 錯誤摘要：{key_id: {"cal_id": str, "errors": {error_type: count}}}
+    error_summary = {}
     # 快取 key_row（一次載入全部啟用 key，避免每列重讀）
     conn = get_db()
     try:
@@ -223,6 +220,7 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
         op = item["op_type"]
         gid = item.get("google_event_id") or ""
         la_orig = item.get("last_modified_at") or ""
+        cal_id = ""  # 提供 except 區塊使用
         try:
             key_row = key_rows.get(key_id)
             if key_row is None:
@@ -334,7 +332,27 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
                 wc.close()
             ok += 1
         except Exception as e:
-            logger.warning("gcal 同步失敗 appointment=%s key=%s (%s): %s", appt_id, key_id, op, e)
+            logger.warning("gcal 同步失敗 appointment=%s key=%s (%s) cal=%s: %s", appt_id, key_id, op, cal_id, e)
+            # 分類錯誤類型（取 HttpError / exception type 前 60 字元）
+            err_str = str(e)
+            if "HttpError" in err_str:
+                # 提取 "HttpError NNN" 部分
+                m = re.search(r"HttpError \d+", err_str)
+                err_type = m.group(0) if m else "HttpError"
+            elif "No module named" in err_str:
+                err_type = "No module named"
+            elif "No such file" in err_str:
+                err_type = "File not found"
+            elif "network down" in err_str:
+                err_type = "network down"
+            else:
+                err_type = type(e).__name__ + ": " + err_str[:40]
+            # 記錄到 error_summary
+            if key_id not in error_summary:
+                error_summary[key_id] = {"cal_id": cal_id, "errors": {}}
+            error_summary[key_id]["errors"][err_type] = (
+                error_summary[key_id]["errors"].get(err_type, 0) + 1
+            )
             wc = get_db()
             try:
                 wc.execute("UPDATE appointment_sync_queue SET attempts=attempts+1, last_error=? "
@@ -343,4 +361,4 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
             finally:
                 wc.close()
             fail += 1
-    return ok, fail
+    return ok, fail, error_summary

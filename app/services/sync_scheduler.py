@@ -14,7 +14,6 @@ Log 行為：
 - 無 due 項目：靜默（不寫 log）
 """
 import json
-import logging
 import os
 import threading
 import urllib.request
@@ -22,17 +21,9 @@ from datetime import datetime, timedelta
 
 from app.database import get_db
 from app.services import gcal_sync
+from app.services.gcal_log import get_logger
 
-logger = logging.getLogger(__name__)
-
-# 加 file handler 方便查看同步 log
-_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
-os.makedirs(_log_dir, exist_ok=True)
-_log_path = os.path.join(_log_dir, "gcal_sync.log")
-_fh = logging.FileHandler(_log_path, encoding="utf-8")
-_fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-logger.addHandler(_fh)
-logger.setLevel(logging.INFO)
+logger = get_logger(__name__)
 
 # ---------- Discord Webhook 設定（從 .env 讀取）----------
 import app.config as _cfg
@@ -75,11 +66,12 @@ def start():
 
 
 def stop():
-    """停止背景同步執行緒"""
+    """停止背景同步執行緒（idempotent：重複呼叫不重複 log）"""
     global _thread
+    if _thread is None:
+        return  # 已停止或未啟動，不重複 log
     _stop.set()
-    if _thread is not None:
-        _thread.join(timeout=5)
+    _thread.join(timeout=5)
     _thread = None
     logger.info("gcal 同步排程器已停止")
 
@@ -150,14 +142,30 @@ def _run_once():
     if not due:
         return
     # 純網路呼叫（無鎖）
-    ok, fail = gcal_sync.sync_pending(due)
+    ok, fail, error_summary = gcal_sync.sync_pending(due)
     if fail:
         logger.warning("gcal 同步完成：成功 %d / 失敗 %d", ok, fail)
-        # Discord 失敗通知
-        _notify_discord(
-            f"⚠️ **hvac Google 同步失敗**\n"
-            f"成功 {ok} / 失敗 {fail}\n"
-            f"時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        # 組裝詳細 Discord 通知
+        lines = [
+            f"⚠️ **hvac Google 同步失敗**",
+            f"成功 {ok} / 失敗 {fail}",
+            f"時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+        ]
+        # 逐 key 列出錯誤摘要（最多 5 種 key，每種最多 3 種錯誤）
+        for key_id, info in sorted(error_summary.items()):
+            cal = info["cal_id"] or f"key={key_id}"
+            errs = info["errors"]
+            # 取前 3 種錯誤
+            top_errs = sorted(errs.items(), key=lambda x: -x[1])[:3]
+            err_lines = " | ".join(f"{e} ×{c}" for e, c in top_errs)
+            lines.append(f"🔑 {cal}: {err_lines}")
+            if len(errs) > 3:
+                lines.append(f"   +{len(errs) - 3} 種其他錯誤")
+        # Discord 限制 2000 字元
+        msg = "\n".join(lines)
+        if len(msg) > 1900:
+            msg = msg[:1897] + "..."
+        _notify_discord(msg)
     else:
         logger.info("gcal 同步完成：成功 %d", ok)
