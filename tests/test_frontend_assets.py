@@ -2311,3 +2311,18 @@ def test_camera_button_exists():
     assert 'dsr-camera-input' in js, "相機 input 缺失"
     assert 'capture="environment"' in js or "capture='environment'" in js, "capture 屬性缺失"
     assert '相機拍攝' in js, "相機拍攝按鈕文字缺失"
+
+
+def test_stockout_return_tracks_source_and_return_locations():
+    html = read("static/index.html")
+    modal = read("static/js/modals/stockout.js")
+    render = read("static/js/render/stockout.js")
+    assert 'id="rs-source-location"' in html
+    assert 'id="rs-location"' in html
+    assert 'return_stock_id' in modal
+    assert 'POST' in modal and '/return' in modal
+    assert '/api/stockout-returns/' in modal
+    assert 'openEditStockoutReturnModal' in render
+    assert 'revokeStockoutReturn' in render
+    assert 'return_location' in render
+    assert 'esc(Number(st.id))' in modal

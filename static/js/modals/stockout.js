@@ -237,24 +237,40 @@ async function returnPrepared(id) {
 // ========== 已領出：退回 / 編輯（v11 + 退回 Modal） ==========
 
 var returnStockoutId = null;  // 當前退回的記錄 ID
+var editStockoutReturnId = null;
 
 // 開啟「退回已領出」Modal，帶入原記錄資料
 function openReturnStockoutModal(movementId) {
+  editStockoutReturnId = null;
   const rec = (stockoutRecords || []).find(r => r.id === movementId);
   if (!rec) return;
   returnStockoutId = movementId;
   const origQty = Math.abs(rec.delta);
-  // 精確計算已退回數量（用 source_movement_id 連結，不用 created_at 推斷）
   const returned = (stockoutRecords || []).filter(r =>
-    r.source_movement_id === movementId && r.reason === '退回已領出'
+    r.source_movement_id === movementId && r.reason === '退回已領出' && !r.reverted_at
   ).reduce((sum, r) => sum + Math.abs(r.delta), 0);
   const remaining = origQty - returned;
   document.getElementById('rs-item-name').value = `${rec.brand} ${rec.item_name}${rec.code ? ' (' + rec.code + ')' : ''}`;
   document.getElementById('rs-original-qty').textContent = remaining > 0 ? `${origQty}（已退 ${returned}，剩 ${remaining}）` : `${origQty}（已全數退回）`;
   document.getElementById('rs-qty').value = remaining > 0 ? remaining : 0;
   document.getElementById('rs-qty').max = remaining;
-  document.getElementById('rs-dest').value = rec.destination || '';
-  // 日期預設今天
+  document.getElementById('rs-dest').value = '公司';
+  const sourceLabel = rec.source_site || rec.source_location
+    ? `${rec.source_site || ''}${rec.source_site && rec.source_location ? '／' : ''}${rec.source_location || ''}`
+    : '原始位置未記錄';
+  document.getElementById('rs-source-location').value = sourceLabel;
+  const item = (typeof ALL_ITEMS !== 'undefined' ? ALL_ITEMS : []).find(i => i.id === rec.item_id);
+  const sel = document.getElementById('rs-location');
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  (item && item.stocks || []).forEach(s => {
+    const label = `${item.site || ''}${item.site && s.location ? '／' : ''}${s.location || '未標示'}`;
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(s.id))}">${esc(label)}</option>`);
+  });
+  if (rec.source_stock_id && sel.querySelector(`option[value="${Number(rec.source_stock_id)}"]`)) {
+    sel.value = String(rec.source_stock_id);
+  } else if (sel.options.length === 2) {
+    sel.value = sel.options[1].value;
+  }
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('rs-datetime').value = today;
   if (remaining <= 0) {
@@ -269,12 +285,31 @@ async function submitReturnStockout() {
   const qty = parseFloat(document.getElementById('rs-qty').value);
   const dest = document.getElementById('rs-dest').value.trim();
   const dt = document.getElementById('rs-datetime').value;
+  const returnStockId = Number(document.getElementById('rs-location').value);
+  if (editStockoutReturnId) {
+    if (!qty || qty <= 0 || !returnStockId) { toast('請輸入有效數量並選擇退回庫存位置', 'error'); return; }
+    const updateBody = { qty: qty, return_stock_id: returnStockId };
+    if (dest) updateBody.destination = dest;
+    if (dt) updateBody.created_at = dt + ' 00:00:00';
+    try {
+      const res = await fetch(`/api/stockout-returns/${editStockoutReturnId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateBody)
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '儲存退回紀錄失敗'); }
+      editStockoutReturnId = null;
+      closeModalForce('return-stockout-modal');
+      toast('✅ 已更新退回紀錄', 'success');
+      await loadData();
+    } catch (e) { toast('⚠️ ' + e.message, 'error'); }
+    return;
+  }
   if (!qty || qty <= 0) { toast('請輸入有效退回數量', 'error'); return; }
-  // 上限檢查
+  if (!returnStockId) { toast('請選擇退回庫存位置', 'error'); return; }
   const rec = stockoutRecords.find(r => r.id === returnStockoutId);
   const origQty = rec ? Math.abs(rec.delta) : 0;
-  if (qty > origQty) { toast(`退回數量不可超過原出庫數量 ${origQty}`, 'error'); return; }
-  const body = { qty: qty };
+  const returned = rec ? stockoutRecords.filter(r => r.source_movement_id === returnStockoutId && r.reason === '退回已領出' && !r.reverted_at).reduce((s, r) => s + Math.abs(r.delta), 0) : 0;
+  if (qty > origQty - returned) { toast(`退回數量不可超過剩餘可退數量 ${origQty - returned}`, 'error'); return; }
+  const body = { qty: qty, return_stock_id: returnStockId };
   if (dest) body.destination = dest;
   if (dt) body.created_at = dt + ' 00:00:00';
   try {
@@ -343,4 +378,36 @@ async function submitEditStockout() {
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
+}
+
+
+function openEditStockoutReturnModal(movementId) {
+  const rec = (stockoutRecords || []).find(r => r.id === movementId);
+  if (!rec || rec.reason !== '退回已領出' || rec.reverted_at) return;
+  editStockoutReturnId = movementId;
+  document.getElementById('rs-item-name').value = `${rec.brand} ${rec.item_name}${rec.code ? ' (' + rec.code + ')' : ''}`;
+  document.getElementById('rs-source-location').value = rec.source_location || '原始位置未記錄';
+  const item = (typeof ALL_ITEMS !== 'undefined' ? ALL_ITEMS : []).find(i => i.id === rec.item_id);
+  const sel = document.getElementById('rs-location');
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  (item && item.stocks || []).forEach(st => {
+    const label = `${item.site || ''}${item.site && st.location ? '／' : ''}${st.location || '未標示'}`;
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(st.id))}">${esc(label)}</option>`);
+  });
+  sel.value = String(rec.return_stock_id || '');
+  document.getElementById('rs-qty').value = rec.delta;
+  document.getElementById('rs-qty').max = rec.delta;
+  document.getElementById('rs-dest').value = rec.destination || '';
+  document.getElementById('rs-datetime').value = (rec.created_at || '').slice(0, 10);
+  openModal('return-stockout-modal');
+}
+
+async function revokeStockoutReturn(movementId) {
+  if (!confirm('確定撤銷這筆退回？退回數量會從目前位置庫存扣回。')) return;
+  try {
+    const res = await fetch(`/api/stockout-returns/${movementId}`, { method: 'DELETE' });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '撤銷退回失敗'); }
+    toast('✅ 已撤銷退回', 'success');
+    await loadData();
+  } catch (e) { toast('⚠️ ' + e.message, 'error'); }
 }

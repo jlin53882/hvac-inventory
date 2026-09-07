@@ -49,7 +49,7 @@ async function renderStockOuts() {
               ? `${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}<span class="reverted-tag" style="background:#52c41a;color:#fff">↩️ 已退回</span>`
               : `${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}`,
             subHTML: `${esc((o.created_at||'').slice(5,10))}`,
-            extraHTML: o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : '',
+            extraHTML: `${o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : ''}${isReturn && o.return_location ? `<div><span class="loc-tag">📍 ${esc(o.return_site || '')}${o.return_site ? '／' : ''}${esc(o.return_location)}</span></div>` : ''}`,
             qtyHTML: isReturn
               ? buildQtyNum('+' + absNum(o.delta), o.unit, 'qty-pos')
               : buildQtyNum('-' + absNum(o.delta), o.unit, 'qty-neg'),
@@ -79,10 +79,11 @@ async function renderStockOuts() {
           <td style="white-space:nowrap">${esc((o.created_at||'').slice(5,10))}</td>
           <td>${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}${isReturn ? '<span class="reverted-tag" style="background:#52c41a;color:#fff;margin-left:4px">↩️ 已退回</span>' : ''}</td>
           <td class="${isReturn ? 'qty-pos' : 'qty-neg'}">${isReturn ? '+' : '-'}${absNum(o.delta)} ${esc(o.unit)}</td>
-          <td>${o.destination ? `<span class="dest-chip">🏢 ${esc(o.destination)}</span>` : '<span style="color:#ccc">—</span>'}</td>
+          <td>${o.destination ? `<span class="dest-chip">🏢 ${esc(o.destination)}</span>` : ''}${isReturn && o.return_location ? `<br><span class="dest-chip">📍 ${esc(o.return_site || '')}${o.return_site ? '／' : ''}${esc(o.return_location)}</span>` : (!o.destination ? '<span style="color:#ccc">—</span>' : '')}</td>
           <td style="white-space:nowrap">
             ${isViewer ? '' : (isReturn
-              ? ''  // 退回紀錄：API 不允許編輯/退回/刪除（delta 正數），隱藏按鈕
+              ? (reverted ? '' : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button>
+                   <button class="btn-del" style="padding:4px 8px" onclick="revokeStockoutReturn(${o.id})">撤銷退回</button>`)
               : (reverted
                 ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`
                 : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button>
@@ -152,12 +153,12 @@ function openStockoutSheet(movementId) {
 
   if (!isViewer) {
 
-    if (!isReturn && !reverted) {
-
+    if (isReturn && !reverted) {
+      actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
+      actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => revokeStockoutReturn(movementId) });
+    } else if (!isReturn && !reverted) {
       actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutModal(movementId) });
-
       actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnStockout(movementId) });
-
     }
 
     if (!isReturn) {

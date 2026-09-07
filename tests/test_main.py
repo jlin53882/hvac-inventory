@@ -738,6 +738,42 @@ class TestStockoutReturn:
         assert _get_item(client, item["id"])["total_qty"] == 10
 
 
+    def test_return_to_selected_stock_location(self, client):
+        """退回可改選同品項的其他庫存位置，實際庫存跟著移動。"""
+        item = _add_item(client, name="位置退回", qty=10)
+        stock = item["stocks"][0]
+        second = client.post(f"/api/items/{item['id']}/stocks", json={"location": "櫃B | 2-2", "qty": 0})
+        assert second.status_code in (200, 201)
+        second_id = second.json()[-1]["id"]
+        rec = self._out(client, item["id"], qty=3, dest="案場")
+        r = client.post(f"/api/stockouts/{rec['id']}/return", json={"qty": 2, "return_stock_id": second_id})
+        assert r.status_code == 200, r.text
+        rows = _get_item(client, item['id'])["stocks"]
+        by_id = {x["id"]: x["qty"] for x in rows}
+        assert by_id[stock["id"]] == 7
+        assert by_id[second_id] == 2
+        ret = [x for x in client.get("/api/movements").json() if x["reason"] == "退回已領出"][0]
+        assert ret["return_stock_id"] == second_id
+
+    def test_return_edit_moves_stock_and_revoke_restores(self, client):
+        """編輯退回位置/數量會同步移動庫存，撤銷會扣回並保留流水。"""
+        item = _add_item(client, name="退回編輯", qty=10)
+        second = client.post(f"/api/items/{item['id']}/stocks", json={"location": "櫃C | 3-3", "qty": 0}).json()[-1]
+        rec = self._out(client, item["id"], qty=5)
+        ret = client.post(f"/api/stockouts/{rec['id']}/return", json={"qty": 2, "return_stock_id": second["id"]}).json()
+        r = client.patch(f"/api/stockout-returns/{ret['return_movement_id']}", json={"qty": 3, "return_stock_id": second["id"]})
+        assert r.status_code == 200, r.text
+        updated = r.json()
+        assert round(updated["before_qty"] + updated["delta"], 3) == round(updated["after_qty"], 3)
+        r = client.delete(f"/api/stockout-returns/{ret['return_movement_id']}")
+        assert r.status_code == 200, r.text
+        rows = _get_item(client, item['id'])["stocks"]
+        assert {x["id"]: x["qty"] for x in rows}[second["id"]] == 0
+        all_mov = client.get("/api/movements").json()
+        assert [x for x in all_mov if x["id"] == ret["return_movement_id"]][0]["reverted_at"]
+
+
+
 # ========== 已領出：編輯（2026-08-10 新增） ==========
 
 class TestStockoutEdit:

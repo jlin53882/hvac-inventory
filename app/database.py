@@ -334,6 +334,17 @@ def _exec_init(conn):
     if "source_movement_id" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN source_movement_id INTEGER REFERENCES movements(id)")
         print("[migrate] movements.source_movement_id 欄位已新增（退回連結原始出庫）")
+    for col, ddl in (
+        ("source_stock_id", "INTEGER REFERENCES item_stocks(id)"),
+        ("source_site", "TEXT DEFAULT ''"),
+        ("source_location", "TEXT DEFAULT ''"),
+        ("return_stock_id", "INTEGER REFERENCES item_stocks(id)"),
+        ("return_site", "TEXT DEFAULT ''"),
+        ("return_location", "TEXT DEFAULT ''"),
+    ):
+        if col not in mov_cols:
+            conn.execute(f"ALTER TABLE movements ADD COLUMN {col} {ddl}")
+            print(f"[migrate] movements.{col} 欄位已新增（出庫/退回位置追蹤）")
     # M6：gcal_keys.reminders 欄位（2026-08-27 per-key 提醒）
     gcal_cols = [r[1] for r in conn.execute("PRAGMA table_info(gcal_keys)").fetchall()]
     if "reminders" not in gcal_cols:

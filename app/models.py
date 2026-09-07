@@ -78,10 +78,19 @@ class StockoutUpdate(BaseModel):
 
 
 class StockoutReturnRequest(BaseModel):
-    """退回已領出：數量（部分退回）/ 去向 / 日期"""
+    """退回已領出：數量 / 實際回補位置 / 去向 / 日期"""
     qty: Optional[float] = Field(None, gt=0)
-    destination: Optional[str] = None
-    created_at: Optional[str] = None
+    return_stock_id: Optional[int] = Field(None, ge=1)
+    destination: Optional[str] = Field(None, max_length=200)
+    created_at: Optional[str] = Field(None, max_length=32)
+
+
+class StockoutReturnUpdate(BaseModel):
+    """編輯退回紀錄：數量 / 回補位置 / 去向 / 日期"""
+    qty: Optional[float] = Field(None, gt=0)
+    return_stock_id: Optional[int] = Field(None, ge=1)
+    destination: Optional[str] = Field(None, max_length=200)
+    created_at: Optional[str] = Field(None, max_length=32)
 
 
 class PrepareRequest(BaseModel):

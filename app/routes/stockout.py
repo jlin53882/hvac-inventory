@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
-from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRequest, StockoutUpdate
+from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
 
@@ -57,11 +57,14 @@ def _item_payload(conn, row) -> dict:
 
 
 def _deduct(conn, item_id, qty, location=""):
-    """從位置庫存扣數量。location 指定 → 只扣該位置；空白 → 依序從第一筆往後扣。
-    回傳 (total_before, total_after)"""
+    """從位置庫存扣數量，回傳 (total_before, total_after, source_stock_id)。
+    單一位置出庫會保存來源 stock id；跨多位置的舊式自動扣除保留為 legacy，
+    退回時必須由使用者明確選擇回補位置。
+    """
     stocks = conn.execute(
         "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
     total_before = sum(s["qty"] for s in stocks)
+    source_stock_id = None
     if location:
         target = [s for s in stocks if s["location"] == location]
         if not target:
@@ -72,6 +75,7 @@ def _deduct(conn, item_id, qty, location=""):
                            (qty, datetime.datetime.now().isoformat(), target[0]["id"], qty))
         if cur.rowcount == 0:  # H5：併發已被扣走 → 保守拒絕，不超賣
             raise HTTPException(400, f"「{location}」庫存不足！只剩 {target[0]['qty']}")
+        source_stock_id = target[0]["id"]
     else:
         remaining = qty
         for s in stocks:  # 依序（第一筆先扣）
@@ -83,12 +87,46 @@ def _deduct(conn, item_id, qty, location=""):
             if cur.rowcount == 0:  # H5：併發已被扣走 → 保守拒絕，不超賣
                 raise HTTPException(400, f"庫存不足！只剩 {total_before}")
             remaining -= take
+            if take > 0 and source_stock_id is None and qty == take:
+                source_stock_id = s["id"]
         if remaining > 0:
             raise HTTPException(400, f"庫存不足！只剩 {total_before}")
     # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
     total_after = sum(s["qty"] for s in conn.execute(
         "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
-    return total_after + qty, total_after
+    return total_after + qty, total_after, source_stock_id
+
+
+def _stock_payload(conn, stock_id, item_id):
+    if not stock_id:
+        return None
+    row = conn.execute(
+        "SELECT s.id, s.item_id, s.location, i.site FROM item_stocks s JOIN items i ON i.id=s.item_id WHERE s.id=? AND s.item_id=?",
+        (stock_id, item_id),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _add_back_to_stock(conn, item_id, qty, stock_id):
+    row = _stock_payload(conn, stock_id, item_id)
+    if not row:
+        raise HTTPException(400, "退回位置不存在，請重新選擇有效的庫存位置")
+    conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+                 (qty, datetime.datetime.now().isoformat(), stock_id))
+    return row
+
+
+def _deduct_from_stock(conn, item_id, qty, stock_id):
+    row = _stock_payload(conn, stock_id, item_id)
+    if not row:
+        raise HTTPException(400, "來源庫存位置不存在，無法調整數量")
+    cur = conn.execute(
+        "UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+        (qty, datetime.datetime.now().isoformat(), stock_id, qty),
+    )
+    if cur.rowcount == 0:
+        raise HTTPException(400, "指定庫存位置數量不足")
+    return row
 
 
 @router.post("/api/stockout", dependencies=[Depends(require_perm("stockout"))])
@@ -113,10 +151,12 @@ def stock_out(req: StockOutRequest):
         if req.note:
             reason = f"出庫 - {req.note}"
         # 2026-08-14 P4-1：before/after 用 _deduct 寫後重讀值（鏈一致）
-        before, after = _deduct(conn, req.item_id, req.qty, req.location)
+        before, after, source_stock_id = _deduct(conn, req.item_id, req.qty, req.location)
+        source = _stock_payload(conn, source_stock_id, req.item_id)
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (req.item_id, -req.qty, before, after, reason, req.destination),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location) VALUES (?,?,?,?,?,?,?,?,?)",
+            (req.item_id, -req.qty, before, after, reason, req.destination, source_stock_id,
+             source["site"] if source else row["site"], source["location"] if source else req.location),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
@@ -206,16 +246,10 @@ def _add_back_to_first_stock(conn, item_id, qty):
 
 @router.post("/api/stockouts/{movement_id}/return", dependencies=[Depends(require_perm("stockout"))])
 def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
-    """退回已領出：支援部分退回 + 自訂去向 + 日期
-    - qty：退回數量（預設=全數退回）
-    - destination：退回去向（預設=原出庫去向）
-    - created_at：退回日期（YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DD）
-    部分退回時不設 reverted_at，可再次退回剩餘數量。
-    全數退回時設 reverted_at，防止重複退回。
-    退回紀錄透過 source_movement_id 精確連結到原始出庫。
-    """
+    """退回已領出：預設回原始來源位置，也允許使用者選擇其他有效位置。"""
+    conn = get_db()
     try:
-        conn = get_db()
+        conn.execute("BEGIN IMMEDIATE")
         m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not m:
             raise HTTPException(404, "出庫記錄不存在")
@@ -225,57 +259,58 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
             raise HTTPException(400, "該記錄已全數退回過")
 
         original_qty = -m["delta"]
-        # 部分退回：qty 預設=全數
-        return_qty = original_qty
-        if req and req.qty is not None:
-            if req.qty <= 0:
-                raise HTTPException(400, "退回數量必須大於 0")
+        already = conn.execute(
+            "SELECT COALESCE(SUM(delta),0) AS total FROM movements "
+            "WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL",
+            (movement_id,),
+        ).fetchone()["total"]
+        remaining = original_qty - already
+        return_qty = remaining if not req or req.qty is None else req.qty
+        if return_qty <= 0:
+            raise HTTPException(400, "退回數量必須大於 0")
+        if return_qty > remaining:
+            raise HTTPException(400, f"退回數量不可超過剩餘可退量 {remaining}")
 
-        # 精確計算已退回數量（用 source_movement_id 連結，不用 created_at 推斷）
-        already_returned_row = conn.execute(
-            "SELECT COALESCE(SUM(delta),0) as total FROM movements "
-            "WHERE source_movement_id=? AND reason='退回已領出'",
-            (movement_id,)).fetchone()
-        already_returned = already_returned_row["total"] if already_returned_row else 0
+        return_stock_id = req.return_stock_id if req and req.return_stock_id else m["source_stock_id"]
+        if not return_stock_id:
+            legacy_stocks = conn.execute("SELECT id FROM item_stocks WHERE item_id=? ORDER BY id", (m["item_id"],)).fetchall()
+            if len(legacy_stocks) == 1:
+                return_stock_id = legacy_stocks[0]["id"]
+            else:
+                raise HTTPException(400, "原始來源位置未記錄，請選擇退回庫存位置")
+        return_stock = _stock_payload(conn, return_stock_id, m["item_id"])
+        if not return_stock:
+            raise HTTPException(400, "退回位置不存在，請重新選擇有效的庫存位置")
 
-        # 餘量檢查：已退回 + 本次不可超過原出庫（防多筆部分退回累計超退）
-        remaining = original_qty - already_returned
-        if req and req.qty is not None:
-            if req.qty > remaining:
-                raise HTTPException(400, f"退回數量不可超過剩餘可退量 {remaining}")
-            return_qty = req.qty
-        else:
-            return_qty = remaining  # 全數退回 = 退剩餘全部
-
-        # 全數退回判斷：累計退回量 + 本次 >= 原出庫數量
-        is_full_return = (already_returned + return_qty) >= original_qty
-
-        # 去向：預設=原出庫去向
-        dest = ((req.destination.strip() if req and req.destination else None) or m["destination"] or "")
-
-        current = _total_qty(conn, m["item_id"])
-        _add_back_to_first_stock(conn, m["item_id"], return_qty)
-
-        # 退回日期：預設=當前時間
+        dest = ((req.destination.strip() if req and req.destination else None) or "公司")
+        if len(dest) > 200:
+            raise HTTPException(400, "退回去向不可超過 200 字")
         now = (req.created_at if req and req.created_at else None) or datetime.datetime.now().isoformat()
         if req and req.created_at:
             _validate_date(req.created_at, "退回日期")
 
-        # 只有全數退回才設 reverted_at（部分退回允許再次退回）
+        current = _total_qty(conn, m["item_id"])
+        _add_back_to_stock(conn, m["item_id"], return_qty, return_stock_id)
+        is_full_return = (already + return_qty) >= original_qty
         if is_full_return:
             cur = conn.execute(
                 "UPDATE movements SET reverted_at=? WHERE id=? AND reverted_at IS NULL",
-                (now, movement_id))
+                (now, movement_id),
+            )
             if cur.rowcount == 0:
                 raise HTTPException(400, "該記錄已全數退回過")
 
-        # 寫反向流水（退回已領出），source_movement_id 連結原始出庫
-        conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at, source_movement_id) VALUES (?,?,?,?,?,?,?,?)",
-            (m["item_id"], return_qty, current, current + return_qty, "退回已領出", dest, now, movement_id))
+        cur = conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at, source_movement_id, return_stock_id, return_site, return_location, source_stock_id, source_site, source_location) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (m["item_id"], return_qty, current, current + return_qty, "退回已領出", dest, now,
+             movement_id, return_stock_id, return_stock["site"], return_stock["location"],
+             m["source_stock_id"], m["source_site"], m["source_location"]),
+        )
+        return_movement_id = cur.lastrowid
         conn.commit()
-        return {"ok": True, "movement_id": movement_id, "returned_qty": return_qty,
-                "fully_returned": is_full_return}
+        return {"ok": True, "movement_id": movement_id, "return_movement_id": return_movement_id, "returned_qty": return_qty,
+                "fully_returned": is_full_return, "return_stock_id": return_stock_id}
     except Exception:
         conn.rollback()
         raise
@@ -305,9 +340,15 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
             new_qty = upd.qty
             diff = new_qty - old_qty  # >0 需多扣庫存；<0 補回庫存
             if diff > 0:
-                _deduct(conn, m["item_id"], diff, "")  # 庫存不足會 400
+                if m["source_stock_id"]:
+                    _deduct_from_stock(conn, m["item_id"], diff, m["source_stock_id"])
+                else:
+                    _deduct(conn, m["item_id"], diff, "")  # legacy 出庫無來源位置
             elif diff < 0:
-                _add_back_to_first_stock(conn, m["item_id"], -diff)
+                if m["source_stock_id"]:
+                    _add_back_to_stock(conn, m["item_id"], -diff, m["source_stock_id"])
+                else:
+                    _add_back_to_first_stock(conn, m["item_id"], -diff)
             new_after = m["before_qty"] - new_qty  # 原出庫記錄的 after（B0 - 新數量）
             conn.execute("UPDATE movements SET delta=?, after_qty=? WHERE id=?",
                          (-new_qty, new_after, movement_id))
@@ -328,6 +369,105 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
         conn.commit()
         row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         return dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@router.patch("/api/stockout-returns/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
+def update_stockout_return(movement_id: int, upd: StockoutReturnUpdate):
+    """編輯退回紀錄；數量/位置變更會同步調整兩筆庫存位置。"""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+        if not row or row["reason"] != "退回已領出":
+            raise HTTPException(404, "退回紀錄不存在")
+        if row["reverted_at"]:
+            raise HTTPException(400, "已撤銷的退回紀錄不能編輯")
+        parent = conn.execute("SELECT * FROM movements WHERE id=?", (row["source_movement_id"],)).fetchone()
+        if not parent:
+            raise HTTPException(400, "原始出庫紀錄不存在，無法編輯退回")
+
+        old_qty = row["delta"]
+        new_qty = upd.qty if upd.qty is not None else old_qty
+        other_returned = conn.execute(
+            "SELECT COALESCE(SUM(delta),0) FROM movements WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL AND id!=?",
+            (parent["id"], movement_id),
+        ).fetchone()[0]
+        max_qty = -parent["delta"] - other_returned
+        if new_qty <= 0 or new_qty > max_qty:
+            raise HTTPException(400, f"退回數量必須介於 0 與 {max_qty} 之間")
+
+        old_stock_id = row["return_stock_id"]
+        new_stock_id = upd.return_stock_id if upd.return_stock_id is not None else old_stock_id
+        if not new_stock_id:
+            raise HTTPException(400, "退回位置不存在，請重新選擇")
+        new_stock = _stock_payload(conn, new_stock_id, row["item_id"])
+        if not new_stock:
+            raise HTTPException(400, "退回位置不存在，請重新選擇有效的庫存位置")
+        old_stock = _stock_payload(conn, old_stock_id, row["item_id"])
+        if not old_stock:
+            raise HTTPException(400, "原退回位置不存在，無法調整")
+
+        before_total = _total_qty(conn, row["item_id"])
+        movement_before = before_total - old_qty
+        if old_stock_id == new_stock_id:
+            if new_qty > old_qty:
+                _add_back_to_stock(conn, row["item_id"], new_qty - old_qty, new_stock_id)
+            elif new_qty < old_qty:
+                _deduct_from_stock(conn, row["item_id"], old_qty - new_qty, old_stock_id)
+        else:
+            _deduct_from_stock(conn, row["item_id"], old_qty, old_stock_id)
+            _add_back_to_stock(conn, row["item_id"], new_qty, new_stock_id)
+
+        destination = upd.destination.strip() if upd.destination is not None else row["destination"]
+        if len(destination or "") > 200:
+            raise HTTPException(400, "退回去向不可超過 200 字")
+        created_at = upd.created_at if upd.created_at is not None else row["created_at"]
+        if upd.created_at is not None:
+            _validate_date(upd.created_at, "退回日期")
+        after_total = _total_qty(conn, row["item_id"])
+        conn.execute(
+            "UPDATE movements SET delta=?, before_qty=?, after_qty=?, destination=?, created_at=?, return_stock_id=?, return_site=?, return_location=? WHERE id=?",
+            (new_qty, movement_before, movement_before + new_qty, destination, created_at, new_stock_id,
+             new_stock["site"], new_stock["location"], movement_id),
+        )
+        conn.commit()
+        return dict(conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone())
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@router.delete("/api/stockout-returns/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
+def revoke_stockout_return(movement_id: int):
+    """撤銷退回紀錄：回扣已補回庫存，保留原流水供稽核。"""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+        if not row or row["reason"] != "退回已領出":
+            raise HTTPException(404, "退回紀錄不存在")
+        if row["reverted_at"]:
+            raise HTTPException(400, "退回紀錄已撤銷")
+        _deduct_from_stock(conn, row["item_id"], row["delta"], row["return_stock_id"])
+        now = datetime.datetime.now().isoformat()
+        conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", (now, movement_id))
+        parent = conn.execute("SELECT * FROM movements WHERE id=?", (row["source_movement_id"],)).fetchone()
+        if parent:
+            remaining = conn.execute(
+                "SELECT COALESCE(SUM(delta),0) FROM movements WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL",
+                (parent["id"],),
+            ).fetchone()[0]
+            if remaining < -parent["delta"]:
+                conn.execute("UPDATE movements SET reverted_at=NULL WHERE id=?", (parent["id"],))
+        conn.commit()
+        return {"ok": True, "movement_id": movement_id, "revoked": True}
     except Exception:
         conn.rollback()
         raise
@@ -459,14 +599,16 @@ def prepared_out(item_id: int, req: PrepareRequest):
         new_prepared = row["prepared_qty"] - req.qty
 
         # 2026-08-14 審查修（P4-1）：before/after 用 _deduct 寫後重讀值（鏈一致）
-        before, after = _deduct(conn, item_id, req.qty, req.location)
+        before, after, source_stock_id = _deduct(conn, item_id, req.qty, req.location)
         cur = conn.execute("UPDATE items SET prepared_qty = prepared_qty - ?, updated_at = ? WHERE id = ? AND prepared_qty >= ?",
                            (req.qty, datetime.datetime.now().isoformat(), item_id, req.qty))
         if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
             raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
+        source = _stock_payload(conn, source_stock_id, item_id)
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (item_id, -req.qty, before, after, "出庫", dest),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location) VALUES (?,?,?,?,?,?,?,?,?)",
+            (item_id, -req.qty, before, after, "出庫", dest, source_stock_id,
+             source["site"] if source else row["site"], source["location"] if source else req.location),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()

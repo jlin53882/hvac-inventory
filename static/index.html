@@ -599,8 +599,16 @@
       <input type="number" id="rs-qty" min="0" step="any" placeholder="退回數量（預設全數）">
     </div>
     <div class="form-row">
+      <label>原始領出位置</label>
+      <input type="text" id="rs-source-location" disabled>
+    </div>
+    <div class="form-row">
+      <label>退回庫存位置 *</label>
+      <select id="rs-location"><option value="">— 請選擇 —</option></select>
+    </div>
+    <div class="form-row">
       <label>退回去向</label>
-      <input type="text" id="rs-dest" list="dest-list" placeholder="例如：退回倉庫">
+      <input type="text" id="rs-dest" list="dest-list" value="公司" placeholder="例如：公司">
     </div>
     <div class="form-row">
       <label>日期</label>
