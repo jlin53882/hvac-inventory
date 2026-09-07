@@ -47,11 +47,35 @@ document.addEventListener('click', function(e) {
 
 // 通知計數
 function updateNotifCount() {
-  var items = document.querySelectorAll('#notifPanel .ni[data-notif]');
+  var items = document.querySelectorAll('#notif-list .ni');
   var cnt = document.querySelector('.notif .cnt');
   if (cnt) cnt.textContent = items.length;
 }
-setTimeout(updateNotifCount, 500);
+
+// 動態生成通知（低庫存 / 缺貨 / 盤點提醒）
+function updateNotifications() {
+  var html = '';
+  // 低庫存警示（low_stock > 0 且 qty <= low_stock，排除整組）
+  var lowItems = ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && i.qty <= i.low_stock; });
+  lowItems.forEach(function(i) {
+    var qty = i.qty || 0;
+    var unit = i.unit || '';
+    var label = qty <= 0 ? '已缺貨' : '僅剩 ' + qty + ' ' + unit;
+    html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' ' + label + '</div>';
+  });
+  // 盤點提醒（25號後 + 本月未盤點）
+  var now = new Date();
+  var day = now.getDate();
+  var currentMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  var lastStocktakeMonth = localStorage.getItem('lastStocktakeMonth');
+  if (day >= 25 && lastStocktakeMonth !== currentMonth) {
+    var daysOverdue = day - 24;
+    html += '<div class="ni" data-notif><span class="dot-r"></span>盤點已逾期 ' + daysOverdue + ' 天</div>';
+  }
+  document.getElementById('notif-list').innerHTML = html;
+  updateNotifCount();
+}
+setTimeout(function() { updateNotifications(); }, 500);
 
 // 通知面板
 function toggleNotif() {
@@ -63,6 +87,40 @@ document.addEventListener('click', function(e) {
     if (p) p.classList.remove('open');
   }
 });
+
+// Drawer（統一操作容器）
+var _drawerCurrentType = '';
+function openDrawer(type, data) {
+  _drawerCurrentType = type;
+  var overlay = document.getElementById('drawerOverlay');
+  var drawer = document.getElementById('drawer');
+  var title = document.getElementById('drawerTitle');
+  var body = document.getElementById('drawerBody');
+  var footer = document.getElementById('drawerFooter');
+  if (!overlay || !drawer) return;
+  // 標題
+  var titles = {add:'➕ 新增品項', edit:'✏️ 編輯品項', stockout:'📤 領出', prepare:'📤 待領出', kit:'🔧 整組'};
+  title.textContent = titles[type] || type;
+  // 內容由各 modal JS 動態填入
+  body.innerHTML = '';
+  footer.innerHTML = '';
+  // 觸發對應的 open 函式（保留原有 fetch 邏輯）
+  if (type === 'add' && typeof openAddModal === 'function') openAddModal();
+  else if (type === 'edit' && typeof openEditModal === 'function') openEditModal(data);
+  else if (type === 'stockout' && typeof openOutModal === 'function') openOutModal(data);
+  else if (type === 'prepare' && typeof openPrepareModal === 'function') openPrepareModal(data);
+  else if (type === 'kit' && typeof openKitModal === 'function') openKitModal(data);
+  overlay.classList.add('open');
+  drawer.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+  var overlay = document.getElementById('drawerOverlay');
+  var drawer = document.getElementById('drawer');
+  if (overlay) overlay.classList.remove('open');
+  if (drawer) drawer.classList.remove('open');
+  document.body.style.overflow = '';
+}
 
 // 頭像下拉選單
 function toggleAvatarMenu() {

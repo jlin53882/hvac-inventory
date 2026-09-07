@@ -4,6 +4,28 @@
 
 // ========== 共用搜尋過濾（多詞 AND） ==========
 
+// 回傳符合當前搜尋 + 品牌 + 分類篩選的非整組品項（供全選 / render 共用）
+function getFilteredInventoryItems() {
+  var raw = document.getElementById('search-input').value.trim().toLowerCase();
+  var kws = raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
+  var list = ALL_ITEMS.filter(function(i) { return !i.is_kit; });
+  if (currentBrands.length > 0) {
+    list = list.filter(function(i) { return currentBrands.indexOf(i.brand || '無廠牌') >= 0; });
+  }
+  if (currentCategories.length > 0) {
+    list = list.filter(function(i) { return currentCategories.indexOf(i.category || '') >= 0; });
+  }
+  if (kws.length > 0) {
+    list = list.filter(function(i) {
+      var stockStr = (i.stocks || []).map(function(s) { return s.location + ' ' + s.note; }).join(' ').toLowerCase();
+      var hay = (i.name||'') + ' ' + (i.code||'') + ' ' + (i.brand||'') + ' ' + stockStr;
+      hay = hay.toLowerCase();
+      return kws.every(function(kw) { return hay.indexOf(kw) >= 0; });
+    });
+  }
+  return list;
+}
+
 function filterBySearch(items, matchFn) {
 
   var raw = document.getElementById('search-input').value.trim().toLowerCase();
@@ -48,47 +70,8 @@ function renderInventory() {
 
   const isViewer = !(hasPerm('item-mgmt') || hasPerm('stock-mgmt') || hasPerm('photo'));
 
-  const raw = document.getElementById('search-input').value.trim().toLowerCase();
-
-  const kws = raw ? raw.split(/\s+/).filter(w => w.length > 0) : [];
-
-  // 庫存頁只顯示單一材料（整組在「🔧 整組」頁籤管理）
-
-  let list = ALL_ITEMS.filter(i => !i.is_kit);
-
-  // 品牌篩選：多選模式（currentBrands 為空 = 全部）
-
-  if (currentBrands.length > 0) {
-
-    list = list.filter(i => currentBrands.includes(i.brand || '無廠牌'));
-
-  }
-
-  // 分類篩選
-
-  if (currentCategories.length > 0) {
-
-    list = list.filter(i => currentCategories.includes(i.category || ''));
-
-  }
-
-  // 多詞 AND 搜尋：空白拆詞，每個詞都要比對到
-
-  if (kws.length > 0) {
-
-    list = list.filter(i => {
-
-      const stockStr = (i.stocks || []).map(s => `${s.location} ${s.note}`).join(' ').toLowerCase();
-
-      const hay = `${i.name||''} ${i.code||''} ${i.brand||''} ${stockStr}`.toLowerCase();
-
-      return kws.every(kw => hay.includes(kw));
-
-    });
-
-  }
-
-
+  // 共用篩選邏輯（搜尋 + 品牌 + 分類）
+  let list = getFilteredInventoryItems();
 
   const content = document.getElementById('content');
 
@@ -103,6 +86,32 @@ function renderInventory() {
   }
 
 
+
+  // Dashboard 摘要卡
+  const totalItems = ALL_ITEMS.filter(i => !i.is_kit).length;
+  const totalQty = list.reduce((s, i) => s + (i.stocks || []).reduce((ss, st) => ss + (st.qty || 0), 0), 0);
+  const lowCount = list.filter(i => i.low_stock > 0 && i.qty <= i.low_stock).length;
+  const zeroCount = list.filter(i => !i.is_kit && i.qty <= 0).length;
+
+  // Chip 即時篩選列
+  const brands = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
+  const cats = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
+  let chipHTML = '<div class="chip-bar">';
+  chipHTML += '<span class="chip' + (currentBrands.length === 0 ? ' on' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
+  brands.forEach(b => { chipHTML += '<span class="chip' + (currentBrands.includes(b) ? ' on' : '') + '" onclick="toggleInventoryBrand(\'' + b.replace(/'/g, "\\'") + '\')">' + esc(b) + '</span>'; });
+  chipHTML += '</div>';
+
+  let catChipHTML = '<div class="chip-bar">';
+  catChipHTML += '<span class="chip' + (currentCategories.length === 0 ? ' on' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
+  cats.forEach(c => { catChipHTML += '<span class="chip' + (currentCategories.includes(c) ? ' on' : '') + '" onclick="toggleInventoryCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + esc(c) + '</span>'; });
+  catChipHTML += '</div>';
+
+  const dashHTML = '<div class="dash-cards">' +
+    '<div class="dash-card"><div class="dc-num">' + list.length + '</div><div class="dc-lbl">篩選品項</div></div>' +
+    '<div class="dash-card"><div class="dc-num">' + totalQty + '</div><div class="dc-lbl">庫存總數</div></div>' +
+    '<div class="dash-card' + (lowCount > 0 ? ' warn' : '') + '"><div class="dc-num">' + lowCount + '</div><div class="dc-lbl">低庫存</div></div>' +
+    '<div class="dash-card' + (zeroCount > 0 ? ' danger' : '') + '"><div class="dc-num">' + zeroCount + '</div><div class="dc-lbl">缺貨</div></div>' +
+    '</div>';
 
   const byLoc = {};
 
@@ -132,6 +141,7 @@ function renderInventory() {
 
   // 2026-08-13 Sarah：新增/匯出按鈕從 topbar 移到庫存清單頂部（位置分組前，靠右；viewer 不顯示新增）
 
+  html += dashHTML + chipHTML + catChipHTML;
   html += `<div class="loc-export-bar">
 
     ${list.length ? `<span class="loc-export-count">共 ${list.length} 項</span>` : ''}
@@ -710,9 +720,9 @@ function toggleStockSelect(stockId) {
 }
 
 function selectAllStocks() {
-  // 全選/取消全選 toggle
-  const allItems = ALL_ITEMS.filter(i => !i.is_kit);
-  const allStocks = allItems.flatMap(i => i.stocks || []);
+  // 全選/取消全選 toggle（尊重搜尋/品牌/分類篩選）
+  const filtered = getFilteredInventoryItems();
+  const allStocks = filtered.flatMap(i => i.stocks || []);
   const allSelected = allStocks.length > 0 && allStocks.every(s => selectedStockIds.has(s.id));
   if (allSelected) {
     selectedStockIds.clear();
@@ -723,8 +733,8 @@ function selectAllStocks() {
 }
 
 function _allSelected() {
-  const allItems = ALL_ITEMS.filter(i => !i.is_kit);
-  const allStocks = allItems.flatMap(i => i.stocks || []);
+  const filtered = getFilteredInventoryItems();
+  const allStocks = filtered.flatMap(i => i.stocks || []);
   return allStocks.length > 0 && allStocks.every(s => selectedStockIds.has(s.id));
 }
 

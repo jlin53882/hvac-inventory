@@ -280,3 +280,15 @@ async function submitStocktake() {
     toast('盤點送出失敗', 'error');
   }
 }
+
+
+// ========== 內聯盤點差異計算 ==========
+function calcDiff(input) {
+  const val = parseInt(input.value) || 0;
+  const sysQty = parseInt(input.dataset.sysqty) || 0;
+  const diffEl = input.closest('tr') ? input.closest('tr').querySelector('.st-diff') : null;
+  if (!diffEl) return;
+  const diff = val - sysQty;
+  diffEl.textContent = (diff > 0 ? '+' : '') + diff;
+  diffEl.className = 'st-diff ' + (diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'zero');
+}

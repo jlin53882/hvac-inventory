@@ -81,9 +81,7 @@
   <!-- Notification Panel -->
   <div class="notif-panel" id="notifPanel">
     <div class="nh">🔔 通知</div>
-    <div class="ni" data-notif><span class="dot-w"></span>低庫存警示：控制基板 僅剩 3 片</div>
-    <div class="ni" data-notif><span class="dot-w"></span>低庫存警示：過濾網 已缺貨</div>
-    <div class="ni" data-notif><span class="dot-r"></span>盤點已逾期 3 天</div>
+    <div id="notif-list"></div>
   </div>
 
   <!-- 每月25日盤點提醒 -->
@@ -197,6 +195,17 @@
       <button class="btn-confirm" onclick="submitBatchLocation()" style="flex:1">✅ 確認修改</button>
     </div>
   </div>
+</div>
+
+<!-- Drawer（統一操作容器） -->
+<div class="dov" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="dh">
+    <h3 id="drawerTitle">操作</h3>
+    <button class="x" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="db" id="drawerBody"></div>
+  <div class="df" id="drawerFooter"></div>
 </div>
 
 <!-- 新增品項 Modal -->

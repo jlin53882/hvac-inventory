@@ -1377,14 +1377,15 @@ def test_shell_v2_header_html_structure():
 def test_shell_v2_notification_badge():
     """Shell v2：通知徽章計數存在"""
     idx = read(INDEX)
-    # Notification items have data-notif attribute
-    assert 'data-notif' in idx, "通知項目缺 data-notif 屬性"
+    # Notification list container exists (notifications generated dynamically)
+    assert 'id="notif-list"' in idx, "通知容器 #notif-list 缺失"
     # Badge element exists
     assert 'class="cnt"' in idx, "通知徽章 .cnt 缺失"
-    # JS updates badge count
+    # JS updates badge count and generates notifications dynamically
     js = read(APP_JS)
     assert "updateNotifCount" in js, "updateNotifCount 函式 缺失"
-    assert "data-notif" in js, "updateNotifCount 未使用 data-notif 選擇器"
+    assert "updateNotifications" in js, "updateNotifications 函式 缺失"
+    assert "data-notif" in js, "updateNotifications 未使用 data-notif 選擇器"
 
 
 def test_shell_v2_calendar_no_settings_button():
@@ -2007,3 +2008,133 @@ def test_batch_button_uses_batch_loc_mgmt_perm():
     # 不應再用 !isViewer 控制批次按鈕
     assert "isViewer ? '' : `<button class=\"btn-sm btn-batch\"" not in js, \
         "批次按鈕不應再用 isViewer 控制"
+
+
+def test_select_all_respects_search_filter():
+    """防回歸：selectAllStocks 使用 getFilteredInventoryItems（尊重搜尋篩選）"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "getFilteredInventoryItems" in js, \
+        "selectAllStocks 應使用 getFilteredInventoryItems"
+    # selectAllStocks 不應再直接用 ALL_ITEMS
+    assert "function selectAllStocks" in js
+    # 確認 getFilteredInventoryItems 函式存在
+    assert "function getFilteredInventoryItems" in js, \
+        "getFilteredInventoryItems 函式缺失"
+
+
+def test_render_inventory_uses_shared_filter():
+    """防回歸：renderInventory 使用 getFilteredInventoryItems（搜尋篩選不重複）"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "let list = getFilteredInventoryItems()" in js or \
+        "var list = getFilteredInventoryItems()" in js, \
+        "renderInventory 應使用 getFilteredInventoryItems"
+    # 主要篩選邏輯（搜尋/品牌/分類）已搬到 getFilteredInventoryItems
+    # renderInventory 裡的 ALL_ITEMS.filter 只允許統計用途（dashboard 卡片）
+    lines = js.split('\n')
+    in_render = False
+    filter_count = 0
+    for line in lines:
+        if 'function renderInventory' in line:
+            in_render = True
+        elif in_render and line.strip().startswith('function ') and 'renderInventory' not in line:
+            break
+        elif in_render and 'ALL_ITEMS.filter' in line:
+            # 允許 dashboard 統計用途（is_kit/low_stock/qty）
+            if 'is_kit' in line or 'low_stock' in line or 'qty' in line:
+                continue
+            filter_count += 1
+    # renderInventory 裡不應再有篩選邏輯的 ALL_ITEMS.filter（已搬到 getFilteredInventoryItems）
+    assert filter_count == 0, \
+        f"renderInventory 裡仍有 {filter_count} 處 ALL_ITEMS.filter 篩選邏輯（應搬到 getFilteredInventoryItems）"
+
+
+def test_update_notifications_function():
+    """防回歸：updateNotifications 函式存在且使用 esc() 防 XSS"""
+    js = read(APP_JS)
+    assert "function updateNotifications" in js, "updateNotifications 函式缺失"
+    assert "updateNotifications()" in js, "updateNotifications 未被呼叫"
+    # 低庫存通知應使用 esc() 防 XSS
+    assert "esc(i.name)" in js or "esc(item.name)" in js, \
+        "updateNotifications 應使用 esc() 轉義品項名稱"
+
+
+
+# ========== Phase 2: Drawer 統一 ==========
+def test_drawer_html_structure():
+    """Phase 2：Drawer HTML 結構存在"""
+    html = read(INDEX)
+    assert 'id="drawerOverlay"' in html, "drawerOverlay 缺失"
+    assert 'id="drawer"' in html, "drawer 容器缺失"
+    assert 'id="drawerTitle"' in html, "drawerTitle 缺失"
+    assert 'id="drawerBody"' in html, "drawerBody 缺失"
+    assert 'id="drawerFooter"' in html, "drawerFooter 缺失"
+
+
+def test_drawer_css_exists():
+    """Phase 2：Drawer CSS 樣式存在"""
+    css = read(CSS_CORE)
+    assert '.drawer{' in css or '.drawer {' in css, "drawer CSS 缺失"
+    assert '.dov{' in css or '.dov {' in css, "drawer overlay CSS 缺失"
+    assert '.dh{' in css or '.dh {' in css, "drawer header CSS 缺失"
+    assert '.db{' in css or '.db {' in css, "drawer body CSS 缺失"
+    assert '.df{' in css or '.df {' in css, "drawer footer CSS 缺失"
+
+
+def test_drawer_js_functions():
+    """Phase 2：Drawer JS 函式存在"""
+    js = read(APP_JS)
+    assert "function openDrawer" in js, "openDrawer 函式缺失"
+    assert "function closeDrawer" in js, "closeDrawer 函式缺失"
+    assert "drawerOverlay" in js, "drawerOverlay 引用缺失"
+    assert "drawer.classList.add" in js or "drawer.classList.remove" in js,         "drawer class 操作缺失"
+
+
+# ========== Phase 3: 庫存頁細節 ==========
+def test_dashboard_stat_cards():
+    """Phase 3：Dashboard 摘要卡 JS 存在"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "dash-cards" in js, "dash-cards class 引用缺失"
+    assert "dash-card" in js, "dash-card class 引用缺失"
+    assert "dc-num" in js or "dc-lbl" in js, "dashboard card 內容缺失"
+
+
+def test_dashboard_css_exists():
+    """Phase 3：Dashboard card CSS 樣式存在"""
+    css = read(CSS_CORE)
+    assert '.dash-cards{' in css or '.dash-cards {' in css, "dash-cards CSS 缺失"
+    assert '.dash-card{' in css or '.dash-card {' in css, "dash-card CSS 缺失"
+    assert '.dash-card.warn' in css, "dash-card.warn CSS 缺失"
+    assert '.dash-card.danger' in css, "dash-card.danger CSS 缺失"
+
+
+def test_chip_bar_filter():
+    """Phase 3：Chip 即時篩選列存在"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "chip-bar" in js, "chip-bar class 引用缺失"
+    assert "toggleInventoryBrand" in js, "toggleInventoryBrand 函式缺失"
+    assert "toggleInventoryCategory" in js, "toggleInventoryCategory 函式缺失"
+
+
+def test_chip_bar_css_exists():
+    """Phase 3：Chip bar CSS 樣式存在"""
+    css = read(CSS_CORE)
+    assert '.chip-bar{' in css or '.chip-bar {' in css, "chip-bar CSS 缺失"
+    assert '.chip-bar .chip' in css, "chip-bar .chip CSS 缺失"
+
+
+def test_row_warn_danger_css():
+    """Phase 3：row-warn/row-danger CSS 存在"""
+    css = read(CSS_CORE)
+    assert 'row-warn' in css, "row-warn CSS 缺失"
+    assert 'row-danger' in css, "row-danger CSS 缺失"
+    assert '#fffbeb' in css, "row-warn 背景色缺失"
+    assert '#fff5f5' in css, "row-danger 背景色缺失"
+
+
+# ========== Phase 4: 盤點/批量 ==========
+def test_calcdiff_function():
+    """Phase 4：calcDiff 內聯盤點差異計算存在"""
+    js = read(STOCKTAKE_JS)
+    assert "function calcDiff" in js, "calcDiff 函式缺失"
+    assert "st-diff" in js, "st-diff class 引用缺失"
+    assert "sysqty" in js or "data-sysqty" in js, "sysqty 資料屬性缺失"
