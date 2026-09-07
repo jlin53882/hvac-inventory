@@ -78,7 +78,7 @@ function renderInventory() {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = (typeof isMobileView === 'function') && isMobileView();
   let html = renderInventoryDashboard(list);
-  html += renderInventoryChips();
+  buildFilterPanel();
   html += renderInventoryToolbar(list, isViewer);
   if (viewMode === 'table') {
     html += renderInventoryTable(list, isViewer);
@@ -117,13 +117,22 @@ function renderInventoryChips() {
 
 function renderInventoryToolbar(list, isViewer) {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
+  const isM = (typeof isMobileView === 'function') && isMobileView();
   let h = '<div class="loc-export-bar">';
   h += '<span class="loc-export-count">共 ' + list.length + ' 項</span>';
   h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'active' : '') + '">🃏 卡片</button></div>';
   if (!isViewer) h += '<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
-  if (hasPerm('batch-loc-mgmt')) h += '<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
+  if (isM) {
+    h += '<div class="more-actions-wrap"><button class="btn-sm btn-more-actions" onclick="toggleMoreActions()">⋮</button>';
+    h += '<div class="more-actions-dropdown" id="moreActionsDropdown">';
+    if (hasPerm('batch-loc-mgmt')) h += '<button onclick="toggleBatchMode();closeMoreActions()">📦 批次改位置</button>';
+    h += '<button onclick="exportExcel();closeMoreActions()">⬇️ 匯出庫存</button>';
+    h += '</div></div>';
+  } else {
+    if (hasPerm('batch-loc-mgmt')) h += '<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
+    h += '<button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>';
+  }
   if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
-  h += '<button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>';
   h += '</div>';
   return h;
 }
@@ -135,8 +144,8 @@ function renderInventoryTable(list, isViewer) {
     (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
   });
   let h = '<div class="tbl-wrap"><table class="data-table"><thead><tr>';
-  if (hasPerm('batch-loc-mgmt')) h += '<th style="width:30px"></th>';
-  h += '<th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
+  if (batchMode && hasPerm('batch-loc-mgmt')) h += '<th style="width:30px"></th>';
+  h += '<th style="width:44px"></th><th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
   h += '</tr></thead><tbody>';
   Object.keys(byLoc).sort().forEach(loc => {
     byLoc[loc].forEach(i => {
@@ -148,8 +157,10 @@ function renderInventoryTable(list, isViewer) {
       const statusHTML = isZero ? '<span class="status-danger">⛔ 缺貨</span>' : (isLow ? '<span class="status-warn">⚠ 低庫存</span>' : '<span class="status-ok">✓ 正常</span>');
       const stocks = i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}];
       const locStr = stocks.map(s => esc(s.location)).join(', ');
+      const photoHTML = i.has_photo ? '<span class="cphoto"><img src="/uploads/' + i.id + '.jpg" alt="" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
       h += '<tr class="' + rowClass + '">';
-      if (hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
+      if (batchMode && hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
+      h += '<td class="photo-cell">' + photoHTML + '</td>';
       h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small style="color:#64748b">' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
       h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + display + '</td>';
@@ -724,3 +735,17 @@ function toggleInventoryCategory(cat) {
   }
   renderInventory();
 }
+
+
+// ========== 手機版更多操作選單 ==========
+function toggleMoreActions() {
+  var dd = document.getElementById('moreActionsDropdown');
+  if (dd) dd.classList.toggle('open');
+}
+function closeMoreActions() {
+  var dd = document.getElementById('moreActionsDropdown');
+  if (dd) dd.classList.remove('open');
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.more-actions-wrap')) closeMoreActions();
+});

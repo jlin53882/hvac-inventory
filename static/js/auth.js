@@ -65,12 +65,11 @@ function applyRoleView(user) {
   var canStocktake = !!perms['stocktake'];
   var canViewStocktake = canStocktake || !!perms['view'];
   var canAdjust = !!perms['stock-mgmt'];
-  var navStocktake = document.getElementById('nav-stocktake');
   var sbNavStocktake = document.getElementById('sb-nav-stocktake');
   var reminder = document.getElementById('reminder');
   var saveBar = document.getElementById('save-bar');
 
-  if (navStocktake) navStocktake.style.display = canViewStocktake ? '' : 'none';
+
   if (sbNavStocktake) sbNavStocktake.style.display = canViewStocktake ? '' : 'none';
   if (reminder) reminder.style.display = canStocktake ? '' : 'none';
   if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';

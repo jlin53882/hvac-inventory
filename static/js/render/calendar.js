@@ -21,8 +21,17 @@ async function renderCalendar() {
         <div class="cal-toolbar-mid">
           <div class="cal-title">📅 行事曆派工</div>
         </div>
+        <div class="cal-search-bar">
+          <input type="date" id="cal-search-from" style="font-size:12px;padding:4px 6px;border:1px solid #d0d5dd;border-radius:6px">
+          <span style="color:#888;font-size:12px">〜</span>
+          <input type="date" id="cal-search-to" style="font-size:12px;padding:4px 6px;border:1px solid #d0d5dd;border-radius:6px">
+          <input type="text" id="cal-search-q" placeholder="關鍵字" style="font-size:12px;padding:4px 8px;border:1px solid #d0d5dd;border-radius:6px;width:140px">
+          <button class="btn-sm" onclick="calSearch()">🔍</button>
+          <button class="btn-sm" onclick="calClearSearch()" style="color:#888">✕</button>
+        </div>
         ${isViewer ? '' : '<button class="cal-tb-btn cal-tb-btn-primary" onclick="calOpenAppt()">＋ 新增派工</button>'}
       </div>
+      <div id="cal-search-results" style="display:none"></div>
       <div class="cal-reminder" id="cal-reminder" style="display:none"></div>
       <div class="card cal-card">
         <div class="cal-month-header">
@@ -223,3 +232,61 @@ async function calExport() {
 }
 
 // ========== 設定（admin）==========
+
+// ========== 行事曆搜尋 ==========
+async function calSearch() {
+  var from = document.getElementById('cal-search-from').value;
+  var to = document.getElementById('cal-search-to').value;
+  var q = document.getElementById('cal-search-q').value.trim();
+  if (!from && !to && !q) { toast('請輸入搜尋條件', 'error'); return; }
+  var params = new URLSearchParams();
+  if (from) params.set('date_from', from);
+  if (to) params.set('date_to', to);
+  if (q) params.set('q', q);
+  try {
+    var res = await fetch('/api/appointments/search?' + params);
+    if (!res.ok) { toast('搜尋失敗', 'error'); return; }
+    var items = await res.json();
+    var el = document.getElementById('cal-search-results');
+    el.style.display = 'block';
+    if (!items.length) {
+      el.innerHTML = '<div style="padding:16px;text-align:center;color:#888;font-size:13px">找不到符合條件的行程</div>';
+      return;
+    }
+    var html = '<div style="padding:8px 0;font-size:12px;color:#666">找到 ' + items.length + ' 筆結果</div>';
+    items.forEach(function(e) {
+      var names = (e.assignees || []).map(function(a){ return esc(a.name); }).join('、');
+      html += '<div class="cal-search-item" style="padding:10px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer" data-date="' + e.date + '" onclick="calJumpToDate(this.dataset.date)">' +
+        '<div style="font-weight:600;font-size:13px">' + esc(e.client_name) + '</div>' +
+        '<div style="font-size:12px;color:#666;margin-top:2px">' +
+        (e.date || '') + (e.start_time ? ' ' + e.start_time + (e.end_time ? '~' + e.end_time : '') : '') +
+        (e.service_name ? ' [' + esc(e.service_name) + ']' : '') +
+        '</div>' +
+        (names ? '<div style="font-size:11px;color:#888;margin-top:2px">👤 ' + names + '</div>' : '') +
+        (e.address ? '<div style="font-size:11px;color:#888">📍 ' + esc(e.address) + '</div>' : '') +
+        (e.note ? '<div style="font-size:11px;color:#888">📝 ' + esc(e.note) + '</div>' : '') +
+        '</div>';
+    });
+    el.innerHTML = html;
+  } catch (err) {
+    console.error('[calSearch]', err);
+    toast('搜尋失敗', 'error');
+  }
+}
+
+function calClearSearch() {
+  document.getElementById('cal-search-from').value = '';
+  document.getElementById('cal-search-to').value = '';
+  document.getElementById('cal-search-q').value = '';
+  document.getElementById('cal-search-results').style.display = 'none';
+}
+
+function calJumpToDate(dateStr) {
+  var parts = dateStr.split('-');
+  calMonth = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+  calSelected = dateStr;
+  calRenderMonth();
+  calRenderDay();
+  calRenderReminder();
+  document.querySelector('.cal-card').scrollIntoView({behavior:'smooth'});
+}

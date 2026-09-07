@@ -97,5 +97,5 @@ function toast(msg, type) {
   t.textContent = msg;
   t.className = 'toast show ' + (type || '');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.className = 'toast', 2000);
+  toastTimer = setTimeout(() => t.className = 'toast', 3500);
 }

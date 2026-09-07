@@ -8,6 +8,7 @@
 - PUT  /api/appointments/{id}              編輯（衝突檢查排除自己）
 - DELETE /api/appointments/{id}            刪除
 - GET  /api/appointments/export?date=      匯出工程日報表 xlsx（範本填值法）
+- GET  /api/appointments/search?q=&date_from=&date_to=  搜尋行程
 
 權限（RBAC 2026-08-13）：行事曆寫入掛 require_perm("cal-mgmt")（service-types 端點已移至 service_types.py）。衝突規則：同人同日時間重疊（start < 他end 且 end > 他start）。
 """
@@ -206,6 +207,48 @@ def list_appointments(year: int = 0, month: int = 0, date: str = ""):
                 - datetime.timedelta(days=1)
             rows = conn.execute("SELECT id FROM appointments WHERE date BETWEEN ? AND ?",
                                 (start, end.isoformat())).fetchall()
+        return [_appt_row(conn, r["id"]) for r in rows]
+    finally:
+        conn.close()
+
+
+@router.get("/api/appointments/search")
+def search_appointments(date_from: str = "", date_to: str = "", q: str = ""):
+    """搜尋行程（日期範圍 + 關鍵字）"""
+    conn = get_db()
+    try:
+        sql = "SELECT id FROM appointments WHERE 1=1"
+        params = []
+        if date_from:
+            sql += " AND date >= ?"
+            params.append(date_from)
+        if date_to:
+            sql += " AND date <= ?"
+            params.append(date_to)
+        if q.strip():
+            kw = f"%{q.strip()}%"
+            sql += " AND (client_name LIKE ? OR address LIKE ? OR note LIKE ?)"
+            params.extend([kw, kw, kw])
+            # 也搜服務項目名稱
+            sql = sql.replace(
+                "WHERE 1=1",
+                "LEFT JOIN service_types st ON st.id = service_type_id WHERE 1=1 OR st.name LIKE ?"
+            )
+            # 簡化：先搜基本欄位，服務名稱用 LIKE 子查詢
+            sql = "SELECT id FROM appointments WHERE 1=1"
+            params = []
+            if date_from:
+                sql += " AND date >= ?"
+                params.append(date_from)
+            if date_to:
+                sql += " AND date <= ?"
+                params.append(date_to)
+            if q.strip():
+                kw = f"%{q.strip()}%"
+                sql += " AND (client_name LIKE ? OR address LIKE ? OR note LIKE ? OR service_type_id IN (SELECT id FROM service_types WHERE name LIKE ?))"
+                params.extend([kw, kw, kw, kw])
+        sql += " ORDER BY date DESC, start_time ASC"
+        rows = conn.execute(sql, params).fetchall()
         return [_appt_row(conn, r["id"]) for r in rows]
     finally:
         conn.close()

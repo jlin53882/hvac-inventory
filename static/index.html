@@ -27,12 +27,12 @@
   <div class="sidebar-nav">
     <div class="nav-section">主要功能</div>
     <a class="sb-nav-link active" id="sb-nav-calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
+    <a class="sb-nav-link" id="sb-nav-signed-reports" onclick="switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
     <a class="sb-nav-link" id="sb-nav-inventory" onclick="switchTab('inventory')"><span class="ic">📦</span>單一庫存</a>
     <a class="sb-nav-link" id="sb-nav-prepared" onclick="switchTab('prepared')"><span class="ic">📤</span>待領出<span class="badge" id="sb-prepared-badge" style="display:none">0</span></a>
     <a class="sb-nav-link" id="sb-nav-stockout" onclick="switchTab('stockout')"><span class="ic">🚚</span>已領出</a>
     <a class="sb-nav-link" id="sb-nav-stocktake" onclick="switchTab('stocktake')"><span class="ic">📋</span>盤點</a>
     <a class="sb-nav-link" id="sb-nav-kit" onclick="switchTab('kit')"><span class="ic">🔧</span>整組庫存</a>
-    <a class="sb-nav-link" id="sb-nav-signed-reports" onclick="switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
     <div class="nav-section">管理</div>
     <a class="sb-nav-link" id="sb-nav-perms" href="/permissions.html"><span class="ic">👥</span>帳號與權限</a>
     <a class="sb-nav-link" id="sb-nav-settings" href="/settings.html"><span class="ic">⚙️</span>系統設定</a>
@@ -49,7 +49,7 @@
 <div class="main">
   <!-- Header -->
   <div class="header">
-    <button class="hamburger" id="hamburger" onclick="openSidebar()" aria-label="選單">☰</button>
+    <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="選單">☰</button>
     <div class="breadcrumb" id="breadcrumb">📅 <b>行事曆</b></div>
     <div class="h-search">
       <input type="search" id="search-input" placeholder="搜尋品項、品牌、位置" autocomplete="new-password" autocapitalize="off" spellcheck="false">
@@ -123,50 +123,6 @@
 <div class="save-bar" id="save-bar">
   <div class="stat">修改 <b id="pending-count">0</b> 項</div>
   <button class="btn-save" id="btn-save" onclick="saveAll()">💾 全部儲存</button>
-</div>
-
-<!-- 底部導覽（手機 5+1：kit 進更多） -->
-<div class="bottom-nav" id="bottom-nav">
-  <div class="nav-item-wrap">
-    <button class="nav-item active" id="nav-calendar" onclick="switchTab('calendar')">
-      <span class="ic">📅</span><span class="label">行事曆</span>
-    </button>
-  </div>
-  <div class="nav-item-wrap">
-    <button class="nav-item" id="nav-signed-reports" onclick="switchTab('signed-reports')">
-      <span class="ic">🗂</span><span class="label">每日簽名日報表</span>
-    </button>
-  </div>
-  <div class="nav-item-wrap">
-    <button class="nav-item" id="nav-inventory" onclick="switchTab('inventory')">
-      <span class="ic">📦</span><span class="label">單一庫存</span>
-    </button>
-  </div>
-  <div class="nav-item-wrap">
-    <button class="nav-item" id="nav-prepared" onclick="switchTab('prepared')">
-      <span class="ic">📤</span><span class="label">待領出</span><span class="badge" id="prepared-badge" style="display:none">0</span>
-    </button>
-  </div>
-  <div class="nav-item-wrap">
-    <button class="nav-item" id="nav-stockout" onclick="switchTab('stockout')">
-      <span class="ic">🚚</span><span class="label">已領出</span>
-    </button>
-  </div>
-  <div class="nav-item-wrap">
-    <button class="nav-item" id="nav-stocktake" onclick="switchTab('stocktake')">
-      <span class="ic">📋</span><span class="label">盤點</span>
-    </button>
-  </div>
-  <div class="nav-item-wrap">
-    <button class="nav-item" id="nav-more" onclick="toggleMoreMenu()">
-      <span class="ic">⋯</span><span class="label">更多</span>
-    </button>
-  </div>
-</div>
-
-<!-- 更多選單（手機 bottom nav 彈出） -->
-<div class="more-menu" id="moreMenu">
-  <button onclick="switchTab('kit'); closeMoreMenu()"><span class="ic">🔧</span> 整組庫存</button>
 </div>
 
 <div class="toast" id="toast"></div>

@@ -160,13 +160,10 @@ async function renderPrepared() {
 // 更新底部「待領出」小標：有數量時顯示數字，沒有則隱藏
 
 function updatePreparedBadge(n) {
-  var badge = document.getElementById('prepared-badge');
   var sbBadge = document.getElementById('sb-prepared-badge');
   if (n > 0) {
-    if (badge) { badge.style.display = 'inline-block'; badge.textContent = n; }
     if (sbBadge) { sbBadge.style.display = ''; sbBadge.textContent = n; }
   } else {
-    if (badge) badge.style.display = 'none';
     if (sbBadge) sbBadge.style.display = 'none';
   }
 }

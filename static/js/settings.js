@@ -506,15 +506,19 @@ async function toggleGcalKey(id, on) {
 }
 
 async function deleteGcalKey(id, name) {
-  if (!confirm('確定要刪除 Key「' + name + '」？')) return;
+  if (!confirm('確定要刪除 Key「' + name + '」？\n\n此操作會同時刪除 Google 行事曆上已同步的事件。')) return;
   try {
     const res = await fetch('/api/gcal-keys/' + id, { method: 'DELETE' });
     if (!res.ok) { toast((await res.json()).detail || '刪除失敗', 'error'); return; }
+    const data = await res.json();
     gcalKeys = gcalKeys.filter(k => k.id !== id);
     if (selectedKeyId === id) selectedKeyId = gcalKeys.length ? gcalKeys[0].id : null;
     renderGcalPanel();
-    toast('✅ 已刪除', 'success');
-  } catch (e) { toast('刪除失敗', 'error'); }
+    var msg = '✅ Key「' + name + '」已刪除';
+    if (data.google_deleted > 0) msg += '（Google 事件 ' + data.google_deleted + ' 筆已清除）';
+    if (data.google_failed > 0) msg += '⚠️ Google 事件 ' + data.google_failed + ' 筆清除失敗';
+    toast(msg, data.google_failed > 0 ? 'error' : 'success');
+  } catch (e) { toast('❌ 刪除失敗：' + e.message, 'error'); }
 }
 
 async function bindGcalUser(userId, keyName) {

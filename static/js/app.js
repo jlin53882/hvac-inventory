@@ -35,15 +35,35 @@ function closeSidebar() {
   document.getElementById('sbOverlay').classList.remove('open');
 }
 
-function toggleMoreMenu() {
-  document.getElementById('moreMenu').classList.toggle('open');
+// Sidebar toggle (desktop: hidden ↔ shown, mobile: drawer)
+function toggleSidebar() {
+  var sb = document.getElementById('sidebar');
+  var mn = document.querySelector('.main');
+  var isDesktop = window.innerWidth >= 768;
+  if (!isDesktop) {
+    // Mobile: use drawer behavior
+    if (sb.classList.contains('mob-open')) closeSidebar();
+    else openSidebar();
+    return;
+  }
+  // Desktop: toggle hidden/expanded
+  var expanded = sb.classList.toggle('expanded');
+  mn.classList.toggle('sidebar-expanded', expanded);
+  localStorage.setItem('sidebarExpanded', expanded ? '1' : '0');
 }
-function closeMoreMenu() {
-  document.getElementById('moreMenu').classList.remove('open');
-}
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('#moreMenu') && !e.target.closest('#nav-more')) closeMoreMenu();
-});
+
+// Restore sidebar state on load (desktop: remember expanded)
+(function() {
+  var isDesktop = window.innerWidth >= 768;
+  if (!isDesktop) return;
+  var expanded = localStorage.getItem('sidebarExpanded') === '1';
+  var sb = document.getElementById('sidebar');
+  var mn = document.querySelector('.main');
+  if (sb && mn) {
+    sb.classList.toggle('expanded', expanded);
+    mn.classList.toggle('sidebar-expanded', expanded);
+  }
+})();
 
 // 通知計數
 function updateNotifCount() {
@@ -148,11 +168,8 @@ function switchTab(tab) {
   if (nav) nav.classList.add('active');
   var sbNav = document.getElementById('sb-nav-' + tab);
   if (sbNav) sbNav.classList.add('active');
-  var moreBtn = document.getElementById('nav-more');
-  if (moreBtn) moreBtn.classList.toggle('active', tab === 'kit');
   updateBreadcrumb(tab);
   closeSidebar();
-  closeMoreMenu();
 
   // 行事曆與簽名報表不需要搜尋框、辦公室/倉庫分片與廠牌 tab
   var isCal = tab === 'calendar' || tab === 'signed-reports';
@@ -161,6 +178,9 @@ function switchTab(tab) {
   var st = document.querySelector('.h-site');
   if (sb) sb.style.display = isCal ? 'none' : '';
   if (st) st.style.display = isCal ? 'none' : '';
+  // 篩選面板只在庫存頁顯示
+  var fp = document.getElementById('filter-panel');
+  if (fp) fp.style.display = isInventory ? '' : 'none';
   // 批款改位置價限單一庫存別離時自動退出批款模式伦隱藨 batch-bar\uff08避免跨頁殘留\uff09
   if (!isInventory) {
     if (typeof batchMode !== 'undefined' && batchMode) {

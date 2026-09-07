@@ -625,3 +625,52 @@ class TestB2OrphanBoundKeys:
         finally:
             conn.close()
         assert d_ops == 0, f"B2：fallback 時不應有 D orphan，但有 {d_ops} 列"
+
+# ========== 行事曆搜尋 API ==========
+def test_search_appointments_by_keyword(client):
+    """搜尋行程：關鍵字匹配 client_name"""
+    client.post("/api/appointments", json=_appt_body(client_name="振佳空調"))
+    client.post("/api/appointments", json=_appt_body(client_name="其他公司"))
+    r = client.get("/api/appointments/search?q=振佳")
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data) >= 1
+    assert any("振佳" in a["client_name"] for a in data)
+
+def test_search_appointments_by_date_range(client):
+    """搜尋行程：日期範圍過濾"""
+    client.post("/api/appointments", json=_appt_body(client_name="A", date="2026-09-01"))
+    client.post("/api/appointments", json=_appt_body(client_name="B", date="2026-09-15"))
+    client.post("/api/appointments", json=_appt_body(client_name="C", date="2026-10-01"))
+    r = client.get("/api/appointments/search?date_from=2026-09-01&date_to=2026-09-30")
+    assert r.status_code == 200
+    data = r.json()
+    dates = [a["date"] for a in data]
+    assert "2026-09-01" in dates
+    assert "2026-09-15" in dates
+    assert "2026-10-01" not in dates
+
+def test_search_appointments_combined(client):
+    """搜尋行程：日期範圍 + 關鍵字組合"""
+    client.post("/api/appointments", json=_appt_body(client_name="振佳", date="2026-09-01"))
+    client.post("/api/appointments", json=_appt_body(client_name="振佳", date="2026-10-01"))
+    client.post("/api/appointments", json=_appt_body(client_name="其他", date="2026-09-01"))
+    r = client.get("/api/appointments/search?q=振佳&date_from=2026-09-01&date_to=2026-09-30")
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data) == 1
+    assert data[0]["client_name"] == "振佳"
+    assert data[0]["date"] == "2026-09-01"
+
+def test_search_appointments_empty(client):
+    """搜尋行程：無結果回傳空陣列"""
+    r = client.get("/api/appointments/search?q=不存在的客戶")
+    assert r.status_code == 200
+    assert r.json() == []
+
+def test_search_appointments_no_params(client):
+    """搜尋行程：無參數回傳全部"""
+    client.post("/api/appointments", json=_appt_body(client_name="X"))
+    r = client.get("/api/appointments/search")
+    assert r.status_code == 200
+    assert len(r.json()) >= 1

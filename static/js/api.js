@@ -6,6 +6,7 @@ async function loadData() {
     if (!res.ok) throw new Error('API 錯誤: ' + res.status);
     ALL_ITEMS = await res.json();
     buildDatalists();
+    if (typeof buildFilterPanel === 'function') buildFilterPanel();
     checkReminder();
     updateNotifications();
     updateSubInfo();

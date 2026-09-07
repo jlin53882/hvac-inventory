@@ -1043,16 +1043,17 @@ def test_index_has_no_topbar_export():
 
 # ---------- 行事曆派工（📅） ----------
 def test_index_has_calendar_nav():
-    """bottom-nav 含行事曆頁籤（2026-08-13 Sarah：行事曆移到最前面且登入預設顯示行事曆）"""
+    """sidebar 含行事曆頁籤且為第一個，每日簽名日報表在行事曆之後"""
     html = read(INDEX)
-    assert 'id="nav-calendar"' in html
+    assert 'id="sb-nav-calendar"' in html
     assert "行事曆" in html
-    # 2026-08-13：行事曆在 nav 第一個，且 active 在 nav-calendar（登入一進來顯示行事曆）
-    i_cal = html.index('id="nav-calendar"')
-    i_inv = html.index('id="nav-inventory"')
-    assert i_cal < i_inv, "行事曆應在 nav 最前面"
-    assert 'class="nav-item active" id="nav-calendar"' in html
-    assert 'class="nav-item" id="nav-inventory"' in html
+    # 行事曆在 sidebar 第一個且 active（登入一進來顯示行事曆）
+    i_cal = html.index('id="sb-nav-calendar"')
+    i_signed = html.index('id="sb-nav-signed-reports"')
+    i_inv = html.index('id="sb-nav-inventory"')
+    assert i_cal < i_signed < i_inv, "sidebar 順序應為 calendar < signed-reports < inventory"
+    assert 'class="sb-nav-link active" id="sb-nav-calendar"' in html
+    assert 'class="sb-nav-link" id="sb-nav-inventory"' in html
 
 
 def test_default_tab_is_calendar():
@@ -1393,9 +1394,7 @@ def test_shell_v2_header_functions():
     # Sidebar open/close
     assert "openSidebar" in js, "app.js 缺 openSidebar"
     assert "closeSidebar" in js, "app.js 缺 closeSidebar"
-    # More menu
-    assert "toggleMoreMenu" in js, "app.js 缺 toggleMoreMenu"
-    assert "closeMoreMenu" in js, "app.js 缺 closeMoreMenu"
+
 
 
 def test_shell_v2_header_html_structure():
@@ -1416,15 +1415,13 @@ def test_shell_v2_header_html_structure():
     assert '帳號與權限' in idx, "帳號與權限 連結 缺失"
     assert '修改密碼' in idx, "修改密碼 連結 缺失"
     assert '登出' in idx, "登出 連結 缺失"
-    # Bottom nav 5+1
-    assert 'id="nav-calendar"' in idx, "bottom nav calendar 缺失"
-    assert 'id="nav-inventory"' in idx, "bottom nav inventory 缺失"
-    assert 'id="nav-prepared"' in idx, "bottom nav prepared 缺失"
-    assert 'id="nav-stockout"' in idx, "bottom nav stockout 缺失"
-    assert 'id="nav-stocktake"' in idx, "bottom nav stocktake 缺失"
-    assert 'id="nav-more"' in idx, "bottom nav more 缺失"
-    # More menu
-    assert 'id="moreMenu"' in idx, "more menu 缺失"
+    # Sidebar nav links (bottom-nav removed, mobile uses sidebar)
+    assert 'id="sb-nav-calendar"' in idx, "sidebar nav calendar 缺失"
+    assert 'id="sb-nav-inventory"' in idx, "sidebar nav inventory 缺失"
+    assert 'id="sb-nav-prepared"' in idx, "sidebar nav prepared 缺失"
+    assert 'id="sb-nav-stockout"' in idx, "sidebar nav stockout 缺失"
+    assert 'id="sb-nav-stocktake"' in idx, "sidebar nav stocktake 缺失"
+    assert 'id="sb-nav-signed-reports"' in idx, "sidebar nav signed-reports 缺失"
 
 
 def test_shell_v2_notification_badge():
@@ -1622,7 +1619,7 @@ def test_stocktake_view_for_all_roles():
     所有角色看得到盤點 tab；「本次盤點」操作區僅限 stocktake 權限（admin/user）"""
     au = read(AUTH_JS)
     assert "canViewStocktake" in au, "auth.js 缺 canViewStocktake（瀏覽權限）"
-    assert "navStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
+    assert "sbNavStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
     assert "reminder.style.display = canStocktake ? '' : 'none'" in au,         "盤點提醒橫幅仍限操作者（canStocktake）"
 
     st = read(STOCKTAKE_JS)
@@ -2326,3 +2323,91 @@ def test_stockout_return_tracks_source_and_return_locations():
     assert 'revokeStockoutReturn' in render
     assert 'return_location' in render
     assert 'esc(Number(st.id))' in modal
+
+# ========== Sidebar 折疊 ==========
+def test_sidebar_collapsed_css_exists():
+    """sidebar 折疊 CSS 規則存在（桌面隱藏/展開）"""
+    css = read_css_all()
+    assert ".sidebar.expanded" in css, "sidebar.expanded CSS 缺失"
+    assert "sidebar-expanded" in css, "sidebar-expanded class 缺失"
+
+def test_toggle_sidebar_function():
+    """toggleSidebar 函式存在"""
+    js = read(APP_JS)
+    assert "function toggleSidebar" in js, "app.js 缺 toggleSidebar"
+    assert "sidebarExpanded" in js, "toggleSidebar 未使用 localStorage"
+
+def test_hamburger_uses_toggle_sidebar():
+    """hamburger 按鈕使用 toggleSidebar"""
+    html = read(INDEX)
+    assert 'onclick="toggleSidebar()"' in html, "hamburger 應呼叫 toggleSidebar()"
+
+# ========== 行事曆搜尋 ==========
+def test_calendar_search_api_exists():
+    """搜尋 API 端點存在"""
+    from app.routes.appointments import router
+    paths = [r.path for r in router.routes]
+    assert "/api/appointments/search" in paths, "搜尋端點缺失"
+
+def test_calendar_search_ui_functions():
+    """calendar.js 搜尋函式存在"""
+    js = read(os.path.join(STATIC, "js/render/calendar.js"))
+    assert "function calSearch" in js, "calSearch 缺失"
+    assert "function calClearSearch" in js, "calClearSearch 缺失"
+    assert "function calJumpToDate" in js, "calJumpToDate 缺失"
+
+def test_calendar_search_bar_in_render():
+    """renderCalendar 包含搜尋列 DOM"""
+    js = read(os.path.join(STATIC, "js/render/calendar.js"))
+    assert "cal-search-from" in js, "搜尋起始日期 input 缺失"
+    assert "cal-search-to" in js, "搜尋結束日期 input 缺失"
+    assert "cal-search-q" in js, "搜尋關鍵字 input 缺失"
+    assert "cal-search-results" in js, "搜尋結果容器缺失"
+
+# ========== GCal 刪除反饋 ==========
+def test_delete_gcal_key_has_toast():
+    """deleteGcalKey 包含 toast 反饋"""
+    js = read(os.path.join(STATIC, "js/settings.js"))
+    assert "function deleteGcalKey" in js, "deleteGcalKey 缺失"
+    assert "toast(msg," in js or "toast(" in js, "deleteGcalKey 缺少 toast"
+    assert "data.google_deleted" in js, "deleteGcalKey 未回傳 Google 刪除結果"
+
+def test_toast_duration_increased():
+    """toast 顯示時間 >= 3 秒"""
+    js = read(os.path.join(STATIC, "js/utils.js"))
+    # 找 toast timer 設定
+    assert "3500" in js or "3000" in js, "toast 時間應 >= 3000ms"
+
+# ========== 手機版工具列下拉選單 ==========
+def test_more_actions_dropdown_exists():
+    """手機版工具列 ⋮ 下拉選單 CSS 存在"""
+    css = read_css_all()
+    assert ".more-actions-wrap" in css, "more-actions-wrap CSS 缺失"
+    assert ".more-actions-dropdown" in css, "more-actions-dropdown CSS 缺失"
+
+def test_more_actions_functions_exist():
+    """toggleMoreActions/closeMoreActions 函式存在"""
+    js = read(os.path.join(STATIC, "js/render/inventory.js"))
+    assert "function toggleMoreActions" in js, "toggleMoreActions 缺失"
+    assert "function closeMoreActions" in js, "closeMoreActions 缺失"
+
+# ========== 表格圖片欄 ==========
+def test_table_photo_column():
+    """表格 view 包含圖片欄"""
+    js = read(os.path.join(STATIC, "js/render/inventory.js"))
+    assert "photo-cell" in js, "表格缺 photo-cell 欄位"
+    assert "openPhotoLightbox" in js, "表格缺 openPhotoLightbox 呼叫"
+
+# ========== 搜尋框手機版可見 ==========
+def test_mobile_search_visible():
+    """手機版搜尋框不被隱藏"""
+    css = read_css_all()
+    # 不應有 .h-search{display:none} 在手機 media query 裡
+    assert "h-search{display:none}" not in css, "h-search 不應被隱藏"
+
+# ========== filter-panel 跨頁控制 ==========
+def test_filter_panel_switchtab_control():
+    """switchTab 控制 filter-panel 顯示"""
+    js = read(APP_JS)
+    assert "filter-panel" in js, "switchTab 未控制 filter-panel"
+    assert "isInventory" in js, "switchTab 未判斷 isInventory"
