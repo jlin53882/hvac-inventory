@@ -102,7 +102,7 @@ function openDrawer(type, data) {
   var body = document.getElementById('drawerBody');
   var footer = document.getElementById('drawerFooter');
   if (!overlay || !drawer) return;
-  var titles = {add:'\u2795 新增品項', edit:'\u270f\ufe0f 編輯品項', stockout:'\ud83d\udce4 領出', prepare:'\ud83d\udce4 待領出', kit:'\ud83d\udd27 整組'};
+  var titles = {add:'➕ 新增品項', edit:'✏️ 編輯品項', stockout:'📤 領出', prepare:'📤 待領出', kit:'🔧 整組'};
   title.textContent = titles[type] || type;
   body.innerHTML = '';
   footer.innerHTML = '';
