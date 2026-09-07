@@ -1831,10 +1831,10 @@ def test_search_handlers_all_tabs():
 
 
 def test_filter_panel_only_inventory_tab():
-    """篩選面板只在 inventory 頁顯示"""
-    js = read(APP_JS)
-    assert "isInventory" in js, "app.js switchTab 缺 isInventory 判斷"
-    assert "filter-panel" in js, "app.js switchTab 缺 filter-panel 控制"
+    """篩選面板（chip bar）只在 inventory 頁渲染"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "function renderInventoryChips" in js, "renderInventoryChips 函式缺失"
+    assert "chip-bar" in js, "chip-bar class 引用缺失"
 
 
 def test_batch_bar_only_inventory_tab():

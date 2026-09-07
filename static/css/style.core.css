@@ -906,7 +906,7 @@
   .hamburger{display:block}
   .header{padding:10px 14px;gap:10px}
   .h-search{display:none}
-  .h-site{display:none}
+  .h-site{display:flex;justify-content:center;margin:8px 0}
   .breadcrumb{font-size:12px}
   /* 舊 topbar 手機版規則已移除（Phase 1 Shell v2） */
 

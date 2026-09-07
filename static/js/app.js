@@ -182,10 +182,8 @@ function switchTab(tab) {
   var isInventory = tab === 'inventory';
   var sb = document.querySelector('.h-search');
   var st = document.querySelector('.h-site');
-  var fp = document.getElementById('filter-panel');
   if (sb) sb.style.display = isCal ? 'none' : '';
   if (st) st.style.display = isCal ? 'none' : '';
-  if (fp) fp.style.display = isInventory ? '' : 'none';
   // 批款改位置價限單一庫存別離時自動退出批款模式伦隱藨 batch-bar\uff08避免跨頁殘留\uff09
   if (!isInventory) {
     if (typeof batchMode !== 'undefined' && batchMode) {

@@ -80,7 +80,7 @@ function renderInventory() {
   let html = renderInventoryDashboard(list);
   html += renderInventoryChips();
   html += renderInventoryToolbar(list, isViewer);
-  if (viewMode === 'table' && !isM) {
+  if (viewMode === 'table') {
     html += renderInventoryTable(list, isViewer);
   } else {
     html += renderInventoryCard(list, isViewer, isM);
@@ -150,7 +150,7 @@ function renderInventoryTable(list, isViewer) {
       const locStr = stocks.map(s => esc(s.location)).join(', ');
       h += '<tr class="' + rowClass + '">';
       if (hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
-      h += '<td class="col-name">' + esc(i.name) + '</td>';
+      h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small style="color:#64748b">' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
       h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + display + '</td>';
       h += '<td>' + esc(i.unit) + '</td>';
