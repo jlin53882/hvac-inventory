@@ -30,3 +30,5 @@ docs/收尾紀錄/
 start-8002.bat
 launch-hvac-8002.sh
 scripts/tunnel-8002.ps1
+restart-server-8003.bat
+外網啟動-8003.bat

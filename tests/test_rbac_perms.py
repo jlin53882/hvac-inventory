@@ -18,7 +18,7 @@ EXPECTED_ROLES = ('admin', 'user', 'tech', 'viewer')
 EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt', 'stock-mgmt', 'batch-loc-mgmt',
                  'import', 'stockout', 'stocktake', 'kit-mgmt', 'photo', 'cal-mgmt',
                  'svc-type-mgmt', 'gcal-sync-manage', 'gcal-sync-force', 'gcal-keys-manage',
-                 'unit-mgmt', 'user-mgmt', 'change-own-password')
+                 'unit-mgmt', 'user-mgmt', 'change-own-password', 'signed-report-delete-all')
 
 
 @pytest.fixture()
@@ -126,7 +126,7 @@ def matrix_tech(matrix_admin):
 
 # ---------- me 回傳 permissions ----------
 def test_me_returns_permissions_dict(admin_client):
-    """GET /api/auth/me 回傳 permissions dict（16 key，admin 全 true）"""
+    """GET /api/auth/me 回傳 permissions dict（22 key，admin 全 true）"""
     r = admin_client.get("/api/auth/me")
     assert r.status_code == 200
     perms = r.json()["user"]["permissions"]
@@ -202,11 +202,11 @@ def test_get_permissions_detail_sources(admin_client):
 
 
 def test_list_permissions_endpoint(admin_client):
-    """GET /api/users/permissions 回傳 16 權限點 + 四角色預設"""
+    """GET /api/users/permissions 回傳 22 權限點 + 四角色預設"""
     r = admin_client.get("/api/users/permissions")
     assert r.status_code == 200
     data = r.json()
-    assert len(data["permissions"]) == 21
+    assert len(data["permissions"]) == 22
     assert set(data["role_defaults"].keys()) == set(EXPECTED_ROLES)
     assert "cal-mgmt" in data["role_defaults"]["tech"]
 

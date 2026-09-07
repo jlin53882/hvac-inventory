@@ -63,6 +63,9 @@ STOCKOUT_MODAL_JS = os.path.join(STATIC, "js", "modals", "stockout.js")
 CARD_JS = os.path.join(STATIC, "js", "render", "card.js")
 # 待測：render/calendar.js（2026-08-13）
 CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
+# 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
+SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
+SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
 CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
@@ -219,6 +222,32 @@ def test_css_table_card_layout():
     """舊使用者 modal 手機卡片化樣式已清理（RBAC 權限頁取代，users-table 退役）"""
     css = read_css_all()
     assert ".users-table" not in css
+
+
+# ---------- 每日簽名報表（demo 版面責任分層） ----------
+
+def test_signed_reports_demo_layout_contract():
+    """DSR：外層只管版心，標題與卡片上下排列，僅 .dsr-layout 可切桌機兩欄。
+
+    2026-09-07 bug：誤把 .dsr-wrap 改為兩欄 Grid，標題與卡片被分到左右欄。
+    """
+    js = read(SIGNED_REPORTS_RENDER_JS)
+    css = read(SIGNED_REPORTS_CSS)
+    app = read(APP_JS)
+    assert 'class="dsr-page-header"' in js
+    assert js.index('class="dsr-page-header"') < js.index('class="dsr-layout"')
+    assert '#content.dsr-content' in css
+    assert '.dsr-layout { grid-template-columns: 1.05fr .95fr; }' in css
+    assert '.dsr-wrap { display: grid;' not in css
+    assert 'max-width: 1100px;' not in css
+    assert "content.classList.toggle('dsr-content', tab === 'signed-reports')" in app
+    assert "if (currentTab === 'signed-reports') switchTab(currentTab);" in app
+    assert "onclick=\"dsrPreview(${r.id})\"" in js
+    assert "function dsrPreview(id)" in js
+    assert "base + '/preview', base + '/download'" in js
+    assert "dsrTotal = data.total || 0" in js
+    assert "dsrLoadHistory();" in js[js.index('function dsrChangePage'):js.index('function dsrPreview')]
+    assert "jsStr('${esc(r.file_name)}')" not in js
 
 
 # ---------- auth.js ----------
