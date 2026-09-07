@@ -58,9 +58,11 @@ async function renderSignedReports() {
               <div class="dsr-drop__title">拖曳檔案到此，或點擊選擇</div>
               <div class="dsr-drop__sub">支援 .pdf .png .jpg .jpeg .webp .docx .xlsx .heic 等任意格式（不限制副檔名）</div>
               <div class="dsr-drop__actions">
-                <span class="dsr-btn dsr-btn--primary">選擇檔案</span>
+                <span class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">選擇檔案</span>
+                <span class="dsr-btn dsr-btn--ghost" onclick="document.getElementById('dsr-camera-input').click()">📷 相機拍攝</span>
               </div>
-              <input id="dsr-file-input" type="file" style="display:none">
+              <input id="dsr-file-input" type="file" style="display:none" accept="image/*,.pdf,.docx,.xlsx">
+              <input id="dsr-camera-input" type="file" style="display:none" accept="image/*" capture="environment">
             </div>
             <!-- 選檔後預覽 -->
             <div id="dsr-file-preview" style="display:none">
@@ -195,6 +197,7 @@ async function renderSignedReports() {
   ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
   drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) dsrHandleFile(e.dataTransfer.files[0]); });
   document.getElementById('dsr-file-input').addEventListener('change', e => { if (e.target.files[0]) dsrHandleFile(e.target.files[0]); });
+    document.getElementById('dsr-camera-input').addEventListener('change', e => { if (e.target.files[0]) dsrHandleFile(e.target.files[0]); });
 
   dsrLoadHistory();
 }
