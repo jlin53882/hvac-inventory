@@ -123,7 +123,7 @@ function stkGroupByLoc(rows) {
     const locRows = byLoc[loc];
     html += `<div class="section-title"><span class="loc">位置：${esc(loc)}</span><span>${locRows.length} 項</span></div>`;
     html += `<table class="data-table"><thead><tr>
-      <th>品項</th><th style="width:130px">系統數量</th><th style="width:110px">實際數量</th>
+      <th>品項</th><th style="width:130px">系統數量</th><th style="width:110px">實際數量</th><th style="width:80px">差異</th>
     </tr></thead><tbody>`;
     locRows.forEach(r => {
       const i = r.item, s = r.stock;
@@ -162,6 +162,7 @@ function stkGroupByLoc(rows) {
             onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')"
             data-key="${esc(key)}">
         </div></td>
+        <td class="st-diff zero" style="text-align:center">0</td>
       </tr>`;
     });
     html += '</tbody></table>';

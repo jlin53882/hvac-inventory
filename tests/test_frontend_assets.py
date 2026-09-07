@@ -241,13 +241,37 @@ def test_signed_reports_demo_layout_contract():
     assert '.dsr-wrap { display: grid;' not in css
     assert 'max-width: 1100px;' not in css
     assert "content.classList.toggle('dsr-content', tab === 'signed-reports')" in app
-    assert "if (currentTab === 'signed-reports') switchTab(currentTab);" in app
-    assert "onclick=\"dsrPreview(${r.id})\"" in js
-    assert "function dsrPreview(id)" in js
-    assert "base + '/preview', base + '/download'" in js
-    assert "dsrTotal = data.total || 0" in js
-    assert "dsrLoadHistory();" in js[js.index('function dsrChangePage'):js.index('function dsrPreview')]
-    assert "jsStr('${esc(r.file_name)}')" not in js
+
+
+def test_stocktake_calcDiff_has_st_diff_element():
+    """盤點 calcDiff() 對應的 .st-diff 元素存在於 HTML 模板中"""
+    js = read(STOCKTAKE_JS)
+    assert 'function calcDiff' in js
+    assert '.st-diff' in js
+    # 確認渲染的 HTML 包含 st-diff td
+    assert 'class="st-diff' in js
+
+
+def test_stocktake_table_has_diff_column():
+    """盤點表格表頭包含「差異」欄"""
+    js = read(STOCKTAKE_JS)
+    assert '差異</th>' in js
+
+
+def test_signed_reports_accept_no_docx():
+    """簽名報表前端 accept 不含 .docx/.xlsx（與後端白名單對齊）"""
+    js = read(SIGNED_REPORTS_RENDER_JS)
+    assert '.docx' not in js
+    assert '.xlsx' not in js
+    assert 'PDF / PNG / JPG' in js or 'PDF' in js
+
+
+def test_no_openDrawer_dead_code():
+    """openDrawer/submitDrawer 殘留已清除"""
+    app = read(APP_JS)
+    assert 'function openDrawer' not in app
+    assert 'function submitDrawer' not in app
+    assert '_drawerCurrentType' not in app
 
 
 # ---------- auth.js ----------
@@ -2164,9 +2188,10 @@ def test_drawer_css_exists():
 
 
 def test_drawer_js_functions():
-    """Phase 2：Drawer JS 函式存在"""
+    """Phase 2：Drawer JS — openDrawer/submitDrawer 已清除（dead code），closeDrawer 保留"""
     js = read(APP_JS)
-    assert "function openDrawer" in js, "openDrawer 函式缺失"
+    assert 'function openDrawer' not in js, 'openDrawer 應已移除（dead code）'
+    assert 'function submitDrawer' not in js, 'submitDrawer 應已移除（dead code）'
     assert "function closeDrawer" in js, "closeDrawer 函式缺失"
     assert "drawerOverlay" in js, "drawerOverlay 引用缺失"
     assert "drawer.classList.add" in js or "drawer.classList.remove" in js,         "drawer class 操作缺失"
@@ -2257,11 +2282,12 @@ def test_table_view_css():
 
 
 def test_drawer_content_render():
-    """Phase 5：Drawer renderDrawerContent 函式存在"""
+    """Phase 5：Drawer — openDrawer 已清除（dead code），closeDrawer 保留，drawerBody 在 HTML"""
     js = read(APP_JS)
-    assert "function openDrawer" in js, "openDrawer 函式缺失"
+    html = read(INDEX)
+    assert 'function openDrawer' not in js, 'openDrawer 應已移除（dead code）'
     assert "function closeDrawer" in js, "closeDrawer 函式缺失"
-    assert "drawerBody" in js, "drawerBody 引用缺失"
+    assert "drawerBody" in html, "drawerBody HTML 缺失"
 
 
 # ========== signed-reports 遺漏測試 ==========

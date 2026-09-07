@@ -556,6 +556,10 @@
   .stk-tab.active { background: #fff; color: #1e3a5f; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
   .stk-tab span { display: block; font-size: 10.5px; font-weight: 400; opacity: 0.7; margin-top: 1px; }
   .stk-tab.active span { opacity: 0.85; }
+  .st-diff { font-size: 13px; font-weight: 600; text-align: center; }
+  .st-diff.pos { color: #16a34a; }
+  .st-diff.neg { color: #ef4444; }
+  .st-diff.zero { color: #94a3b8; }
 
   .empty { text-align: center; color: #999; padding: 40px 0; font-size: 14px; }
 

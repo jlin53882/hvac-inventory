@@ -92,41 +92,6 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// Drawer（統一操作容器）
-var _drawerCurrentType = '';
-function openDrawer(type, data) {
-  _drawerCurrentType = type;
-  var overlay = document.getElementById('drawerOverlay');
-  var drawer = document.getElementById('drawer');
-  var title = document.getElementById('drawerTitle');
-  var body = document.getElementById('drawerBody');
-  var footer = document.getElementById('drawerFooter');
-  if (!overlay || !drawer) return;
-  var titles = {add:'➕ 新增品項', edit:'✏️ 編輯品項', stockout:'📤 領出', prepare:'📤 待領出', kit:'🔧 整組'};
-  title.textContent = titles[type] || type;
-  body.innerHTML = '';
-  footer.innerHTML = '';
-  // Show drawer as visual container (form stays in modal HTML)
-  body.innerHTML = '<div style="padding:20px;color:#64748b;text-align:center">載入中...</div>';
-  footer.innerHTML = '<button class="bg-ghost" onclick="closeDrawer()">取消</button><button class="bg-primary" onclick="submitDrawer(\'' + type + '\')">確認</button>';
-  // Trigger the original modal function (form renders in modal, drawer is visual overlay)
-  if (type === 'add' && typeof openAddModal === 'function') openAddModal();
-  else if (type === 'edit' && typeof openEditModal === 'function') openEditModal(data);
-  else if (type === 'stockout' && typeof openOutModal === 'function') openOutModal(data);
-  else if (type === 'prepare' && typeof openPrepareModal === 'function') openPrepareModal(data);
-  else if (type === 'kit' && typeof openKitModal === 'function') openKitModal(data);
-  overlay.classList.add('open');
-  drawer.classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function submitDrawer(type) {
-  // Submit form based on type (uses renamed dr- prefixed IDs)
-  var form = document.getElementById('drawerBody');
-  if (!form) return;
-  // For now, just close the drawer (full submit logic TBD)
-  closeDrawer();
-  toast('\u2705 已送出', 'success');
-}
 
 function closeDrawer() {
   var overlay = document.getElementById('drawerOverlay');

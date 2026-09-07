@@ -1184,6 +1184,17 @@ class TestStocktake:
             c1.close()
             c2.close()
 
+    def test_stocktake_missing_item_id_400(self, client):
+        """盤點缺 item_id → 400（防 KeyError 500）"""
+        r = client.post('/api/stocktake', json={'items': [{'location': 'X', 'actual_qty': 5}]})
+        assert r.status_code == 400
+        assert 'item_id' in r.json()['detail']
+
+    def test_stocktake_invalid_item_id_type_400(self, client):
+        """盤點 item_id 非整數 → 400"""
+        r = client.post('/api/stocktake', json={'items': [{'item_id': 'abc', 'actual_qty': 5}]})
+        assert r.status_code == 400
+
 
 # ========== 位置庫存 PATCH（2026-08-14 併發修復：差額寫回 + 流水） ==========
 
@@ -1469,6 +1480,14 @@ class TestV10CompatAndCascade:
         clear_down = [m for m in movements if m["reason"] == "品項刪除清零"]
         assert len(clear_down) == 1
         assert clear_down[0]["delta"] == -3  # 原 5 - 已出 2 = 剩 3 清零
+
+    def test_delete_item_with_prepared_qty_blocked(self, client):
+        """有待領出數量的品項不可刪除 → 400"""
+        item = _add_item(client, name='有待領', qty=10)
+        client.post(f'/api/items/{item["id"]}/prepare', json={'qty': 3})
+        r = client.delete(f'/api/items/{item["id"]}')
+        assert r.status_code == 400
+        assert '待領出' in r.json()['detail']
 
     def test_delete_item_with_stocktake(self, client):
         """有盤點紀錄的品項刪除（M6 soft-delete）：已刪品項不再出現在準備清單"""
