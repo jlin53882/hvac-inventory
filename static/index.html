@@ -545,7 +545,11 @@
 <!-- 退回已領出 Modal -->
 <div class="modal-overlay" id="return-stockout-modal">
   <div class="modal">
-    <h3>↩️ 退回已領出</h3>
+    <h3 id="rs-title">↩️ 退回已領出</h3>
+    <div class="form-row" id="rs-parent-row" style="display:none">
+      <label>原始已領出紀錄 *</label>
+      <select id="rs-parent-movement"><option value="">— 請選擇原始出庫 —</option></select>
+    </div>
     <div class="form-row">
       <label>品項</label>
       <input type="text" id="rs-item-name" disabled>
@@ -572,7 +576,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('return-stockout-modal')">取消</button>
-      <button class="btn-confirm orange" onclick="submitReturnStockout()">↩️ 退回</button>
+      <button class="btn-confirm orange" id="rs-submit" onclick="submitReturnStockout()">↩️ 退回</button>
     </div>
   </div>
 </div>

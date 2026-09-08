@@ -100,6 +100,12 @@ class StockoutReturnUpdate(BaseModel):
     created_at: Optional[str] = Field(None, max_length=32)
 
 
+class StockoutReturnRepair(BaseModel):
+    """補齊舊退回流水的原始出庫與回補位置關聯。"""
+    source_movement_id: int = Field(..., ge=1)
+    return_stock_id: int = Field(..., ge=1)
+
+
 class PrepareRequest(BaseModel):
     qty: float
     note: str = ""

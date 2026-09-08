@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
-from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
+from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
 
@@ -435,6 +435,63 @@ def update_stockout_return(movement_id: int, upd: StockoutReturnUpdate):
             (new_qty, movement_before, movement_before + new_qty, destination, created_at, new_stock_id,
              new_stock["site"], new_stock["location"], movement_id),
         )
+        conn.commit()
+        return dict(conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone())
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@router.post("/api/stockout-returns/{movement_id}/repair", dependencies=[Depends(require_perm("stockout"))])
+def repair_stockout_return(movement_id: int, repair: StockoutReturnRepair):
+    """補齊舊退回流水的關聯，讓既有編輯/撤銷流程可安全使用。"""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
+        if not row or row["reason"] != "退回已領出":
+            raise HTTPException(404, "退回紀錄不存在")
+        if row["reverted_at"]:
+            raise HTTPException(400, "已撤銷的退回紀錄不能修復")
+        if row["delta"] <= 0:
+            raise HTTPException(400, "退回數量必須大於 0")
+        if row["source_movement_id"] and row["return_stock_id"]:
+            raise HTTPException(400, "此退回紀錄已有完整關聯，不需要修復")
+
+        parent_id = row["source_movement_id"] or repair.source_movement_id
+        return_stock_id = row["return_stock_id"] or repair.return_stock_id
+        parent = conn.execute(
+            "SELECT * FROM movements WHERE id=? AND item_id=? AND delta<0 AND reason LIKE '出庫%'",
+            (parent_id, row["item_id"]),
+        ).fetchone()
+        if not parent:
+            raise HTTPException(400, "原始出庫紀錄不存在或品項不一致")
+        active_returns = conn.execute(
+            "SELECT COALESCE(SUM(delta),0) FROM movements "
+            "WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL AND id!=?",
+            (parent["id"], movement_id),
+        ).fetchone()[0]
+        total_returned = active_returns + row["delta"]
+        if total_returned > -parent["delta"]:
+            raise HTTPException(400, "退回總量不可超過原始出庫數量")
+
+        stock = _stock_payload(conn, return_stock_id, row["item_id"])
+        if not stock:
+            raise HTTPException(400, "退回位置不存在，請重新選擇有效的庫存位置")
+
+        parent_reverted_at = parent["reverted_at"]
+        if total_returned >= -parent["delta"]:
+            parent_reverted_at = parent_reverted_at or row["created_at"] or datetime.datetime.now().isoformat()
+        else:
+            parent_reverted_at = None
+        conn.execute(
+            "UPDATE movements SET source_movement_id=?, return_stock_id=?, return_site=?, return_location=?, source_stock_id=?, source_site=?, source_location=? WHERE id=?",
+            (parent["id"], stock["id"], stock["site"], stock["location"],
+             parent["source_stock_id"], parent["source_site"], parent["source_location"], movement_id),
+        )
+        conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", (parent_reverted_at, parent["id"]))
         conn.commit()
         return dict(conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone())
     except Exception:

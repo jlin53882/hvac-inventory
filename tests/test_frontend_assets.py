@@ -2362,8 +2362,23 @@ def test_stockout_return_tracks_source_and_return_locations():
     assert 'revokeStockoutReturn' in render
     assert 'return_location' in render
     assert 'esc(Number(st.id))' in modal
+    assert '/repair' in modal
+    assert 'openRepairStockoutReturnModal' in render
+    assert 'needsRepair' in render
 
-# ========== Sidebar 折疊 ==========
+
+def test_stockout_return_actions_remain_visible_after_return():
+    """已退回流水仍保留編輯/撤銷；已撤銷資料顯示狀態而非空白。"""
+    render = read("static/js/render/stockout.js")
+    assert "if (isReturn)" in render
+    assert "const needsRepair = isReturn && (!o.source_movement_id || !o.return_stock_id);" in render
+    assert "if (reverted)" in render
+    assert "else if (needsRepair)" in render
+    assert render.index("if (reverted)") < render.index("else if (needsRepair)")
+    assert "openEditStockoutReturnModal(${o.id})" in render
+    assert "revokeStockoutReturn(${o.id})" in render
+    assert "已撤銷退回" in render
+
 def test_sidebar_collapsed_css_exists():
     """sidebar 折疊 CSS 規則存在（桌面隱藏/展開）"""
     css = read_css_all()

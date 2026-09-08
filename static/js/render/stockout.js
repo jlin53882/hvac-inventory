@@ -71,6 +71,7 @@ async function renderStockOuts() {
       list.forEach(o => {
         const reverted = !!o.reverted_at;
         const isReturn = o.reason === '退回已領出';
+        const needsRepair = isReturn && (!o.source_movement_id || !o.return_stock_id);
         const soPhoto = o.has_photo
           ? `<img class="so-photo" src="/uploads/${o.item_id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">`
           : `<div class="so-photo so-photo-empty">📷</div>`;
@@ -82,8 +83,12 @@ async function renderStockOuts() {
           <td>${o.destination ? `<span class="dest-chip">🏢 ${esc(o.destination)}</span>` : ''}${isReturn && o.return_location ? `<br><span class="dest-chip">📍 ${esc(o.return_site || '')}${o.return_site ? '／' : ''}${esc(o.return_location)}</span>` : (!o.destination ? '<span style="color:#ccc">—</span>' : '')}</td>
           <td style="white-space:nowrap">
             ${isViewer ? '' : (isReturn
-              ? (reverted ? '' : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button>
-                   <button class="btn-del" style="padding:4px 8px" onclick="revokeStockoutReturn(${o.id})">撤銷退回</button>`)
+              ? (reverted
+                ? '<span style="color:#999;font-size:12px">↩️ 已撤銷退回</span>'
+                : (needsRepair
+                  ? `<button class="btn-prepare" style="padding:4px 8px" onclick="openRepairStockoutReturnModal(${o.id})">🛠️ 修復退回資料</button>`
+                  : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button>
+                     <button class="btn-del" style="padding:4px 8px" onclick="revokeStockoutReturn(${o.id})">撤銷退回</button>`))
               : (reverted
                 ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`
                 : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button>
@@ -148,14 +153,21 @@ function openStockoutSheet(movementId) {
 
   const reverted = !!rec.reverted_at;
   const isReturn = rec.reason === '退回已領出';
+  const needsRepair = isReturn && (!rec.source_movement_id || !rec.return_stock_id);
 
   const actions = [];
 
   if (!isViewer) {
 
-    if (isReturn && !reverted) {
-      actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
-      actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => revokeStockoutReturn(movementId) });
+    if (isReturn) {
+      if (reverted) {
+        actions.push({ icon: '↩️', label: '已撤銷退回', cls: 'disabled', fn: () => {} });
+      } else if (needsRepair) {
+        actions.push({ icon: '🛠️', label: '修復退回資料', cls: 'out', fn: () => openRepairStockoutReturnModal(movementId) });
+      } else {
+        actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
+        actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => revokeStockoutReturn(movementId) });
+      }
     } else if (!isReturn && !reverted) {
       actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutModal(movementId) });
       actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnStockout(movementId) });

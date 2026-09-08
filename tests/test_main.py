@@ -774,6 +774,166 @@ class TestStockoutReturn:
 
 
 
+    def test_repair_legacy_return_then_edit_and_revoke(self, client):
+        """舊退回流水可由系統補關聯後編輯、撤銷，不需人工改 DB。"""
+        item = _add_item(client, name="舊退回復原", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        stock_id = rec["source_stock_id"]
+
+        # 模擬舊版：退回已加回庫存，但沒有任何關聯欄位。
+        conn = app_db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=qty+4 WHERE id=?", (stock_id,))
+            conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", ("2026-09-08T10:00:00", rec["id"]))
+            cur = conn.execute(
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                (item["id"], 4, 6, 10, "退回已領出", "公司"),
+            )
+            legacy_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+        repaired = client.post(
+            f"/api/stockout-returns/{legacy_id}/repair",
+            json={"source_movement_id": rec["id"], "return_stock_id": stock_id},
+        )
+        assert repaired.status_code == 200, repaired.text
+        assert repaired.json()["source_movement_id"] == rec["id"]
+        assert repaired.json()["return_stock_id"] == stock_id
+
+        edited = client.patch(
+            f"/api/stockout-returns/{legacy_id}",
+            json={"destination": "公司倉庫"},
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["destination"] == "公司倉庫"
+
+        revoked = client.delete(f"/api/stockout-returns/{legacy_id}")
+        assert revoked.status_code == 200, revoked.text
+        rows = _get_item(client, item["id"])["stocks"]
+        assert {x["id"]: x["qty"] for x in rows}[stock_id] == 6
+        parent = [m for m in client.get("/api/movements").json() if m["id"] == rec["id"]][0]
+        assert parent["reverted_at"] is None
+
+
+    def test_repair_preserves_existing_partial_link(self, client):
+        """舊資料只缺一個關聯欄位時，修復不可覆寫既有回補位置。"""
+        item = _add_item(client, name="部分關聯復原", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        stock_id = rec["source_stock_id"]
+        alternate = client.post(
+            f"/api/items/{item['id']}/stocks",
+            json={"location": "另一個位置", "qty": 0},
+        ).json()[-1]["id"]
+        conn = app_db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=qty+4 WHERE id=?", (stock_id,))
+            conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", ("2026-09-08T10:00:00", rec["id"]))
+            cur = conn.execute(
+                "INSERT INTO movements (item_id, delta, reason, return_stock_id) VALUES (?,?,?,?)",
+                (item["id"], 4, "退回已領出", stock_id),
+            )
+            legacy_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+        repaired = client.post(
+            f"/api/stockout-returns/{legacy_id}/repair",
+            json={"source_movement_id": rec["id"], "return_stock_id": alternate},
+        )
+        assert repaired.status_code == 200, repaired.text
+        assert repaired.json()["return_stock_id"] == stock_id
+
+
+    def test_repair_partial_legacy_return_keeps_parent_active(self, client):
+        """部分舊退回可修復，原始出庫仍可繼續退回剩餘數量。"""
+        item = _add_item(client, name="部分舊退回", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        stock_id = rec["source_stock_id"]
+        conn = app_db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=qty+2 WHERE id=?", (stock_id,))
+            cur = conn.execute(
+                "INSERT INTO movements (item_id, delta, reason, destination) VALUES (?,?,?,?)",
+                (item["id"], 2, "退回已領出", "公司"),
+            )
+            legacy_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+        repaired = client.post(
+            f"/api/stockout-returns/{legacy_id}/repair",
+            json={"source_movement_id": rec["id"], "return_stock_id": stock_id},
+        )
+        assert repaired.status_code == 200, repaired.text
+        parent = [m for m in client.get("/api/movements").json() if m["id"] == rec["id"]][0]
+        assert parent["reverted_at"] is None
+
+        completed = client.post(
+            f"/api/stockouts/{rec['id']}/return",
+            json={"qty": 2, "return_stock_id": stock_id},
+        )
+        assert completed.status_code == 200, completed.text
+
+
+    def test_repair_rejects_return_total_over_parent(self, client):
+        """舊退回關聯不可讓同一原始出庫超過可退總量。"""
+        item = _add_item(client, name="超退關聯防護", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        stock_id = rec["source_stock_id"]
+        first = client.post(
+            f"/api/stockouts/{rec['id']}/return",
+            json={"qty": 4, "return_stock_id": stock_id},
+        )
+        assert first.status_code == 200, first.text
+
+        conn = app_db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=qty+2 WHERE id=?", (stock_id,))
+            cur = conn.execute(
+                "INSERT INTO movements (item_id, delta, reason) VALUES (?,?,?)",
+                (item["id"], 2, "退回已領出"),
+            )
+            legacy_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+        repaired = client.post(
+            f"/api/stockout-returns/{legacy_id}/repair",
+            json={"source_movement_id": rec["id"], "return_stock_id": stock_id},
+        )
+        assert repaired.status_code == 400
+        assert "退回總量不可超過" in repaired.json()["detail"]
+
+
+    def test_repair_rejects_nonpositive_legacy_return(self, client):
+        """復原不可接受負數或零數量的舊退回流水。"""
+        item = _add_item(client, name="非法舊退回", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        stock_id = rec["source_stock_id"]
+        conn = app_db.get_db()
+        try:
+            cur = conn.execute(
+                "INSERT INTO movements (item_id, delta, reason) VALUES (?,?,?)",
+                (item["id"], -1, "退回已領出"),
+            )
+            legacy_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+        repaired = client.post(
+            f"/api/stockout-returns/{legacy_id}/repair",
+            json={"source_movement_id": rec["id"], "return_stock_id": stock_id},
+        )
+        assert repaired.status_code == 400
+        assert "退回數量必須大於 0" in repaired.json()["detail"]
+
+
 # ========== 已領出：編輯（2026-08-10 新增） ==========
 
 class TestStockoutEdit:

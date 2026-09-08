@@ -238,10 +238,16 @@ async function returnPrepared(id) {
 
 var returnStockoutId = null;  // 當前退回的記錄 ID
 var editStockoutReturnId = null;
+var repairStockoutReturnId = null;
 
 // 開啟「退回已領出」Modal，帶入原記錄資料
 function openReturnStockoutModal(movementId) {
   editStockoutReturnId = null;
+  repairStockoutReturnId = null;
+  document.getElementById('rs-title').textContent = '↩️ 退回已領出';
+  document.getElementById('rs-submit').textContent = '↩️ 退回';
+  document.getElementById('rs-parent-row').style.display = 'none';
+  document.getElementById('rs-qty').disabled = false;
   const rec = (stockoutRecords || []).find(r => r.id === movementId);
   if (!rec) return;
   returnStockoutId = movementId;
@@ -286,6 +292,22 @@ async function submitReturnStockout() {
   const dest = document.getElementById('rs-dest').value.trim();
   const dt = document.getElementById('rs-datetime').value;
   const returnStockId = Number(document.getElementById('rs-location').value);
+  if (repairStockoutReturnId) {
+    const parentId = Number(document.getElementById('rs-parent-movement').value);
+    if (!parentId || !returnStockId) { toast('請選擇原始出庫與退回庫存位置', 'error'); return; }
+    try {
+      const res = await fetch(`/api/stockout-returns/${repairStockoutReturnId}/repair`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_movement_id: parentId, return_stock_id: returnStockId })
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '修復退回資料失敗'); }
+      repairStockoutReturnId = null;
+      closeModalForce('return-stockout-modal');
+      toast('✅ 已補齊退回資料，現在可以編輯或撤銷', 'success');
+      await loadData();
+    } catch (e) { toast('⚠️ ' + e.message, 'error'); }
+    return;
+  }
   if (editStockoutReturnId) {
     if (!qty || qty <= 0 || !returnStockId) { toast('請輸入有效數量並選擇退回庫存位置', 'error'); return; }
     const updateBody = { qty: qty, return_stock_id: returnStockId };
@@ -381,7 +403,49 @@ async function submitEditStockout() {
 }
 
 
+function openRepairStockoutReturnModal(movementId) {
+  const rec = (stockoutRecords || []).find(r => r.id === movementId);
+  if (!rec || rec.reason !== '退回已領出' || rec.reverted_at) return;
+  repairStockoutReturnId = movementId;
+  editStockoutReturnId = null;
+  document.getElementById('rs-title').textContent = '🛠️ 修復舊退回資料';
+  document.getElementById('rs-submit').textContent = '🛠️ 儲存關聯';
+  document.getElementById('rs-parent-row').style.display = '';
+  document.getElementById('rs-item-name').value = `${rec.brand} ${rec.item_name}${rec.code ? ' (' + rec.code + ')' : ''}`;
+  document.getElementById('rs-original-qty').textContent = `${rec.delta}（舊退回資料）`;
+  document.getElementById('rs-qty').value = rec.delta;
+  document.getElementById('rs-qty').disabled = true;
+  document.getElementById('rs-source-location').value = rec.source_location || '原始位置未記錄';
+  const parentSel = document.getElementById('rs-parent-movement');
+  parentSel.innerHTML = '<option value="">— 請選擇原始出庫 —</option>';
+  (stockoutRecords || []).filter(r => r.item_id === rec.item_id && r.delta < 0 && String(r.reason || '').startsWith('出庫')).forEach(parent => {
+    const label = `${(parent.created_at || '').slice(0, 10)}｜${parent.destination || '未填去向'}｜出庫 ${Math.abs(parent.delta)} ${parent.unit || ''}`;
+    parentSel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(parent.id))}">${esc(label)}</option>`);
+  });
+  if (rec.source_movement_id && parentSel.querySelector(`option[value="${Number(rec.source_movement_id)}"]`)) {
+    parentSel.value = String(rec.source_movement_id);
+  }
+  const sel = document.getElementById('rs-location');
+  sel.innerHTML = '<option value="">— 請選擇當時回補位置 —</option>';
+  const item = (typeof ALL_ITEMS !== 'undefined' ? ALL_ITEMS : []).find(i => i.id === rec.item_id);
+  (item && item.stocks || []).forEach(st => {
+    const label = `${item.site || ''}${item.site && st.location ? '／' : ''}${st.location || '未標示'}`;
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(st.id))}">${esc(label)}</option>`);
+  });
+  if (rec.return_stock_id && sel.querySelector(`option[value="${Number(rec.return_stock_id)}"]`)) {
+    sel.value = String(rec.return_stock_id);
+  }
+  document.getElementById('rs-dest').value = rec.destination || '';
+  document.getElementById('rs-datetime').value = (rec.created_at || '').slice(0, 10);
+  openModal('return-stockout-modal');
+}
+
 function openEditStockoutReturnModal(movementId) {
+  repairStockoutReturnId = null;
+  document.getElementById('rs-title').textContent = '↩️ 編輯退回已領出';
+  document.getElementById('rs-submit').textContent = '💾 儲存';
+  document.getElementById('rs-parent-row').style.display = 'none';
+  document.getElementById('rs-qty').disabled = false;
   const rec = (stockoutRecords || []).find(r => r.id === movementId);
   if (!rec || rec.reason !== '退回已領出' || rec.reverted_at) return;
   editStockoutReturnId = movementId;
