@@ -2463,3 +2463,42 @@ def test_mobile_inventory_card_does_not_inherit_desktop_flex_row_layout():
     assert 'cardClass: cardClass' not in js
     assert '.item-card.warn, .m-card.warn' in css
     assert '.item-card.danger, .m-card.danger' in css
+
+
+def test_inventory_stockout_actions_permission_matrix_runtime():
+    """以 Node VM 執行真正的卡片／表格 render，守護 stockout 權限與手機布局。"""
+    script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const context = {
+  document: { addEventListener() {}, querySelectorAll() { return []; } },
+  localStorage: { getItem() { return '[]'; } },
+  pending: {}, batchMode: false, selectedStockIds: new Set(), currentSite: 'office',
+};
+vm.createContext(context);
+for (const file of ['static/js/utils.js', 'static/js/render/card.js', 'static/js/render/inventory.js']) {
+  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+}
+const item = {
+  id: 42, name: '測試材料', brand: '測試廠牌', code: 'T-42', unit: '個', qty: 10,
+  low_stock: 0, prepared_qty: 0, is_kit: false, has_photo: false,
+  stocks: [{ id: 7, location: '編號A | 1-1', note: '' }],
+};
+const mobile = context.renderInventoryCard([item], false, true, true);
+const desktop = context.renderInventoryCard([item], true, true, false);
+const table = context.renderInventoryTable([item], true, true);
+const noPermission = context.renderInventoryCard([item], false, false, true);
+for (const [name, html] of [['mobile', mobile], ['desktop', desktop], ['table', table]]) {
+  for (const token of ['📤 待領出', '🚚 已領出']) {
+    if (!html.includes(token)) throw new Error(`${name} missing ${token}`);
+  }
+}
+if (!mobile.includes('class="m-card"') || mobile.includes('class="m-card item-card"')) {
+  throw new Error('mobile card inherited desktop item-card layout');
+}
+if (noPermission.includes('📤 待領出') || noPermission.includes('🚚 已領出')) {
+  throw new Error('user without stockout permission received write actions');
+}
+"""
+    result = subprocess.run(['node', '-e', script], capture_output=True, text=True, cwd=BASE_DIR)
+    assert result.returncode == 0, result.stderr
