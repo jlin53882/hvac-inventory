@@ -2412,6 +2412,21 @@ def test_filter_panel_switchtab_control():
     assert "filter-panel" in js, "switchTab 未控制 filter-panel"
     assert "isInventory" in js, "switchTab 未判斷 isInventory"
 
+# ========== 2026-09-08 手機 Header / 庫存出庫按鈕回歸 ==========
+def test_mobile_header_can_fit_without_horizontal_clipping():
+    """手機 Header 不可讓固定搜尋框與右側工具列把標題推出 viewport"""
+    css = read_css_all()
+    assert '.breadcrumb { min-width: 0;' in css
+    assert '.h-search { flex: 1 1 100%;' in css
+    assert '.h-search input { width: 100%;' in css
+    assert '.header { flex-wrap: wrap;' in css
+
+def test_inventory_mobile_filter_expanded_state_survives_rerender():
+    """品牌/分類篩選展開後，重繪不得自動恢復 collapsed"""
+    js = read(INVENTORY_RENDER_JS)
+    assert 'var filterExpandedState' in js
+    assert 'filterExpandedState[type]' in js
+
 def test_inventory_mobile_stockout_actions_match_desktop_permission_gate():
     """出庫入口必須用 stockout 權限，不可誤用品項管理 isViewer 狀態。"""
     js = read(INVENTORY_RENDER_JS)
@@ -2423,6 +2438,7 @@ def test_inventory_mobile_stockout_actions_match_desktop_permission_gate():
     card = read(os.path.join(STATIC, 'js/render/card.js'))
     assert "${p.actionsHTML || ''}" in card
     assert 'openPrepareModal' in js and 'openOutModal' in js
+
 
 def test_inventory_stockout_actions_are_shared_and_labeled_in_card_and_table():
     """單一庫存的卡片／表格都要有完整「待領出／已領出」文字入口。"""
@@ -2437,6 +2453,7 @@ def test_inventory_stockout_actions_are_shared_and_labeled_in_card_and_table():
     assert '.inventory-stockout-actions { display: flex; flex-direction: column;' in css
     assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare {' in css
     assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-out {' in css
+
 
 def test_mobile_inventory_card_does_not_inherit_desktop_flex_row_layout():
     """手機 m-card 不可帶 .item-card，否則 desktop flex row 會把底部出庫列擠到右邊。"""

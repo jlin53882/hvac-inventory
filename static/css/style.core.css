@@ -876,6 +876,12 @@
   .header{padding:10px 14px;gap:10px}
   .h-site{display:flex;justify-content:center;margin:8px 0}
   .breadcrumb{font-size:12px}
+  .header { flex-wrap: wrap; }
+  .breadcrumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .h-search { flex: 1 1 100%; order: 3; }
+  .h-search input { width: 100%; }
+  .h-right { gap: 6px; min-width: 0; }
+  .h-site button { padding: 4px 7px; }
   /* 舊 topbar 手機版規則已移除（Phase 1 Shell v2） */
 
   /* 內容區留給底部導覽 */

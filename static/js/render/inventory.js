@@ -441,6 +441,8 @@ function toggleLoc(titleEl, loc) {
 
 // ========== 篩選面板（品牌+分類 chips） ==========
 
+var filterExpandedState = { brand: false, category: false };
+
 function buildFilterPanel() {
 
   var brandCounts = {};
@@ -488,6 +490,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
   var el = document.getElementById(containerId);
 
   el.innerHTML = '';
+  el.classList.toggle('collapsed', !filterExpandedState[type]);
 
   var allChip = document.createElement('span');
 
@@ -586,6 +589,8 @@ function toggleFilterCollapse(containerId, toggleBtnId) {
   var btn = document.getElementById(toggleBtnId);
 
   var isCollapsed = el.classList.toggle('collapsed');
+  var filterType = containerId === 'fp-brand-chips' ? 'brand' : 'category';
+  filterExpandedState[filterType] = !isCollapsed;
 
   btn.textContent = isCollapsed ? '展開 ▼' : '收合 ▲';
 
