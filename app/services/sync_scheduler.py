@@ -14,7 +14,6 @@ Log 行為：
 - 無 due 項目：靜默（不寫 log）
 """
 import json
-import os
 import threading
 import urllib.request
 from datetime import datetime, timedelta
