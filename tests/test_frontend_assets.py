@@ -2411,3 +2411,38 @@ def test_filter_panel_switchtab_control():
     js = read(APP_JS)
     assert "filter-panel" in js, "switchTab 未控制 filter-panel"
     assert "isInventory" in js, "switchTab 未判斷 isInventory"
+
+def test_inventory_mobile_stockout_actions_match_desktop_permission_gate():
+    """出庫入口必須用 stockout 權限，不可誤用品項管理 isViewer 狀態。"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "const canStockout = hasPerm('stockout');" in js
+    assert "actionsHTML: buildInventoryStockoutActions(i, canStockout, true)" in js
+    assert "buildInventoryStockoutActions(i, canStockout, false)" in js
+    assert 'renderInventoryCard(list, isViewer, canStockout, isM)' in js
+    assert "if (!canStockout) return '';" in js
+    card = read(os.path.join(STATIC, 'js/render/card.js'))
+    assert "${p.actionsHTML || ''}" in card
+    assert 'openPrepareModal' in js and 'openOutModal' in js
+
+def test_inventory_stockout_actions_are_shared_and_labeled_in_card_and_table():
+    """單一庫存的卡片／表格都要有完整「待領出／已領出」文字入口。"""
+    js = read(INVENTORY_RENDER_JS)
+    css = read_css_all()
+    assert 'function buildInventoryStockoutActions(i, canStockout, mobile)' in js
+    assert js.count("buildInventoryStockoutActions(i, canStockout, false)") == 2
+    assert "actionsHTML: buildInventoryStockoutActions(i, canStockout, true)" in js
+    assert "if (!canStockout) return '';" in js
+    assert '📤 待領出</button>' in js and '🚚 已領出</button>' in js
+    assert "mobile ? 'm-card-actions' : 'inventory-stockout-actions'" in js
+    assert '.inventory-stockout-actions { display: flex; flex-direction: column;' in css
+    assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare {' in css
+    assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-out {' in css
+
+def test_mobile_inventory_card_does_not_inherit_desktop_flex_row_layout():
+    """手機 m-card 不可帶 .item-card，否則 desktop flex row 會把底部出庫列擠到右邊。"""
+    js = read(INVENTORY_RENDER_JS)
+    css = read_css_all()
+    assert "cardClass: isZero ? 'danger' : (isLow ? 'warn' : '')" in js
+    assert 'cardClass: cardClass' not in js
+    assert '.item-card.warn, .m-card.warn' in css
+    assert '.item-card.danger, .m-card.danger' in css

@@ -67,7 +67,9 @@ function buildDatalists() {
 // ========== 庫存頁渲染（Phase 5 重構版） ==========
 
 function renderInventory() {
+  // 品項管理與出庫是不同權限：不可用 isViewer 代替 stockout，否則僅有出庫權限者在手機會看不到入口。
   const isViewer = !(hasPerm('item-mgmt') || hasPerm('stock-mgmt') || hasPerm('photo'));
+  const canStockout = hasPerm('stockout');
   let list = getFilteredInventoryItems();
   const content = document.getElementById('content');
   if (!list.length) {
@@ -81,9 +83,9 @@ function renderInventory() {
   buildFilterPanel();
   html += renderInventoryToolbar(list, isViewer);
   if (viewMode === 'table') {
-    html += renderInventoryTable(list, isViewer);
+    html += renderInventoryTable(list, isViewer, canStockout);
   } else {
-    html += renderInventoryCard(list, isViewer, isM);
+    html += renderInventoryCard(list, isViewer, canStockout, isM);
   }
   content.innerHTML = html;
   updateSaveBar();
@@ -137,7 +139,7 @@ function renderInventoryToolbar(list, isViewer) {
   return h;
 }
 
-function renderInventoryTable(list, isViewer) {
+function renderInventoryTable(list, isViewer, canStockout) {
   const byLoc = {};
   list.forEach(i => {
     const mainLoc = (i.stocks && i.stocks.length && i.stocks[0].location) || '未標示';
@@ -168,9 +170,9 @@ function renderInventoryTable(list, isViewer) {
       h += '<td class="col-loc">' + locStr + '</td>';
       h += '<td class="col-status">' + statusHTML + '</td>';
       h += '<td class="col-actions">';
+      h += buildInventoryStockoutActions(i, canStockout, false);
       if (!isViewer) {
         h += '<button onclick="openEditModal(' + i.id + ')" title="編輯">✏️</button> ';
-        h += '<button onclick="openOutModal(' + i.id + ')" title="已領出">📤</button> ';
         h += '<button onclick="deleteItem(' + i.id + ')" title="刪除">🗑️</button>';
       }
       h += '</td></tr>';
@@ -180,7 +182,15 @@ function renderInventoryTable(list, isViewer) {
   return h;
 }
 
-function renderInventoryCard(list, isViewer, isM) {
+// 單一庫存的待領出／已領出入口：卡片與表格共用，避免手機與桌面分支漂移。
+function buildInventoryStockoutActions(i, canStockout, mobile) {
+  if (!canStockout) return '';
+  const prepare = i.is_kit ? '' : '<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>';
+  const out = '<button class="btn-out" style="margin:0" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button>';
+  return '<div class="' + (mobile ? 'm-card-actions' : 'inventory-stockout-actions') + '">' + prepare + out + '</div>';
+}
+
+function renderInventoryCard(list, isViewer, canStockout, isM) {
   const collapsedKey = 'hvac_collapsed_locs_' + (typeof currentSite !== 'undefined' ? currentSite : 'office');
   let collapsedLocs = [];
   try { collapsedLocs = JSON.parse(localStorage.getItem(collapsedKey) || '[]') || []; } catch (e) { collapsedLocs = []; }
@@ -210,7 +220,8 @@ function renderInventoryCard(list, isViewer, isM) {
         const locStr = buildLocHTML(locs);
         h += mobileCardShell({
           reverted: false,
-          cardClass: cardClass,
+          // 手機外框不可再掛 desktop .item-card：該 class 是 flex row，會把底部 actions 擠到右側。
+          cardClass: isZero ? 'danger' : (isLow ? 'warn' : ''),
           moreBtnHTML: isViewer ? '' : '<button class="more-btn" onclick="openItemSheet(' + i.id + ')">⋯</button>',
           checkboxHTML: batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">' : '',
           thumb: buildThumb(i.id, i.has_photo, i.name, '📦'),
@@ -218,7 +229,7 @@ function renderInventoryCard(list, isViewer, isM) {
           subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + esc(i.brand) + (i.code ? ' · ' + esc(i.code) : ''),
           extraHTML: locStr,
           qtyHTML: buildQtyControl({id: i.id, display, unit: i.unit, isZero, delta, viewer: isViewer}),
-          actionsHTML: isViewer ? '' : '<div class="m-card-actions">' + (!i.is_kit ? '<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>' : '') + '<button class="btn-out" style="margin:0" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button></div>'
+          actionsHTML: buildInventoryStockoutActions(i, canStockout, true)
         });
       } else {
         const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
@@ -233,7 +244,7 @@ function renderInventoryCard(list, isViewer, isM) {
         h += locHtml;
         if (i.is_kit) h += '<div class="kit-tag">🔧 整組</div>';
         if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + prepared + ' ' + esc(i.unit) + '</div>';
-        if (!isViewer) h += '<div style="margin-top:4px"><div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">' + (!i.is_kit ? '<button class="btn-prepare" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>' : '') + '<button class="btn-out" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button></div></div>';
+        h += buildInventoryStockoutActions(i, canStockout, false);
         h += '</div>';
         if (isViewer) {
           h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + display + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';

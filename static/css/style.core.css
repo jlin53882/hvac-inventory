@@ -832,6 +832,20 @@
   border-radius: 9px;
 }
 
+/* 表格模式也保留完整文字入口；手機橫向表格捲動後不會只剩不明圖示。 */
+.inventory-stockout-actions { display: flex; flex-direction: column; gap: 4px; min-width: 82px; }
+.inventory-stockout-actions .btn-prepare, .inventory-stockout-actions .btn-out {
+  margin: 0 !important; padding: 5px 7px !important; font-size: 11px; white-space: nowrap;
+}
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare {
+  background: #fff; border: 1.5px solid #7c3aed; color: #6d28d9; display: inline-flex; justify-content: center;
+}
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-out {
+  background: #fff; border: 1.5px solid #f59e0b; color: #b45309; display: inline-flex; justify-content: center;
+}
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare:hover { background: #f5f3ff; }
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-out:hover { background: #fff7ed; }
+
 /* 整組卡（手機） */
 .m-card .kit-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px 4px; padding-right: 44px; }
 
@@ -932,8 +946,8 @@ tr.row-danger td{background:#fff5f5}
 .more-actions-dropdown button:hover{background:#f1f5f9}
 
 /* ===== Card warn/danger (Phase 5) ===== */
-.item-card.warn{background:#fffbeb;border:1px solid #f59e0b}
-.item-card.danger{background:#fff5f5;border:1px solid #ef4444}
+.item-card.warn, .m-card.warn{background:#fffbeb;border:1px solid #f59e0b}
+.item-card.danger, .m-card.danger{background:#fff5f5;border:1px solid #ef4444}
 
 /* ===== Dashboard stat cards ===== */
 .dash-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
