@@ -85,11 +85,27 @@ def test_upload_list_preview_and_safe_storage(signed_env):
     assert preview.status_code == 200
     assert preview.content == b"%PDF-demo"
     assert preview.headers["content-disposition"].startswith("inline;")
+    assert preview.headers["x-frame-options"] == "SAMEORIGIN"
+    assert "frame-ancestors 'self'" in preview.headers["content-security-policy"]
 
     download = client.get(f"/api/signed-reports/{item['id']}/download")
     assert download.status_code == 200
     assert download.content == b"%PDF-demo"
     assert download.headers["content-disposition"].startswith("attachment;")
+
+
+def test_download_supports_non_ascii_filename(signed_env):
+    """下載含中文原始檔名的 PDF 不得因 Content-Disposition 編碼回 500。"""
+    make_client, _ = signed_env
+    client = make_client()
+    report = _upload(client, filename="簽名日報表.pdf", content=b"%PDF-unicode").json()
+
+    response = client.get(f"/api/signed-reports/{report['id']}/download")
+
+    assert response.status_code == 200
+    assert response.content == b"%PDF-unicode"
+    assert response.headers["content-disposition"].startswith("attachment;")
+    assert "filename*=utf-8''" in response.headers["content-disposition"]
 
 
 def test_upload_rejects_invalid_date_empty_file_and_overlong_note(signed_env):

@@ -25,17 +25,22 @@ from fastapi.staticfiles import StaticFiles
 
 import app.config as app_config
 from app.config import STATIC_DIR
-from app.middleware import cache_control_middleware, csrf_origin_middleware, security_headers_middleware
+from app.middleware import cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
 from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, service_types, signed_reports, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 from app.services import sync_scheduler
+from app.services.app_log import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """啟動時初始化 DB schema + 首次 admin + 清理過期 session；shutdown 無需清理。
     2026-08-14 移入 lifespan：`import main` 不再觸發 DB 寫入（測試側 database is locked 根治）
     2026-08-15：cleanup_expired 落地（docstring 原聲稱「啟動時與登入時呼叫」但啟動時漏呼叫）"""
+    setup_logging()
+    logger.info("server startup cwd=%s", os.getcwd())
     init_db()
     _conn = get_db()
     try:
@@ -46,6 +51,7 @@ async def lifespan(app: FastAPI):
         _conn.close()
     yield
     sync_scheduler.stop()
+    logger.info("server shutdown")
 
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
 app = FastAPI(title="庫存管理系統", version="11.0.0", lifespan=lifespan)
@@ -54,6 +60,7 @@ app = FastAPI(title="庫存管理系統", version="11.0.0", lifespan=lifespan)
 app.middleware("http")(cache_control_middleware)
 app.middleware("http")(csrf_origin_middleware)
 app.middleware("http")(security_headers_middleware)
+app.middleware("http")(request_logging_middleware)
 
 
 

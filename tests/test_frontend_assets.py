@@ -290,6 +290,13 @@ def test_stocktake_table_has_diff_column():
     assert '差異</th>' in js
 
 
+def test_signed_reports_prefills_uploader_from_auth_user_display_name():
+    """回歸：/api/auth/me 回傳 {user: {...}}，上傳人需讀 user.display_name。"""
+    js = read(SIGNED_REPORTS_RENDER_JS)
+    assert "const me = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);" in js
+    assert "if (me && me.user && me.user.display_name) document.getElementById('dsr-uploader').value = me.user.display_name;" in js
+
+
 def test_signed_reports_accept_no_docx():
     """簽名報表前端 accept 不含 .docx/.xlsx（與後端白名單對齊）"""
     js = read(SIGNED_REPORTS_RENDER_JS)

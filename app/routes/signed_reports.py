@@ -288,7 +288,8 @@ def download_signed_report(rid: int, user: dict = Depends(require_login)):
         path = Path(STATIC_DIR) / "uploads" / row["stored_path"]
         if not path.exists():
             raise HTTPException(404, "檔案遺失")
-        return FileResponse(path, filename=row["file_name"], headers={"Content-Disposition": f'attachment; filename="{row["file_name"]}"'})
+        # FileResponse handles non-ASCII filenames with RFC 5987 encoding.
+        return FileResponse(path, filename=row["file_name"], content_disposition_type="attachment")
     finally:
         conn.close()
 

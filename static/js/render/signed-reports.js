@@ -184,7 +184,7 @@ async function renderSignedReports() {
   // 帶入登入者姓名
   try {
     const me = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);
-    if (me && me.display_name) document.getElementById('dsr-uploader').value = me.display_name;
+    if (me && me.user && me.user.display_name) document.getElementById('dsr-uploader').value = me.user.display_name;
   } catch(e) {}
 
   // 預設日期範圍 = 本月

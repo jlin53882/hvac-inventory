@@ -20,6 +20,9 @@ from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, Request
 
 from app.database import get_db
+from app.services.app_log import get_logger
+
+logger = get_logger(__name__)
 
 # ---------- 常數 ----------
 PBKDF2_ITERATIONS = 600_000
@@ -121,7 +124,7 @@ def init_admin_if_missing(conn: sqlite3.Connection) -> None:
         ("admin", hash_password("admin123"), "管理員", "admin"),
     )
     conn.commit()
-    print("[auth] 已建立初始帳號 admin（密碼 admin123，請登入後修改）")
+    logger.info("[auth] 已建立初始帳號 admin（密碼 admin123，請登入後修改）")
 
 
 def update_failed_attempts(conn: sqlite3.Connection, user_id: int, success: bool) -> None:
