@@ -237,6 +237,7 @@
       html += `<div class="warn-box">⚠️ 不能停用、刪除或修改自己的帳號（系統保護）。</div>`;
     } else {
       html += `<div class="account-actions">
+        <button class="btn-primary" onclick="window.permEditAccount(${u.id})">✏️ 編輯帳號</button>
         <button class="btn-primary" onclick="window.permResetPw(${u.id})">🔑 重設密碼</button>
         <button class="btn-warn" onclick="window.permToggleActive(${u.id}, ${u.is_active ? 0 : 1})">${u.is_active ? '⏸ 停用帳號' : '▶️ 啟用帳號'}</button>
         <button class="btn-danger" onclick="window.permDelete(${u.id})">🗑 刪除帳號</button>
@@ -359,6 +360,34 @@
       toast(e.message || '建立失敗', 'error');
     } finally {
       btn.disabled = false;
+    }
+  };
+
+  // ---------- 帳號編輯 modal（顯示名稱/角色共用流程） ----------
+  window.permEditAccount = function permEditAccount(uid) {
+    const u = permUsers.find(x => x.id === uid);
+    if (!u || me.id === uid) return;
+    document.getElementById('ae-display-name').value = u.display_name || '';
+    document.getElementById('ae-role').value = u.role;
+    document.getElementById('accountEditOverlay').classList.add('show');
+  };
+
+  window.closeAccountEditModal = function closeAccountEditModal() {
+    document.getElementById('accountEditOverlay').classList.remove('show');
+  };
+
+  window.submitAccountEdit = async function submitAccountEdit() {
+    const uid = curUid;
+    const name = document.getElementById('ae-display-name').value.trim();
+    const role = document.getElementById('ae-role').value;
+    if (!uid || !role) { toast('請選擇角色', 'error'); return; }
+    try {
+      await apiSend(`/api/users/${uid}`, 'PUT', { display_name: name, role });
+      closeAccountEditModal();
+      toast('帳號設定已更新', 'success');
+      await reloadUsers();
+    } catch (e) {
+      toast(e.message || '更新失敗', 'error');
     }
   };
 

@@ -110,6 +110,9 @@
 .account-field .k { font-size: 12px; color: #999; }
 .account-field .v { font-size: 14px; font-weight: 600; margin-top: 2px; }
 .account-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.account-edit-field { margin-bottom: 12px; }
+.account-edit-field label { display: block; font-size: 12.5px; color: #555; }
+.account-edit-input, .account-edit-select { width: 100%; padding: 9px 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; margin-top: 4px; box-sizing: border-box; }
 .account-actions .btn-danger { background: #ff4d4f; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
 .account-actions .btn-danger:hover { background: #d9363e; }
 /* 2026-08-15：重設確認 modal 的紅色確定鈕（modal 內獨立定義，非 .account-actions 子層） */
@@ -130,8 +133,6 @@
 .chip .status-dot { width: 7px; height: 7px; }
 .chip.off { opacity: .6; }
 
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13.5px; z-index: 999; opacity: 0; transition: opacity .25s; pointer-events: none; }
-.toast.show { opacity: 1; }
 
 @media (max-width: 768px) {
   .perm-layout { padding: 0 0 110px; }
@@ -231,6 +232,29 @@
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeAddUserModal()">取消</button>
       <button class="btn-primary" id="nu-submit" onclick="submitAddUser()">建立</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="accountEditOverlay">
+  <div class="modal">
+    <h3>✏️ 編輯帳號</h3>
+    <div class="account-edit-field">
+      <label for="ae-display-name">顯示名稱</label>
+      <input class="account-edit-input" id="ae-display-name" maxlength="100" autocomplete="off">
+    </div>
+    <div class="account-edit-field">
+      <label for="ae-role">角色</label>
+      <select class="account-edit-select" id="ae-role">
+        <option value="user">👤 使用者（庫存全寫入）</option>
+        <option value="tech">🔧 工程師（行事曆可寫、其他唯讀）</option>
+        <option value="viewer">👀 檢視者（全唯讀）</option>
+        <option value="admin">🛡️ 管理員</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeAccountEditModal()">取消</button>
+      <button class="btn-primary" onclick="submitAccountEdit()">儲存</button>
     </div>
   </div>
 </div>

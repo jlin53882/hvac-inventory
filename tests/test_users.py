@@ -132,6 +132,59 @@ def test_admin_can_create_and_list(admin_client):
     assert "password_hash" not in users[0]  # 不可洩漏 hash
 
 
+def test_admin_can_edit_display_name_and_role_and_read_back(admin_client):
+    """Account role/display name edits must persist and be readable back."""
+    created = admin_client.post("/api/users", json={
+        "username": "editable", "password": "Pass1234",
+        "display_name": "Original", "role": "user",
+    })
+    uid = created.json()["id"]
+
+    updated = admin_client.put(f"/api/users/{uid}", json={
+        "display_name": "Renamed", "role": "tech",
+    })
+    assert updated.status_code == 200
+    assert updated.json()["display_name"] == "Renamed"
+    assert updated.json()["role"] == "tech"
+
+    listed = admin_client.get("/api/users").json()["users"]
+    edited = next(user for user in listed if user["id"] == uid)
+    assert edited["display_name"] == "Renamed"
+    assert edited["role"] == "tech"
+
+    audit = admin_client.get(f"/api/users/audit?target_id={uid}").json()
+    assert any(row["action"] == "role_change" for row in audit["logs"])
+
+def test_edit_user_rejects_invalid_role_and_preserves_existing_values(admin_client):
+    """An invalid role must not partially write the display name."""
+    created = admin_client.post("/api/users", json={
+        "username": "invalid-edit", "password": "Pass1234",
+        "display_name": "Keep Me", "role": "user",
+    })
+    uid = created.json()["id"]
+
+    response = admin_client.put(f"/api/users/{uid}", json={
+        "display_name": "Must Not Write", "role": "superuser",
+    })
+    assert response.status_code == 400
+
+    listed = admin_client.get("/api/users").json()["users"]
+    current = next(user for user in listed if user["id"] == uid)
+    assert current["display_name"] == "Keep Me"
+    assert current["role"] == "user"
+
+def test_edit_user_rejects_overlong_display_name(admin_client):
+    """Display name length is bounded before the update transaction runs."""
+    created = admin_client.post("/api/users", json={
+        "username": "long-edit", "password": "Pass1234",
+        "display_name": "Valid", "role": "user",
+    })
+    uid = created.json()["id"]
+    response = admin_client.put(f"/api/users/{uid}", json={
+        "display_name": "x" * 101, "role": "tech",
+    })
+    assert response.status_code == 422
+
 def test_duplicate_username_409(admin_client):
     """驗證重複帳號建立回傳 409"""
     admin_client.post("/api/users", json={

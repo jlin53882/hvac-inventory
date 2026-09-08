@@ -450,6 +450,12 @@ def test_permissions_html_save_bar_variant_b():
     assert "padding: 0 0 110px" in html  # 手機
 
 
+def test_permissions_html_uses_shared_toast_css():
+    """The permissions page must not override shared toast geometry with top+bottom."""
+    html = read(PERMISSIONS_HTML)
+    assert ".toast { position: fixed; bottom: 24px" not in html
+    assert ".toast.show { opacity: 1; }" not in html
+
 def test_permissions_html_btn_ghost_white_fix():
     """2026-08-15 根因修復：.btn-ghost 全域白字樣式（topbar 專用）用於白底容器會隱形——
        save-bar / modal 內必須覆寫白底深字版"""
@@ -466,6 +472,25 @@ def test_perms_js_reset_perm_modal_structure():
     assert "window.openResetPermModal()" in js
     assert "window.permSave()" in js
 
+
+def test_perms_js_account_edit_uses_shared_modal_and_update_api():
+    """Account settings must expose one shared edit flow for editable fields."""
+    js = read(PERMS_JS)
+    html = read(PERMISSIONS_HTML)
+    assert "window.permEditAccount" in js
+    assert "if (!u || me.id === uid) return;" in js
+    assert "submitAccountEdit" in js
+    assert "accountEditOverlay" in html
+    assert 'id="ae-display-name"' in html
+    assert 'id="ae-role"' in html
+    assert "/api/users/" in js
+    assert "display_name" in js and "role" in js
+
+def test_perms_js_account_edit_escapes_display_name():
+    """Account edit rendering must keep user-controlled names escaped."""
+    js = read(PERMS_JS)
+    assert "esc(u.display_name)" in js
+    assert "value = u.display_name || ''" in js
 
 def test_perms_js_batch_create():
     """批次新增：/api/users/batch 端點 + 逐筆結果顯示"""
