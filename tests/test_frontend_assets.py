@@ -1164,10 +1164,10 @@ def test_calendar_js_uses_api_endpoints():
     assert "esc(e.updated_by_name)" in js and "編輯" in js
     # 2026-08-13 Sarah：備註標籤無括號提示（不要寫「（型號 / 車馬費）」）
     assert "<label>備註</label>" in js and "備註（型號" not in js
-    # 2026-08-13 Sarah：編輯按鈕只有文字（無 ✏️ 圖示）、刪除維持 ✕
-    assert "btn-edit\" onclick=\"calOpenAppt" in js
-    assert ">編輯</button>" in js and "✕</button>" in js
-    assert "✏️ 編輯</button>" not in js and "✕ 刪除" not in js
+    # 2026-09-08：桌面版操作按鈕改為 icon + aria-label（手機版保留可辨識文字）
+    assert "cal-icon-btn btn-edit" in js and "aria-label=\"編輯派工\"" in js
+    assert "cal-icon-btn btn-delete" in js and "aria-label=\"刪除派工\"" in js
+    assert "calOpenAppt(${e.id})" in js and "calDeleteAppt(${e.id})" in js
     # 2026-08-13 Sarah：reminder 條只留文字＋框（移除「看今天行程」按鈕；calGoToday 已刪）
     assert "看今天行程</button>" not in js
     assert "calGoToday" not in js
@@ -1198,6 +1198,37 @@ def test_css_has_calendar_styles():
         assert sel in css, f"缺 {sel}"
 
 
+def test_calendar_desktop_dispatch_layout():
+    """2026-09-08：桌面版行事曆 65/35、動態高度與組合搜尋列守護。"""
+    css = read_css_all()
+    js = read_calendar_js_all()
+    assert "grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr)" in css
+    assert "height: calc(100vh - 118px)" in css
+    assert "grid-template-rows: auto repeat(6, minmax(0, 1fr))" in css
+    assert ".cal-month-card" in css and ".cal-day-card" in css
+    assert "cal-page-header" in js
+    assert "cal-header-filters" in js
+    assert "cal-kpi-grid" in js
+    assert "calRenderKpi" in js
+    assert "calTodayEvents" in js
+    assert "cal-load-state" in js
+    assert "calSetLoadState('error'" in js
+    assert "cal-combined-search" not in js  # 舊深色工具列已移除
+    assert '<button class="cal-quick-filter"' not in js
+    assert "cal-today-inline" in js
+
+
+def test_calendar_kpi_uses_existing_appointment_data():
+    """KPI 只能由既有行程資料動態計算，不得寫死完成/進行中等不存在的狀態。"""
+    js = read_calendar_js_all()
+    assert "calTodayEvents.length" in js
+    assert "calEvents.length" in js
+    assert "selectedCount" in js
+    assert "已完成" not in js
+    assert "進行中" not in js
+    assert "待處理" not in js
+
+
 def test_calendar_cell_shows_service_client():
     """2026-08-13 Sarah + 08-14 家豪 B 方案：月曆格子內派工標籤顯示「時間」+「[服務] 客戶」
     - B 方案：時間獨立一行（.cal-evt-time）＋ 服務/客戶一行截斷（.cal-evt-body）
@@ -1226,7 +1257,9 @@ def test_calendar_cell_selected_highlight_js():
     js = read_calendar_js_all()
     assert "cal-selected" in js                          # 渲染時加選中 class
     assert "calSelected = new Date(y, m, d)" in js       # 點擊格子設定選中日期
-    assert "cal-today" not in js                         # 今天不標記（無 cal-today class 產生）
+    assert "_syncCalendarDateControls()" in js            # 月曆與頂部/右側日期同步
+    assert "function _parseLocalDate(value)" in js       # input date 字串先正規化成 Date
+    assert "className = 'cal-today'" not in js           # 今天不產生 cal-today class
 
 
 def test_calendar_appt_only_start_time():
