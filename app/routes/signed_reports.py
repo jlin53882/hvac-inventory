@@ -6,6 +6,7 @@
 - GET    /api/signed-reports              列表（日期區間 + 關鍵字 + 分頁）
 - GET    /api/signed-reports/{id}/preview 線上預覽（登入保護，inline）
 - GET    /api/signed-reports/{id}/download 下載原檔
+- PATCH  /api/signed-reports/{id}         編輯備註（上傳者/全域權限）
 - DELETE /api/signed-reports/{id}         刪除（有 signed-report-delete-all 可刪全部，否則僅刪自己的）
 
 儲存：static/uploads/signed_reports/YYYY-MM/{id}_{uuid8}_{safeName}
@@ -23,6 +24,7 @@ from fastapi.responses import FileResponse
 from app.config import STATIC_DIR
 from app.database import get_db
 from app.services.auth import get_user_permissions, require_login
+from app.models import SignedReportUpdate
 
 router = APIRouter()
 
@@ -209,6 +211,43 @@ def list_signed_reports(
             can_del = can_all or (r["uploader_user_id"] == user["id"])
             items.append(_row_to_out(r, can_del))
         return {"items": items, "total": total, "page": page, "page_size": page_size}
+    finally:
+        conn.close()
+
+@router.patch("/api/signed-reports/{rid}")
+def update_signed_report(
+    rid: int,
+    payload: SignedReportUpdate,
+    user: dict = Depends(require_login),
+):
+    """編輯備註（上傳者或具全域刪除權限者）。"""
+    if user is None:
+        raise HTTPException(401, "未登入")
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "報表不存在")
+        can_all = _can_delete_all(conn, user)
+        if not (can_all or row["uploader_user_id"] == user["id"]):
+            raise HTTPException(403, "僅上傳者或具全域刪除權限者可編輯")
+        report_date = row["report_date"] if payload.report_date is None else payload.report_date.strip()
+        uploader_name = row["uploader_name"] if payload.uploader_name is None else payload.uploader_name.strip()
+        note = row["note"] or "" if payload.note is None else payload.note.strip()
+        if not (1 <= len(uploader_name) <= 50):
+            raise HTTPException(400, "上傳人需 1-50 字")
+        try:
+            datetime.date.fromisoformat(report_date)
+        except Exception:
+            raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
+        conn.execute(
+            "UPDATE daily_signed_reports SET report_date=?, uploader_name=?, note=? WHERE id=?",
+            (report_date, uploader_name, note, rid),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
+        can_delete = can_all or updated["uploader_user_id"] == user["id"]
+        return _row_to_out(updated, can_delete)
     finally:
         conn.close()
 

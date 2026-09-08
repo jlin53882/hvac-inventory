@@ -138,3 +138,51 @@ def test_delete_is_limited_to_owner_or_global_permission(signed_env):
     assert admin_delete.status_code == 200
     assert not (static_dir / "uploads" / "signed_reports" / "2026-09").exists()
     assert admin.get("/api/signed-reports").json()["total"] == 0
+
+
+def test_owner_can_edit_note_and_other_user_cannot(signed_env):
+    """報表日期、上傳人與備註可編輯，但只有上傳者或全域權限者可修改。"""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    admin = make_client()
+    report = _upload(owner).json()
+
+    forbidden = other.patch(
+        f"/api/signed-reports/{report['id']}", json={"note": "不應被修改"}
+    )
+    assert forbidden.status_code == 403
+
+    updated = owner.patch(
+        f"/api/signed-reports/{report['id']}",
+        json={
+            "report_date": "2026-09-08",
+            "uploader_name": "王大明",
+            "note": "已更新備註",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["report_date"] == "2026-09-08"
+    assert updated.json()["uploader_name"] == "王大明"
+    assert updated.json()["note"] == "已更新備註"
+    listed_item = owner.get("/api/signed-reports").json()["items"][0]
+    assert listed_item["report_date"] == "2026-09-08"
+    assert listed_item["uploader_name"] == "王大明"
+    assert listed_item["note"] == "已更新備註"
+
+    admin_updated = admin.patch(
+        f"/api/signed-reports/{report['id']}", json={"note": "管理員補充"}
+    )
+    assert admin_updated.status_code == 200
+    assert admin_updated.json()["note"] == "管理員補充"
+
+
+def test_edit_note_rejects_overlong_value(signed_env):
+    """編輯資料仍限制備註最多 500 字，非法輸入回 422/400 而非 500。"""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    response = owner.patch(
+        f"/api/signed-reports/{report['id']}", json={"note": "x" * 501}
+    )
+    assert response.status_code in (400, 422)

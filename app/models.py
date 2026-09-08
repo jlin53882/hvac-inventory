@@ -10,6 +10,13 @@ from pydantic import BaseModel, Field
 
 
 # ---------- 品項（v10 正規化：主檔 + 位置庫存） ----------
+class SignedReportUpdate(BaseModel):
+    """編輯每日簽名報表的日期、上傳人與備註。"""
+    report_date: Optional[str] = Field(None, max_length=10)
+    uploader_name: Optional[str] = Field(None, min_length=1, max_length=50)
+    note: Optional[str] = Field(None, max_length=500)
+
+
 class StockItem(BaseModel):
     location: str = ""
     qty: float = Field(0, ge=0)

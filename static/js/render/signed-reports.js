@@ -13,6 +13,11 @@ function _dsrIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// 上傳時間資料仍保留完整值，列表只顯示日期。
+function _dsrDateOnly(value) {
+  return String(value || '').split(/[T ]/)[0];
+}
+
 // 渲染每日簽名報表頁面（含上傳區、KPI、歷史查詢）
 async function renderSignedReports() {
   const el = document.getElementById('content');
@@ -142,12 +147,8 @@ async function renderSignedReports() {
             </div>
           </div>
           <div class="dsr-card__bd" style="padding-top:0">
-            <div class="dsr-table-wrap">
-              <table class="dsr-table">
-                <thead><tr><th>報表日期</th><th>上傳人</th><th>上傳時間</th><th>檔案</th><th>備註</th><th style="width:130px">操作</th></tr></thead>
-                <tbody id="dsr-tbody"></tbody>
-              </table>
-              <div id="dsr-empty" class="dsr-empty" style="display:none">
+            <div class="dsr-report-list" id="dsr-tbody"></div>
+            <div id="dsr-empty" class="dsr-empty" style="display:none">
                 <div class="dsr-empty__icon">🗂</div>
                 <div>沒有符合條件的報表</div>
                 <div class="dsr-hint">試試放寬日期或關鍵字，或切換「全部」</div>
@@ -300,19 +301,33 @@ function dsrRenderTable() {
     tb.innerHTML = dsrFiltered.map(r => {
       const ext = (r.file_name || '').split('.').pop().toLowerCase();
       const ic = _dsrIconFor(ext);
-      const note = r.note ? esc(r.note) : '<span style="color:#cbd5e1">—</span>';
-      return `<tr>
-        <td data-label="報表日期"><span style="font-weight:800">${esc(r.report_date)}</span></td>
-        <td data-label="上傳人"><span class="dsr-tag">${esc(r.uploader_name)}</span></td>
-        <td data-label="上傳時間" style="white-space:nowrap">${esc(r.upload_time)}</td>
-        <td data-label="檔案"><div class="dsr-file-cell"><div class="dsr-file-icon" style="background:${ic.bg}">${ic.icon}</div><div style="min-width:0"><div class="dsr-ellipsis" style="font-weight:700">${esc(r.file_name)}</div><div style="font-size:11px;color:#64748b">${esc((r.mime_type||'').toUpperCase())}</div></div></div></td>
-        <td data-label="備註" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${note}</td>
-        <td data-label="操作"><div class="dsr-actions-cell">
-          <button class="dsr-icon-btn" title="預覽" onclick="dsrPreview(${r.id})">👁</button>
-          <button class="dsr-icon-btn" title="下載" onclick="dsrDownload(${r.id})">⬇️</button>
-          ${r.can_delete ? `<button class="dsr-icon-btn dsr-icon-btn--danger" onclick="dsrDelete(${r.id})">🗑</button>` : `<button class="dsr-icon-btn" disabled style="opacity:.4">🗑</button>`}
-        </div></td>
-      </tr>`;
+      const note = r.note ? esc(r.note) : '<span class="dsr-note-empty">—</span>';
+      const isImage = ['jpg','jpeg','png','webp','gif'].includes(ext);
+      const fileVisual = isImage
+        ? `<img class="dsr-report-thumb" src="/api/signed-reports/${r.id}/preview" alt="${esc(r.file_name)}" loading="lazy" onclick="dsrPreview(${r.id})" title="點擊圖片預覽">`
+        : `<div class="dsr-file-icon" style="background:${ic.bg}">${ic.icon}</div>`;
+      return `<details class="dsr-report-card">
+        <summary class="dsr-report-summary">
+          <span class="dsr-report-summary__date">${esc(r.report_date)}</span>
+          <span class="dsr-report-summary__uploader dsr-tag">${esc(r.uploader_name)}</span>
+          <span class="dsr-report-summary__file">${esc(r.file_name)}</span>
+        </summary>
+        <div class="dsr-report-detail">
+          <div class="dsr-report-detail__grid">
+            <div><span class="dsr-report-detail__label">報表日期</span><strong>${esc(r.report_date)}</strong></div>
+            <div><span class="dsr-report-detail__label">上傳人</span><strong>${esc(r.uploader_name)}</strong></div>
+            <div><span class="dsr-report-detail__label">上傳日期</span><strong>${esc(_dsrDateOnly(r.upload_time))}</strong></div>
+            <div class="dsr-report-detail__file"><span class="dsr-report-detail__label">檔案</span><div class="dsr-file-cell">${fileVisual}<div style="min-width:0"><div class="dsr-ellipsis" style="font-weight:700">${esc(r.file_name)}</div><div style="font-size:11px;color:#64748b">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
+            <div class="dsr-report-detail__note"><span class="dsr-report-detail__label">備註</span><div class="dsr-note-cell">${note}</div></div>
+          </div>
+          <div class="dsr-actions-cell">
+            ${!isImage ? `<button class="dsr-action-btn" onclick="dsrPreview(${r.id})">👁 預覽</button>` : ''}
+            ${r.can_delete ? `<button class="dsr-action-btn" onclick="dsrEditNote(${r.id})">✏️ 編輯</button>` : ''}
+            <button class="dsr-action-btn" onclick="dsrDownload(${r.id})">⬇️ 下載</button>
+            ${r.can_delete ? `<button class="dsr-action-btn dsr-action-btn--danger" onclick="dsrDelete(${r.id})">🗑 刪除</button>` : ''}
+          </div>
+        </div>
+      </details>`;
     }).join('');
   }
   const max = Math.max(1, Math.ceil(dsrTotal / dsrPageSize));
@@ -387,6 +402,31 @@ function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
 function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function dsrDownload(id) { window.open('/api/signed-reports/' + id + '/download', '_blank'); }
+// 編輯報表備註（上傳者或全域權限者）
+async function dsrEditNote(id) {
+  const report = dsrFiltered.find(item => item.id === id);
+  if (!report) return;
+  const reportDate = prompt('編輯報表日期（YYYY-MM-DD）', report.report_date || '');
+  if (reportDate === null) return;
+  const uploaderName = prompt('編輯上傳人姓名（1-50 字）', report.uploader_name || '');
+  if (uploaderName === null) return;
+  const note = prompt('編輯備註（最多 500 字）', report.note || '');
+  if (note === null) return;
+  if (note.length > 500) return toast('⚠️ 備註最多 500 字');
+  const res = await fetch('/api/signed-reports/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({report_date: reportDate, uploader_name: uploaderName, note})
+  });
+  const data = await res.json();
+  if (!res.ok) return toast('⚠️ ' + (data.detail || '備註更新失敗'));
+  report.report_date = data.report_date;
+  report.uploader_name = data.uploader_name;
+  report.note = data.note;
+  dsrRenderTable();
+  toast('✅ 備註已更新');
+}
+
 // 刪除簽名報表（二次確認）
 async function dsrDelete(id) {
   if (!confirm('確定刪除？')) return;

@@ -243,6 +243,38 @@ def test_signed_reports_demo_layout_contract():
     assert "content.classList.toggle('dsr-content', tab === 'signed-reports')" in app
 
 
+def test_signed_reports_actions_and_editable_note_contract():
+    """DSR：圖片直接預覽；下載/刪除/編輯備註均為圖示加文字操作。"""
+    js = read(SIGNED_REPORTS_RENDER_JS)
+    css = read(SIGNED_REPORTS_CSS)
+    assert "onclick=\"dsrPreview(${r.id})\"" in js
+    assert "!isImage" in js
+    assert "class=\"dsr-report-thumb\"" in js
+    assert "dsrEditNote(${r.id})" in js
+    assert "prompt('編輯報表日期" in js
+    assert "prompt('編輯上傳人姓名" in js
+    assert "prompt('編輯備註" in js
+    assert "report_date" in js and "uploader_name" in js
+    assert "✏️ 編輯" in js
+    assert "function _dsrDateOnly" in js
+    assert "_dsrDateOnly(r.upload_time)" in js
+    assert "esc(r.upload_time)" not in js
+    assert "fetch('/api/auth/me')" in js
+    assert "class=\"dsr-report-card\"" in js
+    assert "<summary" in js
+    assert "dsr-report-summary__date" in js
+    assert "dsr-report-summary__uploader" in js
+    assert "<details" in js
+    assert "⬇️ 下載" in js
+    assert "🗑 刪除" in js
+    assert "PATCH" in js
+    assert "/api/signed-reports/" in js and "note" in js
+    assert ".dsr-report-thumb" in css
+    assert ".dsr-action-btn" in css
+    assert "border: 1px solid #111827" in css
+    assert ".dsr-note-cell" in css and "background: #fff7ed" in css
+
+
 def test_stocktake_calcDiff_has_st_diff_element():
     """盤點 calcDiff() 對應的 .st-diff 元素存在於 HTML 模板中"""
     js = read(STOCKTAKE_JS)
