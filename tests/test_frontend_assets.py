@@ -2600,3 +2600,9 @@ if (viewer.includes('編輯品項') || viewer.includes('刪除品項')) throw ne
     import subprocess
     result = subprocess.run(['node', '-e', script], cwd=os.path.dirname(STATIC), capture_output=True, text=True)
     assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_inventory_mobile_table_does_not_force_desktop_width():
+    # 手機表格不可用桌面固定寬度，否則會只看得到前幾欄。
+    css = read_css_all()
+    assert '.tbl-wrap table.data-table { min-width: 780px; }' not in css
