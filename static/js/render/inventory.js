@@ -621,7 +621,8 @@ var selectedStockIds = new Set();
 function toggleBatchMode() {
   batchMode = !batchMode;
   selectedStockIds.clear();
-  document.getElementById('batch-toggle').classList.toggle('active', batchMode);
+  var bt = document.getElementById('batch-toggle');
+  if (bt) bt.classList.toggle('active', batchMode);
   document.getElementById('batch-num').textContent = 0;
   document.getElementById('batch-confirm').disabled = true;
   if (batchMode) {

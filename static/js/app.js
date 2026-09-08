@@ -162,6 +162,7 @@ function switchTab(tab) {
   currentTab = tab;
   var content = document.getElementById('content');
   if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
+  if (content) content.classList.toggle('cal-content', tab === 'calendar');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
   var nav = document.getElementById('nav-' + tab);

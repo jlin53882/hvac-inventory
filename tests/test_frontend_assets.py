@@ -2502,3 +2502,41 @@ if (noPermission.includes('📤 待領出') || noPermission.includes('🚚 已�
 """
     result = subprocess.run(['node', '-e', script], capture_output=True, text=True, cwd=BASE_DIR)
     assert result.returncode == 0, result.stderr
+
+
+def test_toggleBatchMode_null_safe():
+    """防回歸：toggleBatchMode() 對 batch-toggle 元素做 null check（手機版無此 ID）。
+
+    2026-09-08 bug：手機版按鈕沒有 id="batch-toggle"，直接呼叫
+    getElementById('batch-toggle').classList.toggle() 拋出 TypeError，
+    導致整個 batch mode 啟動流程中斷，batch-bar 永遠不會顯示。
+    """
+    js = read(INVENTORY_RENDER_JS)
+    # 必須有 null check：var bt = getElementById(...) / if (bt)
+    assert "var bt = document.getElementById('batch-toggle')" in js, \
+        'toggleBatchMode 應先將 batch-toggle 存入變數（null safe pattern）'
+    assert 'if (bt)' in js, \
+        'toggleBatchMode 應對 bt 做 null check 再呼叫 classList'
+    # 不應再有直接鏈式呼叫（會 crash）
+    bad = "document.getElementById('batch-toggle').classList.toggle"
+    assert bad not in js, \
+        'toggleBatchMode 不應再直接鏈式呼叫 getElementById().classList（手機版 null crash）'
+
+
+def test_calendar_cal_content_full_width():
+    """防回歸：行事曆桌面版全展開，移除 640px 限制。
+
+    2026-09-08 需求：行事曆在桌面版要全寬展開，不被 .content 的
+    max-width: 640px 限制。做法同 DSR 的 dsr-content 模式：
+    switchTab 時動態加 cal-content class，CSS 覆寫 max-width。
+    """
+    app = read(APP_JS)
+    css = read(CSS_CAL)
+    # app.js：switchTab 必須 toggle cal-content class
+    assert "content.classList.toggle('cal-content', tab === 'calendar')" in app, \
+        'app.js switchTab 缺 cal-content class toggle'
+    # style.calendar.css：必須有 #content.cal-content 覆寫 max-width
+    assert '#content.cal-content' in css, \
+        'style.calendar.css 缺 #content.cal-content 規則'
+    assert 'max-width: none' in css, \
+        'cal-content 規則應設定 max-width: none 解除 640px 限制'

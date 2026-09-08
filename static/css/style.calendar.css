@@ -1,5 +1,9 @@
 /* ========== 行事曆派工（📅） ========== */
 .cal-wrap { display: flex; flex-direction: column; gap: 14px; }
+/* 行事曆桌面版全展開（移除 640px 限制） */
+@media (min-width: 768px) {
+  #content.cal-content { max-width: none; padding: 14px 0 20px; }
+}
 /* 桌面：月曆與派工明細左右並排（家豪 2026-08-12 指定，同 demo 桌面版） */
 @media (min-width: 768px) {
   .cal-wrap { display: grid; grid-template-columns: 1.15fr 1fr; align-items: start; }
