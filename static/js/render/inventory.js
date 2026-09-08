@@ -117,10 +117,31 @@ function renderInventoryChips() {
   return h;
 }
 
+function getInventoryItemActions(itemId, isViewer, includePhoto) {
+  if (isViewer) return [];
+  const actions = [
+    { key: 'edit', icon: '✏️', label: '編輯品項', fn: () => openEditModal(itemId) }
+  ];
+  if (includePhoto !== false) actions.push({ key: 'photo', icon: '📷', label: '更換照片', fn: () => openEditModal(itemId) });
+  actions.push({ key: 'delete', icon: '🗑', label: '刪除品項', cls: 'del', fn: () => deleteItem(itemId) });
+  return actions;
+}
+
+function buildInventoryItemActionMenu(itemId, isViewer) {
+  const actions = getInventoryItemActions(itemId, isViewer, false);
+  if (!actions.length) return '';
+  const buttons = actions.map(a => {
+    const command = a.key === 'edit' ? 'openEditModal(' + itemId + ')' : 'deleteItem(' + itemId + ')';
+    return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" onclick="' + command + ';closeInventoryActionMenus()">' + a.icon + ' ' + a.label + '</button>';
+  }).join('');
+  return '<div class="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" onclick="openInventoryActionMenu(this, event)">⋮</button><div class="inventory-action-dropdown">' + buttons + '</div></div>';
+}
+
 function renderInventoryToolbar(list, isViewer) {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = (typeof isMobileView === 'function') && isMobileView();
   let h = '<div class="loc-export-bar">';
+  if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
   h += '<span class="loc-export-count">共 ' + list.length + ' 項</span>';
   h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'active' : '') + '">🃏 卡片</button></div>';
   if (!isViewer) h += '<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
@@ -134,11 +155,9 @@ function renderInventoryToolbar(list, isViewer) {
     if (hasPerm('batch-loc-mgmt')) h += '<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
     h += '<button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>';
   }
-  if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
   h += '</div>';
   return h;
 }
-
 function renderInventoryTable(list, isViewer, canStockout) {
   const byLoc = {};
   list.forEach(i => {
@@ -171,10 +190,7 @@ function renderInventoryTable(list, isViewer, canStockout) {
       h += '<td class="col-status">' + statusHTML + '</td>';
       h += '<td class="col-actions">';
       h += buildInventoryStockoutActions(i, canStockout, false);
-      if (!isViewer) {
-        h += '<button onclick="openEditModal(' + i.id + ')" title="編輯">✏️</button> ';
-        h += '<button onclick="deleteItem(' + i.id + ')" title="刪除">🗑️</button>';
-      }
+      h += buildInventoryItemActionMenu(i.id, isViewer);
       h += '</td></tr>';
     });
   });
@@ -385,17 +401,7 @@ function openItemSheet(itemId) {
 
   const isViewer = !(hasPerm('item-mgmt') || hasPerm('stock-mgmt') || hasPerm('photo'));
 
-  const actions = [];
-
-  if (!isViewer) {
-
-    actions.push({ icon: '✏️', label: '編輯品項', fn: () => openEditModal(itemId) });
-
-    actions.push({ icon: '📷', label: '更換照片', fn: () => openEditModal(itemId) });
-
-    actions.push({ icon: '🗑', label: '刪除品項', cls: 'del', fn: () => deleteItem(itemId) });
-
-  }
+  const actions = getInventoryItemActions(itemId, isViewer);
 
   openSheet(`${item.brand} ${item.name}`, actions);
 
@@ -763,6 +769,16 @@ function closeMoreActions() {
   var dd = document.getElementById('moreActionsDropdown');
   if (dd) dd.classList.remove('open');
 }
+function openInventoryActionMenu(button, event) {
+  if (event) event.stopPropagation();
+  document.querySelectorAll('.inventory-action-dropdown.open').forEach(function(el) { el.classList.remove('open'); });
+  var menu = button && button.parentElement ? button.parentElement.querySelector('.inventory-action-dropdown') : null;
+  if (menu) menu.classList.toggle('open');
+}
+function closeInventoryActionMenus() {
+  document.querySelectorAll('.inventory-action-dropdown.open').forEach(function(el) { el.classList.remove('open'); });
+}
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.more-actions-wrap')) closeMoreActions();
+  if (!e.target.closest('.inventory-action-menu')) closeInventoryActionMenus();
 });

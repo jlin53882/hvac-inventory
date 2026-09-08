@@ -936,6 +936,14 @@ tr.row-danger td{background:#fff5f5}
 .tbl-wrap .col-status{text-align:center}
 .tbl-wrap .col-actions{text-align:right;white-space:nowrap}
 .tbl-wrap .col-actions button{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px}
+.tbl-wrap .inventory-action-menu{display:inline-flex;position:relative;vertical-align:middle;margin-left:4px}
+.tbl-wrap .inventory-action-trigger{border:1px solid #dbe3ec !important;border-radius:6px;background:#fff !important;font-size:18px !important;line-height:1;padding:1px 7px !important;color:#475569}
+.tbl-wrap .inventory-action-trigger:hover{background:#f1f5f9 !important;color:#1e3a5f}
+.tbl-wrap .inventory-action-dropdown{display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:132px;padding:4px;background:#fff;border:1px solid #dbe3ec;border-radius:8px;box-shadow:0 6px 18px rgba(15,23,42,.16);z-index:300}
+.tbl-wrap .inventory-action-dropdown.open{display:block}
+.tbl-wrap .inventory-action-dropdown .inventory-action-item{display:block;width:100%;padding:8px 10px !important;border-radius:5px;text-align:left;font-size:12px !important;white-space:nowrap;color:#334155}
+.tbl-wrap .inventory-action-dropdown .inventory-action-item:hover{background:#f1f5f9}
+.tbl-wrap .inventory-action-dropdown .inventory-action-item.del{color:#dc2626}
 .tbl-wrap .status-ok{color:#16a34a;font-size:11px}
 .tbl-wrap .status-warn{color:#d97706;font-size:11px;font-weight:600}
 .tbl-wrap .status-danger{color:#dc2626;font-size:11px;font-weight:600}

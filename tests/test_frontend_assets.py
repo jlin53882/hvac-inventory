@@ -2540,3 +2540,63 @@ def test_calendar_cal_content_full_width():
         'style.calendar.css 缺 #content.cal-content 規則'
     assert 'max-width: none' in css, \
         'cal-content 規則應設定 max-width: none 解除 640px 限制'
+
+
+# ========== 2026-09-08 單一庫存 B 方案共用 action menu ==========
+def test_inventory_item_actions_use_shared_registry_for_table_and_card():
+    # 品項管理 actions 必須由共用 registry 提供，避免 table/card 分叉。
+    js = read(INVENTORY_RENDER_JS)
+    assert 'function getInventoryItemActions(itemId, isViewer, includePhoto)' in js
+    assert 'buildInventoryItemActionMenu(i.id, isViewer)' in js
+    assert 'getInventoryItemActions(itemId, isViewer, false)' in js
+    assert 'const actions = getInventoryItemActions(itemId, isViewer);' in js
+    assert "label: '編輯品項'" in js
+    assert "label: '更換照片'" in js
+    assert "label: '刪除品項'" in js
+
+
+def test_inventory_table_puts_item_actions_after_stockout_actions_in_menu():
+    # 表格的編輯/刪除要收進待領出／已領出右側的 ⋮ 選單。
+    js = read(INVENTORY_RENDER_JS)
+    table = js[js.index('function renderInventoryTable'):js.index('function buildInventoryStockoutActions')]
+    assert 'buildInventoryStockoutActions(i, canStockout, false)' in table
+    assert 'buildInventoryItemActionMenu(i.id, isViewer)' in table
+    assert 'openEditModal(' not in table
+    assert 'deleteItem(' not in table
+
+
+def test_inventory_toolbar_places_select_toggle_before_more_menu():
+    # 批量模式的全選／取消全選按鈕要位於 ⋮ 選單左側。
+    js = read(INVENTORY_RENDER_JS)
+    toolbar = js[js.index('function renderInventoryToolbar'):js.index('function renderInventoryTable')]
+    assert toolbar.index('btn-select-all') < toolbar.index('more-actions-wrap')
+
+
+def test_inventory_table_action_menu_runtime_is_permission_gated():
+    # Node VM 驗證表格保留出庫主操作，品項管理選單依權限顯示。
+    script = r'''const fs = require('fs');
+const vm = require('vm');
+const context = {
+  document: { addEventListener() {}, querySelectorAll() { return []; } },
+  localStorage: { getItem() { return 'table'; } },
+  pending: {}, batchMode: false, selectedStockIds: new Set(), currentSite: 'office',
+  hasPerm(key) { return key === 'stockout' || key === 'item-mgmt'; },
+};
+vm.createContext(context);
+for (const file of ['static/js/utils.js', 'static/js/render/card.js', 'static/js/render/inventory.js']) {
+  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+}
+const item = {
+  id: 42, name: '測試材料', brand: '測試廠牌', code: 'T-42', unit: '個', qty: 10,
+  low_stock: 0, prepared_qty: 0, is_kit: false, has_photo: false,
+  stocks: [{ id: 7, location: '編號A | 1-1', note: '' }],
+};
+const table = context.renderInventoryTable([item], false, true);
+if (!table.includes('📤 待領出') || !table.includes('🚚 已領出')) throw new Error('stockout actions missing');
+if (!table.includes('inventory-action-menu') || !table.includes('編輯品項') || !table.includes('刪除品項')) throw new Error('item action menu missing');
+const viewer = context.renderInventoryTable([item], true, true);
+if (viewer.includes('編輯品項') || viewer.includes('刪除品項')) throw new Error('viewer saw item actions');
+'''
+    import subprocess
+    result = subprocess.run(['node', '-e', script], cwd=os.path.dirname(STATIC), capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr or result.stdout
