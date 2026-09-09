@@ -32,6 +32,7 @@ LOGIN = os.path.join(STATIC, "login.html")
 CSS_CORE = os.path.join(STATIC, "css", "style.core.css")
 CSS_CAL = os.path.join(STATIC, "css", "style.calendar.css")
 CSS_INVENTORY = os.path.join(STATIC, "css", "style.inventory.css")
+CSS_KIT = os.path.join(STATIC, "css", "style.kit.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js
@@ -2731,3 +2732,45 @@ def test_desktop_inventory_pending_visual_system_css():
         assert token in css, f"style.inventory.css 缺少 {token}"
     assert "@media (max-width: 1440px)" in css
     assert "@media (max-width: 767px)" in css
+
+
+
+def test_kit_desktop_dashboard_assets_and_existing_actions():
+    """整組庫存 desktop dashboard 使用 scoped CSS 且保留既有操作 handlers。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    js = read(KITS_RENDER_JS)
+    css = read(CSS_KIT)
+    assert "/static/css/style.kit.css" in html
+    assert "content.classList.toggle('kit-content', tab === 'kit')" in app
+    for token in (
+        "kit-page-header", "kit-kpi-grid", "kit-toolbar", "kit-assembly-card",
+        "kit-component-table", "kit-status-badge", "kit-empty-state",
+    ):
+        assert token in js or token in css, f"整組頁缺少 {token}"
+    for token in ("openPrepareModal", "openOutModal", "editKit", "deleteKit", "assembleKit", "disassembleKit"):
+        assert token in js
+    assert ".kit-content" in css
+
+
+def test_kit_dashboard_stats_runtime_uses_component_data():
+    """Node VM：KPI 由實際整組/材料資料計算，缺料與庫存不足分開。"""
+    script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const context = { document: { addEventListener() {} } };
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/js/render/kits.js', 'utf8'), context);
+const kits = [
+  { id: 1, components: [{ item_id: 11, stock: 0, need_qty: 1 }, { item_id: 12, stock: 2, need_qty: 1 }] },
+  { id: 2, components: [{ item_id: 12, stock: 1, need_qty: 2 }] },
+  { id: 3, components: [{ item_id: 13, stock: 2, need_qty: 1 }] },
+];
+const stats = context.getKitDashboardStats(kits);
+if (stats.kitCount !== 3 || stats.materialCount !== 3) throw new Error('kit KPI count mismatch');
+if (stats.shortageCount !== 1 || stats.insufficientCount !== 1) throw new Error('kit status KPI mismatch');
+if (context.getKitStatus(kits[0]).status !== 'shortage') throw new Error('shortage priority mismatch');
+if (context.getKitStatus(kits[1]).status !== 'insufficient') throw new Error('insufficient status mismatch');
+"""
+    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr or result.stdout

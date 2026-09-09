@@ -184,6 +184,9 @@ REVIEWED_SAFE_BODIES = {
     "_allSelected() ? '☐ 取消全選' : '☑ 全選'",
     "batchMode ? 'style=\"padding-left:32px\"' : ''",
     # inventory.js desktop redesign（2026-09-09）：條件文字為固定 UI；數值由格式化 helper 產生。
+    # kits.js dashboard（2026-09-09）：以下為 renderer 內部已 esc 的 HTML 組合或 DB 數字主鍵。
+    "renderKitStatusBadge(status.status)", "renderKitActionButtons(k, isViewer, isM, status)",
+    "mobileStockout", "components.map(renderKitComponentRow).join('')",
     "hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'",
     "hasFilter ? '可以嘗試清除篩選或調整搜尋條件。' : '新增品項後，庫存與位置會在這裡集中管理。'",
     "clearButton", "addButton", "formatInventoryQuantity(totalQty)", "lowCount", "zeroCount",
