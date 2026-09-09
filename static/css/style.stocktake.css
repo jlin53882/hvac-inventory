@@ -143,11 +143,8 @@
   .stocktake-content .stocktake-kpi-number { font-size: 21px; }
   .stocktake-content .stocktake-kpi-label { font-size: 11px; }
   .stocktake-content .stocktake-summary-metrics { gap: 12px 18px; }
-  .stocktake-content .stocktake-current-header { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .stocktake-content table.stocktake-table { min-width: 620px; }
   .stocktake-content table.stocktake-table th,
   .stocktake-content table.stocktake-table td { padding-left: 10px; padding-right: 10px; }
-  .stocktake-content .stocktake-input { width: 86px; }
 }
 
 .stocktake-content .stocktake-material-row td { background: #f8fafc; }

@@ -2976,14 +2976,16 @@ def test_kit_mobile_actions_stay_on_one_row_in_requested_order():
     assert 'kit-mobile-actions' in js
     assert 'renderKitActionButtons(k, isViewer, isM, status)' in js
     assert 'kit-mobile-actions .kit-action' in css
+    assert js.index('openPrepareModal(${k.item_id}, event)') < js.index('openOutModal(${k.item_id}, event)')
+    assert js.index('openOutModal(${k.item_id}, event)') < js.index('openKitSheet(${k.id})')
 
 
 def test_stocktake_mobile_text_keeps_original_wrapping_behavior():
-    """盤點手機版移除強制斷字，還原原本文字呈現。"""
+    """盤點手機版保留可讀表格寬度，並維持 header 同列排列。"""
     css = read(CSS_STOCKTAKE)
-    assert 'word-break: break-word;' not in css
-    assert 'overflow-wrap: anywhere;' not in css
-    assert 'white-space: normal;' not in css
+    assert '.stocktake-content .stocktake-current-header { align-items: center; flex-direction: row;' in css
+    assert '.stocktake-content table.stocktake-table { width: 100%; min-width: 680px; table-layout: fixed;' in css
+    assert '.stocktake-content .stocktake-input { width: 100%; max-width: 86px;' in css
 
 def test_prepared_mobile_info_has_separate_name_model_location():
     """待領出手機品項資訊分成品牌名稱、型號、位置三行。"""
