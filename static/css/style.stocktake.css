@@ -163,3 +163,11 @@
 .stocktake-content .stocktake-material-system-qty { color: #475569; font-weight: 600; white-space: nowrap; }
 .stocktake-content .stocktake-material-row .stocktake-input { width: 100px; }
 .stocktake-content .stocktake-material-diff { font-size: 15px; font-weight: 700; }
+@media (max-width: 767px) {
+  .stocktake-content .stocktake-current-header { align-items: center; flex-direction: row; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; }
+  .stocktake-content .stocktake-current-heading { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  .stocktake-content table.stocktake-table { width: 100%; min-width: 680px; table-layout: fixed; }
+  .stocktake-content .stocktake-table .stocktake-col-item { width: 42%; }
+  .stocktake-content .stocktake-table .stocktake-col-system, .stocktake-content .stocktake-table .stocktake-col-actual, .stocktake-content .stocktake-table .stocktake-col-diff { width: 19.333%; }
+  .stocktake-content .stocktake-input { width: 100%; max-width: 86px; box-sizing: border-box; }
+}

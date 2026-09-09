@@ -315,7 +315,7 @@ function renderInventoryTable(list, isViewer, canStockout) {
       h += '<tr class="' + rowClass + '">';
       if (batchMode && hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
       h += '<td class="photo-cell">' + photoHTML + '</td>';
-      h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small style="color:#64748b">' + esc(i.code) + '</small>' : '') + '</td>';
+      h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small style="color:#64748b">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
       h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + display + '</td>';
       h += '<td>' + esc(i.unit) + '</td>';
@@ -376,8 +376,8 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           moreBtnHTML: isViewer ? '' : '<button class="more-btn" onclick="openItemSheet(' + i.id + ')">⋯</button>',
           checkboxHTML: batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">' : '',
           thumb: buildThumb(i.id, i.has_photo, i.name, '📦', i.thumbnail_url),
-          nameHTML: esc(i.name) + (i.site === 'warehouse' ? ' 🏭' : ''),
-          subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + esc(i.brand) + (i.code ? ' · ' + esc(i.code) : ''),
+          nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名') + (i.site === 'warehouse' ? ' 🏭' : ''),
+          subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
           extraHTML: locStr,
           qtyHTML: buildQtyControl({id: i.id, display, unit: i.unit, isZero, delta, viewer: isViewer}),
           actionsHTML: buildInventoryStockoutActions(i, canStockout, true)
@@ -391,8 +391,8 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
         if (!isViewer) h += '<button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="編輯品項">編輯</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="刪除材料">刪除</button>';
         h += '<div class="item-info"' + (isViewer ? '' : ' onclick="openEditModal(' + i.id + ')"') + '>';
-        h += '<div class="item-name">' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + statusBadge + '</div>';
-        h += '<div class="item-code">' + esc(i.brand) + (i.code ? ' · ' + esc(i.code) : '') + '</div>';
+        h += '<div class="item-name">' + esc(i.brand || '無廠牌') + ' ' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + statusBadge + '</div>';
+        h += '<div class="item-code">' + (i.code ? '型號： ' + esc(i.code) : '') + '</div>';
         h += locHtml;
         if (i.is_kit) h += '<div class="kit-tag">🔧 整組</div>';
         if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + prepared + ' ' + esc(i.unit) + '</div>';

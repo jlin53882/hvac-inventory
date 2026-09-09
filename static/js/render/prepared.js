@@ -32,8 +32,8 @@ function renderPreparedDesktopRow(item, isViewer) {
   </div></td>`;
   return `<tr class="prepared-row">
     <td class="prepared-photo-cell">${photo}</td>
-    <td class="prepared-item-cell"><div class="prepared-item-name">${esc(item.name || '未命名')} ${nonStock}</div>
-      <div class="prepared-item-model">${esc(item.brand || '無廠牌')}${item.code ? ' · 型號 ' + esc(item.code) : ''}</div>
+    <td class="prepared-item-cell"><div class="prepared-item-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')} ${nonStock}</div>
+      <div class="prepared-item-model">${item.code ? '型號： ' + esc(item.code) : ''}</div>
       <div class="prepared-item-location">📍 ${esc(location)}${note}</div></td>
     <td class="prepared-quantity-cell"><span class="prepared-qty-badge">📦 ${absNum(item.prepared_qty)} <small>${esc(item.unit)}</small></span></td>
     <td class="prepared-stock-cell"><span class="prepared-stock-badge">目前庫存 ${absNum(item.qty)} <small>${esc(item.unit)}</small></span></td>
@@ -84,9 +84,9 @@ async function renderPrepared() {
           cardClass: 'prepared-mobile-card',
           moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${item.id})">⋯</button>`,
           thumb: buildThumb(item.id, item.has_photo, item.name, '📷'),
-          nameHTML: `${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
-          subHTML: `${item.code ? '<span class="prepared-model">型號 ' + esc(item.code) + '</span> · ' : ''}${esc(item.location || '未標示')}`,
-          extraHTML: `<div class="prepared-mobile-meta"><span class="prepared-status-badge">📦 待領出</span><span class="prepared-stock-badge">目前庫存 ${absNum(item.qty)} ${esc(item.unit)}</span></div>`,
+          nameHTML: `<span class="prepared-mobile-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}</span>${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
+          subHTML: item.code ? `<span class="prepared-mobile-model">型號： ${esc(item.code)}</span>` : '',
+          extraHTML: `<div class="prepared-mobile-location">位置：${esc(item.location || '未標示')}</div><div class="prepared-mobile-meta"><span class="prepared-status-badge">📦 待領出</span><span class="prepared-stock-badge">目前庫存 ${absNum(item.qty)} ${esc(item.unit)}</span></div>`,
           qtyHTML: buildQtyNum(item.prepared_qty, item.unit, 'qty-violet'),
           actionsHTML: ''
         });

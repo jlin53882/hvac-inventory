@@ -626,8 +626,8 @@ def test_prepared_js_shows_model():
     """待領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處"""
     js = read(PREPARED_RENDER_JS)
     # 手機卡片 nameHTML 與桌面表格都有藍色「型號」小字（樣式與整組材料列一致 #1890FF）
-    assert js.count("型號 ") == 2
-    assert "prepared-model" in js
+    assert js.count("型號： ") == 2
+    assert "prepared-mobile-model" in js
 
 
 def test_prepared_js_none_stock_sheet_actions():
@@ -641,7 +641,8 @@ def test_prepared_js_chip_out_of_name_line():
     """V1b（2026-08-16）：待領出 chip 移出品名行（改放 extraHTML），名稱行不再塞 chip 防誤導 ⋯"""
     js = read(PREPARED_RENDER_JS)
     assert "prepared-mobile-meta" in js       # 狀態列移出品名行
-    assert "subHTML: `${item.code ?" in js   # 型號移入 subHTML
+    assert "prepared-mobile-model" in js   # 型號獨立一行
+    assert "prepared-mobile-location" in js # 位置獨立一行
     inv = read(INVENTORY_RENDER_JS)
     assert "待領出 ' + prepared + '</span>" in inv  # 單一庫存 chip 移到 subHTML（品牌前面）
 
@@ -1670,11 +1671,11 @@ def test_kit_stockout_actions():
     # 手機卡片 m-card-actions + 桌面操作列：各一組 openPrepareModal/openOutModal（用 kit 的 item_id）
     assert js.count("openPrepareModal(${k.item_id}") >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
     assert js.count("openOutModal(${k.item_id}") >= 2, "整組卡片已領出按鈕（手機+桌面）缺失"
-    assert "m-card-actions" in js, "手機整組卡片缺 m-card-actions 按鈕列"
+    assert "kit-mobile-actions" in js, "手機整組卡片缺 kit-mobile-actions 按鈕列"
     # 桌面版：待領出/已領出要在編輯按鈕前面（設計圖：操作列最前面）
     assert js.find("openOutModal(${k.item_id}") < js.find("editKit(${k.id})"), "桌面按鈕應在編輯前面"
     # viewer/tech 隱藏
-    assert "isViewer ? '' : `<div class=\"m-card-actions\">" in js, "手機按鈕列應對 viewer/tech 隱藏"
+    assert 'if (isViewer) return \'\';' in js, "手機按鈕列應對 viewer/tech 隱藏"
 
 
 def test_prepared_nonstock_add_ui():
@@ -2920,3 +2921,116 @@ def test_kit_component_table_has_fixed_photo_and_equal_remaining_columns():
     assert '.kit-col-photo { width: 80px; }' in css
     assert 'width: calc((100% - 80px) / 4);' in css
     assert '.kit-assembly-actions .kit-action { flex: 1 1 0; min-width: 0;' in css
+
+def test_kit_status_kpis_are_clickable_and_use_existing_status_selector():
+    """整組庫存異常 KPI 必須用既有 getKitStatus selector 開啟明細。"""
+    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    assert "showKitStatusList('${card[4]}')" in js
+    assert 'function showKitStatusList(type)' in js
+    assert "getKitStatus(k).status === validType" in js
+    assert '庫存不足(個)' in js
+    assert '缺料(個)' in js
+
+
+def test_stocktake_mobile_table_and_header_keep_columns_readable():
+    """盤點手機版數量欄固定分配、header 同列排列、品項可斷行。"""
+    css = read(CSS_STOCKTAKE)
+    assert '.stocktake-content table.stocktake-table { width: 100%; min-width: 680px; table-layout: fixed;' in css
+    assert '.stocktake-content .stocktake-current-header { align-items: center; flex-direction: row;' in css
+    assert '.stocktake-content .stocktake-input { width: 100%;' in css
+
+
+def test_prepared_mobile_nonstock_badge_has_wrapping_layout():
+    """待領出手機非庫存 badge 不得被品名 nowrap/ellipsis 切斷。"""
+    js = read(PREPARED_RENDER_JS)
+    css = read(CSS_INVENTORY)
+    assert 'prepared-mobile-name' in js
+    assert '.prepared-content .m-card .nm' in css
+    assert 'white-space: normal;' in css
+    assert '.prepared-content .tag-nonstock' in css
+
+
+def test_inventory_mobile_toolbar_groups_count_add_and_more():
+    """單一庫存手機工具列第一列為共 N 項／新增／更多，view toggle 另列。"""
+    js = read(INVENTORY_RENDER_JS)
+    css = read(CSS_INVENTORY)
+    assert 'btn-add-inv' in js
+    assert 'more-actions-wrap' in js
+    assert '.inventory-content .loc-export-count' in css
+    assert '.inventory-content .loc-export-bar .btn-add-inv' in css
+    assert '.inventory-content .more-actions-wrap' in css
+    assert '.inventory-content .view-toggle { order: 4;' in css
+    assert '.inventory-content .btn-add-inv {' in css
+    assert 'background: #fff;' in css
+
+
+def test_stockout_kpi_total_quantity_uses_item_unit_label():
+    """已領出總領出數量 KPI 顯示個單位。"""
+    js = read(STOCKOUT_RENDER_JS)
+    assert '總領出數量(個)' in js
+
+def test_kit_mobile_actions_stay_on_one_row_in_requested_order():
+    """整組手機操作必須同列且順序為待領出、已領出、更多。"""
+    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    css = read(CSS_KIT)
+    assert 'kit-mobile-actions' in js
+    assert 'renderKitActionButtons(k, isViewer, isM, status)' in js
+    assert 'kit-mobile-actions .kit-action' in css
+
+
+def test_stocktake_mobile_text_keeps_original_wrapping_behavior():
+    """盤點手機版移除強制斷字，還原原本文字呈現。"""
+    css = read(CSS_STOCKTAKE)
+    assert 'word-break: break-word;' not in css
+    assert 'overflow-wrap: anywhere;' not in css
+    assert 'white-space: normal;' not in css
+
+def test_prepared_mobile_info_has_separate_name_model_location():
+    """待領出手機品項資訊分成品牌名稱、型號、位置三行。"""
+    js = read(PREPARED_RENDER_JS)
+    assert 'prepared-mobile-name' in js
+    assert 'prepared-mobile-model' in js
+    assert 'prepared-mobile-location' in js
+
+
+def test_stocktake_mobile_list_keeps_readable_width_with_horizontal_scroll():
+    """盤點手機清單保留可讀欄寬，由外層容器水平滑動。"""
+    css = read(CSS_STOCKTAKE)
+    assert '.stocktake-content .stocktake-table-wrap { overflow-x: auto;' in css
+    assert '.stocktake-content table.stocktake-table { width: 100%; min-width: 680px;' in css
+
+def test_prepared_mobile_card_keeps_stock_badge_in_layout():
+    """待領出手機卡片資訊欄不被右側數量欄擠壓，badge 可正常排列。"""
+    css = read(CSS_INVENTORY)
+    assert '.prepared-content .m-card .info { padding-right: 0;' in css
+    assert '.prepared-content .m-card .qty-col {' in css
+    assert 'width: 46px; padding-right: 0;' in css
+    assert '.prepared-content .prepared-mobile-meta { display: flex;' in css
+
+
+def test_inventory_table_stockout_actions_do_not_wrap_on_mobile():
+    """單一庫存表格待領出／已領出／更多操作維持同一排。"""
+    css = read(CSS_INVENTORY)
+    assert '.inventory-content .tbl-wrap .col-actions { white-space: nowrap;' in css
+    assert '.inventory-content .tbl-wrap .inventory-stockout-actions { display: inline-flex;' in css
+    assert '.inventory-content .tbl-wrap .inventory-action-menu { display: inline-flex;' in css
+
+def test_prepared_desktop_item_info_matches_mobile_hierarchy():
+    """待領出桌面資訊與手機一致：品牌品名第一行、型號第二行。"""
+    js = read(os.path.join(STATIC, "js", "render", "prepared.js"))
+    assert "${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}" in js
+    assert "型號： ${esc(item.code)}" in js
+
+
+def test_inventory_card_info_uses_brand_name_then_labeled_model():
+    """單一庫存卡片桌面與手機都統一品牌品名／型號階層。"""
+    js = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    assert "nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名')" in js
+    assert 'inventory-mobile-model">型號： ' in js
+
+
+def test_inventory_table_model_has_explicit_label():
+    """單一庫存表格型號顯示型號前綴，避免品牌跑到型號行。"""
+    js = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    assert "型號： " in js
+    assert "esc(i.code) + '</small>'" in js

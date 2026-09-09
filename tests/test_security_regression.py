@@ -199,12 +199,12 @@ REVIEWED_SAFE_BODIES = {
     # inventory.js desktop redesign（2026-09-09）：條件文字為固定 UI；數值由格式化 helper 產生。
     # kits.js dashboard（2026-09-09）：以下為 renderer 內部已 esc 的 HTML 組合或 DB 數字主鍵。
     "renderKitStatusBadge(status.status)", "renderKitActionButtons(k, isViewer, isM, status)",
-    "mobileStockout", "components.map(renderKitComponentRow).join('')",
+    "components.map(renderKitComponentRow).join('')",
     "hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'",
     "hasFilter ? '可以嘗試清除篩選或調整搜尋條件。' : '新增品項後，庫存與位置會在這裡集中管理。'",
     "clearButton", "addButton", "formatInventoryQuantity(totalQty)", "lowCount", "zeroCount",
     "formatInventoryQuantity(item.low_stock)", "isOut ? 'is-out' : 'is-low'", "thumb",
-    "item.code ? ' · 型號 ' + esc(item.code) : ''", "formatInventoryQuantity(status.qty)",
+    "item.code ? ' · 型號 ' + esc(item.code) : ''", "item.code ? '型號： ' + esc(item.code) : ''", "formatInventoryQuantity(status.qty)",
     "threshold", "editAction", "empty", "title", "intro", "listHTML",
     # prepared.js desktop redesign：photo/nonStock/actions 是由數字主鍵與已跳脫欄位組成的內部 HTML。
     "itemCount", "absNum(totalPrepared)", "item.prepared_qty", "photo", "nonStock",

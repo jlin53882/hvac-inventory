@@ -1112,3 +1112,30 @@ button.inventory-kpi-card:focus-visible,
     margin-bottom: 0;
   }
 }
+/* Mobile prepared cards：品名與非庫存 badge 可自然換行。 */
+.prepared-content .m-card .nm { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.prepared-content .prepared-mobile-name { display: block; flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.prepared-content .prepared-mobile-model { display: block; flex-basis: 100%; margin-top: 2px; color: #2563eb; font-size: 11px; font-weight: 600; }
+.prepared-content .prepared-mobile-location { margin-top: 4px; color: #64748b; font-size: 11px; }
+.prepared-content .tag-nonstock { flex: 0 0 auto; white-space: nowrap; }
+@media (max-width: 767px) {
+  .inventory-content .loc-export-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .inventory-content .loc-export-count { flex: 1 1 auto; min-width: 0; }
+  .inventory-content .loc-export-bar .btn-add-inv { flex: 0 0 auto; order: 2; border: 1px solid #2563eb; background: #fff; color: #2563eb; }
+  .inventory-content .more-actions-wrap { order: 3; flex: 0 0 auto; position: relative; }
+  .inventory-content .view-toggle { order: 4; flex: 0 0 100%; }
+  .inventory-content .btn-add-inv { min-height: 36px; padding: 0 10px; }
+}
+
+/* Mobile card/action alignment：避免共用 m-card 規則壓縮頁面專屬內容。 */
+.prepared-content .m-card .info { padding-right: 0; }
+.prepared-content .m-card .qty-col { width: 46px; padding-right: 0; }
+.prepared-content .prepared-mobile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+@media (max-width: 767px) {
+  .inventory-content .tbl-wrap .col-actions { white-space: nowrap; }
+  .inventory-content .tbl-wrap .inventory-stockout-actions { display: inline-flex; flex-direction: row; align-items: center; flex-wrap: nowrap; vertical-align: middle; white-space: nowrap; }
+  .inventory-content .tbl-wrap .inventory-action-menu { display: inline-flex; vertical-align: middle; }
+}
+/* 單一庫存資訊階層：品牌品名第一行、型號第二行，桌面／手機一致。 */
+.inventory-content .m-card .nm { white-space: normal; overflow: visible; text-overflow: clip; }
+.inventory-content .inventory-mobile-model { display: block; flex-basis: 100%; min-width: 0; margin-top: 2px; color: #2563eb; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
