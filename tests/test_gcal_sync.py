@@ -518,12 +518,16 @@ class TestSyncPending:
         mock_svc.events().patch().execute.assert_called_once()
         mock_svc.events().insert().execute.assert_not_called()
 
-    def test_empty_due_returns_zero(self):
-        """空 due -> (0, 0)"""
-        from app.services.gcal_sync import sync_pending
-        ok, fail, _ = sync_pending([])
-        assert ok == 0
-        assert fail == 0
+    def test_empty_due_returns_zero(self, monkeypatch):
+        """空 due 不查 DB，並回傳三值零結果。"""
+        from app.services import gcal_sync
+
+        def fail_get_db():
+            raise AssertionError("sync_pending([]) must not access the database")
+
+        monkeypatch.setattr(gcal_sync, "get_db", fail_get_db)
+        ok, fail, error_summary = gcal_sync.sync_pending([])
+        assert (ok, fail, error_summary) == (0, 0, {})
 
 
 # ============================================================
@@ -1128,13 +1132,16 @@ class TestErrorSummary:
         assert fail == 3
         assert error_summary[key_id]["errors"]["network down"] == 3
 
-    def test_empty_due_returns_empty_summary(self):
-        """空 due 回傳空 error_summary"""
-        from app.services.gcal_sync import sync_pending
-        ok, fail, error_summary = sync_pending([])
-        assert ok == 0
-        assert fail == 0
-        assert error_summary == {}
+    def test_empty_due_returns_empty_summary(self, monkeypatch):
+        """空 due 不查 DB，並回傳空 error_summary。"""
+        from app.services import gcal_sync
+
+        def fail_get_db():
+            raise AssertionError("sync_pending([]) must not access the database")
+
+        monkeypatch.setattr(gcal_sync, "get_db", fail_get_db)
+        ok, fail, error_summary = gcal_sync.sync_pending([])
+        assert (ok, fail, error_summary) == (0, 0, {})
 
 
 class TestStopGuard:

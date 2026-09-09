@@ -187,7 +187,7 @@ _RATE_PER_USER = 480       # 每個 SA 每分鐘上限
 _RATE_PROJECT = 8000       # 專案級每分鐘上限（80%）
 _RATE_WINDOW = 60          # 秒
 
-def sync_pending(due: List[dict]) -> Tuple[int, int]:
+def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
     """對 due（[{appointment_id, key_id, op_type, google_event_id, last_modified_at}]
     每列對應一 key，逐列同步。回傳 (成功, 失敗, error_summary)。
 
@@ -197,6 +197,9 @@ def sync_pending(due: List[dict]) -> Tuple[int, int]:
     A3：網路呼叫在交易外，讀寫用獨立短連線，不持 SQLite 寫鎖跨網路。
     R1：速率限制，每分鐘最多 _RATE_LIMIT 次 API 呼叫。
     """
+    if not due:
+        return 0, 0, {}
+
     ok = fail = 0
     # 錯誤摘要：{key_id: {"cal_id": str, "errors": {error_type: count}}}
     error_summary = {}
