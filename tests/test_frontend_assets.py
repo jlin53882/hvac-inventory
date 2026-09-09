@@ -2906,3 +2906,17 @@ def test_stocktake_submission_deduplicates_shared_material_key():
     assert 'submittedKeys = new Set(Object.keys(stocktakeValues))' in js
     assert 'for (const key of submittedKeys)' in js
     assert 'material.stocks.find(s => s.location === stock.location)' in js
+
+def test_kit_component_table_has_fixed_photo_and_equal_remaining_columns():
+    """整組庫存組成材料表使用 Excel 式固定欄寬，操作列按鈕等寬。"""
+    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    css = read(CSS_KIT)
+    assert 'kit-col-photo' in js
+    assert 'kit-col-info' in js
+    assert 'kit-col-need' in js
+    assert 'kit-col-stock' in js
+    assert 'kit-col-status' in js
+    assert 'table-layout: fixed;' in css
+    assert '.kit-col-photo { width: 80px; }' in css
+    assert 'width: calc((100% - 80px) / 4);' in css
+    assert '.kit-assembly-actions .kit-action { flex: 1 1 0; min-width: 0;' in css

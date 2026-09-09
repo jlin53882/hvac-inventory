@@ -146,6 +146,7 @@
   gap: 8px;
   flex: none;
 }
+.kit-content .kit-assembly-actions .kit-action { flex: 1 1 0; min-width: 0; }
 .kit-content .kit-action {
   min-height: 34px;
   padding: 0 11px;
@@ -170,7 +171,12 @@
 .kit-content .kit-action.is-assemble { border-color: #c4b5fd; color: #7c3aed; }
 .kit-content .kit-action.is-disassemble { border-color: #fdba74; color: #d97706; }
 .kit-content .kit-component-wrap { overflow-x: auto; }
-.kit-content .kit-component-table { width: 100%; min-width: 620px; border-collapse: collapse; }
+.kit-content .kit-component-table { width: 100%; min-width: 900px; border-collapse: collapse; table-layout: fixed; }
+.kit-content .kit-component-table .kit-col-photo { width: 80px; }
+.kit-content .kit-component-table .kit-col-info,
+.kit-content .kit-component-table .kit-col-need,
+.kit-content .kit-component-table .kit-col-stock,
+.kit-content .kit-component-table .kit-col-status { width: calc((100% - 80px) / 4); }
 .kit-content .kit-component-table th {
   height: 44px;
   padding: 0 18px;
@@ -189,9 +195,10 @@
   font-size: 13px;
   vertical-align: middle;
 }
-.kit-content .kit-component-info { display: flex; align-items: center; gap: 10px; min-width: 260px; }
-.kit-content .kit-component-info .cphoto { width: 46px; height: 46px; flex: 0 0 46px; border-radius: 8px; overflow: hidden; background: #f1f5f9; }
-.kit-content .kit-component-info .cphoto img { width: 100%; height: 100%; object-fit: cover; }
+.kit-content .kit-component-photo { width: 80px; }
+.kit-content .kit-component-photo .cphoto { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 8px; overflow: hidden; background: #f1f5f9; }
+.kit-content .kit-component-info { display: flex; align-items: center; min-width: 0; }
+.kit-content .kit-component-photo .cphoto img { width: 100%; height: 100%; object-fit: cover; }
 .kit-content .kit-component-name { color: #0f172a; font-weight: 600; }
 .kit-content .kit-component-model { margin-top: 3px; color: #2563eb; font-size: 12px; font-weight: 500; }
 .kit-content .kit-component-qty { font-weight: 600; white-space: nowrap; }

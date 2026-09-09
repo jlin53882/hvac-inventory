@@ -132,9 +132,10 @@ function renderKitComponentRow(c) {
   const state = stock <= 0 && need > 0 ? 'shortage' : (stock < need ? 'insufficient' : 'normal');
   const stateLabel = state === 'shortage' ? '缺料' : (state === 'insufficient' ? '庫存不足' : '正常');
   const stateClass = `kit-component-status is-${state}`;
+  const photo = c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
   return `<tr>
+    <td class="kit-component-photo"><span class="cphoto">${photo}</span></td>
     <td><div class="kit-component-info">
-      <span class="cphoto">${c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>
       <span><span class="kit-component-name">${esc(c.brand || '')} ${esc(c.name || '')}</span>${c.code ? `<span class="kit-component-model">型號 ${esc(c.code)}</span>` : ''}</span>
     </div></td>
     <td class="kit-component-qty">${esc(formatKitNumber(need))} ${esc(c.unit || '')}</td>
@@ -154,7 +155,7 @@ function renderKitCard(k, isViewer, isM) {
       ${renderKitActionButtons(k, isViewer, isM, status)}
     </header>
     ${mobileStockout}
-    <div class="kit-component-wrap"><table class="kit-component-table"><thead><tr><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>${components.map(renderKitComponentRow).join('')}</tbody></table></div>
+    <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>${components.map(renderKitComponentRow).join('')}</tbody></table></div>
   </article>`;
 }
 
