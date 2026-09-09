@@ -115,6 +115,6 @@ def test_style_css_split_two_files():
     idx = read(os.path.join(STATIC, "index.html"))
     assert '/static/css/style.core.css' in idx and '/static/css/style.calendar.css' in idx
     assert '/static/css/style.css"' not in idx
-    for page in ("permissions.html", "settings.html"):
+    for page in ("permissions.html", "settings.html", "quotation-upload.html"):
         html = read(os.path.join(STATIC, page))
         assert '/static/css/style.core.css' in html, f"{page} 未改 link core"

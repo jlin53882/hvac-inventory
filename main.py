@@ -27,7 +27,7 @@ import app.config as app_config
 from app.config import STATIC_DIR
 from app.middleware import cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
 from app.database import get_db, init_db
-from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, quotations, service_types, signed_reports, stats, stockout, stocktake, users, units
+from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 from app.services import sync_scheduler
 from app.services.app_log import get_logger, setup_logging
@@ -81,7 +81,7 @@ app.include_router(auth.router)
 for _r in (items.router, movements.router, stockout.router, kits.router, stocktake.router,
            stats.router, export.router, photos.router, lookup.router, service_types.router,
            users.router, appointments.router, units.router, gcal_keys.router, signed_reports.router,
-           quotations.router):
+                      quotation_uploads.router, quotations.router):
     app.include_router(_r, dependencies=[Depends(require_login)])
 
 # ---------- 靜態檔案（前端） ----------
@@ -132,6 +132,14 @@ def permissions_page():
     if os.path.exists(idx):
         return _versioned_html(idx)
     return Response("<h1>權限頁不存在</h1>", media_type="text/html")
+
+@app.get("/quotation-upload.html")
+def quotation_upload_page():
+    """報價單上傳獨立頁（沿用每日簽名報表版型）。"""
+    idx = os.path.join(STATIC_DIR, "quotation-upload.html")
+    if os.path.exists(idx):
+        return _versioned_html(idx)
+    return Response("<h1>報價單上傳頁不存在</h1>", media_type="text/html")
 
 @app.get("/settings.html")
 def settings_page():

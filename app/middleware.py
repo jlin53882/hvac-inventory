@@ -58,7 +58,7 @@ async def cache_control_middleware(request, call_next):
     """HTML 每次重新驗證（no-cache）；static 資源短快取（配合 ?v=N 版本參數）"""
     response = await call_next(request)
     path = request.url.path
-    if path in ("/", "/login.html", "/permissions.html", "/settings.html"):
+    if path in ("/", "/login.html", "/permissions.html", "/settings.html", "/quotation-upload.html"):
         # HTML：每次都要重新驗證，確保拿到最新 ?v=N 引用
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     elif path.startswith("/static/"):
@@ -89,7 +89,7 @@ async def security_headers_middleware(request, call_next):
     response = await call_next(request)
     # PDF/image preview is intentionally embedded by the signed-report modal.
     # Keep the strict site-wide policy for every other response.
-    is_signed_report_preview = bool(re.fullmatch(r"/api/signed-reports/\d+/preview", request.url.path))
+    is_signed_report_preview = bool(re.fullmatch(r"/api/(?:signed-reports|quotation-uploads)/\d+/preview", request.url.path))
     response.headers["X-Frame-Options"] = "SAMEORIGIN" if is_signed_report_preview else "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"

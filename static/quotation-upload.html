@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>報價單上傳 — 振佳空調管理系統</title>
+<link rel="stylesheet" href="/static/css/style.core.css">
+<link rel="stylesheet" href="/static/css/style.quotation-upload.css">
+</head>
+<body>
+<div class="main quotation-upload-main">
+  <div class="header quotation-upload-header">
+    <a class="quotation-upload-back" href="/">←</a>
+    <div class="breadcrumb" id="breadcrumb">🧾 <b>報價單上傳</b></div>
+    <div class="header-right"><span id="qup-user-name"></span></div>
+  </div>
+  <main id="content" class="quotation-upload-content"></main>
+</div>
+<script src="/static/js/globals.js" defer></script>
+<script src="/static/js/auth.js" defer></script>
+<script src="/static/js/utils.js" defer></script>
+<script src="/static/js/render/quotation-upload.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', async function () {
+  var user = await checkAuth();
+  if (!user) { window.location.href = '/login.html'; return; }
+  var name = document.getElementById('qup-user-name');
+  if (name) name.textContent = user.display_name || user.username || '';
+  renderQuotationUploads();
+});
+</script>
+</body>
+</html>

@@ -259,6 +259,23 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_dsr_date ON daily_signed_reports(report_date);
     CREATE INDEX IF NOT EXISTS idx_dsr_upload_time ON daily_signed_reports(upload_time);
     CREATE INDEX IF NOT EXISTS idx_dsr_uploader ON daily_signed_reports(uploader_user_id);
+    -- 報價單上傳（沿用每日簽名日報表邏輯，獨立儲存）
+    CREATE TABLE IF NOT EXISTS quotation_uploads (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_date       TEXT NOT NULL,
+        uploader_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        uploader_name     TEXT NOT NULL,
+        upload_time       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        file_name         TEXT NOT NULL,
+        stored_path       TEXT NOT NULL,
+        file_size         INTEGER NOT NULL DEFAULT 0,
+        mime_type         TEXT DEFAULT '',
+        note              TEXT DEFAULT '',
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_qup_date ON quotation_uploads(report_date);
+    CREATE INDEX IF NOT EXISTS idx_qup_upload_time ON quotation_uploads(upload_time);
+    CREATE INDEX IF NOT EXISTS idx_qup_uploader ON quotation_uploads(uploader_user_id);
     -- 報價單（2026-09-09 報價單模組）
     CREATE TABLE IF NOT EXISTS quotations (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,

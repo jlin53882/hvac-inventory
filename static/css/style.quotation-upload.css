@@ -1,0 +1,316 @@
+/* ========== 報價單上傳（qup-） — 與 demo.html 1:1 的版面責任分層 ========== */
+
+/* #content 原本最大 640px；QUP 是唯一需要 1100px 兩欄的分頁。 */
+#content.quotation-upload-content {
+  max-width: none;
+  padding: 16px 0 20px;
+}
+
+/* 版心只負責全寬與內距；不可改成 Grid，否則標題與卡片會被拆到左右欄。 */
+.qup-wrap {
+  width: 100%;
+  margin: 0;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .qup-wrap { padding: 2px 16px 0; }
+}
+
+/* 頁面標題永遠位於卡片上方，與 demo 的 header 結構一致。 */
+.qup-page-header {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.qup-page-title { min-width: 0; }
+.qup-page-title h1 {
+  margin: 0;
+  color: #1e3a5f;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 900;
+}
+.qup-new-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+.qup-page-title p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12.5px;
+}
+.qup-page-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* demo 的 .layout：只有這一層在桌面切成左右欄。 */
+.qup-layout { display: grid; gap: 16px; }
+@media (min-width: 960px) {
+  .qup-layout { grid-template-columns: 1.05fr .95fr; }
+  .qup-history { grid-column: 1 / -1; }
+}
+
+/* 卡片 */
+.qup-card {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .06);
+}
+.qup-card__hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.qup-card__hd h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #1e3a5f;
+  font-size: 15px;
+  font-weight: 800;
+}
+.qup-card__hd p {
+  margin: 0 0 0 auto;
+  color: #64748b;
+  font-size: 12.5px;
+}
+.qup-card__bd { padding: 16px; }
+@media (max-width: 767px) {
+  .qup-card__bd { padding: 14px; }
+}
+
+/* 上傳表單 */
+.qup-form-grid { display: grid; gap: 12px; }
+@media (min-width: 560px) {
+  .qup-form-grid.qup-form-grid--two { grid-template-columns: 1fr 1fr; }
+}
+.qup-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+.qup-field input,
+.qup-field textarea {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+  box-sizing: border-box;
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+}
+.qup-field input:focus,
+.qup-field textarea:focus {
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(45, 90, 142, .15);
+}
+.qup-field textarea { min-height: 72px; resize: vertical; }
+.qup-required { color: #dc2626; }
+.qup-hint { margin-top: 6px; color: #94a3b8; font-size: 11.5px; }
+
+/* 本模組按鈕完全 scoped，避免沿用主站 .btn 的視覺差異。 */
+.qup-btn,
+.qup-btn-sm,
+.qup-icon-btn,
+.qup-chip { font-family: inherit; cursor: pointer; }
+.qup-btn {
+  padding: 9px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+.qup-btn--primary { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
+.qup-btn--primary:hover { background: #172a44; }
+.qup-btn--ghost { background: #fff; color: #334155; }
+.qup-btn-sm {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+.qup-btn-sm--primary { border-color: #2d5a8e; background: #2d5a8e; color: #fff; }
+
+/* 拖曳區 */
+.qup-drop {
+  padding: 18px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  text-align: center;
+  cursor: pointer;
+  transition: .15s;
+}
+.qup-drop.drag { border-color: #2d5a8e; background: #e8f0fe; }
+.qup-drop__icon { margin-bottom: 6px; font-size: 28px; }
+.qup-drop__title { color: #1e3a5f; font-size: 13px; font-weight: 800; }
+.qup-drop__sub { margin-top: 4px; color: #64748b; font-size: 11.5px; }
+.qup-drop__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.qup-file-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.qup-file-preview__icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  place-items: center;
+  font-size: 20px;
+}
+.qup-file-preview__meta { flex: 1; min-width: 0; }
+.qup-file-preview__name { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.qup-file-preview__sub { color: #64748b; font-size: 11.5px; }
+.qup-progress { height: 6px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.qup-progress__bar { width: 0; height: 100%; background: linear-gradient(90deg, #1e3a5f, #2d5a8e); transition: width .3s; }
+.qup-upload-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.qup-upload-actions .qup-btn--primary { flex: 1; }
+.qup-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.qup-tag { padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: #e8f0fe; color: #1e3a5f; font-size: 11px; font-weight: 800; }
+
+/* 右側資訊與 KPI：完全使用 demo 的深藍資訊卡與白色 KPI 卡。 */
+.qup-side { display: grid; gap: 16px; }
+.qup-info { padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #1e3a5f, #2d5a8e); color: #fff; }
+.qup-info h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 800; }
+.qup-info ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; color: rgba(255,255,255,.92); font-size: 12.5px; }
+.qup-info li { display: flex; gap: 8px; }
+.qup-info-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.qup-info .qup-badge { padding: 3px 7px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: rgba(255,255,255,.18); color: #fff; font-size: 11px; font-weight: 800; }
+.qup-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.qup-kpi__card { padding: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; text-align: center; }
+.qup-kpi__num { color: #1e3a5f; font-size: 18px; font-weight: 900; }
+.qup-kpi__label { margin-top: 2px; color: #64748b; font-size: 11px; font-weight: 700; }
+
+/* 歷史查詢 */
+.qup-history .qup-card__hd { flex-direction: column; align-items: stretch; gap: 12px; }
+.qup-history-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
+.qup-history-heading p { margin-left: auto; }
+.qup-filter-bar { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; width: 100%; }
+.qup-filter-bar .qup-field { flex: 1; min-width: 140px; }
+.qup-filter-bar .qup-field.qup-field--search { flex: 1.4; min-width: 180px; }
+.qup-filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
+.qup-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.qup-chip { padding: 5px 9px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; font-size: 11px; font-weight: 800; }
+.qup-chip.active { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
+.qup-result-count { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #94a3b8; font-size: 11px; }
+.qup-report-list { display: grid; gap: 10px; margin-top: 12px; }
+.qup-report-card { overflow: hidden; border: 1px solid #111827; border-radius: 10px; background: #fff; }
+.qup-report-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.qup-report-summary::-webkit-details-marker { display: none; }
+.qup-report-summary::before { content: '▸'; color: #1e3a5f; font-size: 18px; font-weight: 900; }
+.qup-report-card[open] .qup-report-summary::before { content: '▾'; }
+.qup-report-summary__date { color: #1e3a5f; font-size: 18px; font-weight: 900; }
+.qup-report-summary__uploader { flex-shrink: 0; }
+.qup-report-summary__file { min-width: 0; overflow: hidden; color: #64748b; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.qup-report-detail { padding: 12px; border-top: 1px solid #111827; background: #f8fafc; }
+.qup-report-detail__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.qup-report-detail__label { display: block; margin-bottom: 4px; color: #64748b; font-size: 11px; font-weight: 800; }
+.qup-report-detail__grid strong { color: #1e293b; font-size: 13px; }
+.qup-report-detail__file { grid-column: span 2; }
+.qup-report-detail__note { grid-column: 1 / -1; }
+.qup-report-detail__note .qup-note-cell { min-height: 38px; padding: 8px; background: #fff7ed; }
+.qup-table-wrap { margin-top: 12px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+.qup-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
+.qup-table th { padding: 10px; border: 1px solid #111827; background: #f1f5f9; color: #475569; text-align: left; white-space: nowrap; font-weight: 800; }
+.qup-table td { padding: 10px; border: 1px solid #111827; vertical-align: middle; }
+.qup-table td.qup-note-cell { background: #fff7ed; }
+.qup-table tr:hover td { background: #f8fafc; }
+.qup-report-thumb {
+  display: block;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+}
+.qup-report-thumb:hover { border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(45,90,142,.15); }
+.qup-note-empty { color: #cbd5e1; }
+.qup-action-btn {
+  padding: 6px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.qup-action-btn:hover { border-color: #2d5a8e; color: #1e3a5f; }
+.qup-action-btn--danger:hover { border-color: #dc2626; color: #dc2626; }
+.qup-file-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qup-file-icon { display: grid; flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; place-items: center; font-size: 13px; }
+.qup-ellipsis { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
+.qup-actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+.qup-icon-btn { display: grid; width: 28px; height: 28px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; place-items: center; font-size: 13px; }
+.qup-icon-btn:hover { border-color: #2d5a8e; }
+.qup-icon-btn.qup-icon-btn--danger:hover { border-color: #dc2626; color: #dc2626; }
+.qup-empty { padding: 26px; color: #94a3b8; text-align: center; }
+.qup-empty__icon { margin-bottom: 8px; font-size: 28px; }
+.qup-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 2px 0; color: #64748b; font-size: 12.5px; }
+
+@media (max-width: 639px) {
+  .qup-report-summary { flex-wrap: wrap; }
+  .qup-report-summary__date { font-size: 16px; }
+  .qup-report-summary__file { flex-basis: calc(100% - 28px); margin-left: 28px; }
+  .qup-report-detail__grid { grid-template-columns: 1fr 1fr; }
+  .qup-report-detail__file, .qup-report-detail__note { grid-column: 1 / -1; }
+  .qup-table { min-width: 0; }
+  .qup-table thead { display: none; }
+  .qup-table, .qup-table tbody, .qup-table tr, .qup-table td { display: block; width: 100%; }
+  .qup-table tr { overflow: hidden; margin: 10px 10px 0; border: 1px solid #e2e8f0; border-radius: 10px; }
+  .qup-table td { padding: 8px 12px; border: 1px solid #111827; }
+  .qup-table td + td { border-top: 1px solid #111827; }
+  .qup-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: #94a3b8; font-size: 11px; font-weight: 800; }
+  .qup-ellipsis { max-width: 100%; }
+  .qup-table-wrap { border: none; }
+}
+
+/* 預覽 Modal */
+.qup-overlay { position: fixed; inset: 0; z-index: 950; display: none; padding: 14px; background: rgba(15,23,42,.55); place-items: center; }
+.qup-overlay.open { display: grid; }
+.qup-modal { display: flex; flex-direction: column; width: 100%; max-width: 860px; max-height: 90vh; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.qup-modal__hd { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #e2e8f0; }
+.qup-modal__hd h3 { margin: 0; color: #1e3a5f; font-size: 14px; font-weight: 900; }
+.qup-modal__bd { flex: 1; overflow: auto; padding: 0; background: #0f172a; }
+.qup-modal__bd img { display: block; width: 100%; height: auto; }
+.qup-modal__bd iframe { width: 100%; height: 72vh; border: 0; background: #fff; }
+.qup-modal__ft { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid #e2e8f0; }
+.qup-modal__note { color: #64748b; font-size: 12px; }
+.qup-modal__actions { display: flex; gap: 8px; }
