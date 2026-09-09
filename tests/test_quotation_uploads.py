@@ -59,6 +59,22 @@ def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b
     )
 
 
+def test_api_requires_login():
+    """列表與 KPI API 均需登入，不能因全域 router 掛載遺漏而公開。"""
+    client = TestClient(app_main.app)
+    assert client.get("/api/quotation-uploads").status_code == 401
+    assert client.get("/api/quotation-uploads/kpi").status_code == 401
+
+
+def test_kpi_returns_month_shape(signed_env):
+    """KPI endpoint 維持每日簽名日報表相同的月份統計回傳 shape。"""
+    make_client, _ = signed_env
+    response = make_client().get("/api/quotation-uploads/kpi", params={"month": "2026-09"})
+    assert response.status_code == 200
+    assert set(response.json()) == {"month", "archived", "missing", "rate", "total"}
+    assert response.json()["month"] == "2026-09"
+
+
 def test_upload_list_preview_and_safe_storage(signed_env):
     """上傳後可查詢/預覽，原始檔名不會成為實際路徑控制字元。"""
     make_client, static_dir = signed_env
