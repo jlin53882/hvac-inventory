@@ -68,17 +68,23 @@ function renderInventory() {
   // 品項管理與出庫是不同權限：不可用 isViewer 代替 stockout，否則僅有出庫權限者在手機會看不到入口。
   const isViewer = !(hasPerm('item-mgmt') || hasPerm('stock-mgmt') || hasPerm('photo'));
   const canStockout = hasPerm('stockout');
-  let list = getFilteredInventoryItems();
   const content = document.getElementById('content');
+  const list = getFilteredInventoryItems();
+
+  // 篩選變更或數量暫存後重繪，避免清單顯示舊的 KPI 詳情。
+  closeInventoryStatusModal();
+  renderInventoryPageHeading();
+  buildFilterPanel();
+
   if (!list.length) {
-    content.innerHTML = '<div class="empty">沒有符合的品項 🔍</div>';
+    content.innerHTML = renderInventoryEmptyState(isViewer);
     updateSaveBar();
     return;
   }
+
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = (typeof isMobileView === 'function') && isMobileView();
   let html = renderInventoryDashboard(list);
-  buildFilterPanel();
   html += renderInventoryToolbar(list, isViewer);
   if (viewMode === 'table') {
     html += renderInventoryTable(list, isViewer, canStockout);
@@ -90,17 +96,145 @@ function renderInventory() {
   updateSaveBar();
 }
 
-function renderInventoryDashboard(list) {
-  const totalQty = list.reduce((s, i) => s + (i.stocks || []).reduce((ss, st) => ss + (st.qty || 0), 0), 0);
-  const lowCount = list.filter(i => i.low_stock > 0 && i.qty <= i.low_stock).length;
-  const zeroCount = list.filter(i => !i.is_kit && i.qty <= 0).length;
-  return '<div class="dash-cards">' +
-    '<div class="dash-card"><div class="dc-num">' + list.length + '</div><div class="dc-lbl">篩選品項</div></div>' +
-    '<div class="dash-card"><div class="dc-num">' + totalQty + '</div><div class="dc-lbl">庫存總數</div></div>' +
-    '<div class="dash-card' + (lowCount > 0 ? ' warn' : '') + '"><div class="dc-num">' + lowCount + '</div><div class="dc-lbl">低庫存</div></div>' +
-    '<div class="dash-card' + (zeroCount > 0 ? ' danger' : '') + '"><div class="dc-num">' + zeroCount + '</div><div class="dc-lbl">缺貨</div></div>' +
-    '</div>';
+function renderInventoryPageHeading() {
+  const heading = document.getElementById('inventory-page-heading');
+  if (!heading) return;
+  heading.innerHTML = `
+    <div class="inventory-heading-icon" aria-hidden="true">📦</div>
+    <div>
+      <h1>單一庫存</h1>
+      <p>管理單一材料的庫存、位置與出庫狀態，快速掌握目前可用數量。</p>
+    </div>`;
 }
+
+function renderInventoryEmptyState(isViewer) {
+  const search = document.getElementById('search-input');
+  const hasFilter = currentBrands.length > 0 || currentCategories.length > 0 || (search && search.value.trim());
+  const clearButton = hasFilter ? '<button class="inventory-empty-secondary" onclick="clearFilterPanel()">清除篩選</button>' : '';
+  const addButton = isViewer ? '' : '<button class="btn-add-inv" onclick="openAddModal()">＋ 新增品項</button>';
+  return `<div class="inventory-empty-state">
+    <div class="inventory-empty-icon" aria-hidden="true">📦</div>
+    <h2>${hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'}</h2>
+    <p>${hasFilter ? '可以嘗試清除篩選或調整搜尋條件。' : '新增品項後，庫存與位置會在這裡集中管理。'}</p>
+    <div class="inventory-empty-actions">${clearButton}${addButton}</div>
+  </div>`;
+}
+
+
+function formatInventoryQuantity(value) {
+  const n = Number(value);
+  if (!isFinite(n)) return '0';
+  return (Math.round(n * 1000) / 1000).toLocaleString('en-US');
+}
+
+function getInventoryDisplayQty(item) {
+  const delta = (typeof pending !== 'undefined' && pending[item.id]) || 0;
+  return Math.round((Number(item.qty || 0) + Number(delta)) * 1000) / 1000;
+}
+
+// 單一庫存、KPI、卡片、表格與詳情清單共用既有判定語意。
+function getInventoryStatus(item) {
+  const qty = getInventoryDisplayQty(item);
+  const isOutOfStock = !item.is_kit && qty <= 0;
+  return {
+    qty: qty,
+    isOutOfStock: isOutOfStock,
+    isLowStock: !isOutOfStock && item.low_stock > 0 && qty <= item.low_stock,
+  };
+}
+
+function renderInventoryDashboard(list) {
+  const totalQty = list.reduce((s, i) => s + getInventoryDisplayQty(i), 0);
+  const lowCount = list.filter(i => getInventoryStatus(i).isLowStock).length;
+  const zeroCount = list.filter(i => getInventoryStatus(i).isOutOfStock).length;
+  return `<section class="inventory-kpi-grid" aria-label="庫存統計">
+    <div class="inventory-kpi-card inventory-kpi-blue">
+      <span class="inventory-kpi-icon" aria-hidden="true">📦</span>
+      <div><div class="inventory-kpi-number">${list.length}</div><div class="inventory-kpi-label">篩選品項</div></div>
+    </div>
+    <div class="inventory-kpi-card inventory-kpi-purple">
+      <span class="inventory-kpi-icon" aria-hidden="true">🗄️</span>
+      <div><div class="inventory-kpi-number">${formatInventoryQuantity(totalQty)}</div><div class="inventory-kpi-label">庫存總數</div></div>
+    </div>
+    <button type="button" class="inventory-kpi-card inventory-kpi-low" onclick="showInventoryStatusList('low')" aria-label="查看低庫存商品">
+      <span class="inventory-kpi-icon" aria-hidden="true">⚠</span>
+      <div><div class="inventory-kpi-number">${lowCount}</div><div class="inventory-kpi-label">低庫存 <span class="inventory-kpi-action">查看清單</span></div></div>
+    </button>
+    <button type="button" class="inventory-kpi-card inventory-kpi-out" onclick="showInventoryStatusList('out')" aria-label="查看缺貨商品">
+      <span class="inventory-kpi-icon" aria-hidden="true">⛔</span>
+      <div><div class="inventory-kpi-number">${zeroCount}</div><div class="inventory-kpi-label">缺貨 <span class="inventory-kpi-action">查看清單</span></div></div>
+    </button>
+  </section>`;
+}
+
+function getInventoryStatusItems(type) {
+  const isLow = type === 'low';
+  return getFilteredInventoryItems()
+    .filter(function(item) {
+      const status = getInventoryStatus(item);
+      return isLow ? status.isLowStock : status.isOutOfStock;
+    })
+    .slice()
+    .sort(function(a, b) { return getInventoryStatus(a).qty - getInventoryStatus(b).qty; });
+}
+
+function renderInventoryStatusItem(item, type) {
+  const status = getInventoryStatus(item);
+  const isOut = status.isOutOfStock;
+  const locStr = (item.stocks || []).map(function(stock) { return stock.location || '未標示'; }).join('、') || '未標示';
+  const thumb = buildThumb(item.id, item.has_photo, item.name, '📦');
+  const editAction = hasPerm('item-mgmt')
+    ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();openEditModal(${item.id})">編輯</button>`
+    : '';
+  const threshold = type === 'low' ? `<span class="inventory-status-meta">警示值 ${formatInventoryQuantity(item.low_stock)}</span>` : '';
+  const badge = isOut
+    ? '<span class="inventory-status-badge status-out">⛔ 缺貨</span>'
+    : '<span class="inventory-status-badge status-low">⚠ 低庫存</span>';
+  return `<article class="inventory-status-item ${isOut ? 'is-out' : 'is-low'}">
+    <div class="inventory-status-thumb">${thumb}</div>
+    <div class="inventory-status-info">
+      <div class="inventory-status-name">${esc(item.name || '未命名')}</div>
+      <div class="inventory-status-sub">${esc(item.brand || '無廠牌')}${item.code ? ' · 型號 ' + esc(item.code) : ''}</div>
+      <div class="inventory-status-location">📍 ${esc(locStr)}</div>
+    </div>
+    <div class="inventory-status-values">
+      ${badge}
+      <strong>${formatInventoryQuantity(status.qty)} <small>${esc(item.unit || '')}</small></strong>
+      ${threshold}
+    </div>
+    ${editAction}
+  </article>`;
+}
+
+function showInventoryStatusList(type) {
+  const modal = document.getElementById('inventory-status-modal');
+  const body = document.getElementById('inventory-status-modal-body');
+  if (!modal || !body) return;
+  const isLow = type === 'low';
+  const items = getInventoryStatusItems(type);
+  const title = isLow ? '⚠ 低庫存商品' : '⛔ 缺貨商品';
+  const empty = isLow ? '目前沒有低庫存商品' : '目前沒有缺貨商品';
+  const intro = isLow ? '庫存數量已低於或等於目前警示值。' : '目前庫存為 0 或以下的單一庫存品項。';
+  const listHTML = items.length
+    ? items.map(function(item) { return renderInventoryStatusItem(item, type); }).join('')
+    : `<div class="inventory-status-empty"><span aria-hidden="true">✓</span><strong>${empty}</strong><p>目前篩選條件下沒有符合的品項。</p></div>`;
+  body.innerHTML = `<div class="inventory-status-header">
+    <div><h2 id="inventory-status-modal-title">${title}</h2><p>${intro}</p></div>
+    <button type="button" class="inventory-status-close" onclick="closeInventoryStatusModal()" aria-label="關閉">✕</button>
+  </div>
+  <div class="inventory-status-count">共 ${items.length} 項</div>
+  <div class="inventory-status-list">${listHTML}</div>`;
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeInventoryStatusModal() {
+  const modal = document.getElementById('inventory-status-modal');
+  if (!modal) return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
 
 function renderInventoryChips() {
   const brands = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
@@ -169,10 +303,10 @@ function renderInventoryTable(list, isViewer, canStockout) {
   h += '</tr></thead><tbody>';
   Object.keys(byLoc).sort().forEach(loc => {
     byLoc[loc].forEach(i => {
-      const delta = pending[i.id] || 0;
-      const display = Math.round((i.qty + delta) * 1000) / 1000;
-      const isZero = display <= 0;
-      const isLow = i.low_stock > 0 && display > 0 && display <= i.low_stock;
+      const status = getInventoryStatus(i);
+      const display = status.qty;
+      const isZero = status.isOutOfStock;
+      const isLow = status.isLowStock;
       const rowClass = isZero ? 'row-danger' : (isLow ? 'row-warn' : '');
       const statusHTML = isZero ? '<span class="status-danger">⛔ 缺貨</span>' : (isLow ? '<span class="status-warn">⚠ 低庫存</span>' : '<span class="status-ok">✓ 正常</span>');
       const stocks = i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}];
@@ -224,12 +358,14 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
     h += '</div>';
     h += '<div class="loc-group' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '">';
     locItems.forEach(i => {
-      const delta = pending[i.id] || 0;
-      const display = Math.round((i.qty + delta) * 1000) / 1000;
-      const isZero = display <= 0;
-      const isLow = i.low_stock > 0 && display > 0 && display <= i.low_stock;
+      const status = getInventoryStatus(i);
+      const display = status.qty;
+      const isZero = status.isOutOfStock;
+      const isLow = status.isLowStock;
+      const delta = display - Number(i.qty || 0);
       const cardClass = isZero ? 'item-card danger' : (isLow ? 'item-card warn' : 'item-card');
       const prepared = i.prepared_qty || 0;
+      const statusBadge = isZero ? '<span class="inventory-card-status status-out">⛔ 缺貨</span>' : (isLow ? '<span class="inventory-card-status status-low">⚠ 低庫存</span>' : '');
       if (isM) {
         const locs = (i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}]);
         const locStr = buildLocHTML(locs);
@@ -252,9 +388,10 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' style="padding-left:32px"' : '') + '>';
         if (batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">';
         if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
+        else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
         if (!isViewer) h += '<button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="編輯品項">編輯</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="刪除材料">刪除</button>';
         h += '<div class="item-info"' + (isViewer ? '' : ' onclick="openEditModal(' + i.id + ')"') + '>';
-        h += '<div class="item-name">' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + '</div>';
+        h += '<div class="item-name">' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + statusBadge + '</div>';
         h += '<div class="item-code">' + esc(i.brand) + (i.code ? ' · ' + esc(i.code) : '') + '</div>';
         h += locHtml;
         if (i.is_kit) h += '<div class="kit-tag">🔧 整組</div>';

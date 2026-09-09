@@ -175,6 +175,8 @@ function switchTab(tab) {
   if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
   if (content) content.classList.toggle('cal-content', tab === 'calendar');
   if (content) content.classList.toggle('quotation-content', tab === 'quotation');
+  if (content) content.classList.toggle('inventory-content', tab === 'inventory');
+  if (content) content.classList.toggle('prepared-content', tab === 'prepared');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
   var nav = document.getElementById('nav-' + tab);

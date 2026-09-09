@@ -94,8 +94,6 @@ def _is_suspicious_interpolation(body: str) -> bool:
 # - 數字/算術/布林/常數三元/程式內變數/內部 HTML 參數（呼叫端已消毒）
 # - 新檔案/新內插若不在清單 → 測試紅 → 人工審核（安全則加這裡，否則補 esc()）
 REVIEWED_SAFE_BODIES = {
-    # 報價單內部分頁（2026-09-09）：active 只由固定模式傳入，輸出皆為固定 class/文字。
-    "active === 'quotation' ? 'active' : ''", "active === 'upload' ? 'active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
     "a.icon", "icon", "a.label", "items",
     # 數字欄位（qty/id/統計）
@@ -185,10 +183,16 @@ REVIEWED_SAFE_BODIES = {
     "p.checkboxHTML || ''",
     "_allSelected() ? '☐ 取消全選' : '☑ 全選'",
     "batchMode ? 'style=\"padding-left:32px\"' : ''",
-    # media URL helper：id 來自 DB 數字主鍵，variant/thumbnailUrl 僅為內部固定變體。
-    "photoSrc(itemId, 'thumbnail')", "photoSrc(itemId, 'preview')",
-    "photoSrc(c.item_id, 'thumbnail')", "photoSrc(i.id, 'thumbnail')",
-    "photoSrc(o.item_id, 'thumbnail')", "thumbnailUrl || photoSrc(id, 'thumbnail')",
+    # inventory.js desktop redesign（2026-09-09）：條件文字為固定 UI；數值由格式化 helper 產生。
+    "hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'",
+    "hasFilter ? '可以嘗試清除篩選或調整搜尋條件。' : '新增品項後，庫存與位置會在這裡集中管理。'",
+    "clearButton", "addButton", "formatInventoryQuantity(totalQty)", "lowCount", "zeroCount",
+    "formatInventoryQuantity(item.low_stock)", "isOut ? 'is-out' : 'is-low'", "thumb",
+    "item.code ? ' · 型號 ' + esc(item.code) : ''", "formatInventoryQuantity(status.qty)",
+    "threshold", "editAction", "empty", "title", "intro", "listHTML",
+    # prepared.js desktop redesign：photo/nonStock/actions 是由數字主鍵與已跳脫欄位組成的內部 HTML。
+    "itemCount", "absNum(totalPrepared)", "item.prepared_qty", "photo", "nonStock",
+    "absNum(item.prepared_qty)", "absNum(item.qty)", "actions",
 }
 
 
