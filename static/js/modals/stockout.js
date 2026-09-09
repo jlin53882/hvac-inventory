@@ -466,12 +466,12 @@ function openEditStockoutReturnModal(movementId) {
   openModal('return-stockout-modal');
 }
 
-async function revokeStockoutReturn(movementId) {
-  if (!confirm('確定撤銷這筆退回？退回數量會從目前位置庫存扣回。')) return;
+async function deleteStockoutReturn(movementId) {
+  if (!confirm('確定刪除這筆退回紀錄？活動退回會扣回已補入庫存的數量。')) return;
   try {
     const res = await fetch(`/api/stockout-returns/${movementId}`, { method: 'DELETE' });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '撤銷退回失敗'); }
-    toast('✅ 已撤銷退回', 'success');
-    await loadData();
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '刪除退回紀錄失敗'); }
+    toast('✅ 已刪除退回紀錄', 'success');
+    await renderStockOuts();
   } catch (e) { toast('⚠️ ' + e.message, 'error'); }
 }

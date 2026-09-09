@@ -502,29 +502,38 @@ def repair_stockout_return(movement_id: int, repair: StockoutReturnRepair):
 
 
 @router.delete("/api/stockout-returns/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
-def revoke_stockout_return(movement_id: int):
-    """撤銷退回紀錄：回扣已補回庫存，保留原流水供稽核。"""
+def delete_stockout_return(movement_id: int):
+    """刪除退回流水；活動退回先扣回庫存，已撤銷退回只移除流水。"""
     conn = get_db()
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not row or row["reason"] != "退回已領出":
             raise HTTPException(404, "退回紀錄不存在")
-        if row["reverted_at"]:
-            raise HTTPException(400, "退回紀錄已撤銷")
-        _deduct_from_stock(conn, row["item_id"], row["delta"], row["return_stock_id"])
-        now = datetime.datetime.now().isoformat()
-        conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", (now, movement_id))
-        parent = conn.execute("SELECT * FROM movements WHERE id=?", (row["source_movement_id"],)).fetchone()
+
+        parent_id = row["source_movement_id"]
+        restored_qty = 0
+        if not row["reverted_at"] and row["return_stock_id"]:
+            _deduct_from_stock(conn, row["item_id"], row["delta"], row["return_stock_id"])
+            restored_qty = row["delta"]
+
+        conn.execute("DELETE FROM movements WHERE id=?", (movement_id,))
+        parent = conn.execute("SELECT * FROM movements WHERE id=?", (parent_id,)).fetchone()
         if parent:
             remaining = conn.execute(
-                "SELECT COALESCE(SUM(delta),0) FROM movements WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL",
+                "SELECT COALESCE(SUM(delta),0) FROM movements "
+                "WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL",
                 (parent["id"],),
             ).fetchone()[0]
             if remaining < -parent["delta"]:
                 conn.execute("UPDATE movements SET reverted_at=NULL WHERE id=?", (parent["id"],))
         conn.commit()
-        return {"ok": True, "movement_id": movement_id, "revoked": True}
+        return {
+            "ok": True,
+            "movement_id": movement_id,
+            "deleted": movement_id,
+            "restored_qty": restored_qty,
+        }
     except Exception:
         conn.rollback()
         raise

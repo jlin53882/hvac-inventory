@@ -316,6 +316,7 @@ WRITE_ENDPOINTS = [
     ("POST", "/api/stockout/nonstock", "stockout"),
     ("POST", "/api/stockouts/1/return", "stockout"),
     ("POST", "/api/stockout-returns/1/repair", "stockout"),
+    ("DELETE", "/api/stockout-returns/1", "stockout"),
     ("PATCH", "/api/stockouts/1", "stockout"),
     ("DELETE", "/api/stockouts/1", "stockout"),
     ("POST", "/api/prepare/nonstock", "stockout"),

@@ -84,11 +84,12 @@ async function renderStockOuts() {
           <td style="white-space:nowrap">
             ${isViewer ? '' : (isReturn
               ? (reverted
-                ? '<span style="color:#999;font-size:12px">↩️ 已撤銷退回</span>'
+                ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutReturn(${o.id})">刪除</button>`
                 : (needsRepair
-                  ? `<button class="btn-prepare" style="padding:4px 8px" onclick="openRepairStockoutReturnModal(${o.id})">🛠️ 修復退回資料</button>`
+                  ? `<button class="btn-prepare" style="padding:4px 8px" onclick="openRepairStockoutReturnModal(${o.id})">🛠️ 修復退回資料</button>
+                     <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutReturn(${o.id})">刪除</button>`
                   : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button>
-                     <button class="btn-del" style="padding:4px 8px" onclick="revokeStockoutReturn(${o.id})">撤銷退回</button>`))
+                     <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutReturn(${o.id})">刪除</button>`))
               : (reverted
                 ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`
                 : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button>
@@ -161,12 +162,13 @@ function openStockoutSheet(movementId) {
 
     if (isReturn) {
       if (reverted) {
-        actions.push({ icon: '↩️', label: '已撤銷退回', cls: 'disabled', fn: () => {} });
+        actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
       } else if (needsRepair) {
         actions.push({ icon: '🛠️', label: '修復退回資料', cls: 'out', fn: () => openRepairStockoutReturnModal(movementId) });
+        actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
       } else {
         actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
-        actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => revokeStockoutReturn(movementId) });
+        actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
       }
     } else if (!isReturn && !reverted) {
       actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutModal(movementId) });

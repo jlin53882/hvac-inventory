@@ -2359,7 +2359,7 @@ def test_stockout_return_tracks_source_and_return_locations():
     assert 'POST' in modal and '/return' in modal
     assert '/api/stockout-returns/' in modal
     assert 'openEditStockoutReturnModal' in render
-    assert 'revokeStockoutReturn' in render
+    assert 'deleteStockoutReturn' in render
     assert 'return_location' in render
     assert 'esc(Number(st.id))' in modal
     assert '/repair' in modal
@@ -2368,7 +2368,7 @@ def test_stockout_return_tracks_source_and_return_locations():
 
 
 def test_stockout_return_actions_remain_visible_after_return():
-    """已退回流水仍保留編輯/撤銷；已撤銷資料顯示狀態而非空白。"""
+    """退回流水依狀態保留編輯/修復/刪除入口。"""
     render = read("static/js/render/stockout.js")
     assert "if (isReturn)" in render
     assert "const needsRepair = isReturn && (!o.source_movement_id || !o.return_stock_id);" in render
@@ -2376,8 +2376,17 @@ def test_stockout_return_actions_remain_visible_after_return():
     assert "else if (needsRepair)" in render
     assert render.index("if (reverted)") < render.index("else if (needsRepair)")
     assert "openEditStockoutReturnModal(${o.id})" in render
-    assert "revokeStockoutReturn(${o.id})" in render
-    assert "已撤銷退回" in render
+    assert "deleteStockoutReturn(${o.id})" in render
+
+
+def test_stockout_return_delete_action_is_available_for_every_status():
+    """退回流水不論尚未撤銷、需修復或已撤銷，都必須有刪除入口。"""
+    render = read("static/js/render/stockout.js")
+    modal = read("static/js/modals/stockout.js")
+    assert "deleteStockoutReturn(${o.id})" in render
+    assert "deleteStockoutReturn(movementId)" in render
+    assert "DELETE" in render
+    assert "await renderStockOuts()" in modal
 
 def test_sidebar_collapsed_css_exists():
     """sidebar 折疊 CSS 規則存在（桌面隱藏/展開）"""

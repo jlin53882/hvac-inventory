@@ -770,7 +770,54 @@ class TestStockoutReturn:
         rows = _get_item(client, item['id'])["stocks"]
         assert {x["id"]: x["qty"] for x in rows}[second["id"]] == 0
         all_mov = client.get("/api/movements").json()
-        assert [x for x in all_mov if x["id"] == ret["return_movement_id"]][0]["reverted_at"]
+        assert not any(x["id"] == ret["return_movement_id"] for x in all_mov)
+
+    def test_delete_active_return_removes_record_and_reverses_stock(self, client):
+        """刪除尚未撤銷的退回流水，應扣回退回庫存並移除流水。"""
+        item = _add_item(client, name="刪除活動退回", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        ret = client.post(
+            f"/api/stockouts/{rec['id']}/return",
+            json={"qty": 2, "return_stock_id": item["stocks"][0]["id"]},
+        ).json()
+
+        deleted = client.delete(f"/api/stockout-returns/{ret['return_movement_id']}")
+
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json()["deleted"] == ret["return_movement_id"]
+        assert _get_item(client, item["id"])["total_qty"] == 6
+        assert not any(
+            m["id"] == ret["return_movement_id"]
+            for m in client.get("/api/movements").json()
+        )
+        assert not any(
+            m["id"] == ret["return_movement_id"]
+            for m in client.get("/api/stockouts?site=all").json()
+        )
+
+    def test_delete_reverted_return_removes_record_without_stock_change(self, client):
+        """已撤銷退回也可刪除，且不可再次扣庫存。"""
+        item = _add_item(client, name="刪除已撤銷退回", qty=10)
+        rec = self._out(client, item["id"], qty=4)
+        stock_id = item["stocks"][0]["id"]
+        conn = app_db.get_db()
+        try:
+            cur = conn.execute(
+                "INSERT INTO movements "
+                "(item_id, delta, before_qty, after_qty, reason, return_stock_id, reverted_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (item["id"], 2, 6, 8, "退回已領出", stock_id, "2026-09-09T10:00:00"),
+            )
+            return_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+        deleted = client.delete(f"/api/stockout-returns/{return_id}")
+
+        assert deleted.status_code == 200, deleted.text
+        assert _get_item(client, item["id"])["total_qty"] == 6
+        assert not any(m["id"] == return_id for m in client.get("/api/movements").json())
 
 
 
