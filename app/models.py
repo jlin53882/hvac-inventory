@@ -4,7 +4,7 @@ Pydantic 請求模型
 =================
 所有 API 的請求 body 定義集中管理。
 """
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -227,7 +227,8 @@ class GcalKeyUpdate(BaseModel):
 
 class BatchLocationRequest(BaseModel):
     stock_ids: List[int] = Field(..., min_length=1)
-    new_location: str = Field(..., min_length=1)
+    new_location: str = Field(..., min_length=1, max_length=100)
+    new_site: Optional[Literal["office", "warehouse"]] = None
 
 
 

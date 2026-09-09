@@ -530,11 +530,39 @@ def batch_update_location(body: BatchLocationRequest):
                 item = conn.execute("SELECT name FROM items WHERE id=?", (row["item_id"],)).fetchone()
                 raise HTTPException(400, f"「{item['name']}」在「{body.new_location}」已有庫存記錄")
 
-        # 批次更新
+        # 若指定新分片，品項主檔與選取的位置庫存一起搬移
+        if body.new_site:
+            item_ids = {row["item_id"] for row in rows}
+            for item_id in item_ids:
+                item = conn.execute(
+                    "SELECT brand, code, name, unit FROM items WHERE id=? AND is_deleted=0",
+                    (item_id,),
+                ).fetchone()
+                duplicate = conn.execute(
+                    """SELECT id FROM items
+                       WHERE brand=? AND code=? AND name=? AND unit=?
+                         AND site=? AND is_deleted=0 AND id!=?""",
+                    (item["brand"], item["code"], item["name"], item["unit"],
+                     body.new_site, item_id),
+                ).fetchone()
+                if duplicate:
+                    raise HTTPException(
+                        400,
+                        f"品項「{item['name']}」在「{body.new_site}」已有主檔，無法搬移",
+                    )
+
+        # 批次更新位置
         conn.execute(
             f"UPDATE item_stocks SET location=?, updated_at=datetime('now') WHERE id IN ({placeholders})",
             [body.new_location] + body.stock_ids
         )
+        if body.new_site:
+            item_ids = {row["item_id"] for row in rows}
+            item_placeholders = ",".join("?" * len(item_ids))
+            conn.execute(
+                f"UPDATE items SET site=?, updated_at=datetime('now') WHERE id IN ({item_placeholders})",
+                [body.new_site] + list(item_ids),
+            )
         conn.commit()
         return {"ok": True, "updated": len(body.stock_ids)}
     except HTTPException:

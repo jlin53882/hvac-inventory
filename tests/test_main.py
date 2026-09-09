@@ -1693,6 +1693,40 @@ class TestSiteSharding:
         assert r.status_code == 200
         assert r.json()["site"] == "warehouse"
 
+    def test_batch_location_can_move_between_sites(self, client):
+        """批次改位置可同時將品項從辦公室搬到倉庫，再搬回辦公室。"""
+        item = _add_item(client, name="可搬移品項", site="office", location="辦公室櫃A")
+        stock_id = item["stocks"][0]["id"]
+
+        moved = client.post("/api/stocks/batch-location", json={
+            "stock_ids": [stock_id],
+            "new_location": "倉庫櫃B | 第二層",
+            "new_site": "warehouse",
+        })
+        assert moved.status_code == 200, moved.text
+        warehouse = client.get("/api/items", params={"site": "warehouse"}).json()
+        assert warehouse[0]["site"] == "warehouse"
+        assert warehouse[0]["stocks"][0]["location"] == "倉庫櫃B | 第二層"
+
+        moved_back = client.post("/api/stocks/batch-location", json={
+            "stock_ids": [stock_id],
+            "new_location": "辦公室櫃C",
+            "new_site": "office",
+        })
+        assert moved_back.status_code == 200, moved_back.text
+        office = client.get("/api/items", params={"site": "office"}).json()
+        assert office[0]["site"] == "office"
+        assert office[0]["stocks"][0]["location"] == "辦公室櫃C"
+
+    def test_batch_location_rejects_invalid_site(self, client):
+        """批次改位置只接受 office 或 warehouse。"""
+        item = _add_item(client, name="分片驗證品項")
+        stock_id = item["stocks"][0]["id"]
+        response = client.post("/api/stocks/batch-location", json={
+            "stock_ids": [stock_id], "new_location": "新位置", "new_site": "factory",
+        })
+        assert response.status_code == 422
+
 # ========== v10 相容性與 CASCADE 完整性（2026-08-09 補測） ==========
 
 class TestV10CompatAndCascade:

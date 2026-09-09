@@ -689,18 +689,23 @@ function _syncBatchUI() {
 function cancelBatch() {
   selectedStockIds.clear();
   document.getElementById('batch-bar').classList.remove('show');
+  document.getElementById('batch-site').value = '';
   document.getElementById('batch-cabinet').value = '';
   document.getElementById('batch-sub').value = '';
   renderInventory();
 }
 
 function showBatchConfirm() {
+  var site = document.getElementById('batch-site').value;
+  if (!site) { toast('請先選擇目標場所'); return; }
   var cab = document.getElementById('batch-cabinet').value;
   if (!cab) { toast('\u26a0\ufe0f \u8acb\u5148\u9078\u64c7\u76ee\u6a19\u6ac3\u5b50'); return; }
   var sub = document.getElementById('batch-sub').value.trim();
   var target = sub ? cab + ' | ' + sub : cab;
+  var siteLabel = site === 'warehouse' ? '🏭 倉庫' : '🏢 辦公室';
+  var targetDisplay = siteLabel + '／' + target;
   document.getElementById('batch-confirm-count').textContent = selectedStockIds.size;
-  document.getElementById('batch-confirm-loc').textContent = target;
+  document.getElementById('batch-confirm-loc').textContent = targetDisplay;
   var details = [];
   ALL_ITEMS.forEach(function(item) {
     (item.stocks || []).forEach(function(s) {
@@ -718,21 +723,25 @@ function closeBatchConfirm() {
 }
 
 async function submitBatchLocation() {
+  var site = document.getElementById('batch-site').value;
+  if (!site) { toast('請先選擇目標場所'); return; }
   var cab = document.getElementById('batch-cabinet').value;
   var sub = document.getElementById('batch-sub').value.trim();
   var target = sub ? cab + ' | ' + sub : cab;
+  var siteLabel = site === 'warehouse' ? '🏭 倉庫' : '🏢 辦公室';
+  var targetDisplay = siteLabel + '／' + target;
   closeBatchConfirm();
   try {
     var res = await fetch('/api/stocks/batch-location', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stock_ids: Array.from(selectedStockIds), new_location: target })
+      body: JSON.stringify({ stock_ids: Array.from(selectedStockIds), new_location: target, new_site: site })
     });
     if (!res.ok) {
       var err = await res.json();
       throw new Error(err.detail || '\u6279\u6b21\u66f4\u65b0\u5931\u6557');
     }
-    toast('\u2705 \u5df2\u5c07 ' + selectedStockIds.size + ' \u7b0c\u4f4d\u7f6e\u6539\u70ba\u300c' + target + '\u300d');
+    toast('\u2705 \u5df2\u5c07 ' + selectedStockIds.size + ' \u7b0c\u4f4d\u7f6e\u6539\u70ba\u300c' + targetDisplay + '\u300d');
     cancelBatch();
     await loadData();
   } catch (e) {

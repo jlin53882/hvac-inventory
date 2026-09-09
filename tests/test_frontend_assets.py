@@ -2148,6 +2148,8 @@ def test_batch_button_uses_batch_loc_mgmt_perm():
     js = read(INVENTORY_RENDER_JS)
     assert "hasPerm('batch-loc-mgmt')" in js or 'hasPerm("batch-loc-mgmt")' in js, \
         "批次按鈕需用 hasPerm('batch-loc-mgmt') 控制顯示"
+    assert 'id="batch-site"' in read(INDEX), "批次改位置需提供辦公室/倉庫選擇"
+    assert 'new_site: site' in js, "批次改位置需將目標分片送給 API"
     # 不應再用 !isViewer 控制批次按鈕
     assert "isViewer ? '' : `<button class=\"btn-sm btn-batch\"" not in js, \
         "批次按鈕不應再用 isViewer 控制"

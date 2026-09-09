@@ -196,6 +196,8 @@ function switchTab(tab) {
     if (bc) bc.disabled = true;
     var bb = document.getElementById('batch-bar');
     if (bb) bb.classList.remove('show');
+    var site = document.getElementById('batch-site');
+    if (site) site.value = '';
     var cab = document.getElementById('batch-cabinet');
     if (cab) cab.value = '';
     var sub = document.getElementById('batch-sub');
