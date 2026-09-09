@@ -165,18 +165,16 @@ def test_css_cal_evt_b_variant_and_no_overflow():
     - .cal-evt 兩段結構：時間一行 + 內容一行截斷"""
     css = read_css_all()
     assert "repeat(7, minmax(0, 1fr))" in css            # 跑版防回歸（長內容不撐破格子）
-    assert ".cal-evt .cal-evt-time" in css               # 時間獨立一行
+    assert ".cal-evt .cal-evt-time" in css               # 時間維持獨立語意節點
     assert ".cal-evt .cal-evt-body" in css               # 內容一行（ellipsis 截斷）
 
 
 def test_css_cal_selected_highlight():
-    """2026-08-14 家豪：點月曆日期要有「選中」深色框（原 .cal-selected 只有淡背景，看不到框）
-    - 選中框 = 深藍邊框 + 深藍數字底
-    - 08-14 變體 A：今天完全不標記——不再有 .cal-today 樣式（只有選中的日期有框）"""
+    """2026-09-09：Today 與 Selected 依設計文件同時可見。"""
     css = read_css_all()
-    assert ".cal-cell.cal-selected { border: 2px solid #2d5a8e" in css
-    assert ".cal-cell.cal-selected .cal-day-num { background: #2d5a8e" in css
-    assert ".cal-cell.cal-today" not in css            # 今天無標記（不與選中框衝突）
+    assert ".cal-cell.cal-selected {" in css and "border: 1px solid #2563eb" in css
+    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: #2563eb" in css
+    assert ".cal-cell.cal-today .cal-day-num" in css
 
 
 def test_css_modal_mobile_visible_fix():
@@ -1211,11 +1209,31 @@ def test_calendar_desktop_dispatch_layout():
     assert "cal-kpi-grid" in js
     assert "calRenderKpi" in js
     assert "calTodayEvents" in js
+    assert "cal-legend" in js
+    assert "cal-helper-panel" in js
+    assert "cal-detail-icon" in js
+    assert "calRenderLoadingUi" in js
+    assert "calRenderErrorUi" in js
     assert "cal-load-state" in js
     assert "calSetLoadState('error'" in js
     assert "cal-combined-search" not in js  # 舊深色工具列已移除
     assert '<button class="cal-quick-filter"' not in js
     assert "cal-today-inline" in js
+
+
+def test_calendar_design_spec_hooks():
+    """2026-09-09：設計文件新增的 Legend、Helper、skeleton/error 與 card hierarchy hooks。"""
+    js = read_calendar_js_all()
+    css = read_css_all()
+    for marker in ("calServiceTone", "calRenderLegend", "calRenderHelper", "cal-service-badge", "cal-event-footer", "cal-created-meta"):
+        assert marker in js or marker in css, f"缺 {marker}"
+    assert ".cal-skeleton-cell" in css
+    assert ".cal-empty-state" in css
+    assert ".cal-search-panel-header" in css
+    assert ".cal-search-item" in css
+    assert "width: min(100%, 1640px)" in css
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css
+    assert "@media (max-width: 767px)" in css and "overflow-x: hidden" in css
 
 
 def test_calendar_kpi_uses_existing_appointment_data():
@@ -1224,18 +1242,90 @@ def test_calendar_kpi_uses_existing_appointment_data():
     assert "calTodayEvents.length" in js
     assert "calEvents.length" in js
     assert "selectedCount" in js
+    assert "calTodayEvents = todayEv.filter(e => e.date === todayStr)" in js
+    assert "cal-kpi-meta" in js
+    assert "今日派工 共${calTodayEvents.length}筆" in js
+    assert "本月派工 共${calEvents.length}筆" in js
+    assert "週${CAL_WEEK[date.getDay()]}" in js
     assert "已完成" not in js
     assert "進行中" not in js
     assert "待處理" not in js
 
 
+def test_calendar_kpi_meta_is_visible_on_mobile():
+    """手機版仍需顯示 KPI 右下小標，不得因 viewport 判斷而完全省略。"""
+    js = read_calendar_js_all()
+    css = read_css_all()
+    assert "showMeta" not in js
+    assert "cal-kpi-meta" in js
+    assert ".cal-kpi-meta" in css
+    assert "white-space: normal" in css
+    assert "overflow: visible" in css
+
+
+def test_calendar_search_uses_right_panel_mode():
+    """搜尋結果不得插入 KPI/Calendar 之間，必須切換右側同一個 Content Panel。"""
+    js = read_calendar_js_all()
+    css = read_css_all()
+    kpi = js.index('id="cal-kpi-grid"')
+    top_slot = js.index('id="cal-search-top-slot"')
+    main = js.index('class="cal-main-grid"')
+    header = js.index('id="cal-day-title"')
+    panel_slot = js.index('id="cal-search-panel-slot"')
+    day_list = js.index('id="cal-day-list"')
+    assert kpi < top_slot < main < header < panel_slot < day_list
+    assert "calIsDesktopViewport" in js
+    assert "calMountSearchResults" in js
+    assert "calSearchMode" in js
+    assert "calSearchRequestToken" in js
+    assert "requestToken !== calSearchRequestToken" in js
+    assert "calSearchState" in js
+    assert "calBindSearchViewportListener" in js
+    assert "calHandleSearchViewportChange" in js
+    assert "addEventListener('change', calHandleSearchViewportChange)" in js
+    assert "addListener(calHandleSearchViewportChange)" in js
+    assert "calRenderSearchLoading" in js
+    assert "calRenderSearchError" in js
+    assert "function calClearSearch()" in js
+    assert "calRenderSearchResults" in js
+    assert "calRenderMobileSearchResults" in js
+    mobile_start = js.index("function calRenderMobileSearchResults")
+    mobile_end = js.index("async function calSearch", mobile_start)
+    mobile_renderer = js[mobile_start:mobile_end]
+    assert "calSearchMode = true;" in mobile_renderer
+    assert "calApplyRightPanelMode();" in mobile_renderer
+    day_start = js.index("function calRenderDay")
+    day_end = js.index("// ========== 行事曆搜尋 ==========", day_start)
+    day_renderer = js[day_start:day_end]
+    assert "if (calIsDesktopViewport()) calRenderSearchResults(calSearchItems);" in day_renderer
+    assert "else calRenderMobileSearchResults(calSearchItems);" in day_renderer
+    assert "calJumpToDate" in js
+    assert 'data-date="${esc(e.date || \'\')}"' in js
+    assert ".cal-day-card.cal-search-mode" in css
+    assert ".cal-top-slot" not in css
+    assert ".cal-search-top-slot { display: none; }" in css
+    assert "overflow-y: auto" in css
+    assert "cal-search-panel-header" in css
+    assert "cal-search-item" in css
+
+
+def test_calendar_mobile_event_keeps_service_type_visible():
+    """手機月曆事件改成兩行，避免窄欄只剩時間而看不到施工/保養。"""
+    css = read_css_all()
+    assert "@media (max-width: 767px)" in css
+    assert ".cal-evt {\n    min-height: 30px;" in css
+    assert "flex-direction: column;" in css
+    assert ".cal-evt .cal-evt-body" in css
+    assert "white-space: nowrap" in css
+
+
 def test_calendar_cell_shows_service_client():
     """2026-08-13 Sarah + 08-14 家豪 B 方案：月曆格子內派工標籤顯示「時間」+「[服務] 客戶」
-    - B 方案：時間獨立一行（.cal-evt-time）＋ 服務/客戶一行截斷（.cal-evt-body）
+    - compact event：時間與服務/客戶同列，維持獨立節點供樣式控制
     - 用 textContent 安全設定（非 innerHTML）"""
     js = read_calendar_js_all()
     assert "evts.slice(0, 2)" in js                     # 每格最多 2 筆派工
-    assert "className = 'cal-evt-time'" in js           # 時間獨立一行
+    assert "className = 'cal-evt-time'" in js           # 時間仍可獨立樣式控制
     assert "className = 'cal-evt-body'" in js           # 服務/客戶一行
     assert "e.client_name || ''" in js                   # 客戶名
     assert "textContent" in js                           # 用 textContent 安全設定（非 innerHTML）
@@ -1247,8 +1337,8 @@ def test_service_type_optional_ui():
     月曆格/明細卡無服務項目時不顯示「[] 」空括號前綴（比照 08-14 時間選填「無時間不顯示前綴」）"""
     js = read_calendar_js_all()
     assert "⚠️ 請選擇服務項目" not in js                                        # 必填檢查已移除（bug 版必紅）
-    assert "(e.service_name ? `[${e.service_name}] ` : '')" in js              # 月曆格：有服務才顯示 [服務] 前綴
-    assert "${e.service_name ? `[${esc(e.service_name)}] ` : ''}" in js        # 明細卡：同款（esc 保留，XSS 防護不退化）
+    assert "bodyEl.textContent = (e.service_name ? `${e.service_name} ` : '')" in js  # 月曆格服務名稱與客戶
+    assert "cal-service-badge" in js and "esc(e.service_name)" in js                  # 明細卡使用服務 badge
 
 
 def test_calendar_cell_selected_highlight_js():
@@ -1259,7 +1349,8 @@ def test_calendar_cell_selected_highlight_js():
     assert "calSelected = new Date(y, m, d)" in js       # 點擊格子設定選中日期
     assert "_syncCalendarDateControls()" in js            # 月曆與頂部/右側日期同步
     assert "function _parseLocalDate(value)" in js       # input date 字串先正規化成 Date
-    assert "className = 'cal-today'" not in js           # 今天不產生 cal-today class
+    assert "cal-today" in js                             # 今天要有 Blue Circle/Badge
+    assert "const isToday = ds === _iso(new Date())" in js
 
 
 def test_calendar_appt_only_start_time():
@@ -1276,8 +1367,9 @@ def test_calendar_appt_only_start_time():
     assert "i * 5" in js                                # 分每 5 分鐘
     # 儲存：end_time = start_time（同一組時/分；2026-08-14 起選填——選「--」→ timeVal 空字串）
     assert "end_time: timeVal" in js
-    # 明細卡：只顯示開始時間（2026-08-14 起選填——無時間不顯示 ⏰ 前綴）
-    assert "<div class=\"cal-time\">${e.start_time ? `⏰ ${esc(e.start_time)}　` : ''}${who}</div>" in js
+    # 明細卡：時間使用新的 hierarchy header；未指定時間仍有明確 fallback
+    assert '<div class=\"cal-time\"><span aria-hidden=\"true\">⏰</span>' in js
+    assert "esc(e.start_time || '未指定時間')" in js
 
 
 def test_calendar_time_optional():
@@ -1291,8 +1383,8 @@ def test_calendar_time_optional():
     assert "const t = (f && f.start_time) || '';" in js     # 回填：無時間留空
     assert "const timeVal = (hh && mm) ? hh + ':' + mm : '';" in js  # 選「--」→ 空字串
     assert "start_time: timeVal," in js and "end_time: timeVal," in js
-    assert "if (e.start_time) {" in js                   # 月曆格無時間不顯示時間行（B 方案）
-    assert "⏰ ${esc(e.start_time)}　` : ''}${who}" in js    # 明細卡無時間不顯示 ⏰
+    assert "if (e.start_time) {" in js                   # 月曆格無時間不顯示時間行
+    assert "esc(e.start_time || '未指定時間')" in js       # 明細卡無時間顯示 fallback
     assert "(a.start_time || '99:99')" in js                # 空時間排最後
     assert "'09:00'" not in js.split("const t =")[1].split("const timeVal")[0]  # 新增不再預設 09:00
 

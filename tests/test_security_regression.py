@@ -192,6 +192,10 @@ REVIEWED_SAFE_BODIES = {
     # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
     "_cabinetOptions(cabinet)", "_cabinetOptions('')", "c",
     "c === selected ? 'selected' : ''", "c || '— 請選擇 —'",
+    # calendar.js Desktop dashboard（2026-09-09）：service/sync/updated/range 是由已 esc 的資料組成的內部 HTML fragment；icon 是固定映射。
+    "calSyncStatusIcon(e.sync_status)", "service", "sync", "updated", "range",
+    # calendar.js right-panel search (2026-09-09): fragments are assembled only from esc() values or fixed markup.
+    "assignees", "assigneeHtml", "addressHtml", "noteHtml", "keyword", "body", "meta",
     # card.js 批次改位置 checkbox（2026-09-06）：selectedStockIds 為內部 Set、i.id 為 DB 數字主鍵
     "selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : ''",
     "batchMode ? `<input type=\"checkbox\"",
