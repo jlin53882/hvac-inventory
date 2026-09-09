@@ -9,7 +9,7 @@
     app/config.py         → 路徑設定
     app/database.py       → 資料庫連線 + schema + migration
     app/models.py         → Pydantic 請求模型
-    app/routes/*.py       → 各功能 API（items/stockout/kits/stocktake/stats/export）
+    app/routes/*.py       → 各功能 API（items/stockout/kits/stocktake/stats/export/quotations）
     app/services/         → 預留業務邏輯層（權限/序號/保固等未來擴充）
 
 啟動：.venv/Scripts/python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000
@@ -27,7 +27,7 @@ import app.config as app_config
 from app.config import STATIC_DIR
 from app.middleware import cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
 from app.database import get_db, init_db
-from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, service_types, signed_reports, stats, stockout, stocktake, users, units
+from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, quotations, service_types, signed_reports, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 from app.services import sync_scheduler
 from app.services.app_log import get_logger, setup_logging
@@ -80,7 +80,8 @@ app.include_router(auth.router)
 # 其餘全部上鎖：未登入一律 401
 for _r in (items.router, movements.router, stockout.router, kits.router, stocktake.router,
            stats.router, export.router, photos.router, lookup.router, service_types.router,
-           users.router, appointments.router, units.router, gcal_keys.router, signed_reports.router):
+           users.router, appointments.router, units.router, gcal_keys.router, signed_reports.router,
+           quotations.router):
     app.include_router(_r, dependencies=[Depends(require_login)])
 
 # ---------- 靜態檔案（前端） ----------

@@ -309,6 +309,9 @@ WRITE_ENDPOINTS = [
     ("POST", "/api/items/1/stocks", "stock-mgmt"),
     ("PATCH", "/api/stocks/1", "stock-mgmt"),
     ("DELETE", "/api/stocks/1", "stock-mgmt"),
+    ("POST", "/api/quotations", "item-mgmt"),
+    ("PUT", "/api/quotations/1", "item-mgmt"),
+    ("DELETE", "/api/quotations/1", "item-mgmt"),
     ("POST", "/api/stocks/batch-location", "batch-loc-mgmt"),
     ("POST", "/api/items/1/adjust", "stock-mgmt"),
     ("POST", "/api/import", "import"),
@@ -380,7 +383,7 @@ def test_tech_write_endpoints_only_calendar(matrix_tech, method, url, key):
     ("stats", ["/api/stats"]),
     ("kit-view", ["/api/kits"]),
     ("prepared", ["/api/prepared", "/api/stockouts"]),
-    ("export", ["/api/export"]),
+    ("export", ["/api/export", "/api/quotations/1/export.xlsx", "/api/quotations/1/export.pdf"]),
 ], ids=["stats", "kit-view", "prepared", "export"])
 def test_browsable_get_perm_closed(admin_client, perm, urls):
     """關閉可關閉瀏覽權限 → 對應 GET 403；view 基底維持放行"""

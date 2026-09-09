@@ -243,6 +243,28 @@ def test_signed_reports_demo_layout_contract():
     assert "content.classList.toggle('dsr-content', tab === 'signed-reports')" in app
 
 
+def test_quotation_screen_mounts_with_dsr_style_contract():
+    """報價單：掛載入口、render function 與 DSR 同風格 class 都存在。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    js = read(os.path.join(STATIC, "js", "render", "quotation.js"))
+    css = read(os.path.join(STATIC, "css", "style.quotation.css"))
+    assert "sb-nav-quotation" in html and "switchTab('quotation')" in html
+    assert "/static/js/render/quotation.js" in html
+    assert "/static/css/style.quotation.css" in html
+    assert "quotation:'報價單'" in app and "quotation:'🧾'" in app
+    assert "else if (tab === 'quotation') renderQuotation();" in app
+    assert "function renderQuotation()" in js
+    assert "function quoteAddItem()" in js and "function quoteSave()" in js
+    assert "fetch('/api/quotations" in js
+    assert "method: quotationEditingId ? 'PUT' : 'POST'" in js
+    assert "method: 'DELETE'" in js and "function quoteDownload(id, ext)" in js and "/export.' + ext" in js
+    assert "quoteOpenInventory" in js and "/inventory-items?q=" in js
+    assert "class=\"dsr-page-header quote-page-header\"" in js
+    assert "class=\"dsr-card quote-card\"" in js
+    assert "#content.quotation-content" in css
+
+
 def test_signed_reports_actions_and_editable_note_contract():
     """DSR：圖片直接預覽；下載/刪除/編輯備註均為圖示加文字操作。"""
     js = read(SIGNED_REPORTS_RENDER_JS)

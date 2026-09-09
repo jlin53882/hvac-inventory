@@ -6,7 +6,7 @@ Pydantic 請求模型
 """
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------- 品項（v10 正規化：主檔 + 位置庫存） ----------
@@ -229,6 +229,35 @@ class BatchLocationRequest(BaseModel):
     stock_ids: List[int] = Field(..., min_length=1)
     new_location: str = Field(..., min_length=1, max_length=100)
     new_site: Optional[Literal["office", "warehouse"]] = None
+
+
+class QuotationItemIn(BaseModel):
+    inventory_item_id: Optional[int] = Field(None, ge=1)
+    item_name: str = Field(..., min_length=1, max_length=200)
+    specification: str = Field("", max_length=500)
+    qty: float = Field(..., gt=0)
+    unit: str = Field("式", min_length=1, max_length=30)
+    unit_price: float = Field(..., ge=0)
+
+    @field_validator("item_name", "unit")
+    @classmethod
+    def non_blank_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("不可為空白")
+        return value
+
+
+class QuotationIn(BaseModel):
+    quote_number: Optional[str] = Field(None, max_length=50)
+    quote_date: str = Field(..., max_length=10)
+    customer_name: str = Field(..., min_length=1, max_length=100)
+    contact: str = Field("", max_length=100)
+    address: str = Field("", max_length=300)
+    valid_days: int = Field(30, ge=1, le=3650)
+    tax_type: Literal["included", "excluded"] = "included"
+    note: str = Field("", max_length=1000)
+    items: List[QuotationItemIn] = Field(..., min_length=1, max_length=200)
 
 
 

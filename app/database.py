@@ -259,6 +259,36 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_dsr_date ON daily_signed_reports(report_date);
     CREATE INDEX IF NOT EXISTS idx_dsr_upload_time ON daily_signed_reports(upload_time);
     CREATE INDEX IF NOT EXISTS idx_dsr_uploader ON daily_signed_reports(uploader_user_id);
+    -- 報價單（2026-09-09 報價單模組）
+    CREATE TABLE IF NOT EXISTS quotations (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote_number   TEXT NOT NULL UNIQUE,
+        quote_date     TEXT NOT NULL,
+        customer_name  TEXT NOT NULL,
+        contact        TEXT DEFAULT '',
+        address        TEXT DEFAULT '',
+        valid_days     INTEGER NOT NULL DEFAULT 30,
+        tax_type       TEXT NOT NULL DEFAULT 'included',
+        note           TEXT DEFAULT '',
+        created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS quotation_items (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        quotation_id       INTEGER NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+        inventory_item_id  INTEGER REFERENCES items(id) ON DELETE SET NULL,
+        item_name          TEXT NOT NULL,
+        specification      TEXT DEFAULT '',
+        qty                REAL NOT NULL,
+        unit               TEXT NOT NULL DEFAULT '式',
+        unit_price         REAL NOT NULL DEFAULT 0,
+        sort_order         INTEGER NOT NULL DEFAULT 0,
+        created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_quotations_date ON quotations(quote_date);
+    CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_name);
+    CREATE INDEX IF NOT EXISTS idx_quotation_items_quote ON quotation_items(quotation_id);
     """);
 
     # 舊資料庫遷移（v10 前）：items 若有 qty/location/note 欄位 → 需跑 scripts/migrate_v10.py

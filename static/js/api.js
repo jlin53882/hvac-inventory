@@ -10,7 +10,7 @@ async function loadData() {
     checkReminder();
     updateNotifications();
     updateSubInfo();
-    if (currentTab !== 'signed-reports') switchTab(currentTab);  // DSR tab 由 renderSignedReports 自行處理
+    if (currentTab !== 'signed-reports' && currentTab !== 'quotation') switchTab(currentTab);  // DSR/報價單頁由各自 render function 處理
     loadPreparedBadge();  // 剛進網頁就要顯示待領出數量小標
   } catch (e) {
     document.getElementById('content').innerHTML =

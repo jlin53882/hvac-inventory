@@ -1727,6 +1727,77 @@ class TestSiteSharding:
         })
         assert response.status_code == 422
 
+
+class TestQuotations:
+    def _quote_payload(self, client):
+        item = _add_item(client, name="報價用冷氣", brand="測試牌", code="Q-001", qty=8)
+        return item, {
+            "quote_date": "2026-09-09", "customer_name": "測試客戶",
+            "contact": "王先生 0912-345-678", "address": "台北市測試區",
+            "valid_days": 30, "tax_type": "included", "note": "付款條件：驗收後付款",
+            "items": [{"inventory_item_id": item["id"], "item_name": item["name"],
+                       "specification": "3.6kW 基本安裝", "qty": 2,
+                       "unit": "台", "unit_price": 25000}],
+        }
+
+    def test_create_list_update_delete_quotation(self, client):
+        item, payload = self._quote_payload(client)
+        created = client.post("/api/quotations", json=payload)
+        assert created.status_code == 201, created.text
+        quote = created.json()
+        assert quote["customer_name"] == "測試客戶"
+        assert quote["items"][0]["inventory_item_id"] == item["id"]
+        assert quote["total"] == 50000
+        listed = client.get("/api/quotations", params={"q": "測試客戶"})
+        assert listed.status_code == 200 and listed.json()["total"] == 1
+        changed = client.put(f"/api/quotations/{quote['id']}", json=dict(payload, customer_name="修改後客戶"))
+        assert changed.status_code == 200 and changed.json()["customer_name"] == "修改後客戶"
+        assert client.delete(f"/api/quotations/{quote['id']}").status_code == 200
+        assert client.get(f"/api/quotations/{quote['id']}").status_code == 404
+
+    def test_inventory_items_can_be_used_in_quotation(self, client):
+        item = _add_item(client, name="可帶入品項", brand="大金", code="INV-1", qty=4)
+        response = client.get("/api/quotations/inventory-items", params={"q": "可帶入品項"})
+        assert response.status_code == 200
+        assert response.json()[0]["id"] == item["id"]
+        assert response.json()[0]["unit"] == item["unit"]
+
+    def test_quotation_exports_xlsx_and_pdf(self, client):
+        _, payload = self._quote_payload(client)
+        quote = client.post("/api/quotations", json=payload).json()
+        xlsx = client.get(f"/api/quotations/{quote['id']}/export.xlsx")
+        pdf = client.get(f"/api/quotations/{quote['id']}/export.pdf")
+        assert xlsx.status_code == 200 and xlsx.content[:2] == b"PK"
+        assert xlsx.headers["content-type"].startswith("application/vnd.openxmlformats")
+        assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+        assert pdf.headers["content-type"] == "application/pdf"
+
+    def test_quotation_rejects_blank_item_text(self, client):
+        """品項名稱與單位只有空白時也必須拒絕。"""
+        _, payload = self._quote_payload(client)
+        payload["items"][0]["item_name"] = "   "
+        response = client.post("/api/quotations", json=payload)
+        assert response.status_code == 422
+
+    def test_quotation_xlsx_contains_terms_and_pdf_escapes_text(self, client):
+        """Excel 含報價條件；PDF 可處理 XML 特殊字元。"""
+        _, payload = self._quote_payload(client)
+        payload["customer_name"] = "客戶 <A&B>"
+        quote = client.post("/api/quotations", json=payload).json()
+        xlsx = client.get(f"/api/quotations/{quote['id']}/export.xlsx")
+        import io
+        import openpyxl
+        ws = openpyxl.load_workbook(io.BytesIO(xlsx.content), data_only=True).active
+        values = [row[0].value for row in ws.iter_rows()]
+        assert "有效天數" in values and "稅別" in values and "備註／付款條件" in values
+        pdf = client.get(f"/api/quotations/{quote['id']}/export.pdf")
+        assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+
+    def test_quotation_rejects_invalid_values(self, client):
+        response = client.post("/api/quotations", json={"quote_date": "bad-date", "customer_name": "", "items": []})
+        assert response.status_code in (400, 422)
+
+
 # ========== v10 相容性與 CASCADE 完整性（2026-08-09 補測） ==========
 
 class TestV10CompatAndCascade:

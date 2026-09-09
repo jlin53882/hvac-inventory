@@ -1,0 +1,70 @@
+/* 報價單頁：沿用 DSR 卡片語言，所有新增樣式以 quote- scope。 */
+#content.quotation-content { max-width: none; padding: 16px 0 20px; }
+.quote-wrap { width: 100%; margin: 0; padding: 0 16px; box-sizing: border-box; }
+@media (min-width: 768px) { .quote-wrap { padding: 2px 16px 0; } }
+.quote-layout { display: grid; gap: 16px; }
+@media (min-width: 960px) { .quote-layout { grid-template-columns: 1.05fr .95fr; } .quote-items-card { grid-column: 1 / -1; } }
+.quote-side { display: grid; gap: 16px; align-content: start; }
+.quote-field-gap { margin-top: 12px; }
+.quote-items-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.quote-items-heading p { margin: 0; color: #64748b; font-size: 12.5px; }
+.quote-items-heading + .dsr-btn { margin-left: auto; }
+.quote-items-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.quote-history-filter { display: flex; gap: 8px; width: min(100%, 420px); margin-left: auto; }
+.quote-history-filter input { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+.quote-history-list { display: grid; gap: 8px; padding-top: 12px; }
+.quote-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.quote-history-row > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.quote-history-row span, .quote-history-row small { color: #64748b; font-size: 12px; }
+.quote-history-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quote-history-total { color: #1e3a5f; white-space: nowrap; }
+.quote-history-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.quote-overlay { position: fixed; inset: 0; z-index: 950; display: none; padding: 14px; background: rgba(15,23,42,.55); place-items: center; }
+.quote-overlay.open { display: grid; }
+.quote-inventory-modal { display: flex; flex-direction: column; width: 100%; max-width: 720px; max-height: 86vh; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.quote-inventory-search { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; }
+.quote-inventory-search input { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+.quote-inventory-list { overflow: auto; padding: 10px 16px 16px; }
+.quote-inventory-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 11px; border: 0; border-bottom: 1px solid #f1f5f9; background: #fff; color: #1e293b; text-align: left; cursor: pointer; font: inherit; }
+.quote-inventory-row:hover { background: #f8fafc; }
+.quote-inventory-row span { display: grid; gap: 3px; min-width: 0; }
+.quote-inventory-row small { color: #64748b; font-size: 11px; }
+.quote-inventory-row b { flex-shrink: 0; color: #2d5a8e; font-size: 12px; }
+.quote-items-table-wrap { margin-top: 12px; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+.quote-items-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
+.quote-items-table th { padding: 10px; border: 1px solid #111827; background: #f1f5f9; color: #475569; text-align: left; white-space: nowrap; font-weight: 800; }
+.quote-items-table td { padding: 8px; border: 1px solid #111827; vertical-align: middle; }
+.quote-items-table tr:hover td { background: #f8fafc; }
+.quote-line-input { width: 100%; min-width: 120px; padding: 8px 9px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; color: #1e293b; font: inherit; font-size: 13px; }
+.quote-line-input:focus { border-color: #2d5a8e; outline: none; box-shadow: 0 0 0 3px rgba(45,90,142,.15); }
+.quote-number-input { min-width: 82px; }
+.quote-line-total { color: #1e3a5f; font-weight: 900; white-space: nowrap; }
+.quote-summary-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 13px; }
+.quote-summary-row strong { color: #1e293b; }
+.quote-summary-total { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; padding-top: 12px; border-top: 2px solid #1e3a5f; color: #1e3a5f; font-size: 16px; font-weight: 900; }
+.quote-summary-total strong { font-size: 22px; }
+.quote-empty-hint { margin-top: 10px; color: #94a3b8; font-size: 11.5px; }
+@media (max-width: 639px) {
+  .quote-items-actions, .quote-history-filter { width: 100%; margin-left: 0; }
+  .quote-items-actions .dsr-btn { flex: 1; }
+  .quote-history-row { grid-template-columns: 1fr auto; }
+  .quote-history-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .quote-items-table { min-width: 0; }
+  .quote-items-table thead { display: none; }
+  .quote-items-table, .quote-items-table tbody, .quote-items-table tr, .quote-items-table td { display: block; width: 100%; }
+  .quote-items-table tr { overflow: hidden; margin: 10px 0 0; border: 1px solid #e2e8f0; border-radius: 10px; }
+  .quote-items-table td { padding: 8px 12px; border: 1px solid #111827; }
+  .quote-items-table td::before { content: attr(data-label); display: block; margin-bottom: 4px; color: #94a3b8; font-size: 11px; font-weight: 800; }
+  .quote-items-table-wrap { border: none; }
+  .quote-items-heading + .dsr-btn { width: 100%; margin-left: 0; }
+}
+@media print {
+  .sidebar, .header, .quote-page-header .dsr-page-actions, .quote-side, .quote-history-card, .quote-empty-hint, .quote-items-table td:last-child, .quote-items-table th:last-child { display: none !important; }
+  .main { margin: 0 !important; }
+  #content.quotation-content { padding: 0; }
+  .quote-wrap { padding: 0; }
+  .quote-layout { display: block; }
+  .quote-card { margin-bottom: 14px; box-shadow: none; }
+  .quote-items-table { min-width: 0; }
+  .quote-line-input { border: 0; padding: 0; }
+}
