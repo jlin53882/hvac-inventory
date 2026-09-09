@@ -24,6 +24,7 @@ async function renderQuotationUploads() {
   const today = _qupIso(new Date());
   el.innerHTML = `
     <div class="qup-wrap">
+      ${quoteModeTabs('upload')}
       <div class="qup-page-header">
         <div class="qup-page-title">
           <h1>🗂 報價單上傳 <span class="qup-new-badge">NEW</span></h1>

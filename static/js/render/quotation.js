@@ -34,6 +34,19 @@ function quoteFillForm(form) {
   });
 }
 
+function quoteModeTabs(active) {
+  return `<div class="quote-mode-tabs" role="tablist"><button type="button" class="quote-mode-tab ${active === 'quotation' ? 'active' : ''}" onclick="quoteSwitchMode('quotation')">🧾 報價單</button><button type="button" class="quote-mode-tab ${active === 'upload' ? 'active' : ''}" onclick="quoteSwitchMode('upload')">📤 報價單上傳</button></div>`;
+}
+function quoteSwitchMode(mode) {
+  var content = document.getElementById('content');
+  if (content) {
+    content.classList.toggle('quotation-content', mode === 'quotation');
+    content.classList.toggle('quotation-upload-content', mode === 'upload');
+  }
+  if (mode === 'upload') renderQuotationUploads();
+  else renderQuotation();
+}
+
 function renderQuotation() {
   var el = document.getElementById('content');
   if (!el) return;
@@ -43,6 +56,7 @@ function renderQuotation() {
   var saveLabel = quotationEditingId ? '更新報價單' : '儲存報價單';
   el.innerHTML = `
     <div class="quote-wrap">
+      ${quoteModeTabs('quotation')}
       <div class="dsr-page-header quote-page-header">
         <div class="dsr-page-title"><h1>🧾 ${esc(pageTitle)} <span class="dsr-new-badge">NEW</span></h1><p>建立冷凍空調工程報價單，整理客戶資料與報價明細。</p></div>
         <div class="dsr-page-actions"><button class="dsr-btn dsr-btn--ghost" onclick="quoteReset()">清除表單</button><button class="dsr-btn dsr-btn--primary" onclick="quoteSave()">💾 ${esc(saveLabel)}</button></div>

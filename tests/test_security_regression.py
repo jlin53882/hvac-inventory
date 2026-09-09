@@ -94,6 +94,8 @@ def _is_suspicious_interpolation(body: str) -> bool:
 # - 數字/算術/布林/常數三元/程式內變數/內部 HTML 參數（呼叫端已消毒）
 # - 新檔案/新內插若不在清單 → 測試紅 → 人工審核（安全則加這裡，否則補 esc()）
 REVIEWED_SAFE_BODIES = {
+    # 報價單內部分頁（2026-09-09）：active 只由固定模式傳入，輸出皆為固定 class/文字。
+    "active === 'quotation' ? 'active' : ''", "active === 'upload' ? 'active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
     "a.icon", "icon", "a.label", "items",
     # 數字欄位（qty/id/統計）

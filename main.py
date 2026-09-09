@@ -133,14 +133,6 @@ def permissions_page():
         return _versioned_html(idx)
     return Response("<h1>權限頁不存在</h1>", media_type="text/html")
 
-@app.get("/quotation-upload.html")
-def quotation_upload_page():
-    """報價單上傳獨立頁（沿用每日簽名報表版型）。"""
-    idx = os.path.join(STATIC_DIR, "quotation-upload.html")
-    if os.path.exists(idx):
-        return _versioned_html(idx)
-    return Response("<h1>報價單上傳頁不存在</h1>", media_type="text/html")
-
 @app.get("/settings.html")
 def settings_page():
     """設定中心頁（2026-08-16 單位管理/修改密碼；static 資源版本號自動化）"""

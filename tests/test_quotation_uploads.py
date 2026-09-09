@@ -59,15 +59,6 @@ def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b
     )
 
 
-def test_standalone_page_is_mounted_and_api_requires_login():
-    """獨立頁可取得；報價單上傳 API 仍由全域登入保護。"""
-    client = TestClient(app_main.app)
-    page = client.get("/quotation-upload.html")
-    assert page.status_code == 200
-    assert "報價單上傳" in page.text
-    assert client.get("/api/quotation-uploads").status_code == 401
-
-
 def test_upload_list_preview_and_safe_storage(signed_env):
     """上傳後可查詢/預覽，原始檔名不會成為實際路徑控制字元。"""
     make_client, static_dir = signed_env

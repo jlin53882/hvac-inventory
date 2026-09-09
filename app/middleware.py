@@ -58,7 +58,7 @@ async def cache_control_middleware(request, call_next):
     """HTML 每次重新驗證（no-cache）；static 資源短快取（配合 ?v=N 版本參數）"""
     response = await call_next(request)
     path = request.url.path
-    if path in ("/", "/login.html", "/permissions.html", "/settings.html", "/quotation-upload.html"):
+    if path in ("/", "/login.html", "/permissions.html", "/settings.html"):
         # HTML：每次都要重新驗證，確保拿到最新 ?v=N 引用
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     elif path.startswith("/static/"):

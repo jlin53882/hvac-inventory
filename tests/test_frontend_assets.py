@@ -66,8 +66,7 @@ CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
 SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
-# 待測：報價單上傳獨立頁（沿用每日簽名報表版型）
-QUOTATION_UPLOAD_HTML = os.path.join(STATIC, "quotation-upload.html")
+# 待測：報價單上傳 render（嵌入報價單頁面）
 QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
 QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
@@ -269,21 +268,27 @@ def test_quotation_screen_mounts_with_dsr_style_contract():
     assert "#content.quotation-content" in css
 
 
-def test_quotation_upload_standalone_page_contract():
-    """報價單上傳：獨立頁、資產掛載、DSR 複製版 render 與 API 路徑存在。"""
-    html = read(QUOTATION_UPLOAD_HTML)
-    js = read(QUOTATION_UPLOAD_RENDER_JS)
+def test_quotation_upload_embedded_switch_contract():
+    """報價單上傳：嵌入報價單頁面內切換，不新增左側入口。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    quotation_js = read(os.path.join(STATIC, "js", "render", "quotation.js"))
+    upload_js = read(QUOTATION_UPLOAD_RENDER_JS)
     css = read(QUOTATION_UPLOAD_CSS)
-    index = read(INDEX)
-    assert 'href="/quotation-upload.html"' in index
-    assert '報價單上傳' in index
-    assert 'id="content" class="quotation-upload-content"' in html
+    assert 'id="sb-nav-quotation-upload"' not in html
     assert '/static/js/render/quotation-upload.js' in html
     assert '/static/css/style.quotation-upload.css' in html
-    assert 'function renderQuotationUploads()' in js
-    assert "fetch('/api/quotation-uploads" in js
-    assert '#content.quotation-upload-content' in css
-    assert '.qup-layout { grid-template-columns: 1.05fr .95fr; }' in css
+    assert "quotationMode" not in app
+    assert "function quoteModeTabs(active)" in quotation_js
+    assert "function quoteSwitchMode(mode)" in quotation_js
+    assert "quoteSwitchMode('upload')" in quotation_js
+    assert "quoteModeTabs('upload')" in upload_js
+    assert "function renderQuotationUploads()" in upload_js
+    assert "fetch('/api/quotation-uploads" in upload_js
+    assert "${quoteModeTabs('quotation')}" in quotation_js
+    assert "${quoteModeTabs('upload')}" in upload_js
+    assert ".quote-mode-tab.active" in read(os.path.join(STATIC, "css", "style.quotation.css"))
+    assert '#content.quotation-upload-content' in read(os.path.join(STATIC, "css", "style.quotation-upload.css"))
 
 
 def test_signed_reports_actions_and_editable_note_contract():
@@ -1439,7 +1444,7 @@ def test_css_stat_cards_four_columns():
 
 def test_all_js_loaded_by_index():
     """static/js 下每個 .js 都必須被 index.html 或 permissions.html 引用（防新增 JS 忘掛載 = 整支 dead file）"""
-    html = read(INDEX) + read(PERMISSIONS_HTML) + read(SETTINGS_HTML) + read(QUOTATION_UPLOAD_HTML)
+    html = read(INDEX) + read(PERMISSIONS_HTML) + read(SETTINGS_HTML)
     missing = []
     for js_path in ALL_JS_FILES:
         rel = "/static/" + os.path.relpath(js_path, STATIC).replace("\\", "/")
