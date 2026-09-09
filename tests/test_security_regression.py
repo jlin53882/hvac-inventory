@@ -167,6 +167,8 @@ REVIEWED_SAFE_BODIES = {
     # stocktake.js 整組盤點展開組成材料（2026-08-16）：c.item_id 為 DB 數字主鍵（同 k.item_id/o.item_id）、
     # c.has_photo 為布林控制縮圖/佔位三元、kitCompsHTML 為內部已 esc 的組裝 HTML（同 pPhoto/soPhoto 模式）
     "c.item_id", "c.has_photo", "kitCompsHTML",
+    # stocktake status modal：buildThumb/extra 由既有安全 helper 與 esc(item.in_kits) 建構 HTML
+    "buildThumb(item.id, item.has_photo)", "extra",
     # stocktake.js 組成品項實際數量輸入框（2026-08-16）：mKey/mVal 為 itemId:location 鍵與輸入值（數字或空）、
     # mSysQty 為 absNum 格式化的數字字串（純數字不可控）
     "mKey", "mVal", "mSysQty",

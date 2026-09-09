@@ -33,6 +33,7 @@ CSS_CORE = os.path.join(STATIC, "css", "style.core.css")
 CSS_CAL = os.path.join(STATIC, "css", "style.calendar.css")
 CSS_INVENTORY = os.path.join(STATIC, "css", "style.inventory.css")
 CSS_KIT = os.path.join(STATIC, "css", "style.kit.css")
+CSS_STOCKTAKE = os.path.join(STATIC, "css", "style.stocktake.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js
@@ -1272,13 +1273,12 @@ def test_stocktake_totalqty_card_not_clickable():
 def test_stocktake_list_shows_model_and_kits():
     """缺貨/低庫存清單品項欄顯示型號（藍色粗體）+ 整組材料標註「屬於整組：名稱」（2026-08-13 Sarah 需求）"""
     js = read(STOCKTAKE_JS)
-    # 型號：比照已領出/待領出頁樣式（code 有值才顯示）
-    assert "color:#1890FF;font-weight:600" in js
-    assert "型號 ' + esc(i.code)" in js
+    assert "function renderStocktakeStatusItem(item, isLow)" in js
+    assert "esc(item.code)" in js
     # 整組材料標註：in_kits 陣列非空才顯示「屬於整組：名稱」
     assert "in_kits" in js
     assert "屬於整組：" in js
-    assert "esc(i.in_kits.join('、'))" in js
+    assert "esc(item.in_kits.join('、'))" in js
 
 
 def test_stocktake_tabs_kit_single_split():
@@ -1327,7 +1327,7 @@ def test_stocktake_kit_tab_expands_components():
     assert "stocktakeKits.find(k => k.item_id === i.id)" in js
     assert 'src="/uploads/${c.item_id}.jpg"' in js
     assert "openPhotoLightbox(${c.item_id})" in js
-    assert "需 <b>${c.need_qty}</b>" in js
+    assert "需 <b>${esc(String(c.need_qty))}</b>" in js
     # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
     assert "stocktakeValues['${jsStr(mKey)}'] = this.value" in js
     assert "markChanged(this, '${jsStr(mKey)}')" in js
@@ -2774,3 +2774,48 @@ if (context.getKitStatus(kits[1]).status !== 'insufficient') throw new Error('in
 """
     result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr or result.stdout
+
+
+
+def test_stocktake_desktop_dashboard_assets_and_scope():
+    """盤點 desktop dashboard 使用 page-scoped CSS，保留整組/單一材料資訊層級。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    js = read(STOCKTAKE_JS)
+    css = read(CSS_STOCKTAKE)
+    assert "/static/css/style.stocktake.css" in html
+    assert "content.classList.toggle('stocktake-content', tab === 'stocktake')" in app
+    for token in (
+        "stocktake-page-header", "stocktake-kpi-grid", "stocktake-info-panel",
+        "stocktake-summary-card", "stocktake-tabs", "stocktake-table",
+    ):
+        assert token in js or token in css, f"盤點頁缺少 {token}"
+    assert "stk-pane-kit" in js and "stk-pane-single" in js
+    assert ".stocktake-content" in css
+    assert ".stocktake-status-modal-content .stocktake-status-extra" in css
+    assert ".stocktake-content .stocktake-status-item .stocktake-status-extra" not in css
+
+
+def test_stocktake_status_lists_reuse_inventory_modal_source():
+    """盤點低庫存/缺貨清單使用現有 inventory status modal 與共用狀態語意。"""
+    js = read(STOCKTAKE_JS)
+    assert "inventory-status-modal" in js
+    assert "inventory-status-modal-body" in js
+    assert "inventory-status-list" in js
+    assert "getInventoryStatus" in js
+    assert "showStocktakeList('low')" in js
+    assert "showStocktakeList('zero')" in js
+
+
+
+def test_stocktake_kit_component_rows_have_scoped_layout_styles():
+    """整組盤點的組成材料列必須有 page-scoped layout，避免 markup 退化成未排版 inline。"""
+    css = read(CSS_STOCKTAKE)
+    for selector in (
+        ".stocktake-content .stocktake-kit-components",
+        ".stocktake-content .stocktake-kit-component",
+        ".stocktake-content .stocktake-item-cell",
+        ".stocktake-content .stocktake-kit-need",
+    ):
+        assert selector in css, f"盤點頁缺少 {selector}"
+    assert ".stocktake-kpi-action" not in css

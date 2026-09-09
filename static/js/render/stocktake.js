@@ -1,171 +1,117 @@
 // 庫存管理系統 - 盤點頁渲染（v10：以位置庫存為單位對帳）
 // ========== 盤點頁 ==========
 async function renderStocktake() {
-  // 2026-08-14 家豪裁決：盤點頁瀏覽掛 view（所有人看得到）；「本次盤點」操作區僅限 stocktake 權限（admin/user）
+  // 盤點頁瀏覽掛 view；實際盤點操作仍由 stocktake 權限控制
   const canStocktake = !!(currentUser && currentUser.permissions && currentUser.permissions['stocktake']);
   const content = document.getElementById('content');
+  if (!content) return;
+  content.innerHTML = '<div class="stocktake-loading">載入盤點資料…</div>';
 
-  // 載入盤點日期歷史 + 品項
   let takeDates = [];
+  let loadError = false;
   try {
     const res = await fetch('/api/stocktake/dates');
     if (!res.ok) { console.error('[renderStocktake] /api/stocktake/dates 失敗', res.status); throw new Error('dates ' + res.status); }
     takeDates = await res.json();
-  } catch (e) { console.error('[renderStocktake] 盤點日期載入失敗', e); }
-  // 載入整組組成材料（盤點整組 tab 展開顯示，比照整組庫存頁）
+  } catch (e) {
+    loadError = true;
+    console.error('[renderStocktake] 盤點日期載入失敗', e);
+  }
   try {
     const kitRes = await fetch(`/api/kits?site=${currentSite}`);
     if (!kitRes.ok) { console.error('[renderStocktake] /api/kits 失敗', kitRes.status); throw new Error('kits ' + kitRes.status); }
     stocktakeKits = await kitRes.json();
-  } catch (e) { console.error('[renderStocktake] 整組材料載入失敗', e); stocktakeKits = []; }
+  } catch (e) {
+    loadError = true;
+    console.error('[renderStocktake] 整組材料載入失敗', e);
+    stocktakeKits = [];
+  }
 
-  // 統計卡片（缺貨只算單一材料；低庫存整組與單一都算）— 以總量判斷
-  const zeroItems = ALL_ITEMS.filter(i => !i.is_kit && i.qty <= 0);
-  const lowItems = ALL_ITEMS.filter(i => i.low_stock > 0 && i.qty <= i.low_stock);
+  const statusOf = typeof getInventoryStatus === 'function'
+    ? getInventoryStatus
+    : function(i) { return { isLowStock: i.low_stock > 0 && i.qty > 0 && i.qty <= i.low_stock, isOutOfStock: !i.is_kit && i.qty <= 0 }; };
+  const zeroItems = ALL_ITEMS.filter(i => statusOf(i).isOutOfStock);
+  const lowItems = ALL_ITEMS.filter(i => statusOf(i).isLowStock);
   const zero = zeroItems.length;
   const low = lowItems.length;
   const totalQty = ALL_ITEMS.reduce((s, i) => s + i.qty, 0);
-  // 千分位顯示（四捨五入 3 位小數，例：2531.5 → "2,531.5"）
   const totalQtyStr = (Math.round(totalQty * 1000) / 1000).toLocaleString('en-US');
 
-  let html = `
-    <div class="stat-cards">
-      <div class="stat-card"><div class="num">${ALL_ITEMS.length}</div><div class="lbl">品項總數</div></div>
-      <div class="stat-card"><div class="num">${totalQtyStr}</div><div class="lbl">庫存總數(件)</div></div>
-      <div class="stat-card clickable ${low ? 'warn' : ''}" onclick="showStocktakeList('low')"><div class="num">${low}</div><div class="lbl">低庫存 ▶</div></div>
-      <div class="stat-card clickable ${zero ? 'danger' : ''}" onclick="showStocktakeList('zero')"><div class="num">${zero}</div><div class="lbl">缺貨 ▶</div></div>
-    </div>`;
+  let html = `<section class="stocktake-page-header">
+    <div class="stocktake-heading-copy"><div class="stocktake-heading-icon" aria-hidden="true">📋</div><div><h1>盤點</h1><p>核對實際庫存與系統庫存，快速找出庫存差異。</p></div></div>
+    <span class="stocktake-date">📅 ${esc(todayStr())}</span>
+  </section>`;
+  if (loadError) {
+    html += `<div class="stocktake-error-state"><h2>載入盤點資料失敗</h2><p>部分盤點資料無法載入，請重新載入。</p><button type="button" class="btn-cancel" onclick="renderStocktake()">重新載入</button></div>`;
+  }
+  html += `<section class="stocktake-kpi-grid">
+    <div class="stocktake-kpi-card stat-card"><div class="stocktake-kpi-icon">📦</div><div><div class="stocktake-kpi-number">${esc(String(ALL_ITEMS.length))}</div><div class="stocktake-kpi-label">品項總數</div></div></div>
+    <div class="stocktake-kpi-card stat-card"><div class="stocktake-kpi-icon">🗄️</div><div><div class="stocktake-kpi-number">${totalQtyStr}</div><div class="stocktake-kpi-label">庫存總數(件)</div></div></div>
+    <button type="button" class="stocktake-kpi-card stat-card clickable warn" onclick="showStocktakeList('low')" aria-label="查看低庫存品項"><div class="stocktake-kpi-icon">⚠</div><div><div class="stocktake-kpi-number">${esc(String(low))}</div><div class="stocktake-kpi-label">低庫存 ▶</div></div></button>
+    <button type="button" class="stocktake-kpi-card stat-card clickable danger" onclick="showStocktakeList('zero')" aria-label="查看缺貨品項"><div class="stocktake-kpi-icon">⛔</div><div><div class="stocktake-kpi-number">${esc(String(zero))}</div><div class="stocktake-kpi-label">缺貨 ▶</div></div></button>
+  </section>`;
 
-  // 上次盤點摘要
   if (takeDates.length) {
     const last = takeDates[0];
-    html += `<div class="section-title"><span class="loc">🗓️ 上次盤點</span><span>${esc(last.take_date)}</span></div>
-      <div style="background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#555;display:flex;gap:16px;flex-wrap:wrap">
-        <span>盤點 <b>${last.item_count}</b> 項</span>
-        <span>差異 <b style="color:${last.total_diff > 0 ? '#16a34a' : '#dc2626'}">${last.total_diff}</b> 件</span>
-        <span>有差異品項 <b>${last.diff_count}</b> 項</span>
-      </div>`;
+    const lastDiff = Number(last.total_diff || 0);
+    html += `<section class="stocktake-summary-card"><div class="stocktake-summary-heading"><span>📅 上次盤點</span><span class="stocktake-summary-date">${esc(last.take_date)}</span></div>
+      <div class="stocktake-summary-metrics"><span>盤點 <b>${esc(String(last.item_count))}</b> 項</span><span>差異 <b class="${lastDiff > 0 ? 'is-positive' : lastDiff < 0 ? 'is-negative' : ''}">${esc(String(last.total_diff))}</b> 件</span><span>有差異品項 <b>${esc(String(last.diff_count))}</b> 項</span></div></section>`;
   }
-
-  // 盤點日期歷史（最近5次）
   if (takeDates.length > 1) {
-    html += `<div class="section-title"><span class="loc">📚 盤點歷史</span></div>`;
-    html += `<table class="data-table"><thead><tr><th>日期</th><th>盤點數</th><th>有差異</th><th>總差異</th></tr></thead><tbody>`;
-    takeDates.slice(0, 5).forEach(d => {
-      html += `<tr>
-        <td>${esc(d.take_date)}</td>
-        <td>${d.item_count} 項</td>
-        <td>${d.diff_count} 項</td>
-        <td style="color:${d.total_diff > 0 ? '#16a34a' : (d.total_diff < 0 ? '#dc2626' : '#999')}">${d.total_diff}</td>
-      </tr>`;
-    });
-    html += '</tbody></table>';
+    html += `<section class="stocktake-history"><table><thead><tr><th>日期</th><th>盤點數</th><th>有差異</th><th>總差異</th></tr></thead><tbody>`;
+    takeDates.slice(0, 5).forEach(d => { html += `<tr><td>${esc(d.take_date)}</td><td>${esc(String(d.item_count))} 項</td><td>${esc(String(d.diff_count))} 項</td><td>${esc(String(d.total_diff))}</td></tr>`; });
+    html += '</tbody></table></section>';
   }
 
-  // 盤點輸入表（v10：展開每個位置 = 一列；2026-08-14：僅限 stocktake 權限，其他角色只讀）
-  html += `<div class="section-title" style="margin-top:18px"><span class="loc">✏️ 本次盤點（${todayStr()}）</span>
-    <span>共 ${ALL_ITEMS.length} 項</span></div>`;
+  html += `<section class="stocktake-current-header"><div class="stocktake-current-heading"><span>✏️ 本次盤點</span><span class="stocktake-current-date">${esc(todayStr())}</span></div><span class="stocktake-current-date">共 ${esc(String(ALL_ITEMS.length))} 項</span></section>`;
   if (!canStocktake) {
-    html += `<div style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:12px;padding:16px;font-size:13px;color:#64748b;text-align:center;margin-bottom:12px">
-      🔒 盤點作業僅限管理員 / 一般使用者操作<br><small style="color:#94a3b8">檢視者與工程師為唯讀，可瀏覽上方盤點歷史與統計</small>
-    </div>`;
+    html += `<div class="stocktake-readonly-panel">🔒 盤點作業僅限管理員 / 一般使用者操作<br><small>檢視者與工程師為唯讀，可瀏覽上方盤點歷史與統計</small></div>`;
     content.innerHTML = html;
     return;
   }
-  html += `<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;color:#555">
-    逐項輸入<b>實際清點數量</b>，系統會自動計算盤盈/盤虧。<br>
-    沒填的品項維持原數量不變。
-  </div>`;
+  html += `<section class="stocktake-info-panel"><div class="stocktake-info-title">ℹ️ 盤點操作說明</div>輸入實際清點數量後，系統會自動計算盤盈 / 盤虧。<br>未填寫的品項維持原數量不變；輸入 0 才代表實際庫存為 0。<br>「整組」盤點完整設備組數；「單一材料」盤點個別庫存品項。</section>`;
 
-  // 依位置分組列出（同品項放多處 → 每個位置各一列）
   const rows = [];
   ALL_ITEMS.forEach(i => {
     const stocks = i.stocks && i.stocks.length ? i.stocks : [{ location: i.location || '', qty: i.qty }];
-    stocks.forEach(s => {
-      rows.push({ item: i, stock: s });
-    });
+    stocks.forEach(s => rows.push({ item: i, stock: s }));
   });
-  // 2026-08-13 Sarah 需求：盤點輸入表整組 / 單一材料分開（tab 切換）
   const kitRows = rows.filter(r => r.item.is_kit);
   const singleRows = rows.filter(r => !r.item.is_kit);
-
-  // 搜尋過濾（盤點頁：過濾品項名稱/型號/品牌/位置）
-  const searchFiltered = function(arr) {
-    return filterBySearch(arr, function(r) {
-      return [r.item.name, r.item.code, r.item.brand, r.stock.location].join(' ');
-    });
-  };
+  const searchFiltered = function(arr) { return filterBySearch(arr, function(r) { return [r.item.name, r.item.code, r.item.brand, r.stock.location].join(' '); }); };
   const filteredKitRows = searchFiltered(kitRows);
   const filteredSingleRows = searchFiltered(singleRows);
-  html += `<div class="stk-tabs">
-    <button class="stk-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${filteredKitRows.length} 項</span></button>
-    <button class="stk-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${filteredSingleRows.length} 項</span></button>
-  </div>`;
-  html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div>`;
-  html += `<div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;
-
-  html += `<div style="margin-top:16px">
-    <button class="btn-save" style="width:100%;padding:13px;font-size:15px" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>
-  </div>`;
-
+  html += `<div class="stk-tabs stocktake-tabs"><button class="stk-tab stocktake-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="stk-tab stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
+  html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div><div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;
+  html += `<button type="button" class="stocktake-submit btn-save" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>`;
   content.innerHTML = html;
 }
 
 // ========== 盤點輸入表：位置分組渲染（整組/單一材料共用，2026-08-13） ==========
 function stkGroupByLoc(rows) {
   const byLoc = {};
-  rows.forEach(r => {
-    const loc = r.stock.location || '未標示';
-    (byLoc[loc] = byLoc[loc] || []).push(r);
-  });
+  rows.forEach(r => { const loc = r.stock.location || '未標示'; (byLoc[loc] = byLoc[loc] || []).push(r); });
   let html = '';
   Object.keys(byLoc).sort().forEach(loc => {
     const locRows = byLoc[loc];
-    html += `<div class="section-title"><span class="loc">位置：${esc(loc)}</span><span>${locRows.length} 項</span></div>`;
-    html += `<table class="data-table"><thead><tr>
-      <th>品項</th><th style="width:130px">系統數量</th><th style="width:110px">實際數量</th><th style="width:80px">差異</th>
-    </tr></thead><tbody>`;
+    html += `<section class="stocktake-location-group"><div class="stocktake-location-header"><span>📍 位置：${esc(loc)}</span><span class="stocktake-location-count">${esc(String(locRows.length))} 項</span></div><div class="stocktake-table-wrap"><table class="data-table stocktake-table"><thead><tr><th>品項</th><th>系統數量</th><th>實際數量</th><th>差異</th></tr></thead><tbody>`;
     locRows.forEach(r => {
-      const i = r.item, s = r.stock;
-      const key = `${i.id}:${s.location}`;
+      const i = r.item, s = r.stock, key = `${i.id}:${s.location}`;
       const val = stocktakeValues[key] !== undefined ? stocktakeValues[key] : '';
       const displayLoc = s.location ? `位置：${esc(s.location)}` : '';
-      // 2026-08-16 家豪：整組盤點列展開組成材料（縮圖+名稱+型號+需/有），比照整組庫存頁；
-      // 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
       const kitDef = i.is_kit ? (stocktakeKits.find(k => k.item_id === i.id) || null) : null;
-      const kitCompsHTML = kitDef && kitDef.components && kitDef.components.length
-        ? `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e2e8f0">
-            ${kitDef.components.map(c => {
-              const matItem = ALL_ITEMS.find(x => x.id === c.item_id);
-              const mStock = matItem && matItem.stocks && matItem.stocks.length ? matItem.stocks[0] : null;
-              const mKey = `${c.item_id}:${mStock ? mStock.location : ''}`;
-              const mVal = stocktakeValues[mKey] !== undefined ? stocktakeValues[mKey] : '';
-              const mSysQty = mStock ? absNum(mStock.qty) : absNum(c.stock);
-              return `
-            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;font-size:11.5px;color:#555">
-              <span class="cphoto" style="width:26px;height:26px">${c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" loading="lazy" decoding="async" width="26" height="26" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>
-              <span>${esc(c.brand)} ${esc(c.name)}${c.code ? `<small style="color:#1890FF;font-weight:600"> 型號 ${esc(c.code)}</small>` : ''}</span>
-              <span style="margin-left:auto;white-space:nowrap;color:#64748b">需 <b>${c.need_qty}</b> ・ 系統 <b>${mSysQty}</b> ${esc(c.unit || '')}</span>
-              <input type="number" step="any" min="0" value="${mVal}" placeholder="實際"
-                style="width:64px;padding:3px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;text-align:center"
-                data-sysqty="${mSysQty}" oninput="stocktakeValues['${jsStr(mKey)}'] = this.value; calcDiff(this)"
-                onchange="stocktakeValues['${jsStr(mKey)}'] = this.value; markChanged(this, '${jsStr(mKey)}')"
-                data-key="${esc(mKey)}">
-            </div>`;}).join('')}
-          </div>` : '';
-      html += `<tr>
-        <td><span class="cphoto">${i.has_photo ? `<img src="${photoSrc(i.id, 'thumbnail')}" loading="lazy" decoding="async" width="52" height="52" alt="" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>${esc(i.brand)} ${esc(i.name)}${kitCompsHTML}<br><small style="color:#999">${displayLoc || '未標示'}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></td>
-        <td style="text-align:center;font-weight:700">${absNum(s.qty)} ${esc(i.unit)}</td>
-        <td><div class="count-row">
-          <input type="number" step="any" min="0" value="${val}"
-            data-sysqty="${s.qty}" oninput="stocktakeValues['${jsStr(key)}'] = this.value; calcDiff(this)"
-            onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')"
-            data-key="${esc(key)}">
-        </div></td>
-        <td class="st-diff zero" style="text-align:center">0</td>
-      </tr>`;
+      const kitCompsHTML = kitDef && kitDef.components && kitDef.components.length ? `<div class="stocktake-kit-components">${kitDef.components.map(c => {
+        const matItem = ALL_ITEMS.find(x => x.id === c.item_id);
+        const mStock = matItem && matItem.stocks && matItem.stocks.length ? matItem.stocks[0] : null;
+        const mKey = `${c.item_id}:${mStock ? mStock.location : ''}`;
+        const mVal = stocktakeValues[mKey] !== undefined ? stocktakeValues[mKey] : '';
+        const mSysQty = mStock ? absNum(mStock.qty) : absNum(c.stock);
+        return `<div class="stocktake-kit-component"><span class="cphoto">${c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span><span>${esc(c.brand)} ${esc(c.name)}${c.code ? `<small class="stocktake-model"> 型號 ${esc(c.code)}</small>` : ''}</span><span class="stocktake-kit-need">需 <b>${esc(String(c.need_qty))}</b> ・ 系統 <b>${esc(String(mSysQty))}</b> ${esc(c.unit || '')}</span><input type="number" step="any" min="0" value="${esc(String(mVal))}" placeholder="實際" data-sysqty="${esc(String(mSysQty))}" oninput="stocktakeValues['${jsStr(mKey)}'] = this.value; calcDiff(this)" onchange="stocktakeValues['${jsStr(mKey)}'] = this.value; markChanged(this, '${jsStr(mKey)}')" data-key="${esc(mKey)}"></div>`;
+      }).join('')}</div>` : '';
+      const diffInitial = val === '' ? '—' : '0';
+      html += `<tr><td><div class="stocktake-item-cell"><span class="cphoto">${i.has_photo ? `<img src="/uploads/${i.id}.jpg" alt="" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span><span><b>${esc(i.brand)} ${esc(i.name)}</b><small>${esc(displayLoc || '未標示')}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></span></div>${kitCompsHTML}</td><td class="stocktake-system-qty">${esc(String(absNum(s.qty)))} ${esc(i.unit)}</td><td><input class="stocktake-input" type="number" step="any" min="0" value="${esc(String(val))}" data-sysqty="${esc(String(s.qty))}" oninput="stocktakeValues['${jsStr(key)}'] = this.value; calcDiff(this)" onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')" data-key="${esc(key)}"></td><td class="st-diff ${esc(val === '' ? 'pending' : 'zero')}">${esc(diffInitial)}</td></tr>`;
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div></section>';
   });
   return html;
 }
@@ -180,46 +126,26 @@ function switchStocktakeTab(tab) {
 }
 
 // ========== 盤點：低庫存 / 缺貨清單 ==========
+function renderStocktakeStatusItem(item, isLow) {
+  const status = getInventoryStatus(item);
+  const locStr = (item.stocks || []).map(s => s.location || '未標示').join('、') || item.location || '未標示';
+  const statusText = isLow ? '低庫存' : '缺貨';
+  const extra = item.in_kits && item.in_kits.length ? `<div class="stocktake-status-extra">🔧 屬於整組：${esc(item.in_kits.join('、'))}</div>` : '';
+  return `<article class="inventory-status-item stocktake-status-item ${esc(isLow ? 'is-low' : 'is-out')}"><div class="inventory-status-thumb">${buildThumb(item.id, item.has_photo)}</div><div class="inventory-status-info"><div class="inventory-status-name">${esc(item.name || '未命名')}</div><div class="inventory-status-sub">${esc(item.brand || '無廠牌')}${item.code ? ' · 型號 ' + esc(item.code) : ''}</div><div class="inventory-status-location">📍 ${esc(locStr)}</div>${extra}</div><div class="inventory-status-values"><span class="inventory-status-badge ${esc(isLow ? 'low' : 'out')}">${esc(statusText)}</span><strong>${esc(String(status.qty))} <small>${esc(item.unit || '')}</small></strong>${isLow ? `<small>門檻 ${esc(String(item.low_stock || 0))}</small>` : ''}</div></article>`;
+}
+
 function showStocktakeList(type) {
-  const content = document.getElementById('content');
+  const modal = document.getElementById('inventory-status-modal');
+  const body = document.getElementById('inventory-status-modal-body');
+  if (!modal || !body) return;
   const isLow = type === 'low';
-  // 低庫存清單列整組及單一；缺貨清單只列單一材料
-  const items = isLow
-    ? ALL_ITEMS.filter(i => i.low_stock > 0 && i.qty <= i.low_stock)
-    : ALL_ITEMS.filter(i => !i.is_kit && i.qty <= 0);
-
-  let html = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div class="section-title" style="margin:0"><span class="loc">${isLow ? '⚠️ 低庫存品項' : '⛔ 缺貨品項'}</span><span>${items.length} 項</span></div>
-      <button class="btn-cancel" onclick="switchTab('stocktake')" style="padding:7px 14px">← 返回盤點</button>
-    </div>
-    <div style="background:${isLow ? '#fffbeb' : '#fef2f2'};border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:${isLow ? '#92400e' : '#991b1b'}">
-      ${isLow
-        ? '💡 庫存數量已低於（或等於）警示值，建議盡快補貨。點品項可直接編輯警示值。'
-        : '💡 庫存為 0 或以下的品項，需要補貨或盤點確認。'}
-    </div>`;
-
-  if (!items.length) {
-    html += `<div class="empty">${isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'}</div>`;
-    content.innerHTML = html;
-    return;
-  }
-
-  html += `<table class="data-table"><thead><tr>
-    <th>品項</th><th>庫存</th><th>${isLow ? '警示值' : '位置'}</th>
-  </tr></thead><tbody>`;
-
-  items.sort((a, b) => a.qty - b.qty).forEach(i => {
-    const locStr = (i.stocks || []).map(s => s.location || '未標示').join('、');
-    html += `<tr style="cursor:pointer" onclick="openEditModal(${i.id})">
-      <td>${esc(i.brand)} ${esc(i.name)}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}${(i.in_kits && i.in_kits.length) ? '<br><small style="color:#b45309;font-weight:600">🔧 屬於整組：' + esc(i.in_kits.join('、')) + '</small>' : ''}<br><small style="color:#999">${esc(locStr || '未標示')}</small></td>
-      <td style="text-align:center"><b style="color:${i.qty <= 0 ? '#dc2626' : '#f59e0b'}">${i.qty}</b> ${esc(i.unit)}</td>
-      <td style="text-align:center;color:#999">${isLow ? (i.low_stock || 0) : esc(locStr || '—')}</td>
-    </tr>`;
-  });
-
-  html += '</tbody></table>';
-  content.innerHTML = html;
+  const items = ALL_ITEMS.filter(i => { const status = getInventoryStatus(i); return isLow ? status.isLowStock : status.isOutOfStock; }).sort((a, b) => getInventoryStatus(a).qty - getInventoryStatus(b).qty);
+  const title = isLow ? '⚠ 低庫存商品' : '⛔ 缺貨商品';
+  const empty = isLow ? '目前沒有低庫存商品' : '目前沒有缺貨商品';
+  const listHTML = items.length ? `<div class="inventory-status-list stocktake-status-modal-content">${items.map(i => renderStocktakeStatusItem(i, isLow)).join('')}</div>` : `<div class="inventory-status-empty"><span aria-hidden="true">✓</span><strong>${empty}</strong><p>目前篩選條件下沒有符合的品項。</p></div>`;
+  body.innerHTML = `<div class="inventory-status-header"><div><h2 id="inventory-status-modal-title">${title}</h2><p>${esc(isLow ? '庫存數量已低於或等於目前警示值。' : '目前庫存為 0 或以下的單一庫存品項。')}</p></div><button type="button" class="inventory-status-close" onclick="closeInventoryStatusModal()" aria-label="關閉">✕</button></div><div class="inventory-status-count">共 ${esc(String(items.length))} 項</div>${listHTML}`;
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
 }
 
 // 盤點輸入值與系統數量不同時加上 changed 樣式（黃底），相同則移除
@@ -285,10 +211,15 @@ async function submitStocktake() {
 
 // ========== 內聯盤點差異計算 ==========
 function calcDiff(input) {
-  const val = parseInt(input.value) || 0;
-  const sysQty = parseInt(input.dataset.sysqty) || 0;
   const diffEl = input.closest('tr') ? input.closest('tr').querySelector('.st-diff') : null;
   if (!diffEl) return;
+  if (input.value.trim() === '') {
+    diffEl.textContent = '—';
+    diffEl.className = 'st-diff pending';
+    return;
+  }
+  const val = parseInt(input.value) || 0;
+  const sysQty = parseInt(input.dataset.sysqty) || 0;
   const diff = val - sysQty;
   diffEl.textContent = (diff > 0 ? '+' : '') + diff;
   diffEl.className = 'st-diff ' + (diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'zero');
