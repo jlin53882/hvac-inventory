@@ -178,6 +178,14 @@ REVIEWED_SAFE_BODIES = {
     # stocktake.js 盤點表分組渲染（2026-08-26 搜尋過濾）：stkGroupByLoc 回傳內部已 esc 的 HTML，
     # filteredKitRows/filteredSingleRows 為 kitRows/singleRows 過濾後陣列（同 kitCompsHTML 安全模式）
     "stkGroupByLoc(filteredKitRows)", "stkGroupByLoc(filteredSingleRows)",
+    # stocktake.js row renderer（2026-09-09）：fragment 先逐欄 esc/jsStr，class/data-kind 為固定值。
+    "materialPhoto", "materialName", "stocktakeInput(materialKey, materialSystemQty)",
+    "rowClass", "item.is_kit ? 'assembly' : 'single'", "displayLoc",
+    "stock.note ? ' · 📝 ' + esc(stock.note) : ''",
+    "stocktakeInput(key, systemQty)",
+    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'",
+    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'",
+    "materials",
     # edit.js 兩段式位置（2026-09-06）：_cabinetOptions 從固定清單產生 select options，
     # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
     "_cabinetOptions(cabinet)", "_cabinetOptions('')", "c",

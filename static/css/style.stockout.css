@@ -35,7 +35,12 @@
 .stockout-content .stockout-date-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 18px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #334155; }
 .stockout-content .stockout-date-title { font-size: 15px; font-weight: 700; }
 .stockout-content .stockout-date-summary { color: #64748b; font-size: 13px; }
-.stockout-content table.stockout-table { width: 100%; min-width: 900px; border-collapse: collapse; }
+.stockout-content table.stockout-table { width: 100%; min-width: 900px; border-collapse: collapse; table-layout: fixed; }
+.stockout-content table.stockout-table .stockout-col-photo { width: 80px; }
+.stockout-content table.stockout-table .stockout-col-item,
+.stockout-content table.stockout-table .stockout-col-qty,
+.stockout-content table.stockout-table .stockout-col-destination,
+.stockout-content table.stockout-table .stockout-col-actions { width: 25%; }
 .stockout-content table.stockout-table th { height: 44px; padding: 0 14px; background: #fff; color: #64748b; font-size: 12px; font-weight: 600; text-align: left; white-space: nowrap; }
 .stockout-content table.stockout-table td { min-height: 78px; padding: 10px 14px; border-top: 1px solid #eef2f7; color: #334155; font-size: 13px; vertical-align: middle; }
 .stockout-content table.stockout-table tr:hover td { background: #fafcff; }
@@ -54,7 +59,7 @@
 .stockout-content .stockout-destination-badge.return-location { background: #fff7ed; color: #c2410c; }
 .stockout-content .stockout-returned-badge { display: inline-flex; margin-left: 6px; padding: 3px 8px; border-radius: 999px; background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; }
 .stockout-content .stockout-actions { display: flex; flex-wrap: wrap; gap: 7px; min-width: 280px; }
-.stockout-content .stockout-actions button { min-height: 34px; padding: 0 10px; border: 1px solid #c4b5fd; border-radius: 8px; background: #fff; color: #7c3aed; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
+.stockout-content .stockout-actions button { flex: 1 1 0; min-width: 0; min-height: 34px; padding: 0 10px; border: 1px solid #c4b5fd; border-radius: 8px; background: #fff; color: #7c3aed; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
 .stockout-content .stockout-actions button:hover { background: #f5f3ff; }
 .stockout-content .stockout-actions button.return { border-color: #fdba74; color: #d97706; }
 .stockout-content .stockout-actions button.return:hover { background: #fffbeb; }

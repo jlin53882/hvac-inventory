@@ -92,7 +92,11 @@
 .stocktake-content .stocktake-location-header { display: flex; justify-content: space-between; align-items: center; min-height: 42px; padding: 0 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; color: #334155; font-size: 13px; font-weight: 600; }
 .stocktake-content .stocktake-location-count { padding: 3px 8px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: 11px; }
 .stocktake-content .stocktake-table-wrap { overflow-x: auto; }
-.stocktake-content table.stocktake-table { width: 100%; min-width: 720px; border-collapse: collapse; }
+.stocktake-content table.stocktake-table { width: 100%; min-width: 720px; border-collapse: collapse; table-layout: fixed; }
+.stocktake-content table.stocktake-table .stocktake-col-item { width: auto; }
+.stocktake-content table.stocktake-table .stocktake-col-system { width: 120px; }
+.stocktake-content table.stocktake-table .stocktake-col-actual { width: 120px; }
+.stocktake-content table.stocktake-table .stocktake-col-diff { width: 100px; }
 .stocktake-content table.stocktake-table th { height: 44px; padding: 0 16px; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; text-align: left; white-space: nowrap; }
 .stocktake-content table.stocktake-table td { min-height: 72px; padding: 10px 16px; border-top: 1px solid #eef2f7; color: #334155; font-size: 13px; vertical-align: middle; }
 .stocktake-content table.stocktake-table tr:hover td { background: #fafcff; }
@@ -112,14 +116,6 @@
 .stocktake-content .stocktake-item-cell > span:last-child { min-width: 0; }
 .stocktake-content .stocktake-item-cell b { display: block; color: #0f172a; font-size: 14px; }
 .stocktake-content .stocktake-item-cell small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; }
-.stocktake-content .stocktake-kit-components { margin-top: 12px; padding: 10px 12px 2px 60px; border-top: 1px dashed #e2e8f0; background: #fbfdff; }
-.stocktake-content .stocktake-kit-component { display: grid; grid-template-columns: 38px minmax(180px, 1fr) auto 90px; align-items: center; gap: 8px; min-height: 48px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; color: #475569; font-size: 12px; }
-.stocktake-content .stocktake-kit-component:last-child { border-bottom: none; }
-.stocktake-content .stocktake-kit-component .cphoto { width: 36px; height: 36px; border-radius: 7px; overflow: hidden; background: #f1f5f9; }
-.stocktake-content .stocktake-kit-component .cphoto img { width: 100%; height: 100%; object-fit: cover; }
-.stocktake-content .stocktake-model { display: block; margin-top: 2px; color: #2563eb; font-size: 11px; font-weight: 600; }
-.stocktake-content .stocktake-kit-need { white-space: nowrap; color: #64748b; }
-.stocktake-content .stocktake-kit-component input { width: 86px; height: 32px; border: 1px solid #cbd5e1; border-radius: 7px; text-align: center; }
 .stocktake-content .stocktake-system-qty { color: #334155; font-weight: 600; white-space: nowrap; }
 .stocktake-content .st-diff.pending { color: #94a3b8; font-weight: 500; }
 .stocktake-status-modal-content .inventory-status-location { color: #64748b; }
@@ -153,3 +149,17 @@
   .stocktake-content table.stocktake-table td { padding-left: 10px; padding-right: 10px; }
   .stocktake-content .stocktake-input { width: 86px; }
 }
+
+.stocktake-content .stocktake-material-row td { background: #f8fafc; }
+.stocktake-content .stocktake-material-row td:first-child { padding-left: 60px; }
+.stocktake-content .stocktake-material-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.stocktake-content .stocktake-material-indent { flex: 0 0 16px; color: #94a3b8; font-size: 16px; }
+.stocktake-content .stocktake-material-photo { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 7px; overflow: hidden; background: #f1f5f9; }
+.stocktake-content .stocktake-material-photo img { width: 100%; height: 100%; object-fit: cover; }
+.stocktake-content .stocktake-material-cell b { display: block; color: #334155; font-size: 13px; font-weight: 600; }
+.stocktake-content .stocktake-material-cell small { display: block; margin-top: 3px; color: #64748b; font-size: 11px; }
+.stocktake-content .stocktake-material-cell .stocktake-model { color: #2563eb; font-weight: 600; }
+.stocktake-content .stocktake-material-need { color: #64748b; }
+.stocktake-content .stocktake-material-system-qty { color: #475569; font-weight: 600; white-space: nowrap; }
+.stocktake-content .stocktake-material-row .stocktake-input { width: 100px; }
+.stocktake-content .stocktake-material-diff { font-size: 15px; font-weight: 700; }

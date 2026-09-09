@@ -88,28 +88,40 @@ async function renderStocktake() {
 }
 
 // ========== 盤點輸入表：位置分組渲染（整組/單一材料共用，2026-08-13） ==========
+function stocktakeInput(key, systemQty) {
+  const value = stocktakeValues[key] !== undefined ? stocktakeValues[key] : '';
+  return `<input class="stocktake-input" type="number" step="any" min="0" value="${esc(String(value))}" placeholder="實際" data-sysqty="${esc(String(systemQty))}" oninput="stocktakeValues['${jsStr(key)}'] = this.value; calcDiff(this)" onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')" data-key="${esc(key)}">`;
+}
+
+function stocktakeRow(item, stock, kitDef) {
+  const key = `${item.id}:${stock.location}`;
+  const systemQty = absNum(stock.qty);
+  const materials = kitDef && kitDef.components && kitDef.components.length ? kitDef.components.map(function(c) {
+    const material = ALL_ITEMS.find(x => x.id === c.item_id);
+    const materialStock = material && material.stocks && material.stocks.length ? (material.stocks.find(s => s.location === stock.location) || material.stocks[0]) : null;
+    const materialLocation = materialStock ? materialStock.location : '';
+    const materialKey = `${c.item_id}:${materialLocation}`;
+    const materialSystemQty = materialStock ? absNum(materialStock.qty) : absNum(c.stock);
+    const materialName = `${esc(c.brand || '')} ${esc(c.name || '未命名')}`.trim();
+    const materialPhoto = c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
+    return `<tr class="stocktake-material-row"><td><div class="stocktake-material-cell"><span class="stocktake-material-indent" aria-hidden="true">↳</span><span class="stocktake-material-photo cphoto">${materialPhoto}</span><span><b>${materialName}</b>${c.code ? `<small class="stocktake-model">型號 ${esc(c.code)}</small>` : ''}<small class="stocktake-material-need">需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組</small></span></div></td><td class="stocktake-material-system-qty">${esc(String(materialSystemQty))} ${esc(c.unit || '')}</td><td>${stocktakeInput(materialKey, materialSystemQty)}</td><td class="st-diff stocktake-material-diff pending">—</td></tr>`;
+  }).join('') : '';
+  const displayLoc = stock.location ? `位置：${esc(stock.location)}` : '未標示';
+  const photo = item.has_photo ? `<img src="/uploads/${item.id}.jpg" alt="" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
+  const rowClass = item.is_kit ? 'stocktake-assembly-row' : 'stocktake-single-row';
+  return `<tr class="${rowClass}"><td><div class="stocktake-item-cell"><span class="cphoto">${photo}</span><span><b>${esc(item.brand || '')} ${esc(item.name || '未命名')}</b><small>${displayLoc}${stock.note ? ' · 📝 ' + esc(stock.note) : ''}</small></span></div></td><td class="stocktake-system-qty">${esc(String(systemQty))} ${esc(item.unit || '')}</td><td>${stocktakeInput(key, systemQty)}</td><td class="st-diff ${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'}">${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'}</td></tr>${materials}`;
+}
+
 function stkGroupByLoc(rows) {
   const byLoc = {};
   rows.forEach(r => { const loc = r.stock.location || '未標示'; (byLoc[loc] = byLoc[loc] || []).push(r); });
   let html = '';
   Object.keys(byLoc).sort().forEach(loc => {
     const locRows = byLoc[loc];
-    html += `<section class="stocktake-location-group"><div class="stocktake-location-header"><span>📍 位置：${esc(loc)}</span><span class="stocktake-location-count">${esc(String(locRows.length))} 項</span></div><div class="stocktake-table-wrap"><table class="data-table stocktake-table"><thead><tr><th>品項</th><th>系統數量</th><th>實際數量</th><th>差異</th></tr></thead><tbody>`;
+    html += `<section class="stocktake-location-group"><div class="stocktake-location-header"><span>📍 位置：${esc(loc)}</span><span class="stocktake-location-count">${esc(String(locRows.length))} 項</span></div><div class="stocktake-table-wrap"><table class="data-table stocktake-table"><colgroup><col class="stocktake-col-item"><col class="stocktake-col-system"><col class="stocktake-col-actual"><col class="stocktake-col-diff"></colgroup><thead><tr><th>品項</th><th>系統數量</th><th>實際數量</th><th>差異</th></tr></thead><tbody>`;
     locRows.forEach(r => {
-      const i = r.item, s = r.stock, key = `${i.id}:${s.location}`;
-      const val = stocktakeValues[key] !== undefined ? stocktakeValues[key] : '';
-      const displayLoc = s.location ? `位置：${esc(s.location)}` : '';
-      const kitDef = i.is_kit ? (stocktakeKits.find(k => k.item_id === i.id) || null) : null;
-      const kitCompsHTML = kitDef && kitDef.components && kitDef.components.length ? `<div class="stocktake-kit-components">${kitDef.components.map(c => {
-        const matItem = ALL_ITEMS.find(x => x.id === c.item_id);
-        const mStock = matItem && matItem.stocks && matItem.stocks.length ? matItem.stocks[0] : null;
-        const mKey = `${c.item_id}:${mStock ? mStock.location : ''}`;
-        const mVal = stocktakeValues[mKey] !== undefined ? stocktakeValues[mKey] : '';
-        const mSysQty = mStock ? absNum(mStock.qty) : absNum(c.stock);
-        return `<div class="stocktake-kit-component"><span class="cphoto">${c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span><span>${esc(c.brand)} ${esc(c.name)}${c.code ? `<small class="stocktake-model"> 型號 ${esc(c.code)}</small>` : ''}</span><span class="stocktake-kit-need">需 <b>${esc(String(c.need_qty))}</b> ・ 系統 <b>${esc(String(mSysQty))}</b> ${esc(c.unit || '')}</span><input type="number" step="any" min="0" value="${esc(String(mVal))}" placeholder="實際" data-sysqty="${esc(String(mSysQty))}" oninput="stocktakeValues['${jsStr(mKey)}'] = this.value; calcDiff(this)" onchange="stocktakeValues['${jsStr(mKey)}'] = this.value; markChanged(this, '${jsStr(mKey)}')" data-key="${esc(mKey)}"></div>`;
-      }).join('')}</div>` : '';
-      const diffInitial = val === '' ? '—' : '0';
-      html += `<tr><td><div class="stocktake-item-cell"><span class="cphoto">${i.has_photo ? `<img src="/uploads/${i.id}.jpg" alt="" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span><span><b>${esc(i.brand)} ${esc(i.name)}</b><small>${esc(displayLoc || '未標示')}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></span></div>${kitCompsHTML}</td><td class="stocktake-system-qty">${esc(String(absNum(s.qty)))} ${esc(i.unit)}</td><td><input class="stocktake-input" type="number" step="any" min="0" value="${esc(String(val))}" data-sysqty="${esc(String(s.qty))}" oninput="stocktakeValues['${jsStr(key)}'] = this.value; calcDiff(this)" onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')" data-key="${esc(key)}"></td><td class="st-diff ${esc(val === '' ? 'pending' : 'zero')}">${esc(diffInitial)}</td></tr>`;
+      const kitDef = r.item.is_kit ? (stocktakeKits.find(k => k.item_id === r.item.id) || null) : null;
+      html += stocktakeRow(r.item, r.stock, kitDef);
     });
     html += '</tbody></table></div></section>';
   });
@@ -161,7 +173,8 @@ function markChanged(input, key) {
 // 收集所有有差異的盤點值 → POST /api/stocktake 更新庫存並記錄盤點結果
 async function submitStocktake() {
   const items = [];
-  for (const key of Object.keys(stocktakeValues)) {
+  const submittedKeys = new Set(Object.keys(stocktakeValues));
+  for (const key of submittedKeys) {
     const parts = key.split(':');
     const itemId = parseInt(parts[0]);
     const location = parts[1];
@@ -211,15 +224,16 @@ async function submitStocktake() {
 
 // ========== 內聯盤點差異計算 ==========
 function calcDiff(input) {
-  const diffEl = input.closest('tr') ? input.closest('tr').querySelector('.st-diff') : null;
+  const row = input.closest('tr');
+  const diffEl = row ? row.querySelector('.st-diff') : null;
   if (!diffEl) return;
   if (input.value.trim() === '') {
     diffEl.textContent = '—';
     diffEl.className = 'st-diff pending';
     return;
   }
-  const val = parseInt(input.value) || 0;
-  const sysQty = parseInt(input.dataset.sysqty) || 0;
+  const val = Number(input.value);
+  const sysQty = Number(input.dataset.sysqty);
   const diff = val - sysQty;
   diffEl.textContent = (diff > 0 ? '+' : '') + diff;
   diffEl.className = 'st-diff ' + (diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'zero');

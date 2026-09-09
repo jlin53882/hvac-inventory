@@ -1312,8 +1312,8 @@ def test_stocktake_table_photo_thumb():
     # 縮圖 class（與整組庫存頁表格同款 cphoto，內嵌品項欄）
     assert 'class="cphoto"' in js
     # 有照片 → img 縮圖 + 點擊放大
-    assert 'src="/uploads/${i.id}.jpg"' in js
-    assert "openPhotoLightbox(${i.id})" in js
+    assert 'src="/uploads/${item.id}.jpg"' in js
+    assert "openPhotoLightbox(${item.id})" in js
     # 無照片 → 📷 佔位
     assert "cphoto-empty" in js
 
@@ -1326,13 +1326,13 @@ def test_stocktake_kit_tab_expands_components():
     assert "fetch(`/api/kits?site=${currentSite}`)" in js
     assert "stocktakeKits = await kitRes.json()" in js
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
-    assert "stocktakeKits.find(k => k.item_id === i.id)" in js
+    assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
     assert 'src="/uploads/${c.item_id}.jpg"' in js
     assert "openPhotoLightbox(${c.item_id})" in js
-    assert "需 <b>${esc(String(c.need_qty))}</b>" in js
+    assert "需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組" in js
     # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
-    assert "stocktakeValues['${jsStr(mKey)}'] = this.value" in js
-    assert "markChanged(this, '${jsStr(mKey)}')" in js
+    assert "stocktakeInput(materialKey, materialSystemQty)" in js
+    assert "markChanged(this, '${jsStr(key)}')" in js
     assert 'placeholder="實際"' in js
     # 全域宣告（globals.js，var 跨檔共享）
     gl = read(GLOBALS_JS)
@@ -2814,10 +2814,10 @@ def test_stocktake_kit_component_rows_have_scoped_layout_styles():
     """整組盤點的組成材料列必須有 page-scoped layout，避免 markup 退化成未排版 inline。"""
     css = read(CSS_STOCKTAKE)
     for selector in (
-        ".stocktake-content .stocktake-kit-components",
-        ".stocktake-content .stocktake-kit-component",
+        ".stocktake-content .stocktake-material-row",
+        ".stocktake-content .stocktake-material-cell",
         ".stocktake-content .stocktake-item-cell",
-        ".stocktake-content .stocktake-kit-need",
+        ".stocktake-content .stocktake-material-need",
     ):
         assert selector in css, f"盤點頁缺少 {selector}"
     assert ".stocktake-kpi-action" not in css
@@ -2870,3 +2870,39 @@ def test_stockout_effective_search_and_revoked_return_state():
     assert "stockoutPageSearch || globalSearchQuery" in js
     assert "is-reverted-return" in js
     assert "已撤銷退回" in js
+
+def test_prepared_stock_badge_uses_explicit_current_stock_label():
+    """待領出庫存數量不能使用容易誤解的菱形符號，必須有明確庫存語意。"""
+    js = read(PREPARED_RENDER_JS)
+    assert '目前庫存' in js
+    assert '◇ ${absNum(item.qty)}' not in js
+
+
+def test_stockout_dashboard_uses_fixed_photo_and_equal_data_columns():
+    """已領出桌面列的照片固定 80px，其餘欄位與操作欄固定均分。"""
+    css = read(os.path.join(STATIC, 'css', 'style.stockout.css'))
+    assert 'table-layout: fixed;' in css
+    assert '.stockout-col-photo { width: 80px; }' in css
+    assert 'stockout-col-photo' in read(os.path.join(STATIC, 'js', 'render', 'stockout.js'))
+    assert '.stockout-actions button { flex: 1 1 0; min-width: 0;' in css
+
+
+def test_stocktake_kit_rows_have_independent_actual_and_diff_columns():
+    """整組主列與每個材料列必須各自擁有四欄，不能把材料塞進主列第一欄。"""
+    js = read(STOCKTAKE_JS)
+    css = read(CSS_STOCKTAKE)
+    assert 'stocktake-assembly-row' in js
+    assert 'stocktake-material-row' in js
+    assert 'stocktake-material-system-qty' in js
+    assert 'stocktake-material-diff' in js
+    assert '.stocktake-material-row' in css
+    assert 'table-layout: fixed;' in css
+    assert '.stocktake-material-row td:first-child' in css
+
+
+def test_stocktake_submission_deduplicates_shared_material_key():
+    """同一材料出現在多個整組時，提交仍以 item_id:location 唯一 key 去重。"""
+    js = read(STOCKTAKE_JS)
+    assert 'submittedKeys = new Set(Object.keys(stocktakeValues))' in js
+    assert 'for (const key of submittedKeys)' in js
+    assert 'material.stocks.find(s => s.location === stock.location)' in js
