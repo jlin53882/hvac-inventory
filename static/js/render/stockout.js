@@ -1,112 +1,136 @@
 // 庫存管理系統 - 已領出紀錄頁渲染（v8 拆分 + 退回紀錄顯示）
 // ========== 出庫紀錄頁 ==========
+function filterStockoutRecords(records) {
+  const searchInput = document.getElementById('search-input');
+  const globalSearchQuery = searchInput ? String(searchInput.value || '').trim() : '';
+  const query = String(stockoutPageSearch || globalSearchQuery).trim().toLowerCase();
+  const keywords = query ? query.split(/\s+/).filter(function(word) { return word.length > 0; }) : [];
+  let filtered = keywords.length ? records.filter(function(o) {
+    const haystack = [o.name, o.item_name, o.code, o.brand, o.destination, o.note, o.return_site, o.return_location].join(' ').toLowerCase();
+    return keywords.every(function(keyword) { return haystack.includes(keyword); });
+  }) : records;
+  return filtered.filter(function(o) {
+    const date = String(o.created_at || '').slice(0, 10);
+    return (!stockoutDateFrom || date >= stockoutDateFrom) && (!stockoutDateTo || date <= stockoutDateTo);
+  });
+}
+
+function getStockoutKpis(records) {
+  const active = records.filter(function(o) { return !o.reverted_at && o.reason !== '退回已領出'; });
+  return {
+    recordCount: records.length,
+    totalOutbound: active.reduce(function(sum, o) { return sum + Math.abs(o.delta); }, 0),
+    dateGroupCount: new Set(records.map(function(o) { return String(o.created_at || '').slice(0, 10); })).size,
+    uniqueItemCount: new Set(records.map(function(o) { return o.item_id; })).size,
+  };
+}
+
+function formatStockoutDate(dateValue) {
+  const date = String(dateValue || '').slice(0, 10);
+  const parts = date.split('-').map(Number);
+  const weekday = parts.length === 3 && parts.every(Number.isFinite) ? ['日', '一', '二', '三', '四', '五', '六'][new Date(parts[0], parts[1] - 1, parts[2]).getDay()] : '';
+  return weekday ? `${date}（星期${weekday}）` : date;
+}
+
+function renderStockoutActions(o, isViewer) {
+  if (isViewer) return '';
+  const reverted = !!o.reverted_at;
+  const isReturn = o.reason === '退回已領出';
+  if (isReturn) {
+    return reverted ? '' : `<button type="button" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button><button type="button" class="danger" onclick="revokeStockoutReturn(${o.id})">撤銷退回</button>`;
+  }
+  if (reverted) return `<button type="button" class="danger" onclick="deleteStockoutRecord(${o.id})">刪除</button>`;
+  return `<button type="button" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button><button type="button" class="return" onclick="returnStockout(${o.id})">↩️ 退回</button><button type="button" class="danger" onclick="deleteStockoutRecord(${o.id})">刪除</button>`;
+}
+
+function renderStockoutDesktopRow(o, isViewer) {
+  const reverted = !!o.reverted_at;
+  const isReturn = o.reason === '退回已領出';
+  const returnReverted = isReturn && reverted;
+  const rowClass = returnReverted ? 'is-reverted-return' : (isReturn ? 'is-return' : (reverted ? 'is-reverted' : ''));
+  const photo = o.has_photo ? `<img class="so-photo stockout-photo" src="/uploads/${o.item_id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">` : '<div class="so-photo stockout-photo stockout-photo-empty">📷</div>';
+  const destination = o.destination ? `<span class="stockout-destination-badge">🏢 ${esc(o.destination)}</span>` : '';
+  const returnSeparator = o.return_site ? '／' : '';
+  const returnLocation = isReturn && o.return_location ? `<span class="stockout-destination-badge return-location">📍 ${esc(o.return_site || '')}${esc(returnSeparator)}${esc(o.return_location)}</span>` : '';
+  const returned = returnReverted ? '<span class="stockout-returned-badge revoked">↩️ 已撤銷退回</span>' : (isReturn ? '<span class="stockout-returned-badge">↩️ 已退回</span>' : (reverted ? '<span class="stockout-returned-badge revoked">已撤銷</span>' : ''));
+  const quantityClass = returnReverted ? 'is-revoked' : (isReturn ? 'qty-pos' : 'qty-neg');
+  return `<tr class="stockout-record-row ${esc(rowClass)}"><td>${photo}</td><td><div class="stockout-item-name">${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${returned}</div>${o.code ? `<small class="stockout-item-meta">型號 ${esc(o.code)}</small>` : ''}${o.note ? `<small class="stockout-note">📝 ${esc(o.note)}</small>` : ''}</td><td class="stockout-qty ${esc(quantityClass)}">${isReturn ? '+' : '-'}${esc(String(absNum(o.delta)))} ${esc(o.unit)}</td><td><div class="stockout-destination">${destination}${returnLocation}</div>${!destination && !returnLocation ? '<span class="muted">—</span>' : ''}</td><td><div class="stockout-actions">${renderStockoutActions(o, isViewer)}</div></td></tr>`;
+}
+
+function renderStockoutMobileCard(o, isViewer) {
+  const reverted = !!o.reverted_at;
+  const isReturn = o.reason === '退回已領出';
+  const returnReverted = isReturn && reverted;
+  const returned = returnReverted ? '<span class="stockout-returned-badge revoked">↩️ 已撤銷退回</span>' : (isReturn ? '<span class="stockout-returned-badge">↩️ 已退回</span>' : (reverted ? '<span class="stockout-returned-badge revoked">已撤銷</span>' : ''));
+  return mobileCardShell({
+    reverted: reverted,
+    moreBtnHTML: `<button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>`,
+    thumb: buildThumb(o.item_id, o.has_photo, o.item_name, '📷'),
+    nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? `<small class="stockout-item-meta">型號 ${esc(o.code)}</small>` : ''}${returned}`,
+    subHTML: esc(String(o.created_at || '').slice(5,10)),
+    extraHTML: `${o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : ''}${isReturn && o.return_location ? `<div><span class="loc-tag">📍 ${esc(o.return_site || '')}${esc(o.return_site ? '／' : '')}${esc(o.return_location)}</span></div>` : ''}${o.note ? `<div class="stockout-note">📝 ${esc(o.note)}</div>` : ''}`,
+    qtyHTML: buildQtyNum((isReturn ? '+' : '-') + absNum(o.delta), o.unit, returnReverted ? 'is-revoked' : (isReturn ? 'qty-pos' : 'qty-neg')),
+    actionsHTML: '',
+  });
+}
+
+function renderStockoutGroup(date, records, isViewer, isMobile) {
+  const active = records.filter(function(o) { return !o.reverted_at && o.reason !== '退回已領出'; });
+  const totalOut = active.reduce(function(sum, o) { return sum + Math.abs(o.delta); }, 0);
+  const desktopRows = records.map(function(o) { return renderStockoutDesktopRow(o, isViewer); }).join('');
+  const body = isMobile ? records.map(function(o) { return renderStockoutMobileCard(o, isViewer); }).join('') : `<div class="stockout-table-wrap"><table class="data-table stockout-table"><thead><tr><th>照片</th><th>品項資訊</th><th>數量</th><th>領用去向</th><th>操作</th></tr></thead><tbody>${desktopRows}</tbody></table></div>`;
+  return `<section class="stockout-date-group"><header class="stockout-date-header"><span class="stockout-date-title">📅 ${esc(formatStockoutDate(date))}</span><span class="stockout-date-summary">${esc(String(records.length))} 筆 · 領出 ${esc(String(totalOut))} 件</span></header>${body}</section>`;
+}
+
+function renderStockoutPageHeader(isViewer, kpis) {
+  const globalSearchInput = document.getElementById('search-input');
+  const globalSearchValue = globalSearchInput ? String(globalSearchInput.value || '') : '';
+  const searchValue = String(stockoutPageSearch || globalSearchValue);
+  return `<section class="stockout-page-header"><div class="stockout-heading-copy"><div class="stockout-heading-icon" aria-hidden="true">🚚</div><div><h1>已領出</h1><p>查看所有已從庫存領出的品項紀錄。</p></div></div><div class="stockout-filter-bar"><label class="stockout-filter-field">開始日期<input type="date" value="${esc(stockoutDateFrom)}" onchange="stockoutDateFrom = this.value; renderStockOuts()"></label><label class="stockout-filter-field">結束日期<input type="date" value="${esc(stockoutDateTo)}" onchange="stockoutDateTo = this.value; renderStockOuts()"></label><label class="stockout-filter-field search">關鍵字搜尋<input type="search" value="${esc(searchValue)}" placeholder="搜尋品項、型號、領用去向..." oninput="stockoutPageSearch = this.value" onkeydown="if(event.key === 'Enter') renderStockOuts()"></label><button type="button" class="stockout-filter-action" onclick="renderStockOuts()">搜尋</button><button type="button" class="stockout-filter-action" onclick="clearStockoutFilters()">清除</button>${isViewer ? '' : '<button type="button" class="stockout-filter-action primary" onclick="openNonStockOutModal()">＋ 新增已領出</button>'}</div></section><section class="stockout-kpi-grid"><div class="stockout-kpi-card purple"><div class="stockout-kpi-icon">📋</div><div><div class="stockout-kpi-number">${esc(String(kpis.recordCount))}</div><div class="stockout-kpi-label">領出總筆數</div></div></div><div class="stockout-kpi-card green"><div class="stockout-kpi-icon">📦</div><div><div class="stockout-kpi-number">${esc(String(kpis.totalOutbound))}</div><div class="stockout-kpi-label">總領出數量</div></div></div><div class="stockout-kpi-card blue"><div class="stockout-kpi-icon">📅</div><div><div class="stockout-kpi-number">${esc(String(kpis.dateGroupCount))}</div><div class="stockout-kpi-label">領出日期</div></div></div><div class="stockout-kpi-card amber"><div class="stockout-kpi-icon">🔧</div><div><div class="stockout-kpi-number">${esc(String(kpis.uniqueItemCount))}</div><div class="stockout-kpi-label">品項種類</div></div></div></section>`;
+}
+
+function clearStockoutFilters() {
+  stockoutDateFrom = '';
+  stockoutDateTo = '';
+  stockoutPageSearch = '';
+  const globalSearch = document.getElementById('search-input');
+  if (globalSearch) globalSearch.value = '';
+  renderStockOuts();
+}
+
 async function renderStockOuts() {
   const isViewer = !hasPerm('stockout');
   const content = document.getElementById('content');
-  content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入紀錄…</div></div>';
-
+  if (!content) return;
+  content.innerHTML = '<div class="stockout-loading">載入已領出紀錄…</div>';
   try {
     const res = await fetch(`/api/stockouts?limit=200&site=${currentSite}`);
-    let outs = await res.json();
-    stockoutRecords = outs;  // 供退回/編輯 modal 查品項資訊
-
-    // 搜尋過濾
-    outs = filterBySearch(outs, function(o) {
-      return [o.name, o.code, o.brand, o.destination, o.note].join(' ');
-    });
-    if (!outs.length) {
-      content.innerHTML = '<div class="empty">🚚 還沒有已領出紀錄<br><small>在庫存頁點「已領出」就會記錄在這裡</small>' +
-        (isViewer ? '' : '<br><br><button class="btn-add-inv" onclick="openNonStockOutModal()">＋ 新增已領出</button>') + '</div>';
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const outs = await res.json();
+    stockoutRecords = outs;
+    const filteredOuts = filterStockoutRecords(outs);
+    const kpis = getStockoutKpis(filteredOuts);
+    const stockoutBar = renderStockoutPageHeader(isViewer, kpis);
+    let html = stockoutBar;
+    html += `<div class="stockout-toolbar"><span>共 <strong>${esc(String(kpis.recordCount))}</strong> 筆</span>${filteredOuts.length !== outs.length ? `<span>已篩選 ${esc(String(filteredOuts.length))} / ${esc(String(outs.length))} 筆</span>` : ''}</div>`;
+    if (!filteredOuts.length) {
+      const filtered = outs.length > 0;
+      html += `<div class="stockout-empty-state"><span class="empty-icon">🚚</span><strong>${esc(filtered ? '沒有符合條件的已領出紀錄' : '目前沒有已領出的紀錄')}</strong><p>${esc(filtered ? '可以清除搜尋或日期篩選後再試一次。' : '當商品正式領出後，紀錄會顯示在這裡。')}</p>${filtered ? '<button type="button" class="stockout-filter-action" onclick="clearStockoutFilters()">清除篩選</button>' : ''}</div>`;
+      content.innerHTML = html;
       return;
     }
-
-    // 分組：按日（包含退回紀錄）
-    const byMonth = {};
-    outs.forEach(o => {
-      const m = (o.created_at || '').slice(0, 10);
-      (byMonth[m] = byMonth[m] || []).push(o);
-    });
-
-    const isM = (typeof isMobileView === 'function') && isMobileView();
-    let html = '';
-    const stockoutBar = `<div class="loc-export-bar"><span>共 ${outs.length} 筆</span>${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockOutModal()">＋ 新增已領出</button>'}</div>`;
-    html += stockoutBar;
-    if (isM) {
-      // ===== 手機版：卡片式（⋯ 動作選單） =====
-      Object.keys(byMonth).sort().reverse().forEach(m => {
-        const list = byMonth[m];
-        const active = list.filter(o => !o.reverted_at && o.reason !== '退回已領出');
-        const totalOut = active.reduce((s, o) => s + Math.abs(o.delta), 0);
-        html += `<div class="section-title"><span class="loc">📅 ${m}</span><span>${list.length} 筆 · 領出 ${totalOut} 件</span></div>`;
-        list.forEach(o => {
-          const reverted = !!o.reverted_at;
-          const isReturn = o.reason === '退回已領出';
-          html += mobileCardShell({
-            reverted,
-            moreBtnHTML: `<button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>`,
-            thumb: buildThumb(o.item_id, o.has_photo, o.item_name, '📷'),
-            nameHTML: isReturn
-              ? `${esc(o.brand)} ${esc(o.item_name)}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}<span class="reverted-tag" style="background:#52c41a;color:#fff">↩️ 已退回</span>`
-              : `${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}${reverted ? '<span class="reverted-tag">↩️ 已退回</span>' : ''}`,
-            subHTML: `${esc((o.created_at||'').slice(5,10))}`,
-            extraHTML: `${o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : ''}${isReturn && o.return_location ? `<div><span class="loc-tag">📍 ${esc(o.return_site || '')}${o.return_site ? '／' : ''}${esc(o.return_location)}</span></div>` : ''}`,
-            qtyHTML: isReturn
-              ? buildQtyNum('+' + absNum(o.delta), o.unit, 'qty-pos')
-              : buildQtyNum('-' + absNum(o.delta), o.unit, 'qty-neg'),
-            actionsHTML: ''
-          });
-        });
-      });
-    } else {
-      // ===== 桌面版：原表格 =====
-    html = stockoutBar;
-    Object.keys(byMonth).sort().reverse().forEach(m => {
-      const list = byMonth[m];
-      const active = list.filter(o => !o.reverted_at && o.reason !== '退回已領出');
-      const totalOut = active.reduce((s, o) => s + Math.abs(o.delta), 0);
-      html += `<div class="section-title"><span class="loc">📅 ${m}</span><span>${list.length} 筆 · 領出 ${totalOut} 件</span></div>`;
-      html += `<table class="data-table"><thead><tr>
-        <th>照片</th><th>日期</th><th>品項</th><th>數量</th><th>去向</th><th>操作</th>
-      </tr></thead><tbody>`;
-      list.forEach(o => {
-        const reverted = !!o.reverted_at;
-        const isReturn = o.reason === '退回已領出';
-        const needsRepair = isReturn && (!o.source_movement_id || !o.return_stock_id);
-        const soPhoto = o.has_photo
-          ? `<img class="so-photo" src="${photoSrc(o.item_id, 'thumbnail')}" alt="" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">`
-          : `<div class="so-photo so-photo-empty">📷</div>`;
-        html += `<tr${reverted ? ' style="opacity:0.55"' : ''}${isReturn ? ' style="background:#f6ffed"' : ''}>
-          <td class="photo-cell">${soPhoto}</td>
-          <td style="white-space:nowrap">${esc((o.created_at||'').slice(5,10))}</td>
-          <td>${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(o.code) + '</small>' : ''}${isReturn ? '<span class="reverted-tag" style="background:#52c41a;color:#fff;margin-left:4px">↩️ 已退回</span>' : ''}</td>
-          <td class="${isReturn ? 'qty-pos' : 'qty-neg'}">${isReturn ? '+' : '-'}${absNum(o.delta)} ${esc(o.unit)}</td>
-          <td>${o.destination ? `<span class="dest-chip">🏢 ${esc(o.destination)}</span>` : ''}${isReturn && o.return_location ? `<br><span class="dest-chip">📍 ${esc(o.return_site || '')}${o.return_site ? '／' : ''}${esc(o.return_location)}</span>` : (!o.destination ? '<span style="color:#ccc">—</span>' : '')}</td>
-          <td style="white-space:nowrap">
-            ${isViewer ? '' : (isReturn
-              ? (reverted
-                ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutReturn(${o.id})">刪除</button>`
-                : (needsRepair
-                  ? `<button class="btn-prepare" style="padding:4px 8px" onclick="openRepairStockoutReturnModal(${o.id})">🛠️ 修復退回資料</button>
-                     <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutReturn(${o.id})">刪除</button>`
-                  : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button>
-                     <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutReturn(${o.id})">刪除</button>`))
-              : (reverted
-                ? `<button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`
-                : `<button class="btn-prepare" style="padding:4px 8px" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button>
-                   <button class="btn-out" style="padding:4px 8px" onclick="returnStockout(${o.id})">↩️ 退回</button>
-                   <button class="btn-del" style="padding:4px 8px" onclick="deleteStockoutRecord(${o.id})">刪除</button>`))}
-          </td>
-        </tr>`;
-      });
-      html += '</tbody></table>';
-    });
-    }
+    const byDate = {};
+    filteredOuts.forEach(function(o) { const date = String(o.created_at || '').slice(0, 10); (byDate[date] = byDate[date] || []).push(o); });
+    const isMobile = typeof isMobileView === 'function' && isMobileView();
+    Object.keys(byDate).sort().reverse().forEach(function(date) { html += renderStockoutGroup(date, byDate[date], isViewer, isMobile); });
     content.innerHTML = html;
   } catch (e) {
-    content.innerHTML = `<div class="empty">⚠️ 載入失敗<br><small>${e.message}</small></div>`;
+    console.error('[renderStockOuts] 已領出紀錄載入失敗', e);
+    content.innerHTML = `<div class="stockout-error-state"><h2>載入已領出紀錄失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button type="button" class="stockout-filter-action" onclick="renderStockOuts()">重新載入</button></div>`;
   }
 }
 
+// 分組：按日（套用日期與關鍵字篩選後）
 
 // 刪除已領出紀錄（僅刪紀錄、不回補庫存；2026-08-11 Sarah 需求）
 
@@ -154,22 +178,14 @@ function openStockoutSheet(movementId) {
 
   const reverted = !!rec.reverted_at;
   const isReturn = rec.reason === '退回已領出';
-  const needsRepair = isReturn && (!rec.source_movement_id || !rec.return_stock_id);
 
   const actions = [];
 
   if (!isViewer) {
 
-    if (isReturn) {
-      if (reverted) {
-        actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
-      } else if (needsRepair) {
-        actions.push({ icon: '🛠️', label: '修復退回資料', cls: 'out', fn: () => openRepairStockoutReturnModal(movementId) });
-        actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
-      } else {
-        actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
-        actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
-      }
+    if (isReturn && !reverted) {
+      actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
+      actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => revokeStockoutReturn(movementId) });
     } else if (!isReturn && !reverted) {
       actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutModal(movementId) });
       actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnStockout(movementId) });

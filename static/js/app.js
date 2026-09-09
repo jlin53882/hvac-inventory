@@ -179,6 +179,7 @@ function switchTab(tab) {
   if (content) content.classList.toggle('prepared-content', tab === 'prepared');
   if (content) content.classList.toggle('kit-content', tab === 'kit');
   if (content) content.classList.toggle('stocktake-content', tab === 'stocktake');
+  if (content) content.classList.toggle('stockout-content', tab === 'stockout');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
   var nav = document.getElementById('nav-' + tab);

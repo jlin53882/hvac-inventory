@@ -34,6 +34,7 @@ CSS_CAL = os.path.join(STATIC, "css", "style.calendar.css")
 CSS_INVENTORY = os.path.join(STATIC, "css", "style.inventory.css")
 CSS_KIT = os.path.join(STATIC, "css", "style.kit.css")
 CSS_STOCKTAKE = os.path.join(STATIC, "css", "style.stocktake.css")
+CSS_STOCKOUT = os.path.join(STATIC, "css", "style.stockout.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js
@@ -614,7 +615,8 @@ def test_stockout_grouping_by_day():
     assert "slice(0, 7)" not in js, "退回按月分組（slice(0,7)）會讓標題沒有幾號"
     assert "// 分組：按日" in js
     # 手機 + 桌機標題都用 ${m}（完整日期），各 1 處
-    assert js.count("📅 ${m}</span>") == 2
+    assert "formatStockoutDate(date)" in js
+    assert "renderStockoutGroup(date, byDate[date]" in js
     # 中間版「今天日期」helper 已移除
     assert "mLabel" not in js
     assert "todayStr" not in js
@@ -647,8 +649,8 @@ def test_prepared_js_chip_out_of_name_line():
 def test_stockout_js_shows_model():
     """已領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片（一般+退回）+ 桌面表格各一處"""
     js = read(STOCKOUT_RENDER_JS)
-    assert js.count("型號 ") == 3  # mobile normal + mobile return + desktop table
-    assert "color:#1890FF;font-weight:600" in js
+    assert js.count("型號 ") == 2  # 共用 mobile renderer + desktop table
+    assert "stockout-item-meta" in js
     # 型號從 subHTML 移到 nameHTML 下方：subHTML 只剩日期（不再有「· 型號」）
     assert "· 型號" not in js
 
@@ -1706,7 +1708,7 @@ def test_stockout_nonstock_add_ui():
     rjs = read(STOCKOUT_RENDER_JS)
     assert "onclick=\"openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
     assert "site=${currentSite}" in rjs, "已領出頁 fetch 應隨 site 過濾（倉庫 0 就不能顯示內容）"
-    assert "共 ${outs.length} 筆" in rjs, "已領出頁缺筆數列"
+    assert "getStockoutKpis(filteredOuts)" in rjs, "已領出頁 KPI 必須取 filtered result"
     assert "tag-nonstock" in rjs, "非庫存標籤 class 缺失"
 
     html = read(INDEX)
@@ -2819,3 +2821,52 @@ def test_stocktake_kit_component_rows_have_scoped_layout_styles():
     ):
         assert selector in css, f"盤點頁缺少 {selector}"
     assert ".stocktake-kpi-action" not in css
+
+
+
+def test_stockout_desktop_dashboard_assets_and_scope():
+    """已領出 desktop dashboard 使用 page-scoped CSS 與日期/搜尋控制。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    js = read(STOCKOUT_RENDER_JS)
+    css = read(CSS_STOCKOUT)
+    assert "/static/css/style.stockout.css" in html
+    assert "content.classList.toggle('stockout-content', tab === 'stockout')" in app
+    for token in (
+        "stockout-page-header", "stockout-filter-bar", "stockout-kpi-grid",
+        "stockout-date-group", "stockout-record-row", "stockout-empty-state",
+    ):
+        assert token in js or token in css, f"已領出頁缺少 {token}"
+    assert ".stockout-content" in css
+
+
+def test_stockout_kpis_and_groups_use_same_filtered_result():
+    """日期/搜尋後的 KPI、日期 Group、Row 必須來自同一份 filtered records。"""
+    js = read(STOCKOUT_RENDER_JS)
+    for token in (
+        "filterStockoutRecords", "filteredOuts", "recordCount", "totalOutbound",
+        "dateGroupCount", "uniqueItemCount", "stockoutDateFrom", "stockoutDateTo",
+        "stockoutPageSearch",
+    ):
+        assert token in js, f"已領出缺少一致性資料鏈 token: {token}"
+
+
+def test_stockout_existing_actions_and_return_states_remain():
+    """既有已領出編輯/退回/撤銷/刪除與 mobile sheet action 不得因 UI 重構消失。"""
+    js = read(STOCKOUT_RENDER_JS)
+    for token in (
+        "openEditStockoutModal", "openEditStockoutReturnModal", "returnStockout",
+        "revokeStockoutReturn", "deleteStockoutRecord", "openStockoutSheet",
+        "reverted_at", "退回已領出", "已退回",
+    ):
+        assert token in js
+
+
+
+def test_stockout_effective_search_and_revoked_return_state():
+    """頁內/頂部搜尋只形成一個 effective query，撤銷退回要有獨立失效狀態。"""
+    js = read(STOCKOUT_RENDER_JS)
+    assert "globalSearchQuery" in js
+    assert "stockoutPageSearch || globalSearchQuery" in js
+    assert "is-reverted-return" in js
+    assert "已撤銷退回" in js

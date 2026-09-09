@@ -169,6 +169,9 @@ REVIEWED_SAFE_BODIES = {
     "c.item_id", "c.has_photo", "kitCompsHTML",
     # stocktake status modal：buildThumb/extra 由既有安全 helper 與 esc(item.in_kits) 建構 HTML
     "buildThumb(item.id, item.has_photo)", "extra",
+    # stockout.js：row/card/group fragments are assembled from escaped fields and fixed numeric IDs
+    "returned", "destination", "returnLocation", "renderStockoutActions(o, isViewer)",
+    "records.map(function(o) { return renderStockoutDesktopRow(o,", "desktopRows", "body", "stockoutBar",
     # stocktake.js 組成品項實際數量輸入框（2026-08-16）：mKey/mVal 為 itemId:location 鍵與輸入值（數字或空）、
     # mSysQty 為 absNum 格式化的數字字串（純數字不可控）
     "mKey", "mVal", "mSysQty",
