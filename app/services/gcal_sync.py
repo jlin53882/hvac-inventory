@@ -19,6 +19,35 @@ from app.services.gcal_log import get_logger
 
 logger = get_logger(__name__)
 
+
+class AppointmentNotFoundForSync(LookupError):
+    """同步佇列指向已刪除的本地行程。"""
+
+
+
+def _http_status(error) -> int | None:
+    """讀取 Google HttpError status；非 HTTP 錯誤回傳 None。"""
+    return getattr(getattr(error, "resp", None), "status", None)
+
+
+def classify_sync_exception(op: str, error: Exception) -> str:
+    """將同步例外分類為 failed 或可自動處理的結果。"""
+    if isinstance(error, AppointmentNotFoundForSync):
+        return "appointment_deleted"
+    if op == "D" and _http_status(error) == 410:
+        return "remote_already_deleted"
+    return "failed"
+
+
+def _record_resolution(summary: dict, key_id: int, cal_id: str, reason: str) -> None:
+    """累計不需人工處理的同步結果，供通知層顯示。"""
+    entry = summary.setdefault(key_id, {"cal_id": cal_id, "errors": {}, "resolved": {}})
+    entry["cal_id"] = cal_id
+    entry.setdefault("resolved", {})[reason] = (
+        entry.setdefault("resolved", {}).get(reason, 0) + 1
+    )
+
+
 TZ = "Asia/Taipei"
 DEFAULT_DURATION_MIN = 60
 
@@ -140,7 +169,7 @@ def _load_appointment_for_sync(conn, appt_id):
     """載入行程 + 指派人，回傳 (appt_dict, assignees_list)"""
     row = conn.execute("SELECT * FROM appointments WHERE id=?", (appt_id,)).fetchone()
     if row is None:
-        raise KeyError(appt_id)
+        raise AppointmentNotFoundForSync(appt_id)
     svc = None
     if row["service_type_id"]:
         svc = conn.execute("SELECT name FROM service_types WHERE id=?",
@@ -335,6 +364,30 @@ def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
                 wc.close()
             ok += 1
         except Exception as e:
+            outcome = classify_sync_exception(op, e)
+            if outcome != "failed":
+                # 410 = 遠端事件已不存在；appointment_deleted = 本地來源已刪除。
+                # 兩者都已達成「不需再同步」的終態，清掉 queue/map 後正常結束。
+                resolved = get_db()
+                try:
+                    if outcome == "remote_already_deleted":
+                        resolved.execute(
+                            "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                            (appt_id, key_id),
+                        )
+                    resolved.execute(
+                        "DELETE FROM appointment_sync_queue "
+                        "WHERE appointment_id=? AND key_id=? AND last_modified_at=?",
+                        (appt_id, key_id, la_orig),
+                    )
+                    resolved.commit()
+                finally:
+                    resolved.close()
+                _record_resolution(error_summary, key_id, cal_id, outcome)
+                if outcome == "remote_already_deleted":
+                    ok += 1
+                continue
+
             logger.warning("gcal 同步失敗 appointment=%s key=%s (%s) cal=%s: %s", appt_id, key_id, op, cal_id, e)
             # 分類錯誤類型（取 HttpError / exception type 前 60 字元）
             err_str = str(e)
@@ -352,7 +405,7 @@ def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
                 err_type = type(e).__name__ + ": " + err_str[:40]
             # 記錄到 error_summary
             if key_id not in error_summary:
-                error_summary[key_id] = {"cal_id": cal_id, "errors": {}}
+                error_summary[key_id] = {"cal_id": cal_id, "errors": {}, "resolved": {}}
             error_summary[key_id]["errors"][err_type] = (
                 error_summary[key_id]["errors"].get(err_type, 0) + 1
             )

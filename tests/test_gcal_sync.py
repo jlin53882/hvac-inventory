@@ -271,6 +271,54 @@ class TestSyncPending:
         finally:
             conn.close()
 
+    def test_delete_410_is_idempotent_success(self, client, monkeypatch):
+        """410 Resource deleted -> 刪除目標已達成，清理 map/queue 且不算失敗。"""
+        from app.database import get_db
+        from app.services import gcal_sync
+        from types import SimpleNamespace
+
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('GoneKey', 'fake.json', 'gone@cal', 1)")
+            conn.execute("INSERT INTO appointments(client_name, date, start_time, end_time) "
+                         "VALUES('410測試', '2026-08-28', '09:00', '11:00')")
+            appt_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='GoneKey'").fetchone()["id"]
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id) "
+                         "VALUES(?,?,?)", (appt_id, key_id, 'gone-event'))
+            conn.execute("INSERT INTO appointment_sync_queue "
+                         "(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+                         "VALUES(?,?, 'D', ?, '2026-08-28 00:00:00')",
+                         (appt_id, key_id, 'gone-event'))
+            conn.commit()
+        finally:
+            conn.close()
+
+        class GoneError(Exception):
+            resp = SimpleNamespace(status=410)
+
+        svc = MagicMock()
+        svc.events().delete().execute.side_effect = GoneError(
+            'Resource has been deleted')
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: svc)
+
+        ok, fail, summary = gcal_sync.sync_pending([{
+            "appointment_id": appt_id, "key_id": key_id, "op_type": "D",
+            "google_event_id": "gone-event", "last_modified_at": "2026-08-28 00:00:00"
+        }])
+
+        assert (ok, fail) == (1, 0)
+        assert summary[key_id]["resolved"]["remote_already_deleted"] == 1
+        conn = get_db()
+        try:
+            assert conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=?",
+                                (appt_id,)).fetchone() is None
+            assert conn.execute("SELECT 1 FROM appointment_sync_queue WHERE appointment_id=?",
+                                (appt_id,)).fetchone() is None
+        finally:
+            conn.close()
+
     def test_delete_removes_event(self, client, monkeypatch):
         """D op -> events().delete()"""
         from app.database import get_db
@@ -441,6 +489,37 @@ class TestSyncPending:
             q2 = conn.execute("SELECT * FROM appointment_sync_queue WHERE appointment_id=?",
                               (appt_id,)).fetchone()
             assert q2 is not None  # 隊列仍存在（版本不符沒刪掉）
+        finally:
+            conn.close()
+
+    def test_missing_appointment_queue_is_cleaned(self, client, monkeypatch):
+        """來源 appointment 已刪除 -> C queue 自動清理，不算同步失敗。"""
+        from app.database import get_db
+        from app.services import gcal_sync
+
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                         "VALUES('OrphanKey', 'fake.json', 'orphan@cal', 1)")
+            key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='OrphanKey'").fetchone()["id"]
+            conn.execute("INSERT INTO appointment_sync_queue "
+                         "(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+                         "VALUES(?,?,?,?,?)", (106, key_id, 'C', '', '2026-08-28 00:00:00'))
+            conn.commit()
+        finally:
+            conn.close()
+
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: MagicMock())
+        ok, fail, summary = gcal_sync.sync_pending([{
+            "appointment_id": 106, "key_id": key_id, "op_type": "C",
+            "google_event_id": "", "last_modified_at": "2026-08-28 00:00:00"
+        }])
+
+        assert (ok, fail) == (0, 0)
+        assert summary[key_id]["resolved"]["appointment_deleted"] == 1
+        conn = get_db()
+        try:
+            assert conn.execute("SELECT 1 FROM appointment_sync_queue WHERE appointment_id=106").fetchone() is None
         finally:
             conn.close()
 
@@ -972,6 +1051,29 @@ class TestDiscordNotification:
 
         sync_scheduler._run_once()
         assert len(notified) == 0  # 成功不通知
+
+    def test_run_once_reports_resolved_results(self, monkeypatch):
+        """只有自動處理結果時也顯示原因，但不算同步失敗。"""
+        from app.services import sync_scheduler
+        notified = []
+        monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+            {"appointment_id": 1, "key_id": 1, "op_type": "C",
+             "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
+        ]))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (4, 0, {
+            1: {"cal_id": "gone@cal", "errors": {},
+                "resolved": {"appointment_deleted": 1}}
+        }))
+
+        sync_scheduler._run_once()
+
+        assert len(notified) == 1
+        assert "已自動處理" in notified[0]
+        assert "本地行程已刪除" in notified[0]
+        assert "失敗 0" in notified[0]
 
     def test_run_once_notifies_on_failure(self, monkeypatch):
         """同步失敗發 Discord 通知"""

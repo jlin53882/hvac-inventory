@@ -142,27 +142,39 @@ def _run_once():
         return
     # 純網路呼叫（無鎖）
     ok, fail, error_summary = gcal_sync.sync_pending(due)
-    if fail:
-        logger.warning("gcal 同步完成：成功 %d / 失敗 %d", ok, fail)
-        # 組裝詳細 Discord 通知
+    resolved_total = sum(
+        sum(info.get("resolved", {}).values())
+        for info in error_summary.values()
+    )
+    if fail or resolved_total:
+        title = "⚠️ **hvac Google 同步有失敗**" if fail else "✅ **hvac Google 同步完成**"
+        if fail:
+            logger.warning("gcal 同步完成：成功 %d / 失敗 %d", ok, fail)
+        else:
+            logger.info("gcal 同步完成：成功 %d / 自動處理 %d", ok, resolved_total)
         lines = [
-            f"⚠️ **hvac Google 同步失敗**",
-            f"成功 {ok} / 失敗 {fail}",
+            title,
+            f"成功 {ok} / 失敗 {fail} / 已自動處理 {resolved_total}",
             f"時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
         ]
-        # 逐 key 列出錯誤摘要（最多 5 種 key，每種最多 3 種錯誤）
+        resolution_labels = {
+            "remote_already_deleted": "Google 事件已不存在，刪除視為完成",
+            "appointment_deleted": "本地行程已刪除，清除過期同步任務",
+        }
         for key_id, info in sorted(error_summary.items()):
             cal = info["cal_id"] or f"key={key_id}"
-            errs = info["errors"]
-            # 取前 3 種錯誤
-            top_errs = sorted(errs.items(), key=lambda x: -x[1])[:3]
-            err_lines = " | ".join(f"{e} ×{c}" for e, c in top_errs)
-            lines.append(f"🔑 {cal}: {err_lines}")
-            if len(errs) > 3:
-                lines.append(f"   +{len(errs) - 3} 種其他錯誤")
-        # Discord 限制 2000 字元
-        msg = "\n".join(lines)
+            errs = info.get("errors", {})
+            if errs:
+                top_errs = sorted(errs.items(), key=lambda x: -x[1])[:3]
+                err_lines = " | ".join(f"{e} ×{c}" for e, c in top_errs)
+                lines.append(f"❌ {cal}: {err_lines}")
+                if len(errs) > 3:
+                    lines.append(f"   +{len(errs) - 3} 種其他錯誤")
+            for reason, count in info.get("resolved", {}).items():
+                label = resolution_labels.get(reason, reason)
+                lines.append(f"ℹ️ {cal}: {label} ×{count}")
+        msg = chr(10).join(lines)
         if len(msg) > 1900:
             msg = msg[:1897] + "..."
         _notify_discord(msg)

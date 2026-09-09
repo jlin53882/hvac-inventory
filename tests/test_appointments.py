@@ -424,6 +424,39 @@ def test_export_daily_report_without_service_type(client):
     for col in ("E", "G", "I", "K"):
         assert ws[f"{col}4"].value is None        # 所有 ✓ 欄都不勾（無服務項目）
 
+def test_delete_appointment_clears_unsent_create_queue(client):
+    """刪除尚未同步的行程時，C/U queue 必須清除，不得留下 orphan 任務。"""
+    conn = app_db.get_db()
+    try:
+        conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                     "VALUES('delete-queue-key','fake.json','delete-queue@cal',1)")
+        conn.execute("UPDATE users SET gcal_key='delete-queue-key' WHERE username='admin'")
+        conn.commit()
+    finally:
+        conn.close()
+
+    r = client.post("/api/appointments", json=_appt_body(client_name="未同步刪除"))
+    assert r.status_code == 200, r.text
+    appt_id = r.json()["id"]
+
+    conn = app_db.get_db()
+    try:
+        assert conn.execute("SELECT 1 FROM appointment_sync_queue WHERE appointment_id=?",
+                            (appt_id,)).fetchone() is not None
+    finally:
+        conn.close()
+
+    r = client.delete(f"/api/appointments/{appt_id}")
+    assert r.status_code == 200, r.text
+
+    conn = app_db.get_db()
+    try:
+        assert conn.execute("SELECT 1 FROM appointment_sync_queue WHERE appointment_id=?",
+                            (appt_id,)).fetchone() is None
+    finally:
+        conn.close()
+
+
 # ===== 2026-08-28 B1：_sync_status 多 key 誤報修正 =====
 class TestSyncStatus:
     """_sync_status 多 key 情境：map 有任一列 ≠ 一定 synced。

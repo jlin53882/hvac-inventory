@@ -378,6 +378,12 @@ def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt
             "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
             (appt_id,)).fetchall()
         map_rows = [(r[0], r[1]) for r in mrows]
+        # 尚未送出的 C/U 任務已失去本地來源；D 任務仍須保留遠端 event id。
+        conn.execute(
+            "DELETE FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND op_type IN ('C', 'U')",
+            (appt_id,),
+        )
         conn.execute("DELETE FROM appointments WHERE id=?", (appt_id,))
         conn.commit()
         mark_sync_pending(appt_id, "D", map_rows=map_rows)
