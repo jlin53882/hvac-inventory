@@ -211,7 +211,6 @@
 .kit-content .kit-empty-state h2 { margin-top: 12px; color: #334155; font-size: 18px; }
 .kit-content .kit-empty-state p { margin: 8px 0 18px; color: #64748b; font-size: 13px; }
 .kit-content .kit-more { display: none; }
-.kit-content .m-card-actions { display: none; }
 @media (max-width: 1440px) {
   .kit-content { padding: 24px 24px 40px; }
   .kit-content .kit-assembly-header { padding: 16px; }
@@ -238,8 +237,6 @@
   .kit-content .kit-assembly-name { font-size: 16px; }
   .kit-content .kit-assembly-actions { width: 100%; justify-content: flex-start; }
   .kit-content .kit-assembly-header .kit-more { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-left: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #475569; font-size: 20px; cursor: pointer; }
-  .kit-content .m-card-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 12px; }
-  .kit-content .m-card-actions .kit-action { flex: 1 1 140px; }
   .kit-content .kit-component-table { min-width: 560px; }
   .kit-content .kit-component-table th,
   .kit-content .kit-component-table td { padding-left: 10px; padding-right: 10px; }

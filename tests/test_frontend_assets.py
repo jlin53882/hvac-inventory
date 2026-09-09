@@ -1668,7 +1668,7 @@ def test_stocktake_view_for_all_roles():
 def test_kit_stockout_actions():
     """2026-08-13 Sarah：整組庫存也要有「待領出/已領出」按鈕（手機+桌面），直接複用單一庫存 modal"""
     js = read(KITS_RENDER_JS)
-    # 手機卡片 m-card-actions + 桌面操作列：各一組 openPrepareModal/openOutModal（用 kit 的 item_id）
+    # 手機卡片 kit-mobile-actions + 桌面操作列：各一組 openPrepareModal/openOutModal（用 kit 的 item_id）
     assert js.count("openPrepareModal(${k.item_id}") >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
     assert js.count("openOutModal(${k.item_id}") >= 2, "整組卡片已領出按鈕（手機+桌面）缺失"
     assert "kit-mobile-actions" in js, "手機整組卡片缺 kit-mobile-actions 按鈕列"
