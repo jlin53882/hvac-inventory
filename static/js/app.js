@@ -83,7 +83,7 @@ function updateNotifCount() {
 // 動態生成通知（缺貨 / 低庫存 / 盤點提醒）
 function updateNotifications() {
   var html = '';
-  // 缺貨／低庫存只限單一庫存與盤點頁；整組頁另處理 kit 缺料。
+  // 單一庫存／盤點頁各自顯示目前頁面的缺貨與低庫存；整組頁只顯示 kit 缺料。
   if (currentTab === 'inventory' || currentTab === 'stocktake') {
     var siteAlerts = (typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE[currentSite]) || {};
     var zeroItems = Array.isArray(siteAlerts.zero_items) ? siteAlerts.zero_items :
@@ -97,6 +97,16 @@ function updateNotifications() {
       var qty = i.qty || 0;
       var unit = i.unit || '';
       html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' 僅剩 ' + qty + ' ' + esc(unit) + '</div>';
+    });
+  }
+  if (currentTab === 'kit' && Array.isArray(currentKitItems) && typeof getKitStatus === 'function') {
+    currentKitItems.forEach(function(kit) {
+      var kitStatus = getKitStatus(kit).status;
+      if (kitStatus === 'shortage') {
+        html += '<div class="ni" data-notif><span class="dot-r"></span>整組缺料：' + esc(kit.name || '未命名整組') + '</div>';
+      } else if (kitStatus === 'insufficient') {
+        html += '<div class="ni" data-notif><span class="dot-w"></span>整組庫存不足：' + esc(kit.name || '未命名整組') + '</div>';
+      }
     });
   }
   // 盤點提醒（25號後 + 本月未盤點）
@@ -173,6 +183,7 @@ function updateBreadcrumb(tab) {
 function switchTab(tab) {
   currentTab = tab;
   checkReminder();
+  updateNotifications();
   var content = document.getElementById('content');
   if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
   if (content) content.classList.toggle('cal-content', tab === 'calendar');

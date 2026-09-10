@@ -2208,8 +2208,12 @@ def test_update_notifications_is_page_scoped_but_stocktake_reminder_is_global():
     end = js.index("setTimeout(function() { updateNotifications();", start)
     block = js[start:end]
     stock_alert_block = block[:block.index("// 盤點提醒")]
-    assert "if (currentTab === 'inventory') {" in stock_alert_block
-    assert "ALL_ITEMS.filter" in stock_alert_block
+    assert "if (currentTab === 'inventory' || currentTab === 'stocktake' || currentTab === 'kit') {" in stock_alert_block
+    assert "currentKitItems.forEach" in stock_alert_block
+    assert "getKitStatus(kit).status" in stock_alert_block
+    assert "整組缺料：" in stock_alert_block
+    switch_start = js.index("function switchTab(tab)")
+    assert js.index("currentTab = tab;", switch_start) < js.index("updateNotifications();", switch_start)
     assert "if (day >= 25 && lastStocktakeMonth !== currentMonth)" in block
 
 
