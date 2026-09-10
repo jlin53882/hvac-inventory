@@ -130,7 +130,12 @@ async function calSubmitAppt() {
     toast(id ? '✅ 行程已更新' : '✅ 行程已新增');
     calSelected = new Date(body.date);
     calMonth = new Date(body.date.slice(0, 4), Number(body.date.slice(5, 7)) - 1, 1);
-    await calLoadData();
+    const applied = await calLoadData();
+    if (applied === null) return;
+    if (calLoadError) {
+      calSetLoadState('error', calLoadError);
+      return;
+    }
     calRenderMonth();
     calRenderDay();
     if (typeof syncViewUrl === 'function') syncViewUrl();  // 2026-08-14 審查補：跳月後同步 URL（F5 停在該月）
@@ -144,7 +149,12 @@ async function calDeleteAppt(id) {
   const res = await fetch(`/api/appointments/${id}`, { method: 'DELETE' });
   if (!res.ok) { toast('❌ 刪除失敗'); return; }
   toast('🗑 已刪除');
-  await calLoadData();
+  const applied = await calLoadData();
+  if (applied === null) return;
+  if (calLoadError) {
+    calSetLoadState('error', calLoadError);
+    return;
+  }
   calRenderMonth();
   calRenderDay();
 }
