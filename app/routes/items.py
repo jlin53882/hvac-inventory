@@ -28,6 +28,7 @@ from app.services.file_storage import delete_asset_files
 # 品項 API 路由
 router = APIRouter()
 MAX_FILTER_VALUES = 400
+MAX_PAGE = 1_000_000
 
 
 def _item_full(conn, row, kit_map: Optional[dict] = None,
@@ -77,6 +78,8 @@ def list_items(
     """查詢品項；帶 page 時使用 server-side 分頁，未帶時維持舊 list shape。"""
     if page is not None and page < 1:
         raise HTTPException(400, "page 必須大於 0")
+    if page is not None and page > MAX_PAGE:
+        raise HTTPException(400, f"page 不可超過 {MAX_PAGE}")
     if page_size < 1 or page_size > 100:
         raise HTTPException(400, "page_size 必須在 1-100")
     conn = get_db()

@@ -702,3 +702,13 @@ def test_items_rejects_excessive_csv_filter_values(media_env, filter_name):
         params={"site": "office", "page": 1, filter_name: values},
     )
     assert response.status_code == 400, response.text
+
+
+
+def test_items_rejects_page_number_that_would_overflow_sqlite_offset(media_env):
+    client, _static_dir, _upload_dir = media_env
+    response = client.get(
+        "/api/items",
+        params={"site": "office", "page": 10**12, "page_size": 100},
+    )
+    assert response.status_code == 400
