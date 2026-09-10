@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 from app.config import STATIC_DIR
 from app.database import get_db
 from app.services.auth import get_user_permissions, require_login
-from app.services.file_storage import cleanup_asset_paths, delete_asset_files, get_owner_asset, store_asset
+from app.services.file_storage import cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, store_asset
 from app.models import SignedReportUpdate
 
 router = APIRouter()
@@ -117,8 +117,12 @@ def upload_quotation_upload(
             legacy_original_path=stored,
             upload_dir=Path(STATIC_DIR) / "uploads",
         )
-        conn.execute("UPDATE quotation_uploads SET stored_path=? WHERE id=?", (asset.original_path, rid))
+        conn.execute(
+            "UPDATE quotation_uploads SET stored_path=?, mime_type=? WHERE id=?",
+            (asset.original_path, asset.mime_type, rid),
+        )
         conn.commit()
+        finalize_asset_paths(asset, upload_dir=Path(STATIC_DIR) / "uploads")
         row = conn.execute("SELECT * FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
         can_del = _can_delete_all(conn, user) or (row["uploader_user_id"] == user["id"])
         return _row_to_out(row, can_del)
@@ -127,6 +131,11 @@ def upload_quotation_upload(
         if asset:
             cleanup_asset_paths(asset, upload_dir=Path(STATIC_DIR) / "uploads")
         raise
+    except ValueError as exc:
+        conn.rollback()
+        if asset:
+            cleanup_asset_paths(asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        raise HTTPException(400, str(exc)) from exc
     except Exception:
         conn.rollback()
         if asset:

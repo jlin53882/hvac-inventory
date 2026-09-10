@@ -40,7 +40,7 @@ def media_env(tmp_path, monkeypatch):
     finally:
         conn.close()
 
-    with TestClient(app_main.app) as client:
+    with TestClient(app_main.app, raise_server_exceptions=False) as client:
         client.cookies.set(SESSION_COOKIE, token)
         yield client, static_dir, upload_dir
 
@@ -363,3 +363,133 @@ def test_replacing_item_photo_keeps_new_legacy_preview(media_env):
     finally:
         conn.close()
     assert [row["asset_id"] for row in rows] == [second["asset_id"]]
+
+
+
+def _new_photo_item(client, code):
+    response = client.post(
+        "/api/items",
+        json={
+            "brand": "測試牌",
+            "code": code,
+            "name": "媒體測試品項",
+            "unit": "個",
+            "low_stock": 0,
+            "site": "office",
+            "stocks": [{"location": "A", "qty": 1, "note": ""}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_item_photo_rejects_html_bytes_with_image_extension(media_env):
+    client, _static_dir, _upload_dir = media_env
+    item = _new_photo_item(client, "MEDIA-SPOOF")
+    response = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("evil.png", b"<script>document.body.dataset.xss=1</script>", "text/html")},
+    )
+    assert response.status_code == 400
+
+
+def test_item_photo_uses_content_when_client_mime_is_generic(media_env):
+    client, _static_dir, _upload_dir = media_env
+    item = _new_photo_item(client, "MEDIA-MIME")
+    source = io.BytesIO()
+    Image.new("RGB", (1000, 500), "blue").save(source, "JPEG")
+    response = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("photo.jpg", source.getvalue(), "application/octet-stream")},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert client.get(body["preview_url"]).status_code == 200
+    assert client.get(body["thumbnail_url"]).status_code == 200
+
+
+def test_media_original_is_forced_to_attachment(media_env):
+    client, _static_dir, _upload_dir = media_env
+    item = _new_photo_item(client, "MEDIA-ATTACH")
+    uploaded = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("photo.png", _png(), "image/png")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    original = client.get(f"/media/{uploaded.json()['asset_id']}/original")
+    assert original.status_code == 200
+    assert original.headers["content-disposition"].startswith("attachment;")
+
+
+@pytest.mark.parametrize("endpoint", ["/api/signed-reports", "/api/quotation-uploads"])
+def test_invalid_report_image_returns_400_not_500(media_env, endpoint):
+    client, _static_dir, _upload_dir = media_env
+    response = client.post(
+        endpoint,
+        data={"report_date": "2026-09-10", "uploader_name": "測試", "note": ""},
+        files={"file": ("bad.png", b"not-an-image", "image/png")},
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_store_asset_rollback_restores_existing_legacy_preview(media_env):
+    _client, _static_dir, upload_dir = media_env
+    legacy = upload_dir / "legacy.jpg"
+    old_bytes = b"old-preview"
+    legacy.write_bytes(old_bytes)
+
+    class FailingConnection:
+        def execute(self, *_args, **_kwargs):
+            raise RuntimeError("simulated metadata failure")
+
+    with pytest.raises(RuntimeError, match="simulated metadata failure"):
+        from app.services.file_storage import store_asset
+
+        store_asset(
+            FailingConnection(),
+            category="item_photo",
+            owner_type="item",
+            owner_id=7,
+            data=_png(),
+            original_name="new.png",
+            mime_type="image/png",
+            legacy_preview_path="legacy.jpg",
+            upload_dir=upload_dir,
+        )
+    assert legacy.read_bytes() == old_bytes
+
+
+def test_replacing_item_photo_removes_old_asset_across_timestamp_boundary(media_env):
+    client, _static_dir, upload_dir = media_env
+    item = _new_photo_item(client, "MEDIA-CROSS-SECOND")
+    first = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("first.png", _png(1000, 500), "image/png")},
+    ).json()
+    conn = app_db.get_db()
+    try:
+        first_row = conn.execute(
+            "SELECT * FROM file_assets WHERE asset_id=?", (first["asset_id"],)
+        ).fetchone()
+        conn.execute(
+            "UPDATE file_assets SET created_at='2000-01-01 00:00:00' WHERE asset_id=?",
+            (first["asset_id"],),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    old_original = upload_dir / first_row["original_path"]
+    second = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("second.png", _png(400, 200), "image/png")},
+    ).json()
+    conn = app_db.get_db()
+    try:
+        rows = conn.execute(
+            "SELECT asset_id FROM file_assets WHERE category='item_photo' AND owner_id=?",
+            (str(item["id"]),),
+        ).fetchall()
+    finally:
+        conn.close()
+    assert [row["asset_id"] for row in rows] == [second["asset_id"]]
+    assert not old_original.exists()

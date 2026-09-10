@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 import app.config as app_config
 from app.database import get_db, init_db
-from app.services.file_storage import cleanup_asset_paths, get_owner_asset, store_asset
+from app.services.file_storage import cleanup_asset_paths, finalize_asset_paths, get_owner_asset, store_asset
 
 
 def find_legacy_photos(upload_dir: Path) -> list[tuple[int, Path]]:
@@ -61,6 +61,7 @@ def backfill(apply: bool = False, limit: int | None = None) -> dict:
                     legacy_preview_path=path.name,
                 )
                 conn.commit()
+                finalize_asset_paths(asset)
                 processed += 1
             except Exception as exc:
                 conn.rollback()

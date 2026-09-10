@@ -18,8 +18,9 @@ import app.config as app_config
 from app.database import get_db
 from app.services.auth import require_perm
 from app.services.file_storage import (
+    cleanup_asset_paths,
     delete_asset_files,
-    delete_owner_assets,
+    finalize_asset_paths,
     get_owner_asset,
     store_asset,
 )
@@ -60,6 +61,7 @@ def list_photo_ids() -> set:
 def upload_photo(item_id: int, file: UploadFile):
     """上傳/覆蓋品項照片；原始檔、preview、thumbnail 一起建立。"""
     conn = get_db()
+    asset = None
     try:
         row = conn.execute(
             "SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)
@@ -67,8 +69,9 @@ def upload_photo(item_id: int, file: UploadFile):
         if not row:
             raise HTTPException(404, "品項不存在")
 
-        ext = os.path.splitext(file.filename or "")[1].lower()
-        if ext and ext not in ALLOWED_EXT:
+        original_name = file.filename or "photo.jpg"
+        ext = os.path.splitext(original_name)[1].lower()
+        if ext not in ALLOWED_EXT:
             raise HTTPException(400, f"不支援的圖片格式：{ext}（限 jpg/png/webp）")
         data = file.file.read(MAX_UPLOAD_BYTES + 1)
         if len(data) > MAX_UPLOAD_BYTES:
@@ -76,6 +79,7 @@ def upload_photo(item_id: int, file: UploadFile):
         if not data:
             raise HTTPException(400, "空檔案")
 
+        old = _photo_asset(conn, item_id)
         try:
             asset = store_asset(
                 conn,
@@ -83,18 +87,23 @@ def upload_photo(item_id: int, file: UploadFile):
                 owner_type="item",
                 owner_id=item_id,
                 data=data,
-                original_name=file.filename or "photo.jpg",
-                mime_type=file.content_type or "image/jpeg",
+                original_name=original_name,
+                mime_type=file.content_type or "",
                 legacy_preview_path=f"{item_id}.jpg",
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
-        old = _photo_asset(conn, item_id)
         if old and old["asset_id"] != asset.asset_id:
-            delete_asset_files(old, exclude_paths={asset.preview_path} if asset.preview_path else set())
             conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old["asset_id"],))
         conn.commit()
+        finalize_asset_paths(asset, upload_dir=app_config.UPLOAD_DIR)
+        if old and old["asset_id"] != asset.asset_id:
+            delete_asset_files(
+                old,
+                exclude_paths={asset.preview_path} if asset.preview_path else set(),
+                upload_dir=app_config.UPLOAD_DIR,
+            )
         return {
             "ok": True,
             "item_id": item_id,
@@ -105,9 +114,13 @@ def upload_photo(item_id: int, file: UploadFile):
         }
     except HTTPException:
         conn.rollback()
+        if asset:
+            cleanup_asset_paths(asset, upload_dir=app_config.UPLOAD_DIR)
         raise
     except Exception as exc:
         conn.rollback()
+        if asset:
+            cleanup_asset_paths(asset, upload_dir=app_config.UPLOAD_DIR)
         raise HTTPException(500, "圖片儲存失敗") from exc
     finally:
         conn.close()
@@ -117,14 +130,24 @@ def upload_photo(item_id: int, file: UploadFile):
 def delete_photo(item_id: int):
     """刪除照片與所有變體（冪等）。"""
     conn = get_db()
+    rows = []
     try:
-        delete_owner_assets(conn, "item_photo", "item", item_id)
+        rows = conn.execute(
+            "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            ("item_photo", "item", str(item_id)),
+        ).fetchall()
+        conn.execute(
+            "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            ("item_photo", "item", str(item_id)),
+        )
         conn.commit()
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+    for row in rows:
+        delete_asset_files(row, upload_dir=app_config.UPLOAD_DIR)
     # 舊版本沒有 metadata，仍清理 legacy preview。
     try:
         os.remove(_photo_path(item_id))

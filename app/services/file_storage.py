@@ -11,6 +11,7 @@ import hashlib
 import io
 import os
 import re
+import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -27,6 +28,18 @@ THUMBNAIL_WIDTH = 320
 COMPRESSION_VERSION = "image-jpeg-v1"
 _CATEGORY_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff"}
+_MIME_BY_EXT = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+    ".pdf": "application/pdf",
+}
 
 
 @dataclass(frozen=True)
@@ -41,6 +54,7 @@ class Asset:
     sha256: str
     mime_type: str
     is_image: bool
+    backup_paths: tuple[tuple[str, str], ...] = ()
 
 
 def _uploads_root(upload_dir: str | Path | None = None) -> Path:
@@ -63,6 +77,11 @@ def _safe_ext(original_name: str) -> str:
     if not re.fullmatch(r"\.[a-z0-9]{1,8}", ext):
         return ".bin"
     return ext
+
+
+def _mime_for_name(original_name: str) -> str:
+    """Use the allowlisted extension as the safe response MIME type."""
+    return _MIME_BY_EXT.get(_safe_ext(original_name), "application/octet-stream")
 
 
 def _validate_category(category: str) -> str:
@@ -89,6 +108,31 @@ def _atomic_write(path: Path, data: bytes) -> None:
         except OSError:
             pass
         raise
+
+
+def _write_with_backup(
+    path: Path,
+    data: bytes,
+    backups: list[tuple[Path, Path]],
+    written: list[Path],
+) -> None:
+    """Atomically write a path while retaining an existing target for rollback."""
+    if path.exists():
+        backup = path.with_name(f".{path.name}.bak-{uuid.uuid4().hex}")
+        shutil.copy2(path, backup)
+        backups.append((path, backup))
+    _atomic_write(path, data)
+    written.append(path)
+
+
+def _restore_backups(backups: list[tuple[Path, Path]]) -> None:
+    for target, backup in reversed(backups):
+        try:
+            if backup.exists():
+                target.unlink(missing_ok=True)
+                os.replace(backup, target)
+        except OSError:
+            pass
 
 
 def _image_variants(data: bytes) -> tuple[bytes, bytes, int, int]:
@@ -140,7 +184,7 @@ def store_asset(
     """原子保存一個 asset 並在同一個 DB transaction 建立 metadata。
 
     `legacy_*_path` 僅供既有 URL/資料夾相容；新呼叫端不應依賴它。
-    呼叫端應在 commit 失敗時呼叫 :func:`cleanup_uncommitted_asset`。
+    呼叫端應在 commit 失敗時呼叫 :func:`cleanup_asset_paths`。
     """
     category = _validate_category(category)
     year_month = _validate_month(year_month or datetime.now().strftime("%Y-%m"))
@@ -149,11 +193,12 @@ def store_asset(
 
     asset_id = uuid.uuid4().hex
     ext = _safe_ext(original_name)
+    safe_mime = _mime_for_name(original_name)
     base = Path("assets") / category / year_month / asset_id
     original_rel = legacy_original_path or str(base / f"original{ext}").replace("\\", "/")
     preview_rel = legacy_preview_path
     thumbnail_rel = str(base / "thumbnail.jpg").replace("\\", "/")
-    is_image = (mime_type or "").lower().startswith("image/") and ext not in {".svg", ".svgz"}
+    is_image = ext in _IMAGE_EXTS
     preview_data: bytes | None = None
     thumbnail_data: bytes | None = None
     width = height = None
@@ -164,22 +209,20 @@ def store_asset(
         thumbnail_rel = None
 
     written: list[Path] = []
+    backups: list[tuple[Path, Path]] = []
     try:
         original_path = _safe_relative_path(original_rel, upload_dir)
-        _atomic_write(original_path, data)
-        written.append(original_path)
+        _write_with_backup(original_path, data, backups, written)
         preview_size = thumbnail_size = None
         if preview_data is not None and preview_rel is not None:
             preview_path = _safe_relative_path(preview_rel, upload_dir)
-            _atomic_write(preview_path, preview_data)
-            written.append(preview_path)
+            _write_with_backup(preview_path, preview_data, backups, written)
             preview_size = len(preview_data)
         else:
             preview_path = None
         if thumbnail_data is not None and thumbnail_rel is not None:
             thumbnail_path = _safe_relative_path(thumbnail_rel, upload_dir)
-            _atomic_write(thumbnail_path, thumbnail_data)
-            written.append(thumbnail_path)
+            _write_with_backup(thumbnail_path, thumbnail_data, backups, written)
             thumbnail_size = len(thumbnail_data)
         else:
             thumbnail_path = None
@@ -197,7 +240,7 @@ def store_asset(
                 owner_type,
                 str(owner_id),
                 original_name,
-                (mime_type or "")[:120],
+                safe_mime,
                 original_rel,
                 preview_rel,
                 thumbnail_rel,
@@ -217,8 +260,17 @@ def store_asset(
                 path.unlink(missing_ok=True)
             except OSError:
                 pass
+        _restore_backups(backups)
         raise
 
+    root = _uploads_root(upload_dir)
+    backup_paths = tuple(
+        (
+            str(target.relative_to(root)).replace("\\", "/"),
+            str(backup.relative_to(root)).replace("\\", "/"),
+        )
+        for target, backup in backups
+    )
     return Asset(
         asset_id=asset_id,
         original_path=original_rel,
@@ -228,18 +280,46 @@ def store_asset(
         preview_size=preview_size,
         thumbnail_size=thumbnail_size,
         sha256=hashlib.sha256(data).hexdigest(),
-        mime_type=(mime_type or "")[:120],
+        mime_type=safe_mime,
         is_image=is_image,
+        backup_paths=backup_paths,
     )
 
 
+def _restore_asset_backups(
+    backup_paths: tuple[tuple[str, str], ...], upload_dir: str | Path | None = None
+) -> None:
+    backups = []
+    for target_rel, backup_rel in backup_paths:
+        try:
+            backups.append(
+                (
+                    _safe_relative_path(target_rel, upload_dir),
+                    _safe_relative_path(backup_rel, upload_dir),
+                )
+            )
+        except ValueError:
+            continue
+    _restore_backups(backups)
+
+
 def cleanup_asset_paths(asset: Asset, upload_dir: str | Path | None = None) -> None:
-    """清理尚未 commit 的 asset 實體檔案。"""
+    """清理尚未 commit 的 asset，並復原被覆寫的既有檔案。"""
     for relative in (asset.original_path, asset.preview_path, asset.thumbnail_path):
         if not relative:
             continue
         try:
             _safe_relative_path(relative, upload_dir).unlink(missing_ok=True)
+        except (OSError, ValueError):
+            continue
+    _restore_asset_backups(asset.backup_paths, upload_dir)
+
+
+def finalize_asset_paths(asset: Asset, upload_dir: str | Path | None = None) -> None:
+    """DB commit 成功後刪除 rollback backup。"""
+    for _target_rel, backup_rel in asset.backup_paths:
+        try:
+            _safe_relative_path(backup_rel, upload_dir).unlink(missing_ok=True)
         except (OSError, ValueError):
             continue
 
@@ -250,7 +330,7 @@ def get_asset(conn: Any, asset_id: str):
 
 def get_owner_asset(conn: Any, category: str, owner_type: str, owner_id: str | int):
     return conn.execute(
-        "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? ORDER BY created_at DESC LIMIT 1",
+        "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? ORDER BY created_at DESC, asset_id DESC LIMIT 1",
         (category, owner_type, str(owner_id)),
     ).fetchone()
 
@@ -267,6 +347,14 @@ def asset_variant_path(row: Any, variant: str, upload_dir: str | Path | None = N
     if not relative:
         raise FileNotFoundError("媒體變體不存在")
     return _safe_relative_path(relative, upload_dir)
+
+
+def asset_media_type(row: Any, variant: str) -> str:
+    """Return a safe MIME based on stored variant semantics, never client input."""
+    if variant in ("preview", "thumbnail"):
+        return "image/jpeg"
+    original = Path(row["original_path"] or "")
+    return _MIME_BY_EXT.get(original.suffix.lower(), "application/octet-stream")
 
 
 def delete_asset_files(row: Any, exclude_paths: set[str] | None = None, upload_dir: str | Path | None = None) -> None:
@@ -288,16 +376,3 @@ def delete_asset_files(row: Any, exclude_paths: set[str] | None = None, upload_d
                 parent = parent.parent
         except (OSError, ValueError):
             continue
-
-
-def delete_owner_assets(conn: Any, category: str, owner_type: str, owner_id: str | int) -> None:
-    rows = conn.execute(
-        "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
-        (category, owner_type, str(owner_id)),
-    ).fetchall()
-    for row in rows:
-        delete_asset_files(row)
-    conn.execute(
-        "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
-        (category, owner_type, str(owner_id)),
-    )

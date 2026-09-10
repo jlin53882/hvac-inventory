@@ -30,7 +30,7 @@ from app.middleware import cache_control_middleware, csrf_origin_middleware, req
 from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
-from app.services.file_storage import asset_variant_path, get_asset
+from app.services.file_storage import asset_media_type, asset_variant_path, get_asset
 from app.services import sync_scheduler
 from app.services.app_log import get_logger, setup_logging
 
@@ -192,12 +192,16 @@ def read_media(asset_id: str, variant: str, user: dict = Depends(require_login))
             raise HTTPException(status_code=404, detail="媒體變體不存在")
         if not path.exists():
             raise HTTPException(status_code=404, detail="媒體檔案遺失")
-        media_type = "image/jpeg" if variant in ("preview", "thumbnail") else (row["mime_type"] or "application/octet-stream")
-        return FileResponse(
-            path,
-            media_type=media_type,
-            headers={"Cache-Control": "private, max-age=86400"},
-        )
+        response_kwargs = {
+            "media_type": asset_media_type(row, variant),
+            "headers": {"Cache-Control": "private, max-age=86400"},
+        }
+        if variant == "original":
+            response_kwargs.update(
+                filename=row["original_name"] or "download",
+                content_disposition_type="attachment",
+            )
+        return FileResponse(path, **response_kwargs)
     finally:
         conn.close()
 
