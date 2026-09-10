@@ -493,3 +493,49 @@ def test_replacing_item_photo_removes_old_asset_across_timestamp_boundary(media_
         conn.close()
     assert [row["asset_id"] for row in rows] == [second["asset_id"]]
     assert not old_original.exists()
+
+
+
+def test_paged_items_and_facets_exclude_kit_rows(media_env):
+    client, _static_dir, _upload_dir = media_env
+    kit = _new_photo_item(client, "PAGED-KIT")
+    conn = app_db.get_db()
+    try:
+        conn.execute("UPDATE items SET is_kit=1, category='整組' WHERE id=?", (kit["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    normal = _new_photo_item(client, "PAGED-NORMAL")
+
+    page = client.get("/api/items", params={"site": "office", "page": 1, "page_size": 50})
+    assert page.status_code == 200, page.text
+    body = page.json()
+    assert body["total"] == 1
+    assert [item["id"] for item in body["items"]] == [normal["id"]]
+
+    facets = client.get("/api/items/facets", params={"site": "office"})
+    assert facets.status_code == 200, facets.text
+    facet_body = facets.json()
+    assert "測試牌" in facet_body["brands"]
+    assert facet_body["categories"].get("整組") is None
+
+
+def test_stats_summary_exposes_alert_items_for_paged_notifications(media_env):
+    client, _static_dir, _upload_dir = media_env
+    zero = _new_photo_item(client, "ALERT-ZERO")
+    low = _new_photo_item(client, "ALERT-LOW")
+    conn = app_db.get_db()
+    try:
+        conn.execute("UPDATE items SET low_stock=0 WHERE id=?", (zero["id"],))
+        conn.execute("UPDATE item_stocks SET qty=0 WHERE item_id=?", (zero["id"],))
+        conn.execute("UPDATE items SET low_stock=5 WHERE id=?", (low["id"],))
+        conn.execute("UPDATE item_stocks SET qty=2 WHERE item_id=?", (low["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+
+    summary = client.get("/api/stats/summary")
+    assert summary.status_code == 200, summary.text
+    office = summary.json()["office"]
+    assert any(item["name"] == zero["name"] for item in office["zero_items"])
+    assert any(item["name"] == low["name"] for item in office["low_items"])

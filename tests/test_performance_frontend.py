@@ -57,3 +57,20 @@ def test_photo_lightbox_uses_preview_variant():
     assert "photoSrc(itemId, 'thumbnail')" in source
     assert "body.thumbnail_url" in source
     assert "body.preview_url" in source
+
+
+
+def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():
+    api = (ROOT / "static/js/api.js").read_text(encoding="utf-8")
+    app = (ROOT / "static/js/app.js").read_text(encoding="utf-8")
+    globals_source = (ROOT / "static/js/globals.js").read_text(encoding="utf-8")
+    inventory = (ROOT / "static/js/render/inventory.js").read_text(encoding="utf-8")
+    assert "AbortController" in api
+    assert "inventoryRequestSeq" in api
+    assert "dataRequestSeq" in api
+    assert "signal: controller.signal" in api
+    assert "requestId !== inventoryRequestSeq" in api
+    assert "ALERTS_BY_SITE" in globals_source
+    assert "zero_items" in app and "low_items" in app
+    assert "jsStr(loc)" in inventory
+    assert "onclick=\\'toggleLoc" not in inventory

@@ -33,6 +33,22 @@ def _stats_for_site(conn, site: Optional[str] = None) -> dict:
     low = conn.execute(f"SELECT COUNT(*) FROM items{low_where}", params).fetchone()[0]
     zero = conn.execute(f"SELECT COUNT(*) FROM items{zero_where}", params).fetchone()[0]
     brands = conn.execute(f"SELECT COUNT(DISTINCT brand) FROM items{where}", params).fetchone()[0]
+    alert_where = " WHERE i.is_deleted=0 AND i.is_kit=0"
+    alert_params = ()
+    if site and site != "all":
+        alert_where += " AND i.site=?"
+        alert_params = (site,)
+    alert_rows = conn.execute(
+        "SELECT i.id, i.name, i.unit, i.low_stock, "
+        "COALESCE(SUM(s.qty),0) AS qty "
+        "FROM items i LEFT JOIN item_stocks s ON s.item_id=i.id" + alert_where +
+        " GROUP BY i.id "
+        "HAVING qty <= 0 OR (i.low_stock > 0 AND qty <= i.low_stock) "
+        "ORDER BY i.name COLLATE NOCASE, i.id",
+        alert_params,
+    ).fetchall()
+    zero_items = [dict(row) for row in alert_rows if row["qty"] <= 0]
+    low_items = [dict(row) for row in alert_rows if row["qty"] > 0]
     return {
         "total_items": total,
         "total_qty": total_qty,
@@ -41,6 +57,8 @@ def _stats_for_site(conn, site: Optional[str] = None) -> dict:
         "brands": brands,
         "single_items": single_items,
         "kit_items": kit_items,
+        "zero_items": zero_items,
+        "low_items": low_items,
     }
 
 

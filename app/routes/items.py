@@ -83,6 +83,8 @@ def list_items(
         from_sql = " FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id"
         where = ["i.is_deleted = 0"]
         params = []
+        if page is not None:
+            where.append("i.is_kit = 0")
         if site and site != "all":
             where.append("i.site = ?")
             params.append(site)
@@ -175,7 +177,7 @@ def item_facets(site: Optional[str] = None):
     """回傳庫存篩選 facets，不需把完整品項清單送到瀏覽器。"""
     conn = get_db()
     try:
-        where = " WHERE i.is_deleted=0"
+        where = " WHERE i.is_deleted=0 AND i.is_kit=0"
         params = []
         if site and site != "all":
             where += " AND i.site=?"

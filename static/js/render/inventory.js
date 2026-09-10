@@ -107,11 +107,11 @@ function renderInventoryChips() {
   const cats = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
   let h = '<div class="chip-bar">';
   h += '<span class="chip' + (currentBrands.length === 0 ? ' on' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
-  brands.forEach(b => { h += '<span class="chip' + (currentBrands.includes(b) ? ' on' : '') + '" onclick="toggleInventoryBrand(\'' + b.replace(/'/g, "\\'") + '\')">' + esc(b) + '</span>'; });
+  brands.forEach(b => { h += '<span class="chip' + (currentBrands.includes(b) ? ' on' : '') + '" onclick="toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
   h += '</div>';
   h += '<div class="chip-bar">';
   h += '<span class="chip' + (currentCategories.length === 0 ? ' on' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
-  cats.forEach(c => { h += '<span class="chip' + (currentCategories.includes(c) ? ' on' : '') + '" onclick="toggleInventoryCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + esc(c) + '</span>'; });
+  cats.forEach(c => { h += '<span class="chip' + (currentCategories.includes(c) ? ' on' : '') + '" onclick="toggleInventoryCategory(\'' + esc(jsStr(c)) + '\')">' + esc(c) + '</span>'; });
   h += '</div>';
   return h;
 }
@@ -218,7 +218,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
   Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
     const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
-    h += '<div class="section-title' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="toggleLoc(this, \'' + esc(loc) + '\')">';
+    h += '<div class="section-title' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="toggleLoc(this, \'' + esc(jsStr(loc)) + '\')">';
     h += '<button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>';
     h += '<span class="loc">位置：' + esc(loc) + '</span><span>' + locItems.length + ' 項</span>';
     h += '</div>';

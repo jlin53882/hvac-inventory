@@ -11,6 +11,14 @@ function switchSite(site) {
   if (site === currentSite) return;
   if (hasPending() && !confirm('⚠️ 有未儲存的數量調整，切換分片將遺失。確定要切換嗎？')) return;
   currentSite = site;
+  inventoryLoadedSite = '';
+  fullItemsLoadedSite = '';
+  INVENTORY_META.page = 1;
+  INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
+  ALL_ITEMS = [];
+  INVENTORY_ITEMS = [];
+  ALERTS_BY_SITE = {};
+  updateNotifications();
   document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('on'); });
   var el = document.getElementById('site-' + site);
   if (el) el.classList.add('on');
@@ -75,13 +83,15 @@ function updateNotifCount() {
 // 動態生成通知（缺貨 / 低庫存 / 盤點提醒）
 function updateNotifications() {
   var html = '';
-  // 缺貨警示（qty <= 0，排除整組）
-  var zeroItems = ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
+  var siteAlerts = (typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE[currentSite]) || {};
+  // 分頁只保留當頁品項；通知優先使用 summary 的全站 alert 清單。
+  var zeroItems = Array.isArray(siteAlerts.zero_items) ? siteAlerts.zero_items :
+    ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
   zeroItems.forEach(function(i) {
     html += '<div class="ni" data-notif><span class="dot-r"></span>缺貨：' + esc(i.name) + '</div>';
   });
-  // 低庫存警示（low_stock > 0 且 0 < qty <= low_stock，排除整組與已缺貨）
-  var lowItems = ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
+  var lowItems = Array.isArray(siteAlerts.low_items) ? siteAlerts.low_items :
+    ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
   lowItems.forEach(function(i) {
     var qty = i.qty || 0;
     var unit = i.unit || '';
