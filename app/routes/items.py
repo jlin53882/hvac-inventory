@@ -164,12 +164,15 @@ def list_items(
                 stocks_map.setdefault(s["item_id"], []).append(s)
         photo_ids = list_photo_ids()
         photo_map = {}
-        if ids:
-            placeholders = ",".join("?" * len(ids))
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            if not chunk:
+                continue
+            placeholders = ",".join("?" * len(chunk))
             for photo in conn.execute(
                 "SELECT asset_id, owner_id, preview_path, thumbnail_path FROM file_assets "
                 "WHERE category='item_photo' AND owner_type='item' AND owner_id IN (" + placeholders + ")",
-                [str(item_id) for item_id in ids],
+                [str(item_id) for item_id in chunk],
             ):
                 photo_map[photo["owner_id"]] = photo
         result = [_item_full(conn, r, kit_map, stocks_map, photo_ids, photo_map) for r in rows]

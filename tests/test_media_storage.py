@@ -712,3 +712,28 @@ def test_items_rejects_page_number_that_would_overflow_sqlite_offset(media_env):
         params={"site": "office", "page": 10**12, "page_size": 100},
     )
     assert response.status_code == 400
+
+
+
+def test_unpaged_items_chunks_photo_metadata_ids(media_env, monkeypatch):
+    """Regression: unpaged compatibility reads must respect SQLite bind limits."""
+    _client, _static_dir, _upload_dir = media_env
+    conn = app_db.get_db()
+    conn.execute("DELETE FROM item_stocks")
+    conn.execute("DELETE FROM items")
+    conn.executemany(
+        "INSERT INTO items (brand, code, name, unit, low_stock, site, category) VALUES (?,?,?,?,?,?,?)",
+        [
+            ("Batch", f"BATCH-{index}", f"Batch item {index}", "個", 0, "office", "test")
+            for index in range(501)
+        ],
+    )
+    conn.commit()
+    conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 500)
+
+    import app.routes.items as item_routes
+
+    monkeypatch.setattr(item_routes, "get_db", lambda: conn)
+    monkeypatch.setattr(item_routes, "list_photo_ids", lambda: set())
+    result = item_routes.list_items(site="office")
+    assert len(result) == 501
