@@ -5,7 +5,6 @@
 
 // 品項資料與狀態
 var ALL_ITEMS = [];
-var INVENTORY_ITEMS = [];
 var INVENTORY_META = { page: 1, page_size: 50, total: 0 };
 var INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
 var inventoryRequestSeq = 0;
@@ -16,6 +15,7 @@ var statsRequestSeq = 0;
 var statsAbortController = null;
 var ALERTS_BY_SITE = {};
 var inventoryLoadedSite = '';
+var inventoryFacetsLoadedSite = '';
 var fullItemsLoadedSite = '';
 var preparedItems = [];  // 待領出清單（含非庫存品項；openPreparedSheet 資料源，2026-08-16 家豪）
 

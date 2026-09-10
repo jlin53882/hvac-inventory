@@ -22,11 +22,9 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.gzip import GZipMiddleware
-
 import app.config as app_config
 from app.config import STATIC_DIR
-from app.middleware import cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
+from app.middleware import BinarySafeGZipMiddleware, cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
 from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
@@ -57,7 +55,7 @@ async def lifespan(app: FastAPI):
 
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
 app = FastAPI(title="庫存管理系統", version="11.0.0", lifespan=lifespan)
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.add_middleware(BinarySafeGZipMiddleware, minimum_size=1024)
 
 # ---------- HTTP middleware（定義在 app/middleware.py；註冊順序 = cache→csrf→security） ----------
 app.middleware("http")(cache_control_middleware)
@@ -106,7 +104,7 @@ def _versioned_html(path: str) -> Response:
         url = m.group(1)                      # /static/js/app.js
         fp = os.path.join(STATIC_DIR, url[len("/static/"):])
         if os.path.exists(fp):
-            return f"{url}?v={int(os.path.getmtime(fp))}"
+            return f"{url}?v={os.stat(fp).st_mtime_ns}"
         return m.group(0)                     # 檔案不存在（不該發生）→ 原樣保留
 
     html = _STATIC_RE.sub(_swap, html)

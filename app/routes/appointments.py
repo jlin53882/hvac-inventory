@@ -61,6 +61,13 @@ def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
 
 
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
+_QUERY_CHUNK_SIZE = 500
+
+
+def _id_chunks(ids):
+    values = list(ids)
+    for start in range(0, len(values), _QUERY_CHUNK_SIZE):
+        yield values[start:start + _QUERY_CHUNK_SIZE]
 
 
 def _validate_time(start_time: str, end_time: str) -> None:
@@ -150,23 +157,27 @@ def _sync_status(conn, appt_id: int) -> str:
 
 def _sync_statuses(conn, appt_ids):
     """批次計算多筆行程的 Google sync status，避免每筆 2 次 SQL。"""
-    if not appt_ids:
+    ids = list(appt_ids)
+    if not ids:
         return {}
-    placeholders = ",".join("?" * len(appt_ids))
-    map_rows = conn.execute(
-        "SELECT appointment_id FROM appointment_gcal_map WHERE appointment_id IN (" + placeholders + ")",
-        appt_ids,
-    ).fetchall()
-    queue_rows = conn.execute(
-        "SELECT appointment_id, last_error FROM appointment_sync_queue WHERE appointment_id IN (" + placeholders + ")",
-        appt_ids,
-    ).fetchall()
+    map_rows = []
+    queue_rows = []
+    for chunk in _id_chunks(ids):
+        placeholders = ",".join("?" * len(chunk))
+        map_rows.extend(conn.execute(
+            "SELECT appointment_id FROM appointment_gcal_map WHERE appointment_id IN (" + placeholders + ")",
+            chunk,
+        ).fetchall())
+        queue_rows.extend(conn.execute(
+            "SELECT appointment_id, last_error FROM appointment_sync_queue WHERE appointment_id IN (" + placeholders + ")",
+            chunk,
+        ).fetchall())
     mapped = {row["appointment_id"] for row in map_rows}
     queue = {}
     for row in queue_rows:
         queue.setdefault(row["appointment_id"], []).append(row["last_error"])
     result = {}
-    for appt_id in appt_ids:
+    for appt_id in ids:
         errors = queue.get(appt_id, [])
         has_failed = any(errors)
         has_pending = bool(errors) and not has_failed
@@ -182,26 +193,29 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
     ids = list(appt_ids)
     if not ids:
         return []
-    placeholders = ",".join("?" * len(ids))
-    rows = conn.execute(
-        """SELECT a.*, s.name AS service_name,
-                  creator.display_name AS creator_display_name, creator.username AS creator_username,
-                  updater.display_name AS updater_display_name, updater.username AS updater_username
-           FROM appointments a
-           LEFT JOIN service_types s ON s.id = a.service_type_id
-           LEFT JOIN users creator ON creator.id = a.created_by
-           LEFT JOIN users updater ON updater.id = a.updated_by
-           WHERE a.id IN (""" + placeholders + ")",
-        ids,
-    ).fetchall()
+    rows = []
+    assignee_rows = []
+    for chunk in _id_chunks(ids):
+        placeholders = ",".join("?" * len(chunk))
+        rows.extend(conn.execute(
+            """SELECT a.*, s.name AS service_name,
+                      creator.display_name AS creator_display_name, creator.username AS creator_username,
+                      updater.display_name AS updater_display_name, updater.username AS updater_username
+               FROM appointments a
+               LEFT JOIN service_types s ON s.id = a.service_type_id
+               LEFT JOIN users creator ON creator.id = a.created_by
+               LEFT JOIN users updater ON updater.id = a.updated_by
+               WHERE a.id IN (""" + placeholders + ")",
+            chunk,
+        ).fetchall())
+        assignee_rows.extend(conn.execute(
+            "SELECT aa.appointment_id, aa.user_id, u.display_name, u.color "
+            "FROM appointment_assignees aa JOIN users u ON u.id = aa.user_id "
+            "WHERE aa.appointment_id IN (" + placeholders + ") ORDER BY aa.id",
+            chunk,
+        ).fetchall())
     if len(rows) != len(ids):
         raise HTTPException(404, "行程不存在")
-    assignee_rows = conn.execute(
-        "SELECT aa.appointment_id, aa.user_id, u.display_name, u.color "
-        "FROM appointment_assignees aa JOIN users u ON u.id = aa.user_id "
-        "WHERE aa.appointment_id IN (" + placeholders + ") ORDER BY aa.id",
-        ids,
-    ).fetchall()
     assignees = {}
     for row in assignee_rows:
         assignees.setdefault(row["appointment_id"], []).append(row)

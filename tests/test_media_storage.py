@@ -3,6 +3,7 @@
 import hashlib
 import io
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -24,7 +25,19 @@ def media_env(tmp_path, monkeypatch):
     static_dir = tmp_path / "static"
     upload_dir = static_dir / "uploads"
     upload_dir.mkdir(parents=True)
+    css_dir = static_dir / "css"
+    css_dir.mkdir()
+    (css_dir / "style.core.css").write_text(
+        "/* fixture-css-marker */\n" + "a" * 2048,
+        encoding="utf-8",
+    )
     monkeypatch.setattr(app_config, "STATIC_DIR", str(static_dir))
+    monkeypatch.setattr(app_main, "STATIC_DIR", str(static_dir))
+    static_mount = next(
+        route.app for route in app_main.app.routes if getattr(route, "path", "") == "/static"
+    )
+    monkeypatch.setattr(static_mount, "directory", str(static_dir))
+    monkeypatch.setattr(static_mount, "all_directories", [str(static_dir)])
     monkeypatch.setattr(app_config, "UPLOAD_DIR", str(upload_dir))
     monkeypatch.setattr(signed_reports, "STATIC_DIR", str(static_dir))
     monkeypatch.setattr(quotation_uploads, "STATIC_DIR", str(static_dir))
@@ -314,6 +327,7 @@ def test_static_assets_use_versioned_cache_and_gzip(media_env):
     assert response.status_code == 200
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert response.headers.get("content-encoding") == "gzip"
+    assert "fixture-css-marker" in response.text
     html = client.get("/")
     assert html.status_code == 200
     assert html.headers["cache-control"] == "no-cache, must-revalidate"
@@ -539,3 +553,100 @@ def test_stats_summary_exposes_alert_items_for_paged_notifications(media_env):
     office = summary.json()["office"]
     assert any(item["name"] == zero["name"] for item in office["zero_items"])
     assert any(item["name"] == low["name"] for item in office["low_items"])
+
+
+
+def test_binary_media_is_not_gzipped(media_env):
+    client, _static_dir, _upload_dir = media_env
+    item = _new_photo_item(client, "MEDIA-NO-GZIP")
+    uploaded = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("photo.png", _png(), "image/png")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    image_response = client.get(
+        f"/media/{uploaded.json()['asset_id']}/original",
+        headers={"Accept-Encoding": "gzip"},
+    )
+    assert image_response.status_code == 200
+    assert image_response.headers.get("content-encoding") is None
+
+    pdf = b"%PDF-1.7\n" + b"0" * 2048
+    report = client.post(
+        "/api/signed-reports",
+        data={"report_date": "2026-09-10", "uploader_name": "測試", "note": ""},
+        files={"file": ("report.pdf", pdf, "application/pdf")},
+    )
+    assert report.status_code == 200, report.text
+    download = client.get(
+        f"/api/signed-reports/{report.json()['id']}/download",
+        headers={"Accept-Encoding": "gzip"},
+    )
+    assert download.status_code == 200
+    assert download.headers.get("content-encoding") is None
+
+
+def test_document_routes_reject_stored_path_traversal(media_env):
+    client, static_dir, _upload_dir = media_env
+    outside = static_dir / "outside.pdf"
+    outside.write_bytes(b"%PDF-1.7\nnot-for-this-route")
+    conn = app_db.get_db()
+    try:
+        user_id = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+        records = []
+        for table, prefix in (
+            ("daily_signed_reports", "signed-reports"),
+            ("quotation_uploads", "quotation-uploads"),
+        ):
+            cursor = conn.execute(
+                f"INSERT INTO {table}(report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size, mime_type, note) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                ("2026-09-10", user_id, "測試", "outside.pdf", "../outside.pdf", 10, "application/pdf", ""),
+            )
+            records.append((prefix, cursor.lastrowid))
+        conn.commit()
+    finally:
+        conn.close()
+
+    for prefix, rid in records:
+        assert client.get(f"/api/{prefix}/{rid}/preview").status_code == 404
+        assert client.get(f"/api/{prefix}/{rid}/download").status_code == 404
+        assert client.delete(f"/api/{prefix}/{rid}").status_code == 200
+        assert outside.exists()
+
+
+def test_versioned_static_url_uses_subsecond_mtime(media_env):
+    _client, static_dir, _upload_dir = media_env
+    js = static_dir / "js" / "app.js"
+    js.parent.mkdir(parents=True)
+    js.write_text("console.log('fixture');", encoding="utf-8")
+    index = static_dir / "index.html"
+    index.write_text('<script src="/static/js/app.js"></script>', encoding="utf-8")
+    timestamp_ns = 1700000000123456789
+    os.utime(js, ns=(timestamp_ns, timestamp_ns))
+
+    response = app_main._versioned_html(str(index))
+    assert f"/static/js/app.js?v={js.stat().st_mtime_ns}" in response.body.decode("utf-8")
+
+
+def test_appointment_batch_formatter_chunks_large_id_lists(media_env):
+    _client, _static_dir, _upload_dir = media_env
+    conn = app_db.get_db()
+    try:
+        conn.executemany(
+            "INSERT INTO appointments(client_name, address, service_type_id, date, start_time, end_time, note) "
+            "VALUES(?,?,?,?,?,?,?)",
+            [
+                (f"批次-{index}", "", None, "2026-09-10", "", "", "")
+                for index in range(1001)
+            ],
+        )
+        conn.commit()
+        ids = [row["id"] for row in conn.execute("SELECT id FROM appointments ORDER BY id")]
+        conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 500)
+        from app.routes.appointments import _appt_rows
+
+        result = _appt_rows(conn, ids)
+    finally:
+        conn.close()
+    assert len(result) == 1001

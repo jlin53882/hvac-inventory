@@ -74,3 +74,18 @@ def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():
     assert "zero_items" in app and "low_items" in app
     assert "jsStr(loc)" in inventory
     assert "onclick=\\'toggleLoc" not in inventory
+
+
+
+def test_inventory_facets_are_cached_between_page_requests():
+    api = (ROOT / "static/js/api.js").read_text(encoding="utf-8")
+    globals_source = (ROOT / "static/js/globals.js").read_text(encoding="utf-8")
+    assert "inventoryFacetsLoadedSite" in api
+    assert "inventoryFacetsLoadedSite" in globals_source
+    assert "Promise.resolve(null)" in api
+
+
+def test_inventory_items_state_is_not_orphaned():
+    for relative in ("static/js/api.js", "static/js/app.js", "static/js/globals.js"):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert "INVENTORY_ITEMS" not in source, relative

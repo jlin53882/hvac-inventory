@@ -11,11 +11,47 @@ import time
 import uuid
 
 from fastapi.responses import Response
+from starlette.datastructures import Headers
+from starlette.middleware.gzip import GZipMiddleware, GZipResponder, IdentityResponder
 
 from app.services.app_log import reset_request_id, set_request_id
 
 _access_logger = logging.getLogger("hvac.access")
 _error_logger = logging.getLogger("hvac.error")
+_BINARY_MIME_PREFIXES = ("image/", "audio/", "video/")
+_BINARY_MIME_TYPES = {"application/pdf", "application/zip", "application/gzip", "application/octet-stream"}
+
+
+class _BinarySafeGZipResponder(GZipResponder):
+    """Do not gzip already-compressed or non-text response bodies."""
+
+    async def send_with_compression(self, message):
+        is_binary = False
+        if message["type"] == "http.response.start":
+            content_type = Headers(raw=message["headers"]).get("content-type", "")
+            content_type = content_type.split(";", 1)[0].strip().lower()
+            is_binary = content_type.startswith(_BINARY_MIME_PREFIXES) or content_type in _BINARY_MIME_TYPES
+        result = await super().send_with_compression(message)
+        if message["type"] == "http.response.start" and is_binary:
+            # The parent stores the start message and recalculates its own
+            # event-stream flag; set this after it returns so body events pass through.
+            self.content_type_is_excluded = True
+        return result
+
+
+class BinarySafeGZipMiddleware(GZipMiddleware):
+    """GZip text/JSON responses while leaving binary media untouched."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        if "gzip" in headers.get("Accept-Encoding", ""):
+            responder = _BinarySafeGZipResponder(self.app, self.minimum_size, compresslevel=self.compresslevel)
+        else:
+            responder = IdentityResponder(self.app, self.minimum_size)
+        await responder(scope, receive, send)
 
 
 async def request_logging_middleware(request, call_next):

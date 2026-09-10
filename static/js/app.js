@@ -15,8 +15,8 @@ function switchSite(site) {
   fullItemsLoadedSite = '';
   INVENTORY_META.page = 1;
   INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
+  inventoryFacetsLoadedSite = '';
   ALL_ITEMS = [];
-  INVENTORY_ITEMS = [];
   ALERTS_BY_SITE = {};
   updateNotifications();
   document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('on'); });

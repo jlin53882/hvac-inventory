@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 from app.config import STATIC_DIR
 from app.database import get_db
 from app.services.auth import get_user_permissions, require_login
-from app.services.file_storage import cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, store_asset
+from app.services.file_storage import asset_variant_path, cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, safe_upload_path, store_asset
 from app.models import SignedReportUpdate
 
 router = APIRouter()
@@ -282,11 +282,18 @@ def preview_signed_report(rid: int, user: dict = Depends(require_login)):
         ).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
-        path = Path(STATIC_DIR) / "uploads" / row["stored_path"]
-        mime = (row["mime_type"] or "").lower()
+        upload_dir = Path(STATIC_DIR) / "uploads"
         asset = get_owner_asset(conn, "signed_report", "signed_report", rid)
-        if asset and asset["preview_path"] and mime.startswith("image/"):
-            path = Path(STATIC_DIR) / "uploads" / asset["preview_path"]
+        mime = (asset["mime_type"] if asset else row["mime_type"] or "").lower()
+        use_preview = bool(asset and asset["preview_path"] and mime.startswith("image/"))
+        try:
+            path = (
+                asset_variant_path(asset, "preview", upload_dir=upload_dir)
+                if use_preview
+                else safe_upload_path(row["stored_path"], upload_dir=upload_dir)
+            )
+        except (FileNotFoundError, TypeError, ValueError):
+            raise HTTPException(404, "檔案不存在")
         if not path.exists():
             raise HTTPException(404, "檔案遺失")
         fname = (row["file_name"] or "").lower()
@@ -294,7 +301,16 @@ def preview_signed_report(rid: int, user: dict = Depends(require_login)):
         is_html = mime in ("text/html", "application/xhtml+xml") or fname.endswith((".html", ".htm"))
         safe_inline = (mime in ("application/pdf",) or mime.startswith("image/")) and not is_svg and not is_html
         disp = "inline" if safe_inline else "attachment"
-        return FileResponse(path, filename=row["file_name"], content_disposition_type=disp)
+        response_mime = "image/jpeg" if use_preview else (
+            mime if mime == "application/pdf" or (mime.startswith("image/") and not is_svg and not is_html)
+            else "application/octet-stream"
+        )
+        return FileResponse(
+            path,
+            media_type=response_mime,
+            filename=row["file_name"],
+            content_disposition_type=disp,
+        )
     finally:
         conn.close()
 
@@ -308,7 +324,12 @@ def download_signed_report(rid: int, user: dict = Depends(require_login)):
         row = conn.execute("SELECT stored_path, file_name FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
-        path = Path(STATIC_DIR) / "uploads" / row["stored_path"]
+        try:
+            path = safe_upload_path(
+                row["stored_path"], upload_dir=Path(STATIC_DIR) / "uploads"
+            )
+        except (FileNotFoundError, TypeError, ValueError):
+            raise HTTPException(404, "檔案不存在")
         if not path.exists():
             raise HTTPException(404, "檔案遺失")
         # FileResponse handles non-ASCII filenames with RFC 5987 encoding.
@@ -332,7 +353,14 @@ def delete_signed_report(rid: int, user: dict = Depends(require_login)):
         if not (can_all or row["uploader_user_id"] == user["id"]):
             raise HTTPException(403, "僅上傳者或具全域刪除權限者可刪除")
         asset = get_owner_asset(conn, "signed_report", "signed_report", rid)
-        fallback = Path(STATIC_DIR) / "uploads" / row["stored_path"] if row["stored_path"] else None
+        fallback = None
+        if row["stored_path"]:
+            try:
+                fallback = safe_upload_path(
+                    row["stored_path"], upload_dir=Path(STATIC_DIR) / "uploads"
+                )
+            except (FileNotFoundError, TypeError, ValueError):
+                fallback = None
         conn.execute("DELETE FROM daily_signed_reports WHERE id=?", (rid,))
         if asset:
             conn.execute("DELETE FROM file_assets WHERE asset_id=?", (asset["asset_id"],))

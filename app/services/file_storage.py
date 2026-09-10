@@ -349,6 +349,13 @@ def asset_variant_path(row: Any, variant: str, upload_dir: str | Path | None = N
     return _safe_relative_path(relative, upload_dir)
 
 
+def safe_upload_path(relative: str, upload_dir: str | Path | None = None) -> Path:
+    """Resolve a stored upload path without allowing traversal."""
+    if not isinstance(relative, str) or not relative:
+        raise ValueError("檔案路徑不存在")
+    return _safe_relative_path(relative, upload_dir)
+
+
 def asset_media_type(row: Any, variant: str) -> str:
     """Return a safe MIME based on stored variant semantics, never client input."""
     if variant in ("preview", "thumbnail"):

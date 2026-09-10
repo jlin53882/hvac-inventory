@@ -1991,7 +1991,7 @@ def test_index_html_auto_version_params(client):
     for rel, ver in vers:
         fp = os.path.join(STATIC_DIR, rel)
         assert os.path.exists(fp), f"資源不存在: {rel}"
-        assert ver == f"?v={int(os.path.getmtime(fp))}", f"{rel} 版本號不是 mtime: {ver}"
+        assert ver == f"?v={os.stat(fp).st_mtime_ns}", f"{rel} 版本號不是 mtime: {ver}"
 
 
 def test_login_html_auto_version_params(client):
@@ -2006,7 +2006,7 @@ def test_login_html_auto_version_params(client):
     for rel, ver in vers:
         fp = os.path.join(STATIC_DIR, rel)
         assert os.path.exists(fp), f"資源不存在: {rel}"
-        assert ver == f"?v={int(os.path.getmtime(fp))}", f"{rel} 版本號不是 mtime: {ver}"
+        assert ver == f"?v={os.stat(fp).st_mtime_ns}", f"{rel} 版本號不是 mtime: {ver}"
 
 
 def test_html_source_has_no_version_params():

@@ -67,22 +67,28 @@ async function loadInventoryPage(page) {
     if (search && search.value.trim()) params.set('search', search.value.trim());
     if (currentBrands.length) params.set('brands', currentBrands.join(','));
     if (currentCategories.length) params.set('categories', currentCategories.join(','));
+    const shouldLoadFacets = inventoryFacetsLoadedSite !== siteAtRequest;
+    const facetsRequest = shouldLoadFacets
+      ? fetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
+      : Promise.resolve(null);
     const [res, facetsRes] = await Promise.all([
       fetch(`/api/items?${params}`, { signal: controller.signal }),
-      fetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal }),
+      facetsRequest,
     ]);
     if (!res.ok) throw new Error('庫存列表 API 錯誤: ' + res.status);
     const body = await res.json();
-    const facets = facetsRes.ok ? await facetsRes.json() : null;
+    const facets = facetsRes && facetsRes.ok ? await facetsRes.json() : null;
     if (requestId !== inventoryRequestSeq || siteAtRequest !== currentSite) return;
     ALL_ITEMS = body.items || [];
-    INVENTORY_ITEMS = ALL_ITEMS;
     INVENTORY_META = {
       page: body.page || pageAtRequest,
       page_size: body.page_size || 50,
       total: body.total || 0,
     };
-    if (facets) INVENTORY_FACETS = facets;
+    if (facets) {
+      INVENTORY_FACETS = facets;
+      inventoryFacetsLoadedSite = siteAtRequest;
+    }
     inventoryLoadedSite = siteAtRequest;
     fullItemsLoadedSite = '';
     buildDatalists();
