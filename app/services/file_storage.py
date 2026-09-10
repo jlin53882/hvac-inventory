@@ -84,6 +84,12 @@ def _mime_for_name(original_name: str) -> str:
     return _MIME_BY_EXT.get(_safe_ext(original_name), "application/octet-stream")
 
 
+def _validate_file_signature(ext: str, data: bytes) -> None:
+    """Reject a non-PDF payload before it can be served as application/pdf."""
+    if ext == ".pdf" and not data.startswith(b"%PDF-"):
+        raise ValueError("無法解析 PDF")
+
+
 def _validate_category(category: str) -> str:
     if not _CATEGORY_RE.fullmatch(category or ""):
         raise ValueError("不合法的媒體類別")
@@ -194,6 +200,7 @@ def store_asset(
     asset_id = uuid.uuid4().hex
     ext = _safe_ext(original_name)
     safe_mime = _mime_for_name(original_name)
+    _validate_file_signature(ext, data)
     base = Path("assets") / category / year_month / asset_id
     original_rel = legacy_original_path or str(base / f"original{ext}").replace("\\", "/")
     preview_rel = legacy_preview_path

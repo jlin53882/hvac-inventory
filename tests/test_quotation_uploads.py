@@ -51,7 +51,7 @@ def signed_env(tmp_path, monkeypatch):
     yield make_client, tmp_path / "static"
 
 
-def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b"signed"):
+def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b"%PDF-signed"):
     return client.post(
         "/api/quotation-uploads",
         data={"report_date": report_date, "uploader_name": "王小明", "note": "已簽回"},

@@ -79,7 +79,12 @@ def upload_photo(item_id: int, file: UploadFile):
         if not data:
             raise HTTPException(400, "空檔案")
 
+        conn.execute("BEGIN IMMEDIATE")
         old = _photo_asset(conn, item_id)
+        if old:
+            # Partial unique index requires the old metadata row to leave the
+            # transaction before the replacement row is inserted.
+            conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old["asset_id"],))
         try:
             asset = store_asset(
                 conn,
@@ -94,8 +99,6 @@ def upload_photo(item_id: int, file: UploadFile):
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
-        if old and old["asset_id"] != asset.asset_id:
-            conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old["asset_id"],))
         conn.commit()
         finalize_asset_paths(asset, upload_dir=app_config.UPLOAD_DIR)
         if old and old["asset_id"] != asset.asset_id:

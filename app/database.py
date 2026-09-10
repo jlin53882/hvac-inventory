@@ -301,6 +301,7 @@ def _exec_init(conn):
         created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_file_assets_owner ON file_assets(category, owner_type, owner_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_file_assets_one_item_photo ON file_assets(category, owner_type, owner_id) WHERE category='item_photo' AND owner_type='item';
     CREATE INDEX IF NOT EXISTS idx_file_assets_sha256 ON file_assets(sha256);
     -- 報價單（2026-09-09 報價單模組）
     CREATE TABLE IF NOT EXISTS quotations (

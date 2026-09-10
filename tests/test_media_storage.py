@@ -1,6 +1,7 @@
 """統一媒體儲存與圖片預覽效能測試。"""
 
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 import io
 import os
 import sqlite3
@@ -650,3 +651,54 @@ def test_appointment_batch_formatter_chunks_large_id_lists(media_env):
     finally:
         conn.close()
     assert len(result) == 1001
+
+
+
+@pytest.mark.parametrize("endpoint", ["/api/signed-reports", "/api/quotation-uploads"])
+def test_pdf_upload_rejects_non_pdf_bytes(media_env, endpoint):
+    client, _static_dir, _upload_dir = media_env
+    response = client.post(
+        endpoint,
+        data={"report_date": "2026-09-10", "uploader_name": "測試", "note": ""},
+        files={"file": ("fake.pdf", b"<html>not a pdf</html>", "application/pdf")},
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_concurrent_item_photo_replacement_keeps_single_asset(media_env):
+    _client, _static_dir, _upload_dir = media_env
+    item = _new_photo_item(_client, "MEDIA-CONCURRENT")
+    from app.routes.photos import upload_photo
+
+    def upload(index):
+        class IncomingFile:
+            filename = f"concurrent-{index}.png"
+            content_type = "image/png"
+            file = io.BytesIO(_png(400 + index, 200))
+
+        return upload_photo(item["id"], IncomingFile())
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(upload, (1, 2)))
+    assert all(result["ok"] for result in results)
+
+    conn = app_db.get_db()
+    try:
+        rows = conn.execute(
+            "SELECT asset_id FROM file_assets WHERE category='item_photo' AND owner_type='item' AND owner_id=?",
+            (str(item["id"]),),
+        ).fetchall()
+    finally:
+        conn.close()
+    assert len(rows) == 1
+
+
+@pytest.mark.parametrize("filter_name", ["brands", "categories"])
+def test_items_rejects_excessive_csv_filter_values(media_env, filter_name):
+    client, _static_dir, _upload_dir = media_env
+    values = ",".join(f"filter-{index}" for index in range(401))
+    response = client.get(
+        "/api/items",
+        params={"site": "office", "page": 1, filter_name: values},
+    )
+    assert response.status_code == 400, response.text

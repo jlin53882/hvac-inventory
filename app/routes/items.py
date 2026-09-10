@@ -27,6 +27,7 @@ from app.services.file_storage import delete_asset_files
 
 # 品項 API 路由
 router = APIRouter()
+MAX_FILTER_VALUES = 400
 
 
 def _item_full(conn, row, kit_map: Optional[dict] = None,
@@ -89,6 +90,8 @@ def list_items(
             where.append("i.site = ?")
             params.append(site)
         selected_brands = [b.strip() for b in (brands or "").split(",") if b.strip()]
+        if len(selected_brands) > MAX_FILTER_VALUES:
+            raise HTTPException(400, f"brands 最多 {MAX_FILTER_VALUES} 個值")
         if selected_brands:
             brand_parts = []
             for selected in selected_brands:
@@ -102,6 +105,8 @@ def list_items(
             where.append("i.brand = ?")
             params.append(brand)
         selected_categories = [c.strip() for c in (categories or "").split(",") if c.strip()]
+        if len(selected_categories) > MAX_FILTER_VALUES:
+            raise HTTPException(400, f"categories 最多 {MAX_FILTER_VALUES} 個值")
         if selected_categories:
             placeholders = ",".join("?" * len(selected_categories))
             where.append("i.category IN (" + placeholders + ")")
