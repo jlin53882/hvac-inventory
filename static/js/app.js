@@ -83,20 +83,22 @@ function updateNotifCount() {
 // 動態生成通知（缺貨 / 低庫存 / 盤點提醒）
 function updateNotifications() {
   var html = '';
-  var siteAlerts = (typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE[currentSite]) || {};
-  // 分頁只保留當頁品項；通知優先使用 summary 的全站 alert 清單。
-  var zeroItems = Array.isArray(siteAlerts.zero_items) ? siteAlerts.zero_items :
-    ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
-  zeroItems.forEach(function(i) {
-    html += '<div class="ni" data-notif><span class="dot-r"></span>缺貨：' + esc(i.name) + '</div>';
-  });
-  var lowItems = Array.isArray(siteAlerts.low_items) ? siteAlerts.low_items :
-    ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
-  lowItems.forEach(function(i) {
-    var qty = i.qty || 0;
-    var unit = i.unit || '';
-    html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' 僅剩 ' + qty + ' ' + esc(unit) + '</div>';
-  });
+  // 缺貨／低庫存只限單一庫存與盤點頁；整組頁另處理 kit 缺料。
+  if (currentTab === 'inventory' || currentTab === 'stocktake') {
+    var siteAlerts = (typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE[currentSite]) || {};
+    var zeroItems = Array.isArray(siteAlerts.zero_items) ? siteAlerts.zero_items :
+      ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
+    zeroItems.forEach(function(i) {
+      html += '<div class="ni" data-notif><span class="dot-r"></span>缺貨：' + esc(i.name) + '</div>';
+    });
+    var lowItems = Array.isArray(siteAlerts.low_items) ? siteAlerts.low_items :
+      ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
+    lowItems.forEach(function(i) {
+      var qty = i.qty || 0;
+      var unit = i.unit || '';
+      html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' 僅剩 ' + qty + ' ' + esc(unit) + '</div>';
+    });
+  }
   // 盤點提醒（25號後 + 本月未盤點）
   var now = new Date();
   var day = now.getDate();

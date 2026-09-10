@@ -2201,6 +2201,18 @@ def test_update_notifications_function():
 
 
 
+def test_update_notifications_is_page_scoped_but_stocktake_reminder_is_global():
+    """缺貨／低庫存只限單一庫存頁；盤點提醒不受頁面限制。"""
+    js = read(APP_JS)
+    start = js.index("function updateNotifications")
+    end = js.index("setTimeout(function() { updateNotifications();", start)
+    block = js[start:end]
+    stock_alert_block = block[:block.index("// 盤點提醒")]
+    assert "if (currentTab === 'inventory') {" in stock_alert_block
+    assert "ALL_ITEMS.filter" in stock_alert_block
+    assert "if (day >= 25 && lastStocktakeMonth !== currentMonth)" in block
+
+
 # ========== Phase 2: Drawer 統一 ==========
 def test_drawer_html_structure():
     """Phase 2：Drawer HTML 結構存在"""
