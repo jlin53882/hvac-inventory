@@ -1,0 +1,38 @@
+/* 效能相關 UI：server-side 分頁與媒體載入狀態，避免污染既有頁面樣式。 */
+.inventory-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px 0 28px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.inventory-pagination button {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e3a5f;
+  cursor: pointer;
+  padding: 6px 12px;
+}
+
+.inventory-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.inventory-pagination button:not(:disabled):hover {
+  background: #eff6ff;
+}
+
+img[loading="lazy"] {
+  content-visibility: auto;
+}
+
+@media (max-width: 767px) {
+  .inventory-pagination {
+    margin-bottom: 20px;
+  }
+}

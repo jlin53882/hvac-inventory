@@ -238,10 +238,13 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_items_brand ON items(brand);
     CREATE INDEX IF NOT EXISTS idx_stocks_item ON item_stocks(item_id);
     CREATE INDEX IF NOT EXISTS idx_stocks_location ON item_stocks(location);
+    CREATE INDEX IF NOT EXISTS idx_stocks_item_location ON item_stocks(item_id, location);
     CREATE INDEX IF NOT EXISTS idx_movements_item ON movements(item_id);
     CREATE INDEX IF NOT EXISTS idx_appt_date ON appointments(date);
+    CREATE INDEX IF NOT EXISTS idx_appt_date_start ON appointments(date, start_time);
     CREATE INDEX IF NOT EXISTS idx_appt_svc ON appointments(service_type_id);
     CREATE INDEX IF NOT EXISTS idx_assignees_appt ON appointment_assignees(appointment_id);
+    CREATE INDEX IF NOT EXISTS idx_assignees_user_appt ON appointment_assignees(user_id, appointment_id);
     -- 每日簽名報表（2026-09-06 簽名報表模組）
     CREATE TABLE IF NOT EXISTS daily_signed_reports (
         id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -276,6 +279,29 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_qup_date ON quotation_uploads(report_date);
     CREATE INDEX IF NOT EXISTS idx_qup_upload_time ON quotation_uploads(upload_time);
     CREATE INDEX IF NOT EXISTS idx_qup_uploader ON quotation_uploads(uploader_user_id);
+    -- 統一檔案/圖片 metadata（original + preview + thumbnail）
+    CREATE TABLE IF NOT EXISTS file_assets (
+        asset_id             TEXT PRIMARY KEY,
+        category             TEXT NOT NULL,
+        owner_type           TEXT NOT NULL,
+        owner_id             TEXT NOT NULL,
+        original_name        TEXT NOT NULL DEFAULT '',
+        mime_type            TEXT NOT NULL DEFAULT '',
+        original_path        TEXT NOT NULL,
+        preview_path         TEXT,
+        thumbnail_path       TEXT,
+        original_size        INTEGER NOT NULL DEFAULT 0,
+        preview_size         INTEGER,
+        thumbnail_size       INTEGER,
+        width                INTEGER,
+        height               INTEGER,
+        compression_method   TEXT NOT NULL DEFAULT 'none',
+        compression_version  TEXT NOT NULL DEFAULT 'original-v1',
+        sha256               TEXT NOT NULL,
+        created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_file_assets_owner ON file_assets(category, owner_type, owner_id);
+    CREATE INDEX IF NOT EXISTS idx_file_assets_sha256 ON file_assets(sha256);
     -- 報價單（2026-09-09 報價單模組）
     CREATE TABLE IF NOT EXISTS quotations (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -306,6 +332,8 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_quotations_date ON quotations(quote_date);
     CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_name);
     CREATE INDEX IF NOT EXISTS idx_quotation_items_quote ON quotation_items(quotation_id);
+    CREATE INDEX IF NOT EXISTS idx_quotation_uploads_date_id ON quotation_uploads(report_date, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_signed_reports_date_id ON daily_signed_reports(report_date, id DESC);
     """);
 
     # 舊資料庫遷移（v10 前）：items 若有 qty/location/note 欄位 → 需跑 scripts/migrate_v10.py
@@ -367,6 +395,7 @@ def _exec_init(conn):
     if "updated_at" not in kit_cols:
         conn.execute("ALTER TABLE kits ADD COLUMN updated_at TIMESTAMP")
         logger.info("[migrate] kits.updated_at 欄位已新增（樂觀鎖）")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_items_site_active ON items(site, is_deleted, brand)")
     # M5：items 唯一約束（併發重複防線）——有重複資料則跳過建索引並警告（不自動刪資料）
     dup_row = conn.execute(
         "SELECT COUNT(*) AS c FROM (SELECT 1 FROM items GROUP BY brand, COALESCE(code,''), name, unit, site HAVING COUNT(*) > 1)"

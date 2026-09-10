@@ -49,19 +49,17 @@ function filterBySearch(items, matchFn) {
 // 從 ALL_ITEMS 建立廠牌與位置的 datalist 建議清單，並載入去向建議
 
 function buildDatalists() {
-
-  const brands = [...new Set(ALL_ITEMS.map(i => i.brand))].sort();
-
-  const locs = [...new Set(ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
-
+  const facetReady = inventoryLoadedSite === currentSite && INVENTORY_FACETS;
+  const brands = facetReady && Object.keys(INVENTORY_FACETS.brands || {}).length
+    ? Object.keys(INVENTORY_FACETS.brands).sort()
+    : [...new Set(ALL_ITEMS.map(i => i.brand))].sort();
+  const locs = facetReady && (INVENTORY_FACETS.locations || []).length
+    ? INVENTORY_FACETS.locations
+    : [...new Set(ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
   document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
-
   document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${esc(l)}">`).join('');
-
-  loadDestinations();
-
+  if (destinationsLoadedSite !== currentSite) loadDestinations();
 }
-
 
 
 // ========== 庫存頁渲染（Phase 5 重構版） ==========
@@ -87,6 +85,7 @@ function renderInventory() {
   } else {
     html += renderInventoryCard(list, isViewer, canStockout, isM);
   }
+  html += renderInventoryPagination();
   content.innerHTML = html;
   updateSaveBar();
 }
@@ -142,7 +141,7 @@ function renderInventoryToolbar(list, isViewer) {
   const isM = (typeof isMobileView === 'function') && isMobileView();
   let h = '<div class="loc-export-bar">';
   if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
-  h += '<span class="loc-export-count">共 ' + list.length + ' 項</span>';
+  h += '<span class="loc-export-count">共 ' + (INVENTORY_META.total || list.length) + ' 項</span>';
   h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'active' : '') + '">🃏 卡片</button></div>';
   if (!isViewer) h += '<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
   if (isM) {
@@ -178,7 +177,7 @@ function renderInventoryTable(list, isViewer, canStockout) {
       const statusHTML = isZero ? '<span class="status-danger">⛔ 缺貨</span>' : (isLow ? '<span class="status-warn">⚠ 低庫存</span>' : '<span class="status-ok">✓ 正常</span>');
       const stocks = i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}];
       const locStr = stocks.map(s => esc(s.location)).join(', ');
-      const photoHTML = i.has_photo ? '<span class="cphoto"><img src="/uploads/' + i.id + '.jpg" alt="" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
+      const photoHTML = i.has_photo ? '<span class="cphoto"><img src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
       h += '<tr class="' + rowClass + '">';
       if (batchMode && hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
       h += '<td class="photo-cell">' + photoHTML + '</td>';
@@ -240,7 +239,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           cardClass: isZero ? 'danger' : (isLow ? 'warn' : ''),
           moreBtnHTML: isViewer ? '' : '<button class="more-btn" onclick="openItemSheet(' + i.id + ')">⋯</button>',
           checkboxHTML: batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">' : '',
-          thumb: buildThumb(i.id, i.has_photo, i.name, '📦'),
+          thumb: buildThumb(i.id, i.has_photo, i.name, '📦', i.thumbnail_url),
           nameHTML: esc(i.name) + (i.site === 'warehouse' ? ' 🏭' : ''),
           subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + esc(i.brand) + (i.code ? ' · ' + esc(i.code) : ''),
           extraHTML: locStr,
@@ -252,7 +251,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         const locHtml = buildLocHTML(stocks);
         h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' style="padding-left:32px"' : '') + '>';
         if (batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">';
-        if (i.has_photo) h += '<img class="item-photo" src="/uploads/' + i.id + '.jpg" alt="' + esc(i.name) + '" loading="lazy" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
+        if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
         if (!isViewer) h += '<button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="編輯品項">編輯</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="刪除材料">刪除</button>';
         h += '<div class="item-info"' + (isViewer ? '' : ' onclick="openEditModal(' + i.id + ')"') + '>';
         h += '<div class="item-name">' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + '</div>';
@@ -274,6 +273,18 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
   });
   return h;
 }
+
+function renderInventoryPagination() {
+  const totalPages = Math.ceil((INVENTORY_META.total || 0) / (INVENTORY_META.page_size || 50));
+  if (totalPages <= 1) return '';
+  const current = INVENTORY_META.page || 1;
+  let h = '<div class="inventory-pagination">';
+  h += '<button type="button" onclick="changeInventoryPage(' + (current - 1) + ')"' + (current <= 1 ? ' disabled' : '') + '>上一頁</button>';
+  h += '<span>第 ' + current + ' / ' + totalPages + ' 頁</span>';
+  h += '<button type="button" onclick="changeInventoryPage(' + (current + 1) + ')"' + (current >= totalPages ? ' disabled' : '') + '>下一頁</button>';
+  return h + '</div>';
+}
+
 
 function setInventoryView(mode) {
   localStorage.setItem('inventoryViewMode', mode);
@@ -450,45 +461,34 @@ function toggleLoc(titleEl, loc) {
 var filterExpandedState = { brand: false, category: false };
 
 function buildFilterPanel() {
-
-  var brandCounts = {};
-
-  ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
-
-    var b = i.brand || '無廠牌';
-
-    brandCounts[b] = (brandCounts[b] || 0) + 1;
-
-  });
-
+  var brandCounts = INVENTORY_FACETS && INVENTORY_FACETS.brands && Object.keys(INVENTORY_FACETS.brands).length
+    ? INVENTORY_FACETS.brands
+    : {};
+  if (!Object.keys(brandCounts).length) {
+    ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+      var b = i.brand || '無廠牌';
+      brandCounts[b] = (brandCounts[b] || 0) + 1;
+    });
+  }
   var brands = Object.entries(brandCounts).sort(function(a, b) { return b[1] - a[1]; });
-
   document.getElementById('fp-brand-count').textContent = '(' + brands.length + ' 個品牌)';
-
   renderFilterChips('fp-brand-chips', brands, currentBrands, 'brand', 'fp-brand-toggle');
 
-  var catCounts = {};
-
-  ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
-
-    var c = i.category || '';
-
-    if (c) catCounts[c] = (catCounts[c] || 0) + 1;
-
-  });
-
+  var catCounts = INVENTORY_FACETS && INVENTORY_FACETS.categories && Object.keys(INVENTORY_FACETS.categories).length
+    ? INVENTORY_FACETS.categories
+    : {};
+  if (!Object.keys(catCounts).length) {
+    ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+      var c = i.category || '';
+      if (c) catCounts[c] = (catCounts[c] || 0) + 1;
+    });
+  }
   var cats = Object.entries(catCounts).sort(function(a, b) { return b[1] - a[1]; });
-
   document.getElementById('fp-cat-count').textContent = '(' + cats.length + ' 類)';
-
   renderFilterChips('fp-cat-chips', cats, currentCategories, 'category', 'fp-cat-toggle');
-
   var list = getFilteredItems();
-
-  document.getElementById('fp-summary').textContent = '共 ' + list.length + ' 項';
-
+  document.getElementById('fp-summary').textContent = '共 ' + (INVENTORY_META.total || list.length) + ' 項';
 }
-
 
 
 function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) {
@@ -504,7 +504,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
   allChip.textContent = '全部';
 
-  allChip.onclick = function() { selectedArr.length = 0; buildFilterPanel(); renderInventory(); };
+  allChip.onclick = function() { selectedArr.length = 0; loadInventoryPage(1); };
 
   el.appendChild(allChip);
 
@@ -528,9 +528,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
       else selectedArr.push(name);
 
-      buildFilterPanel();
-
-      renderInventory();
+      loadInventoryPage(1);
 
     };
 
@@ -605,19 +603,11 @@ function toggleFilterCollapse(containerId, toggleBtnId) {
 
 
 function clearFilterPanel() {
-
   currentBrands.length = 0;
-
   currentCategories.length = 0;
-
   document.getElementById('search-input').value = '';
-
-  buildFilterPanel();
-
-  renderInventory();
-
+  loadInventoryPage(1);
 }
-
 
 
 // ========== 批次改位置（2026-09-06 方案 A） ==========
@@ -757,7 +747,7 @@ function toggleInventoryBrand(brand) {
     var idx = currentBrands.indexOf(brand);
     if (idx >= 0) currentBrands.splice(idx, 1); else currentBrands.push(brand);
   }
-  renderInventory();
+  loadInventoryPage(1);
 }
 function toggleInventoryCategory(cat) {
   if (!cat) { currentCategories = []; }
@@ -765,7 +755,7 @@ function toggleInventoryCategory(cat) {
     var idx = currentCategories.indexOf(cat);
     if (idx >= 0) currentCategories.splice(idx, 1); else currentCategories.push(cat);
   }
-  renderInventory();
+  loadInventoryPage(1);
 }
 
 

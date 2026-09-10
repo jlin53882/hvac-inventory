@@ -13,7 +13,7 @@ function renderPhotoBox(itemId, hasPhoto) {
   const canPhoto = hasPerm('photo');
   if (hasPhoto) {
     box.innerHTML = `
-      <img src="/uploads/${itemId}.jpg" alt="品項照片" onclick="openPhotoLightbox(${itemId})"
+      <img src="${photoSrc(itemId, 'thumbnail')}" alt="品項照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${itemId})"
            style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
       ${canPhoto ? `<div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
         <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
@@ -66,11 +66,12 @@ async function uploadItemPhoto(itemId, input) {
       toast('⚠️ ' + msg, 'error');
       return;
     }
+    const body = await res.json().catch(() => ({}));
     toast('✅ 照片已更新', 'success');
     renderPhotoBox(itemId, true);
     // 同步列表卡片（若有照片縮圖）
     const item = ALL_ITEMS.find(i => i.id === itemId);
-    if (item) { item.has_photo = true; renderInventory(); }
+    if (item) { item.has_photo = true; item.photo_asset_id = body.asset_id || null; item.thumbnail_url = body.thumbnail_url || null; item.preview_url = body.preview_url || null; renderInventory(); }
   } catch { toast('上傳失敗', 'error'); }
   input.value = '';  // 允許重選同一檔案
 }
@@ -97,7 +98,7 @@ function openPhotoLightbox(itemId) {
   overlay.id = 'photo-lightbox';
   overlay.innerHTML = `
     <div class="lightbox-content">
-      <img src="/uploads/${itemId}.jpg" alt="品項照片大圖" onclick="event.stopPropagation()">
+      <img src="${photoSrc(itemId, 'preview')}" alt="品項照片大圖" decoding="async" onclick="event.stopPropagation()">
       <div class="lightbox-close" onclick="closePhotoLightbox()">✕</div>
     </div>`;
   overlay.onclick = closePhotoLightbox;

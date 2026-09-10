@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse
 from app.config import STATIC_DIR
 from app.database import get_db
 from app.services.auth import get_user_permissions, require_login
+from app.services.file_storage import cleanup_asset_paths, delete_asset_files, get_owner_asset, store_asset
 from app.models import SignedReportUpdate
 
 router = APIRouter()
@@ -95,7 +96,7 @@ def upload_quotation_upload(
     mime = (file.content_type or "").strip()[:120]
 
     conn = get_db()
-    written_path = None
+    asset = None
     try:
         cur = conn.execute(
             "INSERT INTO quotation_uploads(report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size, mime_type, note) VALUES(?,?,?,?,?,?,?,?)",
@@ -104,23 +105,32 @@ def upload_quotation_upload(
         rid = cur.lastrowid
         ym = report_date[:7]
         stored = f"quotation_uploads/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
-        full = Path(STATIC_DIR) / "uploads" / stored
-        full.parent.mkdir(parents=True, exist_ok=True)
-        full.write_bytes(data)
-        written_path = full  # 記錄已寫入的檔案路徑，供回滾清理
-        conn.execute("UPDATE quotation_uploads SET stored_path=? WHERE id=?", (stored, rid))
+        asset = store_asset(
+            conn,
+            category="quotation_upload",
+            owner_type="quotation_upload",
+            owner_id=rid,
+            data=data,
+            original_name=safe,
+            mime_type=mime,
+            year_month=ym,
+            legacy_original_path=stored,
+            upload_dir=Path(STATIC_DIR) / "uploads",
+        )
+        conn.execute("UPDATE quotation_uploads SET stored_path=? WHERE id=?", (asset.original_path, rid))
         conn.commit()
         row = conn.execute("SELECT * FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
         can_del = _can_delete_all(conn, user) or (row["uploader_user_id"] == user["id"])
         return _row_to_out(row, can_del)
+    except HTTPException:
+        conn.rollback()
+        if asset:
+            cleanup_asset_paths(asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        raise
     except Exception:
         conn.rollback()
-        # 回滾時清理已寫入的實體檔案，避免孤兒檔
-        if written_path and written_path.exists():
-            try:
-                written_path.unlink()
-            except OSError:
-                pass
+        if asset:
+            cleanup_asset_paths(asset, upload_dir=Path(STATIC_DIR) / "uploads")
         raise
     finally:
         conn.close()
@@ -253,19 +263,23 @@ def update_quotation_upload(
 
 @router.get("/api/quotation-uploads/{rid}/preview")
 def preview_quotation_upload(rid: int, user: dict = Depends(require_login)):
-    """線上預覽簽名報表（PDF/圖片 inline，其餘 attachment 防 XSS）。"""
+    """線上預覽：圖片走壓縮 preview，PDF 保持原始檔。"""
     if user is None:
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
-        row = conn.execute("SELECT stored_path, file_name, mime_type FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
+        row = conn.execute(
+            "SELECT id, stored_path, file_name, mime_type FROM quotation_uploads WHERE id=?", (rid,)
+        ).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
         path = Path(STATIC_DIR) / "uploads" / row["stored_path"]
+        mime = (row["mime_type"] or "").lower()
+        asset = get_owner_asset(conn, "quotation_upload", "quotation_upload", rid)
+        if asset and asset["preview_path"] and mime.startswith("image/"):
+            path = Path(STATIC_DIR) / "uploads" / asset["preview_path"]
         if not path.exists():
             raise HTTPException(404, "檔案遺失")
-        # inline 預覽：僅圖片/PDF 可 inline，SVG/HTML 強制 attachment 防 XSS
-        mime = (row["mime_type"] or "").lower()
         fname = (row["file_name"] or "").lower()
         is_svg = mime == "image/svg+xml" or fname.endswith(".svg")
         is_html = mime in ("text/html", "application/xhtml+xml") or fname.endswith((".html", ".htm"))
@@ -295,30 +309,31 @@ def download_quotation_upload(rid: int, user: dict = Depends(require_login)):
 
 @router.delete("/api/quotation-uploads/{rid}")
 def delete_quotation_upload(rid: int, user: dict = Depends(require_login)):
-    """刪除簽名報表（上傳者可刪自己的，管理員可刪全部，實體檔同步清除）。"""
+    """刪除資料列、original 與所有媒體變體。"""
     if user is None:
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
-        row = conn.execute("SELECT uploader_user_id, stored_path FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
+        row = conn.execute(
+            "SELECT uploader_user_id, stored_path FROM quotation_uploads WHERE id=?", (rid,)
+        ).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
         can_all = _can_delete_all(conn, user)
         if not (can_all or row["uploader_user_id"] == user["id"]):
             raise HTTPException(403, "僅上傳者或具全域刪除權限者可刪除")
-        path = Path(STATIC_DIR) / "uploads" / row["stored_path"] if row["stored_path"] else None
+        asset = get_owner_asset(conn, "quotation_upload", "quotation_upload", rid)
+        fallback = Path(STATIC_DIR) / "uploads" / row["stored_path"] if row["stored_path"] else None
         conn.execute("DELETE FROM quotation_uploads WHERE id=?", (rid,))
+        if asset:
+            conn.execute("DELETE FROM file_assets WHERE asset_id=?", (asset["asset_id"],))
         conn.commit()
-        if path:
+        if asset:
+            delete_asset_files(asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        elif fallback:
             try:
-                path.unlink(missing_ok=True)
-                # 清空空的年月目錄（不影響其他檔）
-                try:
-                    if path.parent.exists() and not any(path.parent.iterdir()):
-                        path.parent.rmdir()
-                except Exception:
-                    pass
-            except Exception:
+                fallback.unlink(missing_ok=True)
+            except OSError:
                 pass
         return {"ok": True}
     finally:

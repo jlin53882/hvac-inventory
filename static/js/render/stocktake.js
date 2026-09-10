@@ -143,7 +143,7 @@ function stkGroupByLoc(rows) {
               const mSysQty = mStock ? absNum(mStock.qty) : absNum(c.stock);
               return `
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;font-size:11.5px;color:#555">
-              <span class="cphoto" style="width:26px;height:26px">${c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>
+              <span class="cphoto" style="width:26px;height:26px">${c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" loading="lazy" decoding="async" width="26" height="26" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>
               <span>${esc(c.brand)} ${esc(c.name)}${c.code ? `<small style="color:#1890FF;font-weight:600"> 型號 ${esc(c.code)}</small>` : ''}</span>
               <span style="margin-left:auto;white-space:nowrap;color:#64748b">需 <b>${c.need_qty}</b> ・ 系統 <b>${mSysQty}</b> ${esc(c.unit || '')}</span>
               <input type="number" step="any" min="0" value="${mVal}" placeholder="實際"
@@ -154,7 +154,7 @@ function stkGroupByLoc(rows) {
             </div>`;}).join('')}
           </div>` : '';
       html += `<tr>
-        <td><span class="cphoto">${i.has_photo ? `<img src="/uploads/${i.id}.jpg" alt="" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>${esc(i.brand)} ${esc(i.name)}${kitCompsHTML}<br><small style="color:#999">${displayLoc || '未標示'}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></td>
+        <td><span class="cphoto">${i.has_photo ? `<img src="${photoSrc(i.id, 'thumbnail')}" loading="lazy" decoding="async" width="52" height="52" alt="" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>${esc(i.brand)} ${esc(i.name)}${kitCompsHTML}<br><small style="color:#999">${displayLoc || '未標示'}${s.note ? ' · 📝 ' + esc(s.note) : ''}</small></td>
         <td style="text-align:center;font-weight:700">${absNum(s.qty)} ${esc(i.unit)}</td>
         <td><div class="count-row">
           <input type="number" step="any" min="0" value="${val}"

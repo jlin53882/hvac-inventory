@@ -3,10 +3,21 @@
 // 改手機卡片長相：改本檔即可，三頁自動同步（不再各寫一份模板）。
 // 整組(kits)卡片結構特殊（kit-head/kit-comps，無照片/數量列），不套本外框。
 
-// 縮圖：有照片 → img（點擊放大）；無 → placeholder emoji
-function buildThumb(id, hasPhoto, name, placeholder) {
+// 圖片 URL：列表優先 thumbnail，lightbox 優先 preview；舊資料 fallback 到 legacy URL。
+function photoSrc(id, variant) {
+  const items = typeof ALL_ITEMS !== 'undefined' ? ALL_ITEMS : [];
+  const item = items.find(i => i.id === id);
+  if (item) {
+    if (variant === 'thumbnail' && item.thumbnail_url) return item.thumbnail_url;
+    if (variant === 'preview' && item.preview_url) return item.preview_url;
+  }
+  return `/uploads/${id}.jpg`;
+}
+
+// 縮圖：有照片 → thumbnail（點擊後由 lightbox 取 preview）
+function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
   return hasPhoto
-    ? `<img src="/uploads/${id}.jpg" alt="${esc(name || '')}" onclick="openPhotoLightbox(${id})" title="點擊看大圖">`
+    ? `<img src="${thumbnailUrl || photoSrc(id, 'thumbnail')}" alt="${esc(name || '')}" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(${id})" title="點擊看大圖">`
     : (placeholder || '📦');
 }
 

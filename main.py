@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 import app.config as app_config
 from app.config import STATIC_DIR
@@ -29,6 +30,7 @@ from app.middleware import cache_control_middleware, csrf_origin_middleware, req
 from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
+from app.services.file_storage import asset_variant_path, get_asset
 from app.services import sync_scheduler
 from app.services.app_log import get_logger, setup_logging
 
@@ -55,6 +57,7 @@ async def lifespan(app: FastAPI):
 
 # FastAPI 主應用實例（掛載全部路由 + 統一登入保護）
 app = FastAPI(title="庫存管理系統", version="11.0.0", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # ---------- HTTP middleware（定義在 app/middleware.py；註冊順序 = cache→csrf→security） ----------
 app.middleware("http")(cache_control_middleware)
@@ -172,6 +175,31 @@ def read_photo(filename: str, user: dict = Depends(require_login)):
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="找不到照片")
     return FileResponse(path, media_type="image/jpeg")
+
+@app.get("/media/{asset_id}/{variant}")
+def read_media(asset_id: str, variant: str, user: dict = Depends(require_login)):
+    """回傳登入者可讀的 original/preview/thumbnail 媒體變體。"""
+    if not re.fullmatch(r"[0-9a-f]{32}", asset_id) or variant not in ("original", "preview", "thumbnail"):
+        raise HTTPException(status_code=404, detail="找不到媒體")
+    conn = get_db()
+    try:
+        row = get_asset(conn, asset_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="找不到媒體")
+        try:
+            path = asset_variant_path(row, variant)
+        except (ValueError, FileNotFoundError):
+            raise HTTPException(status_code=404, detail="媒體變體不存在")
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="媒體檔案遺失")
+        media_type = "image/jpeg" if variant in ("preview", "thumbnail") else (row["mime_type"] or "application/octet-stream")
+        return FileResponse(
+            path,
+            media_type=media_type,
+            headers={"Cache-Control": "private, max-age=86400"},
+        )
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     import uvicorn

@@ -185,6 +185,10 @@ REVIEWED_SAFE_BODIES = {
     "p.checkboxHTML || ''",
     "_allSelected() ? '☐ 取消全選' : '☑ 全選'",
     "batchMode ? 'style=\"padding-left:32px\"' : ''",
+    # media URL helper：id 來自 DB 數字主鍵，variant/thumbnailUrl 僅為內部固定變體。
+    "photoSrc(itemId, 'thumbnail')", "photoSrc(itemId, 'preview')",
+    "photoSrc(c.item_id, 'thumbnail')", "photoSrc(i.id, 'thumbnail')",
+    "photoSrc(o.item_id, 'thumbnail')", "thumbnailUrl || photoSrc(id, 'thumbnail')",
 }
 
 

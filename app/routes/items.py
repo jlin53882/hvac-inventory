@@ -23,6 +23,7 @@ from app.database import get_db
 from app.models import AdjustRequest, BatchLocationRequest, ItemCreate, ItemUpdate, StockUpdate
 from app.routes.photos import has_photo, list_photo_ids
 from app.services.auth import require_perm
+from app.services.file_storage import delete_asset_files
 
 # 品項 API 路由
 router = APIRouter()
@@ -30,16 +31,9 @@ router = APIRouter()
 
 def _item_full(conn, row, kit_map: Optional[dict] = None,
                stocks_map: Optional[dict] = None,
-               photo_ids: Optional[set] = None) -> dict:
-    """主檔 + 位置庫存 + 總量 組合成前端完整物件
-
-    kit_map：{item_id: [整組名稱]} 預先查好的對應（list_items 一次查全部避免 N+1）；
-    為 None 時單筆查詢（create/update 單筆呼叫用）。
-    stocks_map：{item_id: [位置庫存 rows]} 預先查好的對應（list_items 批量查避免 N+1）；
-    為 None 時單筆查詢（create/update 單筆呼叫用）。
-    photo_ids：有照片的 item_id 集合（list_items 一次 listdir 快取，避免每筆 os.path.exists）；
-    為 None 時逐筆 has_photo()（create/update 單筆呼叫用）。
-    """
+               photo_ids: Optional[set] = None,
+               photo_map: Optional[dict] = None) -> dict:
+    """主檔 + 位置庫存 + 總量組合成前端物件；列表查詢使用批次 map 避免 N+1。"""
     d = dict(row)
     if stocks_map is not None:
         stocks = stocks_map.get(d["id"], [])
@@ -47,13 +41,16 @@ def _item_full(conn, row, kit_map: Optional[dict] = None,
         stocks = conn.execute(
             "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (d["id"],)).fetchall()
     d["stocks"] = [dict(s) for s in stocks]
-    # 舊欄位相容（前端/匯出仍可用）
     d["qty"] = sum(s["qty"] for s in d["stocks"])
     d["total_qty"] = d["qty"]
     d["location"] = d["stocks"][0]["location"] if d["stocks"] else ""
     d["note"] = d["stocks"][0]["note"] if d["stocks"] else ""
     d["has_photo"] = d["id"] in photo_ids if photo_ids is not None else has_photo(d["id"])
-    # 該品項屬於哪些整組（缺貨/低庫存清單標註用，2026-08-13 Sarah 需求）
+    if photo_map is not None:
+        photo = photo_map.get(str(d["id"]))
+        d["photo_asset_id"] = photo["asset_id"] if photo else None
+        d["thumbnail_url"] = f"/media/{photo['asset_id']}/thumbnail" if photo and photo["thumbnail_path"] else None
+        d["preview_url"] = f"/media/{photo['asset_id']}/preview" if photo and photo["preview_path"] else None
     if kit_map is not None:
         d["in_kits"] = kit_map.get(d["id"], [])
     else:
@@ -70,63 +67,141 @@ def list_items(
     location: Optional[str] = None,
     sort: str = "brand",
     site: Optional[str] = None,
+    category: Optional[str] = None,
+    categories: Optional[str] = None,
+    brands: Optional[str] = None,
+    page: Optional[int] = None,
+    page_size: int = 50,
 ):
-    """查詢品項清單（支援 brand/search/location/sort/site 篩選），回傳完整品項物件列表"""
+    """查詢品項；帶 page 時使用 server-side 分頁，未帶時維持舊 list shape。"""
+    if page is not None and page < 1:
+        raise HTTPException(400, "page 必須大於 0")
+    if page_size < 1 or page_size > 100:
+        raise HTTPException(400, "page_size 必須在 1-100")
     conn = get_db()
-    sql = """SELECT i.*, COALESCE(SUM(s.qty),0) AS total_qty,
-                    COUNT(s.id) AS stock_count
-             FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id
-             WHERE 1=1 AND i.is_deleted = 0"""
-    params = []
-    if site and site != "all":
-        sql += " AND i.site = ?"
-        params.append(site)
-    if brand and brand != "全部":
-        sql += " AND i.brand = ?"
-        params.append(brand)
-    if location:
-        sql += " AND EXISTS (SELECT 1 FROM item_stocks s2 WHERE s2.item_id=i.id AND s2.location = ?)"
-        params.append(location)
-    if search:
-        like = f"%{search}%"
-        sql += """ AND (i.name LIKE ? OR i.code LIKE ? OR i.brand LIKE ?
-                       OR EXISTS (SELECT 1 FROM item_stocks s3 WHERE s3.item_id=i.id
-                                  AND (s3.location LIKE ? OR s3.note LIKE ?)))"""
-        params += [like, like, like, like, like]
-    sql += " GROUP BY i.id"
-    sort_map = {
-        "brand": "i.brand COLLATE NOCASE, i.name",
-        "location": "location, i.name",
-        "qty": "total_qty DESC",
-        "created": "i.id DESC",
-    }
-    sql += f" ORDER BY {sort_map.get(sort, 'i.brand COLLATE NOCASE, i.name')}"
-    rows = conn.execute(sql, params).fetchall()
-    # 一次查全部「品項 → 所屬整組名稱」對應（in_kits 欄位用，避免每筆 N+1）
-    kit_map: dict = {}
-    for r in conn.execute(
-        "SELECT ki.item_id, k.name FROM kit_items ki JOIN kits k ON k.id = ki.kit_id "
-        "JOIN items i ON i.id = k.item_id AND i.is_deleted = 0 ORDER BY k.name"
-    ):
-        kit_map.setdefault(r["item_id"], []).append(r["name"])
-    # 2026-08-15 B1：一次查全部位置庫存 + 一次 listdir 照片，消除 per-item N+1/stat
-    stocks_map: dict = {}
-    if rows:
+    try:
+        from_sql = " FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id"
+        where = ["i.is_deleted = 0"]
+        params = []
+        if site and site != "all":
+            where.append("i.site = ?")
+            params.append(site)
+        selected_brands = [b.strip() for b in (brands or "").split(",") if b.strip()]
+        if selected_brands:
+            brand_parts = []
+            for selected in selected_brands:
+                if selected == "無廠牌":
+                    brand_parts.append("(i.brand IS NULL OR i.brand = '')")
+                else:
+                    brand_parts.append("i.brand = ?")
+                    params.append(selected)
+            where.append("(" + " OR ".join(brand_parts) + ")")
+        elif brand and brand != "全部":
+            where.append("i.brand = ?")
+            params.append(brand)
+        selected_categories = [c.strip() for c in (categories or "").split(",") if c.strip()]
+        if selected_categories:
+            placeholders = ",".join("?" * len(selected_categories))
+            where.append("i.category IN (" + placeholders + ")")
+            params.extend(selected_categories)
+        elif category:
+            where.append("i.category = ?")
+            params.append(category)
+        if location:
+            where.append("EXISTS (SELECT 1 FROM item_stocks s2 WHERE s2.item_id=i.id AND s2.location = ?)")
+            params.append(location)
+        if search:
+            like = f"%{search}%"
+            where.append("""(i.name LIKE ? OR i.code LIKE ? OR i.brand LIKE ?
+                           OR EXISTS (SELECT 1 FROM item_stocks s3 WHERE s3.item_id=i.id
+                                      AND (s3.location LIKE ? OR s3.note LIKE ?)))""")
+            params += [like, like, like, like, like]
+        where_sql = " WHERE " + " AND ".join(where)
+        sort_map = {
+            "brand": "i.brand COLLATE NOCASE, i.name",
+            "location": "MIN(s.location), i.name",
+            "qty": "total_qty DESC",
+            "created": "i.id DESC",
+        }
+        order_sql = sort_map.get(sort, sort_map["brand"])
+        count_sql = "SELECT COUNT(DISTINCT i.id)" + from_sql + where_sql
+        total = conn.execute(count_sql, params).fetchone()[0]
+        sql = "SELECT i.*, COALESCE(SUM(s.qty),0) AS total_qty, COUNT(s.id) AS stock_count" + from_sql + where_sql
+        sql += " GROUP BY i.id ORDER BY " + order_sql
+        query_params = list(params)
+        if page is not None:
+            sql += " LIMIT ? OFFSET ?"
+            query_params.extend([page_size, (page - 1) * page_size])
+        rows = conn.execute(sql, query_params).fetchall()
+
+        kit_map: dict = {}
+        for r in conn.execute(
+            "SELECT ki.item_id, k.name FROM kit_items ki JOIN kits k ON k.id = ki.kit_id "
+            "JOIN items i ON i.id = k.item_id AND i.is_deleted = 0 ORDER BY k.name"
+        ):
+            kit_map.setdefault(r["item_id"], []).append(r["name"])
+        stocks_map: dict = {}
         ids = [r["id"] for r in rows]
-        # v4 pro 審查 B2：SQLITE_MAX_VARIABLE_NUMBER 自 3.32 起為 32766（非 999），
-        # 分批 500/組防「too many SQL variables」（item 數超過上限時 500）
-        CHUNK = 500
-        for i in range(0, len(ids), CHUNK):
-            chunk = ids[i:i + CHUNK]
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            if not chunk:
+                continue
             placeholders = ",".join("?" * len(chunk))
             for s in conn.execute(
                 f"SELECT * FROM item_stocks WHERE item_id IN ({placeholders}) ORDER BY item_id, id",
-                chunk):
+                chunk,
+            ):
                 stocks_map.setdefault(s["item_id"], []).append(s)
-    photo_ids = list_photo_ids()  # 一次 listdir（OSError → 空集合，與 has_photo=False 語意一致）
-    result = [_item_full(conn, r, kit_map, stocks_map, photo_ids) for r in rows]
-    conn.close()
-    return result
+        photo_ids = list_photo_ids()
+        photo_map = {}
+        if ids:
+            placeholders = ",".join("?" * len(ids))
+            for photo in conn.execute(
+                "SELECT asset_id, owner_id, preview_path, thumbnail_path FROM file_assets "
+                "WHERE category='item_photo' AND owner_type='item' AND owner_id IN (" + placeholders + ")",
+                [str(item_id) for item_id in ids],
+            ):
+                photo_map[photo["owner_id"]] = photo
+        result = [_item_full(conn, r, kit_map, stocks_map, photo_ids, photo_map) for r in rows]
+        if page is not None:
+            return {"items": result, "total": total, "page": page, "page_size": page_size}
+        return result
+    finally:
+        conn.close()
+
+
+@router.get("/api/items/facets")
+def item_facets(site: Optional[str] = None):
+    """回傳庫存篩選 facets，不需把完整品項清單送到瀏覽器。"""
+    conn = get_db()
+    try:
+        where = " WHERE i.is_deleted=0"
+        params = []
+        if site and site != "all":
+            where += " AND i.site=?"
+            params.append(site)
+        brands = conn.execute(
+            "SELECT COALESCE(NULLIF(i.brand,''),'無廠牌') AS name, COUNT(*) AS count "
+            "FROM items i" + where + " GROUP BY COALESCE(NULLIF(i.brand,''),'無廠牌') ORDER BY name",
+            params,
+        ).fetchall()
+        categories = conn.execute(
+            "SELECT i.category AS name, COUNT(*) AS count FROM items i" + where +
+            " AND COALESCE(i.category,'')<>'' GROUP BY i.category ORDER BY name",
+            params,
+        ).fetchall()
+        locations = conn.execute(
+            "SELECT DISTINCT s.location FROM item_stocks s JOIN items i ON i.id=s.item_id" +
+            where.replace("i.is_deleted", "i.is_deleted") + " AND COALESCE(s.location,'')<>'' ORDER BY s.location",
+            params,
+        ).fetchall()
+        return {
+            "brands": {r["name"]: r["count"] for r in brands},
+            "categories": {r["name"]: r["count"] for r in categories},
+            "locations": [r["location"] for r in locations],
+        }
+    finally:
+        conn.close()
 
 
 @router.post("/api/items", status_code=201, dependencies=[Depends(require_perm("item-mgmt"))])
@@ -237,6 +312,7 @@ def update_item(item_id: int, upd: ItemUpdate):
 def delete_item(item_id: int):
     """刪除品項（M6 soft-delete：保留 movements/stocktakes 稽核軌跡與 kit 引用，只標 is_deleted=1）"""
     conn = get_db()
+    photo_assets = []
     try:
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row:
@@ -257,13 +333,24 @@ def delete_item(item_id: int):
                     (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or ""))
         conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
                      (datetime.datetime.now().isoformat(), item_id))
+        photo_assets = conn.execute(
+            "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            ("item_photo", "item", str(item_id)),
+        ).fetchall()
+        conn.execute(
+            "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            ("item_photo", "item", str(item_id)),
+        )
         conn.commit()
     except Exception:
         conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
         raise
     finally:
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
-    # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
+    # commit 成功後再刪除 original/preview/thumbnail，避免 rollback 留下 metadata 與檔案不一致。
+    for asset in photo_assets:
+        delete_asset_files(asset)
+    # 舊版本沒有 metadata，仍清理 legacy preview。
     from app.routes.photos import _photo_path
     try:
         p = _photo_path(item_id)

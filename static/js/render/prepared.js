@@ -109,7 +109,7 @@ async function renderPrepared() {
 
       const pPhoto = i.has_photo
 
-        ? `<img class="so-photo" src="/uploads/${i.id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
+        ? `<img class="so-photo" src="${photoSrc(i.id, 'thumbnail')}" alt="" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
 
         : `<div class="so-photo so-photo-empty">📷</div>`;
 

@@ -5,6 +5,11 @@
 
 // 品項資料與狀態
 var ALL_ITEMS = [];
+var INVENTORY_ITEMS = [];
+var INVENTORY_META = { page: 1, page_size: 50, total: 0 };
+var INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
+var inventoryLoadedSite = '';
+var fullItemsLoadedSite = '';
 var preparedItems = [];  // 待領出清單（含非庫存品項；openPreparedSheet 資料源，2026-08-16 家豪）
 
 var currentBrands = [];   // 多選品牌篩選（空=全部）
@@ -22,6 +27,7 @@ var stocktakeValues = {};  // itemId -> actual_qty
 var stocktakeKits = [];    // 盤點頁整組 tab 的組成材料清單（render/stocktake.js fetch /api/kits 填入）
 // 去向下拉建議清單（loadDestinations 填入）
 var DESTINATIONS = [];
+var destinationsLoadedSite = '';
 
 // 兩階段出庫
 var prepareItemId = null;

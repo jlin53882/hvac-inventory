@@ -73,7 +73,7 @@ async function renderStockOuts() {
         const isReturn = o.reason === '退回已領出';
         const needsRepair = isReturn && (!o.source_movement_id || !o.return_stock_id);
         const soPhoto = o.has_photo
-          ? `<img class="so-photo" src="/uploads/${o.item_id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">`
+          ? `<img class="so-photo" src="${photoSrc(o.item_id, 'thumbnail')}" alt="" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">`
           : `<div class="so-photo so-photo-empty">📷</div>`;
         html += `<tr${reverted ? ' style="opacity:0.55"' : ''}${isReturn ? ' style="background:#f6ffed"' : ''}>
           <td class="photo-cell">${soPhoto}</td>

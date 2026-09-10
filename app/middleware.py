@@ -62,8 +62,14 @@ async def cache_control_middleware(request, call_next):
         # HTML：每次都要重新驗證，確保拿到最新 ?v=N 引用
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     elif path.startswith("/static/"):
-        # JS/CSS：快取 1 小時；內容更新靠版本參數（?v=12）換 URL
-        response.headers["Cache-Control"] = "public, max-age=3600"
+        # 版本化 URL（由 main._versioned_html 注入 ?v=mtime）可長效快取。
+        if "v" in request.query_params:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=3600"
+    elif path.startswith("/media/") or path.startswith("/uploads/"):
+        # 媒體路徑含 asset id 或 legacy item id；內容替換時由新 asset/path 失效。
+        response.headers["Cache-Control"] = "private, max-age=86400"
     return response
 
 

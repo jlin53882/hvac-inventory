@@ -204,8 +204,16 @@ function switchTab(tab) {
     var sub = document.getElementById('batch-sub');
     if (sub) sub.value = '';
   }
-  if (tab === 'inventory') renderInventory();
-  else if (tab === 'prepared') renderPrepared();
+  if (tab === 'inventory') {
+    if (inventoryLoadedSite !== currentSite) {
+      loadInventoryPage(1);
+      return;
+    }
+    renderInventory();
+  } else if (['prepared', 'stockout', 'stocktake', 'kit'].indexOf(tab) >= 0 && fullItemsLoadedSite !== currentSite) {
+    loadData({ full: true });
+    return;
+  } else if (tab === 'prepared') renderPrepared();
   else if (tab === 'stockout') renderStockOuts();
   else if (tab === 'stocktake') renderStocktake();
   else if (tab === 'kit') renderKits();
@@ -234,7 +242,7 @@ var _searchTimer;
 document.getElementById('search-input').addEventListener('input', function() {
   clearTimeout(_searchTimer);
   _searchTimer = setTimeout(function() {
-    if (currentTab === 'inventory') renderInventory();
+    if (currentTab === 'inventory') loadInventoryPage(1);
     else if (currentTab === 'prepared') renderPrepared();
     else if (currentTab === 'stockout') renderStockOuts();
     else if (currentTab === 'stocktake') renderStocktake();

@@ -1,21 +1,83 @@
 // 庫存管理系統 - API 呼叫層（v8 拆分）
 // loadData / updateSubInfo / loadDestinations / saveAll / exportExcel
-async function loadData() {
+async function loadData(options) {
+  const full = Boolean(options && options.full);
   try {
+    if (!full && currentTab === 'inventory') {
+      await loadInventoryPage(INVENTORY_META.page || 1);
+      return;
+    }
+    const skipItems = !full && ['calendar', 'signed-reports', 'quotation'].indexOf(currentTab) >= 0;
+    if (skipItems) {
+      ALL_ITEMS = [];
+      fullItemsLoadedSite = '';
+      updateNotifications();
+      updateSubInfo();
+      if (currentTab !== 'signed-reports' && currentTab !== 'quotation') switchTab(currentTab);
+      loadPreparedBadge();
+      return;
+    }
     const res = await fetch(`/api/items?site=${currentSite}`);
     if (!res.ok) throw new Error('API 錯誤: ' + res.status);
     ALL_ITEMS = await res.json();
+    fullItemsLoadedSite = currentSite;
+    inventoryLoadedSite = '';
     buildDatalists();
     if (typeof buildFilterPanel === 'function') buildFilterPanel();
     checkReminder();
     updateNotifications();
     updateSubInfo();
-    if (currentTab !== 'signed-reports' && currentTab !== 'quotation') switchTab(currentTab);  // DSR/報價單頁由各自 render function 處理
-    loadPreparedBadge();  // 剛進網頁就要顯示待領出數量小標
+    switchTab(currentTab);
+    loadPreparedBadge();
   } catch (e) {
     document.getElementById('content').innerHTML =
       `<div class="empty">⚠️ 無法連線伺服器<br><small>${e.message}</small></div>`;
   }
+}
+
+// 庫存頁只取當前頁資料，篩選與 facets 在伺服器端完成。
+async function loadInventoryPage(page) {
+  try {
+    const params = new URLSearchParams({
+      site: currentSite,
+      page: String(Math.max(1, page || 1)),
+      page_size: String(INVENTORY_META.page_size || 50),
+      sort: 'brand',
+    });
+    const search = document.getElementById('search-input');
+    if (search && search.value.trim()) params.set('search', search.value.trim());
+    if (currentBrands.length) params.set('brands', currentBrands.join(','));
+    if (currentCategories.length) params.set('categories', currentCategories.join(','));
+    const [res, facetsRes] = await Promise.all([
+      fetch(`/api/items?${params}`),
+      fetch(`/api/items/facets?site=${encodeURIComponent(currentSite)}`),
+    ]);
+    if (!res.ok) throw new Error('庫存列表 API 錯誤: ' + res.status);
+    const body = await res.json();
+    ALL_ITEMS = body.items || [];
+    INVENTORY_ITEMS = ALL_ITEMS;
+    INVENTORY_META = {
+      page: body.page || 1,
+      page_size: body.page_size || 50,
+      total: body.total || 0,
+    };
+    if (facetsRes.ok) INVENTORY_FACETS = await facetsRes.json();
+    inventoryLoadedSite = currentSite;
+    fullItemsLoadedSite = '';
+    buildDatalists();
+    buildFilterPanel();
+    checkReminder();
+    updateSubInfo();
+    renderInventory();
+  } catch (e) {
+    document.getElementById('content').innerHTML =
+      `<div class="empty">⚠️ 無法載入庫存<br><small>${e.message}</small></div>`;
+  }
+}
+
+function changeInventoryPage(page) {
+  if (page < 1 || page > Math.ceil(INVENTORY_META.total / INVENTORY_META.page_size)) return;
+  loadInventoryPage(page);
 }
 
 // 抓待領出數量 → 更新底部「📤 待領出」小標（網頁剛進就要顯示）
@@ -31,26 +93,18 @@ async function loadPreparedBadge() {
 // 更新頂部統計資訊（單一材料/整組/廠牌/缺貨數 + 分片按鈕數字）
 async function updateSubInfo() {
   try {
-    const res = await fetch(`/api/stats?site=${currentSite}`);
-    if (!res.ok) { console.error('[updateSubInfo] /api/stats 失敗', res.status); return; }
-    const s = await res.json();
-    // 統計單一材料與整組分開算
-    const singleCount = ALL_ITEMS.filter(i => !i.is_kit).length;
-    const kitCount = ALL_ITEMS.filter(i => i.is_kit).length;
+    const res = await fetch('/api/stats/summary');
+    if (!res.ok) { console.error('[updateSubInfo] /api/stats/summary 失敗', res.status); return; }
+    const summary = await res.json();
+    const current = summary[currentSite] || summary.all;
     document.getElementById('sub-info').textContent =
-      `單一材料 ${singleCount} 項 · 整組 ${kitCount} 組 · ${s.brands} 種廠牌 · 缺貨 ${s.zero_stock} 項`;
-
-    // 更新頂部分片按鈕的數字（辦公室 / 倉庫）
-    try {
-      const [officeStats, warehouseStats] = await Promise.all([
-        fetch('/api/stats?site=office').then(r => r.ok ? r.json() : Promise.reject(new Error('stats office ' + r.status))),
-        fetch('/api/stats?site=warehouse').then(r => r.ok ? r.json() : Promise.reject(new Error('stats warehouse ' + r.status))),
-      ]);
-      document.getElementById('site-office-sub').textContent =
-        `${officeStats.total_items} 項 · ${officeStats.total_qty}`;
-      document.getElementById('site-warehouse-sub').textContent =
-        `${warehouseStats.total_items} 項 · ${warehouseStats.total_qty}`;
-    } catch (e) { console.error('[updateSubInfo] 分片統計失敗', e); }
+      `單一材料 ${current.single_items} 項 · 整組 ${current.kit_items} 組 · ${current.brands} 種廠牌 · 缺貨 ${current.zero_stock} 項`;
+    const officeStats = summary.office;
+    const warehouseStats = summary.warehouse;
+    document.getElementById('site-office-sub').textContent =
+      `${officeStats.total_items} 項 · ${officeStats.total_qty}`;
+    document.getElementById('site-warehouse-sub').textContent =
+      `${warehouseStats.total_items} 項 · ${warehouseStats.total_qty}`;
   } catch (e) { console.error('[updateSubInfo] 統計失敗', e); }
 }
 
@@ -61,6 +115,7 @@ async function loadDestinations() {
     if (!res.ok) { console.error('[loadDestinations] /api/stockouts 失敗', res.status); return; }
     const outs = await res.json();
     DESTINATIONS = [...new Set(outs.map(o => o.destination).filter(Boolean))];
+    destinationsLoadedSite = currentSite;
     document.getElementById('dest-list').innerHTML =
       DESTINATIONS.map(d => `<option value="${esc(d)}">`).join('');
   } catch (e) { console.error('[loadDestinations] 網路錯誤', e); }

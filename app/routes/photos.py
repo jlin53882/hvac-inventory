@@ -1,122 +1,135 @@
 # -*- coding: utf-8 -*-
 """
-品項照片路由（Todo 5 / v10.1）
-================================
-- POST   /api/items/{item_id}/photo   上傳/覆蓋品項照片（自動壓縮到 800px 寬）
+品項照片路由
+============
+- POST   /api/items/{item_id}/photo   上傳/覆蓋品項照片
 - DELETE /api/items/{item_id}/photo   刪除品項照片
-- GET    /uploads/<item_id>.jpg        靜態讀取（由 main.py 掛載 StaticFiles）
+- GET    /uploads/<item_id>.jpg        舊 URL 相容，回傳 preview
 
-儲存設計：static/uploads/<item_id>.jpg（檔名 = 品項 id）
-  → DB schema 零變更、遷移零成本；搬主機時複製 uploads/ 目錄即可。
-  → 壓縮在「上傳當下」做一次（800px 寬 JPEG q=80），前端讀取永遠是輕檔案。
-
-效能（家豪要求避免圖片過多卡頓）：
-  - 上傳時壓縮（Pillow）→ 檔案小，靜態讀取快
-  - 前端用 IntersectionObserver 懶加載 + 瀏覽器快取（static 不變名，304 快取）
-  - 並發：FastAPI sync endpoint 跑在執行緒池，多圖片上傳不會互相阻塞
+新照片由 file_storage 統一保存：原始檔保留在 asset 目錄，legacy URL
+仍指向 800px JPEG preview，並另外建立 320px thumbnail 供列表使用。
 """
-import io
 import os
 import re
-import uuid
 
 from fastapi import Depends, APIRouter, HTTPException, UploadFile
-from PIL import Image
 
-import app.config as app_config  # 動態取值：測試可 monkeypatch
+import app.config as app_config
 from app.database import get_db
 from app.services.auth import require_perm
+from app.services.file_storage import (
+    delete_asset_files,
+    delete_owner_assets,
+    get_owner_asset,
+    store_asset,
+)
 
-# 照片 API 路由
 router = APIRouter()
 
-# 允許的圖片副檔名
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 原始檔上限 10MB（壓縮後約 30-80KB）
-MAX_PIXELS = 40_000_000  # M19：像素上限 40MP（超大圖解碼吃記憶體）
-THUMB_WIDTH = 800  # 壓縮寬度 px（卡片顯示 52px 縮圖，點開 lightbox 看 800px 大圖）
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def _photo_path(item_id: int) -> str:
-    """產生照片檔路徑：uploads/<item_id>.jpg（一律 jpg 統一格式）"""
+    """舊相容 URL 對應的 preview 路徑。"""
     return os.path.join(app_config.UPLOAD_DIR, f"{item_id}.jpg")
 
 
+def _photo_asset(conn, item_id: int):
+    return get_owner_asset(conn, "item_photo", "item", item_id)
+
+
 def has_photo(item_id: int) -> bool:
-    """檢查品項是否有照片（供 _item_full 補 has_photo 欄位）"""
+    """檢查品項是否有照片；保留舊檔案相容性。"""
     return os.path.exists(_photo_path(item_id))
 
 
 def list_photo_ids() -> set:
-    """一次 listdir 回傳有照片的 item_id 集合（list_items 批量用，避免每筆 os.path.exists）
-
-    2026-08-15 B1：has_photo 逐筆 stat → list_items 一次快取。
-    OSError（uploads 不存在）回傳空集合，與 has_photo=False 語意一致。
-    檔名解析用 re.fullmatch(r"[0-9]+\.jpg")（v4 pro 審查 A2/B1）：
-    - isdigit() 會放行 Unicode 數字（²/①/١٢٣）但 int() 崩潰 → 改 ASCII-only [0-9]
-    - 大小寫 .JPG 與多點 12.34.jpg 不誤判（與 has_photo/_photo_path 語意一致）
-    """
+    """一次掃描 legacy preview，避免 list_items 對每筆品項 stat。"""
     try:
-        return {int(f.split(".")[0]) for f in os.listdir(app_config.UPLOAD_DIR)
-                if re.fullmatch(r"[0-9]+\.jpg", f)}
+        return {
+            int(f.split(".")[0])
+            for f in os.listdir(app_config.UPLOAD_DIR)
+            if re.fullmatch(r"[0-9]+\.jpg", f)
+        }
     except OSError:
         return set()
 
 
-def _compress_and_save(img: Image.Image, dest: str) -> None:
-    """壓縮圖片（800px 寬、JPEG q=80）並存檔；EXIF 翻正後儲存"""
-    img = img.convert("RGB")
-    w, h = img.size
-    if w > THUMB_WIDTH:
-        img = img.resize((THUMB_WIDTH, int(h * THUMB_WIDTH / w)), Image.LANCZOS)
-    img.save(dest, "JPEG", quality=80, optimize=True)
-
-
 @router.post("/api/items/{item_id}/photo", status_code=200, dependencies=[Depends(require_perm("photo"))])
 def upload_photo(item_id: int, file: UploadFile):
-    """上傳/覆蓋品項照片。壓縮後存 uploads/<item_id>.jpg（無庫存也能建照片？不——物品須存在）"""
+    """上傳/覆蓋品項照片；原始檔、preview、thumbnail 一起建立。"""
     conn = get_db()
-    row = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(404, "品項不存在")
-
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext and ext not in ALLOWED_EXT:
-        raise HTTPException(400, f"不支援的圖片格式：{ext}（限 jpg/png/webp）")
-
-    data = file.file.read(MAX_UPLOAD_BYTES + 1)  # 多讀 1 byte 偵測超限
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(400, "圖片超過 10MB 上限")
-    if not data:
-        raise HTTPException(400, "空檔案")
-
     try:
-        img = Image.open(io.BytesIO(data))
-        if img.width * img.height > MAX_PIXELS:  # M19：load 前檢查尺寸（不解碼就拒絕超大圖）
-            raise HTTPException(400, f"圖片解析度過高（{img.width}×{img.height}），上限 40 百萬像素")
-        img.load()  # 觸發解碼，壞檔會在這裡炸
+        row = conn.execute(
+            "SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "品項不存在")
+
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext and ext not in ALLOWED_EXT:
+            raise HTTPException(400, f"不支援的圖片格式：{ext}（限 jpg/png/webp）")
+        data = file.file.read(MAX_UPLOAD_BYTES + 1)
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(400, "圖片超過 10MB 上限")
+        if not data:
+            raise HTTPException(400, "空檔案")
+
+        try:
+            asset = store_asset(
+                conn,
+                category="item_photo",
+                owner_type="item",
+                owner_id=item_id,
+                data=data,
+                original_name=file.filename or "photo.jpg",
+                mime_type=file.content_type or "image/jpeg",
+                legacy_preview_path=f"{item_id}.jpg",
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+        old = _photo_asset(conn, item_id)
+        if old and old["asset_id"] != asset.asset_id:
+            delete_asset_files(old, exclude_paths={asset.preview_path} if asset.preview_path else set())
+            conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old["asset_id"],))
+        conn.commit()
+        return {
+            "ok": True,
+            "item_id": item_id,
+            "asset_id": asset.asset_id,
+            "photo": f"/uploads/{item_id}.jpg",
+            "preview_url": f"/media/{asset.asset_id}/preview",
+            "thumbnail_url": f"/media/{asset.asset_id}/thumbnail",
+        }
     except HTTPException:
+        conn.rollback()
         raise
-    except Exception:
-        raise HTTPException(400, "無法解析圖片（可能是損毀或非圖片檔）")
-
-    dest = _photo_path(item_id)
-    tmp = dest + f".tmp-{uuid.uuid4().hex[:6]}"
-    try:
-        _compress_and_save(img, tmp)
-        os.replace(tmp, dest)  # 原子覆蓋：即使並發上傳也只會有一份
-    except Exception:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise HTTPException(500, "圖片儲存失敗")
-    return {"ok": True, "item_id": item_id, "photo": f"/uploads/{item_id}.jpg"}
+    except Exception as exc:
+        conn.rollback()
+        raise HTTPException(500, "圖片儲存失敗") from exc
+    finally:
+        conn.close()
 
 
 @router.delete("/api/items/{item_id}/photo", dependencies=[Depends(require_perm("photo"))])
 def delete_photo(item_id: int):
-    """刪除品項照片（檔案不存在也算成功——冪等）"""
-    dest = _photo_path(item_id)
-    if os.path.exists(dest):
-        os.remove(dest)
+    """刪除照片與所有變體（冪等）。"""
+    conn = get_db()
+    try:
+        delete_owner_assets(conn, "item_photo", "item", item_id)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    # 舊版本沒有 metadata，仍清理 legacy preview。
+    try:
+        os.remove(_photo_path(item_id))
+    except FileNotFoundError:
+        pass
+    except OSError:
+        raise HTTPException(500, "圖片刪除失敗")
     return {"ok": True, "deleted": item_id}

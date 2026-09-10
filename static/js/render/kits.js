@@ -36,7 +36,7 @@ async function renderKits() {
           k.components.forEach(c => {
             const enough = c.stock >= c.need_qty;
             html += `<div class="kit-comp">
-              <span class="cphoto">${c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>
+              <span class="cphoto">${c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" loading="lazy" decoding="async" width="52" height="52" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span>
               <span class="cname">${esc(c.brand)} ${esc(c.name)}${c.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(c.code) + '</small>' : ''}</span>
               <span class="cneed">需 <b class="${enough ? 'ok' : 'low'}">${c.need_qty}</b> / 有 ${c.stock}</span>
             </div>`;
@@ -84,7 +84,7 @@ async function renderKits() {
         k.components.forEach(c => {
           const enough = c.stock >= c.need_qty;
           html += `<tr>
-            <td><span class="cphoto">${c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span> ${esc(c.brand)} ${esc(c.name)}${c.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(c.code) + '</small>' : ''}</td>
+            <td><span class="cphoto">${c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" loading="lazy" decoding="async" width="52" height="52" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>'}</span> ${esc(c.brand)} ${esc(c.name)}${c.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(c.code) + '</small>' : ''}</td>
             <td style="text-align:center">${c.need_qty} ${esc(c.unit)}</td>
             <td style="text-align:center;color:${enough ? '#16a34a' : '#dc2626'}">${c.stock} ${esc(c.unit)}</td>
           </tr>`;

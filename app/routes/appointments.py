@@ -148,44 +148,98 @@ def _sync_status(conn, appt_id: int) -> str:
     return "none"
 
 
-def _appt_row(conn, appt_id: int) -> dict:
-    """行程 + 指派人員 + 服務名稱 完整 dict"""
-    row = conn.execute("SELECT * FROM appointments WHERE id=?", (appt_id,)).fetchone()
-    if row is None:
+def _sync_statuses(conn, appt_ids):
+    """批次計算多筆行程的 Google sync status，避免每筆 2 次 SQL。"""
+    if not appt_ids:
+        return {}
+    placeholders = ",".join("?" * len(appt_ids))
+    map_rows = conn.execute(
+        "SELECT appointment_id FROM appointment_gcal_map WHERE appointment_id IN (" + placeholders + ")",
+        appt_ids,
+    ).fetchall()
+    queue_rows = conn.execute(
+        "SELECT appointment_id, last_error FROM appointment_sync_queue WHERE appointment_id IN (" + placeholders + ")",
+        appt_ids,
+    ).fetchall()
+    mapped = {row["appointment_id"] for row in map_rows}
+    queue = {}
+    for row in queue_rows:
+        queue.setdefault(row["appointment_id"], []).append(row["last_error"])
+    result = {}
+    for appt_id in appt_ids:
+        errors = queue.get(appt_id, [])
+        has_failed = any(errors)
+        has_pending = bool(errors) and not has_failed
+        if appt_id in mapped:
+            result[appt_id] = "partial_failed" if has_failed else "pending" if has_pending else "synced"
+        else:
+            result[appt_id] = "failed" if has_failed else "pending" if errors else "none"
+    return result
+
+
+def _appt_rows(conn, appt_ids) -> list[dict]:
+    """批次取得行程完整 response，避免 list/search 對每筆呼叫 _appt_row。"""
+    ids = list(appt_ids)
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    rows = conn.execute(
+        """SELECT a.*, s.name AS service_name,
+                  creator.display_name AS creator_display_name, creator.username AS creator_username,
+                  updater.display_name AS updater_display_name, updater.username AS updater_username
+           FROM appointments a
+           LEFT JOIN service_types s ON s.id = a.service_type_id
+           LEFT JOIN users creator ON creator.id = a.created_by
+           LEFT JOIN users updater ON updater.id = a.updated_by
+           WHERE a.id IN (""" + placeholders + ")",
+        ids,
+    ).fetchall()
+    if len(rows) != len(ids):
         raise HTTPException(404, "行程不存在")
-    assignees = conn.execute(
-        """SELECT aa.user_id, u.display_name, u.color
-           FROM appointment_assignees aa JOIN users u ON u.id = aa.user_id
-           WHERE aa.appointment_id=?""", (appt_id,)).fetchall()
-    svc = (conn.execute("SELECT name FROM service_types WHERE id=?", (row["service_type_id"],)).fetchone()
-           if row["service_type_id"] else None)
-    creator = None
-    if row["created_by"]:
-        creator = conn.execute("SELECT display_name, username FROM users WHERE id=?", (row["created_by"],)).fetchone()
-    updater = None
-    if row["updated_by"]:
-        updater = conn.execute("SELECT display_name, username FROM users WHERE id=?", (row["updated_by"],)).fetchone()
-    return {
-        "id": row["id"],
-        "client_name": row["client_name"],
-        "address": row["address"] or "",
-        "service_type_id": row["service_type_id"],
-        "service_name": svc["name"] if svc else None,
-        "date": row["date"],
-        "start_time": row["start_time"],
-        "end_time": row["end_time"],
-        "note": row["note"] or "",
-        "created_by": row["created_by"],
-        "created_by_name": (creator["display_name"] or creator["username"]) if creator else None,
-        "created_at": row["created_at"] or "",
-        "updated_at": row["updated_at"] or "",  # 2026-08-14 樂觀鎖：前端編輯時的快照值
-        "updated_by": row["updated_by"],
-        "updated_by_name": (updater["display_name"] or updater["username"]) if updater else None,
-        "user_ids": [a["user_id"] for a in assignees],
-        "assignees": [{"id": a["user_id"], "name": a["display_name"],
-                       "color": a["color"] or "#1a73e8"} for a in assignees],
-        "sync_status": _sync_status(conn, appt_id),
-    }
+    assignee_rows = conn.execute(
+        "SELECT aa.appointment_id, aa.user_id, u.display_name, u.color "
+        "FROM appointment_assignees aa JOIN users u ON u.id = aa.user_id "
+        "WHERE aa.appointment_id IN (" + placeholders + ") ORDER BY aa.id",
+        ids,
+    ).fetchall()
+    assignees = {}
+    for row in assignee_rows:
+        assignees.setdefault(row["appointment_id"], []).append(row)
+    statuses = _sync_statuses(conn, ids)
+    by_id = {row["id"]: row for row in rows}
+    result = []
+    for appt_id in ids:
+        row = by_id[appt_id]
+        people = assignees.get(appt_id, [])
+        result.append({
+            "id": row["id"],
+            "client_name": row["client_name"],
+            "address": row["address"] or "",
+            "service_type_id": row["service_type_id"],
+            "service_name": row["service_name"],
+            "date": row["date"],
+            "start_time": row["start_time"],
+            "end_time": row["end_time"],
+            "note": row["note"] or "",
+            "created_by": row["created_by"],
+            "created_by_name": ((row["creator_display_name"] or row["creator_username"])
+                                if row["created_by"] else None),
+            "created_at": row["created_at"] or "",
+            "updated_at": row["updated_at"] or "",
+            "updated_by": row["updated_by"],
+            "updated_by_name": ((row["updater_display_name"] or row["updater_username"])
+                                if row["updated_by"] else None),
+            "user_ids": [person["user_id"] for person in people],
+            "assignees": [{"id": person["user_id"], "name": person["display_name"],
+                           "color": person["color"] or "#1a73e8"} for person in people],
+            "sync_status": statuses[appt_id],
+        })
+    return result
+
+
+def _appt_row(conn, appt_id: int) -> dict:
+    """單筆相容 wrapper，共用批次 formatter。"""
+    return _appt_rows(conn, [appt_id])[0]
 
 
 @router.get("/api/appointments")
@@ -207,7 +261,7 @@ def list_appointments(year: int = 0, month: int = 0, date: str = ""):
                 - datetime.timedelta(days=1)
             rows = conn.execute("SELECT id FROM appointments WHERE date BETWEEN ? AND ?",
                                 (start, end.isoformat())).fetchall()
-        return [_appt_row(conn, r["id"]) for r in rows]
+        return _appt_rows(conn, [r["id"] for r in rows])
     finally:
         conn.close()
 
@@ -249,7 +303,7 @@ def search_appointments(date_from: str = "", date_to: str = "", q: str = ""):
                 params.extend([kw, kw, kw, kw])
         sql += " ORDER BY date DESC, start_time ASC"
         rows = conn.execute(sql, params).fetchall()
-        return [_appt_row(conn, r["id"]) for r in rows]
+        return _appt_rows(conn, [r["id"] for r in rows])
     finally:
         conn.close()
 

@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
+import app.config as app_config  # noqa: E402
 import app.database as app_db  # noqa: E402
 import main as app_main  # noqa: E402
 
@@ -29,7 +30,10 @@ import main as app_main  # noqa: E402
 def client(tmp_path, monkeypatch):
     """每個測試獨立 DB：切 DB_PATH → 重建 schema → 建立 admin → 自動登入 → 回傳帶 session 的 TestClient"""
     test_db = tmp_path / "test_inventory.db"
+    test_upload = tmp_path / "uploads"
+    test_upload.mkdir()
     monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
+    monkeypatch.setattr(app_config, "UPLOAD_DIR", str(test_upload))
     app_db.init_db()
 
     # 建 admin + session 注入（A② 2026-08-14：取代 POST login，省 PBKDF2 600k 迭代 ≈150ms/測試；
@@ -157,7 +161,7 @@ class TestItemsCRUD:
         """v4 pro 審查補測 #1：upload 目錄有照片檔 → list_items 的 has_photo=True（正向等價性）"""
         import os
         upload = tmp_path / "uploads"
-        upload.mkdir()
+        upload.mkdir(exist_ok=True)
         monkeypatch.setattr("app.config.UPLOAD_DIR", str(upload))
         a = _add_item(client, name="有照片", qty=1)
         b = _add_item(client, name="無照片", qty=2)

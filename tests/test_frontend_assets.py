@@ -1363,7 +1363,7 @@ def test_stocktake_table_photo_thumb():
     # 縮圖 class（與整組庫存頁表格同款 cphoto，內嵌品項欄）
     assert 'class="cphoto"' in js
     # 有照片 → img 縮圖 + 點擊放大
-    assert 'src="/uploads/${i.id}.jpg"' in js
+    assert "photoSrc(i.id, 'thumbnail')" in js
     assert "openPhotoLightbox(${i.id})" in js
     # 無照片 → 📷 佔位
     assert "cphoto-empty" in js
@@ -1378,7 +1378,7 @@ def test_stocktake_kit_tab_expands_components():
     assert "stocktakeKits = await kitRes.json()" in js
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
     assert "stocktakeKits.find(k => k.item_id === i.id)" in js
-    assert 'src="/uploads/${c.item_id}.jpg"' in js
+    assert "photoSrc(c.item_id, 'thumbnail')" in js
     assert "openPhotoLightbox(${c.item_id})" in js
     assert "需 <b>${c.need_qty}</b>" in js
     # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
