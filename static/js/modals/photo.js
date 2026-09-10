@@ -68,10 +68,10 @@ async function uploadItemPhoto(itemId, input) {
     }
     const body = await res.json().catch(() => ({}));
     toast('✅ 照片已更新', 'success');
-    renderPhotoBox(itemId, true);
-    // 同步列表卡片（若有照片縮圖）
+    // 先更新列表狀態，再重繪編輯 modal，避免 modal 暫留舊縮圖
     const item = ALL_ITEMS.find(i => i.id === itemId);
     if (item) { item.has_photo = true; item.photo_asset_id = body.asset_id || null; item.thumbnail_url = body.thumbnail_url || null; item.preview_url = body.preview_url || null; renderInventory(); }
+    renderPhotoBox(itemId, true);
   } catch { toast('上傳失敗', 'error'); }
   input.value = '';  // 允許重選同一檔案
 }

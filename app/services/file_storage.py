@@ -40,6 +40,16 @@ _MIME_BY_EXT = {
     ".tiff": "image/tiff",
     ".pdf": "application/pdf",
 }
+_IMAGE_FORMAT_BY_EXT = {
+    ".jpg": "JPEG",
+    ".jpeg": "JPEG",
+    ".png": "PNG",
+    ".gif": "GIF",
+    ".webp": "WEBP",
+    ".bmp": "BMP",
+    ".tif": "TIFF",
+    ".tiff": "TIFF",
+}
 
 
 @dataclass(frozen=True)
@@ -88,6 +98,19 @@ def _validate_file_signature(ext: str, data: bytes) -> None:
     """Reject a non-PDF payload before it can be served as application/pdf."""
     if ext == ".pdf" and not data.startswith(b"%PDF-"):
         raise ValueError("無法解析 PDF")
+
+
+def _validate_image_signature(ext: str, data: bytes) -> None:
+    expected_format = _IMAGE_FORMAT_BY_EXT.get(ext)
+    if expected_format is None:
+        return
+    try:
+        with Image.open(io.BytesIO(data)) as opened:
+            actual_format = opened.format
+    except Exception as exc:
+        raise ValueError("無法解析圖片") from exc
+    if actual_format != expected_format:
+        raise ValueError("圖片內容與副檔名不一致")
 
 
 def _validate_category(category: str) -> str:
@@ -201,6 +224,7 @@ def store_asset(
     ext = _safe_ext(original_name)
     safe_mime = _mime_for_name(original_name)
     _validate_file_signature(ext, data)
+    _validate_image_signature(ext, data)
     base = Path("assets") / category / year_month / asset_id
     original_rel = legacy_original_path or str(base / f"original{ext}").replace("\\", "/")
     preview_rel = legacy_preview_path

@@ -424,6 +424,16 @@ def test_item_photo_uses_content_when_client_mime_is_generic(media_env):
     assert client.get(body["thumbnail_url"]).status_code == 200
 
 
+def test_item_photo_rejects_image_extension_content_mismatch(media_env):
+    client, _static_dir, _upload_dir = media_env
+    item = _new_photo_item(client, "MEDIA-MISMATCH")
+    response = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("photo.jpg", _png(), "image/jpeg")},
+    )
+    assert response.status_code == 400, response.text
+
+
 def test_media_original_is_forced_to_attachment(media_env):
     client, _static_dir, _upload_dir = media_env
     item = _new_photo_item(client, "MEDIA-ATTACH")

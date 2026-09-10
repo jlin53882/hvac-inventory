@@ -60,6 +60,15 @@ def test_photo_lightbox_uses_preview_variant():
 
 
 
+def test_photo_replace_updates_item_state_before_modal_render():
+    source = (ROOT / "static/js/modals/photo.js").read_text(encoding="utf-8")
+    state_update = source.index("const item = ALL_ITEMS.find(i => i.id === itemId);")
+    modal_render = source.index("renderPhotoBox(itemId, true);")
+    assert state_update < modal_render
+    assert source.index("item.thumbnail_url = body.thumbnail_url", state_update) < modal_render
+    assert source.index("item.preview_url = body.preview_url", state_update) < modal_render
+
+
 def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():
     api = (ROOT / "static/js/api.js").read_text(encoding="utf-8")
     app = (ROOT / "static/js/app.js").read_text(encoding="utf-8")
