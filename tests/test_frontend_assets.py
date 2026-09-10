@@ -1707,7 +1707,7 @@ def test_stocktake_view_for_all_roles():
     au = read(AUTH_JS)
     assert "canViewStocktake" in au, "auth.js 缺 canViewStocktake（瀏覽權限）"
     assert "sbNavStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
-    assert "reminder.style.display = canStocktake ? '' : 'none'" in au,         "盤點提醒橫幅仍限操作者（canStocktake）"
+    assert "checkReminder();" in au,         "盤點提醒橫幅仍限操作者（canStocktake）"
 
     st = read(STOCKTAKE_JS)
     assert "canStocktake" in st, "renderStocktake 缺 canStocktake 判斷"
@@ -2719,3 +2719,189 @@ def test_inventory_mobile_table_does_not_force_desktop_width():
     # 手機表格不可用桌面固定寬度，否則會只看得到前幾欄。
     css = read_css_all()
     assert '.tbl-wrap table.data-table { min-width: 780px; }' not in css
+
+
+def test_stocktake_reminder_is_rechecked_on_tab_changes():
+    """跨頁後 reminder 必須重新同步，不能卡在前一頁的 hidden 狀態。"""
+    app = read(APP_JS)
+    switch_body = app[app.index("function switchTab(tab)"):app.index("// 檢查今天日期")]
+    assert "checkReminder();" in switch_body
+
+    auth = read(AUTH_JS)
+    role_body = auth[auth.index("function applyRoleView"): ]
+    assert "checkReminder();" in role_body
+    assert "reminder.style.display = canStocktake ? '' : 'none'" not in role_body
+
+
+def test_check_reminder_honors_permission_and_date_window():
+    """提醒同步必先驗 stocktake 權限，再套日期與當月完成規則。"""
+    app = read(APP_JS)
+    reminder_body = app[app.index("function checkReminder()"):app.index("var _searchTimer")]
+    assert "currentUser" in reminder_body
+    assert "permissions['stocktake']" in reminder_body
+    assert "if (!canStocktake)" in reminder_body
+    assert "day >= 25 && lastStocktakeMonth !== currentMonth" in reminder_body
+
+
+
+def test_stocktake_reminder_runtime_lifecycle(tmp_path):
+    """Regression: reminder state must follow auth/date/localStorage across tab changes."""
+    harness = r"""
+const fs = require('fs');
+const vm = require('vm');
+const appSource = fs.readFileSync(process.argv[2], 'utf8');
+const authSource = fs.readFileSync(process.argv[3], 'utf8');
+const apiSource = fs.readFileSync(process.argv[4], 'utf8');
+
+function extract(source, startMarker, endMarker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
+  if (start < 0 || end < 0) throw new Error(`missing source marker: ${startMarker}`);
+  return source.slice(start, end);
+}
+
+const code = [
+  extract(appSource, 'function switchTab(tab) {', '// 檢查今天日期'),
+  extract(appSource, 'function checkReminder() {', 'var _searchTimer'),
+  authSource.slice(authSource.indexOf('function applyRoleView(user) {')),
+  extract(apiSource, 'async function loadData(options) {', '// 庫存頁只取當前頁資料'),
+  extract(apiSource, 'async function loadInventoryPage(page) {', 'function changeInventoryPage'),
+].join('\n');
+
+let day = 10;
+let missingReminder = false;
+const reminder = {style: {display: 'initial'}};
+const today = {textContent: ''};
+const elements = {reminder, 'today-str': today};
+function makeElement() {
+  return {
+    style: {display: ''},
+    classList: {toggle() {}, remove() {}, add() {}},
+    textContent: '', value: '', disabled: false,
+  };
+}
+const document = {
+  getElementById(id) {
+    if (id === 'reminder' && missingReminder) return null;
+    if (!elements[id]) elements[id] = makeElement();
+    return elements[id];
+  },
+  querySelectorAll() { return []; },
+  querySelector() { return makeElement(); },
+};
+const localStorage = {value: null, getItem() { return this.value; }};
+function fakeFetch(url) {
+  return Promise.resolve({
+    ok: true,
+    async json() {
+      if (String(url).includes('/facets')) return {};
+      return {items: [], page: 1, page_size: 50, total: 0};
+    },
+  });
+}
+const fakeAbortController = class { abort() {} };
+const RealDate = Date;
+class FakeDate extends RealDate {
+  constructor(...args) {
+    super(...(args.length ? args : [`2026-09-${String(day).padStart(2, '0')}T12:00:00`]));
+  }
+}
+const context = {
+  console, document, localStorage, Date: FakeDate,
+  URLSearchParams, AbortController: fakeAbortController, fetch: fakeFetch,
+  currentTab: 'calendar', currentSite: 'site',
+  currentUser: null, inventoryLoadedSite: 'site', fullItemsLoadedSite: 'site',
+  dataRequestSeq: 0, dataAbortController: null, inventoryRequestSeq: 0,
+  inventoryAbortController: null, inventoryFacetsLoadedSite: 'site',
+  INVENTORY_META: {page: 1, page_size: 50, total: 0},
+  currentBrands: [], currentCategories: [], ALL_ITEMS: [],
+  INVENTORY_FACETS: {}, ALERTS_BY_SITE: {},
+  batchMode: false, selectedStockIds: new Set(),
+  updateBreadcrumb() {}, closeSidebar() {}, syncViewUrl() {},
+  loadInventoryPage() {}, loadData() {}, renderInventory() {}, renderPrepared() {},
+  renderStockOuts() {}, renderStocktake() {}, renderKits() {}, renderCalendar() {},
+  renderSignedReports() {}, renderQuotation() {},
+  buildDatalists() {}, buildFilterPanel() {}, updateNotifications() {},
+  updateSubInfo() {}, loadPreparedBadge() {},
+};
+vm.createContext(context);
+vm.runInContext(code, context);
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+function setState(nextDay, user, lastMonth) {
+  day = nextDay;
+  context.currentUser = user;
+  localStorage.value = lastMonth;
+  missingReminder = false;
+}
+const stocktakeUser = {permissions: {stocktake: true}};
+const viewer = {permissions: {view: true}};
+
+async function run() {
+
+setState(10, stocktakeUser, null);
+context.applyRoleView(stocktakeUser);
+assert(reminder.style.display === 'none', 'before 25th must stay hidden');
+
+setState(25, stocktakeUser, null);
+context.applyRoleView(stocktakeUser);
+assert(reminder.style.display === 'flex', 'due stocktake reminder must show');
+assert(today.textContent === '9月25日', 'reminder date text must be refreshed');
+
+setState(25, viewer, null);
+context.applyRoleView(viewer);
+assert(reminder.style.display === 'none', 'viewer must not see stocktake reminder');
+
+setState(25, stocktakeUser, '2026-09');
+context.applyRoleView(stocktakeUser);
+assert(reminder.style.display === 'none', 'completed month must stay hidden');
+localStorage.value = null;
+for (const tab of ['calendar', 'signed-reports', 'quotation', 'inventory']) {
+  context.switchTab(tab);
+  assert(reminder.style.display === 'flex', `${tab} must re-show a due reminder`);
+}
+localStorage.value = '2026-09';
+for (const tab of ['calendar', 'signed-reports', 'quotation', 'inventory']) {
+  context.switchTab(tab);
+  assert(reminder.style.display === 'none', `${tab} must hide a completed reminder`);
+}
+
+setState(26, undefined, null);
+context.checkReminder();
+assert(reminder.style.display === 'none', 'undefined user must stay hidden');
+setState(26, {permissions: {}}, null);
+context.checkReminder();
+assert(reminder.style.display === 'none', 'empty permissions must stay hidden');
+setState(26, stocktakeUser, null);
+context.checkReminder();
+assert(reminder.style.display === 'flex', '26th must show a due reminder');
+
+setState(26, stocktakeUser, null);
+context.currentTab = 'stockout';
+await context.loadData({full: true});
+assert(reminder.style.display === 'flex', 'loadData must recheck a due reminder');
+setState(26, stocktakeUser, '2026-09');
+context.currentTab = 'inventory';
+await context.loadInventoryPage(1);
+assert(reminder.style.display === 'none', 'loadInventoryPage must recheck a completed reminder');
+
+missingReminder = true;
+context.checkReminder();
+console.log('stocktake reminder runtime lifecycle passed');
+}
+run().catch(function(error) {
+  console.error(error.stack || error);
+  process.exitCode = 1;
+});
+"""
+    script = tmp_path / "stocktake-reminder-runtime.js"
+    script.write_text(harness, encoding="utf-8")
+    result = subprocess.run(
+        ["node", str(script), APP_JS, AUTH_JS, API_JS],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "stocktake reminder runtime lifecycle passed" in result.stdout

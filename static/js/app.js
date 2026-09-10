@@ -170,6 +170,7 @@ function updateBreadcrumb(tab) {
 
 function switchTab(tab) {
   currentTab = tab;
+  checkReminder();
   var content = document.getElementById('content');
   if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
   if (content) content.classList.toggle('cal-content', tab === 'calendar');
@@ -235,11 +236,19 @@ function switchTab(tab) {
 
 // 檢查今天日期，每月 25 號（含）後顯示「月底記得盤點」提醒橫幅
 function checkReminder() {
+  var el = document.getElementById('reminder');
+  if (!el) return;
+  var user = typeof currentUser !== 'undefined' ? currentUser : null;
+  var permissions = user && user.permissions ? user.permissions : {};
+  var canStocktake = !!permissions['stocktake'];
   var now = new Date();
   var day = now.getDate();
-  var el = document.getElementById('reminder');
   var currentMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
   var lastStocktakeMonth = localStorage.getItem('lastStocktakeMonth');
+  if (!canStocktake) {
+    el.style.display = 'none';
+    return;
+  }
   if (day >= 25 && lastStocktakeMonth !== currentMonth) {
     el.style.display = 'flex';
     document.getElementById('today-str').textContent = (now.getMonth()+1) + '月' + day + '日';
