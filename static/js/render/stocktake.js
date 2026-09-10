@@ -103,11 +103,11 @@ function stocktakeRow(item, stock, kitDef) {
     const materialKey = `${c.item_id}:${materialLocation}`;
     const materialSystemQty = materialStock ? absNum(materialStock.qty) : absNum(c.stock);
     const materialName = `${esc(c.brand || '')} ${esc(c.name || '未命名')}`.trim();
-    const materialPhoto = c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
+    const materialPhoto = c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
     return `<tr class="stocktake-material-row"><td><div class="stocktake-material-cell"><span class="stocktake-material-indent" aria-hidden="true">↳</span><span class="stocktake-material-photo cphoto">${materialPhoto}</span><span><b>${materialName}</b>${c.code ? `<small class="stocktake-model">型號 ${esc(c.code)}</small>` : ''}<small class="stocktake-material-need">需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組</small></span></div></td><td class="stocktake-material-system-qty">${esc(String(materialSystemQty))} ${esc(c.unit || '')}</td><td>${stocktakeInput(materialKey, materialSystemQty)}</td><td class="st-diff stocktake-material-diff pending">—</td></tr>`;
   }).join('') : '';
   const displayLoc = stock.location ? `位置：${esc(stock.location)}` : '未標示';
-  const photo = item.has_photo ? `<img src="/uploads/${item.id}.jpg" alt="" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
+  const photo = item.has_photo ? `<img src="${photoSrc(item.id, 'thumbnail')}" alt="" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
   const rowClass = item.is_kit ? 'stocktake-assembly-row' : 'stocktake-single-row';
   return `<tr class="${rowClass}"><td><div class="stocktake-item-cell"><span class="cphoto">${photo}</span><span><b>${esc(item.brand || '')} ${esc(item.name || '未命名')}</b><small>${displayLoc}${stock.note ? ' · 📝 ' + esc(stock.note) : ''}</small></span></div></td><td class="stocktake-system-qty">${esc(String(systemQty))} ${esc(item.unit || '')}</td><td>${stocktakeInput(key, systemQty)}</td><td class="st-diff ${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'}">${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'}</td></tr>${materials}`;
 }

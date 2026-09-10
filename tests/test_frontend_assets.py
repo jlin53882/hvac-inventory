@@ -476,6 +476,34 @@ def test_perms_js_has_roles_and_groups():
     assert "/api/users/${curUid}/permissions" in js  # 權限清單由 per-user 端點內聯載入（後端權威，前端不寫死矩陣）
 
 
+def test_permissions_html_uses_shared_toast_css():
+    """The permissions page must not override shared toast geometry with top+bottom."""
+    html = read(PERMISSIONS_HTML)
+    assert ".toast { position: fixed; bottom: 24px" not in html
+    assert ".toast.show { opacity: 1; }" not in html
+
+
+def test_perms_js_account_edit_uses_shared_modal_and_update_api():
+    """Account settings must expose one shared edit flow for editable fields."""
+    js = read(PERMS_JS)
+    html = read(PERMISSIONS_HTML)
+    assert "window.permEditAccount" in js
+    assert "if (!u || me.id === uid) return;" in js
+    assert "submitAccountEdit" in js
+    assert "accountEditOverlay" in html
+    assert 'id="ae-display-name"' in html
+    assert 'id="ae-role"' in html
+    assert "/api/users/" in js
+    assert "display_name" in js and "role" in js
+
+
+def test_perms_js_account_edit_escapes_display_name():
+    """Account edit rendering must keep user-controlled names escaped."""
+    js = read(PERMS_JS)
+    assert "esc(u.display_name)" in js
+    assert "value = u.display_name || ''" in js
+
+
 def test_perms_js_perm_save_and_reset():
     """權限開關：儲存 / 重設為角色預設 API 呼叫"""
     js = read(PERMS_JS)
@@ -1313,7 +1341,7 @@ def test_stocktake_table_photo_thumb():
     # 縮圖 class（與整組庫存頁表格同款 cphoto，內嵌品項欄）
     assert 'class="cphoto"' in js
     # 有照片 → img 縮圖 + 點擊放大
-    assert 'src="/uploads/${item.id}.jpg"' in js
+    assert 'src="${photoSrc(item.id, \'thumbnail\')}"' in js
     assert "openPhotoLightbox(${item.id})" in js
     # 無照片 → 📷 佔位
     assert "cphoto-empty" in js
@@ -1328,7 +1356,7 @@ def test_stocktake_kit_tab_expands_components():
     assert "stocktakeKits = await kitRes.json()" in js
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
     assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
-    assert 'src="/uploads/${c.item_id}.jpg"' in js
+    assert 'src="${photoSrc(c.item_id, \'thumbnail\')}"' in js
     assert "openPhotoLightbox(${c.item_id})" in js
     assert "需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組" in js
     # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
@@ -1657,7 +1685,8 @@ def test_stocktake_view_for_all_roles():
     au = read(AUTH_JS)
     assert "canViewStocktake" in au, "auth.js 缺 canViewStocktake（瀏覽權限）"
     assert "sbNavStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
-    assert "reminder.style.display = canStocktake ? '' : 'none'" in au,         "盤點提醒橫幅仍限操作者（canStocktake）"
+    assert "checkReminder();" in au, "登入後應透過共用 checkReminder() 同步盤點提醒"
+    assert "reminder.style.display = canStocktake ? '' : 'none'" not in au, "盤點提醒不可繞過日期與完成狀態 gate"
 
     st = read(STOCKTAKE_JS)
     assert "canStocktake" in st, "renderStocktake 缺 canStocktake 判斷"
@@ -2201,6 +2230,14 @@ def test_update_notifications_function():
 
 
 
+def test_update_notifications_refreshes_after_kit_data_load():
+    """Kit notifications must refresh after currentKitItems is populated."""
+    js = read(os.path.join(STATIC, "js", "render", "kits.js"))
+    assignment = "const filteredKits = currentKitItems;"
+    start = js.index(assignment) + len(assignment)
+    assert "updateNotifications();" in js[start:start + 80]
+
+
 def test_update_notifications_is_page_scoped_but_stocktake_reminder_is_global():
     """缺貨／低庫存只限單一庫存頁；盤點提醒不受頁面限制。"""
     js = read(APP_JS)
@@ -2208,10 +2245,10 @@ def test_update_notifications_is_page_scoped_but_stocktake_reminder_is_global():
     end = js.index("setTimeout(function() { updateNotifications();", start)
     block = js[start:end]
     stock_alert_block = block[:block.index("// 盤點提醒")]
-    assert "if (currentTab === 'inventory' || currentTab === 'stocktake' || currentTab === 'kit') {" in stock_alert_block
-    assert "currentKitItems.forEach" in stock_alert_block
-    assert "getKitStatus(kit).status" in stock_alert_block
-    assert "整組缺料：" in stock_alert_block
+    assert "if (currentTab === 'inventory' || currentTab === 'stocktake') {" in stock_alert_block
+    assert "currentKitItems.forEach" in block
+    assert "getKitStatus(kit).status" in block
+    assert "整組缺料：" in block
     switch_start = js.index("function switchTab(tab)")
     assert js.index("currentTab = tab;", switch_start) < js.index("updateNotifications();", switch_start)
     assert "if (day >= 25 && lastStocktakeMonth !== currentMonth)" in block

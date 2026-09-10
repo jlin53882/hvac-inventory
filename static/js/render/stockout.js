@@ -48,7 +48,7 @@ function renderStockoutDesktopRow(o, isViewer) {
   const isReturn = o.reason === '退回已領出';
   const returnReverted = isReturn && reverted;
   const rowClass = returnReverted ? 'is-reverted-return' : (isReturn ? 'is-return' : (reverted ? 'is-reverted' : ''));
-  const photo = o.has_photo ? `<img class="so-photo stockout-photo" src="/uploads/${o.item_id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">` : '<div class="so-photo stockout-photo stockout-photo-empty">📷</div>';
+  const photo = o.has_photo ? `<img class="so-photo stockout-photo" src="${photoSrc(o.item_id, 'thumbnail')}" alt="" loading="lazy" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">` : '<div class="so-photo stockout-photo stockout-photo-empty">📷</div>';
   const destination = o.destination ? `<span class="stockout-destination-badge">🏢 ${esc(o.destination)}</span>` : '';
   const returnSeparator = o.return_site ? '／' : '';
   const returnLocation = isReturn && o.return_location ? `<span class="stockout-destination-badge return-location">📍 ${esc(o.return_site || '')}${esc(returnSeparator)}${esc(o.return_location)}</span>` : '';

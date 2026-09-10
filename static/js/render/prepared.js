@@ -20,7 +20,7 @@ function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
 
 function renderPreparedDesktopRow(item, isViewer) {
   const photo = item.has_photo
-    ? `<img class="prepared-photo" src="/uploads/${item.id}.jpg" alt="" loading="lazy" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">`
+    ? `<img class="prepared-photo" src="${photoSrc(item.id, 'thumbnail')}" alt="" loading="lazy" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">`
     : '<div class="prepared-photo prepared-photo-empty" aria-hidden="true">📷</div>';
   const nonStock = item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : '';
   const location = item.location || '未標示';

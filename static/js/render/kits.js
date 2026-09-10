@@ -134,7 +134,7 @@ function renderKitComponentRow(c) {
   const state = stock <= 0 && need > 0 ? 'shortage' : (stock < need ? 'insufficient' : 'normal');
   const stateLabel = state === 'shortage' ? '缺料' : (state === 'insufficient' ? '庫存不足' : '正常');
   const stateClass = `kit-component-status is-${state}`;
-  const photo = c.has_photo ? `<img src="/uploads/${c.item_id}.jpg" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
+  const photo = c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
   return `<tr>
     <td class="kit-component-photo"><span class="cphoto">${photo}</span></td>
     <td><div class="kit-component-info">
