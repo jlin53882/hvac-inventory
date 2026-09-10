@@ -110,6 +110,8 @@ def list_items(
         selected_categories = [c.strip() for c in (categories or "").split(",") if c.strip()]
         if len(selected_categories) > MAX_FILTER_VALUES:
             raise HTTPException(400, f"categories 最多 {MAX_FILTER_VALUES} 個值")
+        if len(selected_brands) + len(selected_categories) > MAX_FILTER_VALUES:
+            raise HTTPException(400, f"brands/categories 合計最多 {MAX_FILTER_VALUES} 個值")
         if selected_categories:
             placeholders = ",".join("?" * len(selected_categories))
             where.append("i.category IN (" + placeholders + ")")

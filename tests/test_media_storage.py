@@ -8,6 +8,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -737,3 +738,17 @@ def test_unpaged_items_chunks_photo_metadata_ids(media_env, monkeypatch):
     monkeypatch.setattr(item_routes, "list_photo_ids", lambda: set())
     result = item_routes.list_items(site="office")
     assert len(result) == 501
+
+
+
+def test_items_rejects_combined_csv_filters_over_bind_budget(media_env, monkeypatch):
+    conn = app_db.get_db()
+    conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 500)
+    import app.routes.items as item_routes
+
+    monkeypatch.setattr(item_routes, "get_db", lambda: conn)
+    brands = ",".join(f"brand-{index}" for index in range(400))
+    categories = ",".join(f"category-{index}" for index in range(400))
+    with pytest.raises(HTTPException) as error:
+        item_routes.list_items(site="office", brands=brands, categories=categories)
+    assert error.value.status_code == 400
