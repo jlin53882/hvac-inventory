@@ -138,7 +138,8 @@ async function renderCalendar() {
   calMountSearchResults();
   calBindSearchViewportListener();
   calSetLoadState('loading');
-  await calLoadData();
+  const applied = await calLoadData();
+  if (applied === null) return;
   if (calLoadError) {
     calSetLoadState('error', calLoadError);
   } else {
@@ -160,6 +161,7 @@ function calRenderReminder() {
 }
 
 async function calLoadData() {
+  const requestToken = ++calLoadRequestToken;
   const y = calMonth.getFullYear(), m = calMonth.getMonth() + 1;
   const today = new Date();
   const todayStr = _iso(today);
@@ -175,17 +177,21 @@ async function calLoadData() {
       fetch('/api/assignable-users').then(r => r.ok ? r.json() : Promise.reject(new Error('assignable-users ' + r.status))),
       todayEventsPromise,
     ]);
+    if (requestToken !== calLoadRequestToken) return null;
     calEvents = ev;
     calTodayEvents = todayEv.filter(e => e.date === todayStr);
     calSvc = svc;
     calAssignable = ppl;
+    return true;
   } catch (e) {
+    if (requestToken !== calLoadRequestToken) return null;
     calLoadError = '行事曆資料載入失敗，請重新載入。';
     console.error('[calLoadData] 行事曆資料載入失敗', e);
     calEvents = [];
     calTodayEvents = [];
     calSvc = [];
     calAssignable = [];
+    return false;
   }
 }
 
@@ -232,7 +238,8 @@ function calSetLoadState(state, message) {
 
 async function calRetryLoad() {
   calSetLoadState('loading');
-  await calLoadData();
+  const applied = await calLoadData();
+  if (applied === null) return;
   if (calLoadError) return calSetLoadState('error', calLoadError);
   calSetLoadState('ready');
   calRenderMonth();
@@ -355,6 +362,14 @@ function calRenderMonth() {
     }
     grid.appendChild(c);
   }
+  // Desktop grid keeps six complete week rows so month height never jumps.
+  const trailing = 42 - first - total;
+  for (let i = 1; i <= trailing; i++) {
+    const c = document.createElement('div');
+    c.className = 'cal-cell cal-other';
+    c.innerHTML = `<span class="cal-day-num">${i}</span>`;
+    grid.appendChild(c);
+  }
 }
 
 // ========== 當日明細 ==========
@@ -428,7 +443,8 @@ function calRenderDay() {
 function calChangeMonth(d) {
   calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + d, 1);
   calSetLoadState('loading');
-  calLoadData().then(() => {
+  calLoadData().then(applied => {
+    if (applied === null) return;
     if (calLoadError) return calSetLoadState('error', calLoadError);
     calSetLoadState('ready');
     calRenderMonth();
@@ -446,7 +462,8 @@ function calPickDate(v) {
   calMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
   _syncCalendarDateControls();
   calSetLoadState('loading');
-  calLoadData().then(() => {
+  calLoadData().then(applied => {
+    if (applied === null) return;
     if (calLoadError) return calSetLoadState('error', calLoadError);
     calSetLoadState('ready');
     calRenderMonth();

@@ -63,6 +63,7 @@ var calSelected = new Date();    // 選取的日期
 var calEvents = [];              // 當月/當日行程
 var calTodayEvents = [];          // 今日派工（KPI 用，沿用既有 date API）
 var calLoadError = '';             // 行事曆資料載入錯誤
+var calLoadRequestToken = 0;
 var calSvc = [];                 // 服務項目字典（全部，含停用）
 var calAssignable = [];          // 可指派人員
 var CAL_PALETTE = ['#1a73e8', '#e91e63', '#9c27b0', '#2e7d32', '#f57c00', '#00838f', '#c62828', '#5d4037'];

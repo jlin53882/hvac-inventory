@@ -1219,6 +1219,22 @@ def test_calendar_desktop_dispatch_layout():
     assert "cal-combined-search" not in js  # 舊深色工具列已移除
     assert '<button class="cal-quick-filter"' not in js
     assert "cal-today-inline" in js
+    assert "calLoadRequestToken" in js
+    assert "if (requestToken !== calLoadRequestToken) return null;" in js
+    assert "const trailing = 42 - first - total;" in js
+    modal = read(CALENDAR_MODAL_JS)
+    assert "const applied = await calLoadData();" in modal
+    assert "if (applied === null) return;" in modal
+    assert modal.count("if (applied === null) return;") >= 2
+    assert modal.count("calSetLoadState('error', calLoadError)") >= 2
+    assert js.count("if (applied === null) return;") >= 6
+    assert js.count("calSetLoadState('error', calLoadError)") >= 6
+    load_start = js.index("async function calLoadData()")
+    load_end = js.index("function calRenderLoadingUi", load_start)
+    load_fn = js[load_start:load_end]
+    assert "return true;" in load_fn
+    assert "return false;" in load_fn
+    assert "return null;" in load_fn
 
 
 def test_calendar_design_spec_hooks():
