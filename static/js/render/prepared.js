@@ -2,159 +2,110 @@
 
 // ========== 待領出頁籤 ==========
 
+function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
+  const addButton = isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>';
+  return `<section class="prepared-page-header">
+    <div class="prepared-heading-copy">
+      <div class="prepared-heading-icon" aria-hidden="true">📤</div>
+      <div><h1>待領出 <span>（已拿出未出去）</span></h1><p>管理已拿出的品項，真正出去時按「已領出」才會扣庫存，也可以退回。</p></div>
+    </div>
+    <div class="prepared-header-actions">
+      <div class="prepared-summary-card prepared-summary-purple"><strong>${itemCount}</strong><span>待領出品項</span></div>
+      <div class="prepared-summary-card prepared-summary-blue"><strong>${absNum(totalPrepared)}</strong><span>待領出總件數</span></div>
+      ${addButton}
+    </div>
+  </section>
+  <div class="prepared-alert" role="note">💡 <b>待領出不會扣庫存</b>，請確認真正出去時再按「已領出」。</div>`;
+}
+
+function renderPreparedDesktopRow(item, isViewer) {
+  const photo = item.has_photo
+    ? `<img class="prepared-photo" src="${photoSrc(item.id, 'thumbnail')}" alt="" loading="lazy" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">`
+    : '<div class="prepared-photo prepared-photo-empty" aria-hidden="true">📷</div>';
+  const nonStock = item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : '';
+  const location = item.location || '未標示';
+  const note = item.note ? ` · ${esc(item.note)}` : '';
+  const actions = isViewer ? '' : `<td class="prepared-actions-cell"><div class="prepared-row-actions">
+    <button class="btn-out" onclick="openPreparedOutModal(${item.id})">🚚 已領出</button>
+    ${item.is_deleted ? '' : `<button class="btn-prepare" onclick="returnPrepared(${item.id})">↩ 退回</button>`}
+    <button class="btn-del" onclick="clearPrepared(${item.id}, ${item.prepared_qty})">🗑 刪除</button>
+  </div></td>`;
+  return `<tr class="prepared-row">
+    <td class="prepared-photo-cell">${photo}</td>
+    <td class="prepared-item-cell"><div class="prepared-item-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')} ${nonStock}</div>
+      <div class="prepared-item-model">${item.code ? '型號： ' + esc(item.code) : ''}</div>
+      <div class="prepared-item-location">📍 ${esc(location)}${note}</div></td>
+    <td class="prepared-quantity-cell"><span class="prepared-qty-badge">📦 ${absNum(item.prepared_qty)} <small>${esc(item.unit)}</small></span></td>
+    <td class="prepared-stock-cell"><span class="prepared-stock-badge">目前庫存 ${absNum(item.qty)} <small>${esc(item.unit)}</small></span></td>
+    ${actions}
+  </tr>`;
+}
+
+// ========== 待領出頁籤 ==========
 async function renderPrepared() {
-
   const content = document.getElementById('content');
-
+  const isViewer = !hasPerm('stockout');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入待領出清單…</div></div>';
 
-  const isViewer = !hasPerm('stockout');
-
-
-
   try {
-
     const res = await fetch(`/api/prepared?site=${currentSite}`);
-
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     let items = await res.json();
     preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
-
-    // 搜尋過濾
-
     items = filterBySearch(items, function(i) {
-
       return [i.name, i.code, i.brand, i.note, i.destination].join(' ');
-
     });
+
+    const totalPrepared = items.reduce((s, i) => s + (Number(i.prepared_qty) || 0), 0);
+    let html = renderPreparedPageHeader(items.length, totalPrepared, isViewer);
 
     if (!items.length) {
-
-      content.innerHTML = '<div class="empty">📤 目前沒有待領出的品項<br><small>在庫存頁點「待領出」把要帶的材料先準備好</small>' +
-
-        (isViewer ? '' : '<br><br><button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>') + '</div>';
-
+      html += `<section class="prepared-panel"><div class="prepared-empty-state">
+        <div class="prepared-empty-icon" aria-hidden="true">📦</div>
+        <h2>目前沒有待領出的品項</h2>
+        <p>拿出商品後，可以在這裡管理尚未正式出庫的項目。</p>
+        ${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>'}
+      </div></section>`;
+      content.innerHTML = html;
       updatePreparedBadge(0);
-
       return;
-
     }
-
-
-
-    const totalPrepared = items.reduce((s, i) => s + i.prepared_qty, 0);
-
-    let html = '';
-
-    // 2026-08-13 家豪：待領出頁也可直接新增「不在庫存」的品項（比照已領出）
-
-    const preparedBar = `<div class="loc-export-bar"><span>共 ${items.length} 筆</span>${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>'}</div>`;
-
-    html += preparedBar;
 
     const isM = (typeof isMobileView === 'function') && isMobileView();
+    html += `<section class="prepared-panel">
+      <div class="prepared-toolbar"><div><strong>待領出清單</strong><span>共 ${items.length} 筆</span></div></div>`;
 
     if (isM) {
-
-      // ===== 手機版：卡片式（⋯ 動作選單） =====
-
-      html += `<div class="section-title"><span class="loc">📤 待領出（已拿出未出去）</span><span>${items.length} 項 · ${totalPrepared} 件</span></div>`;
-
-      items.forEach(i => {
-
+      html += '<div class="prepared-mobile-list">';
+      items.forEach(function(item) {
         html += mobileCardShell({
-
           reverted: false,
-
-          moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${i.id})">⋯</button>`,
-
-          thumb: buildThumb(i.id, i.has_photo, i.name, '📷'),
-
-          nameHTML: `${esc(i.brand)} ${esc(i.name)}${i.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,  // V1b 2026-08-16：chip 移出品名行（防長名截出誤導 ⋯）
-          subHTML: `${i.code ? '<small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small><br>' : ''}<small style="color:#999">${esc(i.location || '未標示')}</small>`,
-          extraHTML: `<div style="margin-top:3px"><span class="chip green">待領出</span><span class="loc-tag">庫存 ${i.qty} ${esc(i.unit)}</span></div>`,
-          qtyHTML: buildQtyNum(i.prepared_qty, i.unit, 'qty-violet'),
-
+          cardClass: 'prepared-mobile-card',
+          moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${item.id})">⋯</button>`,
+          thumb: buildThumb(item.id, item.has_photo, item.name, '📷'),
+          nameHTML: `<span class="prepared-mobile-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}</span>${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
+          subHTML: item.code ? `<span class="prepared-mobile-model">型號： ${esc(item.code)}</span>` : '',
+          extraHTML: `<div class="prepared-mobile-location">位置：${esc(item.location || '未標示')}</div><div class="prepared-mobile-meta"><span class="prepared-status-badge">📦 待領出</span><span class="prepared-stock-badge">目前庫存 ${absNum(item.qty)} ${esc(item.unit)}</span></div>`,
+          qtyHTML: buildQtyNum(item.prepared_qty, item.unit, 'qty-violet'),
           actionsHTML: ''
-
         });
-
       });
-
+      html += '</div>';
     } else {
-
-      // ===== 桌面版：原表格 =====
-
-    html = preparedBar + `
-
-      <div class="section-title"><span class="loc">📤 待領出（已拿出未出去）</span><span>${items.length} 項 · ${totalPrepared} 件</span></div>
-
-      <div style="background:#f5f3ff;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#6d28d9">
-
-        💡 待領出 <b>不會扣庫存</b>。真正出去時按「已領出」才會扣，也可以「退回」。
-
-      </div>`;
-
-
-
-    html += `<table class="data-table"><thead><tr>
-
-      <th>照片</th><th>品項</th><th>待領出</th><th>庫存</th>${isViewer ? '' : '<th>操作</th>'}
-
-    </tr></thead><tbody>`;
-
-
-
-    items.forEach(i => {
-
-      const pPhoto = i.has_photo
-
-        ? `<img class="so-photo" src="${photoSrc(i.id, 'thumbnail')}" alt="" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(${i.id})" title="點擊看大圖">`
-
-        : `<div class="so-photo so-photo-empty">📷</div>`;
-
-      html += `<tr>
-
-        <td class="photo-cell">${pPhoto}</td>
-
-        <td>${esc(i.brand)} ${esc(i.name)}${i.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${i.code ? '<br><small style="color:#1890FF;font-weight:600">型號 ' + esc(i.code) + '</small>' : ''}<br><small style="color:#999">${esc(i.location || '未標示')}</small></td>
-
-        <td style="text-align:center"><b style="color:#6d28d9">${i.prepared_qty}</b> ${esc(i.unit)}</td>
-
-        <td style="text-align:center">${i.qty} ${esc(i.unit)}</td>
-
-        ${isViewer ? '' : `<td style="white-space:nowrap">
-
-          <button class="btn-out" style="padding:4px 8px" onclick="openPreparedOutModal(${i.id})">🚚 已領出</button>
-
-          ${i.is_deleted ? '' : `<button class="btn-prepare" style="padding:4px 8px;margin-top:0" onclick="returnPrepared(${i.id})">↩️ 退回</button>`}
-
-          <button class="btn-del" style="padding:4px 8px;margin-top:0" onclick="clearPrepared(${i.id}, ${i.prepared_qty})">刪除</button>
-
-        </td>`}
-
-      </tr>`;
-
-    });
-
-
-
-    html += '</tbody></table>';
-
+      html += `<div class="prepared-table-wrap"><table class="prepared-table"><thead><tr>
+        <th class="prepared-col-photo">照片</th><th>品項資訊</th><th class="prepared-col-qty">待領出</th><th class="prepared-col-stock">庫存</th>${isViewer ? '' : '<th class="prepared-col-actions">操作</th>'}
+      </tr></thead><tbody>`;
+      items.forEach(function(item) { html += renderPreparedDesktopRow(item, isViewer); });
+      html += '</tbody></table></div>';
     }
-
+    html += '</section>';
     content.innerHTML = html;
-
     updatePreparedBadge(items.length);
-
   } catch (e) {
-
-    content.innerHTML = `<div class="empty">⚠️ 載入失敗<br><small>${e.message}</small></div>`;
-
+    content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn-cancel" onclick="renderPrepared()">重新載入</button></div>`;
   }
-
 }
-
 
 
 // 更新底部「待領出」小標：有數量時顯示數字，沒有則隱藏

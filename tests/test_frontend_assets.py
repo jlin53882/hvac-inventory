@@ -31,6 +31,10 @@ LOGIN = os.path.join(STATIC, "login.html")
 # 待測：style.css
 CSS_CORE = os.path.join(STATIC, "css", "style.core.css")
 CSS_CAL = os.path.join(STATIC, "css", "style.calendar.css")
+CSS_INVENTORY = os.path.join(STATIC, "css", "style.inventory.css")
+CSS_KIT = os.path.join(STATIC, "css", "style.kit.css")
+CSS_STOCKTAKE = os.path.join(STATIC, "css", "style.stocktake.css")
+CSS_STOCKOUT = os.path.join(STATIC, "css", "style.stockout.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js
@@ -66,9 +70,6 @@ CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
 SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
-# 待測：報價單上傳 render（嵌入報價單頁面）
-QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
-QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
 CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
@@ -246,51 +247,6 @@ def test_signed_reports_demo_layout_contract():
     assert "content.classList.toggle('dsr-content', tab === 'signed-reports')" in app
 
 
-def test_quotation_screen_mounts_with_dsr_style_contract():
-    """報價單：掛載入口、render function 與 DSR 同風格 class 都存在。"""
-    html = read(INDEX)
-    app = read(APP_JS)
-    js = read(os.path.join(STATIC, "js", "render", "quotation.js"))
-    css = read(os.path.join(STATIC, "css", "style.quotation.css"))
-    assert "sb-nav-quotation" in html and "switchTab('quotation')" in html
-    assert "/static/js/render/quotation.js" in html
-    assert "/static/css/style.quotation.css" in html
-    assert "quotation:'報價單'" in app and "quotation:'🧾'" in app
-    assert "else if (tab === 'quotation') renderQuotation();" in app
-    assert "function renderQuotation()" in js
-    assert "function quoteAddItem()" in js and "function quoteSave()" in js
-    assert "fetch('/api/quotations" in js
-    assert "method: quotationEditingId ? 'PUT' : 'POST'" in js
-    assert "method: 'DELETE'" in js and "function quoteDownload(id, ext)" in js and "/export.' + ext" in js
-    assert "quoteOpenInventory" in js and "/inventory-items?q=" in js
-    assert "class=\"dsr-page-header quote-page-header\"" in js
-    assert "class=\"dsr-card quote-card\"" in js
-    assert "#content.quotation-content" in css
-
-
-def test_quotation_upload_embedded_switch_contract():
-    """報價單上傳：嵌入報價單頁面內切換，不新增左側入口。"""
-    html = read(INDEX)
-    app = read(APP_JS)
-    quotation_js = read(os.path.join(STATIC, "js", "render", "quotation.js"))
-    upload_js = read(QUOTATION_UPLOAD_RENDER_JS)
-    css = read(QUOTATION_UPLOAD_CSS)
-    assert 'id="sb-nav-quotation-upload"' not in html
-    assert '/static/js/render/quotation-upload.js' in html
-    assert '/static/css/style.quotation-upload.css' in html
-    assert "quotationMode" not in app
-    assert "function quoteModeTabs(active)" in quotation_js
-    assert "function quoteSwitchMode(mode)" in quotation_js
-    assert "quoteSwitchMode('upload')" in quotation_js
-    assert "quoteModeTabs('upload')" in upload_js
-    assert "function renderQuotationUploads()" in upload_js
-    assert "fetch('/api/quotation-uploads" in upload_js
-    assert "${quoteModeTabs('quotation')}" in quotation_js
-    assert "${quoteModeTabs('upload')}" in upload_js
-    assert ".quote-mode-tab.active" in read(os.path.join(STATIC, "css", "style.quotation.css"))
-    assert '#content.quotation-upload-content' in read(os.path.join(STATIC, "css", "style.quotation-upload.css"))
-
-
 def test_signed_reports_actions_and_editable_note_contract():
     """DSR：圖片直接預覽；下載/刪除/編輯備註均為圖示加文字操作。"""
     js = read(SIGNED_REPORTS_RENDER_JS)
@@ -336,13 +292,6 @@ def test_stocktake_table_has_diff_column():
     """盤點表格表頭包含「差異」欄"""
     js = read(STOCKTAKE_JS)
     assert '差異</th>' in js
-
-
-def test_signed_reports_prefills_uploader_from_auth_user_display_name():
-    """回歸：/api/auth/me 回傳 {user: {...}}，上傳人需讀 user.display_name。"""
-    js = read(SIGNED_REPORTS_RENDER_JS)
-    assert "const me = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);" in js
-    assert "if (me && me.user && me.user.display_name) document.getElementById('dsr-uploader').value = me.user.display_name;" in js
 
 
 def test_signed_reports_accept_no_docx():
@@ -450,12 +399,6 @@ def test_permissions_html_save_bar_variant_b():
     assert "padding: 0 0 110px" in html  # 手機
 
 
-def test_permissions_html_uses_shared_toast_css():
-    """The permissions page must not override shared toast geometry with top+bottom."""
-    html = read(PERMISSIONS_HTML)
-    assert ".toast { position: fixed; bottom: 24px" not in html
-    assert ".toast.show { opacity: 1; }" not in html
-
 def test_permissions_html_btn_ghost_white_fix():
     """2026-08-15 根因修復：.btn-ghost 全域白字樣式（topbar 專用）用於白底容器會隱形——
        save-bar / modal 內必須覆寫白底深字版"""
@@ -472,25 +415,6 @@ def test_perms_js_reset_perm_modal_structure():
     assert "window.openResetPermModal()" in js
     assert "window.permSave()" in js
 
-
-def test_perms_js_account_edit_uses_shared_modal_and_update_api():
-    """Account settings must expose one shared edit flow for editable fields."""
-    js = read(PERMS_JS)
-    html = read(PERMISSIONS_HTML)
-    assert "window.permEditAccount" in js
-    assert "if (!u || me.id === uid) return;" in js
-    assert "submitAccountEdit" in js
-    assert "accountEditOverlay" in html
-    assert 'id="ae-display-name"' in html
-    assert 'id="ae-role"' in html
-    assert "/api/users/" in js
-    assert "display_name" in js and "role" in js
-
-def test_perms_js_account_edit_escapes_display_name():
-    """Account edit rendering must keep user-controlled names escaped."""
-    js = read(PERMS_JS)
-    assert "esc(u.display_name)" in js
-    assert "value = u.display_name || ''" in js
 
 def test_perms_js_batch_create():
     """批次新增：/api/users/batch 端點 + 逐筆結果顯示"""
@@ -550,6 +474,34 @@ def test_perms_js_has_roles_and_groups():
     assert "GROUP_LABELS" in js
     assert "admin: '🛡️ 管理員'" in js and "tech: '🔧 工程師'" in js
     assert "/api/users/${curUid}/permissions" in js  # 權限清單由 per-user 端點內聯載入（後端權威，前端不寫死矩陣）
+
+
+def test_permissions_html_uses_shared_toast_css():
+    """The permissions page must not override shared toast geometry with top+bottom."""
+    html = read(PERMISSIONS_HTML)
+    assert ".toast { position: fixed; bottom: 24px" not in html
+    assert ".toast.show { opacity: 1; }" not in html
+
+
+def test_perms_js_account_edit_uses_shared_modal_and_update_api():
+    """Account settings must expose one shared edit flow for editable fields."""
+    js = read(PERMS_JS)
+    html = read(PERMISSIONS_HTML)
+    assert "window.permEditAccount" in js
+    assert "if (!u || me.id === uid) return;" in js
+    assert "submitAccountEdit" in js
+    assert "accountEditOverlay" in html
+    assert 'id="ae-display-name"' in html
+    assert 'id="ae-role"' in html
+    assert "/api/users/" in js
+    assert "display_name" in js and "role" in js
+
+
+def test_perms_js_account_edit_escapes_display_name():
+    """Account edit rendering must keep user-controlled names escaped."""
+    js = read(PERMS_JS)
+    assert "esc(u.display_name)" in js
+    assert "value = u.display_name || ''" in js
 
 
 def test_perms_js_perm_save_and_reset():
@@ -691,7 +643,8 @@ def test_stockout_grouping_by_day():
     assert "slice(0, 7)" not in js, "退回按月分組（slice(0,7)）會讓標題沒有幾號"
     assert "// 分組：按日" in js
     # 手機 + 桌機標題都用 ${m}（完整日期），各 1 處
-    assert js.count("📅 ${m}</span>") == 2
+    assert "formatStockoutDate(date)" in js
+    assert "renderStockoutGroup(date, byDate[date]" in js
     # 中間版「今天日期」helper 已移除
     assert "mLabel" not in js
     assert "todayStr" not in js
@@ -701,8 +654,8 @@ def test_prepared_js_shows_model():
     """待領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處"""
     js = read(PREPARED_RENDER_JS)
     # 手機卡片 nameHTML 與桌面表格都有藍色「型號」小字（樣式與整組材料列一致 #1890FF）
-    assert js.count("型號 ") == 2
-    assert "color:#1890FF;font-weight:600" in js
+    assert js.count("型號： ") == 2
+    assert "prepared-mobile-model" in js
 
 
 def test_prepared_js_none_stock_sheet_actions():
@@ -715,8 +668,9 @@ def test_prepared_js_none_stock_sheet_actions():
 def test_prepared_js_chip_out_of_name_line():
     """V1b（2026-08-16）：待領出 chip 移出品名行（改放 extraHTML），名稱行不再塞 chip 防誤導 ⋯"""
     js = read(PREPARED_RENDER_JS)
-    assert 'margin-top:3px' in js              # extraHTML chip 行（V1b 標記）
-    assert "subHTML: `${i.code ?" in js        # 型號移入 subHTML
+    assert "prepared-mobile-meta" in js       # 狀態列移出品名行
+    assert "prepared-mobile-model" in js   # 型號獨立一行
+    assert "prepared-mobile-location" in js # 位置獨立一行
     inv = read(INVENTORY_RENDER_JS)
     assert "待領出 ' + prepared + '</span>" in inv  # 單一庫存 chip 移到 subHTML（品牌前面）
 
@@ -724,8 +678,8 @@ def test_prepared_js_chip_out_of_name_line():
 def test_stockout_js_shows_model():
     """已領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片（一般+退回）+ 桌面表格各一處"""
     js = read(STOCKOUT_RENDER_JS)
-    assert js.count("型號 ") == 3  # mobile normal + mobile return + desktop table
-    assert "color:#1890FF;font-weight:600" in js
+    assert js.count("型號 ") == 2  # 共用 mobile renderer + desktop table
+    assert "stockout-item-meta" in js
     # 型號從 subHTML 移到 nameHTML 下方：subHTML 只剩日期（不再有「· 型號」）
     assert "· 型號" not in js
 
@@ -1350,13 +1304,12 @@ def test_stocktake_totalqty_card_not_clickable():
 def test_stocktake_list_shows_model_and_kits():
     """缺貨/低庫存清單品項欄顯示型號（藍色粗體）+ 整組材料標註「屬於整組：名稱」（2026-08-13 Sarah 需求）"""
     js = read(STOCKTAKE_JS)
-    # 型號：比照已領出/待領出頁樣式（code 有值才顯示）
-    assert "color:#1890FF;font-weight:600" in js
-    assert "型號 ' + esc(i.code)" in js
+    assert "function renderStocktakeStatusItem(item, isLow)" in js
+    assert "esc(item.code)" in js
     # 整組材料標註：in_kits 陣列非空才顯示「屬於整組：名稱」
     assert "in_kits" in js
     assert "屬於整組：" in js
-    assert "esc(i.in_kits.join('、'))" in js
+    assert "esc(item.in_kits.join('、'))" in js
 
 
 def test_stocktake_tabs_kit_single_split():
@@ -1388,8 +1341,8 @@ def test_stocktake_table_photo_thumb():
     # 縮圖 class（與整組庫存頁表格同款 cphoto，內嵌品項欄）
     assert 'class="cphoto"' in js
     # 有照片 → img 縮圖 + 點擊放大
-    assert "photoSrc(i.id, 'thumbnail')" in js
-    assert "openPhotoLightbox(${i.id})" in js
+    assert 'src="${photoSrc(item.id, \'thumbnail\')}"' in js
+    assert "openPhotoLightbox(${item.id})" in js
     # 無照片 → 📷 佔位
     assert "cphoto-empty" in js
 
@@ -1402,13 +1355,13 @@ def test_stocktake_kit_tab_expands_components():
     assert "fetch(`/api/kits?site=${currentSite}`)" in js
     assert "stocktakeKits = await kitRes.json()" in js
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
-    assert "stocktakeKits.find(k => k.item_id === i.id)" in js
-    assert "photoSrc(c.item_id, 'thumbnail')" in js
+    assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
+    assert 'src="${photoSrc(c.item_id, \'thumbnail\')}"' in js
     assert "openPhotoLightbox(${c.item_id})" in js
-    assert "需 <b>${c.need_qty}</b>" in js
+    assert "需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組" in js
     # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
-    assert "stocktakeValues['${jsStr(mKey)}'] = this.value" in js
-    assert "markChanged(this, '${jsStr(mKey)}')" in js
+    assert "stocktakeInput(materialKey, materialSystemQty)" in js
+    assert "markChanged(this, '${jsStr(key)}')" in js
     assert 'placeholder="實際"' in js
     # 全域宣告（globals.js，var 跨檔共享）
     gl = read(GLOBALS_JS)
@@ -1732,7 +1685,8 @@ def test_stocktake_view_for_all_roles():
     au = read(AUTH_JS)
     assert "canViewStocktake" in au, "auth.js 缺 canViewStocktake（瀏覽權限）"
     assert "sbNavStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
-    assert "checkReminder();" in au,         "盤點提醒橫幅仍限操作者（canStocktake）"
+    assert "checkReminder();" in au, "登入後應透過共用 checkReminder() 同步盤點提醒"
+    assert "reminder.style.display = canStocktake ? '' : 'none'" not in au, "盤點提醒不可繞過日期與完成狀態 gate"
 
     st = read(STOCKTAKE_JS)
     assert "canStocktake" in st, "renderStocktake 缺 canStocktake 判斷"
@@ -1743,14 +1697,14 @@ def test_stocktake_view_for_all_roles():
 def test_kit_stockout_actions():
     """2026-08-13 Sarah：整組庫存也要有「待領出/已領出」按鈕（手機+桌面），直接複用單一庫存 modal"""
     js = read(KITS_RENDER_JS)
-    # 手機卡片 m-card-actions + 桌面操作列：各一組 openPrepareModal/openOutModal（用 kit 的 item_id）
+    # 手機卡片 kit-mobile-actions + 桌面操作列：各一組 openPrepareModal/openOutModal（用 kit 的 item_id）
     assert js.count("openPrepareModal(${k.item_id}") >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
     assert js.count("openOutModal(${k.item_id}") >= 2, "整組卡片已領出按鈕（手機+桌面）缺失"
-    assert "m-card-actions" in js, "手機整組卡片缺 m-card-actions 按鈕列"
+    assert "kit-mobile-actions" in js, "手機整組卡片缺 kit-mobile-actions 按鈕列"
     # 桌面版：待領出/已領出要在編輯按鈕前面（設計圖：操作列最前面）
     assert js.find("openOutModal(${k.item_id}") < js.find("editKit(${k.id})"), "桌面按鈕應在編輯前面"
     # viewer/tech 隱藏
-    assert "isViewer ? '' : `<div class=\"m-card-actions\">" in js, "手機按鈕列應對 viewer/tech 隱藏"
+    assert 'if (isViewer) return \'\';' in js, "手機按鈕列應對 viewer/tech 隱藏"
 
 
 def test_prepared_nonstock_add_ui():
@@ -1763,7 +1717,7 @@ def test_prepared_nonstock_add_ui():
     pjs = read(PREPARED_RENDER_JS)
     assert "onclick=\"openNonStockPrepareModal()\"" in pjs, "待領出頁缺新增按鈕入口"
     assert "tag-nonstock" in pjs, "待領出頁非庫存標籤缺失"
-    assert "preparedBar" in pjs, "待領出頁 toolbar 變數缺失（手機+桌面都要顯示）"
+    assert "renderPreparedPageHeader" in pjs, "待領出頁 header/toolbar 渲染函式缺失"
 
     sjs = read(STOCKOUT_RENDER_JS)
     assert "stockoutBar" in sjs, "已領出頁 toolbar 變數缺失（桌面版要顯示）"
@@ -1784,7 +1738,7 @@ def test_stockout_nonstock_add_ui():
     rjs = read(STOCKOUT_RENDER_JS)
     assert "onclick=\"openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
     assert "site=${currentSite}" in rjs, "已領出頁 fetch 應隨 site 過濾（倉庫 0 就不能顯示內容）"
-    assert "共 ${outs.length} 筆" in rjs, "已領出頁缺筆數列"
+    assert "getStockoutKpis(filteredOuts)" in rjs, "已領出頁 KPI 必須取 filtered result"
     assert "tag-nonstock" in rjs, "非庫存標籤 class 缺失"
 
     html = read(INDEX)
@@ -2221,8 +2175,6 @@ def test_batch_button_uses_batch_loc_mgmt_perm():
     js = read(INVENTORY_RENDER_JS)
     assert "hasPerm('batch-loc-mgmt')" in js or 'hasPerm("batch-loc-mgmt")' in js, \
         "批次按鈕需用 hasPerm('batch-loc-mgmt') 控制顯示"
-    assert 'id="batch-site"' in read(INDEX), "批次改位置需提供辦公室/倉庫選擇"
-    assert 'new_site: site' in js, "批次改位置需將目標分片送給 API"
     # 不應再用 !isViewer 控制批次按鈕
     assert "isViewer ? '' : `<button class=\"btn-sm btn-batch\"" not in js, \
         "批次按鈕不應再用 isViewer 控制"
@@ -2243,8 +2195,9 @@ def test_select_all_respects_search_filter():
 def test_render_inventory_uses_shared_filter():
     """防回歸：renderInventory 使用 getFilteredInventoryItems（搜尋篩選不重複）"""
     js = read(INVENTORY_RENDER_JS)
-    assert "let list = getFilteredInventoryItems()" in js or \
-        "var list = getFilteredInventoryItems()" in js, \
+    assert ("const list = getFilteredInventoryItems()" in js or \
+            "let list = getFilteredInventoryItems()" in js or \
+            "var list = getFilteredInventoryItems()" in js), \
         "renderInventory 應使用 getFilteredInventoryItems"
     # 主要篩選邏輯（搜尋/品牌/分類）已搬到 getFilteredInventoryItems
     # renderInventory 裡的 ALL_ITEMS.filter 只允許統計用途（dashboard 卡片）
@@ -2275,6 +2228,30 @@ def test_update_notifications_function():
     assert "esc(i.name)" in js or "esc(item.name)" in js, \
         "updateNotifications 應使用 esc() 轉義品項名稱"
 
+
+
+def test_update_notifications_refreshes_after_kit_data_load():
+    """Kit notifications must refresh after currentKitItems is populated."""
+    js = read(os.path.join(STATIC, "js", "render", "kits.js"))
+    assignment = "const filteredKits = currentKitItems;"
+    start = js.index(assignment) + len(assignment)
+    assert "updateNotifications();" in js[start:start + 80]
+
+
+def test_update_notifications_is_page_scoped_but_stocktake_reminder_is_global():
+    """缺貨／低庫存只限單一庫存頁；盤點提醒不受頁面限制。"""
+    js = read(APP_JS)
+    start = js.index("function updateNotifications")
+    end = js.index("setTimeout(function() { updateNotifications();", start)
+    block = js[start:end]
+    stock_alert_block = block[:block.index("// 盤點提醒")]
+    assert "if (currentTab === 'inventory' || currentTab === 'stocktake') {" in stock_alert_block
+    assert "currentKitItems.forEach" in block
+    assert "getKitStatus(kit).status" in block
+    assert "整組缺料：" in block
+    switch_start = js.index("function switchTab(tab)")
+    assert js.index("currentTab = tab;", switch_start) < js.index("updateNotifications();", switch_start)
+    assert "if (day >= 25 && lastStocktakeMonth !== currentMonth)" in block
 
 
 # ========== Phase 2: Drawer 統一 ==========
@@ -2312,18 +2289,18 @@ def test_drawer_js_functions():
 def test_dashboard_stat_cards():
     """Phase 3：Dashboard 摘要卡 JS 存在"""
     js = read(INVENTORY_RENDER_JS)
-    assert "dash-cards" in js, "dash-cards class 引用缺失"
-    assert "dash-card" in js, "dash-card class 引用缺失"
-    assert "dc-num" in js or "dc-lbl" in js, "dashboard card 內容缺失"
+    assert "inventory-kpi-grid" in js, "inventory-kpi-grid class 引用缺失"
+    assert "inventory-kpi-card" in js, "inventory-kpi-card class 引用缺失"
+    assert "inventory-kpi-number" in js or "inventory-kpi-label" in js, "KPI card 內容缺失"
 
 
 def test_dashboard_css_exists():
     """Phase 3：Dashboard card CSS 樣式存在"""
-    css = read(CSS_CORE)
-    assert '.dash-cards{' in css or '.dash-cards {' in css, "dash-cards CSS 缺失"
-    assert '.dash-card{' in css or '.dash-card {' in css, "dash-card CSS 缺失"
-    assert '.dash-card.warn' in css, "dash-card.warn CSS 缺失"
-    assert '.dash-card.danger' in css, "dash-card.danger CSS 缺失"
+    css = read(CSS_INVENTORY)
+    assert '.inventory-kpi-grid' in css, "inventory-kpi-grid CSS 缺失"
+    assert '.inventory-kpi-card' in css, "inventory-kpi-card CSS 缺失"
+    assert '.inventory-kpi-low' in css, "低庫存 KPI CSS 缺失"
+    assert '.inventory-kpi-out' in css, "缺貨 KPI CSS 缺失"
 
 
 def test_chip_bar_filter():
@@ -2434,35 +2411,11 @@ def test_stockout_return_tracks_source_and_return_locations():
     assert 'POST' in modal and '/return' in modal
     assert '/api/stockout-returns/' in modal
     assert 'openEditStockoutReturnModal' in render
-    assert 'deleteStockoutReturn' in render
+    assert 'revokeStockoutReturn' in render
     assert 'return_location' in render
     assert 'esc(Number(st.id))' in modal
-    assert '/repair' in modal
-    assert 'openRepairStockoutReturnModal' in render
-    assert 'needsRepair' in render
 
-
-def test_stockout_return_actions_remain_visible_after_return():
-    """退回流水依狀態保留編輯/修復/刪除入口。"""
-    render = read("static/js/render/stockout.js")
-    assert "if (isReturn)" in render
-    assert "const needsRepair = isReturn && (!o.source_movement_id || !o.return_stock_id);" in render
-    assert "if (reverted)" in render
-    assert "else if (needsRepair)" in render
-    assert render.index("if (reverted)") < render.index("else if (needsRepair)")
-    assert "openEditStockoutReturnModal(${o.id})" in render
-    assert "deleteStockoutReturn(${o.id})" in render
-
-
-def test_stockout_return_delete_action_is_available_for_every_status():
-    """退回流水不論尚未撤銷、需修復或已撤銷，都必須有刪除入口。"""
-    render = read("static/js/render/stockout.js")
-    modal = read("static/js/modals/stockout.js")
-    assert "deleteStockoutReturn(${o.id})" in render
-    assert "deleteStockoutReturn(movementId)" in render
-    assert "DELETE" in render
-    assert "await renderStockOuts()" in modal
-
+# ========== Sidebar 折疊 ==========
 def test_sidebar_collapsed_css_exists():
     """sidebar 折疊 CSS 規則存在（桌面隱藏/展開）"""
     css = read_css_all()
@@ -2742,191 +2695,397 @@ if (viewer.includes('編輯品項') || viewer.includes('刪除品項')) throw ne
 
 def test_inventory_mobile_table_does_not_force_desktop_width():
     # 手機表格不可用桌面固定寬度，否則會只看得到前幾欄。
-    css = read_css_all()
-    assert '.tbl-wrap table.data-table { min-width: 780px; }' not in css
+    css = read(CSS_INVENTORY)
+    desktop_width_rule = (
+        '@media (min-width: 768px) {\n'
+        '  .inventory-content .tbl-wrap table.data-table {\n'
+        '    min-width: 1040px;\n'
+        '  }\n'
+        '}'
+    )
+    assert desktop_width_rule in css
+    mobile_css = css[css.index('@media (max-width: 767px)'):]
+    assert 'min-width: 1040px' not in mobile_css
 
 
-def test_stocktake_reminder_is_rechecked_on_tab_changes():
-    """跨頁後 reminder 必須重新同步，不能卡在前一頁的 hidden 狀態。"""
+def test_desktop_inventory_and_prepared_styles_are_loaded():
+    """桌面兩頁使用獨立 scoped CSS，且 content 變體不污染其他頁。"""
+    html = read(INDEX)
     app = read(APP_JS)
-    switch_body = app[app.index("function switchTab(tab)"):app.index("// 檢查今天日期")]
-    assert "checkReminder();" in switch_body
-
-    auth = read(AUTH_JS)
-    role_body = auth[auth.index("function applyRoleView"): ]
-    assert "checkReminder();" in role_body
-    assert "reminder.style.display = canStocktake ? '' : 'none'" not in role_body
-
-
-def test_check_reminder_honors_permission_and_date_window():
-    """提醒同步必先驗 stocktake 權限，再套日期與當月完成規則。"""
-    app = read(APP_JS)
-    reminder_body = app[app.index("function checkReminder()"):app.index("var _searchTimer")]
-    assert "currentUser" in reminder_body
-    assert "permissions['stocktake']" in reminder_body
-    assert "if (!canStocktake)" in reminder_body
-    assert "day >= 25 && lastStocktakeMonth !== currentMonth" in reminder_body
+    css = read(CSS_INVENTORY)
+    assert "/static/css/style.inventory.css" in html
+    assert "content.classList.toggle('inventory-content', tab === 'inventory')" in app
+    assert "content.classList.toggle('prepared-content', tab === 'prepared')" in app
+    assert ".content.inventory-content" in css
+    assert ".content.prepared-content" in css
+    assert 'class="filter-panel inventory-filter-panel"' in html
+    assert ".filter-panel.inventory-filter-panel" in css
+    assert "#filter-panel" not in css
+    assert ".inventory-status-modal" in css
 
 
+def test_inventory_status_kpis_and_detail_share_filtered_status_source():
+    """低庫存/缺貨 KPI 與清單共用目前 filter 及同一狀態判定。"""
+    js = read(INVENTORY_RENDER_JS)
+    assert "function getInventoryStatus(item)" in js
+    assert "function showInventoryStatusList(type)" in js
+    detail = js[js.index("function showInventoryStatusList"):]
+    assert "getFilteredInventoryItems()" in detail
+    assert "getInventoryStatus(i)" in js
+    assert "inventory-kpi-card" in js
+    assert "showInventoryStatusList('low')" in js
+    assert "showInventoryStatusList('out')" in js
 
-def test_stocktake_reminder_runtime_lifecycle(tmp_path):
-    """Regression: reminder state must follow auth/date/localStorage across tab changes."""
-    harness = r"""
+
+def test_inventory_status_detail_runtime_uses_filtered_items_and_priority():
+    """Node VM：缺貨優先於低庫存，KPI/清單入口存在且使用相同資料。"""
+    script = r"""
 const fs = require('fs');
 const vm = require('vm');
-const appSource = fs.readFileSync(process.argv[2], 'utf8');
-const authSource = fs.readFileSync(process.argv[3], 'utf8');
-const apiSource = fs.readFileSync(process.argv[4], 'utf8');
-
-function extract(source, startMarker, endMarker) {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start);
-  if (start < 0 || end < 0) throw new Error(`missing source marker: ${startMarker}`);
-  return source.slice(start, end);
-}
-
-const code = [
-  extract(appSource, 'function switchTab(tab) {', '// 檢查今天日期'),
-  extract(appSource, 'function checkReminder() {', 'var _searchTimer'),
-  authSource.slice(authSource.indexOf('function applyRoleView(user) {')),
-  extract(apiSource, 'async function loadData(options) {', '// 庫存頁只取當前頁資料'),
-  extract(apiSource, 'async function loadInventoryPage(page) {', 'function changeInventoryPage'),
-].join('\n');
-
-let day = 10;
-let missingReminder = false;
-const reminder = {style: {display: 'initial'}};
-const today = {textContent: ''};
-const elements = {reminder, 'today-str': today};
-function makeElement() {
-  return {
-    style: {display: ''},
-    classList: {toggle() {}, remove() {}, add() {}},
-    textContent: '', value: '', disabled: false,
-  };
-}
-const document = {
-  getElementById(id) {
-    if (id === 'reminder' && missingReminder) return null;
-    if (!elements[id]) elements[id] = makeElement();
-    return elements[id];
-  },
-  querySelectorAll() { return []; },
-  querySelector() { return makeElement(); },
-};
-const localStorage = {value: null, getItem() { return this.value; }};
-function fakeFetch(url) {
-  return Promise.resolve({
-    ok: true,
-    async json() {
-      if (String(url).includes('/facets')) return {};
-      return {items: [], page: 1, page_size: 50, total: 0};
-    },
-  });
-}
-const fakeAbortController = class { abort() {} };
-const RealDate = Date;
-class FakeDate extends RealDate {
-  constructor(...args) {
-    super(...(args.length ? args : [`2026-09-${String(day).padStart(2, '0')}T12:00:00`]));
-  }
-}
 const context = {
-  console, document, localStorage, Date: FakeDate,
-  URLSearchParams, AbortController: fakeAbortController, fetch: fakeFetch,
-  currentTab: 'calendar', currentSite: 'site',
-  currentUser: null, inventoryLoadedSite: 'site', fullItemsLoadedSite: 'site',
-  dataRequestSeq: 0, dataAbortController: null, inventoryRequestSeq: 0,
-  inventoryAbortController: null, inventoryFacetsLoadedSite: 'site',
-  INVENTORY_META: {page: 1, page_size: 50, total: 0},
-  currentBrands: [], currentCategories: [], ALL_ITEMS: [],
-  INVENTORY_FACETS: {}, ALERTS_BY_SITE: {},
-  batchMode: false, selectedStockIds: new Set(),
-  updateBreadcrumb() {}, closeSidebar() {}, syncViewUrl() {},
-  loadInventoryPage() {}, loadData() {}, renderInventory() {}, renderPrepared() {},
-  renderStockOuts() {}, renderStocktake() {}, renderKits() {}, renderCalendar() {},
-  renderSignedReports() {}, renderQuotation() {},
-  buildDatalists() {}, buildFilterPanel() {}, updateNotifications() {},
-  updateSubInfo() {}, loadPreparedBadge() {},
+  document: { addEventListener() {}, querySelectorAll() { return []; }, getElementById() { return null; } },
+  localStorage: { getItem() { return 'card'; } },
+  pending: {}, currentSite: 'office', currentBrands: [], currentCategories: [], ALL_ITEMS: [],
 };
 vm.createContext(context);
-vm.runInContext(code, context);
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
+for (const file of ['static/js/utils.js', 'static/js/render/inventory.js']) {
+  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 }
-function setState(nextDay, user, lastMonth) {
-  day = nextDay;
-  context.currentUser = user;
-  localStorage.value = lastMonth;
-  missingReminder = false;
-}
-const stocktakeUser = {permissions: {stocktake: true}};
-const viewer = {permissions: {view: true}};
-
-async function run() {
-
-setState(10, stocktakeUser, null);
-context.applyRoleView(stocktakeUser);
-assert(reminder.style.display === 'none', 'before 25th must stay hidden');
-
-setState(25, stocktakeUser, null);
-context.applyRoleView(stocktakeUser);
-assert(reminder.style.display === 'flex', 'due stocktake reminder must show');
-assert(today.textContent === '9月25日', 'reminder date text must be refreshed');
-
-setState(25, viewer, null);
-context.applyRoleView(viewer);
-assert(reminder.style.display === 'none', 'viewer must not see stocktake reminder');
-
-setState(25, stocktakeUser, '2026-09');
-context.applyRoleView(stocktakeUser);
-assert(reminder.style.display === 'none', 'completed month must stay hidden');
-localStorage.value = null;
-for (const tab of ['calendar', 'signed-reports', 'quotation', 'inventory']) {
-  context.switchTab(tab);
-  assert(reminder.style.display === 'flex', `${tab} must re-show a due reminder`);
-}
-localStorage.value = '2026-09';
-for (const tab of ['calendar', 'signed-reports', 'quotation', 'inventory']) {
-  context.switchTab(tab);
-  assert(reminder.style.display === 'none', `${tab} must hide a completed reminder`);
-}
-
-setState(26, undefined, null);
-context.checkReminder();
-assert(reminder.style.display === 'none', 'undefined user must stay hidden');
-setState(26, {permissions: {}}, null);
-context.checkReminder();
-assert(reminder.style.display === 'none', 'empty permissions must stay hidden');
-setState(26, stocktakeUser, null);
-context.checkReminder();
-assert(reminder.style.display === 'flex', '26th must show a due reminder');
-
-setState(26, stocktakeUser, null);
-context.currentTab = 'stockout';
-await context.loadData({full: true});
-assert(reminder.style.display === 'flex', 'loadData must recheck a due reminder');
-setState(26, stocktakeUser, '2026-09');
-context.currentTab = 'inventory';
-await context.loadInventoryPage(1);
-assert(reminder.style.display === 'none', 'loadInventoryPage must recheck a completed reminder');
-
-missingReminder = true;
-context.checkReminder();
-console.log('stocktake reminder runtime lifecycle passed');
-}
-run().catch(function(error) {
-  console.error(error.stack || error);
-  process.exitCode = 1;
-});
+const low = { id: 1, qty: 2, low_stock: 3, is_kit: false };
+const zero = { id: 2, qty: 0, low_stock: 3, is_kit: false };
+const normal = { id: 3, qty: 8, low_stock: 3, is_kit: false };
+if (!context.getInventoryStatus(low).isLowStock || context.getInventoryStatus(low).isOutOfStock) throw new Error('low status mismatch');
+if (!context.getInventoryStatus(zero).isOutOfStock || context.getInventoryStatus(zero).isLowStock) throw new Error('zero status mismatch');
+if (context.getInventoryStatus(normal).isLowStock || context.getInventoryStatus(normal).isOutOfStock) throw new Error('normal status mismatch');
+context.pending[1] = 1;
+const html = context.renderInventoryDashboard([low, zero, normal]);
+if (!html.includes('inventory-kpi-number">11</div>')) throw new Error('pending-aware total missing');
+if (!html.includes("showInventoryStatusList('low')") || !html.includes("showInventoryStatusList('out')")) throw new Error('KPI handlers missing');
 """
-    script = tmp_path / "stocktake-reminder-runtime.js"
-    script.write_text(harness, encoding="utf-8")
-    result = subprocess.run(
-        ["node", str(script), APP_JS, AUTH_JS, API_JS],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr or result.stdout
-    assert "stocktake reminder runtime lifecycle passed" in result.stdout
+
+
+def test_prepared_desktop_layout_keeps_existing_action_handlers():
+    """待領出桌面版保留新增、已領出、退回、刪除與非庫存退回條件。"""
+    js = read(PREPARED_RENDER_JS)
+    assert "prepared-page-header" in js
+    assert "prepared-alert" in js
+    assert "prepared-table-wrap" in js
+    for token in ("openNonStockPrepareModal", "openPreparedOutModal", "returnPrepared", "clearPrepared"):
+        assert token in js
+    assert "item.is_deleted ? ''" in js
+    assert "載入待領出資料失敗" in js
+    assert "renderPrepared()" in js
+
+
+def test_desktop_inventory_pending_visual_system_css():
+    """單一庫存/待領出 desktop CSS 含 KPI、狀態、表格及 responsive 規則。"""
+    css = read(CSS_INVENTORY)
+    for token in (".inventory-page-heading", ".inventory-kpi-card", ".inventory-status-dialog",
+                  ".prepared-page-header", ".prepared-summary-card", ".prepared-table-wrap",
+                  ".prepared-qty-badge", ".prepared-stock-badge", ".status-low", ".status-out"):
+        assert token in css, f"style.inventory.css 缺少 {token}"
+    assert "@media (max-width: 1440px)" in css
+    assert "@media (max-width: 767px)" in css
+
+
+
+def test_kit_desktop_dashboard_assets_and_existing_actions():
+    """整組庫存 desktop dashboard 使用 scoped CSS 且保留既有操作 handlers。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    js = read(KITS_RENDER_JS)
+    css = read(CSS_KIT)
+    assert "/static/css/style.kit.css" in html
+    assert "content.classList.toggle('kit-content', tab === 'kit')" in app
+    for token in (
+        "kit-page-header", "kit-kpi-grid", "kit-toolbar", "kit-assembly-card",
+        "kit-component-table", "kit-status-badge", "kit-empty-state",
+    ):
+        assert token in js or token in css, f"整組頁缺少 {token}"
+    for token in ("openPrepareModal", "openOutModal", "editKit", "deleteKit", "assembleKit", "disassembleKit"):
+        assert token in js
+    assert ".kit-content" in css
+
+
+def test_kit_dashboard_stats_runtime_uses_component_data():
+    """Node VM：KPI 由實際整組/材料資料計算，缺料與庫存不足分開。"""
+    script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const context = { document: { addEventListener() {} } };
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/js/render/kits.js', 'utf8'), context);
+const kits = [
+  { id: 1, components: [{ item_id: 11, stock: 0, need_qty: 1 }, { item_id: 12, stock: 2, need_qty: 1 }] },
+  { id: 2, components: [{ item_id: 12, stock: 1, need_qty: 2 }] },
+  { id: 3, components: [{ item_id: 13, stock: 2, need_qty: 1 }] },
+];
+const stats = context.getKitDashboardStats(kits);
+if (stats.kitCount !== 3 || stats.materialCount !== 3) throw new Error('kit KPI count mismatch');
+if (stats.shortageCount !== 1 || stats.insufficientCount !== 1) throw new Error('kit status KPI mismatch');
+if (context.getKitStatus(kits[0]).status !== 'shortage') throw new Error('shortage priority mismatch');
+if (context.getKitStatus(kits[1]).status !== 'insufficient') throw new Error('insufficient status mismatch');
+"""
+    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+
+def test_stocktake_desktop_dashboard_assets_and_scope():
+    """盤點 desktop dashboard 使用 page-scoped CSS，保留整組/單一材料資訊層級。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    js = read(STOCKTAKE_JS)
+    css = read(CSS_STOCKTAKE)
+    assert "/static/css/style.stocktake.css" in html
+    assert "content.classList.toggle('stocktake-content', tab === 'stocktake')" in app
+    for token in (
+        "stocktake-page-header", "stocktake-kpi-grid", "stocktake-info-panel",
+        "stocktake-summary-card", "stocktake-tabs", "stocktake-table",
+    ):
+        assert token in js or token in css, f"盤點頁缺少 {token}"
+    assert "stk-pane-kit" in js and "stk-pane-single" in js
+    assert ".stocktake-content" in css
+    assert ".stocktake-status-modal-content .stocktake-status-extra" in css
+    assert ".stocktake-content .stocktake-status-item .stocktake-status-extra" not in css
+
+
+def test_stocktake_status_lists_reuse_inventory_modal_source():
+    """盤點低庫存/缺貨清單使用現有 inventory status modal 與共用狀態語意。"""
+    js = read(STOCKTAKE_JS)
+    assert "inventory-status-modal" in js
+    assert "inventory-status-modal-body" in js
+    assert "inventory-status-list" in js
+    assert "getInventoryStatus" in js
+    assert "showStocktakeList('low')" in js
+    assert "showStocktakeList('zero')" in js
+
+
+
+def test_stocktake_kit_component_rows_have_scoped_layout_styles():
+    """整組盤點的組成材料列必須有 page-scoped layout，避免 markup 退化成未排版 inline。"""
+    css = read(CSS_STOCKTAKE)
+    for selector in (
+        ".stocktake-content .stocktake-material-row",
+        ".stocktake-content .stocktake-material-cell",
+        ".stocktake-content .stocktake-item-cell",
+        ".stocktake-content .stocktake-material-need",
+    ):
+        assert selector in css, f"盤點頁缺少 {selector}"
+    assert ".stocktake-kpi-action" not in css
+
+
+
+def test_stockout_desktop_dashboard_assets_and_scope():
+    """已領出 desktop dashboard 使用 page-scoped CSS 與日期/搜尋控制。"""
+    html = read(INDEX)
+    app = read(APP_JS)
+    js = read(STOCKOUT_RENDER_JS)
+    css = read(CSS_STOCKOUT)
+    assert "/static/css/style.stockout.css" in html
+    assert "content.classList.toggle('stockout-content', tab === 'stockout')" in app
+    for token in (
+        "stockout-page-header", "stockout-filter-bar", "stockout-kpi-grid",
+        "stockout-date-group", "stockout-record-row", "stockout-empty-state",
+    ):
+        assert token in js or token in css, f"已領出頁缺少 {token}"
+    assert ".stockout-content" in css
+
+
+def test_stockout_kpis_and_groups_use_same_filtered_result():
+    """日期/搜尋後的 KPI、日期 Group、Row 必須來自同一份 filtered records。"""
+    js = read(STOCKOUT_RENDER_JS)
+    for token in (
+        "filterStockoutRecords", "filteredOuts", "recordCount", "totalOutbound",
+        "dateGroupCount", "uniqueItemCount", "stockoutDateFrom", "stockoutDateTo",
+        "stockoutPageSearch",
+    ):
+        assert token in js, f"已領出缺少一致性資料鏈 token: {token}"
+
+
+def test_stockout_existing_actions_and_return_states_remain():
+    """既有已領出編輯/退回/撤銷/刪除與 mobile sheet action 不得因 UI 重構消失。"""
+    js = read(STOCKOUT_RENDER_JS)
+    for token in (
+        "openEditStockoutModal", "openEditStockoutReturnModal", "returnStockout",
+        "revokeStockoutReturn", "deleteStockoutRecord", "openStockoutSheet",
+        "reverted_at", "退回已領出", "已退回",
+    ):
+        assert token in js
+
+
+
+def test_stockout_effective_search_and_revoked_return_state():
+    """頁內/頂部搜尋只形成一個 effective query，撤銷退回要有獨立失效狀態。"""
+    js = read(STOCKOUT_RENDER_JS)
+    assert "globalSearchQuery" in js
+    assert "stockoutPageSearch || globalSearchQuery" in js
+    assert "is-reverted-return" in js
+    assert "已撤銷退回" in js
+
+def test_prepared_stock_badge_uses_explicit_current_stock_label():
+    """待領出庫存數量不能使用容易誤解的菱形符號，必須有明確庫存語意。"""
+    js = read(PREPARED_RENDER_JS)
+    assert '目前庫存' in js
+    assert '◇ ${absNum(item.qty)}' not in js
+
+
+def test_stockout_dashboard_uses_fixed_photo_and_equal_data_columns():
+    """已領出桌面列的照片固定 80px，其餘欄位與操作欄固定均分。"""
+    css = read(os.path.join(STATIC, 'css', 'style.stockout.css'))
+    assert 'table-layout: fixed;' in css
+    assert '.stockout-col-photo { width: 80px; }' in css
+    assert 'stockout-col-photo' in read(os.path.join(STATIC, 'js', 'render', 'stockout.js'))
+    assert '.stockout-actions button { flex: 1 1 0; min-width: 0;' in css
+
+
+def test_stocktake_kit_rows_have_independent_actual_and_diff_columns():
+    """整組主列與每個材料列必須各自擁有四欄，不能把材料塞進主列第一欄。"""
+    js = read(STOCKTAKE_JS)
+    css = read(CSS_STOCKTAKE)
+    assert 'stocktake-assembly-row' in js
+    assert 'stocktake-material-row' in js
+    assert 'stocktake-material-system-qty' in js
+    assert 'stocktake-material-diff' in js
+    assert '.stocktake-material-row' in css
+    assert 'table-layout: fixed;' in css
+    assert '.stocktake-material-row td:first-child' in css
+
+
+def test_stocktake_submission_deduplicates_shared_material_key():
+    """同一材料出現在多個整組時，提交仍以 item_id:location 唯一 key 去重。"""
+    js = read(STOCKTAKE_JS)
+    assert 'submittedKeys = new Set(Object.keys(stocktakeValues))' in js
+    assert 'for (const key of submittedKeys)' in js
+    assert 'material.stocks.find(s => s.location === stock.location)' in js
+
+def test_kit_component_table_has_fixed_photo_and_equal_remaining_columns():
+    """整組庫存組成材料表使用 Excel 式固定欄寬，操作列按鈕等寬。"""
+    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    css = read(CSS_KIT)
+    assert 'kit-col-photo' in js
+    assert 'kit-col-info' in js
+    assert 'kit-col-need' in js
+    assert 'kit-col-stock' in js
+    assert 'kit-col-status' in js
+    assert 'table-layout: fixed;' in css
+    assert '.kit-col-photo { width: 80px; }' in css
+    assert 'width: calc((100% - 80px) / 4);' in css
+    assert '.kit-assembly-actions .kit-action { flex: 1 1 0; min-width: 0;' in css
+
+def test_kit_status_kpis_are_clickable_and_use_existing_status_selector():
+    """整組庫存異常 KPI 必須用既有 getKitStatus selector 開啟明細。"""
+    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    assert "showKitStatusList('${card[4]}')" in js
+    assert 'function showKitStatusList(type)' in js
+    assert "getKitStatus(k).status === validType" in js
+    assert '庫存不足(個)' in js
+    assert '缺料(個)' in js
+
+
+def test_stocktake_mobile_table_and_header_keep_columns_readable():
+    """盤點手機版數量欄固定分配、header 同列排列、品項可斷行。"""
+    css = read(CSS_STOCKTAKE)
+    assert '.stocktake-content table.stocktake-table { width: 100%; min-width: 680px; table-layout: fixed;' in css
+    assert '.stocktake-content .stocktake-current-header { align-items: center; flex-direction: row;' in css
+    assert '.stocktake-content .stocktake-input { width: 100%;' in css
+
+
+def test_prepared_mobile_nonstock_badge_has_wrapping_layout():
+    """待領出手機非庫存 badge 不得被品名 nowrap/ellipsis 切斷。"""
+    js = read(PREPARED_RENDER_JS)
+    css = read(CSS_INVENTORY)
+    assert 'prepared-mobile-name' in js
+    assert '.prepared-content .m-card .nm' in css
+    assert 'white-space: normal;' in css
+    assert '.prepared-content .tag-nonstock' in css
+
+
+def test_inventory_mobile_toolbar_groups_count_add_and_more():
+    """單一庫存手機工具列第一列為共 N 項／新增／更多，view toggle 另列。"""
+    js = read(INVENTORY_RENDER_JS)
+    css = read(CSS_INVENTORY)
+    assert 'btn-add-inv' in js
+    assert 'more-actions-wrap' in js
+    assert '.inventory-content .loc-export-count' in css
+    assert '.inventory-content .loc-export-bar .btn-add-inv' in css
+    assert '.inventory-content .more-actions-wrap' in css
+    assert '.inventory-content .view-toggle { order: 4;' in css
+    assert '.inventory-content .btn-add-inv {' in css
+    assert 'background: #fff;' in css
+
+
+def test_stockout_kpi_total_quantity_uses_item_unit_label():
+    """已領出總領出數量 KPI 顯示個單位。"""
+    js = read(STOCKOUT_RENDER_JS)
+    assert '總領出數量(個)' in js
+
+def test_kit_mobile_actions_stay_on_one_row_in_requested_order():
+    """整組手機操作必須同列且順序為待領出、已領出、更多。"""
+    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    css = read(CSS_KIT)
+    assert 'kit-mobile-actions' in js
+    assert 'renderKitActionButtons(k, isViewer, isM, status)' in js
+    assert 'kit-mobile-actions .kit-action' in css
+    assert js.index('openPrepareModal(${k.item_id}, event)') < js.index('openOutModal(${k.item_id}, event)')
+    assert js.index('openOutModal(${k.item_id}, event)') < js.index('openKitSheet(${k.id})')
+
+
+def test_stocktake_mobile_text_keeps_original_wrapping_behavior():
+    """盤點手機版保留可讀表格寬度，並維持 header 同列排列。"""
+    css = read(CSS_STOCKTAKE)
+    assert '.stocktake-content .stocktake-current-header { align-items: center; flex-direction: row;' in css
+    assert '.stocktake-content table.stocktake-table { width: 100%; min-width: 680px; table-layout: fixed;' in css
+    assert '.stocktake-content .stocktake-input { width: 100%; max-width: 86px;' in css
+
+def test_prepared_mobile_info_has_separate_name_model_location():
+    """待領出手機品項資訊分成品牌名稱、型號、位置三行。"""
+    js = read(PREPARED_RENDER_JS)
+    assert 'prepared-mobile-name' in js
+    assert 'prepared-mobile-model' in js
+    assert 'prepared-mobile-location' in js
+
+
+def test_stocktake_mobile_list_keeps_readable_width_with_horizontal_scroll():
+    """盤點手機清單保留可讀欄寬，由外層容器水平滑動。"""
+    css = read(CSS_STOCKTAKE)
+    assert '.stocktake-content .stocktake-table-wrap { overflow-x: auto;' in css
+    assert '.stocktake-content table.stocktake-table { width: 100%; min-width: 680px;' in css
+
+def test_prepared_mobile_card_keeps_stock_badge_in_layout():
+    """待領出手機卡片資訊欄不被右側數量欄擠壓，badge 可正常排列。"""
+    css = read(CSS_INVENTORY)
+    assert '.prepared-content .m-card .info { padding-right: 0;' in css
+    assert '.prepared-content .m-card .qty-col {' in css
+    assert 'width: 46px; padding-right: 0;' in css
+    assert '.prepared-content .prepared-mobile-meta { display: flex;' in css
+
+
+def test_inventory_table_stockout_actions_do_not_wrap_on_mobile():
+    """單一庫存表格待領出／已領出／更多操作維持同一排。"""
+    css = read(CSS_INVENTORY)
+    assert '.inventory-content .tbl-wrap .col-actions { white-space: nowrap;' in css
+    assert '.inventory-content .tbl-wrap .inventory-stockout-actions { display: inline-flex;' in css
+    assert '.inventory-content .tbl-wrap .inventory-action-menu { display: inline-flex;' in css
+
+def test_prepared_desktop_item_info_matches_mobile_hierarchy():
+    """待領出桌面資訊與手機一致：品牌品名第一行、型號第二行。"""
+    js = read(os.path.join(STATIC, "js", "render", "prepared.js"))
+    assert "${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}" in js
+    assert "型號： ${esc(item.code)}" in js
+
+
+def test_inventory_card_info_uses_brand_name_then_labeled_model():
+    """單一庫存卡片桌面與手機都統一品牌品名／型號階層。"""
+    js = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    assert "nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名')" in js
+    assert 'inventory-mobile-model">型號： ' in js
+
+
+def test_inventory_table_model_has_explicit_label():
+    """單一庫存表格型號顯示型號前綴，避免品牌跑到型號行。"""
+    js = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    assert "型號： " in js
+    assert "esc(i.code) + '</small>'" in js

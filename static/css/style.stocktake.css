@@ -1,0 +1,170 @@
+/* 盤點頁專用 desktop dashboard（僅 stocktake-content scope） */
+.stocktake-content {
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 24px 28px 48px;
+  background: #f8fafc;
+}
+.stocktake-content .stocktake-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+.stocktake-content .stocktake-heading-copy { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.stocktake-content .stocktake-heading-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 22px;
+}
+.stocktake-content .stocktake-page-header h1 { margin: 0; color: #0f172a; font-size: 27px; line-height: 1.2; font-weight: 700; }
+.stocktake-content .stocktake-page-header p { margin: 6px 0 0; color: #64748b; font-size: 14px; line-height: 1.5; }
+.stocktake-content .stocktake-date { flex: none; padding: 9px 12px; border: 1px solid #dbeafe; border-radius: 8px; background: #eff6ff; color: #2563eb; font-size: 13px; font-weight: 600; }
+.stocktake-content .stocktake-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+.stocktake-content .stocktake-kpi-card {
+  min-height: 94px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  text-align: left;
+}
+.stocktake-content button.stocktake-kpi-card { width: 100%; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; }
+.stocktake-content button.stocktake-kpi-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(15,23,42,.06); }
+.stocktake-content .stocktake-kpi-card.warn { background: #fffbeb; border-color: #fde68a; }
+.stocktake-content .stocktake-kpi-card.danger { background: #fef2f2; border-color: #fca5a5; }
+.stocktake-content .stocktake-kpi-icon { width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; border-radius: 10px; background: #eff6ff; font-size: 18px; }
+.stocktake-content .stocktake-kpi-card.warn .stocktake-kpi-icon { background: #fef3c7; }
+.stocktake-content .stocktake-kpi-card.danger .stocktake-kpi-icon { background: #fee2e2; }
+.stocktake-content .stocktake-kpi-number { color: #0f172a; font-size: 28px; line-height: 1; font-weight: 700; }
+.stocktake-content .stocktake-kpi-card.warn .stocktake-kpi-number { color: #d97706; }
+.stocktake-content .stocktake-kpi-card.danger .stocktake-kpi-number { color: #dc2626; }
+.stocktake-content .stocktake-kpi-label { margin-top: 6px; color: #64748b; font-size: 13px; }
+.stocktake-content .stocktake-loading { min-height: 180px; display: grid; place-items: center; color: #64748b; font-size: 14px; }
+.stocktake-content .stocktake-summary-card,
+.stocktake-content .stocktake-info-panel,
+.stocktake-content .stocktake-readonly-panel {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15,23,42,.03);
+}
+.stocktake-content .stocktake-summary-heading,
+.stocktake-content .stocktake-current-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #334155; font-size: 15px; font-weight: 700; }
+.stocktake-content .stocktake-summary-date { color: #2563eb; font-size: 13px; font-weight: 600; }
+.stocktake-content .stocktake-summary-metrics { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 14px; color: #64748b; font-size: 13px; }
+.stocktake-content .stocktake-summary-metrics b { margin-left: 4px; color: #334155; font-size: 16px; }
+.stocktake-content .stocktake-summary-metrics b.is-positive { color: #16a34a; }
+.stocktake-content .stocktake-summary-metrics b.is-negative { color: #dc2626; }
+.stocktake-content .stocktake-info-panel { border-color: #dbeafe; background: #eff6ff; color: #475569; font-size: 13px; line-height: 1.7; }
+.stocktake-content .stocktake-info-title { margin-bottom: 4px; color: #2563eb; font-weight: 700; }
+.stocktake-content .stocktake-current-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 20px 0 12px; }
+.stocktake-content .stocktake-current-date { color: #64748b; font-size: 13px; }
+.stocktake-content .stocktake-history { margin-bottom: 18px; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.stocktake-content .stocktake-history table { width: 100%; border-collapse: collapse; min-width: 520px; }
+.stocktake-content .stocktake-history th,
+.stocktake-content .stocktake-history td { padding: 11px 14px; border-bottom: 1px solid #eef2f7; text-align: left; font-size: 13px; }
+.stocktake-content .stocktake-history th { background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; }
+.stocktake-content .stocktake-history tr:last-child td { border-bottom: none; }
+.stocktake-content .stocktake-tabs,
+.stocktake-content .stk-tabs { display: flex; gap: 6px; margin: 12px 0 14px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.stocktake-content .stocktake-tab,
+.stocktake-content .stk-tab { flex: 1; min-height: 42px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; }
+.stocktake-content .stocktake-tab.active,
+.stocktake-content .stk-tab.active { border-color: #bfdbfe; background: #fff; color: #2563eb; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+.stocktake-content .stocktake-tab span,
+.stocktake-content .stk-tab span { margin-left: 6px; color: #94a3b8; font-size: 11px; font-weight: 500; }
+.stocktake-content .stocktake-location-group { margin-bottom: 14px; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.stocktake-content .stocktake-location-header { display: flex; justify-content: space-between; align-items: center; min-height: 42px; padding: 0 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; color: #334155; font-size: 13px; font-weight: 600; }
+.stocktake-content .stocktake-location-count { padding: 3px 8px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: 11px; }
+.stocktake-content .stocktake-table-wrap { overflow-x: auto; }
+.stocktake-content table.stocktake-table { width: 100%; min-width: 720px; border-collapse: collapse; table-layout: fixed; }
+.stocktake-content table.stocktake-table .stocktake-col-item { width: auto; }
+.stocktake-content table.stocktake-table .stocktake-col-system { width: 120px; }
+.stocktake-content table.stocktake-table .stocktake-col-actual { width: 120px; }
+.stocktake-content table.stocktake-table .stocktake-col-diff { width: 100px; }
+.stocktake-content table.stocktake-table th { height: 44px; padding: 0 16px; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; text-align: left; white-space: nowrap; }
+.stocktake-content table.stocktake-table td { min-height: 72px; padding: 10px 16px; border-top: 1px solid #eef2f7; color: #334155; font-size: 13px; vertical-align: middle; }
+.stocktake-content table.stocktake-table tr:hover td { background: #fafcff; }
+.stocktake-content table.stocktake-table .cphoto { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; background: #f1f5f9; }
+.stocktake-content table.stocktake-table .cphoto img { width: 100%; height: 100%; object-fit: cover; }
+.stocktake-content table.stocktake-table td:first-child { min-width: 320px; }
+.stocktake-content .stocktake-input { width: 100px; height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; font-size: 14px; text-align: center; }
+.stocktake-content .stocktake-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.stocktake-content .stocktake-input.changed { border-color: #f59e0b; background: #fffbeb; }
+.stocktake-content .st-diff { font-size: 15px; font-weight: 700; }
+.stocktake-content .st-diff.pos { color: #16a34a; }
+.stocktake-content .st-diff.neg { color: #dc2626; }
+.stocktake-content .st-diff.zero { color: #64748b; }
+.stocktake-content .stocktake-submit { width: 100%; min-height: 46px; margin-top: 16px; border: 0; border-radius: 9px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.stocktake-content .stocktake-submit:hover { background: #1d4ed8; }
+.stocktake-content .stocktake-item-cell { display: flex; align-items: center; gap: 12px; min-width: 300px; }
+.stocktake-content .stocktake-item-cell > span:last-child { min-width: 0; }
+.stocktake-content .stocktake-item-cell b { display: block; color: #0f172a; font-size: 14px; }
+.stocktake-content .stocktake-item-cell small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; }
+.stocktake-content .stocktake-system-qty { color: #334155; font-weight: 600; white-space: nowrap; }
+.stocktake-content .st-diff.pending { color: #94a3b8; font-weight: 500; }
+.stocktake-status-modal-content .inventory-status-location { color: #64748b; }
+.stocktake-status-modal-content .stocktake-status-extra { margin-top: 4px; color: #b45309; font-size: 12px; font-weight: 600; }
+.stocktake-content .stocktake-error-state { padding: 56px 20px; border: 1px solid #fecaca; border-radius: 12px; background: #fff; text-align: center; }
+.stocktake-content .stocktake-error-state h2 { color: #991b1b; font-size: 18px; }
+.stocktake-content .stocktake-error-state p { margin: 8px 0 18px; color: #64748b; font-size: 13px; }
+@media (max-width: 1440px) {
+  .stocktake-content { padding: 24px 24px 40px; }
+  .stocktake-content .stocktake-kpi-grid { gap: 12px; }
+  .stocktake-content .stocktake-kpi-card { padding: 16px; }
+}
+@media (max-width: 1200px) {
+  .stocktake-content .stocktake-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .stocktake-content { padding: 16px 14px 92px; }
+  .stocktake-content .stocktake-page-header { gap: 14px; flex-direction: column; }
+  .stocktake-content .stocktake-page-header h1 { font-size: 22px; }
+  .stocktake-content .stocktake-page-header p { font-size: 12px; }
+  .stocktake-content .stocktake-date { align-self: flex-start; }
+  .stocktake-content .stocktake-kpi-grid { gap: 8px; margin-bottom: 14px; }
+  .stocktake-content .stocktake-kpi-card { min-height: 78px; gap: 8px; padding: 12px; }
+  .stocktake-content .stocktake-kpi-icon { width: 30px; height: 30px; flex-basis: 30px; font-size: 14px; }
+  .stocktake-content .stocktake-kpi-number { font-size: 21px; }
+  .stocktake-content .stocktake-kpi-label { font-size: 11px; }
+  .stocktake-content .stocktake-summary-metrics { gap: 12px 18px; }
+  .stocktake-content table.stocktake-table th,
+  .stocktake-content table.stocktake-table td { padding-left: 10px; padding-right: 10px; }
+}
+
+.stocktake-content .stocktake-material-row td { background: #f8fafc; }
+.stocktake-content .stocktake-material-row td:first-child { padding-left: 60px; }
+.stocktake-content .stocktake-material-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.stocktake-content .stocktake-material-indent { flex: 0 0 16px; color: #94a3b8; font-size: 16px; }
+.stocktake-content .stocktake-material-photo { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 7px; overflow: hidden; background: #f1f5f9; }
+.stocktake-content .stocktake-material-photo img { width: 100%; height: 100%; object-fit: cover; }
+.stocktake-content .stocktake-material-cell b { display: block; color: #334155; font-size: 13px; font-weight: 600; }
+.stocktake-content .stocktake-material-cell small { display: block; margin-top: 3px; color: #64748b; font-size: 11px; }
+.stocktake-content .stocktake-material-cell .stocktake-model { color: #2563eb; font-weight: 600; }
+.stocktake-content .stocktake-material-need { color: #64748b; }
+.stocktake-content .stocktake-material-system-qty { color: #475569; font-weight: 600; white-space: nowrap; }
+.stocktake-content .stocktake-material-row .stocktake-input { width: 100px; }
+.stocktake-content .stocktake-material-diff { font-size: 15px; font-weight: 700; }
+@media (max-width: 767px) {
+  .stocktake-content .stocktake-current-header { align-items: center; flex-direction: row; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; }
+  .stocktake-content .stocktake-current-heading { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  .stocktake-content table.stocktake-table { width: 100%; min-width: 680px; table-layout: fixed; }
+  .stocktake-content .stocktake-table .stocktake-col-item { width: 42%; }
+  .stocktake-content .stocktake-table .stocktake-col-system, .stocktake-content .stocktake-table .stocktake-col-actual, .stocktake-content .stocktake-table .stocktake-col-diff { width: 19.333%; }
+  .stocktake-content .stocktake-input { width: 100%; max-width: 86px; box-sizing: border-box; }
+}

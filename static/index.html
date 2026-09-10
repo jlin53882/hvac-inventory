@@ -10,6 +10,10 @@
 <link rel="stylesheet" href="/static/css/style.quotation.css">
 <link rel="stylesheet" href="/static/css/style.quotation-upload.css">
 <link rel="stylesheet" href="/static/css/style.performance.css">
+<link rel="stylesheet" href="/static/css/style.inventory.css">
+<link rel="stylesheet" href="/static/css/style.kit.css">
+<link rel="stylesheet" href="/static/css/style.stocktake.css">
+<link rel="stylesheet" href="/static/css/style.stockout.css">
 </head>
 <body>
 
@@ -97,7 +101,8 @@
   </div>
 
   <!-- 篩選面板（品牌+分類 chips） -->
-  <div class="filter-panel" id="filter-panel" style="display:none">
+  <div class="filter-panel inventory-filter-panel" id="filter-panel" style="display:none">
+    <div class="inventory-page-heading" id="inventory-page-heading"></div>
     <div class="filter-section">
       <div class="filter-label">
         <div class="left">🏷️ 品牌 <span class="count" id="fp-brand-count"></span></div>
@@ -120,6 +125,13 @@
 
   <div class="content" id="content">
     <div class="loading"><div class="spin"></div><div>載入庫存資料…</div></div>
+  </div>
+</div>
+
+<!-- 單一庫存低庫存 / 缺貨清單 Modal（資料由目前篩選結果動態產生） -->
+<div class="modal-overlay inventory-status-modal" id="inventory-status-modal" aria-hidden="true" onclick="if(event.target===this) closeInventoryStatusModal()">
+  <div class="inventory-status-dialog" role="dialog" aria-modal="true" aria-labelledby="inventory-status-modal-title">
+    <div id="inventory-status-modal-body"></div>
   </div>
 </div>
 

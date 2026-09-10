@@ -963,17 +963,6 @@ tr.row-danger td{background:#fff5f5}
 .item-card.warn, .m-card.warn{background:#fffbeb;border:1px solid #f59e0b}
 .item-card.danger, .m-card.danger{background:#fff5f5;border:1px solid #ef4444}
 
-/* ===== Dashboard stat cards ===== */
-.dash-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
-.dash-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center}
-.dash-card .dc-num{font-size:24px;font-weight:700;color:#1a1a1a}
-.dash-card .dc-lbl{font-size:12px;color:#64748b;margin-top:4px}
-.dash-card.warn{border-color:#f59e0b;background:#fffbeb}
-.dash-card.warn .dc-num{color:#d97706}
-.dash-card.danger{border-color:#ef4444;background:#fff5f5}
-.dash-card.danger .dc-num{color:#dc2626}
-@media(max-width:768px){.dash-cards{grid-template-columns:repeat(2,1fr)}}
-
 /* ===== Inline chip filter bar ===== */
 .chip-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .chip-bar .chip{padding:4px 12px;border-radius:14px;border:1px solid #e5e7eb;background:#fff;font-size:12px;cursor:pointer;transition:all .12s;white-space:nowrap}

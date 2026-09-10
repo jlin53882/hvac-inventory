@@ -169,12 +169,25 @@ REVIEWED_SAFE_BODIES = {
     # stocktake.js 整組盤點展開組成材料（2026-08-16）：c.item_id 為 DB 數字主鍵（同 k.item_id/o.item_id）、
     # c.has_photo 為布林控制縮圖/佔位三元、kitCompsHTML 為內部已 esc 的組裝 HTML（同 pPhoto/soPhoto 模式）
     "c.item_id", "c.has_photo", "kitCompsHTML",
+    # stocktake status modal：buildThumb/extra 由既有安全 helper 與 esc(item.in_kits) 建構 HTML
+    "buildThumb(item.id, item.has_photo)", "extra",
+    # stockout.js：row/card/group fragments are assembled from escaped fields and fixed numeric IDs
+    "returned", "destination", "returnLocation", "renderStockoutActions(o, isViewer)",
+    "records.map(function(o) { return renderStockoutDesktopRow(o,", "desktopRows", "body", "stockoutBar",
     # stocktake.js 組成品項實際數量輸入框（2026-08-16）：mKey/mVal 為 itemId:location 鍵與輸入值（數字或空）、
     # mSysQty 為 absNum 格式化的數字字串（純數字不可控）
     "mKey", "mVal", "mSysQty",
     # stocktake.js 盤點表分組渲染（2026-08-26 搜尋過濾）：stkGroupByLoc 回傳內部已 esc 的 HTML，
     # filteredKitRows/filteredSingleRows 為 kitRows/singleRows 過濾後陣列（同 kitCompsHTML 安全模式）
     "stkGroupByLoc(filteredKitRows)", "stkGroupByLoc(filteredSingleRows)",
+    # stocktake.js row renderer（2026-09-09）：fragment 先逐欄 esc/jsStr，class/data-kind 為固定值。
+    "materialPhoto", "materialName", "stocktakeInput(materialKey, materialSystemQty)",
+    "rowClass", "item.is_kit ? 'assembly' : 'single'", "displayLoc",
+    "stock.note ? ' · 📝 ' + esc(stock.note) : ''",
+    "stocktakeInput(key, systemQty)",
+    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'",
+    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'",
+    "materials",
     # edit.js 兩段式位置（2026-09-06）：_cabinetOptions 從固定清單產生 select options，
     # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
     "_cabinetOptions(cabinet)", "_cabinetOptions('')", "c",
@@ -187,8 +200,21 @@ REVIEWED_SAFE_BODIES = {
     "batchMode ? 'style=\"padding-left:32px\"' : ''",
     # media URL helper：id 來自 DB 數字主鍵，variant/thumbnailUrl 僅為內部固定變體。
     "photoSrc(itemId, 'thumbnail')", "photoSrc(itemId, 'preview')",
-    "photoSrc(c.item_id, 'thumbnail')", "photoSrc(i.id, 'thumbnail')",
+    "photoSrc(c.item_id, 'thumbnail')", "photoSrc(i.id, 'thumbnail')", "photoSrc(item.id, 'thumbnail')",
     "photoSrc(o.item_id, 'thumbnail')", "thumbnailUrl || photoSrc(id, 'thumbnail')",
+    # inventory.js desktop redesign（2026-09-09）：條件文字為固定 UI；數值由格式化 helper 產生。
+    # kits.js dashboard（2026-09-09）：以下為 renderer 內部已 esc 的 HTML 組合或 DB 數字主鍵。
+    "renderKitStatusBadge(status.status)", "renderKitActionButtons(k, isViewer, isM, status)",
+    "components.map(renderKitComponentRow).join('')",
+    "hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'",
+    "hasFilter ? '可以嘗試清除篩選或調整搜尋條件。' : '新增品項後，庫存與位置會在這裡集中管理。'",
+    "clearButton", "addButton", "formatInventoryQuantity(totalQty)", "lowCount", "zeroCount",
+    "formatInventoryQuantity(item.low_stock)", "isOut ? 'is-out' : 'is-low'", "thumb",
+    "item.code ? ' · 型號 ' + esc(item.code) : ''", "item.code ? '型號： ' + esc(item.code) : ''", "formatInventoryQuantity(status.qty)",
+    "threshold", "editAction", "empty", "title", "intro", "listHTML",
+    # prepared.js desktop redesign：photo/nonStock/actions 是由數字主鍵與已跳脫欄位組成的內部 HTML。
+    "itemCount", "absNum(totalPrepared)", "item.prepared_qty", "photo", "nonStock",
+    "absNum(item.prepared_qty)", "absNum(item.qty)", "actions",
 }
 
 

@@ -32,6 +32,7 @@ var editItemId = null;
 var outItemId = null;
 var stocktakeValues = {};  // itemId -> actual_qty
 var stocktakeKits = [];    // 盤點頁整組 tab 的組成材料清單（render/stocktake.js fetch /api/kits 填入）
+var currentKitItems = [];  // 整組頁目前篩選結果，異常 KPI 明細使用同一份資料
 // 去向下拉建議清單（loadDestinations 填入）
 var DESTINATIONS = [];
 var destinationsLoadedSite = '';
@@ -42,6 +43,9 @@ var preparedOutItemId = null;
 
 // 已領出（出庫記錄）清單與編輯狀態
 var stockoutRecords = [];   // render/stockout.js 填入，退回/編輯 modal 用
+var stockoutDateFrom = '';
+var stockoutDateTo = '';
+var stockoutPageSearch = '';
 var editStockoutId = null;
 
 // 整組 Modal

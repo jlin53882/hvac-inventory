@@ -83,20 +83,32 @@ function updateNotifCount() {
 // 動態生成通知（缺貨 / 低庫存 / 盤點提醒）
 function updateNotifications() {
   var html = '';
-  var siteAlerts = (typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE[currentSite]) || {};
-  // 分頁只保留當頁品項；通知優先使用 summary 的全站 alert 清單。
-  var zeroItems = Array.isArray(siteAlerts.zero_items) ? siteAlerts.zero_items :
-    ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
-  zeroItems.forEach(function(i) {
-    html += '<div class="ni" data-notif><span class="dot-r"></span>缺貨：' + esc(i.name) + '</div>';
-  });
-  var lowItems = Array.isArray(siteAlerts.low_items) ? siteAlerts.low_items :
-    ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
-  lowItems.forEach(function(i) {
-    var qty = i.qty || 0;
-    var unit = i.unit || '';
-    html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' 僅剩 ' + qty + ' ' + esc(unit) + '</div>';
-  });
+  // 單一庫存／盤點頁各自顯示目前頁面的缺貨與低庫存；整組頁只顯示 kit 缺料。
+  if (currentTab === 'inventory' || currentTab === 'stocktake') {
+    var siteAlerts = (typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE[currentSite]) || {};
+    var zeroItems = Array.isArray(siteAlerts.zero_items) ? siteAlerts.zero_items :
+      ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
+    zeroItems.forEach(function(i) {
+      html += '<div class="ni" data-notif><span class="dot-r"></span>缺貨：' + esc(i.name) + '</div>';
+    });
+    var lowItems = Array.isArray(siteAlerts.low_items) ? siteAlerts.low_items :
+      ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
+    lowItems.forEach(function(i) {
+      var qty = i.qty || 0;
+      var unit = i.unit || '';
+      html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' 僅剩 ' + qty + ' ' + esc(unit) + '</div>';
+    });
+  }
+  if (currentTab === 'kit' && Array.isArray(currentKitItems) && typeof getKitStatus === 'function') {
+    currentKitItems.forEach(function(kit) {
+      var kitStatus = getKitStatus(kit).status;
+      if (kitStatus === 'shortage') {
+        html += '<div class="ni" data-notif><span class="dot-r"></span>整組缺料：' + esc(kit.name || '未命名整組') + '</div>';
+      } else if (kitStatus === 'insufficient') {
+        html += '<div class="ni" data-notif><span class="dot-w"></span>整組庫存不足：' + esc(kit.name || '未命名整組') + '</div>';
+      }
+    });
+  }
   // 盤點提醒（25號後 + 本月未盤點）
   var now = new Date();
   var day = now.getDate();
@@ -171,10 +183,16 @@ function updateBreadcrumb(tab) {
 function switchTab(tab) {
   currentTab = tab;
   checkReminder();
+  updateNotifications();
   var content = document.getElementById('content');
   if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
   if (content) content.classList.toggle('cal-content', tab === 'calendar');
   if (content) content.classList.toggle('quotation-content', tab === 'quotation');
+  if (content) content.classList.toggle('inventory-content', tab === 'inventory');
+  if (content) content.classList.toggle('prepared-content', tab === 'prepared');
+  if (content) content.classList.toggle('kit-content', tab === 'kit');
+  if (content) content.classList.toggle('stocktake-content', tab === 'stocktake');
+  if (content) content.classList.toggle('stockout-content', tab === 'stockout');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
   var nav = document.getElementById('nav-' + tab);
