@@ -161,8 +161,8 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    display_name: Optional[str] = None
-    role: Optional[str] = None
+    display_name: Optional[str] = Field(None, max_length=100)
+    role: Optional[str] = Field(None, max_length=20)
     is_active: Optional[int] = None
     color: Optional[str] = None  # 行事曆人員顏色（選填 hex）
     gcal_key: Optional[str] = None  # Google 行事曆同步 key 綁定
