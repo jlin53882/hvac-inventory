@@ -156,8 +156,16 @@ def test_audit_reports_missing_file_and_outside_root_metadata(asset_script_env):
             "SELECT asset_id, original_path FROM file_assets WHERE owner_id='1'"
         ).fetchone()
         (asset_script_env / row["original_path"]).unlink()
+        outside_original = asset_script_env.parent / "outside-original.jpg"
+        outside_original.write_bytes(b"outside-original")
         conn.execute(
-            "UPDATE file_assets SET preview_path='../outside-preview.jpg' WHERE asset_id=?",
+            """
+            UPDATE file_assets
+            SET original_path='../outside-original.jpg',
+                preview_path='../outside-preview.jpg',
+                thumbnail_path='missing-thumbnail.jpg'
+            WHERE asset_id=?
+            """,
             (row["asset_id"],),
         )
         conn.commit()
@@ -167,5 +175,6 @@ def test_audit_reports_missing_file_and_outside_root_metadata(asset_script_env):
     result = audit_script.audit()
 
     assert result["ok"] is False
+    assert result["checksum_mismatch"] == []
     assert any(entry["reason"] == "missing" for entry in result["missing"])
     assert any(entry["reason"] == "outside_root" for entry in result["missing"])

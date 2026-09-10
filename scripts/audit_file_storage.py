@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 import app.config as app_config
 from app.database import get_db, init_db
+from app.services.file_storage import safe_upload_path
 
 
 def audit() -> dict:
@@ -36,7 +37,10 @@ def audit() -> dict:
                 referenced.add(path)
                 if not path.exists():
                     missing.append({"asset_id": row["asset_id"], "path": relative, "reason": "missing"})
-            original = (root / row["original_path"]).resolve()
+            try:
+                original = safe_upload_path(row["original_path"], root)
+            except (TypeError, ValueError):
+                continue
             if original.exists():
                 digest = hashlib.sha256(original.read_bytes()).hexdigest()
                 if digest != row["sha256"]:
