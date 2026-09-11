@@ -251,15 +251,15 @@ async function calRetryLoad() {
 
 function calFormatKpiDate(date) {
   const pad = n => String(n).padStart(2, '0');
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} 週${CAL_WEEK[date.getDay()]}`;
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} · 週${CAL_WEEK[date.getDay()]}`;
 }
 
 function calRenderKpi() {
   const selectedStr = _iso(calSelected);
   const selectedCount = calEvents.filter(e => e.date === selectedStr).length;
   const cards = [
-    { label: '今日派工', value: calTodayEvents.length, meta: `今日派工 共${calTodayEvents.length}筆`, tone: 'blue' },
-    { label: '本月派工', value: calEvents.length, meta: `本月派工 共${calEvents.length}筆`, tone: 'indigo' },
+    { label: '今日派工', value: calTodayEvents.length, meta: `今日共 ${calTodayEvents.length} 筆派工`, tone: 'blue' },
+    { label: '本月派工', value: calEvents.length, meta: `${calMonth.getFullYear()} 年 ${calMonth.getMonth() + 1} 月（共 ${calEvents.length} 筆）`, tone: 'indigo' },
     { label: '目前日期', value: selectedCount, meta: calFormatKpiDate(calSelected), tone: 'slate' },
   ];
   const el = document.getElementById('cal-kpi-grid');

@@ -1200,9 +1200,12 @@ def test_calendar_desktop_dispatch_layout():
     """2026-09-08：桌面版行事曆 65/35、動態高度與組合搜尋列守護。"""
     css = read_css_all()
     js = read_calendar_js_all()
-    assert "grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr)" in css
+    assert "grid-template-columns: minmax(0, 1.65fr) minmax(380px, 1fr)" in css
     assert "height: calc(100vh - 118px)" in css
-    assert "grid-template-rows: auto repeat(6, minmax(0, 1fr))" in css
+    assert "grid-template-rows: auto repeat(6, minmax(100px, 1fr))" in css
+    assert ".cal-month-card { overflow-y: auto; scrollbar-width: thin; }" in css
+    assert "flex: 0 0 auto" in css
+    assert "min-height: 22px; height: 22px" in css
     assert ".cal-month-card" in css and ".cal-day-card" in css
     assert "cal-page-header" in js
     assert "cal-header-filters" in js
@@ -1237,6 +1240,15 @@ def test_calendar_desktop_dispatch_layout():
     assert "return null;" in load_fn
 
 
+def test_calendar_desktop_cells_keep_room_for_events():
+    """Regression: desktop month cells must not shrink below event content."""
+    css = read_css_all()
+    assert "grid-template-rows: auto repeat(6, minmax(100px, 1fr))" in css
+    assert ".cal-month-card { overflow-y: auto; scrollbar-width: thin; }" in css
+    assert "flex: 0 0 auto" in css
+    assert "min-height: 22px; height: 22px" in css
+
+
 def test_calendar_design_spec_hooks():
     """2026-09-09：設計文件新增的 Legend、Helper、skeleton/error 與 card hierarchy hooks。"""
     js = read_calendar_js_all()
@@ -1247,7 +1259,7 @@ def test_calendar_design_spec_hooks():
     assert ".cal-empty-state" in css
     assert ".cal-search-panel-header" in css
     assert ".cal-search-item" in css
-    assert "width: min(100%, 1640px)" in css
+    assert "width: min(100%, 1600px)" in css
     assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css
     assert "@media (max-width: 767px)" in css and "overflow-x: hidden" in css
 
@@ -1260,9 +1272,9 @@ def test_calendar_kpi_uses_existing_appointment_data():
     assert "selectedCount" in js
     assert "calTodayEvents = todayEv.filter(e => e.date === todayStr)" in js
     assert "cal-kpi-meta" in js
-    assert "今日派工 共${calTodayEvents.length}筆" in js
-    assert "本月派工 共${calEvents.length}筆" in js
-    assert "週${CAL_WEEK[date.getDay()]}" in js
+    assert "今日共 ${calTodayEvents.length} 筆派工" in js
+    assert "${calMonth.getFullYear()} 年 ${calMonth.getMonth() + 1} 月（共 ${calEvents.length} 筆）" in js
+    assert "${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} · 週${CAL_WEEK[date.getDay()]}" in js
     assert "已完成" not in js
     assert "進行中" not in js
     assert "待處理" not in js
