@@ -41,20 +41,21 @@ EXPECTED_MATRIX = {
     'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'signed-report-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'petty-cash-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
 }
 EXPECTED_ROLES = ('admin', 'user', 'tech', 'viewer')
 EXPECTED_KEYS = tuple(EXPECTED_MATRIX.keys())
 
 
 def test_seed_roles_permissions(rbac_db):
-    """角色 4 個、權限 22 個、權限點清單與設計一致"""
+    """角色 4 個、權限 23 個、權限點清單與設計一致"""
     conn = get_db()
     try:
         roles = [r["name"] for r in conn.execute("SELECT name FROM roles ORDER BY id").fetchall()]
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 22
+        assert len(perms) == 23
     finally:
         conn.close()
 
@@ -103,6 +104,7 @@ def test_seed_labels_and_modules(rbac_db):
         'user-mgmt': ('使用者管理', 'system'),
         'change-own-password': ('自行改密碼', 'system'),
         'signed-report-delete-all': ('簽名報表 全域刪除', 'calendar'),
+        'petty-cash-delete-all': ('零用金月報 全域刪除', 'calendar'),
     }
     conn = get_db()
     try:
@@ -151,7 +153,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 22
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 23
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:

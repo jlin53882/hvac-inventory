@@ -71,9 +71,10 @@ CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
 SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
-QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
-QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
-PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
+# 待測：零用金月報（2026-09-12）
+PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
+PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
+PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
 CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
@@ -358,6 +359,43 @@ def test_signed_reports_accept_no_docx():
     assert '.docx' not in js
     assert '.xlsx' not in js
     assert 'PDF / PNG / JPG' in js or 'PDF' in js
+
+
+def test_petty_cash_frontend_contract():
+    """零用金月報前端掛載 contract（2026-09-12）：sidebar/腳本/分派/篩選/匯出齊全，
+    與簽名日報表獨立（不可殘留呼叫 signed-reports API）。"""
+    index = read(INDEX)
+    assert 'id="sb-nav-petty-cash"' in index
+    assert "switchTab('petty-cash')" in index
+    assert 'src="/static/js/render/petty-cash.js"' in index
+    assert 'src="/static/js/modals/petty-cash.js"' in index
+    assert 'href="/static/css/style.petty-cash.css"' in index
+    app = read(APP_JS)
+    assert "'petty-cash':'零用金月報'" in app
+    assert "'petty-cash':'🪙'" in app
+    assert "renderPettyCash" in app
+    assert "content.classList.toggle('pc-content', tab === 'petty-cash')" in app
+    assert "'petty-cash'" in app  # _TABS / F5 / isCal（含搜尋框隱藏）
+    api = read(API_JS)
+    assert "'petty-cash'" in api  # 切頁不載入庫存 + 不觸發 switchTab 重繪
+    js = read(PETTY_CASH_RENDER_JS)
+    assert 'function renderPettyCash' in js
+    assert '/api/petty-cash-reports' in js and '/api/petty-cash/kpi' in js
+    assert '/api/signed-reports' not in js  # 獨立功能，不可呼叫舊報表 API
+    assert '${esc(r.upload_person)}' in js
+    assert 'ui-kpi-card' in js and 'ui-kpi-value' in js
+    assert 'pcOpenDetail(${r.id})' in js
+    assert "window.open('/api/petty-cash-reports/' + id + '/export.xlsx'" in js
+    modal = read(PETTY_CASH_MODAL_JS)
+    assert 'function pcOpenReportModal' in modal
+    assert 'function pcEntrySave' in modal
+    assert "pcModalSave('draft')" in modal and "pcModalSave('completed')" in modal
+    assert '/api/petty-cash-reports/previous-balance' in modal
+    assert 'function esc(' not in modal  # esc 單一來源（統一用 utils.js）
+    css = read(PETTY_CASH_CSS)
+    assert '#content.pc-content' in css
+    assert '.pc-table-wrap' in css and '.pc-cards' in css
+    assert '@media (max-width: 767px)' in css
 
 
 def test_no_openDrawer_dead_code():
@@ -2544,6 +2582,7 @@ def test_all_dashboard_kpis_share_common_responsive_contract():
         STOCKOUT_RENDER_JS, STOCKTAKE_JS, KITS_RENDER_JS,
         SIGNED_REPORTS_RENDER_JS,
         os.path.join(STATIC, "js", "render", "quotation-upload.js"),
+        PETTY_CASH_RENDER_JS,
     )
     for source in sources:
         js = read(source)

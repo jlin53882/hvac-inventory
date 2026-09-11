@@ -268,4 +268,58 @@ class QuotationIn(BaseModel):
     items: List[QuotationItemIn] = Field(..., min_length=1, max_length=200)
 
 
+# ---------- 零用金月報（2026-09-12：report / entry / entry_item 三層） ----------
+class PettyCashEntryItemIn(BaseModel):
+    """一筆支出底下的明細項目（不綁庫存，可獨立運作）。"""
+    item_name: str = Field(..., min_length=1, max_length=200)
+    qty: float = Field(..., gt=0)
+    unit: str = Field("", max_length=20)
+    amount: float = Field(..., gt=0)
 
+    @field_validator("item_name")
+    @classmethod
+    def non_blank_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("品項名稱不可空白")
+        return value
+
+
+class PettyCashEntryIn(BaseModel):
+    """收支紀錄：收入不可帶明細；支出可帶 0~N 個明細項目。"""
+    entry_date: str = Field(..., max_length=10)
+    entry_type: Literal["income", "expense"]
+    description: str = Field(..., min_length=1, max_length=500)
+    amount: float = Field(..., gt=0)
+    category: str = Field("", max_length=50)
+    sort_order: int = Field(0, ge=0, le=9999)
+    items: List[PettyCashEntryItemIn] = Field(default_factory=list, max_length=100)
+
+    @field_validator("description")
+    @classmethod
+    def non_blank_description(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("摘要不可空白")
+        return value
+
+
+class PettyCashReportIn(BaseModel):
+    """零用金月報本體（PUT 採全量替換，與 QuotationIn 同模式）。"""
+    start_date: str = Field(..., max_length=10)
+    end_date: str = Field(..., max_length=10)
+    filename_text: str = Field(..., min_length=1, max_length=50)
+    upload_person: str = Field(..., min_length=1, max_length=50)
+    prepared_by: str = Field(..., min_length=1, max_length=50)
+    opening_balance: float = Field(0, ge=0)
+    opening_balance_source: Literal["auto", "manual"] = "manual"
+    status: Literal["draft", "completed"] = "draft"
+    entries: List[PettyCashEntryIn] = Field(default_factory=list, max_length=500)
+
+    @field_validator("filename_text", "upload_person", "prepared_by")
+    @classmethod
+    def non_blank_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("不可為空白")
+        return value

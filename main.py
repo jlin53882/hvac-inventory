@@ -26,7 +26,7 @@ import app.config as app_config
 from app.config import STATIC_DIR
 from app.middleware import BinarySafeGZipMiddleware, cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
 from app.database import get_db, init_db
-from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, users, units
+from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, petty_cash, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, users, units
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 from app.services.file_storage import asset_media_type, asset_variant_path, get_asset
 from app.services import sync_scheduler
@@ -82,7 +82,7 @@ app.include_router(auth.router)
 for _r in (items.router, movements.router, stockout.router, kits.router, stocktake.router,
            stats.router, export.router, photos.router, lookup.router, service_types.router,
            users.router, appointments.router, units.router, gcal_keys.router, signed_reports.router,
-                      quotation_uploads.router, quotations.router):
+                      quotation_uploads.router, quotations.router, petty_cash.router):
     app.include_router(_r, dependencies=[Depends(require_login)])
 
 # ---------- 靜態檔案（前端） ----------

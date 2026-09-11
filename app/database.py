@@ -337,6 +337,51 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_quotation_items_quote ON quotation_items(quotation_id);
     CREATE INDEX IF NOT EXISTS idx_quotation_uploads_date_id ON quotation_uploads(report_date, id DESC);
     CREATE INDEX IF NOT EXISTS idx_signed_reports_date_id ON daily_signed_reports(report_date, id DESC);
+    -- 零用金月報（2026-09-12：report / entry / entry_item 三層獨立，與簽名報表不共用資料）
+    CREATE TABLE IF NOT EXISTS petty_cash_reports (
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_date              TEXT NOT NULL,
+        end_date                TEXT NOT NULL,
+        filename_text           TEXT NOT NULL DEFAULT '',
+        upload_person           TEXT NOT NULL,
+        uploader_user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        prepared_by             TEXT NOT NULL DEFAULT '',
+        opening_balance         REAL NOT NULL DEFAULT 0,
+        opening_balance_source  TEXT NOT NULL DEFAULT 'manual',
+        status                  TEXT NOT NULL DEFAULT 'draft',
+        last_exported_at        TEXT DEFAULT '',
+        created_by              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS petty_cash_entries (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_id       INTEGER NOT NULL REFERENCES petty_cash_reports(id) ON DELETE CASCADE,
+        entry_date      TEXT NOT NULL,
+        entry_type      TEXT NOT NULL DEFAULT 'expense',
+        description     TEXT NOT NULL DEFAULT '',
+        amount          REAL NOT NULL DEFAULT 0,
+        category        TEXT DEFAULT '',
+        sort_order      INTEGER NOT NULL DEFAULT 0,
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS petty_cash_entry_items (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id    INTEGER NOT NULL REFERENCES petty_cash_entries(id) ON DELETE CASCADE,
+        item_name   TEXT NOT NULL,
+        qty         REAL NOT NULL DEFAULT 1,
+        unit        TEXT DEFAULT '',
+        amount      REAL NOT NULL DEFAULT 0,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_petty_cash_reports_person ON petty_cash_reports(upload_person);
+    CREATE INDEX IF NOT EXISTS idx_petty_cash_reports_dates ON petty_cash_reports(start_date, end_date);
+    CREATE INDEX IF NOT EXISTS idx_petty_cash_reports_status ON petty_cash_reports(status);
+    CREATE INDEX IF NOT EXISTS idx_petty_cash_entries_report ON petty_cash_entries(report_id);
+    CREATE INDEX IF NOT EXISTS idx_petty_cash_entries_date ON petty_cash_entries(entry_date);
+    CREATE INDEX IF NOT EXISTS idx_petty_cash_items_entry ON petty_cash_entry_items(entry_id);
     """);
 
     # 舊資料庫遷移（v10 前）：items 若有 qty/location/note 欄位 → 需跑 scripts/migrate_v10.py
@@ -501,7 +546,8 @@ def _exec_init(conn):
         ('unit-mgmt',            '單位整理（停用/排序/收編）', 'stock'),
         ('user-mgmt',            '使用者管理',           'system'),
         ('change-own-password',  '自行改密碼',           'system'),
-        ('signed-report-delete-all', '簽名報表 全域刪除', 'calendar');
+        ('signed-report-delete-all', '簽名報表 全域刪除', 'calendar'),
+        ('petty-cash-delete-all', '零用金月報 全域刪除', 'calendar');
     """)
     # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
     _RBAC_DEFAULT = {
@@ -527,6 +573,7 @@ def _exec_init(conn):
         'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'signed-report-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'petty-cash-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     }
     _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
     _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}

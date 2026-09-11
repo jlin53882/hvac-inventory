@@ -230,6 +230,17 @@ REVIEWED_SAFE_BODIES = {
     "(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)",
     "stocktakeInput(materialKey, materialSystemQty, c.unit)",
     "stocktakeInput(key, systemQty, item.unit)",
+    # 零用金月報（2026-09-12）：以下皆為內部已 esc 的 HTML fragment、固定映射或常數三元——
+    # _pcPeriodText/_pcFileLabel/pcItemText 回傳 esc() 組裝字串；amt/incomeCell/expenseCell 為 esc(_pcMoney()) 數字或空字串；
+    # ops/editBtn/delBtn/rowsHtml/itemsHtml 由 esc() 欄位 + DB 數字主鍵 + 固定 markup 組成；
+    # pcStatusBadge 為 draft/completed 固定映射；id/pcEntryType 三元只輸出固定文字/class（id 為數字主鍵）。
+    "_pcPeriodText(r)", "_pcFileLabel(r)", "pcStatusBadge(r.status)",
+    "ops", "editBtn", "delBtn", "rowsHtml", "itemsHtml",
+    "amt", "incomeCell", "expenseCell",
+    "pcItemText(first)", "pcItemText(items[i])",
+    "id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'",
+    "pcEntryType === 'income' ? ' active' : ''", "pcEntryType === 'expense' ? ' active' : ''",
+    "pcEntryType === 'income' ? 'display:none' : ''",
 }
 
 
