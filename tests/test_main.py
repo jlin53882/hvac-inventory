@@ -1660,6 +1660,50 @@ class TestStatsAlertContract:
         assert s["low_stock"] == len(s["low_items"])
         assert s["zero_stock"] == len(s["zero_items"])
 
+    def test_stats_alerts_beyond_page_size(self, client):
+        """超過分頁大小的資料量：stats 清單/KPI 必須是完整集合，不受 page/page_size 影響。"""
+        import sqlite3
+        conn = sqlite3.connect(app_db.DB_PATH)
+        cur = conn.cursor()
+        for i in range(60):
+            cur.execute(
+                "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
+                ("測試牌", f"BULK-Z{i}", f"大量缺貨{i}", "個", 5, "office"))
+            cur.execute("INSERT INTO item_stocks (item_id, location, qty) VALUES (?,?,?)",
+                        (cur.lastrowid, "A倉", 0))
+        for i in range(60):
+            cur.execute(
+                "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
+                ("測試牌", f"BULK-L{i}", f"大量低庫存{i}", "個", 5, "office"))
+            cur.execute("INSERT INTO item_stocks (item_id, location, qty) VALUES (?,?,?)",
+                        (cur.lastrowid, "B倉", 2))
+        for i in range(10):
+            cur.execute(
+                "INSERT INTO items (brand, code, name, unit, low_stock, site) VALUES (?,?,?,?,?,?)",
+                ("測試牌", f"BULK-O{i}", f"大量正常{i}", "個", 5, "office"))
+            cur.execute("INSERT INTO item_stocks (item_id, location, qty) VALUES (?,?,?)",
+                        (cur.lastrowid, "C倉", 50))
+        conn.commit()
+        conn.close()
+        s = client.get("/api/stats").json()
+        assert s["total_items"] == 130
+        assert s["low_stock"] == 60
+        assert s["zero_stock"] == 60
+        assert len(s["low_items"]) == 60
+        assert len(s["zero_items"]) == 60
+        # 分頁請求不影響完整統計：每頁 50 筆共 3 頁，stats 始終是全量
+        for page in (1, 2, 3):
+            body = client.get("/api/items", params={
+                "site": "office", "page": page, "page_size": 50}).json()
+            assert body["total"] == 130
+            assert body["stats"]["low_stock"] == 60
+            assert body["stats"]["zero_stock"] == 60
+        full = client.get("/api/items", params={
+            "site": "office", "page": 1, "page_size": 50,
+            "include_alert_items": 1}).json()
+        assert len(full["stats"]["low_items"]) == 60
+        assert len(full["stats"]["zero_items"]) == 60
+
 
 # ========== 前端頁面 ==========
 
