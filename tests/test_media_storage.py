@@ -538,12 +538,152 @@ def test_paged_items_and_facets_exclude_kit_rows(media_env):
     body = page.json()
     assert body["total"] == 1
     assert [item["id"] for item in body["items"]] == [normal["id"]]
+    assert body["stats"]["item_count"] == 1
+    assert body["stats"]["zero_stock"] == 0
 
     facets = client.get("/api/items/facets", params={"site": "office"})
     assert facets.status_code == 200, facets.text
     facet_body = facets.json()
     assert "測試牌" in facet_body["brands"]
     assert facet_body["categories"].get("整組") is None
+
+
+def test_paged_items_include_full_filter_stats_for_inventory_kpi(media_env):
+    """分頁列表的 KPI/缺貨清單不可只計當頁，必須涵蓋同一篩選條件的全量品項。"""
+    client, _static_dir, _upload_dir = media_env
+    cases = (
+        ("PAGED-KPI-ZERO-A", 0, 0),
+        ("PAGED-KPI-ZERO-B", 0, 0),
+        ("PAGED-KPI-LOW", 2, 5),
+        ("PAGED-KPI-NORMAL", 8, 0),
+    )
+    created = []
+    for name, qty, low_stock in cases:
+        response = client.post(
+            "/api/items",
+            json={
+                "brand": "KPI測試牌",
+                "code": name,
+                "name": name,
+                "unit": "個",
+                "low_stock": low_stock,
+                "site": "office",
+                "stocks": [{"location": "A", "qty": qty, "note": ""}],
+            },
+        )
+        assert response.status_code == 201, response.text
+        created.append(response.json())
+
+    conn = app_db.get_db()
+    try:
+        conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?, ?, ?, ?)", (created[0]["id"], "B", 0, ""))
+        conn.commit()
+    finally:
+        conn.close()
+
+    page = client.get(
+        "/api/items",
+        params={"site": "office", "page": 1, "page_size": 2, "search": "PAGED-KPI"},
+    )
+    assert page.status_code == 200, page.text
+    body = page.json()
+    assert body["total"] == 4
+    assert len(body["items"]) == 2
+    assert body["stats"]["total_qty"] == 10
+    assert body["stats"]["low_stock"] == 1
+    assert body["stats"]["zero_stock"] == 2
+    assert body["stats"]["item_count"] == 4
+    assert "zero_items" not in body["stats"]
+    assert "low_items" not in body["stats"]
+    alerts_page = client.get(
+        "/api/items",
+        params={
+            "site": "office",
+            "page": 1,
+            "page_size": 1,
+            "search": "PAGED-KPI",
+            "include_alert_items": "1",
+        },
+    )
+    assert alerts_page.status_code == 200, alerts_page.text
+    alert_body = alerts_page.json()
+    assert alert_body["stats"]["item_count"] == 4
+    assert {item["id"] for item in alert_body["stats"]["zero_items"]} == {
+        created[0]["id"], created[1]["id"]
+    }
+    assert [item["id"] for item in alert_body["stats"]["low_items"]] == [created[2]["id"]]
+    zero_locations = {item["id"]: item["location"] for item in alert_body["stats"]["zero_items"]}
+    assert set(zero_locations[created[0]["id"]].split("、")) == {"A", "B"}
+
+    summary = client.get("/api/stats/summary")
+    assert summary.status_code == 200, summary.text
+    office_alerts = summary.json()["office"]
+    assert {item["id"] for item in office_alerts["zero_items"]} == {
+        item["id"] for item in alert_body["stats"]["zero_items"]
+    }
+    assert {item["id"] for item in office_alerts["low_items"]} == {
+        item["id"] for item in alert_body["stats"]["low_items"]
+    }
+
+    filtered = client.get(
+        "/api/items",
+        params={"site": "office", "page": 1, "page_size": 2, "search": "PAGED-KPI-LOW"},
+    )
+    assert filtered.status_code == 200, filtered.text
+    filtered_stats = filtered.json()["stats"]
+    assert filtered_stats["total_qty"] == 2
+    assert filtered_stats["low_stock"] == 1
+    assert filtered_stats["zero_stock"] == 0
+
+
+def test_inventory_stock_status_rounds_fractional_quantities_consistently(media_env):
+    """前後端狀態判定都先取到小數 3 位，避免 0.0004 同時被算成低庫存與缺貨。"""
+    client, _static_dir, _upload_dir = media_env
+    response = client.post(
+        "/api/items",
+        json={
+            "brand": "小數測試牌",
+            "code": "FRACTIONAL-KPI",
+            "name": "FRACTIONAL-KPI",
+            "unit": "個",
+            "low_stock": 1,
+            "site": "office",
+            "stocks": [{"location": "A", "qty": 0.0004, "note": ""}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    item_id = response.json()["id"]
+
+    page = client.get(
+        "/api/items",
+        params={"site": "office", "page": 1, "page_size": 1, "search": "FRACTIONAL-KPI"},
+    )
+    assert page.status_code == 200, page.text
+    stats = page.json()["stats"]
+    assert stats["total_qty"] == 0
+    assert stats["low_stock"] == 0
+    assert stats["zero_stock"] == 1
+
+    alerts = client.get(
+        "/api/items",
+        params={
+            "site": "office",
+            "page": 1,
+            "page_size": 1,
+            "search": "FRACTIONAL-KPI",
+            "include_alert_items": "1",
+        },
+    )
+    assert alerts.status_code == 200, alerts.text
+    alert_stats = alerts.json()["stats"]
+    assert [row["id"] for row in alert_stats["zero_items"]] == [item_id]
+    assert alert_stats["low_items"] == []
+
+    summary = client.get("/api/stats/summary")
+    assert summary.status_code == 200, summary.text
+    office = summary.json()["office"]
+    assert any(row["id"] == item_id for row in office["zero_items"])
+    assert all(row["id"] != item_id for row in office["low_items"])
 
 
 def test_stats_summary_exposes_alert_items_for_paged_notifications(media_env):

@@ -84,6 +84,7 @@ async function loadInventoryPage(page) {
       page: body.page || pageAtRequest,
       page_size: body.page_size || 50,
       total: body.total || 0,
+      stats: body.stats || null,
     };
     if (facets) {
       INVENTORY_FACETS = facets;
@@ -202,8 +203,14 @@ async function saveAll() {
       const kept = {};
       failed.forEach(id => { kept[id] = pending[id]; });
       pending = kept;
+      if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') {
+        const keptItems = {};
+        failed.forEach(id => { if (INVENTORY_PENDING_ITEMS[id]) keptItems[id] = INVENTORY_PENDING_ITEMS[id]; });
+        INVENTORY_PENDING_ITEMS = keptItems;
+      }
     } else {
       pending = {};
+      if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') INVENTORY_PENDING_ITEMS = {};
     }
     await loadData();
     if (fail === 0) toast(`✅ 已儲存 ${ok} 項變更`, 'success');

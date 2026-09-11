@@ -62,6 +62,47 @@ def _item_full(conn, row, kit_map: Optional[dict] = None,
     return d
 
 
+def _inventory_page_stats(
+    conn, from_sql: str, where_sql: str, params: list, include_alert_items: bool = False
+) -> dict:
+    """計算分頁列表對應的完整篩選統計，避免 KPI 只看到當頁資料。"""
+    grouped_sql = (
+        "SELECT i.id, i.name, i.brand, i.code, i.unit, i.low_stock, "
+        "ROUND(COALESCE(SUM(s.qty), 0), 3) AS qty, GROUP_CONCAT(s.location, '、') AS location"
+        + from_sql
+        + where_sql
+        + " GROUP BY i.id"
+    )
+    aggregate = conn.execute(
+        "SELECT COUNT(*) AS item_count, "
+        "COALESCE(SUM(qty), 0) AS total_qty, "
+        "COALESCE(SUM(CASE WHEN qty <= 0 THEN 1 ELSE 0 END), 0) AS zero_stock, "
+        "COALESCE(SUM(CASE WHEN qty > 0 AND low_stock > 0 AND qty <= low_stock "
+        "THEN 1 ELSE 0 END), 0) AS low_stock "
+        f"FROM ({grouped_sql}) AS filtered",
+        params,
+    ).fetchone()
+    stats = {
+        "item_count": aggregate["item_count"],
+        "total_qty": aggregate["total_qty"],
+        "low_stock": aggregate["low_stock"],
+        "zero_stock": aggregate["zero_stock"],
+    }
+    if not include_alert_items:
+        return stats
+
+    alert_rows = conn.execute(
+        "SELECT id, name, brand, code, unit, low_stock, qty, location "
+        f"FROM ({grouped_sql}) AS filtered "
+        "WHERE qty <= 0 OR (qty > 0 AND low_stock > 0 AND qty <= low_stock) "
+        "ORDER BY name COLLATE NOCASE, id",
+        params,
+    ).fetchall()
+    stats["zero_items"] = [dict(row) for row in alert_rows if row["qty"] <= 0]
+    stats["low_items"] = [dict(row) for row in alert_rows if row["qty"] > 0]
+    return stats
+
+
 @router.get("/api/items")
 def list_items(
     brand: Optional[str] = None,
@@ -74,6 +115,7 @@ def list_items(
     brands: Optional[str] = None,
     page: Optional[int] = None,
     page_size: int = 50,
+    include_alert_items: bool = False,
 ):
     """查詢品項；帶 page 時使用 server-side 分頁，未帶時維持舊 list shape。"""
     if page is not None and page < 1:
@@ -138,7 +180,9 @@ def list_items(
         order_sql = sort_map.get(sort, sort_map["brand"])
         count_sql = "SELECT COUNT(DISTINCT i.id)" + from_sql + where_sql
         total = conn.execute(count_sql, params).fetchone()[0]
-        sql = "SELECT i.*, COALESCE(SUM(s.qty),0) AS total_qty, COUNT(s.id) AS stock_count" + from_sql + where_sql
+        page_stats = (_inventory_page_stats(conn, from_sql, where_sql, params, include_alert_items)
+                      if page is not None else None)
+        sql = "SELECT i.*, ROUND(COALESCE(SUM(s.qty),0),3) AS total_qty, COUNT(s.id) AS stock_count" + from_sql + where_sql
         sql += " GROUP BY i.id ORDER BY " + order_sql
         query_params = list(params)
         if page is not None:
@@ -179,7 +223,7 @@ def list_items(
                 photo_map[photo["owner_id"]] = photo
         result = [_item_full(conn, r, kit_map, stocks_map, photo_ids, photo_map) for r in rows]
         if page is not None:
-            return {"items": result, "total": total, "page": page, "page_size": page_size}
+            return {"items": result, "total": total, "page": page, "page_size": page_size, "stats": page_stats}
         return result
     finally:
         conn.close()

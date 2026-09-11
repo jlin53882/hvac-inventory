@@ -2948,6 +2948,135 @@ if (!html.includes("showInventoryStatusList('low')") || !html.includes("showInve
     assert result.returncode == 0, result.stderr or result.stdout
 
 
+def test_inventory_dashboard_uses_full_filtered_stats_for_kpi_and_status_list():
+    """分頁只載入當頁時，KPI 與缺貨清單仍須使用同一篩選條件的全量統計。"""
+    script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const searchInput = { value: '' };
+const modalClasses = new Set();
+const statusModal = { classList: { add(name) { modalClasses.add(name); }, remove(name) { modalClasses.delete(name); }, contains(name) { return modalClasses.has(name); } }, setAttribute() {} };
+const statusModalBody = { innerHTML: '' };
+const context = {
+  document: {
+    addEventListener() {},
+    querySelectorAll() { return []; },
+    getElementById(id) {
+      if (id === 'search-input') return searchInput;
+      if (id === 'inventory-status-modal') return statusModal;
+      if (id === 'inventory-status-modal-body') return statusModalBody;
+      return null;
+    },
+  },
+  localStorage: { getItem() { return 'card'; } },
+  hasPerm() { return true; }, buildThumb() { return ''; },
+  currentUser: { permissions: { 'item-mgmt': true } },
+  fetch: null, URLSearchParams,
+  inventoryStatusRequestSeq: 0, inventoryStatusModalType: '',
+  pending: {},
+  INVENTORY_PENDING_ITEMS: { 3: { id: 3, name: '頁二缺貨', brand: '測試', code: 'C', unit: '個', qty: 0, low_stock: 0, is_kit: false, stocks: [] } },
+  currentSite: 'office', currentBrands: [], currentCategories: [],
+  ALL_ITEMS: [
+    { id: 1, name: '頁一缺貨', brand: '測試', code: 'A', unit: '個', qty: 0, low_stock: 0, is_kit: false, stocks: [] },
+    { id: 2, name: '頁一正常', brand: '測試', code: 'B', unit: '個', qty: 8, low_stock: 0, is_kit: false, stocks: [] },
+  ],
+  INVENTORY_META: {
+    page: 1, page_size: 2, total: 4,
+    stats: {
+      total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2,
+      zero_items: [
+        { id: 1, name: '頁一缺貨', brand: '測試', code: 'A', unit: '個', qty: 0, low_stock: 0, location: 'A' },
+        { id: 3, name: '頁二缺貨', brand: '測試', code: 'C', unit: '個', qty: 0, low_stock: 0, location: 'B' },
+      ],
+      low_items: [
+        { id: 4, name: '頁二低庫存', brand: '測試', code: 'D', unit: '個', qty: 2, low_stock: 5, location: 'B' },
+      ],
+    },
+  },
+};
+vm.createContext(context);
+for (const file of ['static/js/utils.js', 'static/js/render/inventory.js']) {
+  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+}
+const fractionalStatus = context.getInventoryStatusForQty({ is_kit: false, low_stock: 1 }, 0.0004);
+if (!fractionalStatus.isOutOfStock || fractionalStatus.isLowStock) throw new Error('fractional frontend status precision mismatch');
+const html = context.renderInventoryDashboard(context.ALL_ITEMS, context.INVENTORY_META.stats);
+const itemKpi = html.slice(html.indexOf('ui-kpi-card--blue'));
+if (!itemKpi.includes('inventory-kpi-number ui-kpi-value">4</div>')) throw new Error('full item KPI missing');
+const outKpi = html.slice(html.indexOf('inventory-kpi-out'));
+if (!outKpi.includes('inventory-kpi-number ui-kpi-value">2</div>')) throw new Error('full zero KPI missing');
+const zeroItems = context.getInventoryStatusItems('zero');
+if (zeroItems.length !== 2 || !zeroItems.some(item => item.id === 3)) throw new Error('full zero status list missing');
+const loadedStatusHtml = context.renderInventoryStatusItem(zeroItems[0], 'out');
+if (!loadedStatusHtml.includes('openEditModal(1)')) throw new Error('loaded status edit action missing');
+const crossPageStatusHtml = context.renderInventoryStatusItem(zeroItems[1], 'out');
+if (crossPageStatusHtml.includes('openEditModal(3)')) throw new Error('cross-page status edit action unsafe');
+context.pending[2] = -8;
+const pendingHtml = context.renderInventoryDashboard(context.ALL_ITEMS, context.INVENTORY_META.stats);
+const pendingOutKpi = pendingHtml.slice(pendingHtml.indexOf('inventory-kpi-out'));
+if (!pendingOutKpi.includes('inventory-kpi-number ui-kpi-value">3</div>')) throw new Error('pending zero KPI adjustment missing');
+const pendingZeroItems = context.getInventoryStatusItems('zero');
+if (pendingZeroItems.length !== 3 || !pendingZeroItems.some(item => item.id === 2)) throw new Error('pending zero status adjustment missing');
+context.pending = { 3: 8 };
+const crossPageDashboard = context.getInventoryDashboardStats(context.ALL_ITEMS, context.INVENTORY_META.stats);
+if (crossPageDashboard.totalQty !== 18 || crossPageDashboard.zeroCount !== 1) throw new Error('cross-page pending aggregate adjustment missing');
+const crossPageZeroItems = context.getInventoryStatusItems('zero');
+if (crossPageZeroItems.length !== 1 || crossPageZeroItems.some(item => item.id === 3)) throw new Error('cross-page pending status adjustment missing');
+context.pending = {};
+context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+context.lastAlertUrl = '';
+context.pending[2] = -8;
+context.INVENTORY_PENDING_ITEMS[2] = context.ALL_ITEMS[1];
+context.fetch = function(url) {
+  context.lastAlertUrl = url;
+  return Promise.resolve({ ok: true, json: () => Promise.resolve({ stats: {
+    total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2,
+    zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }],
+    low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }],
+  } }) });
+};
+(async function() {
+  await context.showInventoryStatusList('out');
+  if (!context.lastAlertUrl.includes('include_alert_items=1') || !context.lastAlertUrl.includes('page_size=1')) throw new Error('lazy alert query missing');
+  if (!statusModalBody.innerHTML.includes('共 3 項') || !statusModalBody.innerHTML.includes('頁一正常')) throw new Error('lazy alert modal pending count missing');
+  if (!Array.isArray(context.INVENTORY_META.stats.zero_items)) throw new Error('lazy alert cache missing');
+context.pending = {};
+delete context.INVENTORY_PENDING_ITEMS[2];
+  context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+  const closedResolvers = [];
+  context.fetch = function() { return new Promise(resolve => closedResolvers.push(resolve)); };
+  const closedRequest = context.showInventoryStatusList('out');
+  await Promise.resolve();
+  if (closedResolvers.length !== 1) throw new Error('closed-modal request did not start');
+  context.closeInventoryStatusModal();
+  closedResolvers[0]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
+  await closedRequest;
+  if (modalClasses.has('show')) throw new Error('closed modal was reopened by stale response');
+  context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+  modalClasses.clear();
+  const rapidResolvers = [];
+  context.fetch = function() { return new Promise(resolve => rapidResolvers.push(resolve)); };
+  const oldRequest = context.showInventoryStatusList('out');
+  await Promise.resolve();
+  const newRequest = context.showInventoryStatusList('low');
+  await Promise.resolve();
+  if (rapidResolvers.length !== 2) throw new Error('rapid requests did not start');
+  rapidResolvers[1]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
+  await newRequest;
+  rapidResolvers[0]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
+  await oldRequest;
+  if (!statusModalBody.innerHTML.includes('共 1 項') || !statusModalBody.innerHTML.includes('低庫存')) throw new Error('stale alert response replaced newer modal');
+context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+modalClasses.clear();
+context.fetch = function() { return Promise.resolve({ ok: false, status: 503 }); };
+await context.showInventoryStatusList('out');
+if (!statusModalBody.innerHTML.includes('無法載入完整清單')) throw new Error('lazy alert failure state missing');
+})().catch(function(error) { console.error(error); process.exitCode = 1; });
+"""
+    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
 def test_prepared_desktop_layout_keeps_existing_action_handlers():
     """待領出桌面版保留新增、已領出、退回、刪除與非庫存退回條件。"""
     js = read(PREPARED_RENDER_JS)

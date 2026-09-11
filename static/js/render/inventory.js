@@ -4,26 +4,32 @@
 
 // ========== 共用搜尋過濾（多詞 AND） ==========
 
+function getInventoryFilterKeywords() {
+  const searchInput = document.getElementById('search-input');
+  const raw = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  return raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
+}
+
+function inventoryItemMatchesCurrentFilters(item, keywords) {
+  if (item.is_kit) return false;
+  if (typeof currentSite !== 'undefined' && item.site && item.site !== currentSite) return false;
+  if (currentBrands.length > 0 && currentBrands.indexOf(item.brand || '無廠牌') < 0) return false;
+  if (currentCategories.length > 0 && currentCategories.indexOf(item.category || '') < 0) return false;
+  if (keywords.length > 0) {
+    const stockStr = (item.stocks || []).map(function(s) { return s.location + ' ' + s.note; }).join(' ').toLowerCase();
+    let hay = (item.name || '') + ' ' + (item.code || '') + ' ' + (item.brand || '') + ' ' + stockStr;
+    hay = hay.toLowerCase();
+    if (!keywords.every(function(keyword) { return hay.indexOf(keyword) >= 0; })) return false;
+  }
+  return true;
+}
+
 // 回傳符合當前搜尋 + 品牌 + 分類篩選的非整組品項（供全選 / render 共用）
 function getFilteredInventoryItems() {
-  var raw = document.getElementById('search-input').value.trim().toLowerCase();
-  var kws = raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
-  var list = ALL_ITEMS.filter(function(i) { return !i.is_kit; });
-  if (currentBrands.length > 0) {
-    list = list.filter(function(i) { return currentBrands.indexOf(i.brand || '無廠牌') >= 0; });
-  }
-  if (currentCategories.length > 0) {
-    list = list.filter(function(i) { return currentCategories.indexOf(i.category || '') >= 0; });
-  }
-  if (kws.length > 0) {
-    list = list.filter(function(i) {
-      var stockStr = (i.stocks || []).map(function(s) { return s.location + ' ' + s.note; }).join(' ').toLowerCase();
-      var hay = (i.name||'') + ' ' + (i.code||'') + ' ' + (i.brand||'') + ' ' + stockStr;
-      hay = hay.toLowerCase();
-      return kws.every(function(kw) { return hay.indexOf(kw) >= 0; });
-    });
-  }
-  return list;
+  const keywords = getInventoryFilterKeywords();
+  return ALL_ITEMS.filter(function(item) {
+    return inventoryItemMatchesCurrentFilters(item, keywords);
+  });
 }
 
 function filterBySearch(items, matchFn) {
@@ -84,7 +90,8 @@ function renderInventory() {
 
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = (typeof isMobileView === 'function') && isMobileView();
-  let html = renderInventoryDashboard(list);
+  const aggregateStats = typeof INVENTORY_META !== 'undefined' ? INVENTORY_META.stats : null;
+  let html = renderInventoryDashboard(list, aggregateStats);
   html += renderInventoryToolbar(list, isViewer);
   if (viewMode === 'table') {
     html += renderInventoryTable(list, isViewer, canStockout);
@@ -133,24 +140,77 @@ function getInventoryDisplayQty(item) {
 }
 
 // 單一庫存、KPI、卡片、表格與詳情清單共用既有判定語意。
-function getInventoryStatus(item) {
-  const qty = getInventoryDisplayQty(item);
-  const isOutOfStock = !item.is_kit && qty <= 0;
+function getInventoryStatusForQty(item, qty) {
+  const normalizedQty = Math.round(Number(qty || 0) * 1000) / 1000;
+  const isOutOfStock = !item.is_kit && normalizedQty <= 0;
   return {
-    qty: qty,
+    qty: normalizedQty,
     isOutOfStock: isOutOfStock,
-    isLowStock: !isOutOfStock && item.low_stock > 0 && qty <= item.low_stock,
+    isLowStock: !isOutOfStock && item.low_stock > 0 && normalizedQty <= item.low_stock,
   };
 }
 
-function renderInventoryDashboard(list) {
-  const totalQty = list.reduce((s, i) => s + getInventoryDisplayQty(i), 0);
-  const lowCount = list.filter(i => getInventoryStatus(i).isLowStock).length;
-  const zeroCount = list.filter(i => getInventoryStatus(i).isOutOfStock).length;
+function getInventoryStatus(item) {
+  return getInventoryStatusForQty(item, getInventoryDisplayQty(item));
+}
+
+function getInventoryDashboardStats(list, aggregateStats) {
+  const items = Array.isArray(list) ? list : [];
+  const fallbackZeroItems = items.filter(function(item) { return getInventoryStatus(item).isOutOfStock; });
+  const fallbackLowItems = items.filter(function(item) { return getInventoryStatus(item).isLowStock; });
+  const fallback = {
+    itemCount: items.length,
+    totalQty: items.reduce(function(sum, item) { return sum + getInventoryDisplayQty(item); }, 0),
+    lowCount: fallbackLowItems.length,
+    zeroCount: fallbackZeroItems.length,
+    lowItems: fallbackLowItems,
+    zeroItems: fallbackZeroItems,
+  };
+  const aggregate = aggregateStats && typeof aggregateStats === 'object' ? aggregateStats : null;
+  const hasAggregate = aggregate && Number.isFinite(Number(aggregate.item_count))
+    && Number.isFinite(Number(aggregate.total_qty))
+    && Number.isFinite(Number(aggregate.low_stock))
+    && Number.isFinite(Number(aggregate.zero_stock));
+  if (!hasAggregate) return fallback;
+  const dashboard = {
+    itemCount: Number(aggregate.item_count),
+    totalQty: Number(aggregate.total_qty),
+    lowCount: Number(aggregate.low_stock),
+    zeroCount: Number(aggregate.zero_stock),
+    lowItems: Array.isArray(aggregate.low_items) ? aggregate.low_items.slice() : fallbackLowItems.slice(),
+    zeroItems: Array.isArray(aggregate.zero_items) ? aggregate.zero_items.slice() : fallbackZeroItems.slice(),
+  };
+  if (typeof pending === 'undefined') return dashboard;
+  const currentItems = new Map(items.map(function(item) { return [String(item.id), item]; }));
+  const savedPendingItems = typeof INVENTORY_PENDING_ITEMS !== 'undefined' ? INVENTORY_PENDING_ITEMS : {};
+  const filterKeywords = getInventoryFilterKeywords();
+  Object.keys(pending).forEach(function(id) {
+    const item = currentItems.get(String(id)) || savedPendingItems[id];
+    if (!item || !inventoryItemMatchesCurrentFilters(item, filterKeywords)) return;
+    const before = getInventoryStatusForQty(item, item.qty);
+    const after = getInventoryStatus(item);
+    dashboard.totalQty += after.qty - before.qty;
+    if (before.isLowStock !== after.isLowStock) dashboard.lowCount += after.isLowStock ? 1 : -1;
+    if (before.isOutOfStock !== after.isOutOfStock) dashboard.zeroCount += after.isOutOfStock ? 1 : -1;
+    const replaceCurrentItem = function(source, statusKey) {
+      const next = source.filter(function(candidate) { return String(candidate.id) !== String(item.id); });
+      if (after[statusKey]) next.push(item);
+      return next;
+    };
+    dashboard.lowItems = replaceCurrentItem(dashboard.lowItems, 'isLowStock');
+    dashboard.zeroItems = replaceCurrentItem(dashboard.zeroItems, 'isOutOfStock');
+  });
+  return dashboard;
+}
+function renderInventoryDashboard(list, aggregateStats) {
+  const dashboard = getInventoryDashboardStats(list, aggregateStats);
+  const totalQty = dashboard.totalQty;
+  const lowCount = dashboard.lowCount;
+  const zeroCount = dashboard.zeroCount;
   return `<section class="inventory-kpi-grid ui-kpi-grid" aria-label="庫存統計">
     <div class="inventory-kpi-card ui-kpi-card ui-kpi-card--blue">
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">📦</span>
-      <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">篩選品項</div><div class="inventory-kpi-number ui-kpi-value">${esc(String(list.length))}</div><span class="ui-kpi-meta">目前篩選結果</span></div>
+      <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">篩選品項</div><div class="inventory-kpi-number ui-kpi-value">${esc(String(dashboard.itemCount))}</div><span class="ui-kpi-meta">目前篩選結果</span></div>
     </div>
     <div class="inventory-kpi-card ui-kpi-card ui-kpi-card--purple">
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">🗄️</span>
@@ -169,21 +229,75 @@ function renderInventoryDashboard(list) {
 
 function getInventoryStatusItems(type) {
   const isLow = type === 'low';
-  return getFilteredInventoryItems()
-    .filter(function(item) {
-      const status = getInventoryStatus(item);
-      return isLow ? status.isLowStock : status.isOutOfStock;
-    })
+  const pageItems = getFilteredInventoryItems();
+  const aggregateStats = typeof INVENTORY_META !== 'undefined' ? INVENTORY_META.stats : null;
+  const dashboard = getInventoryDashboardStats(pageItems, aggregateStats);
+  return (isLow ? dashboard.lowItems : dashboard.zeroItems)
     .slice()
     .sort(function(a, b) { return getInventoryStatus(a).qty - getInventoryStatus(b).qty; });
+}
+
+function getInventoryFilterStateKey() {
+  const search = document.getElementById('search-input');
+  const brands = typeof currentBrands !== 'undefined' ? currentBrands : [];
+  const categories = typeof currentCategories !== 'undefined' ? currentCategories : [];
+  return JSON.stringify([
+    typeof currentSite !== 'undefined' ? currentSite : '',
+    search ? search.value.trim() : '',
+    brands,
+    categories,
+  ]);
+}
+
+function buildInventoryAlertParams() {
+  const params = new URLSearchParams({
+    site: currentSite,
+    page: '1',
+    page_size: '1',
+    sort: 'brand',
+    include_alert_items: '1',
+  });
+  const search = document.getElementById('search-input');
+  if (search && search.value.trim()) params.set('search', search.value.trim());
+  if (currentBrands.length) params.set('brands', currentBrands.join(','));
+  if (currentCategories.length) params.set('categories', currentCategories.join(','));
+  return params;
+}
+
+async function loadInventoryAlertItems(type, requestId) {
+  const siteAtRequest = currentSite;
+  const filterKeyAtRequest = getInventoryFilterStateKey();
+  const res = await fetch(`/api/items?${buildInventoryAlertParams()}`);
+  if (!res.ok) throw new Error('庫存警示清單 API 錯誤: ' + res.status);
+  const body = await res.json();
+  if (siteAtRequest !== currentSite || filterKeyAtRequest !== getInventoryFilterStateKey()
+      || (requestId !== undefined && requestId !== inventoryStatusRequestSeq)) return null;
+  const stats = body.stats || {};
+  if (!Array.isArray(stats.zero_items) || !Array.isArray(stats.low_items)) {
+    throw new Error('庫存警示清單回應格式錯誤');
+  }
+  const mergedStats = Object.assign({}, stats, {
+    zero_items: stats.zero_items,
+    low_items: stats.low_items,
+  });
+  const adjustedStats = getInventoryDashboardStats(getFilteredInventoryItems(), mergedStats);
+  if (typeof INVENTORY_META !== 'undefined') {
+    INVENTORY_META.stats = Object.assign({}, mergedStats, {
+      zero_items: adjustedStats.zeroItems,
+      low_items: adjustedStats.lowItems,
+    });
+  }
+  return (type === 'low' ? adjustedStats.lowItems : adjustedStats.zeroItems).slice();
 }
 
 function renderInventoryStatusItem(item, type) {
   const status = getInventoryStatus(item);
   const isOut = status.isOutOfStock;
-  const locStr = (item.stocks || []).map(function(stock) { return stock.location || '未標示'; }).join('、') || '未標示';
+  const locStr = (item.stocks || []).map(function(stock) { return stock.location || '未標示'; }).join('、') || item.location || '未標示';
   const thumb = buildThumb(item.id, item.has_photo, item.name, '📦');
-  const editAction = hasPerm('item-mgmt')
+  const hasLoadedItem = Array.isArray(ALL_ITEMS)
+    && ALL_ITEMS.some(function(candidate) { return String(candidate.id) === String(item.id); });
+  const editAction = hasPerm('item-mgmt') && hasLoadedItem
     ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();openEditModal(${item.id})">編輯</button>`
     : '';
   const threshold = type === 'low' ? `<span class="inventory-status-meta">警示值 ${formatInventoryQuantity(item.low_stock)}</span>` : '';
@@ -206,12 +320,11 @@ function renderInventoryStatusItem(item, type) {
   </article>`;
 }
 
-function showInventoryStatusList(type) {
+function renderInventoryStatusModal(type, items) {
   const modal = document.getElementById('inventory-status-modal');
   const body = document.getElementById('inventory-status-modal-body');
   if (!modal || !body) return;
   const isLow = type === 'low';
-  const items = getInventoryStatusItems(type);
   const title = isLow ? '⚠ 低庫存商品' : '⛔ 缺貨商品';
   const empty = isLow ? '目前沒有低庫存商品' : '目前沒有缺貨商品';
   const intro = isLow ? '庫存數量已低於或等於目前警示值。' : '目前庫存為 0 或以下的單一庫存品項。';
@@ -228,7 +341,42 @@ function showInventoryStatusList(type) {
   modal.setAttribute('aria-hidden', 'false');
 }
 
+function isInventoryStatusRequestCurrent(requestId, modal, type) {
+  const isOpen = modal && modal.classList && typeof modal.classList.contains === 'function'
+    ? modal.classList.contains('show') : true;
+  return requestId === inventoryStatusRequestSeq && inventoryStatusModalType === type && isOpen;
+}
+
+async function showInventoryStatusList(type) {
+  const modal = document.getElementById('inventory-status-modal');
+  const body = document.getElementById('inventory-status-modal-body');
+  if (!modal || !body) return;
+  const requestId = ++inventoryStatusRequestSeq;
+  inventoryStatusModalType = type;
+  let items = getInventoryStatusItems(type);
+  const stats = typeof INVENTORY_META !== 'undefined' ? INVENTORY_META.stats : null;
+  const hasAlertItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+  if (!hasAlertItems) {
+    body.innerHTML = '<div class="inventory-status-loading">載入完整警示清單…</div>';
+    try {
+      const loaded = await loadInventoryAlertItems(type, requestId);
+      if (!loaded || !isInventoryStatusRequestCurrent(requestId, modal, type)) return;
+      items = loaded.sort(function(a, b) { return getInventoryStatus(a).qty - getInventoryStatus(b).qty; });
+    } catch (e) {
+      if (!isInventoryStatusRequestCurrent(requestId, modal, type)) return;
+      body.innerHTML = `<div class="inventory-status-empty"><span aria-hidden="true">⚠</span><strong>無法載入完整清單</strong><p>${esc(e.message || '請稍後再試')}</p></div>`;
+      return;
+    }
+  }
+  if (!isInventoryStatusRequestCurrent(requestId, modal, type)) return;
+  renderInventoryStatusModal(type, items);
+}
+
 function closeInventoryStatusModal() {
+  inventoryStatusRequestSeq += 1;
+  inventoryStatusModalType = '';
   const modal = document.getElementById('inventory-status-modal');
   if (!modal) return;
   modal.classList.remove('show');
@@ -443,9 +591,13 @@ function changeQty(id, delta) {
 
   if (item.qty + newDelta < 0) return;
 
-  if (newDelta === 0) delete pending[id];
-
-  else pending[id] = newDelta;
+  if (newDelta === 0) {
+    delete pending[id];
+    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') delete INVENTORY_PENDING_ITEMS[id];
+  } else {
+    pending[id] = newDelta;
+    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') INVENTORY_PENDING_ITEMS[id] = item;
+  }
 
   renderInventory();
 
@@ -473,9 +625,13 @@ function quickSet(id) {
 
   const newDelta = val - item.qty;
 
-  if (newDelta === 0) delete pending[id];
-
-  else pending[id] = newDelta;
+  if (newDelta === 0) {
+    delete pending[id];
+    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') delete INVENTORY_PENDING_ITEMS[id];
+  } else {
+    pending[id] = newDelta;
+    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') INVENTORY_PENDING_ITEMS[id] = item;
+  }
 
   renderInventory();
 

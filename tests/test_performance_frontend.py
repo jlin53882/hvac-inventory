@@ -42,6 +42,18 @@ def test_inventory_page_load_and_startup_skip_full_items():
     inventory = (ROOT / "static/js/render/inventory.js").read_text(encoding="utf-8")
     assert "destinationsLoadedSite" in globals
     assert "destinationsLoadedSite !== currentSite" in inventory
+    assert "stats: body.stats || null" in api
+    assert "renderInventoryDashboard(list, aggregateStats)" in inventory
+    assert "getInventoryDashboardStats" in inventory
+    assert "INVENTORY_PENDING_ITEMS[id] = item" in inventory
+    assert "const savedPendingItems" in inventory
+    assert "keptItems" in api
+    assert "async function loadInventoryAlertItems(type, requestId)" in inventory
+    assert "include_alert_items: '1'" in inventory
+    assert "await loadInventoryAlertItems(type, requestId)" in inventory
+    switch_start = app.index("function switchTab")
+    current_tab_assignment = app.index("  currentTab = tab;", switch_start)
+    assert "closeInventoryStatusModal();" in app[switch_start:current_tab_assignment]
 
 
 def test_performance_stylesheet_is_mounted():

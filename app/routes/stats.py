@@ -23,13 +23,13 @@ def _stats_for_site(conn, site: Optional[str] = None) -> dict:
         params = (site,)
     total = conn.execute(f"SELECT COUNT(*) FROM items{where}", params).fetchone()[0]
     total_qty = conn.execute(
-        f"SELECT COALESCE(SUM(s.qty),0) FROM item_stocks s JOIN items i ON i.id=s.item_id{where}",
+        f"SELECT ROUND(COALESCE(SUM(s.qty),0),3) FROM item_stocks s JOIN items i ON i.id=s.item_id{where}",
         params,
     ).fetchone()[0]
     single_items = conn.execute(f"SELECT COUNT(*) FROM items{where} AND is_kit=0", params).fetchone()[0]
     kit_items = conn.execute(f"SELECT COUNT(*) FROM items{where} AND is_kit=1", params).fetchone()[0]
-    zero_where = where + " AND COALESCE((SELECT SUM(qty) FROM item_stocks WHERE item_id=items.id),0) <= 0 AND is_kit=0"
-    low_where = where + " AND COALESCE((SELECT SUM(qty) FROM item_stocks WHERE item_id=items.id),0) <= low_stock AND low_stock > 0"
+    zero_where = where + " AND ROUND(COALESCE((SELECT SUM(qty) FROM item_stocks WHERE item_id=items.id),0),3) <= 0 AND is_kit=0"
+    low_where = where + " AND ROUND(COALESCE((SELECT SUM(qty) FROM item_stocks WHERE item_id=items.id),0),3) <= low_stock AND low_stock > 0"
     low = conn.execute(f"SELECT COUNT(*) FROM items{low_where}", params).fetchone()[0]
     zero = conn.execute(f"SELECT COUNT(*) FROM items{zero_where}", params).fetchone()[0]
     brands = conn.execute(f"SELECT COUNT(DISTINCT brand) FROM items{where}", params).fetchone()[0]
@@ -40,7 +40,7 @@ def _stats_for_site(conn, site: Optional[str] = None) -> dict:
         alert_params = (site,)
     alert_rows = conn.execute(
         "SELECT i.id, i.name, i.unit, i.low_stock, "
-        "COALESCE(SUM(s.qty),0) AS qty "
+        "ROUND(COALESCE(SUM(s.qty),0),3) AS qty "
         "FROM items i LEFT JOIN item_stocks s ON s.item_id=i.id" + alert_where +
         " GROUP BY i.id "
         "HAVING qty <= 0 OR (i.low_stock > 0 AND qty <= i.low_stock) "

@@ -181,6 +181,7 @@ function updateBreadcrumb(tab) {
 }
 
 function switchTab(tab) {
+  if (typeof closeInventoryStatusModal === 'function') closeInventoryStatusModal();
   currentTab = tab;
   checkReminder();
   updateNotifications();

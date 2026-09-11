@@ -5,7 +5,7 @@
 
 // 品項資料與狀態
 var ALL_ITEMS = [];
-var INVENTORY_META = { page: 1, page_size: 50, total: 0 };
+var INVENTORY_META = { page: 1, page_size: 50, total: 0, stats: null };
 var INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
 var inventoryRequestSeq = 0;
 var inventoryAbortController = null;
@@ -22,6 +22,9 @@ var preparedItems = [];  // 待領出清單（含非庫存品項；openPreparedS
 var currentBrands = [];   // 多選品牌篩選（空=全部）
 var currentCategories = [];  // 多選分類篩選（空=全部）
 var pending = {};   // itemId -> delta
+var INVENTORY_PENDING_ITEMS = {};   // itemId -> base item snapshot for paged KPI adjustments
+var inventoryStatusRequestSeq = 0;
+var inventoryStatusModalType = '';
 // 目前頁籤（inventory/prepared/stockout/stocktake/kit/calendar）
 // 2026-08-13 Sarah：登入預設顯示行事曆（原本 inventory）
 var currentTab = 'calendar';
