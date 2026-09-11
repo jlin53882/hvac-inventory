@@ -92,7 +92,7 @@ async function renderCalendar() {
           </div>
         </div>
       </section>
-      <div class="cal-kpi-grid" id="cal-kpi-grid" aria-label="派工統計"></div>
+      <div class="cal-kpi-grid ui-kpi-grid" id="cal-kpi-grid" aria-label="派工統計"></div>
       <div id="cal-search-top-slot" class="cal-search-top-slot">
         <div id="cal-search-results" class="cal-search-results" style="display:none" aria-label="搜尋結果"></div>
       </div>
@@ -203,7 +203,7 @@ function calRenderLoadingUi() {
   const helper = document.getElementById('cal-helper-panel');
   if (legend) { legend.style.display = 'none'; legend.innerHTML = ''; }
   if (helper) { helper.style.display = 'none'; helper.innerHTML = ''; }
-  if (kpi) kpi.innerHTML = Array.from({length: 3}, () => '<div class="cal-kpi-card cal-skeleton-card" aria-hidden="true"><span></span><strong></strong></div>').join('');
+  if (kpi) kpi.innerHTML = Array.from({length: 3}, () => '<div class="cal-kpi-card ui-kpi-card ui-kpi-card--stacked cal-skeleton-card" aria-hidden="true"><span></span><strong></strong></div>').join('');
   if (grid) grid.innerHTML = Array.from({length: 42}, () => '<div class="cal-cell cal-skeleton-cell" aria-hidden="true"></div>').join('');
   if (list) list.innerHTML = '<div class="cal-skeleton-detail" aria-hidden="true"><span></span><span></span><span></span><span></span></div>';
 }
@@ -265,8 +265,8 @@ function calRenderKpi() {
   const el = document.getElementById('cal-kpi-grid');
   if (!el) return;
   el.innerHTML = cards.map(card => {
-    const meta = `<span class="cal-kpi-meta">${esc(card.meta)}</span>`;
-    return `<div class="cal-kpi-card cal-kpi-${esc(card.tone)}"><span class="cal-kpi-label">${esc(card.label)}</span><strong>${esc(card.value)}</strong>${meta}</div>`;
+    const meta = `<span class="cal-kpi-meta ui-kpi-meta">${esc(card.meta)}</span>`;
+    return `<div class="cal-kpi-card ui-kpi-card ui-kpi-card--stacked ui-kpi-card--${esc(card.tone)} cal-kpi-${esc(card.tone)}"><span class="cal-kpi-label ui-kpi-label">${esc(card.label)}</span><strong class="ui-kpi-value">${esc(card.value)}</strong>${meta}</div>`;
   }).join('');
 }
 

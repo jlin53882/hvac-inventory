@@ -113,10 +113,10 @@ async function renderQuotationUploads() {
           <div class="qup-card">
             <div class="qup-card__hd"><h2>📊 本月概況</h2><p id="qup-kpi-month"></p></div>
             <div class="qup-card__bd">
-              <div class="qup-kpi">
-                <div class="qup-kpi__card"><div class="qup-kpi__num" id="qup-kpi-total">—</div><div class="qup-kpi__label">已歸檔</div></div>
-                <div class="qup-kpi__card"><div class="qup-kpi__num" id="qup-kpi-missing">—</div><div class="qup-kpi__label">缺檔日</div></div>
-                <div class="qup-kpi__card"><div class="qup-kpi__num" id="qup-kpi-rate">—</div><div class="qup-kpi__label">歸檔率</div></div>
+              <div class="qup-kpi ui-kpi-grid ui-kpi-grid--compact">
+                <div class="qup-kpi__card ui-kpi-card ui-kpi-card--blue ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">🧾</span><div class="ui-kpi-body"><div class="qup-kpi__label ui-kpi-label">已歸檔</div><div class="qup-kpi__num ui-kpi-value" id="qup-kpi-total">—</div><span class="ui-kpi-meta">本月</span></div></div>
+                <div class="qup-kpi__card ui-kpi-card ui-kpi-card--amber ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">⚠</span><div class="ui-kpi-body"><div class="qup-kpi__label ui-kpi-label">缺檔日</div><div class="qup-kpi__num ui-kpi-value" id="qup-kpi-missing">—</div><span class="ui-kpi-meta">本月</span></div></div>
+                <div class="qup-kpi__card ui-kpi-card ui-kpi-card--green ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">📊</span><div class="ui-kpi-body"><div class="qup-kpi__label ui-kpi-label">歸檔率</div><div class="qup-kpi__num ui-kpi-value" id="qup-kpi-rate">—</div><span class="ui-kpi-meta">本月</span></div></div>
               </div>
               <div class="qup-hint">缺檔日 = 行事曆有派工但未上傳簽名檔的日期（可一鍵跳至行事曆該日）</div>
             </div>

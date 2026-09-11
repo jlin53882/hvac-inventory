@@ -112,10 +112,10 @@ async function renderSignedReports() {
           <div class="dsr-card">
             <div class="dsr-card__hd"><h2>📊 本月概況</h2><p id="dsr-kpi-month"></p></div>
             <div class="dsr-card__bd">
-              <div class="dsr-kpi">
-                <div class="dsr-kpi__card"><div class="dsr-kpi__num" id="dsr-kpi-total">—</div><div class="dsr-kpi__label">已歸檔</div></div>
-                <div class="dsr-kpi__card"><div class="dsr-kpi__num" id="dsr-kpi-missing">—</div><div class="dsr-kpi__label">缺檔日</div></div>
-                <div class="dsr-kpi__card"><div class="dsr-kpi__num" id="dsr-kpi-rate">—</div><div class="dsr-kpi__label">歸檔率</div></div>
+              <div class="dsr-kpi ui-kpi-grid ui-kpi-grid--compact">
+                <div class="dsr-kpi__card ui-kpi-card ui-kpi-card--blue ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">🗂</span><div class="ui-kpi-body"><div class="dsr-kpi__label ui-kpi-label">已歸檔</div><div class="dsr-kpi__num ui-kpi-value" id="dsr-kpi-total">—</div><span class="ui-kpi-meta">本月</span></div></div>
+                <div class="dsr-kpi__card ui-kpi-card ui-kpi-card--amber ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">⚠</span><div class="ui-kpi-body"><div class="dsr-kpi__label ui-kpi-label">缺檔日</div><div class="dsr-kpi__num ui-kpi-value" id="dsr-kpi-missing">—</div><span class="ui-kpi-meta">本月</span></div></div>
+                <div class="dsr-kpi__card ui-kpi-card ui-kpi-card--green ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">📈</span><div class="ui-kpi-body"><div class="dsr-kpi__label ui-kpi-label">歸檔率</div><div class="dsr-kpi__num ui-kpi-value" id="dsr-kpi-rate">—</div><span class="ui-kpi-meta">本月</span></div></div>
               </div>
               <div class="dsr-hint">缺檔日 = 行事曆有派工但未上傳簽名檔的日期（可一鍵跳至行事曆該日）</div>
             </div>

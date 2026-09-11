@@ -44,11 +44,11 @@ async function renderStocktake() {
   if (loadError) {
     html += `<div class="stocktake-error-state"><h2>載入盤點資料失敗</h2><p>部分盤點資料無法載入，請重新載入。</p><button type="button" class="btn-cancel" onclick="renderStocktake()">重新載入</button></div>`;
   }
-  html += `<section class="stocktake-kpi-grid">
-    <div class="stocktake-kpi-card stat-card"><div class="stocktake-kpi-icon">📦</div><div><div class="stocktake-kpi-number">${esc(String(ALL_ITEMS.length))}</div><div class="stocktake-kpi-label">品項總數</div></div></div>
-    <div class="stocktake-kpi-card stat-card"><div class="stocktake-kpi-icon">🗄️</div><div><div class="stocktake-kpi-number">${totalQtyStr}</div><div class="stocktake-kpi-label">庫存總數(件)</div></div></div>
-    <button type="button" class="stocktake-kpi-card stat-card clickable warn" onclick="showStocktakeList('low')" aria-label="查看低庫存品項"><div class="stocktake-kpi-icon">⚠</div><div><div class="stocktake-kpi-number">${esc(String(low))}</div><div class="stocktake-kpi-label">低庫存 ▶</div></div></button>
-    <button type="button" class="stocktake-kpi-card stat-card clickable danger" onclick="showStocktakeList('zero')" aria-label="查看缺貨品項"><div class="stocktake-kpi-icon">⛔</div><div><div class="stocktake-kpi-number">${esc(String(zero))}</div><div class="stocktake-kpi-label">缺貨 ▶</div></div></button>
+  html += `<section class="stocktake-kpi-grid ui-kpi-grid">
+    <div class="stocktake-kpi-card ui-kpi-card ui-kpi-card--blue"><div class="stocktake-kpi-icon ui-kpi-icon">📦</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">品項總數</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(ALL_ITEMS.length))}</div><span class="ui-kpi-meta">目前庫存品項</span></div></div>
+    <div class="stocktake-kpi-card ui-kpi-card ui-kpi-card--purple"><div class="stocktake-kpi-icon ui-kpi-icon">🗄️</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">庫存總數(件)</div><div class="stocktake-kpi-number ui-kpi-value">${totalQtyStr}</div><span class="ui-kpi-meta">全部品項合計</span></div></div>
+    <button type="button" class="stocktake-kpi-card ui-kpi-card ui-kpi-card--amber clickable warn" onclick="showStocktakeList('low')" aria-label="查看低庫存品項"><div class="stocktake-kpi-icon ui-kpi-icon">⚠</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">低庫存</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(low))}</div><span class="ui-kpi-meta">低於警示值 · 查看清單</span></div></button>
+    <button type="button" class="stocktake-kpi-card ui-kpi-card ui-kpi-card--red clickable danger" onclick="showStocktakeList('zero')" aria-label="查看缺貨品項"><div class="stocktake-kpi-icon ui-kpi-icon">⛔</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">缺貨</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(zero))}</div><span class="ui-kpi-meta">數量為 0 · 查看清單</span></div></button>
   </section>`;
 
   if (takeDates.length) {

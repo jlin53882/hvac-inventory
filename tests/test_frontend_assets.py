@@ -1438,20 +1438,21 @@ def test_stocktake_totalqty_thousands_format():
 
 
 def test_stocktake_four_stat_cards_order():
-    """盤點頁統計卡 4 張且順序固定：品項總數 → 庫存總數(件) → 低庫存 ▶ → 缺貨 ▶"""
+    """盤點頁統計卡 4 張且順序固定：品項總數 → 庫存總數(件) → 低庫存 → 缺貨"""
     js = read(STOCKTAKE_JS)
     assert "庫存總數(件)" in js
     i_total = js.index("品項總數")
     i_qty = js.index("庫存總數(件)")
-    i_low = js.index("低庫存 ▶")
-    i_zero = js.index("缺貨 ▶")
+    i_low = js.index("低庫存")
+    i_zero = js.index("缺貨")
     assert i_total < i_qty < i_low < i_zero, "統計卡順序錯誤（應為 品項總數→庫存總數→低庫存→缺貨）"
 
 
 def test_stocktake_totalqty_card_not_clickable():
     """庫存總數卡純顯示（無對應清單、不可點）；可點擊卡維持 2 張（低庫存/缺貨）"""
     js = read(STOCKTAKE_JS)
-    assert js.count("stat-card clickable") == 2, "可點擊統計卡數量錯誤（應只有低庫存/缺貨 2 張）"
+    assert js.count("ui-kpi-card--amber clickable") == 1
+    assert js.count("ui-kpi-card--red clickable") == 1
 
 
 def test_stocktake_list_shows_model_and_kits():
@@ -2439,6 +2440,34 @@ def test_drawer_js_functions():
 
 
 # ========== Phase 3: 庫存頁細節 ==========
+def test_all_dashboard_kpis_share_common_responsive_contract():
+    """所有 dashboard KPI 使用同一組 Desktop/Mobile 呈現 contract。"""
+    css = read(CSS_CORE)
+    assert "#content .ui-kpi-grid {" in css
+    assert "#content .ui-kpi-card {" in css
+    assert "#content .ui-kpi-icon {" in css
+    assert "#content .ui-kpi-value {" in css
+    assert "#content .ui-kpi-label {" in css
+    assert "#content .ui-kpi-meta {" in css
+    assert "#content .ui-kpi-card--compact {" in css
+    assert "@media (max-width: 767px)" in css
+    sources = (
+        CALENDAR_RENDER_JS, INVENTORY_RENDER_JS, PREPARED_RENDER_JS,
+        STOCKOUT_RENDER_JS, STOCKTAKE_JS, KITS_RENDER_JS,
+        SIGNED_REPORTS_RENDER_JS,
+        os.path.join(STATIC, "js", "render", "quotation-upload.js"),
+    )
+    for source in sources:
+        js = read(source)
+        assert "ui-kpi-card" in js, f"{source} 未掛共用 KPI card"
+        assert "ui-kpi-value" in js, f"{source} 未掛共用 KPI value"
+        assert "ui-kpi-label" in js, f"{source} 未掛共用 KPI label"
+        assert "ui-kpi-meta" in js, f"{source} 未掛共用 KPI meta"
+    for source in sources:
+        if source != PREPARED_RENDER_JS:
+            assert "ui-kpi-grid" in read(source), f"{source} 未掛共用 KPI grid"
+
+
 def test_dashboard_stat_cards():
     """Phase 3：Dashboard 摘要卡 JS 存在"""
     js = read(INVENTORY_RENDER_JS)
@@ -2912,7 +2941,7 @@ if (!context.getInventoryStatus(zero).isOutOfStock || context.getInventoryStatus
 if (context.getInventoryStatus(normal).isLowStock || context.getInventoryStatus(normal).isOutOfStock) throw new Error('normal status mismatch');
 context.pending[1] = 1;
 const html = context.renderInventoryDashboard([low, zero, normal]);
-if (!html.includes('inventory-kpi-number">11</div>')) throw new Error('pending-aware total missing');
+if (!html.includes('inventory-kpi-number ui-kpi-value">11</div>')) throw new Error('pending-aware total missing');
 if (!html.includes("showInventoryStatusList('low')") || !html.includes("showInventoryStatusList('out')")) throw new Error('KPI handlers missing');
 """
     result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)

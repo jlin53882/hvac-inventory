@@ -498,6 +498,61 @@
   .stat-card.clickable { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
   .stat-card.clickable:active { transform: scale(0.95); box-shadow: 0 0 0 2px #2d5a8e33; }
 
+  /* ===== Shared dashboard KPI contract (2026-09-11) ===== */
+  #content .ui-kpi-grid { display: grid; gap: 16px; margin-bottom: 18px; }
+  #content .ui-kpi-card {
+    min-width: 0; min-height: 94px; display: flex; align-items: center; gap: 12px;
+    padding: 16px 18px; border: 1px solid #e2e8f0; border-radius: 12px;
+    background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    color: #0f172a; text-align: left;
+  }
+  #content .ui-kpi-card--stacked { flex-direction: column; align-items: stretch; justify-content: center; gap: 5px; }
+  #content .ui-kpi-icon {
+    width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; margin: 0;
+    border-radius: 10px; background: #eff6ff; font-size: 18px;
+  }
+  #content .ui-kpi-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  #content .ui-kpi-value { color: #0f172a; font-size: 28px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #content .ui-kpi-label { margin: 0; color: #64748b; font-size: 13px; font-weight: 600; }
+  #content .ui-kpi-meta { margin-top: auto; align-self: flex-start; color: #64748b; font-size: 11px; font-weight: 500; line-height: 1.2; }
+  #content .ui-kpi-card--stacked .ui-kpi-meta { align-self: flex-end; text-align: right; }
+  #content .ui-kpi-card--blue { border-left: 4px solid #2563eb; }
+  #content .ui-kpi-card--indigo { border-left: 4px solid #4f46e5; }
+  #content .ui-kpi-card--slate { border-left: 4px solid #64748b; }
+  #content .ui-kpi-card--purple { border-left: 4px solid #7c3aed; }
+  #content .ui-kpi-card--green { border-left: 4px solid #16a34a; }
+  #content .ui-kpi-card--amber { border-left: 4px solid #d97706; }
+  #content .ui-kpi-card--red { border-left: 4px solid #dc2626; }
+  #content .ui-kpi-card--blue .ui-kpi-value { color: #2563eb; }
+  #content .ui-kpi-card--indigo .ui-kpi-value { color: #4f46e5; }
+  #content .ui-kpi-card--slate .ui-kpi-value { color: #475569; }
+  #content .ui-kpi-card--purple .ui-kpi-value { color: #6d28d9; }
+  #content .ui-kpi-card--green .ui-kpi-value { color: #16a34a; }
+  #content .ui-kpi-card--amber .ui-kpi-value { color: #d97706; }
+  #content .ui-kpi-card--red .ui-kpi-value { color: #dc2626; }
+  #content .ui-kpi-grid--compact { gap: 10px; margin-top: 12px; margin-bottom: 0; }
+  #content .ui-kpi-card--compact { min-height: 72px; flex-direction: column; align-items: stretch; gap: 3px; padding: 10px; text-align: center; }
+  #content .ui-kpi-card--compact .ui-kpi-icon { width: 28px; height: 28px; flex-basis: 28px; align-self: center; font-size: 14px; }
+  #content .ui-kpi-card--compact .ui-kpi-body { align-items: center; gap: 3px; }
+  #content .ui-kpi-card--compact .ui-kpi-value { font-size: 18px; }
+  #content .ui-kpi-card--compact .ui-kpi-label { font-size: 11px; }
+  #content .ui-kpi-card--compact .ui-kpi-meta { align-self: center; font-size: 10px; }
+  #content .ui-kpi-card--inline { min-width: 142px; min-height: 82px; flex-direction: row; padding: 12px 16px; }
+
+  @media (max-width: 767px) {
+    #content .ui-kpi-grid { gap: 8px; margin-bottom: 14px; }
+    #content .ui-kpi-card { min-height: 78px; gap: 8px; padding: 12px; }
+    #content .ui-kpi-icon { width: 30px; height: 30px; flex-basis: 30px; font-size: 14px; }
+    #content .ui-kpi-value { font-size: 21px; }
+    #content .ui-kpi-label { font-size: 11px; }
+    #content .ui-kpi-meta { font-size: 9px; line-height: 1.15; white-space: normal; }
+    #content .ui-kpi-card--compact { min-height: 70px; gap: 2px; padding: 8px; }
+    #content .ui-kpi-card--compact .ui-kpi-icon { width: 24px; height: 24px; flex-basis: 24px; font-size: 12px; }
+    #content .ui-kpi-card--compact .ui-kpi-value { font-size: 18px; }
+    #content .ui-kpi-card--compact .ui-kpi-meta { font-size: 9px; }
+    #content .ui-kpi-card--inline { min-width: 0; min-height: 72px; }
+  }
+
   /* 盤點輸入表 tab 切換（2026-08-13：整組 / 單一材料分開） */
   .stk-tabs { display: flex; gap: 8px; background: #f1f5f9; border-radius: 12px; padding: 4px; margin: 12px 0; }
   .stk-tab { flex: 1; padding: 9px 0; border: none; border-radius: 9px; font-size: 13.5px; font-weight: 600; cursor: pointer; background: transparent; color: #64748b; transition: all 0.2s; line-height: 1.3; }

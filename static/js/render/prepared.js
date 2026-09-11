@@ -10,8 +10,8 @@ function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
       <div><h1>待領出 <span>（已拿出未出去）</span></h1><p>管理已拿出的品項，真正出去時按「已領出」才會扣庫存，也可以退回。</p></div>
     </div>
     <div class="prepared-header-actions">
-      <div class="prepared-summary-card prepared-summary-purple"><strong>${itemCount}</strong><span>待領出品項</span></div>
-      <div class="prepared-summary-card prepared-summary-blue"><strong>${absNum(totalPrepared)}</strong><span>待領出總件數</span></div>
+      <div class="prepared-summary-card ui-kpi-card ui-kpi-card--inline ui-kpi-card--purple prepared-summary-purple"><span class="ui-kpi-icon" aria-hidden="true">📤</span><div class="ui-kpi-body"><span class="ui-kpi-label">待領出品項</span><strong class="ui-kpi-value">${esc(String(itemCount))}</strong><span class="ui-kpi-meta">目前篩選結果</span></div></div>
+      <div class="prepared-summary-card ui-kpi-card ui-kpi-card--inline ui-kpi-card--blue prepared-summary-blue"><span class="ui-kpi-icon" aria-hidden="true">📦</span><div class="ui-kpi-body"><span class="ui-kpi-label">待領出總件數</span><strong class="ui-kpi-value">${esc(String(absNum(totalPrepared)))}</strong><span class="ui-kpi-meta">目前待領出合計</span></div></div>
       ${addButton}
     </div>
   </section>
