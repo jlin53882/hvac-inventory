@@ -581,6 +581,13 @@ def test_paged_items_include_full_filter_stats_for_inventory_kpi(media_env):
     finally:
         conn.close()
 
+    photo_response = client.post(
+        f"/api/items/{created[0]['id']}/photo",
+        files={"file": ("alert.png", _png(), "image/png")},
+    )
+    assert photo_response.status_code == 200, photo_response.text
+    photo_asset_id = photo_response.json()["asset_id"]
+
     page = client.get(
         "/api/items",
         params={"site": "office", "page": 1, "page_size": 2, "search": "PAGED-KPI"},
@@ -614,6 +621,11 @@ def test_paged_items_include_full_filter_stats_for_inventory_kpi(media_env):
     assert [item["id"] for item in alert_body["stats"]["low_items"]] == [created[2]["id"]]
     zero_locations = {item["id"]: item["location"] for item in alert_body["stats"]["zero_items"]}
     assert set(zero_locations[created[0]["id"]].split("、")) == {"A", "B"}
+    zero_with_photo = next(item for item in alert_body["stats"]["zero_items"] if item["id"] == created[0]["id"])
+    assert [stock["location"] for stock in zero_with_photo["stocks"]] == ["A", "B"]
+    assert zero_with_photo["has_photo"] is True
+    assert zero_with_photo["thumbnail_url"] == f"/media/{photo_asset_id}/thumbnail"
+    assert zero_with_photo["preview_url"] == f"/media/{photo_asset_id}/preview"
 
     summary = client.get("/api/stats/summary")
     assert summary.status_code == 200, summary.text

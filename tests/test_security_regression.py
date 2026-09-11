@@ -219,6 +219,10 @@ REVIEWED_SAFE_BODIES = {
     # prepared.js desktop redesign：photo/nonStock/actions 是由數字主鍵與已跳脫欄位組成的內部 HTML。
     "itemCount", "absNum(totalPrepared)", "item.prepared_qty", "photo", "nonStock",
     "absNum(item.prepared_qty)", "absNum(item.qty)", "actions",
+    # 共用 status-list renderer：rows/locationFilter/extraHTML 是已 esc 的內部 fragment；buildThumb 統一處理 URL/placeholder。
+    "locationFilter", "rows", "columnHeadings", "buildThumb(kit.item_id, !!source.has_photo, kit.name, '🔧', source.thumbnail_url)",
+    "buildThumb(item.id, item.has_photo, item.name, '📦', item.thumbnail_url)", "config.extraHTML || ''",
+    "missingHTML", "statusListFormatQuantity(stock)", "statusListFormatQuantity(status.qty)",
 }
 
 

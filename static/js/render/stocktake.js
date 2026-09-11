@@ -140,24 +140,35 @@ function switchStocktakeTab(tab) {
 // ========== 盤點：低庫存 / 缺貨清單 ==========
 function renderStocktakeStatusItem(item, isLow) {
   const status = getInventoryStatus(item);
-  const locStr = (item.stocks || []).map(s => s.location || '未標示').join('、') || item.location || '未標示';
-  const statusText = isLow ? '低庫存' : '缺貨';
-  const extra = item.in_kits && item.in_kits.length ? `<div class="stocktake-status-extra">🔧 屬於整組：${esc(item.in_kits.join('、'))}</div>` : '';
-  return `<article class="inventory-status-item stocktake-status-item ${esc(isLow ? 'is-low' : 'is-out')}"><div class="inventory-status-thumb">${buildThumb(item.id, item.has_photo)}</div><div class="inventory-status-info"><div class="inventory-status-name">${esc(item.name || '未命名')}</div><div class="inventory-status-sub">${esc(item.brand || '無廠牌')}${item.code ? ' · 型號 ' + esc(item.code) : ''}</div><div class="inventory-status-location">📍 ${esc(locStr)}</div>${extra}</div><div class="inventory-status-values"><span class="inventory-status-badge ${esc(isLow ? 'low' : 'out')}">${esc(statusText)}</span><strong>${esc(String(status.qty))} <small>${esc(item.unit || '')}</small></strong>${isLow ? `<small>門檻 ${esc(String(item.low_stock || 0))}</small>` : ''}</div></article>`;
+  const extra = item.in_kits && item.in_kits.length
+    ? `<div class="stocktake-status-extra">🔧 屬於整組：${esc(item.in_kits.join('、'))}</div>`
+    : '';
+  return renderSharedProductStatusItem(item, {
+    status: status,
+    statusType: isLow ? 'low' : 'out',
+    editable: true,
+    extraHTML: extra,
+  });
 }
 
 function showStocktakeList(type) {
-  const modal = document.getElementById('inventory-status-modal');
-  const body = document.getElementById('inventory-status-modal-body');
-  if (!modal || !body) return;
   const isLow = type === 'low';
-  const items = ALL_ITEMS.filter(i => { const status = getInventoryStatus(i); return isLow ? status.isLowStock : status.isOutOfStock; }).sort((a, b) => getInventoryStatus(a).qty - getInventoryStatus(b).qty);
-  const title = isLow ? '⚠ 低庫存商品' : '⛔ 缺貨商品';
-  const empty = isLow ? '目前沒有低庫存商品' : '目前沒有缺貨商品';
-  const listHTML = items.length ? `<div class="inventory-status-list stocktake-status-modal-content">${items.map(i => renderStocktakeStatusItem(i, isLow)).join('')}</div>` : `<div class="inventory-status-empty"><span aria-hidden="true">✓</span><strong>${empty}</strong><p>目前篩選條件下沒有符合的品項。</p></div>`;
-  body.innerHTML = `<div class="inventory-status-header"><div><h2 id="inventory-status-modal-title">${title}</h2><p>${esc(isLow ? '庫存數量已低於或等於目前警示值。' : '目前庫存為 0 或以下的單一庫存品項。')}</p></div><button type="button" class="inventory-status-close" onclick="closeInventoryStatusModal()" aria-label="關閉">✕</button></div><div class="inventory-status-count">共 ${esc(String(items.length))} 項</div>${listHTML}`;
-  modal.classList.add('show');
-  modal.setAttribute('aria-hidden', 'false');
+  const items = ALL_ITEMS.filter(function(item) {
+    const status = getInventoryStatus(item);
+    return isLow ? status.isLowStock : status.isOutOfStock;
+  }).sort(function(a, b) { return getInventoryStatus(a).qty - getInventoryStatus(b).qty; });
+  openSharedStatusListModal({
+    title: isLow ? '⚠ 低庫存商品' : '⛔ 缺貨商品',
+    intro: isLow ? '庫存數量已低於或等於目前警示值。' : '目前庫存為 0 或以下的單一庫存品項。',
+    headerClass: isLow ? 'is-low' : 'is-out',
+    items: items,
+    emptyText: isLow ? '目前沒有低庫存商品' : '目前沒有缺貨商品',
+    emptyIntro: '目前篩選條件下沒有符合的品項。',
+    getSearchText: function(item) {
+      return [item.name, item.brand, item.code, statusListLocations(item).join(' ')].join(' ');
+    },
+    renderItem: function(item) { return renderStocktakeStatusItem(item, isLow); },
+  });
 }
 
 // 盤點輸入值與系統數量不同時加上 changed 樣式（黃底），相同則移除

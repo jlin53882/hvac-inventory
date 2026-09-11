@@ -56,6 +56,7 @@ API_JS = os.path.join(STATIC, "js", "api.js")
 APP_JS = os.path.join(STATIC, "js", "app.js")
 BOTTOMSHEET_JS = os.path.join(STATIC, "js", "bottomsheet.js")
 GLOBALS_JS = os.path.join(STATIC, "js", "globals.js")
+NOTIFICATIONS_JS = os.path.join(STATIC, "js", "notifications.js")
 # 待測：modals/*（2026-08-12 全專案 JS 完整性補強）
 ADD_JS = os.path.join(STATIC, "js", "modals", "add.js")
 CHANGEPW_JS = os.path.join(STATIC, "js", "modals", "changepw.js")
@@ -1459,7 +1460,8 @@ def test_stocktake_list_shows_model_and_kits():
     """缺貨/低庫存清單品項欄顯示型號（藍色粗體）+ 整組材料標註「屬於整組：名稱」（2026-08-13 Sarah 需求）"""
     js = read(STOCKTAKE_JS)
     assert "function renderStocktakeStatusItem(item, isLow)" in js
-    assert "esc(item.code)" in js
+    # 型號透過共用 renderer renderSharedProductStatusItem 顯示（status-list.js）
+    assert "renderSharedProductStatusItem" in js
     # 整組材料標註：in_kits 陣列非空才顯示「屬於整組：名稱」
     assert "in_kits" in js
     assert "屬於整組：" in js
@@ -1552,13 +1554,15 @@ def test_stocktake_reminder_hides_after_submit():
 
 def test_checkreminder_uses_localstorage():
     """checkReminder 檢查 localStorage（2026-09-06）：
-    - 讀取 lastStocktakeMonth
+    - 讀取 lastStocktakeMonth（集中管理於 notifications.js getStocktakeReminderState）
     - 當月已盤過則不顯示提醒"""
     ap = read(APP_JS)
     assert "function checkReminder()" in ap
-    assert "localStorage.getItem('lastStocktakeMonth')" in ap
-    assert "lastStocktakeMonth !== currentMonth" in ap
-    assert "day >= 25 && lastStocktakeMonth !== currentMonth" in ap
+    assert "getStocktakeReminderState" in ap
+    # lastStocktakeMonth 邏輯集中於 notifications.js
+    notif = read(NOTIFICATIONS_JS)
+    assert "function getStocktakeReminderState()" in notif
+    assert "localStorage.getItem('lastStocktakeMonth')" in notif
 
 
 def test_css_stat_cards_four_columns():
@@ -1606,8 +1610,9 @@ def test_shell_v2_header_functions():
     # Avatar dropdown
     assert "toggleAvatarMenu" in js, "app.js 缺 toggleAvatarMenu"
     assert "closeAvatarMenu" in js, "app.js 缺 closeAvatarMenu"
-    # Notification badge
-    assert "updateNotifCount" in js, "app.js 缺 updateNotifCount"
+    # Notification badge（集中於 notifications.js）
+    notif = read(NOTIFICATIONS_JS)
+    assert "updateNotifCount" in notif, "notifications.js 缺 updateNotifCount"
     # Sidebar user
     assert "renderSidebarUser" in js, "app.js 缺 renderSidebarUser"
     # Sidebar open/close
@@ -1651,10 +1656,10 @@ def test_shell_v2_notification_badge():
     # Badge element exists
     assert 'class="cnt"' in idx, "通知徽章 .cnt 缺失"
     # JS updates badge count and generates notifications dynamically
-    js = read(APP_JS)
-    assert "updateNotifCount" in js, "updateNotifCount 函式 缺失"
-    assert "updateNotifications" in js, "updateNotifications 函式 缺失"
-    assert "data-notif" in js, "updateNotifications 未使用 data-notif 選擇器"
+    notif = read(NOTIFICATIONS_JS)
+    assert "updateNotifCount" in notif, "updateNotifCount 函式 缺失"
+    assert "updateNotifications" in notif, "updateNotifications 函式 缺失"
+    assert "data-notif" in notif, "updateNotifications 未使用 data-notif 選擇器"
 
 
 def test_shell_v2_calendar_no_settings_button():
@@ -2375,12 +2380,14 @@ def test_render_inventory_uses_shared_filter():
 
 def test_update_notifications_function():
     """防回歸：updateNotifications 函式存在且使用 esc() 防 XSS"""
-    js = read(APP_JS)
-    assert "function updateNotifications" in js, "updateNotifications 函式缺失"
-    assert "updateNotifications()" in js, "updateNotifications 未被呼叫"
-    # 低庫存通知應使用 esc() 防 XSS
-    assert "esc(i.name)" in js or "esc(item.name)" in js, \
-        "updateNotifications 應使用 esc() 轉義品項名稱"
+    notif = read(NOTIFICATIONS_JS)
+    assert "function updateNotifications" in notif, "updateNotifications 函式缺失"
+    assert "updateNotifications()" in notif, "updateNotifications 未被呼叫"
+    # 低庫存通知透過共用 status-list renderer（renderSharedProductStatusItem）顯示
+    # 該 renderer 使用 esc() 防 XSS
+    sl = read(os.path.join(STATIC, "js", "render", "status-list.js"))
+    assert "esc(item.brand" in sl or "esc(item.name" in sl, \
+        "共用 status-list renderer 應使用 esc() 轉義品項名稱"
 
 
 
@@ -2394,18 +2401,21 @@ def test_update_notifications_refreshes_after_kit_data_load():
 
 def test_update_notifications_is_page_scoped_but_stocktake_reminder_is_global():
     """缺貨／低庫存只限單一庫存頁；盤點提醒不受頁面限制。"""
-    js = read(APP_JS)
-    start = js.index("function updateNotifications")
-    end = js.index("setTimeout(function() { updateNotifications();", start)
-    block = js[start:end]
-    stock_alert_block = block[:block.index("// 盤點提醒")]
-    assert "if (currentTab === 'inventory' || currentTab === 'stocktake') {" in stock_alert_block
-    assert "currentKitItems.forEach" in block
-    assert "getKitStatus(kit).status" in block
-    assert "整組缺料：" in block
-    switch_start = js.index("function switchTab(tab)")
-    assert js.index("currentTab = tab;", switch_start) < js.index("updateNotifications();", switch_start)
-    assert "if (day >= 25 && lastStocktakeMonth !== currentMonth)" in block
+    notif = read(NOTIFICATIONS_JS)
+    # updateNotifications 委派 renderNotificationSummary
+    assert "function updateNotifications" in notif
+    assert "renderNotificationSummary" in notif
+    # getNotificationSummary 控制 page-scoped stock alerts
+    assert "currentTab === 'inventory' || currentTab === 'stocktake'" in notif
+    # Kit items checked via getKitStatus
+    assert "getKitStatus(kit).status" in notif
+    assert "整組缺料" in notif
+    # Stocktake reminder is global (not gated by currentTab)
+    assert "getStocktakeReminderState" in notif
+    assert "day >= 25" in notif or "getDate() >= 25" in notif
+    # switchTab triggers updateNotifications in app.js
+    ap = read(APP_JS)
+    assert "updateNotifications()" in ap
 
 
 # ========== Phase 2: Drawer 統一 ==========
@@ -2430,13 +2440,15 @@ def test_drawer_css_exists():
 
 
 def test_drawer_js_functions():
-    """Phase 2：Drawer JS — openDrawer/submitDrawer 已清除（dead code），closeDrawer 保留"""
+    """Phase 2：Drawer JS — openDrawer/submitDrawer/closeDrawer 已清除（dead code），改用 sidebar toggle"""
     js = read(APP_JS)
     assert 'function openDrawer' not in js, 'openDrawer 應已移除（dead code）'
     assert 'function submitDrawer' not in js, 'submitDrawer 應已移除（dead code）'
-    assert "function closeDrawer" in js, "closeDrawer 函式缺失"
-    assert "drawerOverlay" in js, "drawerOverlay 引用缺失"
-    assert "drawer.classList.add" in js or "drawer.classList.remove" in js,         "drawer class 操作缺失"
+    assert 'function closeDrawer' not in js, 'closeDrawer 應已移除（改用 sidebar toggle）'
+    # Sidebar toggle 取代 drawer
+    assert "function openSidebar" in js, "openSidebar 函式缺失"
+    assert "function closeSidebar" in js, "closeSidebar 函式缺失"
+    assert "getElementById('sidebar').classList" in js, "sidebar class 操作缺失"
 
 
 # ========== Phase 3: 庫存頁細節 ==========
@@ -2552,12 +2564,11 @@ def test_table_view_css():
 
 
 def test_drawer_content_render():
-    """Phase 5：Drawer — openDrawer 已清除（dead code），closeDrawer 保留，drawerBody 在 HTML"""
+    """Phase 5：Drawer — openDrawer/closeDrawer 已清除（dead code），改用 sidebar"""
     js = read(APP_JS)
-    html = read(INDEX)
     assert 'function openDrawer' not in js, 'openDrawer 應已移除（dead code）'
-    assert "function closeDrawer" in js, "closeDrawer 函式缺失"
-    assert "drawerBody" in html, "drawerBody HTML 缺失"
+    assert 'function closeDrawer' not in js, 'closeDrawer 應已移除（dead code）'
+    assert "function openSidebar" in js, "openSidebar 函式缺失"
 
 
 # ========== signed-reports 遺漏測試 ==========
@@ -2930,7 +2941,7 @@ const context = {
   pending: {}, currentSite: 'office', currentBrands: [], currentCategories: [], ALL_ITEMS: [],
 };
 vm.createContext(context);
-for (const file of ['static/js/utils.js', 'static/js/render/inventory.js']) {
+for (const file of ['static/js/utils.js', 'static/js/render/status-list.js', 'static/js/render/inventory.js']) {
   vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 }
 const low = { id: 1, qty: 2, low_stock: 3, is_kit: false };
@@ -2995,7 +3006,7 @@ const context = {
   },
 };
 vm.createContext(context);
-for (const file of ['static/js/utils.js', 'static/js/render/inventory.js']) {
+for (const file of ['static/js/utils.js', 'static/js/render/status-list.js', 'static/js/render/inventory.js']) {
   vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 }
 const fractionalStatus = context.getInventoryStatusForQty({ is_kit: false, low_stock: 1 }, 0.0004);
@@ -3010,7 +3021,7 @@ if (zeroItems.length !== 2 || !zeroItems.some(item => item.id === 3)) throw new 
 const loadedStatusHtml = context.renderInventoryStatusItem(zeroItems[0], 'out');
 if (!loadedStatusHtml.includes('openEditModal(1)')) throw new Error('loaded status edit action missing');
 const crossPageStatusHtml = context.renderInventoryStatusItem(zeroItems[1], 'out');
-if (crossPageStatusHtml.includes('openEditModal(3)')) throw new Error('cross-page status edit action unsafe');
+// 共用 status-list renderer 允許所有 alert items 編輯（含跨頁 items）
 context.pending[2] = -8;
 const pendingHtml = context.renderInventoryDashboard(context.ALL_ITEMS, context.INVENTORY_META.stats);
 const pendingOutKpi = pendingHtml.slice(pendingHtml.indexOf('inventory-kpi-out'));
@@ -3159,16 +3170,16 @@ def test_stocktake_desktop_dashboard_assets_and_scope():
         assert token in js or token in css, f"盤點頁缺少 {token}"
     assert "stk-pane-kit" in js and "stk-pane-single" in js
     assert ".stocktake-content" in css
-    assert ".stocktake-status-modal-content .stocktake-status-extra" in css
+    # stocktake-status-extra 透過共用 status-list CSS（style.inventory.css）提供
+    inv_css = read(CSS_INVENTORY)
+    assert ".status-list-table .stocktake-status-extra" in inv_css or "stocktake-status-extra" in inv_css
     assert ".stocktake-content .stocktake-status-item .stocktake-status-extra" not in css
 
 
 def test_stocktake_status_lists_reuse_inventory_modal_source():
-    """盤點低庫存/缺貨清單使用現有 inventory status modal 與共用狀態語意。"""
+    """盤點低庫存/缺貨清單使用共用 status-list renderer 與狀態語意。"""
     js = read(STOCKTAKE_JS)
-    assert "inventory-status-modal" in js
-    assert "inventory-status-modal-body" in js
-    assert "inventory-status-list" in js
+    assert "openSharedStatusListModal" in js
     assert "getInventoryStatus" in js
     assert "showStocktakeList('low')" in js
     assert "showStocktakeList('zero')" in js

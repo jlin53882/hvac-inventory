@@ -520,25 +520,52 @@ function openKitSheet(kitId) {
 
 function renderKitStatusItem(kit, type) {
   const stock = Number(kit.stock_qty || 0);
-  const location = kit.location || (kit.stocks && kit.stocks[0] && kit.stocks[0].location) || '未標示';
-  const statusLabel = type === 'shortage' ? '缺料' : '庫存不足';
-  const statusClass = type === 'shortage' ? 'is-shortage' : 'is-insufficient';
+  const source = Array.isArray(ALL_ITEMS) ? ALL_ITEMS.find(function(item) { return Number(item.id) === Number(kit.item_id); }) || {} : {};
+  const location = kit.location || source.location || (source.stocks && source.stocks[0] && source.stocks[0].location) || '未標示';
+  const isShortage = type === 'shortage';
+  const statusLabel = isShortage ? '缺料' : '庫存不足';
+  const statusClass = isShortage ? 'status-out' : 'status-low';
+  const missingLabel = isShortage ? '缺料' : '不足';
   const missing = (kit.components || []).filter(function(c) { return Number(c.need_qty || 0) > 0 && Number(c.stock || 0) < Number(c.need_qty || 0); });
-  const missingHTML = type === 'shortage' && missing.length ? '<div class="kit-status-missing">缺料 ' + missing.length + ' 項：' + missing.map(function(c) { return '<span>' + esc(c.name || '未命名材料') + '</span>'; }).join('') + '</div>' : '';
-  return '<article class="kit-status-item ' + esc(statusClass) + '"><div class="kit-status-item-main"><strong>' + esc(kit.name || '未命名整組') + '</strong><span>📍 ' + esc(location) + '</span>' + missingHTML + '</div><div class="kit-status-item-value"><span>' + esc(formatKitNumber(stock)) + ' 組</span></div><span class="kit-status-badge ' + esc(statusClass) + '">' + esc(statusLabel) + '</span></article>';
+  const missingHTML = missing.length
+    ? `<div class="kit-status-missing">${esc(missingLabel)} ${missing.length} 項：${missing.map(function(c) { return `<span>${esc(c.name || '未命名材料')}</span>`; }).join('')}</div>`
+    : '';
+  const editAction = hasPerm('kit-mgmt') && Number.isInteger(Number(kit.id))
+    ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();editKit(${esc(String(Number(kit.id)))})">編輯</button>`
+    : '';
+  return `<article class="inventory-status-item status-list-mobile-row kit-status-item ${esc(statusClass)}">
+    <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!source.has_photo, kit.name, '🔧', source.thumbnail_url)}</div>
+    <div class="inventory-status-info">
+      <div class="inventory-status-name">${esc(kit.name || '未命名整組')}</div>
+      <div class="inventory-status-sub">${esc(source.brand || kit.brand || '整組')}${esc(kit.code ? ' · 型號 ' + kit.code : '')}</div>
+      ${missingHTML}
+    </div>
+    <div class="inventory-status-location status-list-location-cell">📍 ${esc(location)}</div>
+    <div class="inventory-status-values">
+      <span class="inventory-status-badge ${esc(statusClass)}">${esc(statusLabel)}</span>
+      <strong>${esc(statusListFormatQuantity(stock))} <small>組</small></strong>
+    </div>
+    ${editAction}
+  </article>`;
 }
 function showKitStatusList(type) {
-  const modal = document.getElementById('inventory-status-modal');
-  const body = document.getElementById('inventory-status-modal-body');
-  if (!modal || !body) return;
   const validType = type === 'shortage' ? 'shortage' : 'insufficient';
   const items = currentKitItems.filter(function(k) { return getKitStatus(k).status === validType; });
   const isShortage = validType === 'shortage';
-  const title = isShortage ? '⛔ 缺料的整組' : '⚠ 庫存不足的整組';
-  const empty = isShortage ? '✅ 目前沒有缺料的整組' : '✅ 目前沒有庫存不足的整組';
-  const intro = isShortage ? '以下整組因必要材料不足，目前無法正常組成。' : '目前仍有庫存，但庫存數量低於需求條件。';
-  const listHTML = items.length ? '<div class="kit-status-list">' + items.map(function(k) { return renderKitStatusItem(k, validType); }).join('') + '</div>' : '<div class="inventory-status-empty kit-status-empty"><span aria-hidden="true">✓</span><strong>' + esc(empty) + '</strong><p>目前整組庫存均符合條件。</p></div>';
-  body.innerHTML = '<div class="inventory-status-header kit-status-header ' + esc(isShortage ? 'is-shortage' : 'is-insufficient') + '"><div><h2 id="inventory-status-modal-title">' + esc(title) + '</h2><p>' + esc(intro) + '</p></div><div class="kit-status-header-actions"><strong>共 ' + esc(String(items.length)) + ' 組</strong><button type="button" class="inventory-status-close" onclick="closeInventoryStatusModal()" aria-label="關閉">✕</button></div></div>' + listHTML;
-  modal.classList.add('show');
-  modal.setAttribute('aria-hidden', 'false');
+  openSharedStatusListModal({
+    title: isShortage ? '⛔ 缺料的整組' : '⚠ 庫存不足的整組',
+    intro: isShortage ? '以下整組因必要材料不足，目前無法正常組成。' : '目前仍有庫存，但庫存數量低於需求條件。',
+    headerClass: isShortage ? 'is-out' : 'is-low',
+    columnLabels: ['照片', '整組 / 缺料材料', '位置', '庫存 / 狀態', '操作'],
+    items: items,
+    emptyText: isShortage ? '✅ 目前沒有缺料的整組' : '✅ 目前沒有庫存不足的整組',
+    emptyIntro: '目前整組庫存均符合條件。',
+    searchPlaceholder: '搜尋整組名稱、材料或型號…',
+    getSearchText: function(kit) {
+      return [kit.name, kit.note, (kit.components || []).map(function(c) {
+        return [c.brand, c.name, c.code].join(' ');
+      }).join(' ')].join(' ');
+    },
+    renderItem: function(kit) { return renderKitStatusItem(kit, validType); },
+  });
 }

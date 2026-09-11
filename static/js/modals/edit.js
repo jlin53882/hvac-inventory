@@ -1,8 +1,16 @@
 // 庫存管理系統 - 編輯品項 Modal（v10：多位置 stocks）
 var editUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯 modal 時的 updated_at 快照（併發防覆蓋）
 // ========== 編輯品項 ==========
+function getInventoryEditableItem(id) {
+  const numericId = Number(id);
+  const current = Array.isArray(ALL_ITEMS) ? ALL_ITEMS.find(i => Number(i.id) === numericId) : null;
+  if (current) return current;
+  if (typeof INVENTORY_ALERT_ITEMS !== 'undefined') return INVENTORY_ALERT_ITEMS[String(numericId)] || null;
+  return null;
+}
+
 function openEditModal(id) {
-  const item = ALL_ITEMS.find(i => i.id === id);
+  const item = getInventoryEditableItem(id);
   if (!item) return;
   editItemId = id;
   editUpdatedAt = item.updated_at || null;  // 快照：儲存時帶回後端做 WHERE 守衛

@@ -118,8 +118,6 @@
 .stocktake-content .stocktake-item-cell small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; }
 .stocktake-content .stocktake-system-qty { color: #334155; font-weight: 600; white-space: nowrap; }
 .stocktake-content .st-diff.pending { color: #94a3b8; font-weight: 500; }
-.stocktake-status-modal-content .inventory-status-location { color: #64748b; }
-.stocktake-status-modal-content .stocktake-status-extra { margin-top: 4px; color: #b45309; font-size: 12px; font-weight: 600; }
 .stocktake-content .stocktake-error-state { padding: 56px 20px; border: 1px solid #fecaca; border-radius: 12px; background: #fff; text-align: center; }
 .stocktake-content .stocktake-error-state h2 { color: #991b1b; font-size: 18px; }
 .stocktake-content .stocktake-error-state p { margin: 8px 0 18px; color: #64748b; font-size: 13px; }

@@ -431,10 +431,8 @@ button.inventory-kpi-card:focus-visible,
   background: #fff;
 }
 .inventory-content .item-card.warn {
-  border-left: 3px solid #f59e0b;
 }
 .inventory-content .item-card.danger {
-  border-left: 3px solid #ef4444;
 }
 .inventory-card-status {
   display: inline-flex;
@@ -566,11 +564,9 @@ button.inventory-kpi-card:focus-visible,
   border-bottom: 0;
 }
 .inventory-status-item.is-low {
-  border-left: 3px solid #f59e0b;
   padding-left: 12px;
 }
 .inventory-status-item.is-out {
-  border-left: 3px solid #ef4444;
   padding-left: 12px;
 }
 .inventory-status-thumb,
@@ -1139,3 +1135,188 @@ button.inventory-kpi-card:focus-visible,
 /* 單一庫存資訊階層：品牌品名第一行、型號第二行，桌面／手機一致。 */
 .inventory-content .m-card .nm { white-space: normal; overflow: visible; text-overflow: clip; }
 .inventory-content .inventory-mobile-model { display: block; flex-basis: 100%; min-width: 0; margin-top: 2px; color: #2563eb; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* 共用商品/庫存異常清單：Desktop compact list + Mobile compact product row */
+.inventory-status-dialog {
+  width: min(1180px, calc(100vw - 64px));
+  max-height: 88vh;
+}
+.inventory-status-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 76px;
+  padding: 18px 24px 12px;
+  background: #fff;
+}
+.inventory-status-header.is-low { border-top: 3px solid #f59e0b; }
+.inventory-status-header.is-out { border-top: 3px solid #ef4444; }
+.status-list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #475569;
+  white-space: nowrap;
+}
+.status-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #eef1f5;
+  background: #fff;
+}
+.status-list-search,
+.status-list-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-list-search { flex: 1 1 auto; min-width: 0; }
+.status-list-search input,
+.status-list-location select {
+  min-height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+}
+.status-list-search input { width: 100%; padding: 0 12px; }
+.status-list-location select { min-width: 150px; padding: 0 10px; }
+.status-list-search input:focus,
+.status-list-location select:focus { outline: 3px solid rgba(37,99,235,.14); border-color: #2563eb; }
+.status-list-column-headings {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 160px 130px 88px;
+  gap: 16px;
+  padding: 10px 24px 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+}
+.status-list-table {
+  max-height: calc(88vh - 190px);
+  padding: 4px 24px 24px;
+}
+.status-list-table .inventory-status-item {
+  grid-template-columns: 76px minmax(0, 1fr) 160px 130px 88px;
+  min-height: 72px;
+  gap: 16px;
+  padding: 10px 0;
+  position: relative;
+}
+.status-list-table .inventory-status-thumb,
+.status-list-table .inventory-status-thumb img,
+.status-list-table .product-thumbnail-wrap,
+.status-list-table .product-thumbnail-placeholder {
+  width: 72px;
+  height: 72px;
+}
+.product-thumbnail-wrap,
+.product-thumbnail-placeholder {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.product-thumbnail-wrap { width: 100%; height: 100%; background: #f8fafc; }
+.product-thumbnail-placeholder { background: #f1f5f9; color: #94a3b8; font-size: 20px; }
+.product-thumbnail-placeholder[hidden] { display: none; }
+.status-list-table .inventory-status-thumb img { display: block; }
+.status-list-table .inventory-status-info { min-width: 0; }
+.status-list-table .inventory-status-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-list-table .inventory-status-values { min-width: 0; align-items: flex-start; }
+.status-list-table .inventory-status-edit { justify-self: end; }
+.status-list-table .kit-status-missing {
+  grid-column: 1 / -1;
+  color: #64748b;
+  font-size: 12px;
+}
+.status-list-table .kit-status-missing span {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.status-list-table .stocktake-status-extra {
+  margin-top: 4px;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 600;
+}
+.inventory-content .loc-export-bar .btn-add-inv {
+  border: 1px solid #2563eb;
+  background: #fff;
+  color: #2563eb;
+}
+.inventory-content .loc-export-bar .btn-add-inv:hover { background: #eff6ff; }
+
+@media (max-width: 767px) {
+  .inventory-status-modal { padding: 12px; }
+  .inventory-status-dialog {
+    width: calc(100vw - 24px);
+    max-height: 94dvh;
+    border-radius: 20px 20px 0 0;
+  }
+  .inventory-status-header {
+    min-height: 64px;
+    padding: 14px 16px 10px;
+  }
+  .inventory-status-header h2 { font-size: 18px; }
+  .inventory-status-header p { max-width: 70vw; font-size: 12px; }
+  .status-list-header-actions { gap: 8px; }
+  .status-list-column-headings { display: none; }
+  .status-list-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px 16px;
+  }
+  .status-list-location select { flex: 1; min-width: 0; }
+  .status-list-table {
+    max-height: calc(94dvh - 172px);
+    padding: 4px 16px 16px;
+  }
+  .status-list-table .inventory-status-item {
+    grid-template-columns: 58px minmax(0, 1fr);
+    min-height: 112px;
+    gap: 8px 10px;
+    padding: 10px 0;
+  }
+  .status-list-table .inventory-status-thumb,
+  .status-list-table .inventory-status-thumb img,
+  .status-list-table .product-thumbnail-wrap,
+  .status-list-table .product-thumbnail-placeholder {
+    width: 58px;
+    height: 58px;
+  }
+  .status-list-table .inventory-status-location {
+    grid-column: 2;
+    margin-top: 0;
+  }
+  .status-list-table .inventory-status-values {
+    grid-column: 2;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-right: 72px;
+  }
+  .status-list-table .inventory-status-values strong { font-size: 15px; }
+  .status-list-table .inventory-status-edit {
+    position: absolute;
+    right: 0;
+    bottom: 10px;
+    grid-column: auto;
+    justify-self: auto;
+    min-height: 30px;
+  }
+  .status-list-table .kit-status-missing { grid-column: 2; }
+}

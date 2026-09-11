@@ -290,55 +290,34 @@ async function loadInventoryAlertItems(type, requestId) {
   return (type === 'low' ? adjustedStats.lowItems : adjustedStats.zeroItems).slice();
 }
 
+function rememberInventoryAlertItem(item) {
+  if (!item || item.id === undefined || typeof INVENTORY_ALERT_ITEMS === 'undefined') return;
+  INVENTORY_ALERT_ITEMS[String(item.id)] = item;
+}
+
 function renderInventoryStatusItem(item, type) {
-  const status = getInventoryStatus(item);
-  const isOut = status.isOutOfStock;
-  const locStr = (item.stocks || []).map(function(stock) { return stock.location || '未標示'; }).join('、') || item.location || '未標示';
-  const thumb = buildThumb(item.id, item.has_photo, item.name, '📦');
-  const hasLoadedItem = Array.isArray(ALL_ITEMS)
-    && ALL_ITEMS.some(function(candidate) { return String(candidate.id) === String(item.id); });
-  const editAction = hasPerm('item-mgmt') && hasLoadedItem
-    ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();openEditModal(${item.id})">編輯</button>`
-    : '';
-  const threshold = type === 'low' ? `<span class="inventory-status-meta">警示值 ${formatInventoryQuantity(item.low_stock)}</span>` : '';
-  const badge = isOut
-    ? '<span class="inventory-status-badge status-out">⛔ 缺貨</span>'
-    : '<span class="inventory-status-badge status-low">⚠ 低庫存</span>';
-  return `<article class="inventory-status-item ${isOut ? 'is-out' : 'is-low'}">
-    <div class="inventory-status-thumb">${thumb}</div>
-    <div class="inventory-status-info">
-      <div class="inventory-status-name">${esc(item.name || '未命名')}</div>
-      <div class="inventory-status-sub">${esc(item.brand || '無廠牌')}${item.code ? ' · 型號 ' + esc(item.code) : ''}</div>
-      <div class="inventory-status-location">📍 ${esc(locStr)}</div>
-    </div>
-    <div class="inventory-status-values">
-      ${badge}
-      <strong>${formatInventoryQuantity(status.qty)} <small>${esc(item.unit || '')}</small></strong>
-      ${threshold}
-    </div>
-    ${editAction}
-  </article>`;
+  rememberInventoryAlertItem(item);
+  return renderSharedProductStatusItem(item, {
+    status: getInventoryStatus(item),
+    statusType: type,
+    editable: true,
+  });
 }
 
 function renderInventoryStatusModal(type, items) {
-  const modal = document.getElementById('inventory-status-modal');
-  const body = document.getElementById('inventory-status-modal-body');
-  if (!modal || !body) return;
   const isLow = type === 'low';
-  const title = isLow ? '⚠ 低庫存商品' : '⛔ 缺貨商品';
-  const empty = isLow ? '目前沒有低庫存商品' : '目前沒有缺貨商品';
-  const intro = isLow ? '庫存數量已低於或等於目前警示值。' : '目前庫存為 0 或以下的單一庫存品項。';
-  const listHTML = items.length
-    ? items.map(function(item) { return renderInventoryStatusItem(item, type); }).join('')
-    : `<div class="inventory-status-empty"><span aria-hidden="true">✓</span><strong>${empty}</strong><p>目前篩選條件下沒有符合的品項。</p></div>`;
-  body.innerHTML = `<div class="inventory-status-header">
-    <div><h2 id="inventory-status-modal-title">${title}</h2><p>${intro}</p></div>
-    <button type="button" class="inventory-status-close" onclick="closeInventoryStatusModal()" aria-label="關閉">✕</button>
-  </div>
-  <div class="inventory-status-count">共 ${items.length} 項</div>
-  <div class="inventory-status-list">${listHTML}</div>`;
-  modal.classList.add('show');
-  modal.setAttribute('aria-hidden', 'false');
+  setSharedStatusListContext({
+    title: isLow ? '⚠ 低庫存商品' : '⛔ 缺貨商品',
+    intro: isLow ? '庫存數量已低於或等於目前警示值。' : '目前庫存為 0 或以下的單一庫存品項。',
+    headerClass: isLow ? 'is-low' : 'is-out',
+    items: items,
+    emptyText: isLow ? '目前沒有低庫存商品' : '目前沒有缺貨商品',
+    emptyIntro: '目前篩選條件下沒有符合的品項。',
+    getSearchText: function(item) {
+      return [item.name, item.brand, item.code, statusListLocations(item).join(' ')].join(' ');
+    },
+    renderItem: function(item) { return renderInventoryStatusItem(item, type); },
+  });
 }
 
 function isInventoryStatusRequestCurrent(requestId, modal, type) {
@@ -377,6 +356,7 @@ async function showInventoryStatusList(type) {
 function closeInventoryStatusModal() {
   inventoryStatusRequestSeq += 1;
   inventoryStatusModalType = '';
+  if (typeof clearSharedStatusListModal === 'function') clearSharedStatusListModal();
   const modal = document.getElementById('inventory-status-modal');
   if (!modal) return;
   modal.classList.remove('show');

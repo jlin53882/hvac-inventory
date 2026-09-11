@@ -92,7 +92,8 @@ def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():
     assert "signal: controller.signal" in api
     assert "requestId !== inventoryRequestSeq" in api
     assert "ALERTS_BY_SITE" in globals_source
-    assert "zero_items" in app and "low_items" in app
+    notif = (ROOT / "static/js/notifications.js").read_text(encoding="utf-8")
+    assert "zero_items" in notif and "low_items" in notif
     assert "jsStr(loc)" in inventory
     assert "onclick=\\'toggleLoc" not in inventory
 

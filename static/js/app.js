@@ -14,6 +14,7 @@ function switchSite(site) {
   inventoryLoadedSite = '';
   fullItemsLoadedSite = '';
   INVENTORY_META.page = 1;
+  INVENTORY_META.stats = null;
   INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
   inventoryFacetsLoadedSite = '';
   ALL_ITEMS = [];
@@ -73,76 +74,6 @@ function toggleSidebar() {
   }
 })();
 
-// 通知計數
-function updateNotifCount() {
-  var items = document.querySelectorAll('#notif-list .ni');
-  var cnt = document.querySelector('.notif .cnt');
-  if (cnt) cnt.textContent = items.length;
-}
-
-// 動態生成通知（缺貨 / 低庫存 / 盤點提醒）
-function updateNotifications() {
-  var html = '';
-  // 單一庫存／盤點頁各自顯示目前頁面的缺貨與低庫存；整組頁只顯示 kit 缺料。
-  if (currentTab === 'inventory' || currentTab === 'stocktake') {
-    var siteAlerts = (typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE[currentSite]) || {};
-    var zeroItems = Array.isArray(siteAlerts.zero_items) ? siteAlerts.zero_items :
-      ALL_ITEMS.filter(function(i) { return !i.is_kit && (i.qty || 0) <= 0; });
-    zeroItems.forEach(function(i) {
-      html += '<div class="ni" data-notif><span class="dot-r"></span>缺貨：' + esc(i.name) + '</div>';
-    });
-    var lowItems = Array.isArray(siteAlerts.low_items) ? siteAlerts.low_items :
-      ALL_ITEMS.filter(function(i) { return !i.is_kit && i.low_stock > 0 && (i.qty || 0) > 0 && i.qty <= i.low_stock; });
-    lowItems.forEach(function(i) {
-      var qty = i.qty || 0;
-      var unit = i.unit || '';
-      html += '<div class="ni" data-notif><span class="dot-w"></span>低庫存警示：' + esc(i.name) + ' 僅剩 ' + qty + ' ' + esc(unit) + '</div>';
-    });
-  }
-  if (currentTab === 'kit' && Array.isArray(currentKitItems) && typeof getKitStatus === 'function') {
-    currentKitItems.forEach(function(kit) {
-      var kitStatus = getKitStatus(kit).status;
-      if (kitStatus === 'shortage') {
-        html += '<div class="ni" data-notif><span class="dot-r"></span>整組缺料：' + esc(kit.name || '未命名整組') + '</div>';
-      } else if (kitStatus === 'insufficient') {
-        html += '<div class="ni" data-notif><span class="dot-w"></span>整組庫存不足：' + esc(kit.name || '未命名整組') + '</div>';
-      }
-    });
-  }
-  // 盤點提醒（25號後 + 本月未盤點）
-  var now = new Date();
-  var day = now.getDate();
-  var currentMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-  var lastStocktakeMonth = localStorage.getItem('lastStocktakeMonth');
-  if (day >= 25 && lastStocktakeMonth !== currentMonth) {
-    var daysOverdue = day - 24;
-    html += '<div class="ni" data-notif><span class="dot-r"></span>盤點已逾期 ' + daysOverdue + ' 天</div>';
-  }
-  document.getElementById('notif-list').innerHTML = html;
-  updateNotifCount();
-}
-setTimeout(function() { updateNotifications(); }, 500);
-
-// 通知面板
-function toggleNotif() {
-  document.getElementById('notifPanel').classList.toggle('open');
-}
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.notif') && !e.target.closest('.notif-panel')) {
-    var p = document.getElementById('notifPanel');
-    if (p) p.classList.remove('open');
-  }
-});
-
-
-function closeDrawer() {
-  var overlay = document.getElementById('drawerOverlay');
-  var drawer = document.getElementById('drawer');
-  if (overlay) overlay.classList.remove('open');
-  if (drawer) drawer.classList.remove('open');
-  document.body.style.overflow = '';
-}
-
 // 頭像下拉選單
 function toggleAvatarMenu() {
   document.getElementById('avatarMenu').classList.toggle('open');
@@ -183,6 +114,7 @@ function updateBreadcrumb(tab) {
 function switchTab(tab) {
   if (typeof closeInventoryStatusModal === 'function') closeInventoryStatusModal();
   currentTab = tab;
+  syncViewUrl();
   checkReminder();
   updateNotifications();
   var content = document.getElementById('content');
@@ -257,20 +189,13 @@ function switchTab(tab) {
 function checkReminder() {
   var el = document.getElementById('reminder');
   if (!el) return;
-  var user = typeof currentUser !== 'undefined' ? currentUser : null;
-  var permissions = user && user.permissions ? user.permissions : {};
-  var canStocktake = !!permissions['stocktake'];
-  var now = new Date();
-  var day = now.getDate();
-  var currentMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-  var lastStocktakeMonth = localStorage.getItem('lastStocktakeMonth');
-  if (!canStocktake) {
-    el.style.display = 'none';
-    return;
-  }
-  if (day >= 25 && lastStocktakeMonth !== currentMonth) {
+  var state = typeof getStocktakeReminderState === 'function'
+    ? getStocktakeReminderState()
+    : { visible: false, todayLabel: '' };
+  if (state.visible) {
     el.style.display = 'flex';
-    document.getElementById('today-str').textContent = (now.getMonth()+1) + '月' + day + '日';
+    var today = document.getElementById('today-str');
+    if (today) today.textContent = state.todayLabel;
   } else {
     el.style.display = 'none';
   }

@@ -25,6 +25,8 @@ var pending = {};   // itemId -> delta
 var INVENTORY_PENDING_ITEMS = {};   // itemId -> base item snapshot for paged KPI adjustments
 var inventoryStatusRequestSeq = 0;
 var inventoryStatusModalType = '';
+var INVENTORY_ALERT_ITEMS = {};  // lazy 警示清單快取，供跨頁編輯使用
+var STATUS_LIST_CONTEXT = null;   // 共用異常清單 renderer 狀態
 // 目前頁籤（inventory/prepared/stockout/stocktake/kit/calendar）
 // 2026-08-13 Sarah：登入預設顯示行事曆（原本 inventory）
 var currentTab = 'calendar';

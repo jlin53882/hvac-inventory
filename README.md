@@ -18,7 +18,8 @@
 | 📋 每月盤點 | 25 日提醒 + 逐項輸入實際數量 + 自動算盤盈/盤虧 |
 | 🔧 整組套件 | 定義套件組成材料，一鍵組裝（扣材料）/拆解（還原） |
 | 📅 行事曆派工 | 月行事曆 + 當日派工時間軸 + 防衝突 + 服務項目/人員顏色 + 匯出工程日報表 |
-| 📷 品項照片 | 上傳照片自動壓縮，卡片顯示縮圖、可點擊放大 |
+| 📷 品項照片 | 上傳照片自動壓縮，卡片與商品/庫存異常清單優先顯示 thumbnail，圖片失敗自動回 neutral placeholder |
+| 🧾 異常清單 | 缺貨/低庫存/缺料共用 Desktop compact list + Mobile compact product row，支援搜尋、位置 filter 與既有編輯入口 |
 | 🔑 帳號登入 | 登入/登出、四種角色（管理員/使用者/工程師/檢視者）+ RBAC 權限控管 |
 | 🔑 個人改密碼 | 隨時改密碼（⚙️ 設定中心）；6 個月未改進站提醒 |
 | 📦 單位動態清單 | 4 個 modal 單位欄統一動態下拉（UI 新增即全站同步）；設定中心管理（新增/停用/排序/歷史打錯值收編） |
@@ -80,7 +81,7 @@ hvac-inventory/
 ├── main.py              ← 後端入口（FastAPI + SQLite）
 ├── app/                 ← 後端套件（routes 18 個 + middleware + services + models）
 ├── static/              ← 前端（index.html + login.html + js/ + css/）
-├── tests/               ← pytest（1015 條，21 檔）
+├── tests/               ← pytest（1033 條，21 檔）
 ├── docs/                ← 維護文件（庫存/媒體/安全性/測試/權限/行事曆/Google同步）
 ├── scripts/             ← 啟動/外網/監控腳本
 ├── inventory.db         ← 資料庫（.gitignore）

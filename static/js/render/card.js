@@ -14,11 +14,12 @@ function photoSrc(id, variant) {
   return `/uploads/${id}.jpg`;
 }
 
-// 縮圖：有照片 → thumbnail（點擊後由 lightbox 取 preview）
+// 縮圖：有照片 → thumbnail；載入失敗 → 同一個 neutral placeholder
 function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
-  return hasPhoto
-    ? `<img src="${thumbnailUrl || photoSrc(id, 'thumbnail')}" alt="${esc(name || '')}" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(${id})" title="點擊看大圖">`
-    : (placeholder || '📦');
+  const fallback = '<span class="product-thumbnail-placeholder' + (hasPhoto ? ' hidden' : '') + '">' + esc(placeholder || '📦') + '</span>';
+  if (!hasPhoto) return fallback;
+  const src = thumbnailUrl || photoSrc(id, 'thumbnail');
+  return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(' + id + ')" title="點擊看大圖" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
 }
 
 // 位置逐行 HTML（解析「櫃子 | 位置」格式，分開顯示）

@@ -68,7 +68,7 @@
         <button id="site-warehouse" onclick="switchSite('warehouse')">🏭 倉庫</button>
       </div>
       <div class="user-menu" id="userMenu" style="display:none"></div>
-      <button class="notif" onclick="toggleNotif()">🔔<span class="cnt">0</span></button>
+      <button type="button" class="notif" id="notif-bell" onclick="toggleNotif()" aria-label="通知" aria-expanded="false" aria-controls="notifPanel">🔔<span class="cnt" id="notif-badge" aria-hidden="true">0</span></button>
       <div class="avatar-dropdown" id="avatarDropdown">
         <div class="h-av" id="h-av" onclick="toggleAvatarMenu()">—</div>
         <div class="avatar-menu" id="avatarMenu">
@@ -88,11 +88,15 @@
   <span id="site-office-sub" style="display:none"></span>
   <span id="site-warehouse-sub" style="display:none"></span>
 
-  <!-- Notification Panel -->
-  <div class="notif-panel" id="notifPanel">
-    <div class="nh">🔔 通知</div>
-    <div id="notif-list"></div>
+  <!-- Notification Summary Center：詳細商品資料沿用既有 Dialog -->
+  <div class="notif-panel" id="notifPanel" role="dialog" aria-labelledby="notif-title" aria-hidden="true">
+    <div class="notif-panel-header">
+      <div><h2 id="notif-title">🔔 通知</h2><p id="notif-summary">目前沒有需要注意的事項</p></div>
+      <button type="button" class="notif-close" onclick="closeNotif()" aria-label="關閉通知">✕</button>
+    </div>
+    <div id="notif-list" class="notif-list" aria-live="polite"></div>
   </div>
+  <div class="notif-backdrop" id="notifBackdrop" aria-hidden="true"></div>
 
   <!-- 每月25日盤點提醒 -->
   <div class="reminder" id="reminder" style="display:none">
@@ -682,6 +686,7 @@
 <script src="/static/js/api.js" defer></script>
 <script src="/static/js/units.js" defer></script>
 <script src="/static/js/render/card.js" defer></script>
+<script src="/static/js/render/status-list.js" defer></script>
 <script src="/static/js/render/inventory.js" defer></script>
 <script src="/static/js/render/prepared.js" defer></script>
 <script src="/static/js/render/stockout.js" defer></script>
@@ -701,6 +706,7 @@
 <script src="/static/js/modals/changepw.js" defer></script>
 <script src="/static/js/modals/expiry.js" defer></script>
 <script src="/static/js/bottomsheet.js" defer></script>
+<script src="/static/js/notifications.js" defer></script>
 <script src="/static/js/app.js" defer></script>
 </body>
 </html>

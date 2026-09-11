@@ -47,9 +47,12 @@ def _item_full(conn, row, kit_map: Optional[dict] = None,
     d["total_qty"] = d["qty"]
     d["location"] = d["stocks"][0]["location"] if d["stocks"] else ""
     d["note"] = d["stocks"][0]["note"] if d["stocks"] else ""
-    d["has_photo"] = d["id"] in photo_ids if photo_ids is not None else has_photo(d["id"])
+    photo = photo_map.get(str(d["id"])) if photo_map is not None else None
+    if photo_ids is not None or photo_map is not None:
+        d["has_photo"] = (d["id"] in (photo_ids or set())) or photo is not None
+    else:
+        d["has_photo"] = has_photo(d["id"])
     if photo_map is not None:
-        photo = photo_map.get(str(d["id"]))
         d["photo_asset_id"] = photo["asset_id"] if photo else None
         d["thumbnail_url"] = f"/media/{photo['asset_id']}/thumbnail" if photo and photo["thumbnail_path"] else None
         d["preview_url"] = f"/media/{photo['asset_id']}/preview" if photo and photo["preview_path"] else None
@@ -60,6 +63,65 @@ def _item_full(conn, row, kit_map: Optional[dict] = None,
             "SELECT DISTINCT k.name FROM kit_items ki JOIN kits k ON k.id = ki.kit_id "
             "WHERE ki.item_id = ? ORDER BY k.name", (d["id"],)).fetchall()]
     return d
+
+
+def _item_detail_maps(conn, ids: list[int]):
+    """批次載入列表品項的庫存、組合關聯與媒體 metadata。"""
+    unique_ids = list(dict.fromkeys(int(item_id) for item_id in ids))
+    stocks_map: dict = {}
+    photo_map: dict = {}
+    kit_map: dict = {}
+    if not unique_ids:
+        return kit_map, stocks_map, set(), photo_map
+
+    for start in range(0, len(unique_ids), 500):
+        chunk = unique_ids[start:start + 500]
+        placeholders = ",".join("?" * len(chunk))
+        for stock in conn.execute(
+            f"SELECT * FROM item_stocks WHERE item_id IN ({placeholders}) ORDER BY item_id, id",
+            chunk,
+        ):
+            stocks_map.setdefault(stock["item_id"], []).append(stock)
+        for relation in conn.execute(
+            "SELECT ki.item_id, k.name FROM kit_items ki JOIN kits k ON k.id = ki.kit_id "
+            "JOIN items i ON i.id = k.item_id AND i.is_deleted = 0 "
+            f"WHERE ki.item_id IN ({placeholders}) ORDER BY k.name",
+            chunk,
+        ):
+            kit_map.setdefault(relation["item_id"], []).append(relation["name"])
+        for photo in conn.execute(
+            "SELECT asset_id, owner_id, preview_path, thumbnail_path FROM file_assets "
+            "WHERE category='item_photo' AND owner_type='item' AND owner_id IN (" + placeholders + ")",
+            [str(item_id) for item_id in chunk],
+        ):
+            photo_map[photo["owner_id"]] = photo
+    return kit_map, stocks_map, list_photo_ids(), photo_map
+
+
+def _enrich_alert_items(conn, alert_rows) -> list[dict]:
+    """將警示摘要補成可供共用清單與編輯 modal 使用的完整品項物件。"""
+    ids = [row["id"] for row in alert_rows]
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    item_rows = conn.execute(
+        f"SELECT * FROM items WHERE is_deleted=0 AND id IN ({placeholders})", ids
+    ).fetchall()
+    kit_map, stocks_map, photo_ids, photo_map = _item_detail_maps(conn, ids)
+    full_by_id = {
+        row["id"]: _item_full(conn, row, kit_map, stocks_map, photo_ids, photo_map)
+        for row in item_rows
+    }
+    result = []
+    for alert in alert_rows:
+        item = full_by_id.get(alert["id"])
+        if not item:
+            continue
+        item["qty"] = alert["qty"]
+        item["total_qty"] = alert["qty"]
+        item["location"] = alert["location"] or ""
+        result.append(item)
+    return result
 
 
 def _inventory_page_stats(
@@ -98,8 +160,9 @@ def _inventory_page_stats(
         "ORDER BY name COLLATE NOCASE, id",
         params,
     ).fetchall()
-    stats["zero_items"] = [dict(row) for row in alert_rows if row["qty"] <= 0]
-    stats["low_items"] = [dict(row) for row in alert_rows if row["qty"] > 0]
+    alert_items = _enrich_alert_items(conn, alert_rows)
+    stats["zero_items"] = [item for item in alert_items if item["qty"] <= 0]
+    stats["low_items"] = [item for item in alert_items if item["qty"] > 0]
     return stats
 
 

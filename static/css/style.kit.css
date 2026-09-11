@@ -241,34 +241,12 @@
   .kit-content .kit-component-table th,
   .kit-content .kit-component-table td { padding-left: 10px; padding-right: 10px; }
 }
-/* KPI drill-down，沿用既有 inventory-status-modal host。 */
+/* KPI drill-down uses the shared inventory status-list renderer. */
 .kit-content .kit-kpi-card.is-clickable { position: relative; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; }
 .kit-content .kit-kpi-card.is-clickable:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(15,23,42,.06); }
 .kit-content .kit-kpi-card.is-clickable:focus-visible { outline: 3px solid rgba(37,99,235,.28); outline-offset: 2px; }
 .kit-content .kit-kpi-arrow { margin-left: auto; color: #64748b; font-size: 26px; line-height: 1; }
-.kit-status-list { max-height: calc(84vh - 128px); overflow-y: auto; padding: 0 24px 20px; }
-.kit-status-header.is-insufficient { background: #fffbeb; border-bottom-color: #fde68a; }
-.kit-status-header.is-shortage { background: #fef2f2; border-bottom-color: #fecaca; }
-.kit-status-header-actions { display: flex; align-items: center; gap: 14px; color: #475569; white-space: nowrap; }
-.kit-status-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .45fr) auto; align-items: center; gap: 18px; min-height: 76px; padding: 14px 0; border-bottom: 1px solid #eef1f5; }
-.kit-status-item-main { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.kit-status-item-main strong { color: #0f172a; font-size: 15px; overflow-wrap: anywhere; }
-.kit-status-item-main > span { color: #64748b; font-size: 12px; }
-.kit-status-item-value { display: flex; flex-direction: column; gap: 4px; color: #334155; font-weight: 700; }
-.kit-status-item-value small { color: #64748b; font-size: 12px; font-weight: 500; }
-.kit-status-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 72px; padding: 4px 9px; border: 1px solid; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.kit-status-badge.is-insufficient { border-color: #fde68a; background: #fef3c7; color: #d97706; }
-.kit-status-badge.is-shortage { border-color: #fca5a5; background: #fee2e2; color: #dc2626; }
-.kit-status-missing { flex-basis: 100%; color: #64748b; font-size: 12px; }
-.kit-status-missing span { display: inline-block; margin-left: 6px; padding: 2px 6px; border-radius: 5px; background: #fee2e2; color: #b91c1c; }
-@media (max-width: 767px) {
-  .kit-status-list { max-height: calc(90vh - 150px); padding: 0 16px 16px; }
-  .kit-status-header { flex-wrap: wrap; padding: 16px; }
-  .kit-status-header-actions { width: 100%; justify-content: space-between; }
-  .kit-status-item { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
-  .kit-status-item-value { grid-column: 1; }
-  .kit-status-badge { grid-column: 2; grid-row: 1 / span 2; }
-}
+
 
 .kit-content .kit-mobile-actions { display: flex; align-items: center; gap: 8px; width: 100%; }
 .kit-content .kit-mobile-actions .kit-action { flex: 1 1 0; min-width: 0; }
