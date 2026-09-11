@@ -1545,7 +1545,7 @@ class TestStats:
         assert s["zero_stock"] == 1  # 缺貨只算單一
 
     def test_stats_zero_stock_excludes_kit(self, client):
-        """缺貨只列單一材料：整組 qty=0 不算缺貨"""
+        """缺貨只列單一材料：整組 qty=0 不算缺貨；整組也不進一般低庫存（走 kit shortage/insufficient）"""
         _add_item(client, name="單一材料", qty=0)
         a = _add_item(client, name="材料A", qty=10)
         kit = client.post("/api/kits", json={
@@ -1564,10 +1564,10 @@ class TestStats:
 
         s = client.get("/api/stats").json()
         assert s["zero_stock"] == 1    # 整組 qty=0 不列入缺貨（只有單一材料那 1 筆）
-        assert s["low_stock"] == 1     # 低庫存：整組 low_stock=1 且 qty=0<=1（材料A low_stock=0 不計）
+        assert s["low_stock"] == 0     # 一般低庫存排除整組、排除 qty=0（材料A low_stock=0 不計；整組走 kit 邏輯）
 
-    def test_stats_low_stock_includes_kit_and_single(self, client):
-        """低庫存列整組及單一"""
+    def test_stats_low_stock_excludes_kit(self, client):
+        """一般低庫存只列單一：整組不計入（走 kit shortage/insufficient）"""
         _add_item(client, name="單一低", qty=1, low_stock=3)
         a = _add_item(client, name="材料A", qty=10)
         kit = client.post("/api/kits", json={
@@ -1583,7 +1583,82 @@ class TestStats:
         conn.close()
 
         s = client.get("/api/stats").json()
-        assert s["low_stock"] == 2  # 單一 1 筆 + 整組 1 筆
+        assert s["low_stock"] == 1  # 只有單一那 1 筆；整組不計入一般低庫存
+
+
+# ========== 2026-09-12：庫存警示 domain contract（方案 B） ==========
+# LOW: 非整組、ROUND(qty,3) > 0、low_stock > 0、ROUND(qty,3) <= low_stock
+# OUT: 非整組、ROUND(qty,3) <= 0；LOW ∩ OUT = ∅；KPI 數 == 清單長度。
+
+class TestStatsAlertContract:
+    """一般 low/out 互斥且排除整組；stats KPI 數與同回應清單長度一致。"""
+
+    def _seed_abcd(self, client):
+        """A(qty0)→out、B(qty3)→low、C(qty10)→normal、D(整組)→皆不進。"""
+        import sqlite3
+        _add_item(client, name="契約A缺貨", qty=0, low_stock=5)
+        _add_item(client, name="契約B低庫存", qty=3, low_stock=5)
+        _add_item(client, name="契約C正常", qty=10, low_stock=5)
+        material = _add_item(client, name="契約材料", qty=10)
+        kit = client.post("/api/kits", json={
+            "name": "契約整組",
+            "items": [{"item_id": material["id"], "qty": 1}],
+        })
+        assert kit.status_code == 201, kit.text
+        kit_item_id = kit.json()["item_id"]
+        conn = sqlite3.connect(app_db.DB_PATH)
+        conn.execute("UPDATE item_stocks SET qty=2 WHERE item_id=?", (kit_item_id,))
+        conn.execute("UPDATE items SET low_stock=5 WHERE id=?", (kit_item_id,))
+        conn.commit()
+        conn.close()
+
+    def test_stats_low_out_contract_abcd(self, client):
+        """A/B/C/D 分類 + KPI 數 == 清單長度 + low/out 互斥。"""
+        self._seed_abcd(client)
+        s = client.get("/api/stats").json()
+        assert s["low_stock"] == 1
+        assert s["zero_stock"] == 1
+        assert s["low_stock"] == len(s["low_items"])
+        assert s["zero_stock"] == len(s["zero_items"])
+        low_names = [i["name"] for i in s["low_items"]]
+        zero_names = [i["name"] for i in s["zero_items"]]
+        assert low_names == ["契約B低庫存"]
+        assert zero_names == ["契約A缺貨"]
+        assert not (set(low_names) & set(zero_names))
+
+    def test_stats_alert_edge_cases(self, client):
+        """qty=0/負數/0.0004→out；low_stock=0 永不 low；整組不進一般 low/out。"""
+        import sqlite3
+        _add_item(client, name="邊界零", qty=0, low_stock=5)
+        neg = _add_item(client, name="邊界負", qty=1, low_stock=5)
+        tiny = _add_item(client, name="邊界微量", qty=1, low_stock=5)
+        _add_item(client, name="邊界關閉警示", qty=1, low_stock=0)
+        material = _add_item(client, name="邊界材料", qty=10)
+        kit = client.post("/api/kits", json={
+            "name": "邊界整組",
+            "items": [{"item_id": material["id"], "qty": 1}],
+        })
+        assert kit.status_code == 201, kit.text
+        kit_item_id = kit.json()["item_id"]
+        conn = sqlite3.connect(app_db.DB_PATH)
+        conn.execute("UPDATE item_stocks SET qty=-2 WHERE item_id=?", (neg["id"],))
+        conn.execute("UPDATE item_stocks SET qty=0.0004 WHERE item_id=?", (tiny["id"],))
+        conn.execute("UPDATE item_stocks SET qty=0 WHERE item_id=?", (kit_item_id,))
+        conn.execute("UPDATE items SET low_stock=5 WHERE id=?", (kit_item_id,))
+        conn.commit()
+        conn.close()
+        s = client.get("/api/stats").json()
+        zero_names = [i["name"] for i in s["zero_items"]]
+        low_names = [i["name"] for i in s["low_items"]]
+        assert "邊界零" in zero_names
+        assert "邊界負" in zero_names
+        assert "邊界微量" in zero_names  # ROUND(0.0004,3)=0 → out
+        assert "邊界關閉警示" not in low_names
+        assert "邊界關閉警示" not in zero_names
+        assert "邊界整組" not in low_names
+        assert "邊界整組" not in zero_names
+        assert s["low_stock"] == len(s["low_items"])
+        assert s["zero_stock"] == len(s["zero_items"])
 
 
 # ========== 前端頁面 ==========

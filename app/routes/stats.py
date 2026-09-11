@@ -28,10 +28,6 @@ def _stats_for_site(conn, site: Optional[str] = None) -> dict:
     ).fetchone()[0]
     single_items = conn.execute(f"SELECT COUNT(*) FROM items{where} AND is_kit=0", params).fetchone()[0]
     kit_items = conn.execute(f"SELECT COUNT(*) FROM items{where} AND is_kit=1", params).fetchone()[0]
-    zero_where = where + " AND ROUND(COALESCE((SELECT SUM(qty) FROM item_stocks WHERE item_id=items.id),0),3) <= 0 AND is_kit=0"
-    low_where = where + " AND ROUND(COALESCE((SELECT SUM(qty) FROM item_stocks WHERE item_id=items.id),0),3) <= low_stock AND low_stock > 0"
-    low = conn.execute(f"SELECT COUNT(*) FROM items{low_where}", params).fetchone()[0]
-    zero = conn.execute(f"SELECT COUNT(*) FROM items{zero_where}", params).fetchone()[0]
     brands = conn.execute(f"SELECT COUNT(DISTINCT brand) FROM items{where}", params).fetchone()[0]
     alert_where = " WHERE i.is_deleted=0 AND i.is_kit=0"
     alert_params = ()
@@ -49,11 +45,13 @@ def _stats_for_site(conn, site: Optional[str] = None) -> dict:
     ).fetchall()
     zero_items = [dict(row) for row in alert_rows if row["qty"] <= 0]
     low_items = [dict(row) for row in alert_rows if row["qty"] > 0]
+    # KPI 與清單同源：alert_rows 為完整 dataset（無 LIMIT/分頁），計數直接取分類後集合長度；
+    # 一般 low/out 互斥且排除整組（整組走 kit shortage/insufficient）。
     return {
         "total_items": total,
         "total_qty": total_qty,
-        "low_stock": low,
-        "zero_stock": zero,
+        "low_stock": len(low_items),
+        "zero_stock": len(zero_items),
         "brands": brands,
         "single_items": single_items,
         "kit_items": kit_items,
