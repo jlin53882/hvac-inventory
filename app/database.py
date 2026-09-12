@@ -135,11 +135,13 @@ def _exec_init(conn):
     );
 
     -- 單位字典（2026-08-16 單位動態清單：全站 4 個 modal 共用，UI 可新增/停用/排序）
+    -- qty_type（2026-09-12 數量系統：integer 整數 / decimal 小數 / fraction 分數小數）
     CREATE TABLE IF NOT EXISTS units (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         name       TEXT NOT NULL UNIQUE,
         sort_order INTEGER NOT NULL DEFAULT 0,
-        is_active  INTEGER NOT NULL DEFAULT 1
+        is_active  INTEGER NOT NULL DEFAULT 1,
+        qty_type   TEXT NOT NULL DEFAULT 'integer'
     );
     -- Google 行事曆同步 key（2026-08-27 方案 C：家豪統建 SA）
     CREATE TABLE IF NOT EXISTS gcal_keys (
@@ -396,6 +398,11 @@ def _exec_init(conn):
     if "updated_at" not in kit_cols:
         conn.execute("ALTER TABLE kits ADD COLUMN updated_at TIMESTAMP")
         logger.info("[migrate] kits.updated_at 欄位已新增（樂觀鎖）")
+    unit_cols = [r[1] for r in conn.execute("PRAGMA table_info(units)").fetchall()]
+    if "qty_type" not in unit_cols:
+        conn.execute("ALTER TABLE units ADD COLUMN qty_type TEXT NOT NULL DEFAULT 'integer'")
+        conn.execute("UPDATE units SET qty_type='fraction' WHERE name='罐'")
+        logger.info("[migrate] units.qty_type 欄位已新增（既有「罐」預設 fraction，其餘 integer）")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_site_active ON items(site, is_deleted, brand)")
     # M5：items 唯一約束（併發重複防線）——有重複資料則跳過建索引並警告（不自動刪資料）
     dup_row = conn.execute(
@@ -453,12 +460,13 @@ def _exec_init(conn):
         (6, '場勘', 4, 1);
     """)
     # 單位種子（2026-08-16：既有 10 種 + 常見補 5 種；破碎歷史值不種子，由收編功能處理）
+    # qty_type（2026-09-12）：僅「罐」預設 fraction（油漆類分數用量實證），其餘維持 integer
     conn.executescript("""
-    INSERT OR IGNORE INTO units (name, sort_order, is_active) VALUES
-        ('個', 1, 1), ('罐', 2, 1), ('瓶', 3, 1), ('包', 4, 1),
-        ('組', 5, 1), ('米', 6, 1), ('條', 7, 1), ('捲', 8, 1),
-        ('盤', 9, 1), ('套', 10, 1),
-        ('箱', 11, 1), ('台', 12, 1), ('支', 13, 1), ('顆', 14, 1), ('桶', 15, 1);
+    INSERT OR IGNORE INTO units (name, sort_order, is_active, qty_type) VALUES
+        ('個', 1, 1, 'integer'), ('罐', 2, 1, 'fraction'), ('瓶', 3, 1, 'integer'), ('包', 4, 1, 'integer'),
+        ('組', 5, 1, 'integer'), ('米', 6, 1, 'integer'), ('條', 7, 1, 'integer'), ('捲', 8, 1, 'integer'),
+        ('盤', 9, 1, 'integer'), ('套', 10, 1, 'integer'),
+        ('箱', 11, 1, 'integer'), ('台', 12, 1, 'integer'), ('支', 13, 1, 'integer'), ('顆', 14, 1, 'integer'), ('桶', 15, 1, 'integer');
     """)
     # ---------- RBAC seed（2026-08-13，與 docs/RBAC-帳號權限系統-設計文件 §5 矩陣一致）----------
     conn.executescript("""

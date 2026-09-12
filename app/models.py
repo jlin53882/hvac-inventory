@@ -130,14 +130,20 @@ class StocktakeSubmit(BaseModel):
     items: list  # [{item_id, location, actual_qty, note}]
 
 # ---------- 單位字典（2026-08-16 單位動態清單） ----------
+# qty_type（2026-09-12 數量系統）：integer 整數 / decimal 小數 / fraction 分數小數
+QTY_TYPES = ("integer", "decimal", "fraction")
+
+
 class UnitIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=20)
+    qty_type: str = Field("integer", min_length=1, max_length=10)
 
 
 class UnitUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=20)
     sort_order: int | None = Field(None, ge=0, le=9999)
     is_active: bool | None = None
+    qty_type: str | None = Field(None, min_length=1, max_length=10)
 
 
 class UnitConsolidate(BaseModel):
@@ -150,6 +156,8 @@ class UnitConsolidateItem(BaseModel):
     """單筆收編：指定某一筆品項改為目標單位（2026-08-16 方案 B 逐筆收編）"""
     item_id: int
     to_unit: str = Field(..., min_length=1, max_length=20)
+    # new_qty（2026-09-12 歷史分數轉換）：同時指定新總量；僅單位置品項可轉，多位置 → 400
+    new_qty: float | None = Field(None, ge=0)
 
 
 # ---------- 使用者（2026-08-16 從 users.py 收攏） ----------

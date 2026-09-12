@@ -183,13 +183,15 @@ def delete_kit(kit_id: int):
 
 
 def _deduct_total(conn, item_id, need, reason):
-    """從位置庫存由後往前扣 need，記錄 movements。不足則拋錯。"""
+    """從位置庫存由後往前扣 need，記錄 movements。不足則拋錯。
+    （2026-09-12：need 先 round-3 對齊後端 canonical 精度；remaining 容差 1e-9，防 0.3 vs 0.1+0.2 塵。）"""
     stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
                           (item_id,)).fetchall()
     before = sum(s["qty"] for s in stocks)
+    need = round(float(need), 3)
     remaining = need
     for s in stocks:  # M10：統一從頭扣（與 stockout._deduct 一致）
-        if remaining <= 0:
+        if remaining <= 1e-9:
             break
         take = min(s["qty"], remaining)
         cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
@@ -197,7 +199,7 @@ def _deduct_total(conn, item_id, need, reason):
         if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕，不超賣
             raise HTTPException(400, f"庫存不足！剩 {before}")
         remaining -= take
-    if remaining > 0:
+    if remaining > 1e-9:
         raise HTTPException(400, f"庫存不足！剩 {before}")
     # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
     after = sum(s["qty"] for s in conn.execute(
@@ -240,7 +242,7 @@ def assemble_kit(kit_id: int, req: KitAssemble):
             raise HTTPException(404, "套件不存在")
         comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
 
-        # 檢查材料庫存
+        # 檢查材料庫存（2026-09-12：容差 1e-9，浮點殘留如 0.3 vs 0.1+0.2 不得誤判不足）
         short = []
         for c in comps:
             mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (c["item_id"],)).fetchone()
@@ -248,7 +250,7 @@ def assemble_kit(kit_id: int, req: KitAssemble):
                 raise HTTPException(400, f"材料 id={c['item_id']} 已刪除，無法組裝")
             need = c["qty"] * req.qty
             stock = _total(conn, c["item_id"])
-            if stock < need:
+            if stock < need and (need - stock) > 1e-9:
                 short.append(f"{mat['name']}（需要 {need}，剩 {stock}）")
         if short:
             raise HTTPException(400, "材料不足：" + "、".join(short))

@@ -1,0 +1,165 @@
+# -*- coding: utf-8 -*-
+"""數量/單位分數支援測試（2026-09-12 單位管理 + 數量系統重設計）
+
+- 後端：units.qty_type CRUD、consolidate-item new_qty、kit 可組數精度
+- 前端：tests/qty.test.js（node 純函式矩陣）由本檔包裝執行
+"""
+import os
+import subprocess
+
+import pytest
+from fastapi.testclient import TestClient
+
+import app.database as app_db
+import main as app_main
+from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+QTY_TEST_JS = os.path.join(BASE_DIR, "tests", "qty.test.js")
+
+
+@pytest.fixture()
+def client(tmp_path, monkeypatch):
+    test_db = tmp_path / "test_inventory.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
+    app_db.init_db()
+    _conn = app_db.get_db()
+    try:
+        init_admin_if_missing(_conn)
+        _admin_id = _conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+        _token = create_session(_conn, _admin_id)
+    finally:
+        _conn.close()
+    with TestClient(app_main.app) as c:
+        c.cookies.set(SESSION_COOKIE, _token)
+        yield c
+    try:
+        if test_db.exists():
+            test_db.unlink()
+    except PermissionError:
+        pass
+
+
+def test_qty_js_suite():
+    """前端 Qty 純函式矩陣（parser/arithmetic/formatter/kitSets）全綠。"""
+    r = subprocess.run(["node", QTY_TEST_JS], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, f"qty.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
+def test_units_qty_type_crud(client):
+    """單位數量類型：GET 可見、PUT 可改、非法值 400。"""
+    units = client.get("/api/units").json()
+    can = next(u for u in units if u["name"] == "罐")
+    assert can["qty_type"] == "fraction"  # 種子預設：僅罐為 fraction
+    each = next(u for u in units if u["name"] == "個")
+    assert each["qty_type"] == "integer"  # 其餘預設整數
+    r = client.put(f"/api/units/{each['id']}", json={"qty_type": "fraction"})
+    assert r.status_code == 200, r.text
+    assert r.json()["qty_type"] == "fraction"
+    r = client.put(f"/api/units/{each['id']}", json={"qty_type": "亂填"})
+    assert r.status_code == 400
+
+
+def test_units_quick_add_defaults_integer(client):
+    """快速新增單位預設 integer（不因新欄位破壞既有流程）。"""
+    r = client.post("/api/units", json={"name": "測試分數單位"})
+    assert r.status_code == 201, r.text
+    assert r.json()["qty_type"] == "integer"
+
+
+def test_consolidate_item_with_new_qty(client):
+    """歷史轉換：改單位同時可指定新總量（單位置品項）。"""
+    r = client.post("/api/items", json={
+        "brand": "測試牌", "code": "HIST-Q", "name": "歷史分數品",
+        "unit": "/4罐", "low_stock": 5, "site": "office",
+        "stocks": [{"location": "鐵架", "qty": 3}]})
+    assert r.status_code == 201, r.text
+    item_id = r.json()["id"]
+    can = next(u for u in client.get("/api/units").json() if u["name"] == "罐")
+    client.put(f"/api/units/{can['id']}", json={"qty_type": "fraction"})
+    r = client.post("/api/units/consolidate-item",
+                    json={"item_id": item_id, "to_unit": "罐", "new_qty": 0.75})
+    assert r.status_code == 200, r.text
+    assert r.json()["new_qty"] == 0.75
+    got_list = client.get("/api/items", params={"site": "office", "search": "HIST-Q"}).json()
+    rows = got_list["items"] if isinstance(got_list, dict) else got_list
+    got = next(r for r in rows if r.get("code") == "HIST-Q")
+    assert got["unit"] == "罐"
+    assert got["qty"] == 0.75
+
+
+def test_consolidate_item_new_qty_multi_location_rejected(client):
+    """多位置品項總量語意不明：new_qty 必須拒絕（防 silenc 改變庫存）。"""
+    r = client.post("/api/items", json={
+        "brand": "測試牌", "code": "HIST-M", "name": "多位置歷史品",
+        "unit": "/4罐", "low_stock": 5, "site": "office",
+        "stocks": [{"location": "A倉", "qty": 2}, {"location": "B倉", "qty": 1}]})
+    item_id = r.json()["id"]
+    r = client.post("/api/units/consolidate-item",
+                    json={"item_id": item_id, "to_unit": "罐", "new_qty": 0.75})
+    assert r.status_code == 400
+
+
+def test_kit_sets_fractional_no_drift(client):
+    """整組可組數：浮點殘留不得誤判材料不足（0.3 vs 0.1+0.2）。"""
+    mat = client.post("/api/items", json={
+        "brand": "測試牌", "code": "MAT-F", "name": "分數材料",
+        "unit": "罐", "low_stock": 0, "site": "office",
+        "stocks": [{"location": "鐵架", "qty": 0.3}]}).json()
+    kit = client.post("/api/kits", json={
+        "name": "分數整組",
+        "note": "",
+        "items": [{"item_id": mat["id"], "qty": 0.1 + 0.2}]}).json()
+    assert "id" in kit, kit
+    r = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 1})
+    assert r.status_code == 200, r.text
+
+
+def _make(client, code, name, unit, qty, loc="鐵架"):
+    r = client.post("/api/items", json={
+        "brand": "測試牌", "code": code, "name": name,
+        "unit": unit, "low_stock": 0, "site": "office",
+        "stocks": [{"location": loc, "qty": qty}]})
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def _total(client, code):
+    rows = client.get("/api/items", params={"site": "office", "search": code}).json()
+    rows = rows["items"] if isinstance(rows, dict) else rows
+    return next(r for r in rows if r.get("code") == code)["qty"]
+
+
+def test_fraction_issue_return_flow(client):
+    """領出/退回分數：1 - 1/4 = 3/4；退回後回到 1。"""
+    iid = _make(client, "FR-IO", "分數領出品", "罐", 1)
+    r = client.post("/api/stockout", json={"item_id": iid, "qty": 0.25, "destination": "測試案場"})
+    assert r.status_code == 200, r.text
+    assert _total(client, "FR-IO") == 0.75
+    mv = client.get("/api/movements", params={"item_id": iid}).json()
+    mid = mv["movements"][0]["id"] if isinstance(mv, dict) else mv[0]["id"]
+    r = client.post(f"/api/stockouts/{mid}/return", json={"qty": 0.25, "location": "鐵架"})
+    assert r.status_code == 200, r.text
+    assert _total(client, "FR-IO") == 1
+
+
+def test_stocktake_fraction_flow(client):
+    """盤點分數：系統 3/4、實際 1/2 → 差異 -1/4 並更新庫存。"""
+    iid = _make(client, "FR-ST", "分數盤點品", "罐", 0.75)
+    r = client.post("/api/stocktake", json={
+        "take_date": "2026-09-12",
+        "items": [{"item_id": iid, "location": "鐵架", "actual_qty": 0.5}]})
+    assert r.status_code == 200, r.text
+    assert _total(client, "FR-ST") == 0.5
+    recs = client.get("/api/stocktakes", params={"item_id": iid}).json()
+    recs = recs["stocktakes"] if isinstance(recs, dict) else recs
+    assert recs[0]["diff"] == -0.25
+
+
+def test_integer_adjust_unchanged(client):
+    """整數品項 ±1 不回歸：3 +1 +1 -1 = 4（後端 adjust 照舊）。"""
+    iid = _make(client, "INT-ADJ", "整數品", "個", 3)
+    for d in (1, 1, -1):
+        r = client.post(f"/api/items/{iid}/adjust", json={"delta": d})
+        assert r.status_code == 200, r.text
+    assert _total(client, "INT-ADJ") == 4

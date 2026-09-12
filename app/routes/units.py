@@ -2,14 +2,24 @@
 import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
-from app.models import UnitIn, UnitUpdate, UnitConsolidate, UnitConsolidateItem
+from app.models import UnitIn, UnitUpdate, UnitConsolidate, UnitConsolidateItem, QTY_TYPES
 from app.services.auth import require_perm
 
 router = APIRouter()
 
 
 def _row_to_dict(r):
-    return {"id": r["id"], "name": r["name"], "sort_order": r["sort_order"], "is_active": bool(r["is_active"])}
+    d = {"id": r["id"], "name": r["name"], "sort_order": r["sort_order"], "is_active": bool(r["is_active"])}
+    try:
+        d["qty_type"] = r["qty_type"] or "integer"
+    except (KeyError, IndexError):
+        d["qty_type"] = "integer"
+    return d
+
+
+def _check_qty_type(v):
+    if v not in QTY_TYPES:
+        raise HTTPException(400, f"數量類型僅接受 {','.join(QTY_TYPES)}")
 
 
 @router.get("/api/units")
@@ -29,12 +39,14 @@ def create_unit(u: UnitIn):
     name = u.name.strip()
     if not name:
         raise HTTPException(400, "單位名稱不可為空白")
+    _check_qty_type((u.qty_type or "integer").strip())
     conn = get_db()
     try:
         if conn.execute("SELECT id FROM units WHERE name=?", (name,)).fetchone():
             raise HTTPException(400, f"單位「{name}」已存在")
         nxt = conn.execute("SELECT COALESCE(MAX(sort_order),0)+1 FROM units").fetchone()[0]
-        cur = conn.execute("INSERT INTO units (name, sort_order) VALUES (?, ?)", (name, nxt))
+        cur = conn.execute("INSERT INTO units (name, sort_order, qty_type) VALUES (?, ?, ?)",
+                           (name, nxt, (u.qty_type or "integer").strip()))
         conn.commit()
         return _row_to_dict(conn.execute("SELECT * FROM units WHERE id=?", (cur.lastrowid,)).fetchone())
     except sqlite3.IntegrityError:
@@ -64,6 +76,9 @@ def update_unit(unit_id: int, u: UnitUpdate):
             conn.execute("UPDATE units SET sort_order=? WHERE id=?", (u.sort_order, unit_id))
         if u.is_active is not None:
             conn.execute("UPDATE units SET is_active=? WHERE id=?", (1 if u.is_active else 0, unit_id))
+        if u.qty_type is not None:
+            _check_qty_type(u.qty_type.strip())
+            conn.execute("UPDATE units SET qty_type=? WHERE id=?", (u.qty_type.strip(), unit_id))
         conn.commit()
         return _row_to_dict(conn.execute("SELECT * FROM units WHERE id=?", (unit_id,)).fetchone())
     except sqlite3.IntegrityError:
@@ -172,7 +187,9 @@ def consolidate_units(req: UnitConsolidate):
 @router.post("/api/units/consolidate-item", dependencies=[Depends(require_perm("unit-mgmt"))])
 def consolidate_item(req: UnitConsolidateItem):
     """單筆收編：items.unit → to_unit（含幽靈品項）。不處理來源停用——
-    來源若非字典值即無從停用；若為停用字典單位則早已停用（收編前即 is_active=0）。"""
+    來源若非字典值即無從停用；若為停用字典單位則早已停用（收編前即 is_active=0）。
+    new_qty（2026-09-12）：同時指定新總量（歷史分數轉換用）；僅單位置品項可轉，
+    多位置 → 400（總量語意不明，防 silently 改變庫存）；數量變化寫 movement 留軌跡。"""
     to = req.to_unit.strip()
     if not to:
         raise HTTPException(400, "目標單位不可為空白")
@@ -196,8 +213,23 @@ def consolidate_item(req: UnitConsolidateItem):
             raise HTTPException(409, f"已存在同品名「{item['name']}」單位為「{to}」的品項，請先編輯合併再改")
         conn.execute("UPDATE items SET unit=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                      (to, req.item_id))
+        new_qty = None
+        if req.new_qty is not None:
+            stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=?", (req.item_id,)).fetchall()
+            if len(stocks) != 1:
+                raise HTTPException(400, "多位置品項無法指定新總量（總量語意不明），請先合併位置或手動調整")
+            before = stocks[0]["qty"] or 0
+            new_qty = round(float(req.new_qty), 3)
+            conn.execute("UPDATE item_stocks SET qty=? WHERE id=?", (new_qty, stocks[0]["id"]))
+            if abs(new_qty - before) > 1e-9:
+                conn.execute(
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason) VALUES (?,?,?,?,?)",
+                    (req.item_id, new_qty - before, before, new_qty, "歷史單位轉換"))
         conn.commit()
-        return {"ok": True, "item_id": req.item_id, "to_unit": to}
+        resp = {"ok": True, "item_id": req.item_id, "to_unit": to}
+        if new_qty is not None:
+            resp["new_qty"] = new_qty
+        return resp
     except sqlite3.IntegrityError:
         conn.rollback()
         raise HTTPException(409, "改單位造成品項重複（唯一鍵衝突），請先合併品項再改")
