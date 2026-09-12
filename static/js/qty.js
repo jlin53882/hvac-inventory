@@ -9,6 +9,7 @@ var Qty = (function() {
   var MAX_DEN = 8;       // 分數還原用最大分母（1/8、5/8 可還原；1/9 以上維持小數）
   var ROUND_EPS = 1e-9;  // 有理數比對容差
 
+  // 最大公因數（分數約分用）
   function gcd(a, b) {
     a = Math.abs(a); b = Math.abs(b);
     while (b) { const t = a % b; a = b; b = t; }
@@ -17,6 +18,7 @@ var Qty = (function() {
 
   // 解析合法數量字串 → {num, den, value}；非法 → {error}
   // 接受：3 / 0.5 / 0.25 / 1/4 / 2/3 / 1 1/2 / 前後空白；拒絕：1/0、abc、1//4、NaN、Infinity、1abc
+  // 嚴格解析整數/小數/分數/帶分數；回 {ok,value,error}，非法不猜
   function parse(s) {
     if (s === null || s === undefined) return { error: ERR_MSG };
     const t = String(s).trim();
@@ -60,6 +62,7 @@ var Qty = (function() {
   }
 
   // 精確加減（整數分子運算，無浮點漂移）；輸入為字串或數字，回傳顯示字串
+  // 精確有理數加（避 float 塵，如 0.1+0.2）
   function add(a, b) {
     const pa = parse(a), pb = parse(b);
     if (pa.error || pb.error) return '';
@@ -67,6 +70,7 @@ var Qty = (function() {
     const g = gcd(num, den);
     return ratToStr(num / g, den / g);
   }
+  // 精確有理數減
   function sub(a, b) {
     const pa = parse(a), pb = parse(b);
     if (pa.error || pb.error) return '';
@@ -80,6 +84,7 @@ var Qty = (function() {
   // 配不上且小數≤2 位→維持小數（0.3、1.27）；3 位截斷的分數（入庫 ROUND 後的 0.333）
   // →寬容差還原最簡分數（→1/3）；真小數（0.123）配不上→維持小數；
   // 浮點塵（0.3000…4）→短小數；長小數的分數截斷（0.333…）→寬容差還原
+  // 分數配對：eps 容差＋分母上限；簡單分數用小分母＋嚴容差，截斷還原用寬容差
   function matchFrac(av, eps, maxDen) {
     let best = null;
     const denMax = maxDen || MAX_DEN;
@@ -100,6 +105,7 @@ var Qty = (function() {
     const i = s.indexOf('.');
     return i < 0 ? 0 : s.length - i - 1;
   }
+  // §8 自動顯示：短小數優先（1.27/0.3 不轉醜分數）；3 位截斷寬容差還原 1/3；塵轉短小數
   function autoFormat(v) {
     if (!isFinite(v)) return '0';
     const num = Number(v);
@@ -144,6 +150,7 @@ var Qty = (function() {
   }
 
   // 單位類型查詢：unitList（units.js）有載入則查表；未知/歷史單位回 integer（維持現行行為）
+  // 查 units.js 名單；未知/歷史回 integer（維持現行行為，不鎖死既有流程）
   function unitTypeOf(unitName) {
     try {
       if (typeof unitList !== 'undefined' && Array.isArray(unitList)) {
@@ -155,6 +162,7 @@ var Qty = (function() {
   }
 
   // 輸入是否符合該單位類型（integer：值為整數；decimal：小數禁分數；fraction：三者皆可）
+  // 依單位類型驗證輸入；integer 拒分數，decimal 拒分數，fraction 全收
   function validFor(s, qtyType) {
     const p = parse(s);
     if (p.error) return { ok: false, error: p.error };
@@ -170,6 +178,7 @@ var Qty = (function() {
 
 
   // 顯示速記：依單位類型 format（Qty 未載入時回退舊 absNum 語意由呼叫端處理）
+  // 顯示用：查表＋format（一行搞定，render 層統一入口）
   function disp(v, unit) {
     return format(v, unitTypeOf(unit));
   }
