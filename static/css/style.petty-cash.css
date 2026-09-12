@@ -395,7 +395,7 @@
   #content .pc-kpi-card__foot { font-size: 10px; }
 }
 @media (max-width: 767px) {
-  .pc-table-wrap { display: none; }
+  .pc-table-wrap:not(.pc-detail-table-wrap) { display: none; }
   .pc-cards { display: block; }
   .pc-item-row { grid-template-columns: 1fr 70px 58px 88px 44px; }
   .pc-filter-bar .pc-field { flex: 1 1 45%; min-width: 0; }

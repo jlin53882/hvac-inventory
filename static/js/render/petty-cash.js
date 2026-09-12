@@ -330,7 +330,7 @@ function pcRenderDetail() {
       <section class="pc-card">
         <div class="pc-card__hd"><h2>📝 收支明細</h2></div>
         <div class="pc-card__bd">
-          <div class="pc-table-wrap"><table class="pc-detail-table">
+          <div class="pc-table-wrap pc-detail-table-wrap"><table class="pc-detail-table">
             <thead><tr><th>項次</th><th>日期</th><th>摘要</th><th>收入</th><th>支出</th><th>科目</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table></div>
