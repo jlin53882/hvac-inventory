@@ -28,7 +28,7 @@ function _pcMD(s) {
 function _pcMoney(v) {
   var n = Number(v);
   if (!isFinite(n)) return '0';
-  return Math.round(n * 100) / 100 .toLocaleString('en-US');
+  return (Math.round(n * 100) / 100).toLocaleString('en-US');
 }
 
 // 報表期間文字（起～迄）

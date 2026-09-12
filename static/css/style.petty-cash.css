@@ -461,15 +461,3 @@
 }
 .pc-entry-date-group.collapsed .pc-entry-date-body { display: none; }
 
-/* === 收支總額分頁 === */
-.pc-entry-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 0;
-  margin-top: 6px;
-  font-size: 12px;
-  color: #64748b;
-}
-.pc-entry-page-btns { display: flex; gap: 6px; }
-

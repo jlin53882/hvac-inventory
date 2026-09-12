@@ -75,13 +75,20 @@ def _report_dict(conn, report_id: int) -> dict:
         "SELECT * FROM petty_cash_entries WHERE report_id=? ORDER BY entry_date, sort_order, id",
         (report_id,),
     ).fetchall()
+    # Batch-load all items in one query (避免 N+1)
+    entry_ids = [er["id"] for er in entry_rows]
+    items_map = {}
+    if entry_ids:
+        placeholders = ",".join("?" * len(entry_ids))
+        all_items = conn.execute(
+            f"SELECT * FROM petty_cash_entry_items WHERE entry_id IN ({placeholders}) ORDER BY sort_order, id",
+            entry_ids,
+        ).fetchall()
+        for it in all_items:
+            items_map.setdefault(it["entry_id"], []).append(dict(it))
     entries = []
     for er in entry_rows:
-        items = conn.execute(
-            "SELECT * FROM petty_cash_entry_items WHERE entry_id=? ORDER BY sort_order, id",
-            (er["id"],),
-        ).fetchall()
-        entries.append(_entry_dict(er, [dict(i) for i in items]))
+        entries.append(_entry_dict(er, items_map.get(er["id"], [])))
     totals = _totals(row["opening_balance"], entries)
     return {
         "id": row["id"],

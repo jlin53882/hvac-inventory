@@ -6,7 +6,7 @@ Pydantic 請求模型
 """
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------- 品項（v10 正規化：主檔 + 位置庫存） ----------
@@ -289,19 +289,22 @@ class PettyCashEntryIn(BaseModel):
     """收支紀錄：收入不可帶明細；支出可帶 0~N 個明細項目。"""
     entry_date: str = Field(..., max_length=10)
     entry_type: Literal["income", "expense"]
-    description: str = Field(..., min_length=1, max_length=500)
+    description: str = Field("", max_length=500)
     amount: float = Field(..., gt=0)
     category: str = Field("", max_length=50)
     sort_order: int = Field(0, ge=0, le=9999)
     items: List[PettyCashEntryItemIn] = Field(default_factory=list, max_length=100)
 
-    @field_validator("description")
-    @classmethod
-    def non_blank_description(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("摘要不可空白")
-        return value
+    @model_validator(mode="after")
+    def check_description_or_items(self):
+        """收入必填摘要；支出無明細時必填摘要。"""
+        desc = (self.description or "").strip()
+        has_items = len(self.items) > 0
+        if self.entry_type == "income" and not desc:
+            raise ValueError("收入紀錄摘要不可空白")
+        if self.entry_type == "expense" and not has_items and not desc:
+            raise ValueError("支出紀錄（無明細項目）摘要不可空白")
+        return self
 
 
 class PettyCashReportIn(BaseModel):

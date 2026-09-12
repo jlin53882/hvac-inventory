@@ -8,14 +8,11 @@ var pcOpeningSource = 'manual';
 var pcEntryEditIndex = -1;
 var pcEntryType = 'expense';
 var pcEntryItemDraft = [];
-var pcEntryPage = 1;
-var pcEntryPageSize = 10;
 
 // 開啟新增/編輯月報 modal（id 缺省 = 新增）
 async function pcOpenReportModal(id) {
   pcModalEditingId = id || null;
   pcModalEntries = [];
-  pcEntryPage = 1;
   pcModalReturnToDetail = !!pcDetail && pcDetail.id === id;
   pcOpeningSource = 'manual';
   const today = _pcIso(new Date());
@@ -272,7 +269,6 @@ function pcOpenEntryModal(idx) {
     _key: 'x' + Date.now() + '_' + j,
     item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount
   }));
-  pcEntryPage = 1;
   document.getElementById('content').insertAdjacentHTML('beforeend', `
     <div id="pc-entry-overlay" class="pc-overlay open" onclick="if(event.target===this)pcCloseEntryModal()">
       <div class="pc-modal" role="dialog" aria-label="收支紀錄" style="max-width:640px">
