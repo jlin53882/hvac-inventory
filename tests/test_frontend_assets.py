@@ -1996,7 +1996,7 @@ def test_edit_modal_stock_qty_clamping():
     """A2：編輯品項位置庫存 qty 不得為負"""
     js = read(EDIT_JS)
     # 2026-09-12：parseFloat 換 Qty.validFor（分數可輸）；負數擋下行為保留
-    assert ("isNaN(q) || q < 0" in js) or ("_vv.ok" in js and "_qq === null" in js), "edit.js 缺 stock qty 負數 clamping"
+    assert ("isNaN(q) || q < 0" in js) or ("qtyInputOrToast(_el" in js and "_qq" in js), "edit.js 缺 stock qty 負數 clamping"
 
 
 def test_edit_modal_name_empty_toast():

@@ -119,15 +119,11 @@ async function submitEdit() {
       const cab = row.querySelector('.stock-cabinet').value;
       const sub = row.querySelector('.stock-sub').value.trim();
       const location = cab ? (sub ? `${cab} | ${sub}` : cab) : '';
-      // 2026-09-12：分數/小數單位可輸 1/4；非法整包擋下（qtyInputOrToast 已 toast）
-      const _qq = (function() {
-        if (typeof Qty === 'undefined') { const _p = parseFloat(row.querySelector('.stock-qty').value); return isNaN(_p) || _p < 0 ? 0 : _p; }
-        let _t = Qty.unitTypeOf(document.getElementById('e-unit').value);
-        const _vv = Qty.validFor(row.querySelector('.stock-qty').value, _t);
-        if (!_vv.ok) { toast(_vv.error, 'error'); return null; }
-        return _vv.value;
-      })();
-      if (_qq === null) return null;
+      // 2026-09-12：分數/小數單位可輸 1/4；非法整包擋下（qtyInputOrToast 已 toast，回 NaN→null）
+      const _el = row.querySelector('.stock-qty');
+      const _qv = qtyInputOrToast(_el, document.getElementById('e-unit').value);
+      if (typeof _qv !== 'number' || isNaN(_qv)) return null;
+      const _qq = _qv;
       return {
         location: location,
         qty: _qq,

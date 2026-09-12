@@ -198,8 +198,9 @@ function unitKnownQty(name) {
       unitList.some(function(u) { return u.name === name; });
   } catch (e) { return false; }
 }
-function qtyInputOrToast(elId, unit) {
-  const el = document.getElementById(elId);
+// 統一輸入解析 helper（2026-09-12）：id 或 element 皆可；非法 toast 並回 NaN，呼叫端擋下
+function qtyInputOrToast(idOrEl, unit) {
+  const el = (typeof idOrEl === 'string') ? document.getElementById(idOrEl) : idOrEl;
   const raw = el ? el.value : '';
   if (typeof Qty === 'undefined') return parseFloat(raw);
   let t = unit ? Qty.unitTypeOf(unit) : 'fraction';

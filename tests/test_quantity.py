@@ -180,3 +180,22 @@ def test_write_path_round3_no_dust(client):
         "items": [{"item_id": iid2, "location": "鐵架", "actual_qty": 1 / 3}]})
     assert r.status_code == 200, r.text
     assert _total(client, "FR-R3B") == 0.333
+
+
+def test_write_paths_round3_structural():
+    """結構防護：所有 item_stocks.qty 寫入必須 ROUND 3（塵不再入庫）。
+    直接 SET 的兩處（編輯/收編）是 python 層已 round 的值，白名單。"""
+    import re
+    root = os.path.join(os.path.dirname(__file__), "..", "app", "routes")
+    whitelist = {"app/routes/items.py:409", "app/routes/units.py:223"}
+    bad = []
+    for fn in os.listdir(root):
+        if not fn.endswith(".py"):
+            continue
+        src = open(os.path.join(root, fn), encoding="utf-8").read()
+        for i, line in enumerate(src.split("\n"), 1):
+            if re.search(r"SET qty\s*=", line) and "ROUND(" not in line:
+                key = f"app/routes/{fn}:{i}"
+                if key not in whitelist and "qty=?" not in line:
+                    bad.append(key + ": " + line.strip()[:80])
+    assert not bad, f"qty 寫入缺 ROUND(...,3)：{bad}"
