@@ -304,6 +304,7 @@ class PettyCashEntryIn(BaseModel):
             raise ValueError("收入紀錄摘要不可空白")
         if self.entry_type == "expense" and not has_items and not desc:
             raise ValueError("支出紀錄（無明細項目）摘要不可空白")
+        self.description = desc
         return self
 
 
