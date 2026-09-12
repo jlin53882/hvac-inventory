@@ -130,11 +130,62 @@
 .pc-chip.active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
 .pc-result-count { margin-left: auto; font-size: 12.5px; color: #64748b; }
 
-/* KPI 金額語意：上期 neutral / 收入 green / 支出 red / 餘額 blue */
+/* KPI 三欄卡片佈局 */
+#content .pc-kpi-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+#content .pc-kpi-card {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+}
+#content .pc-kpi-card__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#content .pc-kpi-card__head .ui-kpi-icon {
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  background: #eff6ff;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+#content .pc-kpi-card__head .ui-kpi-label {
+  font-size: 12px; font-weight: 600; color: #64748b;
+  margin: 0;
+}
+#content .pc-kpi-card__num {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+#content .pc-kpi-card__foot {
+  font-size: 10.5px;
+  color: #94a3b8;
+  text-align: right;
+}
+/* 金額語意：上期 neutral / 收入 green / 支出 red / 餘額 blue */
 .pc-kpi-opening { color: #475569; }
 .pc-kpi-income { color: #15803d; }
 .pc-kpi-expense { color: #b91c1c; }
 .pc-kpi-balance { color: #1d4ed8; }
+/* KPI 色彩 */
+#content .pc-kpi-blue   { color: #2563eb; }
+#content .pc-kpi-green  { color: #16a34a; }
+#content .pc-kpi-amber  { color: #d97706; }
 
 /* 列表 table（desktop） */
 .pc-table-wrap { overflow-x: auto; }
@@ -342,6 +393,7 @@
   .pc-filter-bar .pc-field { flex: 1 1 45%; min-width: 0; }
   .pc-page-actions { margin-left: 0; width: 100%; }
   .pc-page-actions .pc-btn { flex: 1; }
+  #content .pc-kpi-row { flex-direction: column; gap: 8px; }
 }
 @media (min-width: 768px) {
   .pc-cards { display: none; }

@@ -65,10 +65,10 @@ async function renderPettyCash() {
 
       <section class="pc-card" aria-label="彙總">
         <div class="pc-card__bd">
-          <div class="pc-kpi ui-kpi-grid ui-kpi-grid--compact">
-            <div class="ui-kpi-card ui-kpi-card--blue ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">🪙</span><div class="ui-kpi-body"><div class="ui-kpi-label">報表總數</div><div class="ui-kpi-value" id="pc-kpi-total">—</div><span class="ui-kpi-meta">篩選全量</span></div></div>
-            <div class="ui-kpi-card ui-kpi-card--green ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">✅</span><div class="ui-kpi-body"><div class="ui-kpi-label">已完成</div><div class="ui-kpi-value" id="pc-kpi-done">—</div><span class="ui-kpi-meta">篩選全量</span></div></div>
-            <div class="ui-kpi-card ui-kpi-card--amber ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">📝</span><div class="ui-kpi-body"><div class="ui-kpi-label">草稿</div><div class="ui-kpi-value" id="pc-kpi-draft">—</div><span class="ui-kpi-meta">篩選全量</span></div></div>
+          <div class="pc-kpi-row ui-kpi-grid">
+            <div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-icon" aria-hidden="true">🪙</span><span class="ui-kpi-label">報表總數</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-blue" id="pc-kpi-total">—</div><div class="pc-kpi-card__foot ui-kpi-meta">篩選全量</div></div>
+            <div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-icon" aria-hidden="true">✅</span><span class="ui-kpi-label">已完成</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-green" id="pc-kpi-done">—</div><div class="pc-kpi-card__foot ui-kpi-meta">篩選全量</div></div>
+            <div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-icon" aria-hidden="true">📝</span><span class="ui-kpi-label">草稿</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-amber" id="pc-kpi-draft">—</div><div class="pc-kpi-card__foot ui-kpi-meta">篩選全量</div></div>
           </div>
         </div>
       </section>
@@ -320,11 +320,11 @@ function pcRenderDetail() {
         </div>
       </div>
       <section class="pc-card"><div class="pc-card__bd">
-        <div class="ui-kpi-grid ui-kpi-grid--compact">
-          <div class="ui-kpi-card ui-kpi-card--compact"><div class="ui-kpi-body"><div class="ui-kpi-label">上期餘額</div><div class="ui-kpi-value pc-kpi-opening">$${esc(_pcMoney(t.opening_balance))}</div><span class="ui-kpi-meta">期初</span></div></div>
-          <div class="ui-kpi-card ui-kpi-card--green ui-kpi-card--compact"><div class="ui-kpi-body"><div class="ui-kpi-label">本期收入</div><div class="ui-kpi-value pc-kpi-income">+$${esc(_pcMoney(t.income))}</div><span class="ui-kpi-meta">收入合計</span></div></div>
-          <div class="ui-kpi-card ui-kpi-card--amber ui-kpi-card--compact"><div class="ui-kpi-body"><div class="ui-kpi-label">本期支出</div><div class="ui-kpi-value pc-kpi-expense">-$${esc(_pcMoney(t.expense))}</div><span class="ui-kpi-meta">支出合計</span></div></div>
-          <div class="ui-kpi-card ui-kpi-card--blue ui-kpi-card--compact"><div class="ui-kpi-body"><div class="ui-kpi-label">本期餘額</div><div class="ui-kpi-value pc-kpi-balance">$${esc(_pcMoney(t.closing_balance))}</div><span class="ui-kpi-meta">期末</span></div></div>
+        <div class="pc-kpi-row">
+          <div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">上期餘額</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-opening">$${esc(_pcMoney(t.opening_balance))}</div><div class="pc-kpi-card__foot ui-kpi-meta">期初</div></div>
+          <div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">本期收入</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-income">+$${esc(_pcMoney(t.income))}</div><div class="pc-kpi-card__foot ui-kpi-meta">收入合計</div></div>
+          <div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">本期支出</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-expense">-$${esc(_pcMoney(t.expense))}</div><div class="pc-kpi-card__foot ui-kpi-meta">支出合計</div></div>
+          <div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">本期餘額</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-balance">$${esc(_pcMoney(t.closing_balance))}</div><div class="pc-kpi-card__foot ui-kpi-meta">期末</div></div>
         </div>
       </div></section>
       <section class="pc-card">
