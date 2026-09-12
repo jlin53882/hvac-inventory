@@ -3641,3 +3641,27 @@ def test_qty_domain_mounted_and_wired():
     assert 'placeholder="數量（可輸 1/4）"' in edit
     assert "applyQtySuggest" in st_js, "歷史轉換建議套用遺失"
     assert "suggestQtyConvert" in st_js, "轉換建議解析遺失"
+
+
+def test_qty_merge_preserves_both_contracts():
+    """QTY rebase merge：保留兩邊有效能力並以一套 contract 對外。"""
+    qty = read(os.path.join(STATIC, "js", "qty.js"))
+    # base 的 §8 顯示策略與 PR8 的嚴格 validFor 都必須存在。
+    assert "function matchFrac(av, eps, maxDen)" in qty
+    assert "function decPlaces(r3)" in qty
+    assert "Qty.validFor(raw, t)" in qty
+    # id 與動態列 element 兩種 caller 都要相容。
+    assert "function qtyInputOrToast(idOrEl, unit)" in qty
+    assert "typeof idOrEl === 'string'" in qty
+
+    edit = read(EDIT_JS)
+    assert 'input type="text" inputmode="decimal" class="stock-qty"' in edit
+    assert "qtyInputOrToast(_el" in edit
+
+    settings_js = read(os.path.join(STATIC, "js", "settings.js"))
+    settings_html = read(SETTINGS_HTML)
+    for qty_type in ("integer", "decimal", "fraction"):
+        assert 'value="%s"' % qty_type in settings_js
+    assert 'style="text-align:right"' in settings_js
+    assert "table-layout: fixed" in settings_html
+    assert "width: 33.33%" in settings_html

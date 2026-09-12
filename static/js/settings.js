@@ -67,14 +67,14 @@ function renderUnitsPanel() {
             '<select id="u-new-type" title="數量輸入類型"><option value="integer">整數</option><option value="decimal">小數</option><option value="fraction">分數/小數</option></select>' +
             '<button class="btn-primary" onclick="addUnitFromSettings()">＋ 新增</button></div>';
   }
-  html += '<table class="u-table"><thead><tr><th>單位名稱</th><th>數量類型</th><th>操作</th></tr></thead>';
+  html += '<table class="u-table"><thead><tr><th>單位名稱</th><th>數量類型</th><th style="text-align:right">操作</th></tr></thead>';
   unitList.forEach(u => {
     const _tl = qtyTypeLabel(u.qty_type);
     const _typeCell = canManage
       ? '<select class="u-qty-type" onchange="setUnitQtyType(' + u.id + ', this.value)" title="數量輸入類型">' +
         ['integer', 'decimal', 'fraction'].map(t => '<option value="' + t + '"' + ((u.qty_type || 'integer') === t ? ' selected' : '') + '>' + qtyTypeLabel(t) + '</option>').join('') + '</select>'
       : '<span class="u-qty-label">' + esc(_tl) + '</span>';
-    html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'off') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td>';
+    html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'off') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td style="text-align:right">';
     if (canManage) {
       html += '<a class="updown" onclick="moveUnit(' + u.id + ', -1)" title="上移">↑</a>' +
               '<a class="updown" onclick="moveUnit(' + u.id + ', 1)" title="下移">↓</a> ' +
