@@ -386,6 +386,20 @@
 .pc-detail-table td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
 
 /* RWD：手機不呈現超寬 table，改 card */
+/* 平板 (≤1200px)：兩欄 */
+@media (max-width: 1200px) {
+  #content .pc-kpi-row {
+    flex-wrap: wrap;
+  }
+  #content .pc-kpi-card {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+  }
+  #content .pc-kpi-card:last-child {
+    flex: 1 1 100%;
+  }
+}
+/* 手機 (≤767px)：單欄 + 縮排 */
 @media (max-width: 767px) {
   .pc-table-wrap { display: none; }
   .pc-cards { display: block; }
@@ -394,6 +408,11 @@
   .pc-page-actions { margin-left: 0; width: 100%; }
   .pc-page-actions .pc-btn { flex: 1; }
   #content .pc-kpi-row { flex-direction: column; gap: 8px; }
+  #content .pc-kpi-card { min-height: 64px; padding: 10px 14px 8px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { width: 20px; height: 20px; font-size: 11px; }
+  #content .pc-kpi-card__head .ui-kpi-label { font-size: 11px; }
+  #content .pc-kpi-card__num { font-size: 22px; }
+  #content .pc-kpi-card__foot { font-size: 10px; }
 }
 @media (min-width: 768px) {
   .pc-cards { display: none; }
