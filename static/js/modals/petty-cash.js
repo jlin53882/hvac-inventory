@@ -182,13 +182,69 @@ function pcValidateBasic(quiet) {
   return true;
 }
 
-// modal 內收支列表 + 即時合計
+// modal 內收支列表 + 即時合計（依日期排序，同日維持輸入順序；超過10筆切換分頁；同日支援摺疊）
 function pcModalRenderEntries() {
   const box = document.getElementById('pc-modal-entries');
   if (!box) return;
-  box.innerHTML = pcModalEntries.length
-    ? pcModalEntries.map(pcModalEntryCardHtml).join('')
-    : '<div class="pc-empty"><div>尚未新增收支紀錄</div><div class="pc-hint">按「＋ 新增紀錄」開始記帳</div></div>';
+  if (!pcModalEntries.length) {
+    box.innerHTML = '<div class="pc-empty"><div>尚未新增收支紀錄</div><div class="pc-hint">按「＋ 新增紀錄」開始記帳</div></div>';
+    let income = 0, expense = 0;
+    const opening = Number(document.getElementById('pc-m-opening').value) || 0;
+    document.getElementById('pc-sum-income').textContent = '$' + _pcMoney(income);
+    document.getElementById('pc-sum-expense').textContent = '$' + _pcMoney(expense);
+    document.getElementById('pc-sum-closing').textContent = '$' + _pcMoney(opening + income - expense);
+    return;
+  }
+  // Sort by date (oldest first), then by original index
+  const sorted = pcModalEntries.map((e, i) => ({...e, _origIdx: i}))
+    .sort((a, b) => a.entry_date !== b.entry_date ? (a.entry_date < b.entry_date ? -1 : 1) : a._origIdx - b._origIdx);
+  // Group by date
+  const groups = {};
+  const groupOrder = [];
+  sorted.forEach(e => {
+    if (!groups[e.entry_date]) { groups[e.entry_date] = []; groupOrder.push(e.entry_date); }
+    groups[e.entry_date].push(e);
+  });
+  // Pagination
+  const totalEntries = sorted.length;
+  const totalPages = Math.ceil(totalEntries / pcEntryPageSize);
+  if (pcEntryPage > totalPages) pcEntryPage = totalPages;
+  const startIdx = (pcEntryPage - 1) * pcEntryPageSize;
+  const endIdx = startIdx + pcEntryPageSize;
+  let html = '';
+  groupOrder.forEach(date => {
+    const entries = groups[date];
+    // Check if any entry in this group falls on current page
+    const visibleEntries = entries.filter(e => {
+      const idx = sorted.indexOf(e);
+      return idx >= startIdx && idx < endIdx;
+    });
+    if (!visibleEntries.length) return;
+    const collapsible = entries.length > 1;
+    html += '<div class="pc-entry-date-group">';
+    html += '<div class="pc-entry-date-header' + (collapsible ? ' collapsible' : '') + '"'
+      + (collapsible ? " onclick=\"this.parentElement.classList.toggle('collapsed')\"" : '') + '>';
+    html += '<span class="pc-entry-date-label">' + esc(_pcDate(date)) + '</span>';
+    html += '<span class="pc-entry-date-count">' + entries.length + ' 筆</span>';
+    if (collapsible) html += '<span class="pc-entry-date-toggle">▼</span>';
+    html += '</div>';
+    html += '<div class="pc-entry-date-body">';
+    visibleEntries.forEach(e => {
+      html += pcModalEntryCardHtml(e, e._origIdx);
+    });
+    html += '</div></div>';
+  });
+  // Pagination controls
+  if (totalPages > 1) {
+    html += '<div class="pc-entry-pagination">';
+    html += '<span class="pc-entry-page-info">第 ' + pcEntryPage + ' / ' + totalPages + ' 頁 · 共 ' + totalEntries + ' 筆</span>';
+    html += '<span class="pc-entry-page-btns">';
+    html += '<button class="pc-btn-sm" onclick="pcEntryChangePage(-1)"' + (pcEntryPage <= 1 ? ' disabled' : '') + '>‹ 上一頁</button>';
+    html += '<button class="pc-btn-sm pc-btn-sm--primary" onclick="pcEntryChangePage(1)"' + (pcEntryPage >= totalPages ? ' disabled' : '') + '>下一頁 ›</button>';
+    html += '</span></div>';
+  }
+  box.innerHTML = html;
+  // Calculate sums
   let income = 0, expense = 0;
   pcModalEntries.forEach(e => {
     const a = Number(e.amount) || 0;
@@ -200,6 +256,14 @@ function pcModalRenderEntries() {
   document.getElementById('pc-sum-closing').textContent = '$' + _pcMoney(opening + income - expense);
 }
 
+// 切換收支總額分頁頁面
+function pcEntryChangePage(d) {
+  const totalPages = Math.ceil(pcModalEntries.length / pcEntryPageSize);
+  const next = Math.min(totalPages, Math.max(1, pcEntryPage + d));
+  if (next === pcEntryPage) return;
+  pcEntryPage = next;
+  pcModalRenderEntries();
+}
 // modal 內單筆 entry 卡（內部 state 已由 input 驗證，文字 esc）
 function pcModalEntryCardHtml(e, i) {
   const amt = e.entry_type === 'income'
@@ -228,13 +292,14 @@ function pcModalEntryCardHtml(e, i) {
 function pcOpenEntryModal(idx) {
   pcEntryEditIndex = (typeof idx === 'number') ? idx : -1;
   const src = pcEntryEditIndex >= 0 ? pcModalEntries[pcEntryEditIndex]
-    : { entry_date: document.getElementById('pc-m-start').value || _pcIso(new Date()),
+    : { entry_date: _pcIso(new Date()),
         entry_type: 'expense', description: '', amount: '', category: '', items: [] };
   pcEntryType = src.entry_type || 'expense';
   pcEntryItemDraft = (src.items || []).map((it, j) => ({
     _key: 'x' + Date.now() + '_' + j,
     item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount
   }));
+  pcEntryPage = 1;
   document.getElementById('content').insertAdjacentHTML('beforeend', `
     <div id="pc-entry-overlay" class="pc-overlay open" onclick="if(event.target===this)pcCloseEntryModal()">
       <div class="pc-modal" role="dialog" aria-label="收支紀錄" style="max-width:640px">
@@ -248,13 +313,14 @@ function pcOpenEntryModal(idx) {
             <div class="pc-field"><label>日期 <span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
             <div class="pc-field"><label>科目</label><input id="pc-e-category" type="text" placeholder="例：五金" value="${esc(src.category || '')}"></div>
           </div>
-          <div class="pc-field" style="margin-top:10px"><label>摘要 <span class="pc-required">*</span></label><input id="pc-e-desc" type="text" placeholder="例：零用金 / 畚箕 ×1" value="${esc(src.description || '')}"></div>
+          <div class="pc-field" style="margin-top:10px"><label>摘要 <span class="pc-required" id="pc-e-desc-req">*</span></label><input id="pc-e-desc" type="text" placeholder="例：零用金 / 畚箕 ×1" value="${esc(src.description || '')}"></div>
           <div class="pc-field" style="margin-top:10px"><label>總金額 <span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" oninput="pcEntryAmountHint()"></div>
           <div id="pc-entry-items-wrap" style="margin-top:10px;${pcEntryType === 'income' ? 'display:none' : ''}">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
               <strong>明細項目</strong>
               <button class="pc-btn-sm" onclick="pcEntryAddItemRow()">＋ 新增項目</button>
             </div>
+            <div class="pc-items-header"><span>項目名稱</span><span>數量</span><span>單位</span><span>金額</span><span></span></div>
             <div id="pc-entry-items"></div>
             <div class="pc-balance-hint" id="pc-entry-amount-hint"></div>
           </div>
@@ -267,6 +333,7 @@ function pcOpenEntryModal(idx) {
     </div>`);
   pcEntryRenderItems();
   pcEntryAmountHint();
+  pcUpdateDescRequired();
 }
 
 // 收支類型切換（收入不可帶明細：切換即清空項目草稿）
@@ -277,6 +344,7 @@ function pcEntrySetType(t) {
   document.getElementById('pc-entry-items-wrap').style.display = t === 'income' ? 'none' : '';
   if (t === 'income') pcEntryItemDraft = [];
   pcEntryAmountHint();
+  pcUpdateDescRequired();
 }
 
 // 明細項目列渲染
@@ -296,6 +364,7 @@ function pcEntryRenderItems() {
     pcEntryAmountHint();
   }));
   pcEntryAmountHint();
+  pcUpdateDescRequired();
 }
 
 // 新增明細項目列
@@ -308,6 +377,14 @@ function pcEntryAddItemRow() {
 function pcEntryRemoveItem(i) {
   pcEntryItemDraft.splice(i, 1);
   pcEntryRenderItems();
+}
+
+// 摘要必填標記：有明細項目時摘要改非必填
+function pcUpdateDescRequired() {
+  const req = document.getElementById('pc-e-desc-req');
+  if (!req) return;
+  const hasItems = pcEntryType === 'expense' && pcEntryItemDraft.length > 0;
+  req.style.display = hasItems ? 'none' : '';
 }
 
 // 明細合計 vs 支出總額一致性提醒（僅提醒不擋存，匯出前再次顯示）
@@ -333,7 +410,8 @@ function pcEntrySave() {
   const ps = document.getElementById('pc-m-start').value;
   const pe = document.getElementById('pc-m-end').value;
   if ((ps && date < ps) || (pe && date > pe)) return toast('⚠️ 收支日期必須落在報表期間內');
-  if (!desc) return toast('⚠️ 請填摘要');
+  const hasItems = pcEntryType === 'expense' && pcEntryItemDraft.length > 0;
+  if (!desc && !hasItems) return toast('⚠️ 請填摘要（或新增明細項目以取代摘要）');
   if (!isFinite(amount) || amount <= 0) return toast('⚠️ 金額需 > 0');
   let items = [];
   if (pcEntryType === 'expense') {

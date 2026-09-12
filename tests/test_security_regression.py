@@ -95,6 +95,9 @@ REVIEWED_SAFE_BODIES = {
     # 其餘內插（esc/布林三元含 HTML 常數）由掃描器自動放行
     "it.item_id",
     "absNum(it.total_qty)",
+    # petty-cash 列操作按鈕（2026-09-12）：allBtns/overflowBtns 由 pcRowOpsHtml 內部構建，
+    # 所有使用者可控值已 esc()，按鈕 HTML 為固定常數
+    "allBtns", "overflowBtns",
     "g.items.length",
     "isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'",
     # card.js mobileCardShell cardClass（2026-09-07 Phase 5：CSS class 為開發者傳入常數）
