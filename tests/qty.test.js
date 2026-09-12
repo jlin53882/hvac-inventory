@@ -59,6 +59,7 @@ eq(Qty.format(1 / 3, 'fraction'), '1/3', 'format 1/3 from float');
 eq(Qty.format(1.25, 'decimal'), '1.25', 'decimal keeps decimal');
 eq(Qty.format(1.27, 'fraction'), '1.27', 'no forced ugly fraction');
 eq(Qty.format(0.30000000000000004, 'fraction'), '0.3', 'float dust stays decimal');
+eq(Qty.format(0.3300000001, 'fraction'), '0.33', 'old dust tail never leaks raw');
 eq(Qty.format(0.333, 'fraction'), '1/3', 'rounded 1/3 restores fraction');
 eq(Qty.format(0.667, 'fraction'), '2/3', 'rounded 2/3 restores fraction');
 eq(Qty.format(0.123, 'fraction'), '0.123', 'true decimal stays decimal');
