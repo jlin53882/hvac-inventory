@@ -3438,5 +3438,12 @@ def test_qty_domain_mounted_and_wired():
     assert "Qty.format(_d, Qty.unitTypeOf(_unit))" in stk, "盤點差異分數顯示遺失"
     st_js = read(os.path.join(STATIC, "js", "settings.js"))
     assert "setUnitQtyType" in st_js, "單位類型切換遺失"
+    # 2026-09-12：分數輸入框必須是 text+inputmode（type=number 打不出 / 也顯示不了 1/3）
+    for qid in ("f-qty", "o-qty", "ns-qty", "nsp-qty", "p-qty", "po-qty", "es-qty", "rs-qty"):
+        assert 'id="%s"' % qid in idx and 'type="number" id="%s"' % qid not in idx, f"{qid} 必須 text 可輸分數"
+    assert idx.count('inputmode="decimal"') >= 9, "分數輸入框缺 inputmode"
+    edit = read(EDIT_JS)
+    assert 'type="number" class="stock-qty"' not in edit, "編輯位置數量框必須 text 可輸分數"
+    assert 'placeholder="數量（可輸 1/4）"' in edit
     assert "applyQtySuggest" in st_js, "歷史轉換建議套用遺失"
     assert "suggestQtyConvert" in st_js, "轉換建議解析遺失"

@@ -217,7 +217,7 @@
     <div class="form-2col">
       <div class="form-row">
         <label>數量</label>
-        <input type="number" id="f-qty" value="0" min="0" step="any">
+        <input type="text" inputmode="decimal" id="f-qty" value="0">
       </div>
       <div class="form-row">
         <label>分類位置</label>
@@ -306,7 +306,7 @@
       </div>
       <div class="form-row">
         <label>低庫存警示值</label>
-        <input type="number" id="e-lowstock" min="0" step="any" placeholder="0 = 不警示">
+        <input type="text" inputmode="decimal" id="e-lowstock" placeholder="0 = 不警示">
       </div>
       <div class="form-row">
         <label>分類</label>
@@ -372,7 +372,7 @@
     </div>
     <div class="form-row">
       <label>領出數量 *</label>
-      <input type="number" id="o-qty" min="0" step="any" placeholder="要扣多少">
+      <input type="text" inputmode="decimal" id="o-qty" placeholder="要扣多少">
     </div>
     <div class="form-row">
       <label>去哪裡（客戶 / 案場 / 工地）*</label>
@@ -410,7 +410,7 @@
     </div>
     <div class="form-row">
       <label>領出數量 *</label>
-      <input type="number" id="ns-qty" min="0" step="any" placeholder="要領出多少">
+      <input type="text" inputmode="decimal" id="ns-qty" placeholder="要領出多少">
     </div>
     <div class="form-row">
       <label>去哪裡（客戶 / 案場 / 工地）*</label>
@@ -448,7 +448,7 @@
     </div>
     <div class="form-row">
       <label>待領出數量 *</label>
-      <input type="number" id="nsp-qty" min="0" step="any" placeholder="要準備多少">
+      <input type="text" inputmode="decimal" id="nsp-qty" placeholder="要準備多少">
     </div>
     <div class="form-row">
       <label>備註（選填）</label>
@@ -475,7 +475,7 @@
     </div>
     <div class="form-row">
       <label>待領出數量 *</label>
-      <input type="number" id="p-qty" min="0" step="any" placeholder="要領出多少（庫存先不扣）">
+      <input type="text" inputmode="decimal" id="p-qty" placeholder="要領出多少（庫存先不扣）">
     </div>
     <div class="form-row">
       <label>準備說明（選填）</label>
@@ -502,7 +502,7 @@
     </div>
     <div class="form-row">
       <label>確認已領出數量 *</label>
-      <input type="number" id="po-qty" min="0" step="any" placeholder="從待領出扣掉（此時才扣庫存）">
+      <input type="text" inputmode="decimal" id="po-qty" placeholder="從待領出扣掉（此時才扣庫存）">
     </div>
     <div class="form-row">
       <label>去哪裡（客戶 / 案場 / 工地）*</label>
@@ -549,7 +549,7 @@
     </div>
     <div class="form-row">
       <label>數量 *</label>
-      <input type="number" id="es-qty" min="0" step="any" placeholder="已領出數量">
+      <input type="text" inputmode="decimal" id="es-qty" placeholder="已領出數量">
     </div>
     <div class="form-row">
       <label>去哪裡（客戶 / 案場 / 工地）</label>
@@ -580,7 +580,7 @@
     </div>
     <div class="form-row">
       <label>退回數量 *（原領出 <span id="rs-original-qty"></span>）</label>
-      <input type="number" id="rs-qty" min="0" step="any" placeholder="退回數量（預設全數）">
+      <input type="text" inputmode="decimal" id="rs-qty" placeholder="退回數量（預設全數）">
     </div>
     <div class="form-row">
       <label>原始領出位置</label>

@@ -57,7 +57,7 @@ function renderEditStockRows(stocks, unit) {
     <div class="stock-row" data-idx="${idx}">
       <select class="stock-cabinet">${_cabinetOptions(cabinet)}</select>
       <input type="text" class="stock-sub" value="${esc(sub)}" list="location-list" placeholder="位置">
-      <input type="number" class="stock-qty" value="${esc(qv)}" min="0" step="any" placeholder="數量">
+      <input type="text" inputmode="decimal" class="stock-qty" value="${esc(qv)}" placeholder="數量（可輸 1/4）">
       <input type="text" class="stock-note" value="${esc(s.note || '')}" placeholder="備註（選填）">
     </div>`;
   }).join('');
@@ -79,7 +79,7 @@ function addEditStockRow() {
   row.innerHTML = `
     <select class="stock-cabinet">${_cabinetOptions('')}</select>
     <input type="text" class="stock-sub" list="location-list" placeholder="位置">
-    <input type="number" class="stock-qty" value="0" min="0" step="any" placeholder="數量">
+    <input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）">
     <input type="text" class="stock-note" placeholder="備註（選填）">
   `;
   box.appendChild(row);
