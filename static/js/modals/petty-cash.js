@@ -13,6 +13,7 @@ var pcEntryItemDraft = [];
 async function pcOpenReportModal(id) {
   pcModalEditingId = id || null;
   pcModalEntries = [];
+  pcEntryPage = 1;
   pcModalReturnToDetail = !!pcDetail && pcDetail.id === id;
   pcOpeningSource = 'manual';
   const today = _pcIso(new Date());
@@ -320,7 +321,7 @@ function pcOpenEntryModal(idx) {
               <strong>明細項目</strong>
               <button class="pc-btn-sm" onclick="pcEntryAddItemRow()">＋ 新增項目</button>
             </div>
-            <div class="pc-items-header"><span>項目名稱</span><span>數量</span><span>單位</span><span>金額</span><span></span></div>
+            <div class="pc-items-header"><span>項目名稱</span><span>數量</span><span>單位</span><span>金額</span><span>刪除</span></div>
             <div id="pc-entry-items"></div>
             <div class="pc-balance-hint" id="pc-entry-amount-hint"></div>
           </div>

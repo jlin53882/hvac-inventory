@@ -216,15 +216,11 @@ function pcCardHtml(r) {
   </div>`;
 }
 
-// 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit；桌面版按鈕多時收進 ... 選單）
+// 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
 function pcRowOpsHtml(r) {
-  const editBtn = r.can_edit ? `<button class="pc-btn-sm pc-row-action" onclick="event.stopPropagation();pcOpenReportModal(${r.id})">✏️ 編輯</button>` : '';
-  const delBtn = r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger pc-row-action" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : '';
-  const viewBtn = `<button class="pc-btn-sm pc-row-action" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>`;
-  const exportBtn = `<button class="pc-btn-sm pc-row-action" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>`;
-  const allBtns = viewBtn + editBtn + exportBtn + delBtn;
-  const overflowBtns = (r.can_edit ? viewBtn + exportBtn + editBtn + delBtn : viewBtn + exportBtn);
-  return `<span class="pc-row-actions-wrap">${allBtns}<span class="pc-row-actions-overflow"><button class="pc-btn-sm pc-row-action" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">⋯</button><span class="pc-row-actions-overflow__menu">${overflowBtns}</span></span></span>`;
+  const editBtn = r.can_edit ? `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenReportModal(${r.id})">✏️ 編輯</button>` : '';
+  const delBtn = r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : '';
+  return `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${editBtn}<button class="pc-btn-sm" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${delBtn}`;
 }
 
 // KPI（同篩選全量，不受分頁影響）
