@@ -8,6 +8,8 @@ var pcOpeningSource = 'manual';
 var pcEntryEditIndex = -1;
 var pcEntryType = 'expense';
 var pcEntryItemDraft = [];
+var pcEntryPage = 1;
+var pcEntryPageSize = 10;
 
 // 開啟新增/編輯月報 modal（id 缺省 = 新增）
 async function pcOpenReportModal(id) {
@@ -183,7 +185,7 @@ function pcValidateBasic(quiet) {
   return true;
 }
 
-// modal 內收支列表 + 即時合計（依日期排序，同日維持輸入順序；超過10筆切換分頁；同日支援摺疊）
+// modal 內收支列表 + 即時合計
 function pcModalRenderEntries() {
   const box = document.getElementById('pc-modal-entries');
   if (!box) return;
@@ -206,21 +208,9 @@ function pcModalRenderEntries() {
     if (!groups[e.entry_date]) { groups[e.entry_date] = []; groupOrder.push(e.entry_date); }
     groups[e.entry_date].push(e);
   });
-  // Pagination
-  const totalEntries = sorted.length;
-  const totalPages = Math.ceil(totalEntries / pcEntryPageSize);
-  if (pcEntryPage > totalPages) pcEntryPage = totalPages;
-  const startIdx = (pcEntryPage - 1) * pcEntryPageSize;
-  const endIdx = startIdx + pcEntryPageSize;
   let html = '';
   groupOrder.forEach(date => {
     const entries = groups[date];
-    // Check if any entry in this group falls on current page
-    const visibleEntries = entries.filter(e => {
-      const idx = sorted.indexOf(e);
-      return idx >= startIdx && idx < endIdx;
-    });
-    if (!visibleEntries.length) return;
     const collapsible = entries.length > 1;
     html += '<div class="pc-entry-date-group">';
     html += '<div class="pc-entry-date-header' + (collapsible ? ' collapsible' : '') + '"'
@@ -230,20 +220,11 @@ function pcModalRenderEntries() {
     if (collapsible) html += '<span class="pc-entry-date-toggle">▼</span>';
     html += '</div>';
     html += '<div class="pc-entry-date-body">';
-    visibleEntries.forEach(e => {
+    entries.forEach(e => {
       html += pcModalEntryCardHtml(e, e._origIdx);
     });
     html += '</div></div>';
   });
-  // Pagination controls
-  if (totalPages > 1) {
-    html += '<div class="pc-entry-pagination">';
-    html += '<span class="pc-entry-page-info">第 ' + pcEntryPage + ' / ' + totalPages + ' 頁 · 共 ' + totalEntries + ' 筆</span>';
-    html += '<span class="pc-entry-page-btns">';
-    html += '<button class="pc-btn-sm" onclick="pcEntryChangePage(-1)"' + (pcEntryPage <= 1 ? ' disabled' : '') + '>‹ 上一頁</button>';
-    html += '<button class="pc-btn-sm pc-btn-sm--primary" onclick="pcEntryChangePage(1)"' + (pcEntryPage >= totalPages ? ' disabled' : '') + '>下一頁 ›</button>';
-    html += '</span></div>';
-  }
   box.innerHTML = html;
   // Calculate sums
   let income = 0, expense = 0;
@@ -255,15 +236,6 @@ function pcModalRenderEntries() {
   document.getElementById('pc-sum-income').textContent = '$' + _pcMoney(income);
   document.getElementById('pc-sum-expense').textContent = '$' + _pcMoney(expense);
   document.getElementById('pc-sum-closing').textContent = '$' + _pcMoney(opening + income - expense);
-}
-
-// 切換收支總額分頁頁面
-function pcEntryChangePage(d) {
-  const totalPages = Math.ceil(pcModalEntries.length / pcEntryPageSize);
-  const next = Math.min(totalPages, Math.max(1, pcEntryPage + d));
-  if (next === pcEntryPage) return;
-  pcEntryPage = next;
-  pcModalRenderEntries();
 }
 // modal 內單筆 entry 卡（內部 state 已由 input 驗證，文字 esc）
 function pcModalEntryCardHtml(e, i) {
@@ -307,8 +279,8 @@ function pcOpenEntryModal(idx) {
         <div class="pc-modal__hd"><h3>${pcEntryEditIndex >= 0 ? '✏️ 編輯紀錄' : '＋ 新增紀錄'}</h3><button class="pc-btn-sm" onclick="pcCloseEntryModal()">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <button class="pc-step${pcEntryType === 'income' ? ' active' : ''}" id="pc-type-income" onclick="pcEntrySetType('income')">收入</button>
-            <button class="pc-step${pcEntryType === 'expense' ? ' active' : ''}" id="pc-type-expense" onclick="pcEntrySetType('expense')">支出</button>
+            <button class="pc-step pc-step--income${pcEntryType === 'income' ? ' active' : ''}" id="pc-type-income" onclick="pcEntrySetType('income')">💰 收入</button>
+            <button class="pc-step pc-step--expense${pcEntryType === 'expense' ? ' active' : ''}" id="pc-type-expense" onclick="pcEntrySetType('expense')">💸 支出</button>
           </div>
           <div class="pc-form-grid pc-form-grid--two">
             <div class="pc-field"><label>日期 <span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
