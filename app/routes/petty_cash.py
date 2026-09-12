@@ -15,51 +15,16 @@
 上傳人（upload_person）是報表主體，可與登入者不同，不綁死。
 """
 import datetime
-import io
-import os
-import re
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
 
 from app.database import get_db
 from app.models import PettyCashReportIn
-from app.services.auth import get_user_permissions, require_login
+from app.services.auth import require_login
 from app.services.petty_cash_report import build_petty_cash_report, download_filename
+from app.services.safety import excel_safe, has_perm, parse_ymd, safe_download_name, xlsx_download
 
 router = APIRouter()
-
-XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-def _safe(value):
-    """公式注入防護：= + - @ 開頭的字串加撇號（沿用 quotations.py）。"""
-    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
-
-
-def _safe_filename(name: str) -> str:
-    """下載檔名清理（沿用 signed_reports._safe_name：去路徑、限字元、防前綴）。"""
-    name = os.path.basename((name or "file").strip()) or "file"
-    name = re.sub(r"[^0-9A-Za-z\u4e00-\u9fa5._-]", "_", name)
-    if name[:1] in (".", "-", "=", "+", "@"):
-        name = "_" + name[1:]
-    return name[:120] or "file"
-
-
-def _parse_date(value: str, label: str = "日期") -> str:
-    try:
-        return datetime.date.fromisoformat(value).isoformat()
-    except (TypeError, ValueError):
-        raise HTTPException(400, f"{label}格式需 YYYY-MM-DD")
-
-
-def _can_delete_all(conn, user: dict) -> bool:
-    perms = get_user_permissions(conn, user["id"])
-    return bool(perms.get("petty-cash-delete-all"))
-
 
 def _totals(opening: float, entries: list) -> dict:
     income = round(sum(float(e["amount"]) for e in entries if e["entry_type"] == "income"), 2)
@@ -182,14 +147,14 @@ def _check_duplicate(conn, body: PettyCashReportIn, exclude_id: int | None = Non
 
 
 def _validate_body(body: PettyCashReportIn) -> None:
-    start = _parse_date(body.start_date, "開始日期")
-    end = _parse_date(body.end_date, "結束日期")
+    start = parse_ymd(body.start_date, "開始日期")
+    end = parse_ymd(body.end_date, "結束日期")
     if start > end:
         raise HTTPException(400, "開始日期不可晚於結束日期")
     body.start_date = start
     body.end_date = end
     for entry in body.entries:
-        entry_date = _parse_date(entry.entry_date, "收支日期")
+        entry_date = parse_ymd(entry.entry_date, "收支日期")
         if not (start <= entry_date <= end):
             raise HTTPException(400, f"收支日期 {entry_date} 必須落在報表期間內")
         entry.entry_date = entry_date
@@ -258,9 +223,9 @@ def _filters(
     search: str = Query("", description="關鍵字：檔名文字/上傳人/製表人"),
 ):
     if start_date:
-        _parse_date(start_date, "開始日期")
+        parse_ymd(start_date, "開始日期")
     if end_date:
-        _parse_date(end_date, "結束日期")
+        parse_ymd(end_date, "結束日期")
     if status and status not in ("draft", "completed"):
         raise HTTPException(400, "狀態僅允許 draft / completed")
     where, params = [], []
@@ -338,7 +303,7 @@ def previous_balance(
     """同一上傳人、end_date < before 的最近 completed 報表本期餘額 → 新報表上期餘額。"""
     if user is None:
         raise HTTPException(401, "未登入")
-    before = _parse_date(before, "開始日期")
+    before = parse_ymd(before, "開始日期")
     conn = get_db()
     try:
         income_expr = "COALESCE((SELECT SUM(amount) FROM petty_cash_entries WHERE report_id=r.id AND entry_type='income'), 0)"
@@ -386,7 +351,7 @@ def list_petty_cash_reports(
                 ORDER BY start_date DESC, id DESC LIMIT ? OFFSET ?""",
             (*params, page_size, (page - 1) * page_size),
         ).fetchall()
-        can_all = _can_delete_all(conn, user)
+        can_all = has_perm(conn, user, "petty-cash-delete-all")
         items = []
         for r in rows:
             summary = _summary_dict(conn, r)
@@ -429,7 +394,7 @@ def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
             "SELECT uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
             (report_id,),
         ).fetchone()
-        can_all = _can_delete_all(conn, user)
+        can_all = has_perm(conn, user, "petty-cash-delete-all")
         data["can_edit"] = bool(
             can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
         )
@@ -452,7 +417,7 @@ def update_petty_cash_report(
         ).fetchone()
         if row is None:
             raise HTTPException(404, "零用金月報不存在")
-        can_all = _can_delete_all(conn, user)
+        can_all = has_perm(conn, user, "petty-cash-delete-all")
         if not (
             can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
         ):
@@ -482,7 +447,7 @@ def delete_petty_cash_report(report_id: int, user: dict = Depends(require_login)
         ).fetchone()
         if row is None:
             raise HTTPException(404, "零用金月報不存在")
-        can_all = _can_delete_all(conn, user)
+        can_all = has_perm(conn, user, "petty-cash-delete-all")
         if not (
             can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
         ):
@@ -516,9 +481,5 @@ def export_petty_cash_report(report_id: int, user: dict = Depends(require_login)
     finally:
         conn.close()
     raw_name = download_filename(data["filename_text"], data["start_date"], data["end_date"])
-    filename = _safe_filename(_safe(raw_name))
-    return Response(
-        buf.getvalue(),
-        media_type=XLSX_MIME,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
-    )
+    filename = safe_download_name(excel_safe(raw_name))
+    return xlsx_download(buf.getvalue(), filename)

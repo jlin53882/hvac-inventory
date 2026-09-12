@@ -15,6 +15,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from app.services.safety import excel_safe
+
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 TEMPLATE_PATH = ASSETS_DIR / "零用金月報範本.xlsx"
 
@@ -25,13 +27,6 @@ OPENING_CELL = "E2"
 DATA_FIRST_ROW = 4
 DATA_LAST_ROW = 18
 TITLE_MERGE = "A1:F1"
-
-
-def _safe(value):
-    """公式注入防護：= + - @ 開頭的字串加撇號，避免被 Excel 當公式執行（沿用 report.py）"""
-    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
 
 
 def _num_g(value) -> str:
@@ -47,7 +42,7 @@ def _item_text(item: dict) -> str:
     qty = _num_g(item.get("qty"))
     unit = (item.get("unit") or "").strip()
     amount = _num_g(item.get("amount"))
-    return _safe(f"{name} {qty}{unit} ${amount}")
+    return excel_safe(f"{name} {qty}{unit} ${amount}")
 
 
 def _copy_row_style(ws, src_row: int, dst_row: int) -> None:
@@ -147,7 +142,7 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
             # 同一 Entry 的日期/收入/支出/科目跨列合併並垂直置中
             ws.cell(row=rows[0], column=2).value = entry_date
             ws.cell(row=rows[0], column=5).value = round(float(entry["amount"]), 2)
-            ws.cell(row=rows[0], column=6).value = _safe((entry.get("category") or "").strip())
+            ws.cell(row=rows[0], column=6).value = excel_safe((entry.get("category") or "").strip())
             for col in (2, 4, 5, 6):
                 if len(rows) > 1:
                     ws.merge_cells(
@@ -159,12 +154,12 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
             seq += 1
             ws.cell(row=row_idx, column=1).value = seq
             ws.cell(row=row_idx, column=2).value = entry_date
-            ws.cell(row=row_idx, column=3).value = _safe((entry.get("description") or "").strip())
+            ws.cell(row=row_idx, column=3).value = excel_safe((entry.get("description") or "").strip())
             if is_income:
                 ws.cell(row=row_idx, column=4).value = round(float(entry["amount"]), 2)
             else:
                 ws.cell(row=row_idx, column=5).value = round(float(entry["amount"]), 2)
-            ws.cell(row=row_idx, column=6).value = _safe((entry.get("category") or "").strip())
+            ws.cell(row=row_idx, column=6).value = excel_safe((entry.get("category") or "").strip())
             row_idx += 1
 
     # 5. 本期餘額（系統計算值直接寫入，避免公式範圍因插列錯掉）
@@ -177,7 +172,7 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
     ws.cell(row=closing_row, column=5).value = closing
 
     # 6. 製表人（上傳人不輸出到 Excel）；主管欄留白手簽（列位隨插列下移）
-    ws.cell(row=21 + extra, column=5).value = _safe((report.get("prepared_by") or "").strip())
+    ws.cell(row=21 + extra, column=5).value = excel_safe((report.get("prepared_by") or "").strip())
 
     buf = io.BytesIO()
     wb.save(buf)
