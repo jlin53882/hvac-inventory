@@ -61,34 +61,6 @@ def client(tmp_path, monkeypatch):
 # 1. 掃描式：所有 HTML 模板內插必須 esc/jsStr（或明確安全）
 # ============================================================
 
-def _is_suspicious_interpolation(body: str) -> bool:
-    """判斷一個 ${...} 內插是否「可疑」（使用者可控資料未跳脫）。
-
-    安全（回 False）：
-      - 以 esc(/jsStr( 開頭
-      - 純數字/算術表達式
-      - 無點號的程式內變數（singleCount、enough 等）
-      - 含 '<' 的 HTML 常數輸出（三元常數、巢狀模板常數）
-      - e.message（本專案僅含 HTTP 狀態碼/瀏覽器原生訊息，無使用者輸入）
-    """
-    b = body.strip()
-    if b.startswith(("esc(", "jsStr(")):
-        return False
-    if re.fullmatch(r"[\d\s+\-*/().\[\]]+", b):
-        return False
-    if re.fullmatch(r"\w+\.id", b):          # 數字主鍵（如 e.id、p.id、c.item_id）
-        return False
-    if b in ("n", "i", "d", "idx", "cls", "total", "count", "index"):
-        return False
-    if "e.message" in b:
-        return False
-    if "<" in b or ">" in b:                 # HTML 常數輸出（非資料內插）→ 保守放行
-        return False
-    # 物件欄位內插（含 .）且無 esc → 使用者可控資料未跳脫
-    if re.search(r"\.\w+", b):
-        return True
-    return True  # 其餘（函式呼叫、未知變數）→ 可疑，列出人工確認
-
 
 # 已人工審核的「安全內插」白名單（2026-08-12 baseline 全檔審核）：
 # - 數字/算術/布林/常數三元/程式內變數/內部 HTML 參數（呼叫端已消毒）
