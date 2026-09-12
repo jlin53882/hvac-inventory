@@ -386,16 +386,14 @@
 .pc-detail-table td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
 
 /* RWD：手機不呈現超寬 table，改 card */
-/* 平板 (≤1200px)：兩欄 */
+/* 平板/手機：維持三欄，卡片自動縮小 */
 @media (max-width: 1200px) {
-  #content .pc-kpi-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  #content .pc-kpi-card:last-child {
-    grid-column: 1 / -1;
-  }
+  #content .pc-kpi-card { min-height: 68px; padding: 10px 12px 8px; }
+  #content .pc-kpi-card__num { font-size: 22px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { width: 20px; height: 20px; font-size: 11px; }
+  #content .pc-kpi-card__head .ui-kpi-label { font-size: 11px; }
+  #content .pc-kpi-card__foot { font-size: 10px; }
 }
-/* 手機 (≤767px)：單欄 + 縮排 */
 @media (max-width: 767px) {
   .pc-table-wrap { display: none; }
   .pc-cards { display: block; }
@@ -403,12 +401,12 @@
   .pc-filter-bar .pc-field { flex: 1 1 45%; min-width: 0; }
   .pc-page-actions { margin-left: 0; width: 100%; }
   .pc-page-actions .pc-btn { flex: 1; }
-  #content .pc-kpi-row { grid-template-columns: 1fr; gap: 8px; }
-  #content .pc-kpi-card { min-height: 64px; padding: 10px 14px 8px; }
-  #content .pc-kpi-card__head .ui-kpi-icon { width: 20px; height: 20px; font-size: 11px; }
-  #content .pc-kpi-card__head .ui-kpi-label { font-size: 11px; }
-  #content .pc-kpi-card__num { font-size: 22px; }
-  #content .pc-kpi-card__foot { font-size: 10px; }
+  #content .pc-kpi-row { gap: 6px; }
+  #content .pc-kpi-card { min-height: 56px; padding: 8px 10px 6px; }
+  #content .pc-kpi-card__num { font-size: 18px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { width: 18px; height: 18px; font-size: 10px; }
+  #content .pc-kpi-card__head .ui-kpi-label { font-size: 10px; }
+  #content .pc-kpi-card__foot { font-size: 9px; }
 }
 @media (min-width: 768px) {
   .pc-cards { display: none; }

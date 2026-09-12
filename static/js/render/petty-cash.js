@@ -219,7 +219,7 @@ function pcCardHtml(r) {
 // 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
 function pcRowOpsHtml(r) {
   const editBtn = r.can_edit ? `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenReportModal(${r.id})">✏️ 編輯</button>` : '';
-  const delBtn = r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑</button>` : '';
+  const delBtn = r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : '';
   return `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${editBtn}<button class="pc-btn-sm" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${delBtn}`;
 }
 
