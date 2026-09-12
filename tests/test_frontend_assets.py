@@ -398,6 +398,87 @@ def test_petty_cash_frontend_contract():
     assert '@media (max-width: 767px)' in css
 
 
+def test_petty_cash_kpi_grid_layout():
+    """KPI 三欄使用 CSS grid 強制同行（2026-09-12）：repeat(3, minmax(0, 1fr))"""
+    css = read(PETTY_CASH_CSS)
+    assert 'display: grid' in css
+    assert 'repeat(3, minmax(0, 1fr))' in css
+    assert '.pc-kpi-row' in css
+    assert '.pc-kpi-card' in css
+    js = read(PETTY_CASH_RENDER_JS)
+    assert 'pc-kpi-row' in js
+    assert 'pc-kpi-card__head' in js
+    assert 'pc-kpi-card__num' in js
+    assert 'pc-kpi-card__foot' in js
+    # Mobile: maintain 3 columns, only shrink sizes
+    assert '@media (max-width: 1200px)' in css
+    assert '@media (max-width: 767px)' in css
+
+
+def test_petty_cash_delete_button_text():
+    """刪除按鈕包含文字「刪除」（2026-09-12）"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert '🗑 刪除' in js
+
+
+def test_petty_cash_income_expense_button_styling():
+    """收入/支出按鈕有獨立 class + emoji（2026-09-12）"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pc-step--income' in js
+    assert 'pc-step--expense' in js
+    assert '💰' in js
+    assert '💸' in js
+    css = read(PETTY_CASH_CSS)
+    assert 'pc-step--income.active' in css
+    assert 'pc-step--expense.active' in css
+
+
+def test_petty_cash_items_header_columns():
+    """明細項目欄位標題列（2026-09-12）：項目名稱/數量/單位/金額/刪除"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pc-items-header' in js
+    assert '項目名稱' in js
+    assert '數量' in js
+    assert '單位' in js
+    assert '金額' in js
+    assert '刪除' in js
+    css = read(PETTY_CASH_CSS)
+    assert '.pc-items-header' in css
+
+
+def test_petty_cash_desc_optional_with_items():
+    """有明細項目時摘要改非必填（2026-09-12）"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pcUpdateDescRequired' in js
+    assert 'pc-e-desc-req' in js
+    # Validation: desc not required when items exist
+    assert 'hasItems' in js
+    assert '請填摘要（或新增明細項目以取代摘要）' in js
+
+
+def test_petty_cash_entry_date_groups():
+    """收支明細支援日期分組+摺疊（2026-09-12）"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pc-entry-date-group' in js
+    assert 'pc-entry-date-header' in js
+    assert 'pc-entry-date-body' in js
+    assert 'collapsed' in js
+    css = read(PETTY_CASH_CSS)
+    assert '.pc-entry-date-group' in css
+    assert '.pc-entry-date-header' in css
+    assert '.pc-entry-date-group.collapsed' in css
+
+
+def test_petty_cash_detail_table_mobile():
+    """詳細頁收支明細表格手機板不被隱藏（2026-09-12）"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert 'pc-detail-table-wrap' in js
+    css = read(PETTY_CASH_CSS)
+    assert 'pc-detail-table-wrap' in css
+    # Ensure list table is hidden but detail table is not
+    assert '.pc-table-wrap:not(.pc-detail-table-wrap)' in css
+
+
 def test_no_openDrawer_dead_code():
     """openDrawer/submitDrawer 殘留已清除"""
     app = read(APP_JS)
