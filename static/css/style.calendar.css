@@ -171,7 +171,7 @@
 /* ========== Desktop design-spec gap fixes (2026-09-09) ========== */
 @media (min-width: 768px) {
   /* This rule must come after the base .cal-kpi-grid declaration. */
-  .cal-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cal-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cal-month-card, .cal-day-card { box-sizing: border-box; }
 }
 .cal-weekday.cal-weekend { color: #94a3b8; background: #fafcff; }
@@ -251,7 +251,7 @@
   .cal-keyword-field { grid-column: 1 / -1; }
   .cal-header-actions { box-sizing: border-box; grid-column: 1 / -1; width: 100%; height: 40px; }
   .cal-header-btn { min-width: 0; flex: 1; padding-inline: 8px; }
-  .cal-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cal-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cal-kpi-card { min-width: 0; padding: 10px; }
   .cal-kpi-card strong { font-size: 21px; }
   .cal-kpi-label { font-size: 11px; }

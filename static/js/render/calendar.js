@@ -256,11 +256,9 @@ function calFormatKpiDate(date) {
 
 function calRenderKpi() {
   const selectedStr = _iso(calSelected);
-  const selectedCount = calEvents.filter(e => e.date === selectedStr).length;
   const cards = [
     { label: '今日派工', value: calTodayEvents.length, meta: `今日共 ${calTodayEvents.length} 筆派工`, tone: 'blue' },
     { label: '本月派工', value: calEvents.length, meta: `${calMonth.getFullYear()} 年 ${calMonth.getMonth() + 1} 月（共 ${calEvents.length} 筆）`, tone: 'indigo' },
-    { label: '目前日期', value: selectedCount, meta: calFormatKpiDate(calSelected), tone: 'slate' },
   ];
   const el = document.getElementById('cal-kpi-grid');
   if (!el) return;
