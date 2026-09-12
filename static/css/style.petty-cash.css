@@ -461,3 +461,59 @@
 }
 .pc-entry-date-group.collapsed .pc-entry-date-body { display: none; }
 
+
+
+/* 工程零用金：沿一般零用金的兩步 editor，分類與明細採左右分欄 */
+.eng-editor { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; align-items: start; }
+.eng-category-nav { display: flex; flex-direction: column; gap: 7px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+.eng-category-tab { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 8px; padding: 10px; text-align: left; font-weight: 700; cursor: pointer; }
+.eng-category-tab.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
+.eng-detail-pane { min-width: 0; }
+.eng-category-title, .eng-group-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.eng-category-title { margin-bottom: 10px; }
+.eng-category-title input, .eng-group-head input { flex: 1 1 180px; min-height: 44px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-weight: 700; }
+.eng-group-block { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 10px; background: #fff; }
+.eng-receipts { margin-top: 10px; }
+.eng-receipt { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+.eng-receipt-grid { display: grid; grid-template-columns: 1fr 1.5fr 120px; gap: 8px; }
+.eng-detail-row { display: grid; grid-template-columns: 70px minmax(0,1fr) auto; gap: 8px; align-items: center; margin-top: 8px; }
+.eng-detail-row label { font-size: 12px; color: #64748b; font-weight: 700; }
+@media (max-width: 767px) {
+  .eng-editor { grid-template-columns: 1fr; }
+  .eng-category-nav { flex-direction: row; flex-wrap: wrap; }
+  .eng-category-nav strong { width: 100%; }
+  .eng-category-tab { flex: 1 1 120px; }
+  .eng-receipt-grid { grid-template-columns: 1fr; }
+  .eng-detail-row { grid-template-columns: 1fr; gap: 4px; }
+  .eng-detail-row button { justify-self: start; }
+}
+
+/* 工程零用金檢視：清楚區分分類／項目／單據／細項 */
+.pc-status--general { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.pc-status--engineering { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+.eng-guide-card .pc-card__bd { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; color:#475569; }
+.eng-guide-card strong { color:#1e3a5f; }
+.eng-file-label { color:#64748b; font-size:12px; overflow-wrap:anywhere; }
+.eng-category-card .pc-card__hd { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.eng-category-card .pc-card__hd h2 { margin:3px 0 0; }
+.eng-section-kicker { color:#64748b; font-size:11px; letter-spacing:.08em; }
+.eng-subtotal, .eng-group-head strong { color:#1e3a5f; white-space:nowrap; }
+.eng-group-block { margin-bottom:16px; }
+.eng-group-block:last-child { margin-bottom:0; }
+.eng-group-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-bottom:0; border-radius:9px 9px 0 0; }
+.eng-group-head h3 { margin:0; font-size:14px; color:#334155; }
+.eng-detail-table { border-radius:0 0 9px 9px; }
+.eng-detail-table th { background:#f1f5f9; color:#475569; font-size:12px; }
+.eng-detail-table td { vertical-align:top; }
+.eng-detail-cell { min-width:220px; white-space:pre-wrap; }
+.eng-tax-mark { display:inline-flex; min-width:24px; justify-content:center; padding:2px 6px; border-radius:5px; background:#ecfdf5; color:#047857; font-weight:700; }
+.pc-empty-cell { color:#94a3b8; text-align:center; padding:18px !important; }
+@media (max-width:768px) { .eng-category-card .pc-card__hd, .eng-group-head { align-items:flex-start; flex-direction:column; } .eng-detail-table { min-width:620px; } }
+
+/* 一般零用金細項：卡片化輸入，與工程階層編輯保持同一視覺語言 */
+.pc-item-row { padding: 7px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .15s; }
+.pc-item-row:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,.10); }
+.pc-item-row input, .pc-item-row select { border-color: #dbe3ee; border-radius: 7px; background: #f8fafc; }
+.pc-item-row input:focus, .pc-item-row select:focus { background:#fff; border-color:#60a5fa; outline:0; }
+.pc-item-row .pc-btn-sm--danger { width:32px; height:32px; padding:0; border-radius:50%; justify-self:center; }
+@media (max-width:767px) { .pc-item-row { grid-template-columns: minmax(0,1fr) 70px 44px; grid-template-areas: "name name del" "qty unit amount"; gap:6px; } .pc-item-row input[data-k="item_name"] { grid-area:name; } .pc-item-row input[data-k="qty"] { grid-area:qty; } .pc-item-row input[data-k="unit"] { grid-area:unit; } .pc-item-row input[data-k="amount"] { grid-area:amount; } .pc-item-row .pc-btn-sm--danger { grid-area:del; } }

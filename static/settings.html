@@ -160,6 +160,20 @@
   .vb-crumb { margin-left: 10px; font-size: 15px; }
   .vb-crumb a, .vb-crumb .sep { display: none; }
 }
+.pc-option-settings { margin-top: 16px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.pc-option-settings__head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.pc-option-settings__head h5 { margin: 0; color: #1e3a5f; font-size: 15px; }
+.pc-option-settings__head span { color: #94a3b8; font-size: 12px; }
+.pc-option-add { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+.pc-option-add select, .pc-option-add input { min-height: 40px; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; box-sizing: border-box; }
+.pc-option-add input { flex: 1 1 220px; }
+.pc-option-kind { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 10px; margin-top: 8px; }
+.pc-option-kind > b { display: block; font-size: 12px; color: #64748b; margin-bottom: 5px; }
+.pc-option-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid #f1f5f9; }
+.pc-option-row:first-child { border-top: 0; }
+.pc-option-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.pc-option-empty { color: #94a3b8; font-size: 12px; padding: 5px 0; }
+@media (max-width: 768px) { .pc-option-row { align-items: flex-start; flex-direction: column; } .pc-option-row > span:last-child { display: flex; gap: 6px; } }
 </style>
 </head>
 <body>
@@ -185,11 +199,13 @@
   <aside class="side-list" id="settingsSideList">
     <div class="side-item active" data-panel="units" onclick="settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
     <div class="side-item" data-panel="gcal" onclick="settingsSwitch('gcal')"><span class="ic">📅</span><div>行事曆同步<span class="desc">Google 行事曆同步</span></div></div>
+    <div class="side-item" data-panel="petty-cash" onclick="settingsSwitch('petty-cash')"><span class="ic">🪙</span><div>零用金選單<span class="desc">一般／工程分開管理</span></div></div>
     <div class="side-item" data-panel="pw" onclick="settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
   </aside>
   <main class="side-main">
     <div id="panel-units"></div>
     <div id="panel-gcal" style="display:none"></div>
+    <div id="panel-petty-cash" style="display:none"></div>
     <div id="panel-pw" style="display:none">
       <h4>🔑 修改密碼</h4>
       <div class="form-row">

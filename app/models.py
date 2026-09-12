@@ -310,6 +310,7 @@ class PettyCashEntryIn(BaseModel):
 
 class PettyCashReportIn(BaseModel):
     """零用金月報本體（PUT 採全量替換，與 QuotationIn 同模式）。"""
+    report_type: Literal["general"] = "general"
     start_date: str = Field(..., max_length=10)
     end_date: str = Field(..., max_length=10)
     filename_text: str = Field(..., min_length=1, max_length=50)
@@ -327,3 +328,88 @@ class PettyCashReportIn(BaseModel):
         if not value:
             raise ValueError("不可為空白")
         return value
+
+
+class PettyCashOptionIn(BaseModel):
+    report_type: Literal["general", "engineering"]
+    option_type: Literal["category", "group"]
+    name: str = Field(..., min_length=1, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+
+    @field_validator("name")
+    @classmethod
+    def option_name(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("選單名稱不可空白")
+        return value
+
+
+class PettyCashOptionUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    sort_order: Optional[int] = Field(None, ge=0, le=9999)
+    is_active: Optional[bool] = None
+
+class EngineeringReceiptIn(BaseModel):
+    tax_id_mark: str = Field("", max_length=50)
+    receipt_number: str = Field("", max_length=100)
+    amount: float = Field(..., ge=0)
+    details: List[str] = Field(default_factory=list, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+
+    @field_validator("details")
+    @classmethod
+    def validate_details(cls, values):
+        cleaned = []
+        for value in values:
+            value = (value or "").strip()
+            if not value:
+                raise ValueError("細項不可空白")
+            cleaned.append(value)
+        return cleaned
+
+
+class EngineeringGroupIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+    receipts: List[EngineeringReceiptIn] = Field(default_factory=list, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value):
+        value = value.strip()
+        if not value: raise ValueError("項目名稱不可空白")
+        return value
+
+
+class EngineeringCategoryIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+    groups: List[EngineeringGroupIn] = Field(default_factory=list, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value):
+        value = value.strip()
+        if not value: raise ValueError("分類名稱不可空白")
+        return value
+
+
+class EngineeringReportIn(BaseModel):
+    report_type: Literal["engineering"]
+    start_date: str = Field(..., max_length=10)
+    end_date: str = Field(..., max_length=10)
+    upload_person: str = Field(..., min_length=1, max_length=50)
+    prepared_by: str = Field(..., min_length=1, max_length=50)
+    filename_text: str = Field("", max_length=50)
+    status: str = "draft"
+    categories: List[EngineeringCategoryIn] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_report(self):
+        if self.report_type != "engineering": raise ValueError("報表類型錯誤")
+        if self.status not in ("draft", "completed"): raise ValueError("狀態錯誤")
+        self.upload_person = self.upload_person.strip(); self.prepared_by = self.prepared_by.strip()
+        return self
+
+

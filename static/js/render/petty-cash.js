@@ -38,7 +38,7 @@ function _pcPeriodText(r) {
 
 // UI 顯示檔名：零用金-資材08/26~09/25（斜線僅顯示用）
 function _pcFileLabel(r) {
-  return esc('零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date));
+  return esc(r.filename || ('零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date) + '.xlsx'));
 }
 
 // 狀態徽章（固定映射輸出，使用者輸入只決定分支）
@@ -59,7 +59,7 @@ async function renderPettyCash() {
           <p>記錄每月零用金收支，可建立多人員報表並匯出 Excel 交付主管。</p>
         </div>
         <div class="pc-page-actions">
-          <button class="pc-btn pc-btn--primary" onclick="pcOpenReportModal()">＋ 新增零用金月報</button>
+          <button class="pc-btn pc-btn--primary" onclick="pcChooseReportType()">＋ 新增零用金月報</button>
         </div>
       </div>
 
@@ -80,9 +80,9 @@ async function renderPettyCash() {
           <div class="pc-filter-bar">
             <div class="pc-field"><label>報表期間（起）</label><input id="pc-f-from" type="date"></div>
             <div class="pc-field"><label>報表期間（迄）</label><input id="pc-f-to" type="date"></div>
-            <div class="pc-field"><label>上傳人姓名</label><select id="pc-f-person"><option value="">全部</option></select></div>
-            <div class="pc-field"><label>狀態</label><select id="pc-f-status"><option value="">全部</option><option value="draft">草稿</option><option value="completed">已完成</option></select></div>
-            <div class="pc-field pc-field--search"><label>檔名關鍵字</label><input id="pc-f-q" type="text" placeholder="檔名文字 / 上傳人 / 製表人"></div>
+            <div class="pc-field"><label>報表歸屬人</label><select id="pc-f-person"><option value="">全部</option></select></div>
+            <div class="pc-field"><label>報表類型</label><select id="pc-f-type"><option value="">全部</option><option value="general">一般零用金</option><option value="engineering">工程零用金</option></select></div><div class="pc-field"><label>狀態</label><select id="pc-f-status"><option value="">全部</option><option value="draft">草稿</option><option value="completed">已完成</option></select></div>
+            <div class="pc-field pc-field--search"><label>檔名關鍵字</label><input id="pc-f-q" type="text" placeholder="檔名 / 歸屬人 / 製表人"></div>
             <div class="pc-filter-actions">
               <button class="pc-btn pc-btn--primary" onclick="pcLoadHistory(true)">搜尋</button>
               <button class="pc-btn pc-btn--ghost" onclick="pcResetFilter()">清除</button>
@@ -98,7 +98,7 @@ async function renderPettyCash() {
         </div>
         <div class="pc-card__bd" style="padding-top:0">
           <div class="pc-table-wrap"><table class="pc-table">
-            <thead><tr><th>#</th><th>報表期間</th><th>檔名</th><th>上傳人</th><th>製表人</th><th>上期餘額</th><th>本期收入</th><th>本期支出</th><th>期末餘額</th><th>狀態</th><th>操作</th></tr></thead>
+            <thead><tr><th>#</th><th>報表期間</th><th>報表類型</th><th>檔名</th><th>報表歸屬人</th><th>製表人</th><th>金額摘要</th><th>狀態</th><th>操作</th></tr></thead>
             <tbody id="pc-tbody"></tbody>
           </table></div>
           <div class="pc-cards" id="pc-cards"></div>
@@ -148,6 +148,7 @@ async function pcLoadHistory(resetPage) {
     end_date: document.getElementById('pc-f-to').value || '',
     upload_person: document.getElementById('pc-f-person').value || '',
     status: document.getElementById('pc-f-status').value || '',
+    report_type: document.getElementById('pc-f-type').value || '',
     search: document.getElementById('pc-f-q').value.trim(),
     page: pcPage, page_size: pcPageSize
   });
@@ -185,17 +186,16 @@ function pcRenderTable() {
 
 // desktop 列（金額欄皆為格式化數字字串，使用者文字皆 esc）
 function pcDesktopRowHtml(r, idx) {
+  if (r.report_type === 'engineering') return engDesktopRowHtml(r, idx);
   const ops = pcRowOpsHtml(r);
   return `<tr>
     <td>${esc(pcPageSize * (pcPage - 1) + idx + 1)}</td>
-    <td style="white-space:nowrap">${_pcPeriodText(r)}</td>
+    <td>${_pcPeriodText(r)}</td>
+    <td><span class="pc-status pc-status--general">一般零用金</span></td>
     <td>${_pcFileLabel(r)}</td>
     <td>${esc(r.upload_person)}</td>
     <td>${esc(r.prepared_by)}</td>
-    <td class="pc-num">${esc(_pcMoney(r.opening_balance))}</td>
-    <td class="pc-num pc-kpi-income">${esc(_pcMoney(r.income))}</td>
-    <td class="pc-num pc-kpi-expense">${esc(_pcMoney(r.expense))}</td>
-    <td class="pc-num pc-kpi-balance"><strong>${esc(_pcMoney(r.closing_balance))}</strong></td>
+    <td class="pc-num"><strong>期末餘額 $${esc(_pcMoney(r.closing_balance))}</strong></td>
     <td>${pcStatusBadge(r.status)}</td>
     <td><div class="pc-row-actions">${ops}</div></td>
   </tr>`;
@@ -203,6 +203,7 @@ function pcDesktopRowHtml(r, idx) {
 
 // mobile 卡（期末餘額為重要視覺資訊）
 function pcCardHtml(r) {
+  if (r.report_type === 'engineering') return engCardHtml(r);
   const ops = pcRowOpsHtml(r);
   return `<div class="pc-report-card" onclick="pcOpenDetail(${r.id})">
     <div class="pc-report-card__top">
@@ -232,6 +233,7 @@ async function pcUpdateKPI() {
     end_date: document.getElementById('pc-f-to').value || '',
     upload_person: document.getElementById('pc-f-person').value || '',
     status: document.getElementById('pc-f-status').value || '',
+    report_type: document.getElementById('pc-f-type').value || '',
     search: document.getElementById('pc-f-q').value.trim()
   });
   try {
@@ -299,12 +301,13 @@ async function pcOpenDetail(id) {
 
 // 明細檢視頁（4 KPI + 明細 table，多項目以 rowspan 合併）
 function pcRenderDetail() {
+  if (pcDetail.report_type === 'engineering') return engRenderDetail();
   const el = document.getElementById('content');
   const r = pcDetail;
   const t = r.totals;
   const canEdit = !!r.can_edit;
   const rowsHtml = pcDetailRowsHtml(r.entries);
-  const fileLabel = '零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date);
+  const fileLabel = r.filename || ('零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date) + '.xlsx');
   el.innerHTML = `
     <div class="pc-wrap">
       <div class="pc-page-header">
@@ -391,4 +394,37 @@ async function pcDelete(id, backToList) {
     if (backToList) renderPettyCash();
     else pcLoadHistory();
   } else toast('⚠️ ' + (data.detail || '刪除失敗'));
+}
+
+function engDesktopRowHtml(r, idx) {
+  const ops = `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${r.can_edit ? `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenEngineeringModal(${r.id})">✏️ 編輯</button>` : ''}<button class="pc-btn-sm" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : ''}`;
+  return `<tr><td>${esc(idx + 1)}</td><td>${_pcPeriodText(r)}</td><td><span class="pc-status pc-status--engineering">工程零用金</span></td><td>${esc(r.filename || r.filename_text || '')}</td><td>${esc(r.upload_person)}</td><td>${esc(r.prepared_by)}</td><td class="pc-num"><strong>總計 $${esc(_pcMoney(r.total_amount))}</strong></td><td>${pcStatusBadge(r.status)}</td><td><div class="pc-row-actions">${ops}</div></td></tr>`;
+}
+function engCardHtml(r) {
+  const ops = `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${r.can_edit ? `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenEngineeringModal(${r.id})">✏️ 編輯</button>` : ''}<button class="pc-btn-sm" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : ''}`;
+  return `<div class="pc-report-card" onclick="pcOpenDetail(${r.id})"><div class="pc-report-card__top"><span class="pc-report-card__period">${_pcPeriodText(r)}</span>${pcStatusBadge(r.status)}</div><div class="pc-report-card__file"><span class="pc-status pc-status--engineering">工程零用金</span> ${esc(r.filename || r.filename_text || '')}</div><div class="pc-report-card__meta">報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div><div class="pc-report-card__balance">總計 $${esc(_pcMoney(r.total_amount))}</div><div class="pc-row-actions" style="margin-top:8px">${ops}</div></div>`;
+}
+
+function engReceiptRows(g) {
+  let seq = 0;
+  return (g.receipts || []).map(q => {
+    const details = q.details && q.details.length ? q.details : ['— 此單據尚未填寫細項'];
+    const n = details.length;
+    return details.map((detail, i) => {
+      seq += 1;
+      const receiptCells = i === 0 ? `<td rowspan="${n}"><span class="eng-tax-mark">${esc(q.tax_id_mark || '—')}</span></td><td rowspan="${n}">${esc(q.receipt_number || '—')}</td><td rowspan="${n}" class="pc-num"><strong>$${esc(_pcMoney(q.amount))}</strong></td>` : '';
+      return `<tr><td>${seq}</td>${receiptCells}<td class="eng-detail-cell">${esc(detail)}</td></tr>`;
+    }).join('');
+  }).join('');
+}
+function engGroupHtml(g) {
+  return `<section class="eng-group-block"><div class="eng-group-head"><h3>${esc(g.name)}</h3><strong>項目小計 $${esc(_pcMoney(g.subtotal))}</strong></div><div class="pc-table-wrap"><table class="pc-table eng-detail-table"><thead><tr><th>#</th><th>統編</th><th>發票號碼／收據</th><th>細項</th><th>單據金額</th></tr></thead><tbody>${engReceiptRows(g) || '<tr><td colspan="5" class="pc-empty-cell">尚無單據</td></tr>'}</tbody></table></div></section>`;
+}
+function engRenderDetail() {
+  const r = pcDetail;
+  const cats = r.categories || [];
+  const totalReceipts = cats.reduce((n,c) => n + (c.groups || []).reduce((m,g) => m + (g.receipts || []).length, 0), 0);
+  const canEdit = !!r.can_edit;
+  const categoryHtml = cats.map(c => `<section class="pc-card eng-category-card"><div class="pc-card__hd"><div><span class="eng-section-kicker">分類</span><h2>${esc(c.name)}</h2></div><strong class="eng-subtotal">分類小計 $${esc(_pcMoney(c.subtotal))}</strong></div><div class="pc-card__bd">${(c.groups || []).map(engGroupHtml).join('') || '<div class="pc-empty-cell">此分類尚無項目</div>'}</div></section>`).join('');
+  document.getElementById('content').innerHTML = `<div class="pc-wrap"><div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${_pcPeriodText(r)} <span class="pc-status pc-status--engineering">工程零用金</span></h1><p>報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</p><p class="eng-file-label">${esc(r.filename || '')}</p></div><div class="pc-page-actions"><button class="pc-btn pc-btn--ghost" onclick="renderPettyCash()">← 返回列表</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="pcOpenEngineeringModal(${r.id})">✏️ 編輯</button>` : ''}<button class="pc-btn pc-btn--primary" onclick="pcExport(${r.id})">⬇️ 匯出</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="pcDelete(${r.id}, true)">🗑 刪除</button>` : ''}</div></div><section class="pc-card eng-guide-card"><div class="pc-card__bd"><strong>如何閱讀這份工程零用金？</strong><span>分類是費用大類；項目是分類下的用途；一列單據可對應多個細項，單據金額只計算一次。</span></div></section><section class="pc-card"><div class="pc-card__bd"><div class="pc-kpi-row ui-kpi-grid"><div class="pc-kpi-card ui-kpi-card"><div class="ui-kpi-label">總分類數</div><div class="ui-kpi-value pc-kpi-blue">${cats.length}</div></div><div class="pc-kpi-card ui-kpi-card"><div class="ui-kpi-label">總單據數</div><div class="ui-kpi-value pc-kpi-blue">${totalReceipts}</div></div><div class="pc-kpi-card ui-kpi-card"><div class="ui-kpi-label">工程零用金總計</div><div class="ui-kpi-value pc-kpi-balance">$${esc(_pcMoney(r.total_amount))}</div></div></div></div></section>${categoryHtml || '<div class="pc-empty">尚未建立任何分類<br><small>請按「編輯」新增第一個分類</small></div>'}</div>`;
 }

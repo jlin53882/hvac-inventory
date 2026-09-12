@@ -15,11 +15,15 @@
 上傳人（upload_person）是報表主體，可與登入者不同，不綁死。
 """
 import datetime
+import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.database import get_db
-from app.models import PettyCashReportIn
+from app.models import EngineeringReportIn, PettyCashOptionIn, PettyCashOptionUpdate, PettyCashReportIn
+from app.services.engineering_petty_cash import (
+    _engineering_row, build_engineering_report, engineering_safe_filename, write_engineering,
+)
 from app.services.auth import require_login
 from app.services.petty_cash_report import build_petty_cash_report, download_filename
 from app.services.safety import excel_safe, has_perm, parse_ymd, safe_download_name, xlsx_download
@@ -71,6 +75,10 @@ def _report_dict(conn, report_id: int) -> dict:
     row = conn.execute("SELECT * FROM petty_cash_reports WHERE id=?", (report_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "零用金月報不存在")
+    if row["report_type"] == "engineering":
+        data = _engineering_row(conn, report_id)
+        data["can_edit"] = False
+        return data
     entry_rows = conn.execute(
         "SELECT * FROM petty_cash_entries WHERE report_id=? ORDER BY entry_date, sort_order, id",
         (report_id,),
@@ -92,9 +100,11 @@ def _report_dict(conn, report_id: int) -> dict:
     totals = _totals(row["opening_balance"], entries)
     return {
         "id": row["id"],
+        "report_type": "general",
         "start_date": row["start_date"],
         "end_date": row["end_date"],
         "filename_text": row["filename_text"],
+        "filename": download_filename(row["filename_text"], row["start_date"], row["end_date"]),
         "upload_person": row["upload_person"],
         "uploader_user_id": row["uploader_user_id"],
         "prepared_by": row["prepared_by"],
@@ -110,6 +120,9 @@ def _report_dict(conn, report_id: int) -> dict:
 
 
 def _summary_dict(conn, row) -> dict:
+    if row["report_type"] == "engineering":
+        data = _engineering_row(conn, row["id"])
+        return {"id": row["id"], "report_type": "engineering", "start_date": row["start_date"], "end_date": row["end_date"], "filename_text": row["filename_text"] or "", "filename": data["filename"], "upload_person": row["upload_person"], "prepared_by": row["prepared_by"], "total_amount": float(data["total_amount"]), "status": row["status"], "created_at": row["created_at"], "updated_at": row["updated_at"]}
     sums = conn.execute(
         """SELECT
                COALESCE(SUM(CASE WHEN entry_type='income' THEN amount ELSE 0 END), 0) AS income,
@@ -123,9 +136,11 @@ def _summary_dict(conn, row) -> dict:
     ])
     return {
         "id": row["id"],
+        "report_type": row["report_type"] or "general",
         "start_date": row["start_date"],
         "end_date": row["end_date"],
         "filename_text": row["filename_text"],
+        "filename": download_filename(row["filename_text"], row["start_date"], row["end_date"]),
         "upload_person": row["upload_person"],
         "prepared_by": row["prepared_by"],
         "opening_balance": totals["opening_balance"],
@@ -228,6 +243,7 @@ def _filters(
     upload_person: str = Query("", description="上傳人（完全比對）"),
     status: str = Query("", description="draft / completed"),
     search: str = Query("", description="關鍵字：檔名文字/上傳人/製表人"),
+    report_type: str = Query("", description="general / engineering"),
 ):
     if start_date:
         parse_ymd(start_date, "開始日期")
@@ -235,6 +251,8 @@ def _filters(
         parse_ymd(end_date, "結束日期")
     if status and status not in ("draft", "completed"):
         raise HTTPException(400, "狀態僅允許 draft / completed")
+    if report_type and report_type not in ("general", "engineering"):
+        raise HTTPException(400, "報表類型僅允許 general / engineering")
     where, params = [], []
     if start_date and end_date:
         where.append("NOT (end_date < ? OR start_date > ?)")
@@ -248,6 +266,9 @@ def _filters(
     if upload_person:
         where.append("upload_person = ?")
         params.append(upload_person.strip())
+    if report_type:
+        where.append("report_type = ?")
+        params.append(report_type)
     if status:
         where.append("status = ?")
         params.append(status)
@@ -257,6 +278,78 @@ def _filters(
         like = f"%{search}%"
         params.extend([like, like, like])
     return ("WHERE " + " AND ".join(where)) if where else "", params
+
+
+def _require_pc_perm(conn, user, key):
+    if not has_perm(conn, user, key):
+        raise HTTPException(403, "沒有此零用金月報權限")
+
+
+def _validate_option_filters(report_type, option_type):
+    if report_type not in ("general", "engineering"):
+        raise HTTPException(400, "報表類型僅允許 general / engineering")
+    if option_type not in ("category", "group"):
+        raise HTTPException(400, "選單類型僅允許 category / group")
+
+
+@router.get("/api/petty-cash-options")
+def list_petty_cash_options(
+    report_type: str = Query(...), option_type: str = Query(...), user: dict = Depends(require_login)
+):
+    conn = get_db()
+    try:
+        _require_pc_perm(conn, user, "petty-cash-view")
+        _validate_option_filters(report_type, option_type)
+        rows = conn.execute("SELECT id, report_type, option_type, name, sort_order, is_active FROM petty_cash_master_options WHERE report_type=? AND option_type=? ORDER BY sort_order,id", (report_type, option_type)).fetchall()
+        return {"items": [dict(row) for row in rows]}
+    finally:
+        conn.close()
+
+
+@router.post("/api/petty-cash-options", status_code=201)
+def create_petty_cash_option(body: PettyCashOptionIn, user: dict = Depends(require_login)):
+    conn = get_db()
+    try:
+        _require_pc_perm(conn, user, "petty-cash-config")
+        try:
+            cur = conn.execute("INSERT INTO petty_cash_master_options(report_type,option_type,name,sort_order) VALUES(?,?,?,?)", (body.report_type,body.option_type,body.name,body.sort_order))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.rollback(); raise HTTPException(409, "已存在相同的零用金選單項目")
+        return dict(conn.execute("SELECT id,report_type,option_type,name,sort_order,is_active FROM petty_cash_master_options WHERE id=?", (cur.lastrowid,)).fetchone())
+    finally:
+        conn.close()
+
+
+@router.put("/api/petty-cash-options/{option_id}")
+def update_petty_cash_option(option_id: int, body: PettyCashOptionUpdate, user: dict = Depends(require_login)):
+    conn = get_db()
+    try:
+        _require_pc_perm(conn, user, "petty-cash-config")
+        row = conn.execute("SELECT * FROM petty_cash_master_options WHERE id=?", (option_id,)).fetchone()
+        if row is None: raise HTTPException(404, "零用金選單不存在")
+        fields=[]; params=[]
+        for key in ("name","sort_order","is_active"):
+            value=getattr(body,key)
+            if value is not None: fields.append(f"{key}=?"); params.append(value)
+        if fields:
+            params.append(option_id)
+            try: conn.execute(f"UPDATE petty_cash_master_options SET {','.join(fields)},updated_at=datetime('now') WHERE id=?", params); conn.commit()
+            except sqlite3.IntegrityError: conn.rollback(); raise HTTPException(409, "已存在相同的零用金選單項目")
+        return dict(conn.execute("SELECT id,report_type,option_type,name,sort_order,is_active FROM petty_cash_master_options WHERE id=?", (option_id,)).fetchone())
+    finally:
+        conn.close()
+
+
+@router.delete("/api/petty-cash-options/{option_id}")
+def delete_petty_cash_option(option_id: int, user: dict = Depends(require_login)):
+    conn = get_db()
+    try:
+        _require_pc_perm(conn, user, "petty-cash-config")
+        if conn.execute("DELETE FROM petty_cash_master_options WHERE id=?", (option_id,)).rowcount == 0: raise HTTPException(404, "零用金選單不存在")
+        conn.commit(); return {"ok": True, "deleted": option_id}
+    finally:
+        conn.close()
 
 
 @router.get("/api/petty-cash/kpi")
@@ -270,6 +363,7 @@ def petty_cash_kpi(
     sql_where, params = filters
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-view")
         row = conn.execute(
             f"""SELECT COUNT(*) AS total,
                         COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END), 0) AS completed,
@@ -289,6 +383,7 @@ def petty_cash_persons(user: dict = Depends(require_login)):
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-view")
         names = set()
         for r in conn.execute("SELECT DISTINCT upload_person FROM petty_cash_reports").fetchall():
             if (r["upload_person"] or "").strip():
@@ -313,6 +408,7 @@ def previous_balance(
     before = parse_ymd(before, "開始日期")
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-view")
         income_expr = "COALESCE((SELECT SUM(amount) FROM petty_cash_entries WHERE report_id=r.id AND entry_type='income'), 0)"
         expense_expr = "COALESCE((SELECT SUM(amount) FROM petty_cash_entries WHERE report_id=r.id AND entry_type!='income'), 0)"
         prev = conn.execute(
@@ -350,6 +446,7 @@ def list_petty_cash_reports(
     sql_where, params = filters
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-view")
         total = conn.execute(
             f"SELECT COUNT(*) FROM petty_cash_reports {sql_where}", params
         ).fetchone()[0]
@@ -372,17 +469,24 @@ def list_petty_cash_reports(
 
 
 @router.post("/api/petty-cash-reports", status_code=201)
-def create_petty_cash_report(body: PettyCashReportIn, user: dict = Depends(require_login)):
+def create_petty_cash_report(body: PettyCashReportIn | EngineeringReportIn, user: dict = Depends(require_login)):
     if user is None:
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
-        report_id = _write_report(conn, body, user["id"])
+        _require_pc_perm(conn, user, "petty-cash-create")
+        if isinstance(body, EngineeringReportIn):
+            report_id = write_engineering(conn, body, user["id"])
+        else:
+            report_id = _write_report(conn, body, user["id"])
         conn.commit()
         return _report_dict(conn, report_id)
     except HTTPException:
         conn.rollback()
         raise
+    except (ValueError, KeyError) as exc:
+        conn.rollback()
+        raise HTTPException(400 if isinstance(exc, ValueError) else 404, str(exc))
     except Exception:
         conn.rollback()
         raise
@@ -396,6 +500,7 @@ def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-view")
         data = _report_dict(conn, report_id)
         row = conn.execute(
             "SELECT uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
@@ -412,12 +517,13 @@ def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
 
 @router.put("/api/petty-cash-reports/{report_id}")
 def update_petty_cash_report(
-    report_id: int, body: PettyCashReportIn, user: dict = Depends(require_login)
+    report_id: int, body: PettyCashReportIn | EngineeringReportIn, user: dict = Depends(require_login)
 ):
     if user is None:
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-edit")
         row = conn.execute(
             "SELECT uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
             (report_id,),
@@ -429,7 +535,10 @@ def update_petty_cash_report(
             can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
         ):
             raise HTTPException(403, "僅建立者或具全域刪除權限者可編輯")
-        _write_report(conn, body, user["id"], report_id)
+        if isinstance(body, EngineeringReportIn):
+            write_engineering(conn, body, user["id"], report_id)
+        else:
+            _write_report(conn, body, user["id"], report_id)
         conn.commit()
         return _report_dict(conn, report_id)
     except HTTPException:
@@ -448,6 +557,7 @@ def delete_petty_cash_report(report_id: int, user: dict = Depends(require_login)
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-delete")
         row = conn.execute(
             "SELECT uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
             (report_id,),
@@ -478,8 +588,9 @@ def export_petty_cash_report(report_id: int, user: dict = Depends(require_login)
         raise HTTPException(401, "未登入")
     conn = get_db()
     try:
+        _require_pc_perm(conn, user, "petty-cash-view")
         data = _report_dict(conn, report_id)
-        buf = build_petty_cash_report(data)
+        buf = build_engineering_report(data) if data.get("report_type") == "engineering" else build_petty_cash_report(data)
         conn.execute(
             "UPDATE petty_cash_reports SET last_exported_at=? WHERE id=?",
             (datetime.datetime.now().isoformat(), report_id),
@@ -487,6 +598,6 @@ def export_petty_cash_report(report_id: int, user: dict = Depends(require_login)
         conn.commit()
     finally:
         conn.close()
-    raw_name = download_filename(data["filename_text"], data["start_date"], data["end_date"])
-    filename = safe_download_name(excel_safe(raw_name))
+    raw_name = data.get("filename") if data.get("report_type") == "engineering" else download_filename(data["filename_text"], data["start_date"], data["end_date"])
+    filename = engineering_safe_filename(raw_name) if data.get("report_type") == "engineering" else safe_download_name(excel_safe(raw_name))
     return xlsx_download(buf.getvalue(), filename)

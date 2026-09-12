@@ -340,6 +340,7 @@ def _exec_init(conn):
     -- 零用金月報（2026-09-12：report / entry / entry_item 三層獨立，與簽名報表不共用資料）
     CREATE TABLE IF NOT EXISTS petty_cash_reports (
         id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_type             TEXT NOT NULL DEFAULT 'general',
         start_date              TEXT NOT NULL,
         end_date                TEXT NOT NULL,
         filename_text           TEXT NOT NULL DEFAULT '',
@@ -376,13 +377,51 @@ def _exec_init(conn):
         sort_order  INTEGER NOT NULL DEFAULT 0,
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS petty_cash_master_options (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_type TEXT NOT NULL CHECK(report_type IN ('general','engineering')),
+        option_type TEXT NOT NULL CHECK(option_type IN ('category','group')),
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(report_type, option_type, name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_petty_cash_options_lookup
+        ON petty_cash_master_options(report_type, option_type, is_active, sort_order);
     CREATE INDEX IF NOT EXISTS idx_petty_cash_reports_person ON petty_cash_reports(upload_person);
     CREATE INDEX IF NOT EXISTS idx_petty_cash_reports_dates ON petty_cash_reports(start_date, end_date);
     CREATE INDEX IF NOT EXISTS idx_petty_cash_reports_status ON petty_cash_reports(status);
     CREATE INDEX IF NOT EXISTS idx_petty_cash_entries_report ON petty_cash_entries(report_id);
     CREATE INDEX IF NOT EXISTS idx_petty_cash_entries_date ON petty_cash_entries(entry_date);
     CREATE INDEX IF NOT EXISTS idx_petty_cash_items_entry ON petty_cash_entry_items(entry_id);
+    CREATE TABLE IF NOT EXISTS engineering_expense_categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, report_id INTEGER NOT NULL REFERENCES petty_cash_reports(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS engineering_expense_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, category_id INTEGER NOT NULL REFERENCES engineering_expense_categories(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS engineering_expense_receipts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES engineering_expense_groups(id) ON DELETE CASCADE,
+        tax_id_mark TEXT NOT NULL DEFAULT '', receipt_number TEXT NOT NULL DEFAULT '', amount NUMERIC NOT NULL DEFAULT 0, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS engineering_expense_details (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, receipt_id INTEGER NOT NULL REFERENCES engineering_expense_receipts(id) ON DELETE CASCADE,
+        description TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_engineering_categories_report ON engineering_expense_categories(report_id);
+    CREATE INDEX IF NOT EXISTS idx_engineering_groups_category ON engineering_expense_groups(category_id);
+    CREATE INDEX IF NOT EXISTS idx_engineering_receipts_group ON engineering_expense_receipts(group_id);
+    CREATE INDEX IF NOT EXISTS idx_engineering_details_receipt ON engineering_expense_details(receipt_id);
     """);
+
+    petty_cols = [r[1] for r in conn.execute("PRAGMA table_info(petty_cash_reports)").fetchall()]
+    if "report_type" not in petty_cols:
+        conn.execute("ALTER TABLE petty_cash_reports ADD COLUMN report_type TEXT NOT NULL DEFAULT 'general'")
+        logger.info("[migrate] petty_cash_reports.report_type 已新增，既有資料設為 general")
 
     # 舊資料庫遷移（v10 前）：items 若有 qty/location/note 欄位 → 需跑 scripts/migrate_v10.py
     item_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
@@ -547,7 +586,12 @@ def _exec_init(conn):
         ('user-mgmt',            '使用者管理',           'system'),
         ('change-own-password',  '自行改密碼',           'system'),
         ('signed-report-delete-all', '簽名報表 全域刪除', 'calendar'),
-        ('petty-cash-delete-all', '零用金月報 全域刪除', 'calendar');
+        ('petty-cash-delete-all', '零用金月報 全域刪除', 'calendar'),
+        ('petty-cash-view', '零用金月報 檢視', 'calendar'),
+        ('petty-cash-create', '零用金月報 新增', 'calendar'),
+        ('petty-cash-edit', '零用金月報 編輯', 'calendar'),
+        ('petty-cash-delete', '零用金月報 刪除本人', 'calendar'),
+        ('petty-cash-config', '零用金下拉選單管理', 'calendar');
     """)
     # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
     _RBAC_DEFAULT = {
@@ -574,6 +618,11 @@ def _exec_init(conn):
         'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'signed-report-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'petty-cash-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'petty-cash-create': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+        'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     }
     _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
     _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}

@@ -131,6 +131,9 @@ REVIEWED_SAFE_BODIES = {
     # card.js 共用元件參數（呼叫端傳入已消毒 HTML）
     "p.moreBtnHTML || ''", "p.nameHTML", "p.thumb", "p.actionsHTML || ''",
     "p.extraHTML || ''", "p.qtyHTML",
+    # 工程／一般零用金：helper 內部對使用者資料已 esc，回傳固定 HTML 結構
+    "engOptionSelect('category', c.name)", "engOptionSelect('group', g.name)", "pcGeneralCategoryOptions(src.category || '')",
+    "seq", "receiptCells", "totalReceipts",
     # 含 esc 的組合內插
     "i.code ? ' · ' + esc(i.code) : ''", "sel ? esc(sel.brand) + ' ' + esc(sel.name) : ''",
     "s.note ? ' · 📝 ' + esc(s.note) : ''",

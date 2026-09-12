@@ -8,6 +8,21 @@ var pcOpeningSource = 'manual';
 var pcEntryEditIndex = -1;
 var pcEntryType = 'expense';
 var pcEntryItemDraft = [];
+var pcGeneralOptions = { category: [] };
+
+function pcGeneralCategoryOptions(value) {
+  const current = String(value || '');
+  const known = pcGeneralOptions.category || [];
+  const extra = current && !known.some(o => o.name === current) ? `<option value="${esc(current)}" selected>${esc(current)}（歷史／自訂）</option>` : '';
+  return `<option value="">— 請選擇或輸入自訂科目 —</option>${known.map(o => `<option value="${esc(o.name)}"${o.name === current ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}${extra}<option value="__custom__">＋ 自訂科目…</option>`;
+}
+function pcGeneralCategoryChanged(select) {
+  if (select.value !== '__custom__') return;
+  const value = prompt('請輸入自訂科目名稱', '') || '';
+  if (!value.trim()) { select.selectedIndex = 0; return; }
+  const option = document.createElement('option'); option.value = value.trim(); option.textContent = value.trim() + '（自訂）'; option.selected = true;
+  select.insertBefore(option, select.lastElementChild);
+}
 
 // 開啟新增/編輯月報 modal（id 缺省 = 新增）
 async function pcOpenReportModal(id) {
@@ -21,6 +36,10 @@ async function pcOpenReportModal(id) {
     prepared_by: '', opening_balance: 0, opening_balance_source: 'manual',
     status: 'draft', entries: []
   };
+  try {
+    const optionRes = await fetch('/api/petty-cash-options?report_type=general&option_type=category');
+    if (optionRes.ok) pcGeneralOptions.category = (await optionRes.json()).items || [];
+  } catch (e) { /* 選單載入失敗仍允許輸入自訂科目 */ }
   if (id) {
     try {
       const res = await fetch('/api/petty-cash-reports/' + id);
@@ -280,7 +299,7 @@ function pcOpenEntryModal(idx) {
           </div>
           <div class="pc-form-grid pc-form-grid--two">
             <div class="pc-field"><label>日期 <span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
-            <div class="pc-field"><label>科目</label><input id="pc-e-category" type="text" placeholder="例：五金" value="${esc(src.category || '')}"></div>
+            <div class="pc-field"><label>科目</label><select id="pc-e-category" onchange="pcGeneralCategoryChanged(this)">${pcGeneralCategoryOptions(src.category || '')}</select></div>
           </div>
           <div class="pc-field" style="margin-top:10px"><label>摘要 <span class="pc-required" id="pc-e-desc-req">*</span></label><input id="pc-e-desc" type="text" placeholder="例：零用金 / 畚箕 ×1" value="${esc(src.description || '')}"></div>
           <div class="pc-field" style="margin-top:10px"><label>總金額 <span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" oninput="pcEntryAmountHint()"></div>

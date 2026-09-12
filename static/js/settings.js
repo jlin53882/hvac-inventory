@@ -4,7 +4,62 @@
 var orphanItems = [];
 var orphanLoadFailed = false;
 
-// ========== GCal 同步設定 ==========
+// ========== 零用金下拉選單管理（general / engineering 分離） ==========
+var pettyOptionCache = { general: { category: [], group: [] }, engineering: { category: [], group: [] } };
+async function loadPettyOptions() {
+  for (const type of ['general', 'engineering']) {
+    for (const kind of ['category', 'group']) {
+      const res = await fetch('/api/petty-cash-options?report_type=' + type + '&option_type=' + kind);
+      if (res.ok) pettyOptionCache[type][kind] = (await res.json()).items || [];
+    }
+  }
+}
+function renderPettyOptionsPanel() {
+  const can = hasPerm('petty-cash-config');
+  const panel = document.getElementById('panel-petty-cash');
+  if (!panel) return;
+  let html = '<h4>🪙 零用金下拉選單</h4><p style="font-size:12.5px;color:#64748b">一般零用金與工程零用金分開管理，編輯報表時可直接選用。</p>';
+  for (const type of ['general', 'engineering']) {
+    const label = type === 'general' ? '一般零用金' : '工程零用金';
+    html += '<section class="pc-option-settings"><div class="pc-option-settings__head"><h5>' + label + '</h5><span>資料不與另一報表類型共用</span></div>';
+    if (can) html += '<div class="pc-option-add"><select id="pc-opt-kind-' + type + '"><option value="category">分類</option><option value="group">項目</option></select><input id="pc-opt-name-' + type + '" maxlength="100" placeholder="輸入要加入的名稱"><button class="btn-primary" onclick="createPettyOption(\'' + type + '\')">＋ 新增</button></div>';
+    for (const kind of ['category', 'group']) {
+      html += '<div class="pc-option-kind"><b>' + (kind === 'category' ? '分類選項' : '項目選項') + '</b><div class="pc-option-list">';
+      const items = pettyOptionCache[type][kind] || [];
+      html += items.length ? items.map(o => '<div class="pc-option-row"><span>' + esc(o.name) + (o.is_active ? '' : ' <small>（停用）</small>') + '</span>' + (can ? '<span><button class="pc-btn-sm" onclick="renamePettyOption(' + o.id + ',\'' + type + '\',\'' + kind + '\')">編輯</button><button class="pc-btn-sm pc-btn-sm--danger" onclick="deletePettyOption(' + o.id + ',\'' + type + '\',\'' + kind + '\')">刪除</button></span>' : '') + '</div>').join('') : '<div class="pc-option-empty">尚未設定選項</div>';
+      html += '</div></div>';
+    }
+    html += '</section>';
+  }
+  panel.innerHTML = html;
+}
+async function createPettyOption(type) {
+  const kind = document.getElementById('pc-opt-kind-' + type).value;
+  const input = document.getElementById('pc-opt-name-' + type);
+  const name = input.value.trim();
+  if (!name) return toast('請輸入選單名稱', 'error');
+  const res = await fetch('/api/petty-cash-options', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_type:type, option_type:kind, name:name, sort_order:pettyOptionCache[type][kind].length}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return toast(data.detail || '新增失敗', 'error');
+  await loadPettyOptions(); renderPettyOptionsPanel(); toast('✅ 已新增', 'success');
+}
+async function renamePettyOption(id, type, kind) {
+  const old = (pettyOptionCache[type][kind].find(o => o.id === id) || {}).name || '';
+  const name = prompt('請輸入新的選單名稱', old);
+  if (name === null || !name.trim()) return;
+  const res = await fetch('/api/petty-cash-options/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name.trim()}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return toast(data.detail || '修改失敗', 'error');
+  await loadPettyOptions(); renderPettyOptionsPanel();
+}
+async function deletePettyOption(id, type, kind) {
+  if (!confirm('確定刪除此下拉選單項目？')) return;
+  const res = await fetch('/api/petty-cash-options/' + id, { method:'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return toast(data.detail || '刪除失敗', 'error');
+  await loadPettyOptions(); renderPettyOptionsPanel();
+}
+
 var gcalKeys = [];
 var gcalUsers = [];
 var gcalSettings = {};
@@ -18,11 +73,14 @@ function settingsSwitch(panel) {
     el.classList.toggle('active', el.dataset.panel === panel));
   const showUnits = panel === 'units';
   const showGcal = panel === 'gcal';
+  const showPetty = panel === 'petty-cash';
   document.getElementById('panel-units').style.display = showUnits ? '' : 'none';
   document.getElementById('panel-gcal').style.display = showGcal ? '' : 'none';
-  document.getElementById('panel-pw').style.display = (!showUnits && !showGcal) ? '' : 'none';
+  document.getElementById('panel-petty-cash').style.display = showPetty ? '' : 'none';
+  document.getElementById('panel-pw').style.display = (!showUnits && !showGcal && !showPetty) ? '' : 'none';
   if (showUnits) renderUnitsPanel();
   if (showGcal) renderGcalPanel();
+  if (showPetty) renderPettyOptionsPanel();
 }
 
 // ========== 單位管理面板 ==========
@@ -622,8 +680,13 @@ async function bindGcalUser(userId, keyName) {
   const user = await checkAuth();
   if (!user) return;
   const canUnits = hasPerm('unit-mgmt');
+  const canPettyOptions = hasPerm('petty-cash-config');
   if (!canUnits) {
     const item = document.querySelector('#settingsSideList .side-item[data-panel="units"]');
+    if (item) item.style.display = 'none';
+  }
+  if (!canPettyOptions) {
+    const item = document.querySelector('#settingsSideList .side-item[data-panel="petty-cash"]');
     if (item) item.style.display = 'none';
   }
   const chipBar = document.getElementById('settingsChipBar');
@@ -631,13 +694,14 @@ async function bindGcalUser(userId, keyName) {
     chipBar.innerHTML = [
       ['units', '📦 單位管理'],
       ['gcal', '📅 行事曆同步'],
+      ['petty-cash', '🪙 零用金選單'],
       ['pw', '🔑 修改密碼']
-    ].filter(([p]) => p !== 'units' || canUnits)
+    ].filter(([p]) => (p !== 'units' || canUnits) && (p !== 'petty-cash' || canPettyOptions))
      .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
-  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings()]);
+  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings(), loadPettyOptions()]);
   // 預選第一個 key
   if (gcalKeys.length && !selectedKeyId) selectedKeyId = gcalKeys[0].id;
-  settingsSwitch(canUnits ? 'units' : 'pw');
+  settingsSwitch(canUnits ? 'units' : canPettyOptions ? 'petty-cash' : 'pw');
 })();
