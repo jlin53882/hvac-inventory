@@ -54,8 +54,11 @@ function buildQtyControl(opts) {
 }
 
 // 純數量顯示（待領出 qty-violet / 已領出 qty-neg）
+// 2026-09-12：有 Qty 時依單位類型顯示（分數單位 3/4 而非 0.75）
 function buildQtyNum(display, unit, cls) {
-  return `<div class="qty-num${cls ? ' ' + cls : ''}">${display}</div><div class="qty-unit">${esc(unit)}</div>`;
+  const d = (typeof Qty !== 'undefined' && typeof unitKnownQty !== 'undefined' && unit)
+    ? Qty.signed(display, unit) : display;
+  return `<div class="qty-num${cls ? ' ' + cls : ''}">${d}</div><div class="qty-unit">${esc(unit)}</div>`;
 }
 
 // 手機卡片外框：共用 thumb/info/qty-col 結構（各頁填內容）

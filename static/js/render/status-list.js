@@ -1,7 +1,9 @@
 // 共用商品 / 庫存異常清單 renderer
 // 只負責 Dialog、搜尋/位置 filter 與呈現；不處理庫存計算或 API mutation。
 
-function statusListFormatQuantity(value) {
+// 2026-09-12：有 Qty 且知單位時依單位類型顯示（分數單位顯示 3/4 而非 0.75）；缺時維持舊行為
+function statusListFormatQuantity(value, unit) {
+  if (typeof Qty !== 'undefined' && unit) return Qty.format(value, Qty.unitTypeOf(unit));
   const number = Number(value);
   if (!Number.isFinite(number)) return '0';
   return (Math.round(number * 1000) / 1000).toLocaleString('en-US');
@@ -121,7 +123,7 @@ function renderSharedProductStatusItem(item, options) {
     : '';
   const locations = statusListLocations(item).join('、');
   const threshold = !isOut && item.low_stock > 0
-    ? `<span class="inventory-status-meta">警示值 ${esc(statusListFormatQuantity(item.low_stock))}</span>`
+    ? `<span class="inventory-status-meta">警示值 ${esc(statusListFormatQuantity(item.low_stock, item.unit))}</span>`
     : '';
   if (typeof rememberInventoryAlertItem === 'function') rememberInventoryAlertItem(item);
   return `<article class="inventory-status-item status-list-mobile-row ${esc(isOut ? 'is-out' : 'is-low')}">
@@ -134,7 +136,7 @@ function renderSharedProductStatusItem(item, options) {
     <div class="inventory-status-location status-list-location-cell">📍 ${esc(locations)}</div>
     <div class="inventory-status-values">
       <span class="inventory-status-badge ${esc(badgeClass)}">${esc(badgeText)}</span>
-      <strong>${esc(statusListFormatQuantity(status.qty))} <small>${esc(item.unit || '')}</small></strong>
+      <strong>${esc(statusListFormatQuantity(status.qty, item.unit))} <small>${esc(item.unit || '')}</small></strong>
       ${threshold}
     </div>
     ${editAction}

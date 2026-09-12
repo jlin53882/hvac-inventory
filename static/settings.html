@@ -29,6 +29,27 @@
 .side-main { flex: 1; min-width: 0; background: #fff; border-radius: 12px; border: 1px solid #eee; padding: 18px 20px; }
 .side-main h4 { font-size: 15px; margin-bottom: 12px; color: #1e3a5f; }
 .u-add-row { display: flex; gap: 6px; margin-bottom: 12px; max-width: 420px; }
+.u-add-row select, .u-qty-type, .u-ci-to, .u-ci-fast { padding: 6px 8px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 13px; background: #fff; }
+.u-qty-label { font-size: 12.5px; color: #555; background: #eef4ff; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.u-table th { text-align: left; font-size: 12px; color: #888; font-weight: 600; padding: 4px 6px; border-bottom: 1px solid #e3e6ea; }
+.u-suggest { margin: 4px 0; font-size: 12px; color: #2e7d32; }
+.u-suggest .btn-primary { margin-left: 6px; }
+.u-suggest.u-ambiguous { color: #a08a3e; }
+.u-manual { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.u-ci-qty { width: 110px; padding: 6px 8px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 13px; }
+@media (max-width: 768px) {
+  .u-table thead { display: none; }
+  .u-table, .u-table tbody, .u-table tr, .u-table td { display: block; width: 100%; }
+  .u-table tr { border: 1px solid #e3e6ea; border-radius: 10px; margin-bottom: 10px; padding: 10px 12px; background: #fff; }
+  .u-table td { border: none; padding: 5px 0; }
+  .u-table td.u-name { font-size: 16px; font-weight: 700; }
+  .u-table td:last-child { text-align: left; }
+  .u-qty-type { min-height: 42px; font-size: 14px; width: 100%; }
+  .u-add-row { flex-wrap: wrap; max-width: none; }
+  .u-add-row .btn-primary { min-height: 42px; }
+  .u-ci-qty { flex: 1; min-width: 120px; min-height: 42px; font-size: 15px; }
+  .hist-clean .btn-primary { min-height: 42px; }
+}
 .u-add-row input { flex: 1; padding: 8px 10px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 13.5px; }
 .u-table { width: 100%; font-size: 13.5px; border-collapse: collapse; }
 .u-table td { padding: 9px 6px; border-bottom: 1px solid #eef0f3; }
@@ -203,6 +224,7 @@
 <script src="/static/js/globals.js" defer></script>
 <script src="/static/js/auth.js" defer></script>
 <script src="/static/js/utils.js" defer></script>
+<script src="/static/js/qty.js" defer></script>
 <script src="/static/js/api.js" defer></script>
 <script src="/static/js/units.js" defer></script>
 <script src="/static/js/modals/changepw.js" defer></script>

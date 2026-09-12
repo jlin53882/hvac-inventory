@@ -94,7 +94,11 @@ function deleteEditStockRow(btn) {
 async function submitEdit() {
   const nameVal = document.getElementById('e-name').value.trim();
   if (!nameVal) toast('名稱未修改（保留原值）', 'info');
-  const lowstockVal = parseFloat(document.getElementById('e-lowstock').value);
+  // 2026-09-12：門檻支援分數（Qty.parse；無 Qty 回退 parseFloat）
+  const _lsRaw = document.getElementById('e-lowstock').value;
+  const lowstockVal = (typeof Qty !== 'undefined')
+    ? (function() { const _p = Qty.parse(_lsRaw.trim() === '' ? '0' : _lsRaw); return _p.error ? NaN : _p.value; })()
+    : parseFloat(_lsRaw);
   if (document.getElementById('e-lowstock').value !== '' && (isNaN(lowstockVal) || lowstockVal < 0)) {
     toast('警示值不能為負數', 'error'); return;
   }
@@ -112,16 +116,26 @@ async function submitEdit() {
       const cab = row.querySelector('.stock-cabinet').value;
       const sub = row.querySelector('.stock-sub').value.trim();
       const location = cab ? (sub ? `${cab} | ${sub}` : cab) : '';
-      const q = parseFloat(row.querySelector('.stock-qty').value);
+      // 2026-09-12：分數/小數單位可輸 1/4；非法整包擋下（qtyInputOrToast 已 toast）
+      const _qq = (function() {
+        if (typeof Qty === 'undefined') { const _p = parseFloat(row.querySelector('.stock-qty').value); return isNaN(_p) || _p < 0 ? 0 : _p; }
+        let _t = Qty.unitTypeOf(document.getElementById('e-unit').value);
+        const _vv = Qty.validFor(row.querySelector('.stock-qty').value, _t);
+        if (!_vv.ok) { toast(_vv.error, 'error'); return null; }
+        return _vv.value;
+      })();
+      if (_qq === null) return null;
       return {
         location: location,
-        qty: isNaN(q) || q < 0 ? 0 : q,
+        qty: _qq,
         note: row.querySelector('.stock-note').value.trim(),
       };
     }),
     // 2026-08-14 樂觀鎖：帶開啟時的 updated_at 快照，後端比對被他人改過 → 409
     updated_at: editUpdatedAt,
   };
+  // 2026-09-12：任一位置數量非法（map 回 null，已 toast）→ 整包擋下不送
+  if (payload.stocks.some(s => s === null)) return;
   try {
     const res = await fetch(`/api/items/${editItemId}`, {
       method: 'PATCH',

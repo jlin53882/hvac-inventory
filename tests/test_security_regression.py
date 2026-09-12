@@ -223,6 +223,13 @@ REVIEWED_SAFE_BODIES = {
     "locationFilter", "rows", "columnHeadings", "buildThumb(kit.item_id, !!source.has_photo, kit.name, '🔧', source.thumbnail_url)",
     "buildThumb(item.id, item.has_photo, item.name, '📦', item.thumbnail_url)", "config.extraHTML || ''",
     "missingHTML", "statusListFormatQuantity(stock)", "statusListFormatQuantity(status.qty)",
+    # 2026-09-12 數量系統：Qty.disp 輸出僅數字/分數字元（0-9 . / - 空格），無 HTML metachars；
+    # stocktakeInput 內部對 key/value/sysqty/unit 全 esc()/jsStr()（stocktake.js）
+    "(typeof Qty !== 'undefined') ? Qty.disp(s.qty, item.unit) : s.qty",
+    "(typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty)",
+    "(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)",
+    "stocktakeInput(materialKey, materialSystemQty, c.unit)",
+    "stocktakeInput(key, systemQty, item.unit)",
 }
 
 

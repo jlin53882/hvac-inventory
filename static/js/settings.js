@@ -37,6 +37,19 @@ async function loadOrphans() {
   } catch (e) { orphanLoadFailed = true; }
 }
 
+// 2026-09-12 數量系統：單位類型標籤
+var QTY_TYPE_LABELS = { integer: '整數', decimal: '小數', fraction: '分數/小數' };
+function qtyTypeLabel(t) { return QTY_TYPE_LABELS[t] || '整數'; }
+// 歷史單位轉換建議：僅「/d + 純單位名」且總量明確時建議 new=total/d；其餘一律 ambiguous → null（不猜）
+function suggestQtyConvert(unitStr, totalQty) {
+  const m = /^\/(\d+)([^\/\+\(\)\s]+)$/.exec(String(unitStr || '').trim());
+  if (!m) return null;
+  const d = parseInt(m[1]);
+  if (!d || d <= 0) return null;
+  const total = Number(totalQty || 0);
+  if (!isFinite(total) || total < 0) return null;
+  return { qty: Math.round((total / d) * 1000) / 1000, unit: m[2] };
+}
 function groupOrphans(items) {
   const map = new Map();
   items.forEach(it => {
@@ -54,11 +67,17 @@ function renderUnitsPanel() {
   let html = '<h4>📦 單位管理</h4>';
   if (canAdd) {
     html += '<div class="u-add-row"><input id="u-new-name" placeholder="新單位名稱（例：顆）" maxlength="20">' +
+            '<select id="u-new-type" title="數量輸入類型"><option value="integer">整數</option><option value="decimal">小數</option><option value="fraction">分數/小數</option></select>' +
             '<button class="btn-primary" onclick="addUnitFromSettings()">＋ 新增</button></div>';
   }
-  html += '<table class="u-table">';
+  html += '<table class="u-table"><thead><tr><th>單位名稱</th><th>數量類型</th><th style="text-align:right">操作</th></tr></thead>';
   unitList.forEach(u => {
-    html += '<tr><td class="' + (u.is_active ? '' : 'off') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td style="text-align:right">';
+    const _tl = qtyTypeLabel(u.qty_type);
+    const _typeCell = canManage
+      ? '<select class="u-qty-type" onchange="setUnitQtyType(' + u.id + ', this.value)" title="數量輸入類型">' +
+        ['integer', 'decimal', 'fraction'].map(t => '<option value="' + t + '"' + ((u.qty_type || 'integer') === t ? ' selected' : '') + '>' + qtyTypeLabel(t) + '</option>').join('') + '</select>'
+      : '<span class="u-qty-label">' + esc(_tl) + '</span>';
+    html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'off') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td style="text-align:right">';
     if (canManage) {
       html += '<a class="updown" onclick="moveUnit(' + u.id + ', -1)" title="上移">↑</a>' +
               '<a class="updown" onclick="moveUnit(' + u.id + ', 1)" title="下移">↓</a> ' +
@@ -70,19 +89,24 @@ function renderUnitsPanel() {
   if (canManage) {
     const groups = groupOrphans(orphanItems);
     if (groups.length) {
-      html += '<div class="hist-clean"><b>⚠️ 不在清單的歷史單位（點開逐筆處理）</b>';
-      html += '<div style="font-size:11.5px;color:#a08a3e;margin:4px 0 8px">每筆品項各自指定正確單位；處理完自動消失。組底可整組快速套用。</div>';
+      html += '<div class="hist-clean"><b>⚠️ 歷史單位待處理（點開逐筆處理）</b>';
+      html += '<div style="font-size:11.5px;color:#a08a3e;margin:4px 0 8px">這些資料可能包含舊式「數量 + 單位」混合格式，需要轉換成標準數量與正式單位。有轉換建議的可一鍵套用；判斷不出的請手填確認，處理完自動消失。</div>';
       groups.forEach(g => {
         html += '<div class="grp"><div class="grp-head" onclick="this.parentElement.classList.toggle(\'open\')">' +
           '<span class="grp-title"><span class="arrow">▶</span> ' + esc(g.label) + '</span>' +
           '<span class="grp-count">' + g.items.length + ' 筆</span></div>' +
           '<div class="grp-body"><table class="g-table">';
         g.items.forEach(it => {
+          const _sg = (typeof suggestQtyConvert === 'function') ? suggestQtyConvert(it.unit, it.total_qty) : null;
+          const _sgHtml = _sg
+            ? '<div class="u-suggest">建議：' + esc(String(_sg.qty)) + ' ' + esc(_sg.unit) + ' <button class="btn-primary" onclick="applyQtySuggest(' + it.item_id + ', this)" data-qty="' + esc(String(_sg.qty)) + '" data-to="' + esc(_sg.unit) + '">套用建議</button></div>'
+            : '<div class="u-suggest u-ambiguous">⚠ 需人工確認（無法自動判讀）</div>';
           html += '<tr><td class="p-name">' + esc(it.name) + (it.is_deleted ? ' <small>（非庫存）</small>' : '') + '</td>' +
             '<td class="qty">×' + absNum(it.total_qty) + '</td>' +
-            '<td style="text-align:right"><select class="u-ci-to" required><option value="">— 請選擇 —</option>';
+            '<td style="text-align:right">' + _sgHtml +
+            '<div class="u-manual"><select class="u-ci-to" required><option value="">— 請選擇 —</option>';
           unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
-          html += '</select> <button class="btn-primary" onclick="consolidateItem(' + it.item_id + ', this)">改為</button></td></tr>';
+          html += '</select><input class="u-ci-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn-primary" onclick="consolidateItem(' + it.item_id + ', this)">改為</button></div></td></tr>';
         });
         html += '</table><div class="grp-fast">整組快速套用：<select class="u-ci-fast" required><option value="">— 請選擇 —</option>';
         unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
@@ -101,11 +125,13 @@ function renderUnitsPanel() {
 async function addUnitFromSettings() {
   const inp = document.getElementById('u-new-name');
   const name = inp ? inp.value.trim() : '';
+  const typeSel = document.getElementById('u-new-type');
+  const qtyType = typeSel ? typeSel.value : 'integer';
   if (!name) { toast('請輸入單位名稱', 'error'); return; }
   try {
     const res = await fetch('/api/units', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name: name, qty_type: qtyType })
     });
     const data = await res.json();
     if (!res.ok) { toast(data.detail || '新增失敗', 'error'); return; }
@@ -115,6 +141,20 @@ async function addUnitFromSettings() {
     renderUnitsPanel();
     toast('✅ 單位「' + name + '」已新增', 'success');
   } catch (e) { toast('新增失敗', 'error'); }
+}
+
+async function setUnitQtyType(id, qtyType) {
+  try {
+    const res = await fetch('/api/units/' + id, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qty_type: qtyType })
+    });
+    if (!res.ok) { toast((await res.json()).detail || '操作失敗', 'error'); renderUnitsPanel(); return; }
+    const u = unitList.find(x => x.id === id);
+    if (u) u.qty_type = qtyType;
+    renderUnitsPanel();
+    toast('✅ 數量類型已更新', 'success');
+  } catch (e) { toast('操作失敗', 'error'); }
 }
 
 async function toggleUnit(id, on) {
@@ -146,21 +186,56 @@ async function moveUnit(id, dir) {
 }
 
 async function consolidateItem(itemId, btn) {
-  const sel = btn.closest('tr').querySelector('.u-ci-to');
+  const tr = btn.closest('tr');
+  const sel = tr ? tr.querySelector('.u-ci-to') : null;
   const to = sel ? sel.value : '';
   if (!to) { toast('請先選擇目標單位', 'error'); return; }
-  const nameEl = btn.closest('tr').querySelector('.p-name');
-  if (!confirm('將「' + (nameEl ? nameEl.textContent : '') + '」的單位改為「' + to + '」？')) return;
+  const qInp = tr ? tr.querySelector('.u-ci-qty') : null;
+  const qRaw = qInp ? qInp.value.trim() : '';
+  let newQty = null;
+  if (qRaw !== '') {
+    if (typeof Qty !== 'undefined') {
+      const _p = Qty.parse(qRaw);
+      if (_p.error || _p.value < 0) { toast(_p.error || '數量不可為負數。', 'error'); return; }
+      newQty = _p.value;
+    } else {
+      newQty = parseFloat(qRaw);
+      if (!isFinite(newQty) || newQty < 0) { toast('請輸入有效數量', 'error'); return; }
+    }
+  }
+  const nameEl = tr ? tr.querySelector('.p-name') : null;
+  const qtyNote = newQty === null ? '' : '，總量改為 ' + newQty;
+  if (!confirm('將「' + (nameEl ? nameEl.textContent : '') + '」的單位改為「' + to + '」' + qtyNote + '？')) return;
   try {
     const res = await fetch('/api/units/consolidate-item', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId, to_unit: to })
+      body: JSON.stringify(newQty === null ? { item_id: itemId, to_unit: to } : { item_id: itemId, to_unit: to, new_qty: newQty })
     });
     if (!res.ok) { toast((await res.json()).detail || '改單位失敗', 'error'); return; }
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
     toast('✅ 已改為「' + to + '」', 'success');
   } catch (e) { toast('改單位失敗', 'error'); }
+}
+
+async function applyQtySuggest(itemId, btn) {
+  const qty = parseFloat(btn.dataset.qty);
+  const to = btn.dataset.to || '';
+  if (!to || !isFinite(qty) || qty < 0) { toast('建議值無效，請手填確認', 'error'); return; }
+  const tr = btn.closest('tr');
+  const nameEl = tr ? tr.querySelector('.p-name') : null;
+  if (!confirm('套用建議：將「' + (nameEl ? nameEl.textContent : '') + '」改為 ' + qty + ' ' + to + '？')) return;
+  try {
+    const res = await fetch('/api/units/consolidate-item', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: itemId, to_unit: to, new_qty: qty })
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.detail || '轉換失敗', 'error'); return; }
+    await Promise.all([loadUnits(), loadOrphans()]);
+    renderUnitsPanel();
+    toast('✅ 已轉換為 ' + qty + ' ' + to, 'success');
+  } catch (e) { toast('轉換失敗', 'error'); }
 }
 
 async function consolidateGroup(btn) {

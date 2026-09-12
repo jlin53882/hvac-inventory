@@ -51,7 +51,8 @@ function getKitStatus(kit) {
     return Number(c.need_qty || 0) > 0 && Number(c.stock || 0) <= 0;
   });
   const hasInsufficient = !hasShortage && components.some(function(c) {
-    return Number(c.stock || 0) < Number(c.need_qty || 0);
+    // 2026-09-12：容差 1e-9（0.3 vs 0.1+0.2 塵不得誤判不足）
+    return Number(c.stock || 0) < Number(c.need_qty || 0) - 1e-9;
   });
   return {
     status: hasShortage ? 'shortage' : (hasInsufficient ? 'insufficient' : 'normal'),
@@ -131,7 +132,7 @@ function renderKitActionButtons(k, isViewer, isM, status) {
 function renderKitComponentRow(c) {
   const stock = Number(c.stock || 0);
   const need = Number(c.need_qty || 0);
-  const state = stock <= 0 && need > 0 ? 'shortage' : (stock < need ? 'insufficient' : 'normal');
+  const state = stock <= 0 && need > 0 ? 'shortage' : (stock < need - 1e-9 ? 'insufficient' : 'normal'); // 2026-09-12 塵容差
   const stateLabel = state === 'shortage' ? '缺料' : (state === 'insufficient' ? '庫存不足' : '正常');
   const stateClass = `kit-component-status is-${state}`;
   const photo = c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
@@ -140,8 +141,8 @@ function renderKitComponentRow(c) {
     <td><div class="kit-component-info">
       <span class="kit-component-name">${esc(c.brand || '')} ${esc(c.name || '')}</span>${c.code ? `<span class="kit-component-model">型號 ${esc(c.code)}</span>` : ''}
     </div></td>
-    <td class="kit-component-qty">${esc(formatKitNumber(need))} ${esc(c.unit || '')}</td>
-    <td class="kit-component-qty">${esc(formatKitNumber(stock))} ${esc(c.unit || '')}</td>
+    <td class="kit-component-qty">${esc(typeof Qty !== 'undefined' ? Qty.format(need, Qty.unitTypeOf(c.unit)) : formatKitNumber(need))} ${esc(c.unit || '')}</td>
+    <td class="kit-component-qty">${esc(typeof Qty !== 'undefined' ? Qty.format(stock, Qty.unitTypeOf(c.unit)) : formatKitNumber(stock))} ${esc(c.unit || '')}</td>
     <td><span class="${esc(stateClass)}">${esc(stateLabel)}</span></td>
   </tr>`;
 }
@@ -152,7 +153,7 @@ function renderKitCard(k, isViewer, isM) {
   const stockQty = Number(k.stock_qty || 0);
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
-      <div class="kit-assembly-title"><div class="kit-assembly-name">🔧 ${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta"><span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
+      <div class="kit-assembly-title"><div class="kit-assembly-name">🔧 ${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta"><span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
       ${renderKitActionButtons(k, isViewer, isM, status)}
     </header>
     <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>${components.map(renderKitComponentRow).join('')}</tbody></table></div>
@@ -162,6 +163,23 @@ function renderKitCard(k, isViewer, isM) {
 // 渲染整組 Modal 的材料選擇（demo 樣式：已選灰卡片列 + 單一可搜尋輸入框）
 
 // 資料存 kitModalCompRows：[{item_id, qty}...]；選中材料自動 push 新列
+
+// 2026-09-12：材料需求量支援分數（Qty.parse；非法 toast 並還原舊值；數量>0 由後端驗證）
+function kitCompQtyChanged(idx, rawVal) {
+  const row = kitModalCompRows[idx];
+  if (!row) return;
+  const sel = row.item_id ? ALL_ITEMS.find(i => i.id == row.item_id) : null;
+  if (typeof Qty !== 'undefined') {
+    const v = Qty.validFor(rawVal, sel ? Qty.unitTypeOf(sel.unit) : 'fraction');
+    if (!v.ok || v.value <= 0) { toast(v.error || '材料數量必須大於 0', 'error'); renderKitCompRows(); return; }
+    row.qty = v.value;
+  } else {
+    const q = parseFloat(rawVal) || 0;
+    if (q <= 0) { toast('材料數量必須大於 0', 'error'); renderKitCompRows(); return; }
+    row.qty = q;
+  }
+  renderKitCompRows();
+}
 
 function renderKitCompRows() {
 
@@ -185,11 +203,11 @@ function renderKitCompRows() {
 
           <div class="nm">${sel ? esc(sel.brand) + ' ' + esc(sel.name) : ''}</div>
 
-          <div class="bd">${sel ? `${sel.code ? `型號 <span class="model">${esc(sel.code)}</span> ・ ` : ''}庫存 ${sel.qty} ${esc(sel.unit || '個')}` : ''}</div>
+          <div class="bd">${sel ? `${sel.code ? `型號 <span class="model">${esc(sel.code)}</span> ・ ` : ''}庫存 ${(typeof Qty !== 'undefined') ? Qty.format(sel.qty, Qty.unitTypeOf(sel.unit)) : sel.qty} ${esc(sel.unit || '個')}` : ''}</div>
 
         </div>
 
-        <input type="number" min="1" step="any" value="${row.qty || 1}" onchange="kitModalCompRows[${idx}].qty = parseFloat(this.value) || 1">
+        <input type="text" inputmode="decimal" value="${row.qty || 1}" placeholder="例：1、0.5、1/4" onchange="kitCompQtyChanged(${idx}, this.value)">
 
         <button class="rm" onclick="removeKitCompRow(${idx})">✕</button>
 
@@ -327,9 +345,11 @@ async function assembleKit(kitId) {
 
   if (qty === null) return;
 
-  const n = parseInt(qty);
+  // 2026-09-12：組數必須整數；Qty.parse 拒絕 "1.5"→1、"1/2"→1 的截斷
+  const _pa = (typeof Qty !== 'undefined') ? Qty.parse(qty) : null;
+  const n = _pa && !_pa.error ? _pa.value : parseInt(qty);
 
-  if (!n || n <= 0) { toast('請輸入有效數量', 'error'); return; }
+  if (!n || n <= 0 || (_pa && !_pa.error && _pa.den !== 1)) { toast('組裝組數必須為正整數', 'error'); return; }
 
   try {
 
@@ -375,9 +395,11 @@ async function disassembleKit(kitId) {
 
   if (qty === null) return;
 
-  const n = parseInt(qty);
+  // 2026-09-12：組數必須整數；Qty.parse 拒絕截斷
+  const _pd = (typeof Qty !== 'undefined') ? Qty.parse(qty) : null;
+  const n = _pd && !_pd.error ? _pd.value : parseInt(qty);
 
-  if (!n || n <= 0) { toast('請輸入有效數量', 'error'); return; }
+  if (!n || n <= 0 || (_pd && !_pd.error && _pd.den !== 1)) { toast('拆解組數必須為正整數', 'error'); return; }
 
   try {
 
@@ -543,7 +565,7 @@ function renderKitStatusItem(kit, type) {
     <div class="inventory-status-location status-list-location-cell">📍 ${esc(location)}</div>
     <div class="inventory-status-values">
       <span class="inventory-status-badge ${esc(statusClass)}">${esc(statusLabel)}</span>
-      <strong>${esc(statusListFormatQuantity(stock))} <small>組</small></strong>
+      <strong>${esc(statusListFormatQuantity(stock, '組'))} <small>組</small></strong>
     </div>
     ${editAction}
   </article>`;

@@ -166,7 +166,7 @@ function renderSimilarWarn(warnId, hits) {
     ${hits.map(h => `
       <div class="sim-row">
         <span>${esc(h.name)}${h.code ? '（' + esc(h.code) + '）' : ''}
-          · 共 ${h.total_qty} ${esc(h.unit || '個')}
+          · 共 ${(typeof Qty !== 'undefined') ? Qty.disp(h.total_qty, h.unit) : h.total_qty} ${esc(h.unit || '個')}
           ${h.stocks && h.stocks.length ? '· ' + esc(h.stocks.map(s => s.location + '×' + s.qty).join(', ')) : ''}</span>
         <a href="#" onclick="goEditSimilar(${h.id}); return false;">去編輯 →</a>
       </div>`).join('')}`;

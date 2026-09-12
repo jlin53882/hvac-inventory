@@ -1514,11 +1514,12 @@ def test_stocktake_kit_tab_expands_components():
     assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
     assert 'src="${photoSrc(c.item_id, \'thumbnail\')}"' in js
     assert "openPhotoLightbox(${c.item_id})" in js
-    assert "需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組" in js
+    # 2026-09-12：需求數量分數顯示（Qty.format；無 Qty 回退舊字串）
+    assert ("需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組" in js) or ("Qty.format(c.need_qty" in js), "盤點材料需求數量顯示遺失"
     # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
-    assert "stocktakeInput(materialKey, materialSystemQty)" in js
+    assert "stocktakeInput(materialKey, materialSystemQty, c.unit)" in js
     assert "markChanged(this, '${jsStr(key)}')" in js
-    assert 'placeholder="實際"' in js
+    assert 'placeholder="實際' in js  # 2026-09-12：提示加註可輸分數
     # 全域宣告（globals.js，var 跨檔共享）
     gl = read(GLOBALS_JS)
     assert "var stocktakeKits = []" in gl
@@ -1994,7 +1995,8 @@ def test_edit_modal_low_stock_validation():
 def test_edit_modal_stock_qty_clamping():
     """A2：編輯品項位置庫存 qty 不得為負"""
     js = read(EDIT_JS)
-    assert "isNaN(q) || q < 0" in js, "edit.js 缺 stock qty 負數 clamping"
+    # 2026-09-12：parseFloat 換 Qty.validFor（分數可輸）；負數擋下行為保留
+    assert ("isNaN(q) || q < 0" in js) or ("_vv.ok" in js and "_qq === null" in js), "edit.js 缺 stock qty 負數 clamping"
 
 
 def test_edit_modal_name_empty_toast():
@@ -3411,3 +3413,30 @@ def test_inventory_table_model_has_explicit_label():
     js = read(os.path.join(STATIC, "js", "render", "inventory.js"))
     assert "型號： " in js
     assert "esc(i.code) + '</small>'" in js
+
+
+def test_qty_domain_mounted_and_wired():
+    """2026-09-12 數量系統：qty.js 共用 domain 掛載 + 關鍵接線存在。"""
+    idx = read(INDEX)
+    assert 'src="/static/js/qty.js"' in idx, "index.html 未掛載 qty.js"
+    st = read(os.path.join(STATIC, "settings.html"))
+    assert 'src="/static/js/qty.js"' in st, "settings.html 未掛載 qty.js"
+    assert 'src="/static/js/modals/qty.js"' in idx, "index.html 未掛載 modals/qty.js"
+    assert 'id="qty-dialog"' in idx, "index.html 缺增減 dialog"
+    qty = read(os.path.join(STATIC, "js", "qty.js"))
+    for fn in ("function parse", "function validFor", "function format",
+               "function qtyInputOrToast", "function disp", "function signed"):
+        assert fn in qty, f"qty.js 缺 {fn}"
+    inv = read(INVENTORY_RENDER_JS)
+    assert "Qty.unitTypeOf(item.unit) !== 'integer'" in inv, "整數直調/分數 dialog 分流遺失"
+    assert "openQtyDialog" in inv, "changeQty 未接 dialog"
+    kits = read(KITS_RENDER_JS)
+    assert "kitCompQtyChanged" in kits, "kit 材料需求量分數輸入遺失"
+    assert "組裝組數必須為正整數" in kits and "拆解組數必須為正整數" in kits, "組裝/拆解整數檢查遺失"
+    stk = read(STOCKTAKE_JS)
+    assert 'placeholder="實際（可輸 1/4）' in stk, "盤點輸入提示遺失"
+    assert "Qty.format(_d, Qty.unitTypeOf(_unit))" in stk, "盤點差異分數顯示遺失"
+    st_js = read(os.path.join(STATIC, "js", "settings.js"))
+    assert "setUnitQtyType" in st_js, "單位類型切換遺失"
+    assert "applyQtySuggest" in st_js, "歷史轉換建議套用遺失"
+    assert "suggestQtyConvert" in st_js, "轉換建議解析遺失"

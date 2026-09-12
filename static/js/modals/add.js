@@ -87,10 +87,12 @@ async function submitAdd() {
     // v10：位置庫存陣列（一筆 = 一個位置）
     stocks: [{
       location: location,
-      qty: parseFloat(document.getElementById('f-qty').value) || 0,
+      // 2026-09-12：分數/小數單位可輸 1/4；非法 toast 並擋下（qtyInputOrToast 回 NaN → !isFinite 擋）
+      qty: (function() { const _q = qtyInputOrToast('f-qty', document.getElementById('f-unit').value); return isFinite(_q) ? _q : null; })(),
       note: document.getElementById('f-note').value.trim(),
     }],
   };
+  if (payload.stocks[0].qty === null) return;
   try {
     const res = await fetch('/api/items', {
       method: 'POST',

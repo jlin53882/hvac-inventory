@@ -433,6 +433,8 @@ function renderInventoryTable(list, isViewer, canStockout) {
     byLoc[loc].forEach(i => {
       const status = getInventoryStatus(i);
       const display = status.qty;
+      const displayStr = (typeof Qty !== 'undefined')
+        ? Qty.format(display, Qty.unitTypeOf(i.unit)) : display;
       const isZero = status.isOutOfStock;
       const isLow = status.isLowStock;
       const rowClass = isZero ? 'row-danger' : (isLow ? 'row-warn' : '');
@@ -445,7 +447,7 @@ function renderInventoryTable(list, isViewer, canStockout) {
       h += '<td class="photo-cell">' + photoHTML + '</td>';
       h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small style="color:#64748b">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
-      h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + display + '</td>';
+      h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + displayStr + '</td>';
       h += '<td>' + esc(i.unit) + '</td>';
       h += '<td class="col-loc">' + locStr + '</td>';
       h += '<td class="col-status">' + statusHTML + '</td>';
@@ -488,6 +490,8 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
     locItems.forEach(i => {
       const status = getInventoryStatus(i);
       const display = status.qty;
+      const displayStr = (typeof Qty !== 'undefined')
+        ? Qty.format(display, Qty.unitTypeOf(i.unit)) : display;
       const isZero = status.isOutOfStock;
       const isLow = status.isLowStock;
       const delta = display - Number(i.qty || 0);
@@ -507,7 +511,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名') + (i.site === 'warehouse' ? ' 🏭' : ''),
           subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
           extraHTML: locStr,
-          qtyHTML: buildQtyControl({id: i.id, display, unit: i.unit, isZero, delta, viewer: isViewer}),
+          qtyHTML: buildQtyControl({id: i.id, display: displayStr, unit: i.unit, isZero, delta, viewer: isViewer}),
           actionsHTML: buildInventoryStockoutActions(i, canStockout, true)
         });
       } else {
@@ -523,13 +527,13 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         h += '<div class="item-code">' + (i.code ? '型號： ' + esc(i.code) : '') + '</div>';
         h += locHtml;
         if (i.is_kit) h += '<div class="kit-tag">🔧 整組</div>';
-        if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + prepared + ' ' + esc(i.unit) + '</div>';
+        if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + ((typeof Qty !== 'undefined') ? Qty.format(prepared, Qty.unitTypeOf(i.unit)) : prepared) + ' ' + esc(i.unit) + '</div>';
         h += buildInventoryStockoutActions(i, canStockout, false);
         h += '</div>';
         if (isViewer) {
-          h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + display + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
+          h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
         } else {
-          h += '<div class="qty-control"><button class="qty-btn qty-minus" onclick="changeQty(' + i.id + ', -1)"' + (isZero && delta <= 0 ? ' disabled' : '') + '>−</button><div class="qty-value" onclick="quickSet(' + i.id + ')" title="點數字可輸入">' + display + '<span class="unit"> ' + esc(i.unit) + '</span></div><button class="qty-btn qty-plus" onclick="changeQty(' + i.id + ', 1)">+</button></div>';
+          h += '<div class="qty-control"><button class="qty-btn qty-minus" onclick="changeQty(' + i.id + ', -1)"' + (isZero && delta <= 0 ? ' disabled' : '') + '>−</button><div class="qty-value" onclick="quickSet(' + i.id + ')" title="點數字可輸入">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div><button class="qty-btn qty-plus" onclick="changeQty(' + i.id + ', 1)">+</button></div>';
         }
         h += '</div>';
       }
@@ -565,6 +569,11 @@ function changeQty(id, delta) {
 
   if (!item) return;
 
+  // 2026-09-12 分數/小數單位：+/- 開 dialog 輸入增減量（整數維持直調 ±1）
+  if (typeof Qty !== 'undefined' && Qty.unitTypeOf(item.unit) !== 'integer') {
+    if (typeof openQtyDialog === 'function') { openQtyDialog(id, delta > 0 ? 'add' : 'sub'); return; }
+  }
+
   const cur = pending[id] || 0;
 
   const newDelta = cur + delta;
@@ -599,11 +608,17 @@ function quickSet(id) {
 
   if (input === null) return;
 
-  const val = parseFloat(input);
+  let val;
+  if (typeof Qty !== 'undefined') {
+    const v = Qty.validFor(input, Qty.unitTypeOf(item.unit));
+    if (!v.ok) { toast(v.error, 'error'); return; }
+    val = v.value;
+  } else {
+    val = parseFloat(input);
+    if (!isFinite(val) || val < 0) { toast('請輸入有效的數字', 'error'); return; }
+  }
 
-  if (!isFinite(val) || val < 0) { toast('請輸入有效的數字', 'error'); return; }
-
-  const newDelta = val - item.qty;
+  const newDelta = Math.round((val - item.qty) * 1000) / 1000;
 
   if (newDelta === 0) {
     delete pending[id];

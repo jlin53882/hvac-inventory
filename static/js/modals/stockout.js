@@ -6,12 +6,12 @@ function openOutModal(id, ev) {
   if (!item) return;
   outItemId = id;
   document.getElementById('o-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-  document.getElementById('o-item-stock').value = `${item.qty} ${item.unit}`;
+  document.getElementById('o-item-stock').value = `${(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : item.qty} ${item.unit}`;
   // v10：位置下拉（空白 = 依序扣全部位置）
   const sel = document.getElementById('o-location');
   const stocks = item.stocks && item.stocks.length ? item.stocks : [{ location: item.location || '' }];
   sel.innerHTML = '<option value="">全部位置（自動依序扣）</option>' +
-    stocks.map(s => `<option value="${esc(s.location || '')}">${esc(s.location || '未標示')}（剩 ${s.qty}）</option>`).join('');
+    stocks.map(s => `<option value="${esc(s.location || '')}">${esc(s.location || '未標示')}（剩 ${(typeof Qty !== 'undefined') ? Qty.disp(s.qty, item.unit) : s.qty}）</option>`).join('');
   document.getElementById('o-qty').value = '';
   document.getElementById('o-dest').value = '';
   document.getElementById('o-note').value = '';
@@ -20,18 +20,18 @@ function openOutModal(id, ev) {
 
 // 送出「已領出」表單（POST /api/stockout）：驗證數量與去向、扣庫存並記錄
 async function submitStockOut() {
-  const qty = parseFloat(document.getElementById('o-qty').value);
+  const item = ALL_ITEMS.find(i => i.id === outItemId);
+  const qty = qtyInputOrToast('o-qty', item && item.unit);
   const dest = document.getElementById('o-dest').value.trim();
   const note = document.getElementById('o-note').value.trim();
   const location = document.getElementById('o-location').value;
-  const item = ALL_ITEMS.find(i => i.id === outItemId);
 
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
   if (location) {
     const st = (item.stocks || []).find(s => s.location === location);
-    if (st && qty > st.qty) { toast(`「${location}」庫存不足！只剩 ${st.qty} ${item.unit}`, 'error'); return; }
-  } else if (qty > item.qty) { toast(`庫存不足！只剩 ${item.qty} ${item.unit}`, 'error'); return; }
+    if (st && qty > st.qty) { toast(`「${location}」庫存不足！只剩 ${(typeof Qty !== 'undefined') ? Qty.disp(st.qty, item.unit) : st.qty} ${item.unit}`, 'error'); return; }
+  } else if (qty > item.qty) { toast(`庫存不足！只剩 ${(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : item.qty} ${item.unit}`, 'error'); return; }
 
   try {
     const res = await fetch('/api/stockout', {
@@ -44,7 +44,7 @@ async function submitStockOut() {
       throw new Error(err.detail || '領出失敗');
     }
     closeModalForce('out-modal');
-    toast(`✅ 已領出 ${qty} ${item.unit} → ${dest}`, 'success');
+    toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}`, 'success');
     await loadData();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
@@ -71,7 +71,7 @@ async function submitNonStockOut() {
   const name = document.getElementById('ns-name').value.trim();
   const code = document.getElementById('ns-code').value.trim();
   const unit = document.getElementById('ns-unit').value.trim() || '個';
-  const qty = parseFloat(document.getElementById('ns-qty').value);
+  const qty = qtyInputOrToast('ns-qty', unit);
   const dest = document.getElementById('ns-dest').value.trim();
   const note = document.getElementById('ns-note').value.trim();
 
@@ -116,7 +116,7 @@ async function submitNonStockPrepare() {
   const name = document.getElementById('nsp-name').value.trim();
   const code = document.getElementById('nsp-code').value.trim();
   const unit = document.getElementById('nsp-unit').value.trim() || '個';
-  const qty = parseFloat(document.getElementById('nsp-qty').value);
+  const qty = qtyInputOrToast('nsp-qty', unit);
   const note = document.getElementById('nsp-note').value.trim();
 
   if (!name) { toast('請輸入品項名稱', 'error'); return; }
@@ -147,7 +147,7 @@ function openPrepareModal(id, ev) {
   if (!item) return;
   prepareItemId = id;
   document.getElementById('p-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-  document.getElementById('p-item-stock').value = `${item.qty} ${item.unit}（可領 ${item.qty - (item.prepared_qty || 0)}）`;
+  document.getElementById('p-item-stock').value = `${(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : item.qty} ${item.unit}（可領 ${(typeof Qty !== 'undefined') ? Qty.disp(item.qty - (item.prepared_qty || 0), item.unit) : (item.qty - (item.prepared_qty || 0))}）`;
   document.getElementById('p-qty').value = '';
   document.getElementById('p-note').value = '';
   openModal('prepare-modal');
@@ -155,9 +155,9 @@ function openPrepareModal(id, ev) {
 
 // 送出「待領出」表單（POST /api/items/{id}/prepare）：只標記待領出，不扣庫存
 async function submitPrepare() {
-  const qty = parseFloat(document.getElementById('p-qty').value);
-  const note = document.getElementById('p-note').value.trim();
   const item = ALL_ITEMS.find(i => i.id === prepareItemId);
+  const qty = qtyInputOrToast('p-qty', item && item.unit);
+  const note = document.getElementById('p-note').value.trim();
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   try {
     const res = await fetch(`/api/items/${prepareItemId}/prepare`, {
@@ -170,7 +170,7 @@ async function submitPrepare() {
       throw new Error(err.detail || '領出失敗');
     }
     closeModalForce('prepare-modal');
-    toast(`📤 已標記待領出 ${qty} ${item.unit}（庫存未扣）`, 'success');
+    toast(`📤 已標記待領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit}（庫存未扣）`, 'success');
     await loadData();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
@@ -183,7 +183,7 @@ function openPreparedOutModal(id) {
   if (!item) return;
   preparedOutItemId = id;
   document.getElementById('po-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-  document.getElementById('po-item-prepared').value = `${item.prepared_qty} ${item.unit}`;
+  document.getElementById('po-item-prepared').value = `${(typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : item.prepared_qty} ${item.unit}`;
   document.getElementById('po-qty').value = '';
   document.getElementById('po-dest').value = '';
   openModal('prepared-out-modal');
@@ -191,9 +191,9 @@ function openPreparedOutModal(id) {
 
 // 送出「待領出轉已領出」表單（POST /api/items/{id}/prepared-out），此時才真正扣庫存
 async function submitPreparedOut() {
-  const qty = parseFloat(document.getElementById('po-qty').value);
-  const dest = document.getElementById('po-dest').value.trim();
   const item = ALL_ITEMS.find(i => i.id === preparedOutItemId);
+  const qty = qtyInputOrToast('po-qty', item && item.unit);
+  const dest = document.getElementById('po-dest').value.trim();
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
   try {
@@ -207,7 +207,7 @@ async function submitPreparedOut() {
       throw new Error(err.detail || '領出失敗');
     }
     closeModalForce('prepared-out-modal');
-    toast(`✅ 已領出 ${qty} ${item.unit} → ${dest}（庫存已扣）`, 'success');
+    toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}（庫存已扣）`, 'success');
     await loadData();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
@@ -288,7 +288,8 @@ function openReturnStockoutModal(movementId) {
 
 // 送出「退回已領出」（POST /api/stockouts/{id}/return）：部分退回 + 去向 + 日期
 async function submitReturnStockout() {
-  const qty = parseFloat(document.getElementById('rs-qty').value);
+  const _rsRec = (typeof stockoutRecords !== 'undefined' ? stockoutRecords : []).find(r => r.id === returnStockoutId);
+  const qty = qtyInputOrToast('rs-qty', _rsRec && _rsRec.unit);
   const dest = document.getElementById('rs-dest').value.trim();
   const dt = document.getElementById('rs-datetime').value;
   const returnStockId = Number(document.getElementById('rs-location').value);
@@ -372,7 +373,8 @@ function openEditStockoutModal(movementId) {
 
 // 送出「編輯已領出」（PATCH /api/stockouts/{id}）：數量差額自動補/扣庫存
 async function submitEditStockout() {
-  const qty = parseFloat(document.getElementById('es-qty').value);
+  const _esRec = (typeof stockoutRecords !== 'undefined' ? stockoutRecords : []).find(r => r.id === editStockoutId);
+  const qty = qtyInputOrToast('es-qty', _esRec && _esRec.unit);
   const dest = document.getElementById('es-dest').value.trim();
   const dt = document.getElementById('es-datetime').value;
   if (!qty || qty <= 0) { toast('請輸入有效數量', 'error'); return; }
