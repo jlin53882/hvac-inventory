@@ -30,7 +30,7 @@ function openEditModal(id) {
   const stocks = item.stocks && item.stocks.length
     ? item.stocks
     : [{ location: item.location || '', qty: item.qty || 0, note: item.note || '' }];
-  renderEditStockRows(stocks);
+  renderEditStockRows(stocks, item.unit || '個');
   // v10.1：照片區塊 + 相似品項提示（排除自己）
   renderPhotoBox(id, !!item.has_photo);
   const warnBox = document.getElementById('e-similar-warn');
@@ -42,19 +42,22 @@ function openEditModal(id) {
 }
 
 // 渲染編輯 modal 的位置清單列（兩段式：櫃子下拉 + 位置輸入）
-function renderEditStockRows(stocks) {
+// 2026-09-12：數量載入即格式化（0.333…→1/3，不再顯示一串小數；type=number 照樣可填分數）
+function renderEditStockRows(stocks, unit) {
   const box = document.getElementById('edit-stock-rows');
+  const _t = (typeof Qty !== 'undefined') ? Qty.unitTypeOf(unit) : 'fraction';
   box.innerHTML = stocks.map((s, idx) => {
     // 解析 location：「編號A | 1-1」→ cabinet=編號A, sub=1-1
     const loc = s.location || '';
     const pipeIdx = loc.indexOf(' | ');
     const cabinet = pipeIdx >= 0 ? loc.substring(0, pipeIdx) : loc;
     const sub = pipeIdx >= 0 ? loc.substring(pipeIdx + 3) : '';
+    const qv = (typeof Qty !== 'undefined') ? Qty.format(s.qty ?? 0, _t) : (s.qty ?? 0);
     return `
     <div class="stock-row" data-idx="${idx}">
       <select class="stock-cabinet">${_cabinetOptions(cabinet)}</select>
       <input type="text" class="stock-sub" value="${esc(sub)}" list="location-list" placeholder="位置">
-      <input type="number" class="stock-qty" value="${s.qty ?? 0}" min="0" step="any" placeholder="數量">
+      <input type="number" class="stock-qty" value="${esc(qv)}" min="0" step="any" placeholder="數量">
       <input type="text" class="stock-note" value="${esc(s.note || '')}" placeholder="備註（選填）">
     </div>`;
   }).join('');

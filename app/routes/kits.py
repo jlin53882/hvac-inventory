@@ -89,7 +89,7 @@ def create_kit(kit: KitCreate):
             _validate_kit_comp(conn, comp, i)  # 材料驗證：格式/數量>0/品項存在（2026-08-12 補）
             conn.execute(
                 "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                (kit_id, comp["item_id"], comp.get("qty", 1)),
+                (kit_id, comp["item_id"], round(float(comp.get("qty", 1)), 3)),
             )
         conn.commit()
         return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
@@ -140,7 +140,7 @@ def update_kit(kit_id: int, kit: KitCreate):
         for i, comp in enumerate(kit.items, 1):
             _validate_kit_comp(conn, comp, i)  # 材料驗證（與 create 共用）
             conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                         (kit_id, comp["item_id"], comp.get("qty", 1)))
+                         (kit_id, comp["item_id"], round(float(comp.get("qty", 1)), 3)))
         conn.commit()
         return {"ok": True, "id": kit_id, "name": kit.name}
     except Exception:
@@ -194,7 +194,7 @@ def _deduct_total(conn, item_id, need, reason):
         if remaining <= 1e-9:
             break
         take = min(s["qty"], remaining)
-        cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+        cur = conn.execute("UPDATE item_stocks SET qty=ROUND(qty-?,3), updated_at=? WHERE id=? AND qty>=?",
                            (take, datetime.datetime.now().isoformat(), s["id"], take))
         if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕，不超賣
             raise HTTPException(400, f"庫存不足！剩 {before}")
@@ -216,11 +216,11 @@ def _add_total(conn, item_id, add, reason):
                           (item_id,)).fetchall()
     target = stocks[0] if stocks else None
     if target:
-        conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
-                     (add, datetime.datetime.now().isoformat(), target["id"]))
+        conn.execute("UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
+                     (round(add, 3), datetime.datetime.now().isoformat(), target["id"]))
     else:
         conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                     (item_id, "", add, ""))
+                     (item_id, "", round(add, 3), ""))
     # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
     after = sum(s["qty"] for s in conn.execute(
         "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())

@@ -76,41 +76,64 @@ var Qty = (function() {
     return ratToStr(num / g, den / g);
   }
 
-  // 自動顯示：先用原始值配分數（1/3 存 float 仍可還原），再 round-3 配分數
-  // （0.1+0.2 殘留 → 0.3 → 3/10）；都配不上 → 小數（去尾零，最多 3 位，對齊現行 absNum）
-  function matchFrac(av) {
+  // 自動顯示（§8）：真正的短小數先配簡單分數（分母≤8：1/2、1/4、3/4、1/8），
+  // 配不上且小數≤2 位→維持小數（0.3、1.27）；3 位截斷的分數（入庫 ROUND 後的 0.333）
+  // →寬容差還原最簡分數（→1/3）；真小數（0.123）配不上→維持小數；
+  // 浮點塵（0.3000…4）→短小數；長小數的分數截斷（0.333…）→寬容差還原
+  function matchFrac(av, eps, maxDen) {
     let best = null;
-    for (let d = 1; d <= MAX_DEN; d++) {
+    const denMax = maxDen || MAX_DEN;
+    for (let d = 1; d <= denMax; d++) {
       const n = Math.round(av * d);
-      if (Math.abs(n / d - av) < ROUND_EPS) {
+      if (Math.abs(n / d - av) < (eps || ROUND_EPS)) {
         if (!best || d < best.den) best = { num: n, den: d };
       }
     }
     return best;
+  }
+  function fracStr(best, neg) {
+    const g = gcd(best.num, best.den);
+    return neg + ratToStr(best.num / g, best.den / g);
+  }
+  function decPlaces(r3) {
+    const s = String(r3);
+    const i = s.indexOf('.');
+    return i < 0 ? 0 : s.length - i - 1;
   }
   function autoFormat(v) {
     if (!isFinite(v)) return '0';
     const num = Number(v);
     if (num === 0) return '0';
     const neg = num < 0 ? '-' : '', av = Math.abs(num);
-    let best = matchFrac(av);
-    if (!best) {
-      const r3 = Math.round(av * 1000) / 1000;
-      if (r3 === 0) return '0';
-      best = matchFrac(r3);
-      if (!best) return neg + String(r3);
+    const r3 = Math.round(av * 1000) / 1000;
+    if (r3 === 0) return '0';
+    if (av === r3) {
+      // 真正的短小數：簡單分數（分母≤8：1/2、1/4、3/4、1/8）→分數；
+      // 0.3、1.27 這類維持小數；3 位截斷的分數（0.333）→寬容差還原
+      const simple = matchFrac(av, ROUND_EPS, 8);
+      if (simple) return fracStr(simple, neg);
+      if (decPlaces(r3) <= 2) return neg + String(r3);
+      const trunc = matchFrac(r3, 5e-4);
+      if (trunc) return fracStr(trunc, neg);
+      return neg + String(r3);
     }
-    const g = gcd(best.num, best.den);
-    return neg + ratToStr(best.num / g, best.den / g);
+    // 長小數：浮點塵（≈短小數）→小數；否則是分數截斷→寬容差還原
+    if (Math.abs(av - r3) < 1e-12) return neg + String(r3);
+    const best = matchFrac(r3, 5e-4);
+    if (!best) return neg + String(r3);
+    return fracStr(best, neg);
   }
 
-  // 依單位類型顯示：integer→整數；decimal→小數；fraction→分數還原；未知→auto
+  // 依單位類型顯示（§8 自動）：integer 整數直接顯示，非整數存量可讀顯示；
+  // decimal 維持小數（1.25 米不轉 1 1/4）；fraction 分數優先（3/4 罐、1/3 包）；
+  // 類型只管「輸入驗證」（validFor），顯示各自可讀
   function format(v, qtyType) {
     if (!isFinite(Number(v))) return '0';
-    if (qtyType === 'integer') return String(Math.round(Number(v)));
+    const n = Number(v);
+    if (qtyType === 'integer' && Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
     if (qtyType === 'decimal') {
-      const r = Math.round(Number(v) * 1000) / 1000;
-      return String(r);
+      const r = Math.round(n * 1000) / 1000;
+      return String(r === 0 ? 0 : r);
     }
     return autoFormat(v);
   }

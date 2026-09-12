@@ -50,9 +50,11 @@ def test_units_qty_type_crud(client):
     """單位數量類型：GET 可見、PUT 可改、非法值 400。"""
     units = client.get("/api/units").json()
     can = next(u for u in units if u["name"] == "罐")
-    assert can["qty_type"] == "fraction"  # 種子預設：僅罐為 fraction
+    assert can["qty_type"] == "fraction"  # 種子預設：散裝可分→fraction
+    for nm, qt in (("瓶", "fraction"), ("包", "fraction"), ("桶", "fraction"),
+                   ("捲", "fraction"), ("米", "decimal"), ("個", "integer")):
+        assert next(u for u in units if u["name"] == nm)["qty_type"] == qt, nm
     each = next(u for u in units if u["name"] == "個")
-    assert each["qty_type"] == "integer"  # 其餘預設整數
     r = client.put(f"/api/units/{each['id']}", json={"qty_type": "fraction"})
     assert r.status_code == 200, r.text
     assert r.json()["qty_type"] == "fraction"
@@ -163,3 +165,18 @@ def test_integer_adjust_unchanged(client):
         r = client.post(f"/api/items/{iid}/adjust", json={"delta": d})
         assert r.status_code == 200, r.text
     assert _total(client, "INT-ADJ") == 4
+
+
+def test_write_path_round3_no_dust(client):
+    """寫入 ROUND 3：1/3 累加三次 = 0.999（不生 0.9999999 塵）；盤點 actual 存 0.333。"""
+    iid = _make(client, "FR-R3", "分數累加品", "罐", 0)
+    for _ in range(3):
+        r = client.post(f"/api/items/{iid}/adjust", json={"delta": 1 / 3})
+        assert r.status_code == 200, r.text
+    assert _total(client, "FR-R3") == 0.999
+    iid2 = _make(client, "FR-R3B", "分數盤點存", "罐", 1)
+    r = client.post("/api/stocktake", json={
+        "take_date": "2026-09-12",
+        "items": [{"item_id": iid2, "location": "鐵架", "actual_qty": 1 / 3}]})
+    assert r.status_code == 200, r.text
+    assert _total(client, "FR-R3B") == 0.333

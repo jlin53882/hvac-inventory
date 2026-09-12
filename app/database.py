@@ -403,6 +403,10 @@ def _exec_init(conn):
         conn.execute("ALTER TABLE units ADD COLUMN qty_type TEXT NOT NULL DEFAULT 'integer'")
         conn.execute("UPDATE units SET qty_type='fraction' WHERE name='罐'")
         logger.info("[migrate] units.qty_type 欄位已新增（既有「罐」預設 fraction，其餘 integer）")
+    # 2026-09-12 §8：散裝可分（瓶/桶/捲）→fraction、米→decimal；
+    # 只動仍為 integer 的系統名單（使用者手動改過的值一律保留）
+    conn.execute("UPDATE units SET qty_type='fraction' WHERE name IN ('瓶','桶','捲') AND qty_type='integer'")
+    conn.execute("UPDATE units SET qty_type='decimal' WHERE name='米' AND qty_type='integer'")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_site_active ON items(site, is_deleted, brand)")
     # M5：items 唯一約束（併發重複防線）——有重複資料則跳過建索引並警告（不自動刪資料）
     dup_row = conn.execute(
@@ -460,13 +464,13 @@ def _exec_init(conn):
         (6, '場勘', 4, 1);
     """)
     # 單位種子（2026-08-16：既有 10 種 + 常見補 5 種；破碎歷史值不種子，由收編功能處理）
-    # qty_type（2026-09-12）：僅「罐」預設 fraction（油漆類分數用量實證），其餘維持 integer
+    # qty_type（2026-09-12 §8）：散裝可分 罐/瓶/包/桶/捲→fraction；米→decimal；其餘 integer
     conn.executescript("""
     INSERT OR IGNORE INTO units (name, sort_order, is_active, qty_type) VALUES
-        ('個', 1, 1, 'integer'), ('罐', 2, 1, 'fraction'), ('瓶', 3, 1, 'integer'), ('包', 4, 1, 'integer'),
-        ('組', 5, 1, 'integer'), ('米', 6, 1, 'integer'), ('條', 7, 1, 'integer'), ('捲', 8, 1, 'integer'),
+        ('個', 1, 1, 'integer'), ('罐', 2, 1, 'fraction'), ('瓶', 3, 1, 'fraction'), ('包', 4, 1, 'fraction'),
+        ('組', 5, 1, 'integer'), ('米', 6, 1, 'decimal'), ('條', 7, 1, 'integer'), ('捲', 8, 1, 'fraction'),
         ('盤', 9, 1, 'integer'), ('套', 10, 1, 'integer'),
-        ('箱', 11, 1, 'integer'), ('台', 12, 1, 'integer'), ('支', 13, 1, 'integer'), ('顆', 14, 1, 'integer'), ('桶', 15, 1, 'integer');
+        ('箱', 11, 1, 'integer'), ('台', 12, 1, 'integer'), ('支', 13, 1, 'integer'), ('顆', 14, 1, 'integer'), ('桶', 15, 1, 'fraction');
     """)
     # ---------- RBAC seed（2026-08-13，與 docs/RBAC-帳號權限系統-設計文件 §5 矩陣一致）----------
     conn.executescript("""

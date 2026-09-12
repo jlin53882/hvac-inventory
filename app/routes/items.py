@@ -401,7 +401,7 @@ def update_item(item_id: int, upd: ItemUpdate):
             existing = {r["location"]: r for r in conn.execute(
                 "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
             for loc, s in dedup.items():
-                new_qty = float(s.get("qty") or 0)
+                new_qty = round(float(s.get("qty") or 0), 3)
                 if new_qty < 0:
                     raise HTTPException(400, f"位置「{loc}」的庫存數量不能為負數")
                 if loc in existing:
@@ -551,7 +551,7 @@ def update_stock(stock_id: int, st: StockUpdate):
                         raise HTTPException(400, f"減少後庫存不能低於待領出數量 {prepared}")
                 now = datetime.datetime.now().isoformat()
                 conn.execute(
-                    "UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+                    "UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
                     (diff, now, stock_id),
                 )
                 conn.execute(
@@ -611,7 +611,7 @@ def adjust_qty(item_id: int, req: AdjustRequest):
         # 第一筆位置作為調整標的（正數加入第一筆；負數從最後一筆往前扣）
         if req.delta >= 0:
             target = row[0]
-            conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+            conn.execute("UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
                          (req.delta, datetime.datetime.now().isoformat(), target["id"]))
         else:
             remaining = -req.delta
@@ -619,7 +619,7 @@ def adjust_qty(item_id: int, req: AdjustRequest):
                 if remaining <= 0:
                     break
                 take = min(r["qty"], remaining)
-                cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+                cur = conn.execute("UPDATE item_stocks SET qty=ROUND(qty-?,3), updated_at=? WHERE id=? AND qty>=?",
                                    (take, datetime.datetime.now().isoformat(), r["id"], take))
                 if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕
                     raise HTTPException(400, f"庫存不足！剩 {total_before}")
@@ -690,11 +690,11 @@ def import_items(items: list = Body(..., embed=True)):
                     (exists["id"], location),
                 ).fetchone()
                 if stock:
-                    conn.execute("UPDATE item_stocks SET qty = qty + ?, note=? WHERE id=?",
+                    conn.execute("UPDATE item_stocks SET qty = ROUND(qty + ?,3), note=? WHERE id=?",
                                  (qty, note or it.get("note", ""), stock["id"]))
                 else:
                     conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                                 (exists["id"], location, qty, note))
+                                 (exists["id"], location, round(qty, 3), note))
                 merged += 1
             else:
                 cur = conn.execute(

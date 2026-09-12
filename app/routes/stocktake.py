@@ -53,7 +53,7 @@ def submit_stocktake(req: StocktakeSubmit):
             system_qty = stock["qty"]
             raw_actual = it.get("actual_qty", system_qty)
             try:
-                actual_qty = float(raw_actual)
+                actual_qty = round(float(raw_actual), 3)
             except (TypeError, ValueError):  # M4/M7b：非數字 → 400（原本 500）
                 raise HTTPException(400, "盤點數量格式錯誤")
             if actual_qty < 0:  # M4：負數拒絕
@@ -67,7 +67,7 @@ def submit_stocktake(req: StocktakeSubmit):
             # 2026-08-14：樂觀鎖——寫回條件是「qty 仍是讀到的 system_qty」，
             # 併發被他人改過 → rowcount=0 → 整批拒絕（盤點前需重新載入）
             cur = conn.execute(
-                "UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=? AND qty=?",
+                "UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=? AND qty=?",
                 (diff, datetime.datetime.now().isoformat(), stock["id"], system_qty),
             )
             if cur.rowcount == 0:

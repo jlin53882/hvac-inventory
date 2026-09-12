@@ -71,7 +71,7 @@ def _deduct(conn, item_id, qty, location=""):
             raise HTTPException(400, f"該品項在「{location}」沒有庫存")
         if target[0]["qty"] < qty:
             raise HTTPException(400, f"「{location}」庫存不足！只剩 {target[0]['qty']}")
-        cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+        cur = conn.execute("UPDATE item_stocks SET qty=ROUND(qty-?,3), updated_at=? WHERE id=? AND qty>=?",
                            (qty, datetime.datetime.now().isoformat(), target[0]["id"], qty))
         if cur.rowcount == 0:  # H5：併發已被扣走 → 保守拒絕，不超賣
             raise HTTPException(400, f"「{location}」庫存不足！只剩 {target[0]['qty']}")
@@ -82,7 +82,7 @@ def _deduct(conn, item_id, qty, location=""):
             if remaining <= 0:
                 break
             take = min(s["qty"], remaining)
-            cur = conn.execute("UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+            cur = conn.execute("UPDATE item_stocks SET qty=ROUND(qty-?,3), updated_at=? WHERE id=? AND qty>=?",
                                (take, datetime.datetime.now().isoformat(), s["id"], take))
             if cur.rowcount == 0:  # H5：併發已被扣走 → 保守拒絕，不超賣
                 raise HTTPException(400, f"庫存不足！只剩 {total_before}")
@@ -111,7 +111,7 @@ def _add_back_to_stock(conn, item_id, qty, stock_id):
     row = _stock_payload(conn, stock_id, item_id)
     if not row:
         raise HTTPException(400, "退回位置不存在，請重新選擇有效的庫存位置")
-    conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+    conn.execute("UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
                  (qty, datetime.datetime.now().isoformat(), stock_id))
     return row
 
@@ -121,7 +121,7 @@ def _deduct_from_stock(conn, item_id, qty, stock_id):
     if not row:
         raise HTTPException(400, "來源庫存位置不存在，無法調整數量")
     cur = conn.execute(
-        "UPDATE item_stocks SET qty=qty-?, updated_at=? WHERE id=? AND qty>=?",
+        "UPDATE item_stocks SET qty=ROUND(qty-?,3), updated_at=? WHERE id=? AND qty>=?",
         (qty, datetime.datetime.now().isoformat(), stock_id, qty),
     )
     if cur.rowcount == 0:
@@ -240,7 +240,7 @@ def _add_back_to_first_stock(conn, item_id, qty):
         "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
     if not stocks:
         raise HTTPException(400, "品項無庫存位置，無法退回")
-    conn.execute("UPDATE item_stocks SET qty=qty+?, updated_at=? WHERE id=?",
+    conn.execute("UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
                  (qty, datetime.datetime.now().isoformat(), stocks[0]["id"]))
 
 
