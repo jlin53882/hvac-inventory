@@ -148,6 +148,7 @@ class TestPopupReminderParser:
 
         raw = [{"method": "popup", "minutes": i} for i in range(6)]
         assert parse_popup_reminders(__import__("json").dumps(raw)) == raw[:5]
+        assert parse_popup_reminders([{"method": "email", "minutes": i} for i in range(5)] + [{"method": "popup", "minutes": 7}]) == [{"method": "popup", "minutes": 7}]
         assert parse_popup_reminders("not-json") == []
 
 

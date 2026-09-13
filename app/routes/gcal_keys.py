@@ -147,7 +147,13 @@ async def create_gcal_key(request: Request):
             storage_dir = Path(BASE_DIR) / "secrets" / "gcal"
             storage_dir.mkdir(parents=True, exist_ok=True)
             uploaded_path = storage_dir / f"{uuid.uuid4().hex}.json"
-            uploaded_path.write_text(json.dumps(credentials, ensure_ascii=False, indent=2), encoding="utf-8")
+            try:
+                uploaded_path.write_text(
+                    json.dumps(credentials, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            except OSError:
+                uploaded_path.unlink(missing_ok=True)
+                raise
             credentials_path = str(uploaded_path)
     else:
         try:
@@ -362,7 +368,7 @@ def update_key_reminders(key_id: int, body: dict):
     for r in reminders:
         if not isinstance(r, dict) or r.get("method") != "popup" or "minutes" not in r:
             raise HTTPException(400, "每筆通知只能是 popup 且需含 minutes")
-        if not isinstance(r["minutes"], int) or r["minutes"] < 0 or r["minutes"] > 40320:
+        if isinstance(r["minutes"], bool) or not isinstance(r["minutes"], int) or r["minutes"] < 0 or r["minutes"] > 40320:
             raise HTTPException(400, "minutes 範圍 0~40320")
     conn = get_db()
     try:

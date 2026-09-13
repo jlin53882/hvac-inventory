@@ -212,12 +212,13 @@ def parse_popup_reminders(raw_or_list) -> list:
     if not isinstance(raw_or_list, list):
         return []
     return [
-        item for item in raw_or_list[:5]
+        item for item in raw_or_list
         if isinstance(item, dict)
         and item.get("method") == "popup"
         and isinstance(item.get("minutes"), int)
+        and not isinstance(item.get("minutes"), bool)
         and 0 <= item["minutes"] <= 40320
-    ]
+    ][:5]
 
 
 def load_key_reminders(key_row) -> list:

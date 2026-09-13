@@ -371,6 +371,10 @@ def test_update_key_reminders_validation(client):
         "reminders": [{"method": "popup", "minutes": 1.5}],
     })
     assert r7.status_code == 400
+    r8 = client.put(f"/api/gcal-keys/{kid}/reminders", json={
+        "reminders": [{"method": "popup", "minutes": True}],
+    })
+    assert r8.status_code == 400
 
 
 # ========== 強制同步 API 測試 ==========
