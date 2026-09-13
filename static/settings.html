@@ -208,9 +208,19 @@
       <div class="hint" style="font-size:11px;color:#999;margin-top:3px">自訂名稱，方便辨識是哪個廠商/帳號的 Key</div>
     </div>
     <div class="form-row">
-      <label>Service Account JSON 檔路徑</label>
+      <label>Service Account JSON 檔案（可直接上傳）</label>
+      <input type="file" id="gk-file" accept=".json,application/json" onchange="gcalFileSelected(this)">
+      <div id="gk-file-meta" style="display:none;align-items:center;gap:8px;margin-top:6px">
+        <span id="gk-file-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#2563eb;font-size:12px"></span>
+        <button type="button" class="btn-cancel-ghost" style="padding:4px 8px;font-size:12px" onclick="clearGcalFile()">移除檔案</button>
+      </div>
+      <div id="gk-file-hint" class="hint" style="font-size:11px;color:#999;margin-top:3px">上傳後由伺服器固定儲存檔名；只會顯示 client_email，不會顯示 private_key。</div>
+    </div>
+    <div class="form-row">
+      <label>或手動輸入 JSON 檔路徑</label>
       <input type="text" id="gk-cred" placeholder="例：secrets/hvac-sync-a.json">
-      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">放在伺服器上的 JSON 金鑰檔案路徑（由管理者建立 Service Account 後下載）</div>
+      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">若不上傳檔案，改填伺服器上的 Service Account JSON 路徑。</div>
+      <div class="hint" style="font-size:11px;color:#2563eb;margin-top:5px">使用規則：上傳檔案與路徑同時存在時，以上傳檔案為準；刪除 Key 時，只會一併刪除透過本頁上傳的 JSON，手動輸入路徑的原檔不會刪除。</div>
     </div>
     <div class="form-row">
       <label>Calendar ID</label>

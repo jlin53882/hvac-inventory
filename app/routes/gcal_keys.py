@@ -1,8 +1,72 @@
 """Google 行事曆同步 Key CRUD（admin 級操作）"""
-from fastapi import APIRouter, Depends, HTTPException
+import json
+import re
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.config import BASE_DIR
 from app.database import get_db
 from app.models import GcalKeyIn, GcalKeyUpdate
 from app.services.auth import require_perm
+
+MAX_CREDENTIALS_SIZE = 1024 * 1024
+CLIENT_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+UPLOADED_CREDENTIALS_DIR = (Path(BASE_DIR) / "secrets" / "gcal").resolve()
+_UPLOADED_CREDENTIAL_NAME_RE = re.compile(r"^[0-9a-f]{32}\.json$")
+
+def _uploaded_credentials_path(credentials_path: str) -> Path | None:
+    """只回傳本系統產生的上傳檔，避免誤刪手動指定的檔案。"""
+    try:
+        path = Path(credentials_path).resolve()
+        path.relative_to(UPLOADED_CREDENTIALS_DIR)
+    except (TypeError, ValueError, OSError):
+        return None
+    return path if _UPLOADED_CREDENTIAL_NAME_RE.fullmatch(path.name) else None
+
+def _delete_uploaded_credentials(credentials_path: str) -> None:
+    path = _uploaded_credentials_path(credentials_path)
+    if path is None:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        import logging
+        logging.getLogger(__name__).warning("刪除上傳的 Service Account JSON 失敗 path=%s: %s", path, exc)
+
+def _credentials_data(data: bytes) -> dict:
+    if not data:
+        raise HTTPException(400, "Service Account JSON 不可為空")
+    if len(data) > MAX_CREDENTIALS_SIZE:
+        raise HTTPException(400, "Service Account JSON 不可超過 1MB")
+    try:
+        parsed = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(400, "Service Account JSON 格式錯誤") from exc
+    email = parsed.get("client_email") if isinstance(parsed, dict) else None
+    private_key = parsed.get("private_key") if isinstance(parsed, dict) else None
+    if not isinstance(email, str) or not CLIENT_EMAIL_RE.fullmatch(email.strip()):
+        raise HTTPException(400, "JSON 缺少有效的 client_email")
+    if not isinstance(private_key, str) or not private_key.strip():
+        raise HTTPException(400, "JSON 缺少 private_key")
+    return parsed
+
+def _client_email_from_path(credentials_path: str) -> str:
+    if not credentials_path:
+        return ""
+    candidates = [Path(credentials_path)]
+    if not candidates[0].is_absolute():
+        candidates.append(Path(BASE_DIR) / candidates[0])
+    for path in candidates:
+        try:
+            with path.open("r", encoding="utf-8-sig") as handle:
+                data = json.load(handle)
+            email = data.get("client_email", "") if isinstance(data, dict) else ""
+            if isinstance(email, str) and CLIENT_EMAIL_RE.fullmatch(email.strip()):
+                return email.strip()
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+    return ""
 
 
 def _backfill_all_appointments(key_id: int):
@@ -47,6 +111,7 @@ def _row_to_dict(r):
         "id": r["id"],
         "name": r["name"],
         "credentials_path": r["credentials_path"],
+        "client_email": _client_email_from_path(r["credentials_path"]),
         "calendar_id": r["calendar_id"],
         "is_active": bool(r["is_active"]),
         "reminders": reminders,
@@ -66,24 +131,59 @@ def list_gcal_keys():
 
 
 @router.post("/api/gcal-keys", status_code=201, dependencies=[Depends(require_perm("gcal-keys-manage"))])
-def create_gcal_key(k: GcalKeyIn):
-    """＋ 新增 key。name 不可重複（含停用）。"""
-    name = k.name.strip()
+async def create_gcal_key(request: Request):
+    """新增 key，可上傳 JSON 或輸入伺服器上的 JSON 路徑。"""
+    content_type = request.headers.get("content-type", "").lower()
+    uploaded_path = None
+    if content_type.startswith("multipart/form-data"):
+        form = await request.form()
+        name = str(form.get("name") or "").strip()
+        credentials_path = str(form.get("credentials_path") or "").strip()
+        calendar_id = str(form.get("calendar_id") or "").strip()
+        uploaded = form.get("credentials_file")
+        if uploaded is not None and getattr(uploaded, "filename", None) is not None:
+            filename = str(uploaded.filename or "")
+            if Path(filename).suffix.lower() != ".json":
+                raise HTTPException(400, "Service Account 檔案必須是 .json")
+            data = await uploaded.read(MAX_CREDENTIALS_SIZE + 1)
+            credentials = _credentials_data(data)
+            storage_dir = Path(BASE_DIR) / "secrets" / "gcal"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            uploaded_path = storage_dir / f"{uuid.uuid4().hex}.json"
+            uploaded_path.write_text(json.dumps(credentials, ensure_ascii=False, indent=2), encoding="utf-8")
+            credentials_path = str(uploaded_path)
+    else:
+        try:
+            payload = GcalKeyIn.model_validate(await request.json())
+        except Exception as exc:
+            raise HTTPException(422, "Key 資料格式錯誤") from exc
+        name = payload.name.strip()
+        credentials_path = payload.credentials_path.strip()
+        calendar_id = payload.calendar_id.strip()
     if not name:
         raise HTTPException(400, "Key 名稱不可為空白")
+    if not credentials_path:
+        raise HTTPException(400, "請上傳 JSON 或輸入 JSON 檔路徑")
+    if len(credentials_path) > 500 or not calendar_id or len(calendar_id) > 300:
+        raise HTTPException(400, "JSON 路徑或 Calendar ID 長度不合法")
+    if uploaded_path is None:
+        _client_email_from_path(credentials_path)  # 觸發檔案格式/存在性檢查結果由 email 顯示
     conn = get_db()
     try:
         if conn.execute("SELECT id FROM gcal_keys WHERE name=?", (name,)).fetchone():
             raise HTTPException(400, f"Key「{name}」已存在")
         cur = conn.execute(
             "INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
-            (name, k.credentials_path.strip(), k.calendar_id.strip()),
+            (name, credentials_path, calendar_id),
         )
         new_key_id = cur.lastrowid
         conn.commit()
+    except Exception:
+        if uploaded_path:
+            uploaded_path.unlink(missing_ok=True)
+        raise
     finally:
         conn.close()
-    # 新增 key 後，自動把所有旧行程加入 sync_queue（首次同步）
     _backfill_all_appointments(new_key_id)
     from app.database import get_db as _g
     _c = _g()
@@ -183,6 +283,7 @@ def delete_gcal_key(key_id: int):
         # 刪 key（DB CASCADE 自動清 appointment_gcal_map + appointment_sync_queue）
         conn.execute("DELETE FROM gcal_keys WHERE id=?", (key_id,))
         conn.commit()
+        _delete_uploaded_credentials(row["credentials_path"])
         msg = f"Key 已刪除（Google 事件：{deleted_ok} 成功 / {deleted_fail} 失敗）"
         logger.info(msg)
         return {"ok": True, "google_deleted": deleted_ok, "google_failed": deleted_fail}

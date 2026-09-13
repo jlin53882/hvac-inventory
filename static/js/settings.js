@@ -315,6 +315,7 @@ function renderGcalPanel() {
       '<div style="flex:1;min-width:0">' +
         '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(k.name) + '</div>' +
         '<div style="font-size:11px;color:#888;margin-top:1px">' + (k.is_active ? '✅ 啟用' : '⏸ 停用') + '</div>' +
+        '<div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(k.client_email || '') + '">' + esc(k.client_email || 'Client email 未讀取') + '</div>' +
       '</div>' +
       '<div style="width:8px;height:8px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#ff4d4f') + ';flex-shrink:0"></div>' +
       '</div>';
@@ -334,7 +335,8 @@ function renderGcalPanel() {
       html += '<div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">' +
         '<div style="width:40px;height:40px;border-radius:50%;background:#52c41a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px">📅</div>' +
         '<div style="flex:1"><div style="font-size:16px;font-weight:700">' + esc(key.name) + '</div>' +
-        '<div style="font-size:12px;color:#888;margin-top:2px">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div></div>';
+        '<div style="font-size:12px;color:#888;margin-top:2px">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div>' +
+        '<div style="font-size:12px;color:#2563eb;margin-top:3px">Client email：' + esc(key.client_email || '未讀取') + '</div></div>';
       // 操作按鈕
       if (canManage) {
         html += '<div style="display:flex;gap:6px;align-items:center">' +
