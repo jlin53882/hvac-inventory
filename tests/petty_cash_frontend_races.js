@@ -226,6 +226,16 @@ async function testModalLatestResponseWins() {
     if (firstType !== secondType) {
       assert.strictEqual(firstType === 'general' ? engineeringCount : generalCount, 1, 'latest cross-type modal missing');
     }
+    if (secondType === 'general') {
+      assert.strictEqual(context.pcModalEditingId, 202, 'latest general modal report ID is not B');
+      assert.strictEqual(context.pcModalSessionType, 'general', 'latest general modal session type is wrong');
+      assert(html.includes('value="B"'), 'latest general modal owner/edit state is not B');
+    } else {
+      assert.strictEqual(context.engEditingId, 202, 'latest engineering modal report ID is not B');
+      assert.strictEqual(context.pcModalSessionType, 'engineering', 'latest engineering modal session type is wrong');
+      assert.strictEqual(context.engData.upload_person, 'B', 'latest engineering save target is not B');
+      assert(html.includes('value="B"'), 'latest engineering modal owner/edit state is not B');
+    }
     assert.strictEqual(pending.length, 0, 'modal race left pending requests');
   }
 
@@ -293,24 +303,48 @@ function testPaginationRendersPageOffsets() {
 }
 
 async function testMutationRefreshesKeepLatestResponse() {
-  for (const operation of ['save', 'delete']) {
-    elements['pc-f-from'].value = '';
-    elements['pc-f-to'].value = '';
-    elements['pc-f-person'].value = '';
-    elements['pc-f-status'].value = '';
-    elements['pc-f-type'].value = '';
-    elements['pc-f-q'].value = '';
+  const resetFilters = () => {
+    ['pc-f-from', 'pc-f-to', 'pc-f-person', 'pc-f-status', 'pc-f-type', 'pc-f-q'].forEach(id => {
+      elements[id].value = '';
+    });
     context.pcPage = 1;
-    context.pcLoadHistory();
-    context.pcLoadHistory();
-    resolvePendingLast('page=1', { items: [report(302, `${operation}-latest`)], total: 1, page: 1, page_size: 20 });
+  };
+  const resolveRefresh = async (latestId, staleId, latestOwner) => {
+    resolvePendingLast('page=1', { items: [report(latestId, latestOwner)], total: 1, page: 1, page_size: 20 });
     await flush();
     resolvePending('/api/petty-cash/kpi?', { total: 1, completed: 1, draft: 0 });
     await flush();
-    resolvePending('page=1', { items: [report(301, `${operation}-stale`)], total: 1, page: 1, page_size: 20 });
+    resolvePending('page=1', { items: [report(staleId, 'stale')], total: 1, page: 1, page_size: 20 });
     await flush();
-    assert.strictEqual(context.pcReports[0].id, 302, `${operation} refresh was overwritten by stale response`);
-  }
+    assert.strictEqual(context.pcReports[0].id, latestId, 'mutation refresh was overwritten by stale response');
+  };
+
+  resetFilters();
+  context.pcValidateBasic = () => true;
+  context.pcModalGotoStep = () => true;
+  context.pcCloseReportModal = () => {};
+  context.renderPettyCash = () => context.pcLoadHistory();
+  context.pcModalEditingId = null;
+  context.pcModalEntries = [];
+  context.pcModalReturnToDetail = false;
+  context.pcOpeningSource = 'manual';
+  context.pcModalSessionType = 'general';
+  context.pcModalOpenSeq = 300;
+  context.pcSaveInFlight = false;
+  context.pcLoadHistory();
+  const save = context.pcModalSave('completed');
+  resolvePendingLast('/api/petty-cash-reports', { id: 401 });
+  await flush();
+  await resolveRefresh(402, 401, 'save-latest');
+  await save;
+
+  resetFilters();
+  context.pcLoadHistory();
+  const deletion = context.pcDelete(55, false);
+  resolvePending('/api/petty-cash-reports/55', {});
+  await flush();
+  await resolveRefresh(502, 501, 'delete-latest');
+  await deletion;
 }
 
 async function testGeneralSaveIsSingleFlightAndRecovers() {
