@@ -849,3 +849,10 @@
   .pc-general-detail-head,
   .pc-general-detail-item { grid-template-columns:auto minmax(0,1fr) auto; }
 }
+/* PR8 variable text: data labels and values may wrap; controls stay compact. */
+.pc-table th,
+.pc-num,
+.pc-entry-status,
+.eng-detail-total,
+.eng-editor-receipt-no { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }

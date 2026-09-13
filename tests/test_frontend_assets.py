@@ -542,6 +542,8 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert '.eng-detail-table,\n.pc-general-detail-table { table-layout:auto; }' in css
     assert 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' in css
     assert 'grid-template-columns:minmax(0,1fr) auto' in css
+    assert 'PR8 variable text: data labels and values may wrap' in css
+    assert '.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }' in css
     assert '.eng-receipt-toggle' in css
     assert 'engToggle(engExpandedReceipts' in js
     assert '.pc-kpi-card .ui-kpi-value' in css
