@@ -452,6 +452,7 @@ def test_gcal_key_reminder_cards_contract():
     assert "最多 5 個" in js
     assert "method: 'popup'" in js
     assert "method: 'email'" not in js
+    assert "deleteGcalKey(' + key.id + '," not in js
     assert ".gcal-reminder-row {" in html
     assert "grid-template-columns: minmax(120px, 1fr) auto auto" in html
 

@@ -339,7 +339,7 @@ function renderGcalPanel() {
         html += '<div style="display:flex;gap:6px;align-items:center">' +
           '<label class="settings-switch" title="' + (key.is_active ? '點擊停用' : '點擊啟用') + '"><input type="checkbox" ' + (key.is_active ? 'checked' : '') + ' onchange="toggleGcalKey(' + key.id + ', this.checked)"><span class="slider"></span></label>' +
           '<button onclick="openGcalKeyModal(' + key.id + ')" style="padding:4px 8px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer">✏️ 編輯</button>' +
-          '<button onclick="deleteGcalKey(' + key.id + ', \'' + esc(key.name).replace(/'/g, "\\'") + '\')" style="padding:4px 8px;font-size:12px;border:1px solid #fecaca;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer">🗑️ 刪除</button>' +
+          '<button type="button" onclick="deleteGcalKey(' + key.id + ')" style="padding:4px 8px;font-size:12px;border:1px solid #fecaca;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer">🗑️ 刪除</button>' +
           '</div>';
       }
       html += '</div>';
@@ -585,7 +585,9 @@ async function toggleGcalKey(id, on) {
   } catch (e) { toast('操作失敗', 'error'); }
 }
 
-async function deleteGcalKey(id, name) {
+async function deleteGcalKey(id) {
+  const key = gcalKeys.find(k => k.id === id);
+  const name = key ? key.name : '未知';
   if (!confirm('確定要刪除 Key「' + name + '」？\n\n此操作會同時刪除 Google 行事曆上已同步的事件。')) return;
   try {
     const res = await fetch('/api/gcal-keys/' + id, { method: 'DELETE' });
