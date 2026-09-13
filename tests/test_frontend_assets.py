@@ -544,6 +544,9 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'grid-template-columns:minmax(0,1fr) auto' in css
     assert 'PR8 variable text: data labels and values may wrap' in css
     assert '.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }' in css
+    assert 'PR8 KPI row: always stay on one horizontal line' in css
+    assert '#content .pc-kpi-row { display:flex; grid-template-columns:none; align-items:stretch; }' in css
+    assert '.eng-detail-table td:nth-child(4) { text-align:center !important; }' in css
     assert '.eng-receipt-toggle' in css
     assert 'engToggle(engExpandedReceipts' in js
     assert '.pc-kpi-card .ui-kpi-value' in css

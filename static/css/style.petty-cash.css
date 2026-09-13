@@ -856,3 +856,22 @@
 .eng-detail-total,
 .eng-editor-receipt-no { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
 .eng-editor-receipt-no { overflow:visible; text-overflow:clip; }
+/* PR8 KPI row: always stay on one horizontal line and scale evenly. */
+#content .pc-kpi-row { display:flex; grid-template-columns:none; align-items:stretch; }
+#content .pc-kpi-card { flex:1 1 0; width:0; }
+#content .pc-kpi-card:first-child { grid-column:auto; }
+#content .pc-kpi-card__head,
+#content .pc-kpi-card .ui-kpi-value { min-width:0; }
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value { overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.eng-detail-table th:nth-child(4),
+.eng-detail-table td:nth-child(4) { text-align:center !important; }
+@media (max-width:767px) {
+  #content .pc-kpi-row { display:flex; gap:4px; }
+  #content .pc-kpi-card { min-width:0; padding-left:6px; padding-right:6px; }
+  #content .pc-kpi-card__head { gap:3px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { flex:0 0 auto; }
+  #content .pc-kpi-card__head .ui-kpi-label { font-size:clamp(8px,2.7vw,11px); }
+  #content .pc-kpi-card .ui-kpi-value,
+  #content .pc-kpi-card:first-child .pc-kpi-card__num { font-size:clamp(14px,4.5vw,24px); }
+}
