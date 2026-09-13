@@ -75,6 +75,7 @@ SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
+PETTY_CASH_ENGINEERING_MODAL_JS = os.path.join(STATIC, "js", "modals", "engineering-petty-cash.js")
 SETTINGS_HTML = os.path.join(STATIC, "settings.html")
 SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
@@ -491,6 +492,37 @@ def test_petty_cash_settings_options_domain_layout():
     assert '新增科目' in js
     assert 'pc-option-engineering-grid' in js
     assert "option_type:kind" in js
+
+
+def test_petty_cash_more_actions_and_aligned_engineering_table():
+    """報表操作使用共用更多選單；工程檢視使用對齊表格（2026-09-13）。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    css = read(PETTY_CASH_CSS)
+    assert 'function pcMoreMenuHtml' in js
+    assert 'class="pc-more-menu"' in js
+    assert 'pcRowOpsHtml' in js and 'pcMoreMenuHtml(r, false)' in js
+    assert 'eng-detail-table' in js
+    assert 'eng-receipt-detail-row' in js
+    assert '.pc-more-menu__list' in css
+    assert 'table-layout:fixed' in css
+    assert '.eng-receipt-toggle' in css
+
+
+def test_petty_cash_general_detail_rows_are_expandable():
+    """一般零用金含明細的整列與按鈕都可展開（2026-09-13）。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert 'pc-general-entry-row--expandable' in js
+    assert 'onclick="pcToggleGeneralEntry(${i})"' in js
+    assert 'type="button" class="pc-inline-expand"' in js
+
+
+def test_engineering_editor_inputs_are_rounded():
+    """工程零用金編輯器輸入／選擇欄統一圓角（2026-09-13）。"""
+    js = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+    css = read(PETTY_CASH_CSS)
+    assert 'eng-tax' in js and 'eng-no' in js and 'eng-amount' in js and 'eng-detail' in js
+    assert '.eng-editor input, .eng-editor select' in css
+    assert '.eng-editor input:focus, .eng-editor select:focus' in css
 
 
 def test_no_openDrawer_dead_code():

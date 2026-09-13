@@ -142,6 +142,9 @@ REVIEWED_SAFE_BODIES = {
     "pcGeneralEntryRowsHtml(r.entries)", "pcGeneralMobileCardsHtml(r.entries)",
     "hasDetails ? ' eng-receipt-parent--expandable' : ''", "hasDetails ? (expanded ? '▼' : '▶') : '·'", "expanded ? engReceiptDetailsHtml(q, receiptKey) : ''",
     "expanded ? ' is-open' : ''", "expanded ? engGroupHtml(g,ci,gi) : ''",
+    # petty cash UI 2026-09-13: fixed class/call fragments; all user fields in the surrounding row are escaped.
+    "hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'",
+    "engReceiptDetailsHtml(q, receiptKey)", "detailRow",
     # 含 esc 的組合內插
     "i.code ? ' · ' + esc(i.code) : ''", "sel ? esc(sel.brand) + ' ' + esc(sel.name) : ''",
     "s.note ? ' · 📝 ' + esc(s.note) : ''",

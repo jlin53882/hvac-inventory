@@ -217,11 +217,16 @@ function pcCardHtml(r) {
   </div>`;
 }
 
+// 報表操作共用更多選單：桌面與手機使用同一組 actions
+function pcMoreMenuHtml(r, engineering) {
+  const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
+  const del = `pcDelete(${r.id}${engineering ? ', true' : ''})`;
+  return `<details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list"><button type="button" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${r.can_edit ? `<button type="button" onclick="event.stopPropagation();${edit}">✏️ 編輯</button>` : ''}<button type="button" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-more-menu__danger" onclick="event.stopPropagation();${del}">🗑 刪除</button>` : ''}</div></details>`;
+}
+
 // 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
 function pcRowOpsHtml(r) {
-  const editBtn = r.can_edit ? `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenReportModal(${r.id})">✏️ 編輯</button>` : '';
-  const delBtn = r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : '';
-  return `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${editBtn}<button class="pc-btn-sm" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${delBtn}`;
+  return pcMoreMenuHtml(r, false);
 }
 
 // KPI（同篩選全量，不受分頁影響）
@@ -328,8 +333,8 @@ function pcGeneralEntryRowsHtml(entries) {
     const summary = e.description || (hasItems ? `${e.items.length} 項明細` : '—');
     const incomeText = e.entry_type === 'income' ? '+' + esc(_pcMoney(e.amount)) : '—';
     const expenseText = e.entry_type !== 'income' ? '-' + esc(_pcMoney(e.amount)) : '—';
-    const toggle = hasItems ? `<button class="pc-inline-expand" aria-expanded="${expanded}" onclick="event.stopPropagation();pcToggleGeneralEntry(${i})">${expanded ? '▼' : '▶'}</button>` : '';
-    const row = `<tr><td>${esc(seq)}</td><td class="pc-nowrap">${esc(_pcDate(e.entry_date))}</td><td>${toggle}<span>${esc(summary)}</span>${hasItems ? ` <small>（${esc(e.items.length)} 項）</small>` : ''}</td><td class="pc-money pc-money--income">${incomeText}</td><td class="pc-money pc-money--expense">${expenseText}</td><td>${esc(e.category || '—')}</td><td>${pcEntryStatus(e)}</td><td>—</td></tr>`;
+    const toggle = hasItems ? `<button type="button" class="pc-inline-expand" aria-expanded="${expanded}" onclick="event.stopPropagation();pcToggleGeneralEntry(${i})">${expanded ? '▼' : '▶'}</button>` : '';
+    const row = `<tr class="${hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'}"${hasItems ? ` onclick="pcToggleGeneralEntry(${i})"` : ''}><td>${esc(seq)}</td><td class="pc-nowrap">${esc(_pcDate(e.entry_date))}</td><td>${toggle}<span>${esc(summary)}</span>${hasItems ? ` <small>（${esc(e.items.length)} 項）</small>` : ''}</td><td class="pc-money pc-money--income">${incomeText}</td><td class="pc-money pc-money--expense">${expenseText}</td><td>${esc(e.category || '—')}</td><td>${pcEntryStatus(e)}</td><td>—</td></tr>`;
     const detail = expanded ? `<tr class="pc-general-detail-row"><td></td><td colspan="7">${pcGeneralDetailsHtml(e)}</td></tr>` : '';
     return row + detail;
   }).join('');
@@ -368,11 +373,11 @@ async function pcDelete(id, backToList) {
 }
 
 function engDesktopRowHtml(r, idx) {
-  const ops = `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${r.can_edit ? `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenEngineeringModal(${r.id})">✏️ 編輯</button>` : ''}<button class="pc-btn-sm" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : ''}`;
+  const ops = pcMoreMenuHtml(r, true);
   return `<tr><td>${esc(idx + 1)}</td><td>${_pcPeriodText(r)}</td><td><span class="pc-status pc-status--engineering">工程零用金</span></td><td>${esc(r.filename || r.filename_text || '')}</td><td>${esc(r.upload_person)}</td><td>${esc(r.prepared_by)}</td><td class="pc-num"><strong>總計 $${esc(_pcMoney(r.total_amount))}</strong></td><td>${pcStatusBadge(r.status)}</td><td><div class="pc-row-actions">${ops}</div></td></tr>`;
 }
 function engCardHtml(r) {
-  const ops = `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${r.can_edit ? `<button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenEngineeringModal(${r.id})">✏️ 編輯</button>` : ''}<button class="pc-btn-sm" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcDelete(${r.id})">🗑 刪除</button>` : ''}`;
+  const ops = pcMoreMenuHtml(r, true);
   return `<div class="pc-report-card" onclick="pcOpenDetail(${r.id})"><div class="pc-report-card__top"><span class="pc-report-card__period">${_pcPeriodText(r)}</span>${pcStatusBadge(r.status)}</div><div class="pc-report-card__file"><span class="pc-status pc-status--engineering">工程零用金</span> ${esc(r.filename || r.filename_text || '')}</div><div class="pc-report-card__meta">報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div><div class="pc-report-card__balance">總計 $${esc(_pcMoney(r.total_amount))}</div><div class="pc-row-actions" style="margin-top:8px">${ops}</div></div>`;
 }
 
@@ -391,12 +396,15 @@ function engReceiptHtml(q, ri, groupKey) {
   const details = q.details || [];
   const expanded = engExpandedReceipts.has(receiptKey);
   const hasDetails = details.length > 0;
-  return `<article class="eng-receipt-card"><button class="eng-receipt-parent${hasDetails ? ' eng-receipt-parent--expandable' : ''}" ${hasDetails ? `aria-expanded="${expanded}" onclick="engToggle(engExpandedReceipts,'${jsStr(receiptKey)}')"` : ''}><span class="eng-receipt-chevron">${hasDetails ? (expanded ? '▼' : '▶') : '·'}</span><span class="eng-receipt-no">${esc(q.receipt_number || '未填寫單據')}</span><span class="eng-tax-mark">${esc(q.tax_id_mark || '—')}</span><span class="eng-detail-count">${hasDetails ? `${esc(details.length)} 項明細` : '無細項'}</span><strong class="pc-num">$${esc(_pcMoney(q.amount))}</strong></button>${expanded ? engReceiptDetailsHtml(q, receiptKey) : ''}</article>`;
+  const toggle = hasDetails ? ` type="button" aria-expanded="${expanded}" onclick="engToggle(engExpandedReceipts,'${jsStr(receiptKey)}')"` : '';
+  const detailRow = expanded ? `<tr class="eng-receipt-detail-row"><td colspan="4">${engReceiptDetailsHtml(q, receiptKey)}</td></tr>` : '';
+  return `<tr class="eng-receipt-row"><td><button class="eng-receipt-toggle"${toggle}><span class="eng-receipt-chevron">${hasDetails ? (expanded ? '▼' : '▶') : '·'}</span><span class="eng-receipt-no">${esc(q.receipt_number || '未填寫單據')}</span></button></td><td><span class="eng-tax-mark">${esc(q.tax_id_mark || '—')}</span></td><td class="eng-detail-count">${hasDetails ? `${esc(details.length)} 項明細` : '無細項'}</td><td class="pc-num"><strong>$${esc(_pcMoney(q.amount))}</strong></td></tr>${detailRow}`;
 }
 function engGroupHtml(g, ci, gi) {
   const groupKey = ci + ':' + gi;
   const expanded = engExpandedGroups.has(groupKey);
-  return `<section class="eng-group-block"><button class="eng-group-head${expanded ? ' is-open' : ''}" aria-expanded="${expanded}" onclick="engToggle(engExpandedGroups,'${jsStr(groupKey)}')"><span><span class="eng-chevron">${expanded ? '▼' : '▶'}</span><b>${esc(g.name)}</b></span><strong>項目小計 $${esc(_pcMoney(g.subtotal))}</strong></button>${expanded ? `<div class="eng-group-body"><div class="eng-receipt-table-head"><span>單據</span><span>統編</span><span>明細</span><span>金額</span></div>${(g.receipts || []).map((q,ri) => engReceiptHtml(q,ri,groupKey)).join('') || '<div class="pc-empty-cell">尚無單據</div>'}</div>` : ''}</section>`;
+  const receipts = (g.receipts || []).map((q,ri) => engReceiptHtml(q,ri,groupKey)).join('');
+  return `<section class="eng-group-block"><button class="eng-group-head${expanded ? ' is-open' : ''}" aria-expanded="${expanded}" onclick="engToggle(engExpandedGroups,'${jsStr(groupKey)}')"><span><span class="eng-chevron">${expanded ? '▼' : '▶'}</span><b>${esc(g.name)}</b></span><strong>項目小計 $${esc(_pcMoney(g.subtotal))}</strong></button>${expanded ? `<div class="eng-group-body"><div class="eng-detail-table-wrap"><table class="eng-detail-table"><thead><tr><th>單據</th><th>統編</th><th>明細</th><th>金額</th></tr></thead><tbody>${receipts || '<tr><td colspan="4" class="pc-empty-cell">尚無單據</td></tr>'}</tbody></table></div></div>` : ''}</section>`;
 }
 function engRenderDetail() {
   const r = pcDetail, cats = r.categories || [];
