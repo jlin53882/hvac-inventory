@@ -108,6 +108,8 @@ def test_create_computes_totals(pc_env):
     welfare = [e for e in d["entries"] if e["description"] == "員工福利"][0]
     assert len(welfare["items"]) == 4
     assert welfare["amount_warning"] is not None  # 1545 ≠ 1334，詳見 warning 測試
+    assert welfare["detail_total"] == 1545
+    assert welfare["difference"] == 211
     assert d["status"] == "completed"
 
 

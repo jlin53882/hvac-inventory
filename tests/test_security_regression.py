@@ -134,6 +134,14 @@ REVIEWED_SAFE_BODIES = {
     # 工程／一般零用金：helper 內部對使用者資料已 esc，回傳固定 HTML 結構
     "engOptionSelect('category', c.name)", "engOptionSelect('group', g.name)", "pcGeneralCategoryOptions(src.category || '')",
     "seq", "receiptCells", "totalReceipts",
+    "incomeText", "expenseText",
+    "e.entry_type === 'income' ? '+' + esc(_pcMoney(e.amount)) :", "e.entry_type !== 'income' ? '-' + esc(_pcMoney(e.amount)) :",
+    # 零用金檢視 accordion/card：狀態與 helper 回傳固定 HTML，helper 內部已 esc 使用者資料（2026-09-13）
+    "expanded", "expanded ? '▼' : '▶'", "toggle", "pcEntryStatus(e)", "pcGeneralDetailsHtml(e)",
+    "isIncome ? 'pc-money--income' : 'pc-money--expense'", "isIncome ? '收入 +' : '支出 -'", "expanded ? pcGeneralDetailsHtml(e) : ''",
+    "pcGeneralEntryRowsHtml(r.entries)", "pcGeneralMobileCardsHtml(r.entries)",
+    "hasDetails ? ' eng-receipt-parent--expandable' : ''", "hasDetails ? (expanded ? '▼' : '▶') : '·'", "expanded ? engReceiptDetailsHtml(q, receiptKey) : ''",
+    "expanded ? ' is-open' : ''", "expanded ? engGroupHtml(g,ci,gi) : ''",
     # 含 esc 的組合內插
     "i.code ? ' · ' + esc(i.code) : ''", "sel ? esc(sel.brand) + ' ' + esc(sel.name) : ''",
     "s.note ? ' · 📝 ' + esc(s.note) : ''",

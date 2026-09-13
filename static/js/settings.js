@@ -14,25 +14,40 @@ async function loadPettyOptions() {
     }
   }
 }
+function pettyOptionRows(type, kind, can) {
+  const items = pettyOptionCache[type][kind] || [];
+  if (!items.length) return '<div class="pc-option-empty">尚未設定選項</div>';
+  return items.map((o, i) => '<div class="pc-option-row"><div><span class="pc-option-index">' + (i + 1) + '</span><strong>' + esc(o.name) + '</strong><small class="pc-option-status ' + (o.is_active ? 'is-active' : 'is-off') + '">' + (o.is_active ? '● 使用中' : '○ 已停用') + '</small></div>' + (can ? '<span class="pc-option-actions"><button class="pc-icon-action" aria-label="編輯 ' + esc(o.name) + '" title="編輯" onclick="renamePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">✎</button><button class="pc-icon-action pc-icon-action--danger" aria-label="刪除 ' + esc(o.name) + '" title="刪除" onclick="deletePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">🗑</button></span>' : '') + '</div>').join('');
+}
 function renderPettyOptionsPanel() {
   const can = hasPerm('petty-cash-config');
   const panel = document.getElementById('panel-petty-cash');
   if (!panel) return;
-  let html = '<h4>🪙 零用金下拉選單</h4><p style="font-size:12.5px;color:#64748b">一般零用金與工程零用金分開管理，編輯報表時可直接選用。</p>';
-  for (const type of ['general', 'engineering']) {
-    const label = type === 'general' ? '一般零用金' : '工程零用金';
-    html += '<section class="pc-option-settings"><div class="pc-option-settings__head"><h5>' + label + '</h5><span>資料不與另一報表類型共用</span></div>';
-    if (can) html += '<div class="pc-option-add"><select id="pc-opt-kind-' + type + '"><option value="category">分類</option><option value="group">項目</option></select><input id="pc-opt-name-' + type + '" maxlength="100" placeholder="輸入要加入的名稱"><button class="btn-primary" onclick="createPettyOption(\'' + type + '\')">＋ 新增</button></div>';
-    for (const kind of ['category', 'group']) {
-      html += '<div class="pc-option-kind"><b>' + (kind === 'category' ? '分類選項' : '項目選項') + '</b><div class="pc-option-list">';
-      const items = pettyOptionCache[type][kind] || [];
-      html += items.length ? items.map(o => '<div class="pc-option-row"><span>' + esc(o.name) + (o.is_active ? '' : ' <small>（停用）</small>') + '</span>' + (can ? '<span><button class="pc-btn-sm" onclick="renamePettyOption(' + o.id + ',\'' + type + '\',\'' + kind + '\')">編輯</button><button class="pc-btn-sm pc-btn-sm--danger" onclick="deletePettyOption(' + o.id + ',\'' + type + '\',\'' + kind + '\')">刪除</button></span>' : '') + '</div>').join('') : '<div class="pc-option-empty">尚未設定選項</div>';
-      html += '</div></div>';
-    }
-    html += '</section>';
+  let html = '<div class="pc-settings-title"><div><h4>🪙 零用金選單</h4><p>管理零用金報表使用的科目、分類與項目，資料不與其他報表類型共用。</p></div></div>';
+  html += '<section class="pc-option-settings pc-option-settings--general"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">💳</span><div><h5>一般零用金</h5><p>管理一般零用金使用的科目</p></div></div><span class="pc-settings-note">ⓘ 僅需設定科目</span></div>';
+  if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-general">新增科目</label><div class="pc-option-add-row"><input id="pc-opt-name-general" maxlength="100" placeholder="輸入科目名稱（例如：文具費）"><button class="btn-primary" onclick="createPettyOption(\'general\')">＋ 新增科目</button></div></div>';
+  html += '<div class="pc-option-list-head"><span>#　科目名稱</span><span>操作</span></div><div class="pc-option-list">' + pettyOptionRows('general', 'category', can) + '</div></section>';
+  html += '<section class="pc-option-settings pc-option-settings--engineering"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">👷</span><div><h5>工程零用金</h5><p>管理工程零用金使用的分類與項目</p></div></div></div><div class="pc-option-engineering-grid">';
+  for (const kind of ['category', 'group']) {
+    const label = kind === 'category' ? '📁 分類選項' : '📦 項目選項';
+    const placeholder = kind === 'category' ? '輸入分類名稱（例如：交通費）' : '輸入項目名稱（例如：油資）';
+    html += '<div class="pc-option-column"><div class="pc-option-column-head"><div><h6>' + label + '</h6><p>工程零用金' + (kind === 'category' ? '分類' : '項目') + '</p></div><b>' + (pettyOptionCache.engineering[kind] || []).length + ' 筆</b></div>';
+    if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-engineering-' + kind + '">新增' + (kind === 'category' ? '分類' : '項目') + '</label><div class="pc-option-add-row"><input id="pc-opt-name-engineering-' + kind + '" maxlength="100" placeholder="' + placeholder + '"><button class="btn-primary" onclick="createPettyOptionKind(\'engineering\',\'' + kind + '\')">＋ 新增</button></div></div>';
+    html += '<div class="pc-option-list">' + pettyOptionRows('engineering', kind, can) + '</div></div>';
   }
+  html += '</div></section>';
   panel.innerHTML = html;
 }
+async function createPettyOptionKind(type, kind) {
+  const input = document.getElementById('pc-opt-name-' + type + '-' + kind);
+  const name = input.value.trim();
+  if (!name) return toast('請輸入選單名稱', 'error');
+  const res = await fetch('/api/petty-cash-options', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_type:type, option_type:kind, name:name, sort_order:pettyOptionCache[type][kind].length}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return toast(data.detail || '新增失敗', 'error');
+  await loadPettyOptions(); renderPettyOptionsPanel(); toast('✅ 已新增', 'success');
+}
+
 async function createPettyOption(type) {
   const kind = document.getElementById('pc-opt-kind-' + type).value;
   const input = document.getElementById('pc-opt-name-' + type);

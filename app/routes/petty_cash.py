@@ -68,6 +68,8 @@ def _entry_dict(entry_row, items: list) -> dict:
             for i in items
         ],
         "amount_warning": warning,
+        "detail_total": item_total,
+        "difference": round(item_total - amount, 2) if item_total is not None else None,
     }
 
 

@@ -75,6 +75,8 @@ SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
+SETTINGS_HTML = os.path.join(STATIC, "settings.html")
+SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
 CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
@@ -470,13 +472,25 @@ def test_petty_cash_entry_date_groups():
 
 
 def test_petty_cash_detail_table_mobile():
-    """詳細頁收支明細表格手機板不被隱藏（2026-09-12）"""
+    """詳細頁 desktop 使用 table、手機使用 transaction cards（2026-09-13）"""
     js = read(PETTY_CASH_RENDER_JS)
-    assert 'pc-detail-table-wrap' in js
+    assert 'pc-general-detail-table-wrap' in js
+    assert 'pc-general-mobile-list' in js
     css = read(PETTY_CASH_CSS)
-    assert 'pc-detail-table-wrap' in css
-    # Ensure list table is hidden but detail table is not
-    assert '.pc-table-wrap:not(.pc-detail-table-wrap)' in css
+    assert '.pc-report-list-table' in css
+    assert 'table-layout: auto' in css
+    assert '11.11%' not in css
+
+
+def test_petty_cash_settings_options_domain_layout():
+    """零用金設定 domain：一般只有科目，工程分開管理分類與項目（2026-09-13）。"""
+    html = read(SETTINGS_HTML)
+    js = read(SETTINGS_JS)
+    assert 'panel-petty-cash' in html
+    assert '一般零用金' in js and '工程零用金' in js
+    assert '新增科目' in js
+    assert 'pc-option-engineering-grid' in js
+    assert "option_type:kind" in js
 
 
 def test_no_openDrawer_dead_code():
