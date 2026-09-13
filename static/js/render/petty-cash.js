@@ -315,6 +315,14 @@ function pcToggleGeneralEntry(index) {
   if (pcDetailExpanded.has(index)) pcDetailExpanded.delete(index); else pcDetailExpanded.add(index);
   pcRenderDetail();
 }
+function pcBindGeneralDetailEvents() {
+  document.querySelectorAll('.pc-general-entry-row--expandable[data-entry-index], .pc-inline-expand[data-entry-index], .pc-general-detail-toggle[data-entry-index]').forEach(element => {
+    element.addEventListener('click', event => {
+      event.stopPropagation();
+      pcToggleGeneralEntry(Number(element.dataset.entryIndex));
+    });
+  });
+}
 function pcEntryStatus(e) {
   return e.amount_warning ? '<span class="pc-entry-status pc-entry-status--warn">⚠ 金額不一致</span>' : '<span class="pc-entry-status">● 正常</span>';
 }
@@ -333,8 +341,8 @@ function pcGeneralEntryRowsHtml(entries) {
     const summary = e.description || (hasItems ? `${e.items.length} 項明細` : '—');
     const incomeText = e.entry_type === 'income' ? '+' + esc(_pcMoney(e.amount)) : '—';
     const expenseText = e.entry_type !== 'income' ? '-' + esc(_pcMoney(e.amount)) : '—';
-    const toggle = hasItems ? `<button type="button" class="pc-inline-expand" aria-expanded="${expanded}" onclick="pcToggleGeneralEntry(${i}); return false;">${expanded ? '▼' : '▶'}</button>` : '';
-    const row = `<tr class="${hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'}"${hasItems ? ` onclick="pcToggleGeneralEntry(${i})"` : ''}><td>${esc(seq)}</td><td class="pc-nowrap">${esc(_pcDate(e.entry_date))}</td><td>${toggle}<span>${esc(summary)}</span>${hasItems ? ` <small>（${esc(e.items.length)} 項）</small>` : ''}</td><td class="pc-money pc-money--income">${incomeText}</td><td class="pc-money pc-money--expense">${expenseText}</td><td>${esc(e.category || '—')}</td><td>${pcEntryStatus(e)}</td><td>—</td></tr>`;
+    const toggle = hasItems ? `<button type="button" class="pc-inline-expand" aria-expanded="${expanded}" data-entry-index="${i}">${expanded ? '▼' : '▶'}</button>` : '';
+    const row = `<tr class="${hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'}"${hasItems ? ` data-entry-index="${i}"` : ''}><td>${esc(seq)}</td><td class="pc-nowrap">${esc(_pcDate(e.entry_date))}</td><td>${toggle}<span>${esc(summary)}</span>${hasItems ? ` <small>（${esc(e.items.length)} 項）</small>` : ''}</td><td class="pc-money pc-money--income">${incomeText}</td><td class="pc-money pc-money--expense">${expenseText}</td><td>${esc(e.category || '—')}</td><td>${pcEntryStatus(e)}</td><td>—</td></tr>`;
     const detail = expanded ? `<tr class="pc-general-detail-row"><td></td><td colspan="7">${pcGeneralDetailsHtml(e)}</td></tr>` : '';
     return row + detail;
   }).join('');
@@ -344,7 +352,7 @@ function pcGeneralMobileCardsHtml(entries) {
     const expanded = pcDetailExpanded.has(i);
     const isIncome = e.entry_type === 'income';
     const hasItems = !!(e.items && e.items.length);
-    return `<article class="pc-general-tx-card"><div class="pc-general-tx-main"><div class="pc-general-tx-top"><span class="pc-nowrap">${esc(_pcDate(e.entry_date))}</span>${e.category ? `<span class="pc-entry-card__cat">${esc(e.category)}</span>` : ''}</div><div class="pc-general-tx-desc">${esc(e.description || (hasItems ? `${e.items.length} 項明細` : '—'))}</div><div class="pc-general-tx-bottom"><span class="${isIncome ? 'pc-money--income' : 'pc-money--expense'}">${isIncome ? '收入 +' : '支出 -'}$${esc(_pcMoney(e.amount))}</span>${pcEntryStatus(e)}</div>${hasItems ? `<button class="pc-general-detail-toggle" onclick="pcToggleGeneralEntry(${i})">${expanded ? '收合明細 ▲' : `查看 ${e.items.length} 項明細 ▼`}</button>` : ''}</div>${expanded ? pcGeneralDetailsHtml(e) : ''}</article>`;
+    return `<article class="pc-general-tx-card"><div class="pc-general-tx-main"><div class="pc-general-tx-top"><span class="pc-nowrap">${esc(_pcDate(e.entry_date))}</span>${e.category ? `<span class="pc-entry-card__cat">${esc(e.category)}</span>` : ''}</div><div class="pc-general-tx-desc">${esc(e.description || (hasItems ? `${e.items.length} 項明細` : '—'))}</div><div class="pc-general-tx-bottom"><span class="${isIncome ? 'pc-money--income' : 'pc-money--expense'}">${isIncome ? '收入 +' : '支出 -'}$${esc(_pcMoney(e.amount))}</span>${pcEntryStatus(e)}</div>${hasItems ? `<button type="button" class="pc-general-detail-toggle" data-entry-index="${i}">${expanded ? '收合明細 ▲' : `查看 ${e.items.length} 項明細 ▼`}</button>` : ''}</div>${expanded ? pcGeneralDetailsHtml(e) : ''}</article>`;
   }).join('');
 }
 function pcRenderDetail() {
@@ -353,6 +361,7 @@ function pcRenderDetail() {
   const r = pcDetail, t = r.totals, canEdit = !!r.can_edit;
   const fileLabel = r.filename || ('零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date) + '.xlsx');
   el.innerHTML = `<div class="pc-wrap"><div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${_pcPeriodText(r)} ${pcStatusBadge(r.status)}</h1><p>${esc(fileLabel)} · 報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</p></div><div class="pc-page-actions"><button class="pc-btn pc-btn--ghost" onclick="renderPettyCash()">← 返回列表</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="pcOpenReportModal(${r.id})">✏️ 編輯</button>` : ''}<button class="pc-btn pc-btn--primary" onclick="pcExport(${r.id})">⬇️ 匯出 Excel</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="pcDelete(${r.id}, true)">🗑 刪除</button>` : ''}</div></div><section class="pc-card"><div class="pc-card__bd"><div class="pc-kpi-row"><div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">上期餘額</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-opening">$${esc(_pcMoney(t.opening_balance))}</div></div><div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">本期收入</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-income">+$${esc(_pcMoney(t.income))}</div></div><div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">本期支出</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-expense">-$${esc(_pcMoney(t.expense))}</div></div><div class="pc-kpi-card ui-kpi-card"><div class="pc-kpi-card__head"><span class="ui-kpi-label">本期餘額</span></div><div class="pc-kpi-card__num ui-kpi-value pc-kpi-balance">$${esc(_pcMoney(t.closing_balance))}</div></div></div></div></section><section class="pc-card"><div class="pc-card__hd"><h2>📝 收支明細</h2></div><div class="pc-card__bd"><div class="pc-table-wrap pc-general-detail-table-wrap"><table class="pc-detail-table pc-general-detail-table"><thead><tr><th>項次</th><th>日期</th><th>摘要／明細</th><th>收入</th><th>支出</th><th>科目</th><th>狀態</th><th>操作</th></tr></thead><tbody>${pcGeneralEntryRowsHtml(r.entries)}</tbody></table></div><div class="pc-general-mobile-list">${pcGeneralMobileCardsHtml(r.entries)}</div></div></section></div>`;
+  pcBindGeneralDetailEvents();
 }
 
 // 匯出 Excel（檔名由後端安全格式產生）

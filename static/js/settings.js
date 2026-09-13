@@ -17,7 +17,7 @@ async function loadPettyOptions() {
 function pettyOptionRows(type, kind, can) {
   const items = pettyOptionCache[type][kind] || [];
   if (!items.length) return '<div class="pc-option-empty">尚未設定選項</div>';
-  return items.map((o, i) => '<div class="pc-option-row"><div><span class="pc-option-index">' + (i + 1) + '</span><strong>' + esc(o.name) + '</strong><small class="pc-option-status ' + (o.is_active ? 'is-active' : 'is-off') + '">' + (o.is_active ? '● 使用中' : '○ 已停用') + '</small></div>' + (can ? '<span class="pc-option-actions"><button type="button" class="pc-icon-action" aria-label="編輯 ' + esc(o.name) + '" title="編輯" onclick="renamePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">✎</button><button type="button" class="pc-icon-action pc-icon-action--danger" aria-label="刪除 ' + esc(o.name) + '" title="刪除" onclick="deletePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">🗑</button></span>' : '') + '</div>').join('');
+  return items.map((o, i) => '<div class="pc-option-row"><div><span class="pc-option-index">' + (i + 1) + '</span><strong>' + esc(o.name) + '</strong><small class="pc-option-status ' + (o.is_active ? 'is-active' : 'is-off') + '">' + (o.is_active ? '● 使用中' : '○ 已停用') + '</small></div>' + (can ? '<span class="pc-option-actions"><button type="button" class="pc-icon-action" data-petty-action="rename" data-id="' + o.id + '" data-type="' + esc(type) + '" data-kind="' + esc(kind) + '">✎ 編輯</button><button type="button" class="pc-icon-action pc-icon-action--danger" data-petty-action="delete" data-id="' + o.id + '" data-type="' + esc(type) + '" data-kind="' + esc(kind) + '">🗑 刪除</button></span>' : '') + '</div>').join('');
 }
 function renderPettyOptionsPanel() {
   const can = hasPerm('petty-cash-config');
@@ -37,6 +37,11 @@ function renderPettyOptionsPanel() {
   }
   html += '</div></section>';
   panel.innerHTML = html;
+  panel.querySelectorAll('[data-petty-action]').forEach(button => button.addEventListener('click', () => {
+    const id = Number(button.dataset.id), type = button.dataset.type, kind = button.dataset.kind;
+    if (button.dataset.pettyAction === 'rename') renamePettyOption(id, type, kind);
+    else deletePettyOption(id, type, kind);
+  }));
 }
 async function createPettyOptionKind(type, kind) {
   const input = document.getElementById('pc-opt-name-' + type + '-' + kind);

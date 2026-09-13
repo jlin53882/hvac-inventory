@@ -495,6 +495,8 @@ def test_petty_cash_settings_options_domain_layout():
     assert "createPettyOptionKind(\\'general\\',\\'category\\')" in js
     assert 'async function createPettyOption(type)' not in js
     assert 'type="button" class="pc-icon-action"' in js
+    assert 'data-petty-action="rename"' in js and 'data-petty-action="delete"' in js
+    assert "panel.querySelectorAll('[data-petty-action]')" in js
     assert 'grid-template-columns:minmax(0,1fr) auto' in html
     assert 'pc-opt-name-general-category' in js
 
@@ -521,7 +523,8 @@ def test_petty_cash_general_detail_rows_are_expandable():
     """一般零用金含明細的整列與按鈕都可展開（2026-09-13）。"""
     js = read(PETTY_CASH_RENDER_JS)
     assert 'pc-general-entry-row--expandable' in js
-    assert 'onclick="pcToggleGeneralEntry(${i}); return false;"' in js
+    assert 'data-entry-index="${i}"' in js
+    assert 'pcBindGeneralDetailEvents' in js
     assert 'type="button" class="pc-inline-expand"' in js
 
 
