@@ -539,7 +539,9 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'white-space:nowrap' in css
     assert 'table-layout:fixed' in css
     assert '.eng-receipt-toggle' in css
-
+    assert 'engToggle(engExpandedReceipts' in js
+    assert 'aria-expanded="${expanded}"' in js
+    assert '此單據尚無細項' in js
 
 def test_petty_cash_general_detail_rows_are_expandable():
     """一般零用金含明細的整列與按鈕都可展開（2026-09-13）。"""

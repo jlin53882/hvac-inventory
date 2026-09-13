@@ -432,7 +432,7 @@ var engUiInitialized = false;
 function engToggle(set, key) { if (set.has(key)) set.delete(key); else set.add(key); engRenderDetail(); }
 function engReceiptDetailsHtml(q) {
   const details = q.details || [];
-  if (!details.length) return '';
+  if (!details.length) return '<div class="pc-empty-cell">此單據尚無細項</div>';
   const rows = details.map(d => ({ description: d, amount: '—' }));
   return `<div class="pc-general-detail-panel eng-receipt-details"><div class="pc-general-detail-title"><span>單據明細（${esc(details.length)} 項）</span><span class="eng-detail-total">單據金額 $${esc(_pcMoney(q.amount))}</span></div>${pcDetailSubtableHtml(rows)}</div>`;
 }
@@ -440,10 +440,9 @@ function engReceiptHtml(q, ri, groupKey) {
   const receiptKey = groupKey + ':' + ri;
   const details = q.details || [];
   const expanded = engExpandedReceipts.has(receiptKey);
-  const hasDetails = details.length > 0;
-  const toggle = hasDetails ? ` type="button" aria-expanded="${expanded}" onclick="engToggle(engExpandedReceipts,'${jsStr(receiptKey)}')"` : '';
+  const toggle = ` type="button" aria-expanded="${expanded}" onclick="engToggle(engExpandedReceipts,'${jsStr(receiptKey)}')"`;
   const detailRow = expanded ? `<tr class="eng-receipt-detail-row"><td colspan="4">${engReceiptDetailsHtml(q)}</td></tr>` : '';
-  return `<tr class="eng-receipt-row"><td><button class="eng-receipt-toggle"${toggle}><span class="eng-receipt-chevron">${hasDetails ? (expanded ? '▼' : '▶') : '·'}</span><span class="eng-receipt-no">${esc(q.receipt_number || '未填寫單據')}</span></button></td><td><span class="eng-tax-mark">${esc(q.tax_id_mark || '—')}</span></td><td class="eng-detail-count">${hasDetails ? `${esc(details.length)} 項明細` : '無細項'}</td><td class="pc-num"><strong>$${esc(_pcMoney(q.amount))}</strong></td></tr>${detailRow}`;
+  return `<tr class="eng-receipt-row"><td><button class="eng-receipt-toggle"${toggle}><span class="eng-receipt-chevron">${expanded ? '▼' : '▶'}</span><span class="eng-receipt-no">${esc(q.receipt_number || '未填寫單據')}</span></button></td><td><span class="eng-tax-mark">${esc(q.tax_id_mark || '—')}</span></td><td class="eng-detail-count">${details.length ? `${esc(details.length)} 項明細` : '無細項'}</td><td class="pc-num"><strong>$${esc(_pcMoney(q.amount))}</strong></td></tr>${detailRow}`;
 }
 function engGroupHtml(g, ci, gi) {
   const groupKey = ci + ':' + gi;
