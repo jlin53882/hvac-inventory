@@ -262,7 +262,7 @@ function pcModalEntryCardHtml(e, i) {
     ? `<ul class="pc-entry-card__items">${e.items.map(it =>
         `<li>${esc(it.item_name)} ${esc(Number(it.qty))}${esc(it.unit || '')} $${esc(it.amount)}</li>`).join('')}</ul>`
     : '';
-  return `<div class="pc-entry-card">
+  return `<div class="pc-entry-card pc-entry-card--clickable" role="button" tabindex="0" onclick="pcOpenEntryModal(${i})" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){pcOpenEntryModal(${i})}">
     <div class="pc-entry-card__top">
       <span class="pc-entry-card__date">${esc(_pcDate(e.entry_date))}</span>
       <span class="pc-entry-card__desc">${esc(e.description)}</span>
@@ -271,8 +271,8 @@ function pcModalEntryCardHtml(e, i) {
     </div>
     ${itemsHtml}
     <div class="pc-entry-card__ops">
-      <button class="pc-btn-sm" onclick="pcOpenEntryModal(${i})">✏️ 編輯</button>
-      <button class="pc-btn-sm pc-btn-sm--danger" onclick="pcEntryDelete(${i})">🗑 刪除</button>
+      <button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenEntryModal(${i})">✏️ 編輯</button>
+      <button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcEntryDelete(${i})">🗑 刪除</button>
     </div>
   </div>`;
 }

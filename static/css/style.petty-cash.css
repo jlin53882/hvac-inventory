@@ -875,3 +875,7 @@
   #content .pc-kpi-card .ui-kpi-value,
   #content .pc-kpi-card:first-child .pc-kpi-card__num { font-size:clamp(14px,4.5vw,24px); }
 }
+/* General petty-cash editor: the whole entry card opens the entry editor. */
+.pc-entry-card--clickable { cursor:pointer; }
+.pc-entry-card--clickable:hover,
+.pc-entry-card--clickable:focus-visible { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.10); outline:0; }

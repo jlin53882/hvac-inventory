@@ -484,9 +484,8 @@ def test_petty_cash_detail_table_mobile():
     assert 'pc-general-detail-table-wrap' in js
     assert 'pc-general-mobile-list' in js
     assert 'function pcItemText(it)' in js
-    assert 'function pcItemAmount(it)' in js
     assert 'pc-general-detail-head' in js
-    assert 'pc-general-detail-amount' in js
+    assert 'pc-general-detail-amount' not in js
     assert 'pcItemText(it)' in js
     css = read(PETTY_CASH_CSS)
     assert 'grid-template-columns: 48px minmax(0, 1fr) 100px' in css
@@ -522,6 +521,7 @@ def test_petty_cash_settings_options_domain_layout():
 def test_petty_cash_more_actions_and_aligned_engineering_table():
     """報表操作使用共用更多選單；工程檢視使用對齊表格（2026-09-13）。"""
     js = read(PETTY_CASH_RENDER_JS)
+    modal_js = read(PETTY_CASH_MODAL_JS)
     css = read(PETTY_CASH_CSS)
     assert 'function pcMoreMenuHtml' in js
     assert 'class="pc-more-menu"' in js
@@ -553,6 +553,12 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'overflow-wrap:anywhere' in css
     assert 'clamp(16px,5.5vw,24px)' in css
     assert '.eng-category-head .eng-subtotal' in css
+    assert 'pc-entry-card--clickable' in modal_js
+    assert 'event.stopPropagation();pcOpenEntryModal(${i})' in modal_js
+    assert 'function pcDetailSubtableHtml(rows)' in js
+    assert '<span>項次</span><span>細項</span></div>' in js
+    assert 'pc-general-detail-amount' not in js
+    assert '.pc-entry-card--clickable' in css
     assert '.eng-detail-table th:first-child' in css
     assert '.eng-receipt-no' in css
     assert 'aria-expanded="${expanded}"' in js

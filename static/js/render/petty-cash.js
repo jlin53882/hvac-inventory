@@ -355,17 +355,14 @@ function pcItemText(it) {
   const qty = it.qty == null || it.qty === '' ? '' : ` ×${it.qty}${it.unit || ''}`;
   return name + qty;
 }
-function pcItemAmount(it) {
-  return it.amount == null || it.amount === '' ? '—' : '$' + _pcMoney(it.amount);
-}
 function pcDetailSubtableHtml(rows) {
-  return `<div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span><span>金額</span></div>${rows.map((row, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(row.description)}</span><span class="pc-general-detail-amount">${esc(row.amount || '—')}</span></div>`).join('')}</div>`;
+  return `<div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span></div>${rows.map((row, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(row.description)}</span></div>`).join('')}</div>`;
 }
 function pcGeneralDetailsHtml(e) {
   if (!e.items || !e.items.length) return '';
   const detailTotal = e.detail_total == null ? null : '$' + _pcMoney(e.detail_total);
   const difference = e.difference == null ? null : (e.difference >= 0 ? '+$' : '-$') + _pcMoney(Math.abs(e.difference));
-  const rows = e.items.map(it => ({ description: pcItemText(it), amount: pcItemAmount(it) }));
+  const rows = e.items.map(it => ({ description: pcItemText(it) }));
   return `<div class="pc-general-detail-panel"><div class="pc-general-detail-title">單據明細（${esc(e.items.length)} 項）</div>${pcDetailSubtableHtml(rows)}${e.amount_warning ? `<div class="pc-general-discrepancy"><span>帳務支出 <b>$${esc(_pcMoney(e.amount))}</b></span><span>明細合計 <b>${esc(detailTotal || '—')}</b></span><span>差額 <b>${esc(difference || '—')}</b></span></div>` : ''}</div>`;
 }
 function pcGeneralEntryRowsHtml(entries) {
@@ -433,7 +430,7 @@ function engToggle(set, key) { if (set.has(key)) set.delete(key); else set.add(k
 function engReceiptDetailsHtml(q) {
   const details = q.details || [];
   if (!details.length) return '<div class="pc-empty-cell">此單據尚無細項</div>';
-  const rows = details.map(d => ({ description: d, amount: '—' }));
+  const rows = details.map(d => ({ description: d }));
   return `<div class="pc-general-detail-panel eng-receipt-details"><div class="pc-general-detail-title"><span>單據明細（${esc(details.length)} 項）</span><span class="eng-detail-total">單據金額 $${esc(_pcMoney(q.amount))}</span></div>${pcDetailSubtableHtml(rows)}</div>`;
 }
 function engReceiptHtml(q, ri, groupKey) {
