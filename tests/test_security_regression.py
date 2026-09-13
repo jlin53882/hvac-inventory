@@ -224,6 +224,9 @@ REVIEWED_SAFE_BODIES = {
     "ops", "editBtn", "delBtn", "rowsHtml", "itemsHtml",
     "amt", "incomeCell", "expenseCell",
     "pcItemText(first)", "pcItemText(items[i])", "pcDetailSubtableHtml(rows)", "engReceiptDetailsHtml(q)",
+    # petty_cash.py 共用 renderer：helper 回傳的 HTML 只由固定 markup 組成，資料在 helper 內逐欄 esc。
+    "titleBadge", "engineering ? '匯出' : '匯出 Excel'", "cards.map(pcDetailKpiCardHtml).join('')",
+    "pcDetailHeaderHtml(r, false)", "pcDetailHeaderHtml(r, true)", "pcDetailKpiRowHtml(kpis)",
     "id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'",
     "pcEntryType === 'income' ? ' active' : ''", "pcEntryType === 'expense' ? ' active' : ''",
     "pcEntryType === 'income' ? 'display:none' : ''",

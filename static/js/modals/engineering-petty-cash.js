@@ -24,7 +24,7 @@ function engRenderModal() {
 }
 function engFilenamePreview(){const s=document.getElementById('eng-start')?.value,e=document.getElementById('eng-end')?.value,n=document.getElementById('eng-note')?.value.trim()||'',o=document.getElementById('eng-owner')?.value.trim()||'？';let period=_pcMD(s)||'？';if(s!==e)period+='-'+(_pcMD(e)||'？');const el=document.getElementById('eng-filename');if(el)el.textContent=`預覽檔名：(${period}${n?' '+n:''})${o} 工程零用金.xlsx`;}
 function engValidateBasic(){const s=document.getElementById('eng-start').value,e=document.getElementById('eng-end').value,o=document.getElementById('eng-owner').value.trim(),p=document.getElementById('eng-prepared').value.trim();if(!s||!e||s>e||!o||!p){toast('⚠️ 請完整填寫期間、報表歸屬人與製表人');return false;}return true;}
-function engGotoStep(n){if(n===2&&!engValidateBasic())return;document.getElementById('eng-step-1').style.display=n===1?'':'none';document.getElementById('eng-step-2').style.display=n===2?'':'none';document.getElementById('eng-step-1-tab').classList.toggle('active',n===1);document.getElementById('eng-step-2-tab').classList.toggle('active',n===2);document.getElementById('eng-ops-1').style.display=n===1?'':'none';document.getElementById('eng-ops-2').style.display=n===2?'':'none';if(n===2)engRenderEditor();}
+function engGotoStep(n){return pcSwitchModalStep(n,{validate:engValidateBasic,stepIds:['eng-step-1','eng-step-2'],tabIds:['eng-step-1-tab','eng-step-2-tab'],opsIds:['eng-ops-1','eng-ops-2'],onDetail:engRenderEditor});}
 function engAddCategory(){engData.categories.push({name:'',groups:[]});engActiveCategory=engData.categories.length-1;engRenderEditor();}
 function engAddGroup(ci){engData.categories[ci].groups.push({name:'',receipts:[]});engRenderEditor();}
 var engEditorExpandedReceipts = new Set();

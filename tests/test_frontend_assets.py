@@ -413,17 +413,21 @@ def test_petty_cash_modal_step_contracts():
     """一般／工程零用金 modal 的 step tabs 與切換契約一致。"""
     general = read(PETTY_CASH_MODAL_JS)
     engineering = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+    shared = read(PETTY_CASH_RENDER_JS)
+    assert 'function pcSwitchModalStep(step, config)' in shared
+    assert "document.getElementById(config.stepIds[0]).style.display" in shared
+    assert "document.getElementById(config.opsIds[1]).style.display" in shared
     contracts = [
-        (general, 'pcModalGotoStep', 'pc-step-1-tab', 'pc-step-2-tab', 'pc-step-1', 'pc-step-2'),
-        (engineering, 'engGotoStep', 'eng-step-1-tab', 'eng-step-2-tab', 'eng-step-1', 'eng-step-2'),
+        (general, 'pcModalGotoStep', 'pc-step-1-tab', 'pc-step-2-tab'),
+        (engineering, 'engGotoStep', 'eng-step-1-tab', 'eng-step-2-tab'),
     ]
-    for js, goto, tab1, tab2, step1, step2 in contracts:
+    for js, goto, tab1, tab2 in contracts:
         assert f'id="{tab1}" onclick="{goto}(1)"' in js
         assert f'id="{tab2}" onclick="{goto}(2)"' in js
         assert f'function {goto}' in js
-        assert f"document.getElementById('{step1}').style.display" in js
-        assert f"document.getElementById('{step2}').style.display" in js
-        assert 'if(n===2' in js or 'if (n === 2' in js
+        assert 'pcSwitchModalStep' in js
+    assert 'validate: () => pcValidateBasic(true)' in general
+    assert 'validate:engValidateBasic' in engineering
 
 
 def test_petty_cash_detail_renderers_keep_separate_business_bodies():

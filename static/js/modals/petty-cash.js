@@ -176,14 +176,13 @@ async function pcFetchPreviousBalance() {
 
 // 步驟切換
 function pcModalGotoStep(n) {
-  if (n === 2 && !pcValidateBasic(true)) return;
-  document.getElementById('pc-step-1').style.display = n === 1 ? '' : 'none';
-  document.getElementById('pc-step-2').style.display = n === 2 ? '' : 'none';
-  document.getElementById('pc-step-1-tab').classList.toggle('active', n === 1);
-  document.getElementById('pc-step-2-tab').classList.toggle('active', n === 2);
-  document.getElementById('pc-modal-step-ops-1').style.display = n === 1 ? '' : 'none';
-  document.getElementById('pc-modal-step-ops-2').style.display = n === 2 ? '' : 'none';
-  if (n === 2) pcModalRenderEntries();
+  return pcSwitchModalStep(n, {
+    validate: () => pcValidateBasic(true),
+    stepIds: ['pc-step-1', 'pc-step-2'],
+    tabIds: ['pc-step-1-tab', 'pc-step-2-tab'],
+    opsIds: ['pc-modal-step-ops-1', 'pc-modal-step-ops-2'],
+    onDetail: pcModalRenderEntries,
+  });
 }
 
 // 基本資料驗證（quiet 僅回傳布林）
