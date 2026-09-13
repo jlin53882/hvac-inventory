@@ -323,7 +323,13 @@ def test_update_key_reminders(client):
     })
     kid = cr.json()["id"]
     # 更新提醒
-    reminders = [{"method": "popup", "minutes": 15}, {"method": "email", "minutes": 120}]
+    reminders = [
+        {"method": "popup", "minutes": 15},
+        {"method": "popup", "minutes": 120},
+        {"method": "popup", "minutes": 1440},
+        {"method": "popup", "minutes": 10080},
+        {"method": "popup", "minutes": 40320},
+    ]
     r = client.put(f"/api/gcal-keys/{kid}/reminders", json={"reminders": reminders})
     assert r.status_code == 200
     assert r.json()["reminders"] == reminders
@@ -348,6 +354,23 @@ def test_update_key_reminders_validation(client):
     # 非陣列
     r3 = client.put(f"/api/gcal-keys/{kid}/reminders", json={"reminders": "not_array"})
     assert r3.status_code == 400
+    # Email 已移除
+    r4 = client.put(f"/api/gcal-keys/{kid}/reminders", json={
+        "reminders": [{"method": "email", "minutes": 10}],
+    })
+    assert r4.status_code == 400
+    # 最多五筆
+    r5 = client.put(f"/api/gcal-keys/{kid}/reminders", json={
+        "reminders": [{"method": "popup", "minutes": i} for i in range(6)],
+    })
+    assert r5.status_code == 400
+    # 空陣列與非整數
+    r6 = client.put(f"/api/gcal-keys/{kid}/reminders", json={"reminders": []})
+    assert r6.status_code == 400
+    r7 = client.put(f"/api/gcal-keys/{kid}/reminders", json={
+        "reminders": [{"method": "popup", "minutes": 1.5}],
+    })
+    assert r7.status_code == 400
 
 
 # ========== 強制同步 API 測試 ==========

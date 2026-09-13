@@ -9,6 +9,7 @@ from app.config import BASE_DIR
 from app.database import get_db
 from app.models import GcalKeyIn, GcalKeyUpdate
 from app.services.auth import require_perm
+from app.services.gcal_sync import parse_popup_reminders
 
 MAX_CREDENTIALS_SIZE = 1024 * 1024
 CLIENT_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -101,12 +102,8 @@ router = APIRouter()
 
 
 def _row_to_dict(r):
-    import json as _json
     reminders_raw = r["reminders"] if "reminders" in r.keys() else "[]"
-    try:
-        reminders = _json.loads(reminders_raw)
-    except Exception:
-        reminders = []
+    reminders = parse_popup_reminders(reminders_raw)
     return {
         "id": r["id"],
         "name": r["name"],
@@ -360,13 +357,11 @@ def update_key_reminders(key_id: int, body: dict):
     import json as _json
     reminders = body.get("reminders", [])
     # 驗證格式
-    if not isinstance(reminders, list):
-        raise HTTPException(400, "reminders 必須是陣列")
+    if not isinstance(reminders, list) or not (1 <= len(reminders) <= 5):
+        raise HTTPException(400, "通知數量需為 1~5 個")
     for r in reminders:
-        if not isinstance(r, dict) or "method" not in r or "minutes" not in r:
-            raise HTTPException(400, "每筆提醒需含 method 和 minutes")
-        if r["method"] not in ("popup", "email"):
-            raise HTTPException(400, "method 只能是 popup 或 email")
+        if not isinstance(r, dict) or r.get("method") != "popup" or "minutes" not in r:
+            raise HTTPException(400, "每筆通知只能是 popup 且需含 minutes")
         if not isinstance(r["minutes"], int) or r["minutes"] < 0 or r["minutes"] > 40320:
             raise HTTPException(400, "minutes 範圍 0~40320")
     conn = get_db()

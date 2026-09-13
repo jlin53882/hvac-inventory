@@ -116,6 +116,17 @@
 .gcal-tab { padding: 9px 16px; border: none; background: none; font-size: 14px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
 .gcal-tab.active { color: #1890ff; border-bottom-color: #1890ff; font-weight: 600; }
 .gcal-key-item:hover { background: #f7fbff !important; }
+.gcal-reminders-list { display: flex; flex-direction: column; gap: 10px; }
+.gcal-reminder-row { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto; align-items: center; gap: 10px; padding: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #f8fafc; }
+.gcal-reminder-label { min-width: 0; color: #1e3a5f; font-size: 13px; font-weight: 700; }
+.gcal-reminder-control { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gcal-reminder-control input, .gcal-reminder-control select { box-sizing: border-box; padding: 7px 9px; border: 1px solid #cfd6df; border-radius: 6px; background: #fff; font-size: 13px; }
+.gcal-reminder-control input { width: 70px; text-align: center; }
+.gcal-reminder-control select { width: 86px; }
+.gcal-reminder-hint { grid-column: 1 / -1; color: #64748b; font-size: 11px; overflow-wrap: anywhere; }
+.gcal-add-reminder { align-self: flex-start; margin-top: 10px; padding: 7px 12px; border: 1px solid #91caff; border-radius: 8px; background: #e6f4ff; color: #0958d9; font-size: 12px; cursor: pointer; }
+.gcal-add-reminder:disabled, .gcal-reminder-remove:disabled { cursor: not-allowed; opacity: .45; }
+.gcal-reminder-remove { padding: 5px 9px; border: 1px solid #ffccc7; border-radius: 6px; background: #fff2f0; color: #cf1322; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
 .modal-overlay.show { display: flex; }
 .modal-box { background: #fff; border-radius: 14px; padding: 24px; width: 440px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
@@ -128,6 +139,16 @@
 .btn-cancel-ghost { padding: 9px; background: #f5f5f5; color: #666; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; cursor: pointer; }
 
 @media (max-width: 768px) {
+  /* 手機改為上下排列，Key 清單與詳細面板各自跟隨 viewport 寬度。 */
+  .gcal-layout { display: block !important; }
+  .gcal-key-list { width: 100% !important; margin-bottom: 12px; }
+  .gcal-detail-panel { width: 100%; box-sizing: border-box; padding: 14px !important; }
+  .gcal-reminder-row { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .gcal-reminder-label { min-width: 0 !important; }
+  .gcal-reminder-hint { grid-column: 1 / -1; margin-left: 0 !important; overflow-wrap: anywhere; }
+  .gcal-reminder-control { min-width: 0; }
+  .gcal-reminder-control input { width: 62px !important; }
+  .gcal-reminder-control select { max-width: 100px; }
   .perm-layout { padding: 0 0 110px; display: block; }
   .side-list { display: none; }
   .chip-bar { display: flex; }

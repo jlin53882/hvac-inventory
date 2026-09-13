@@ -10,9 +10,6 @@ var gcalUsers = [];
 var gcalSettings = {};
 var selectedKeyId = null;
 
-// 提醒時間單位上限（換算成分鐘）
-var REMINDER_LIMITS = { minutes: 40320, hours: 672, days: 28, weeks: 4 };
-var REMINDER_UNIT_LABELS = { minutes: '分鐘', hours: '小時', days: '天', weeks: '週' };
 
 function settingsSwitch(panel) {
   document.querySelectorAll('#settingsSideList .side-item').forEach(el =>
@@ -303,7 +300,7 @@ function renderGcalPanel() {
   let html = '<h4>📅 行事曆同步</h4>';
 
   // 左側 Key 列表 + 右側面板（用 CSS flex 模擬）
-  html += '<div style="display:flex;gap:16px;margin-top:12px;align-items:flex-start">';
+  html += '<div class="gcal-layout" style="display:flex;gap:16px;margin-top:12px;align-items:flex-start">';
 
   // 左側 Key 列表
   html += '<div class="gcal-key-list" style="width:220px;flex-shrink:0;background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden">';
@@ -326,7 +323,7 @@ function renderGcalPanel() {
   html += '</div>';
 
   // 右側面板
-  html += '<div style="flex:1;min-width:0;background:#fff;border-radius:12px;border:1px solid #eee;padding:18px 20px">';
+  html += '<div class="gcal-detail-panel" style="flex:1;min-width:0;background:#fff;border-radius:12px;border:1px solid #eee;padding:18px 20px">';
 
   if (selectedKeyId) {
     const key = gcalKeys.find(k => k.id === selectedKeyId);
@@ -432,35 +429,30 @@ function renderGcalSyncSettings(key) {
   html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">🔔 事件提醒（此 Key 專用）</div>';
   html += '<p style="font-size:12px;color:#999;margin-bottom:12px">同步到 Google Calendar 時附帶的提醒通知。</p>';
 
-  var reminders = key.reminders || [];
-  // Popup
-  var popup = reminders.find(r => r.method === 'popup') || { method: 'popup', minutes: 30 };
-  var email = reminders.find(r => r.method === 'email') || { method: 'email', minutes: 60 };
-
-  html += '<div style="display:flex;flex-direction:column;gap:10px">';
-  // Popup row
-  html += '<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e8ecf0;border-radius:8px;padding:10px 12px;flex-wrap:wrap">' +
-    '<div style="font-size:13px;font-weight:600;min-width:120px">🔔 Popup 通知</div>' +
-    '<div style="display:flex;align-items:center;gap:6px">' +
-    '<input type="number" id="popup-val-' + key.id + '" value="' + popup.minutes + '" min="0" max="40320" ' +
-    'onchange="checkReminderLimit(' + key.id + ', \'popup\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px;width:70px;text-align:center">' +
-    '<select id="popup-unit-' + key.id + '" onchange="checkReminderLimit(' + key.id + ', \'popup\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px">' +
-    '<option value="minutes">分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div>' +
-    '<span style="font-size:11px;color:#999;margin-left:8px">瀏覽器/App 彈出通知</span></div>';
-  html += '<div id="popup-warn-' + key.id + '" style="display:none;background:#fff7e6;border:1px solid #ffd591;border-radius:6px;padding:6px 10px;font-size:12px;color:#ad6800"></div>';
-
-  // Email row
-  html += '<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e8ecf0;border-radius:8px;padding:10px 12px;flex-wrap:wrap">' +
-    '<div style="font-size:13px;font-weight:600;min-width:120px">📧 Email 通知</div>' +
-    '<div style="display:flex;align-items:center;gap:6px">' +
-    '<input type="number" id="email-val-' + key.id + '" value="' + email.minutes + '" min="0" max="40320" ' +
-    'onchange="checkReminderLimit(' + key.id + ', \'email\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px;width:70px;text-align:center">' +
-    '<select id="email-unit-' + key.id + '" onchange="checkReminderLimit(' + key.id + ', \'email\')" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:6px;font-size:13px">' +
-    '<option value="minutes">分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div>' +
-    '<span style="font-size:11px;color:#999;margin-left:8px">寄到帳號綁定的信箱</span></div>';
-  html += '<div id="email-warn-' + key.id + '" style="display:none;background:#fff7e6;border:1px solid #ffd591;border-radius:6px;padding:6px 10px;font-size:12px;color:#ad6800"></div>';
-  html += '</div>';
-
+  var reminders = (key.reminders || []).filter(r => r.method === 'popup');
+  if (!reminders.length) reminders = [{ method: 'popup', minutes: 30 }];
+  reminders = reminders.slice(0, 5);
+  var reminderDisplay = function(minutes) {
+    var units = [['weeks', 10080], ['days', 1440], ['hours', 60], ['minutes', 1]];
+    var total = Number(minutes) || 0;
+    for (var i = 0; i < units.length; i += 1) {
+      if (total === 0 || total % units[i][1] === 0) return { value: total / units[i][1], unit: units[i][0] };
+    }
+    return { value: total, unit: 'minutes' };
+  };
+  var reminderRow = function(reminder, index) {
+    var display = reminderDisplay(reminder.minutes);
+    return '<div class="gcal-reminder-row" data-reminder-index="' + index + '">' +
+      '<div class="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div>' +
+      '<div class="gcal-reminder-control">' +
+      '<input type="number" id="gcal-reminder-val-' + key.id + '-' + index + '" value="' + display.value + '" min="0" max="40320">' +
+      '<select id="gcal-reminder-unit-' + key.id + '-' + index + '">' +
+      '<option value="minutes"' + (display.unit === 'minutes' ? ' selected' : '') + '>分鐘</option><option value="hours"' + (display.unit === 'hours' ? ' selected' : '') + '>小時</option><option value="days"' + (display.unit === 'days' ? ' selected' : '') + '>天</option><option value="weeks"' + (display.unit === 'weeks' ? ' selected' : '') + '>週</option></select></div>' +
+      '<button type="button" class="gcal-reminder-remove" onclick="removeGcalReminderRow(' + key.id + ',' + index + ')"' + (reminders.length <= 1 ? ' disabled' : '') + '>移除</button>' +
+      '<span class="gcal-reminder-hint">Google Calendar Popup 提醒</span></div>';
+  };
+  html += '<div class="gcal-reminders-list" id="gcal-reminders-' + key.id + '">' + reminders.map(reminderRow).join('') + '</div>';
+  html += '<button type="button" class="gcal-add-reminder" onclick="addGcalReminderRow(' + key.id + ')"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
   html += '<div style="margin-top:10px;padding:8px 12px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:6px;font-size:11.5px;color:#2d5a8e">' +
     '💡 Google Calendar API 上限：最長 4 週（40320 分鐘）= 672 小時 = 28 天 = 4 週</div>';
 
@@ -513,51 +505,62 @@ async function saveGcalSetting(key, value) {
   } catch (e) { toast('儲存失敗', 'error'); }
 }
 
-function checkReminderLimit(keyId, type) {
-  var val = parseInt(document.getElementById(type + '-val-' + keyId).value) || 0;
-  var unit = document.getElementById(type + '-unit-' + keyId).value;
-  var limit = REMINDER_LIMITS[unit];
-  var warn = document.getElementById(type + '-warn-' + keyId);
-  if (val > limit) {
-    warn.textContent = '⚠️ 超過上限！' + REMINDER_UNIT_LABELS[unit] + '最大值為 ' + limit;
-    warn.style.display = 'block';
-    toast('⚠️ 數值超過 ' + REMINDER_UNIT_LABELS[unit] + ' 上限 (' + limit + ')');
-  } else {
-    warn.style.display = 'none';
-  }
-}
-
 async function saveKeyReminders(keyId) {
-  var popupVal = parseInt(document.getElementById('popup-val-' + keyId).value) || 0;
-  var popupUnit = document.getElementById('popup-unit-' + keyId).value;
-  var emailVal = parseInt(document.getElementById('email-val-' + keyId).value) || 0;
-  var emailUnit = document.getElementById('email-unit-' + keyId).value;
-
-  // 換算成分鐘
-  var toMinutes = function(val, unit) {
-    if (unit === 'hours') return val * 60;
-    if (unit === 'days') return val * 60 * 24;
-    if (unit === 'weeks') return val * 60 * 24 * 7;
-    return val;
-  };
-
-  var reminders = [
-    { method: 'popup', minutes: toMinutes(popupVal, popupUnit) },
-    { method: 'email', minutes: toMinutes(emailVal, emailUnit) }
-  ];
-
+  const rows = Array.from(document.querySelectorAll('#gcal-reminders-' + keyId + ' .gcal-reminder-row'));
+  if (!rows.length || rows.length > 5) return toast('通知數量需為 1~5 個', 'error');
+  const reminders = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const index = rows[i].dataset.reminderIndex;
+    const value = Number(document.getElementById('gcal-reminder-val-' + keyId + '-' + index).value);
+    const unit = document.getElementById('gcal-reminder-unit-' + keyId + '-' + index).value;
+    const minutes = unit === 'weeks' ? value * 10080 : unit === 'days' ? value * 1440 : unit === 'hours' ? value * 60 : value;
+    if (!Number.isInteger(value) || value < 0 || minutes > 40320) return toast('通知時間需介於 0 分鐘至 4 週', 'error');
+    reminders.push({ method: 'popup', minutes: minutes });
+  }
   try {
-    var res = await fetch('/api/gcal-keys/' + keyId + '/reminders', {
+    const res = await fetch('/api/gcal-keys/' + keyId + '/reminders', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reminders: reminders })
     });
     if (!res.ok) { toast((await res.json()).detail || '儲存失敗', 'error'); return; }
-    // 更新本地資料
-    var key = gcalKeys.find(k => k.id === keyId);
+    const key = gcalKeys.find(k => k.id === keyId);
     if (key) key.reminders = reminders;
+    renderGcalPanel();
     toast('✅ 提醒設定已儲存', 'success');
   } catch (e) { toast('儲存失敗', 'error'); }
 }
+
+function addGcalReminderRow(keyId) {
+  const container = document.getElementById('gcal-reminders-' + keyId);
+  if (!container || container.children.length >= 5) return;
+  const index = container.children.length;
+  const row = document.createElement('div');
+  row.className = 'gcal-reminder-row';
+  row.dataset.reminderIndex = index;
+  row.innerHTML = '<div class="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div><div class="gcal-reminder-control"><input type="number" id="gcal-reminder-val-' + keyId + '-' + index + '" value="30" min="0" max="40320"><select id="gcal-reminder-unit-' + keyId + '-' + index + '"><option value="minutes" selected>分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div><button type="button" class="gcal-reminder-remove" onclick="removeGcalReminderRow(' + keyId + ',' + index + ')">移除</button><span class="gcal-reminder-hint">Google Calendar Popup 提醒</span>';
+  container.appendChild(row);
+  const add = document.querySelector('.gcal-add-reminder[onclick="addGcalReminderRow(' + keyId + ')"]');
+  if (add && container.children.length >= 5) add.disabled = true;
+}
+
+function removeGcalReminderRow(keyId, index) {
+  const container = document.getElementById('gcal-reminders-' + keyId);
+  if (!container || container.children.length <= 1) return;
+  const row = container.querySelector('[data-reminder-index="' + index + '"]');
+  if (row) row.remove();
+  Array.from(container.children).forEach((item, i) => {
+    item.dataset.reminderIndex = i;
+    const value = item.querySelector('input[type="number"]');
+    const unit = item.querySelector('select');
+    if (value) value.id = 'gcal-reminder-val-' + keyId + '-' + i;
+    if (unit) unit.id = 'gcal-reminder-unit-' + keyId + '-' + i;
+    const label = item.querySelector('.gcal-reminder-label');
+    if (label) label.textContent = '🔔 提前通知 ' + (i + 1);
+  });
+  const add = document.querySelector('.gcal-add-reminder[onclick="addGcalReminderRow(' + keyId + ')"]');
+  if (add) add.disabled = container.children.length >= 5;
+}
+
 
 async function forceSyncNow() {
   if (!confirm('確定要立即執行同步？')) return;

@@ -123,6 +123,15 @@ def _due_ids(rows, now, window=_WINDOW):
     return out
 
 
+def _format_sync_error_line(key_id: int, info: dict) -> str:
+    """將單一 Key 的同步錯誤摘要格式化成可定位的通知列。"""
+    key_name = info.get("key_name") or f"key={key_id}"
+    cal_id = info.get("cal_id") or "Calendar ID 未知"
+    top_errs = sorted(info.get("errors", {}).items(), key=lambda x: -x[1])[:3]
+    err_lines = " | ".join(f"{error} ×{count}" for error, count in top_errs)
+    return f"❌ Key「{key_name}」／Calendar「{cal_id}」：{err_lines}"
+
+
 def _run_once():
     """A3 三段式：網路 I/O 絕不包 SQLite 寫鎖交易。"""
     if not gcal_sync.is_enabled():
@@ -163,17 +172,15 @@ def _run_once():
             "appointment_deleted": "本地行程已刪除，清除過期同步任務",
         }
         for key_id, info in sorted(error_summary.items()):
-            cal = info["cal_id"] or f"key={key_id}"
             errs = info.get("errors", {})
             if errs:
-                top_errs = sorted(errs.items(), key=lambda x: -x[1])[:3]
-                err_lines = " | ".join(f"{e} ×{c}" for e, c in top_errs)
-                lines.append(f"❌ {cal}: {err_lines}")
+                lines.append(_format_sync_error_line(key_id, info))
                 if len(errs) > 3:
                     lines.append(f"   +{len(errs) - 3} 種其他錯誤")
             for reason, count in info.get("resolved", {}).items():
                 label = resolution_labels.get(reason, reason)
-                lines.append(f"ℹ️ {cal}: {label} ×{count}")
+                key_name = info.get("key_name") or f"key={key_id}"
+                lines.append(f"ℹ️ Key「{key_name}」：{label} ×{count}")
         msg = chr(10).join(lines)
         if len(msg) > 1900:
             msg = msg[:1897] + "..."

@@ -39,9 +39,10 @@ def classify_sync_exception(op: str, error: Exception) -> str:
     return "failed"
 
 
-def _record_resolution(summary: dict, key_id: int, cal_id: str, reason: str) -> None:
+def _record_resolution(summary: dict, key_id: int, cal_id: str, reason: str, key_name: str = "") -> None:
     """累計不需人工處理的同步結果，供通知層顯示。"""
-    entry = summary.setdefault(key_id, {"cal_id": cal_id, "errors": {}, "resolved": {}})
+    entry = summary.setdefault(key_id, {"key_name": key_name, "cal_id": cal_id, "errors": {}, "resolved": {}})
+    entry["key_name"] = key_name or entry.get("key_name", "")
     entry["cal_id"] = cal_id
     entry.setdefault("resolved", {})[reason] = (
         entry.setdefault("resolved", {}).get(reason, 0) + 1
@@ -201,13 +202,27 @@ def load_sync_settings(conn) -> dict:
     return s
 
 
-def load_key_reminders(key_row) -> list:
-    """從 key_row 讀取 per-key reminders JSON，回傳 list。"""
-    raw = key_row.get("reminders") or "[]"
-    try:
-        return json.loads(raw)
-    except Exception:
+def parse_popup_reminders(raw_or_list) -> list:
+    """解析並限制每把 Key 的 Popup reminders，統一 API 與同步端契約。"""
+    if isinstance(raw_or_list, str):
+        try:
+            raw_or_list = json.loads(raw_or_list or "[]")
+        except (TypeError, json.JSONDecodeError):
+            return []
+    if not isinstance(raw_or_list, list):
         return []
+    return [
+        item for item in raw_or_list[:5]
+        if isinstance(item, dict)
+        and item.get("method") == "popup"
+        and isinstance(item.get("minutes"), int)
+        and 0 <= item["minutes"] <= 40320
+    ]
+
+
+def load_key_reminders(key_row) -> list:
+    """從 key_row 讀取 per-key reminders JSON，回傳 Popup list。"""
+    return parse_popup_reminders(key_row.get("reminders") or "[]")
 
 
 # 速率限制：動態分配（per-user 600/分鐘，專案級 10000/分鐘）
@@ -383,7 +398,8 @@ def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
                     resolved.commit()
                 finally:
                     resolved.close()
-                _record_resolution(error_summary, key_id, cal_id, outcome)
+                _record_resolution(error_summary, key_id, cal_id, outcome,
+                                   key_row.get("name", "") if key_row else "")
                 if outcome == "remote_already_deleted":
                     ok += 1
                 continue
@@ -405,7 +421,12 @@ def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
                 err_type = type(e).__name__ + ": " + err_str[:40]
             # 記錄到 error_summary
             if key_id not in error_summary:
-                error_summary[key_id] = {"cal_id": cal_id, "errors": {}, "resolved": {}}
+                error_summary[key_id] = {
+                    "key_name": key_row.get("name", "") if key_row else "",
+                    "cal_id": cal_id,
+                    "errors": {},
+                    "resolved": {},
+                }
             error_summary[key_id]["errors"][err_type] = (
                 error_summary[key_id]["errors"].get(err_type, 0) + 1
             )

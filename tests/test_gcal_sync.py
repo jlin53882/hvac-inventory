@@ -35,9 +35,27 @@ def client(tmp_path, monkeypatch):
         pass
 
 
-# ============================================================
-# build_event 純函式測試
-# ============================================================
+class TestSyncErrorNotification:
+    def test_error_line_includes_key_name_and_calendar_id(self):
+        from app.services.sync_scheduler import _format_sync_error_line
+
+        line = _format_sync_error_line(6, {
+            "key_name": "666",
+            "cal_id": "calendar-666@group.calendar.google.com",
+            "errors": {"HttpError 404": 98},
+        })
+
+        assert line == "❌ Key「666」／Calendar「calendar-666@group.calendar.google.com」：HttpError 404 ×98"
+
+    def test_error_line_falls_back_to_key_id(self):
+        from app.services.sync_scheduler import _format_sync_error_line
+
+        line = _format_sync_error_line(12, {"cal_id": "", "errors": {"HttpError 404": 1}})
+
+        assert "Key「key=12」" in line
+        assert "Calendar ID 未知" in line
+
+
 
 class TestBuildEvent:
     """build_event 純函式：本地行程 -> Google Event"""
@@ -96,6 +114,41 @@ class TestBuildEvent:
                 {"id": 2, "name": "工程師A", "color": "#34a853"}]
         ev = build_event(self._make_appt(), asns)
         assert "人員：管理員、工程師A" in ev["description"]
+    def test_popup_reminders_are_sent_without_email(self):
+        """多筆通知送往 Google Event 時只包含 Popup。"""
+        from app.services.gcal_sync import build_event
+
+        reminders = [
+            {"method": "popup", "minutes": 40320},
+            {"method": "popup", "minutes": 1440},
+            {"method": "popup", "minutes": 30},
+        ]
+        event = build_event(self._make_appt(), self._make_assignees(), {"reminders": reminders})
+
+        assert event["reminders"] == {"useDefault": False, "overrides": reminders}
+        assert all(item["method"] == "popup" for item in event["reminders"]["overrides"])
+
+
+class TestPopupReminderParser:
+    def test_parser_filters_invalid_and_email_entries(self):
+        from app.services.gcal_sync import parse_popup_reminders
+
+        result = parse_popup_reminders([
+            {"method": "popup", "minutes": 15},
+            {"method": "email", "minutes": 30},
+            {"method": "popup", "minutes": -1},
+            {"method": "popup", "minutes": 40321},
+            "not-a-dict",
+        ])
+
+        assert result == [{"method": "popup", "minutes": 15}]
+
+    def test_parser_caps_at_five_and_accepts_json(self):
+        from app.services.gcal_sync import parse_popup_reminders
+
+        raw = [{"method": "popup", "minutes": i} for i in range(6)]
+        assert parse_popup_reminders(__import__("json").dumps(raw)) == raw[:5]
+        assert parse_popup_reminders("not-json") == []
 
 
 class TestAddMinutes:
@@ -1064,7 +1117,7 @@ class TestDiscordNotification:
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (4, 0, {
-            1: {"cal_id": "gone@cal", "errors": {},
+            1: {"key_name": "GoneKey", "cal_id": "gone@cal", "errors": {},
                 "resolved": {"appointment_deleted": 1}}
         }))
 
@@ -1073,6 +1126,7 @@ class TestDiscordNotification:
         assert len(notified) == 1
         assert "已自動處理" in notified[0]
         assert "本地行程已刪除" in notified[0]
+        assert "Key「GoneKey」" in notified[0]
         assert "失敗 0" in notified[0]
 
     def test_run_once_notifies_on_failure(self, monkeypatch):

@@ -441,6 +441,21 @@ SETTINGS_HTML = os.path.join(STATIC, "settings.html")  # 2026-08-16 設定中心
 SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")  # 2026-08-16 設定中心
 
 
+def test_gcal_key_reminder_cards_contract():
+    """每把 Key 顯示統一卡片，可新增/移除，最多五筆 Popup 通知。"""
+    js = read(SETTINGS_JS)
+    html = read(SETTINGS_HTML)
+    assert "gcal-reminder-row" in js
+    assert "gcal-reminders-list" in js
+    assert "addGcalReminderRow" in js
+    assert "removeGcalReminderRow" in js
+    assert "最多 5 個" in js
+    assert "method: 'popup'" in js
+    assert "method: 'email'" not in js
+    assert ".gcal-reminder-row {" in html
+    assert "grid-template-columns: minmax(120px, 1fr) auto auto" in html
+
+
 def test_settings_js_orphan_group_ui():
     """方案 B（2026-08-16）：settings.js 有 loadOrphans / consolidateItem / 分組手風琴結構（防回歸退回整批模式）"""
     js = read(SETTINGS_JS)
