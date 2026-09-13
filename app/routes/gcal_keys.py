@@ -206,6 +206,8 @@ def update_gcal_key(key_id: int, k: GcalKeyUpdate):
         if not row:
             raise HTTPException(404, "Key 不存在")
         updates, params = [], []
+        old_credentials_path = row["credentials_path"]
+        new_credentials_path = old_credentials_path
         if k.name is not None:
             name = k.name.strip()
             if not name:
@@ -216,8 +218,9 @@ def update_gcal_key(key_id: int, k: GcalKeyUpdate):
             updates.append("name=?")
             params.append(name)
         if k.credentials_path is not None:
+            new_credentials_path = k.credentials_path.strip()
             updates.append("credentials_path=?")
-            params.append(k.credentials_path.strip())
+            params.append(new_credentials_path)
         if k.calendar_id is not None:
             updates.append("calendar_id=?")
             params.append(k.calendar_id.strip())
@@ -232,7 +235,9 @@ def update_gcal_key(key_id: int, k: GcalKeyUpdate):
         conn.commit()
     finally:
         conn.close()
-    # key 從停用→啟用時，自動把旧行程加入 sync_queue
+    if new_credentials_path != old_credentials_path:
+        _delete_uploaded_credentials(old_credentials_path)
+    # key 從停用重新啟用時，將舊行程加入 sync_queue
     if was_inactive and k.is_active:
         _backfill_all_appointments(key_id)
     from app.database import get_db as _g

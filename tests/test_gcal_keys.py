@@ -150,6 +150,30 @@ def test_update_key(client):
     assert r.json()["calendar_id"] == "new@cal"
 
 
+def test_update_uploaded_credentials_cleans_old_file(client):
+    """編輯 Key 換路徑後，舊的系統上傳 JSON 應被清理。"""
+    from app.routes import gcal_keys as gk
+
+    cr = client.post("/api/gcal-keys", json={
+        "name": "替換憑證", "credentials_path": "old.json", "calendar_id": "old@cal",
+    })
+    kid = cr.json()["id"]
+    old_path = gk.UPLOADED_CREDENTIALS_DIR / ("a" * 32 + ".json")
+    old_path.parent.mkdir(parents=True, exist_ok=True)
+    old_path.write_text("{}", encoding="utf-8")
+    conn = gk.get_db()
+    try:
+        conn.execute("UPDATE gcal_keys SET credentials_path=? WHERE id=?", (str(old_path), kid))
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.put(f"/api/gcal-keys/{kid}", json={"credentials_path": "manual.json"})
+
+    assert response.status_code == 200
+    assert not old_path.exists()
+
+
 def test_toggle_key_active(client):
     """切換 key 啟停"""
     cr = client.post("/api/gcal-keys", json={
