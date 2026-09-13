@@ -6,7 +6,7 @@
 - GET    /api/signed-reports              列表（日期區間 + 關鍵字 + 分頁）
 - GET    /api/signed-reports/{id}/preview 線上預覽（登入保護，inline）
 - GET    /api/signed-reports/{id}/download 下載原檔
-- PATCH  /api/signed-reports/{id}         編輯備註（上傳者/全域權限）
+- PATCH  /api/signed-reports/{id}         編輯日期/檔案/上傳人/備註（上傳者/全域權限）
 - DELETE /api/signed-reports/{id}         刪除（有 signed-report-delete-all 可刪全部，否則僅刪自己的）
 
 儲存：static/uploads/signed_reports/YYYY-MM/{id}_{uuid8}_{safeName}
@@ -18,7 +18,7 @@ import re
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
@@ -44,6 +44,28 @@ def _safe_name(name: str) -> str:
 def _can_delete_all(conn, user: dict) -> bool:
     perms = get_user_permissions(conn, user["id"])
     return bool(perms.get("signed-report-delete-all"))
+
+def _form_text(form, field: str) -> str | None:
+    """讀取表單文字欄位，拒絕以檔案物件冒充文字而造成 500。"""
+    value = form.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise HTTPException(400, f"{field} 欄位格式錯誤")
+    return value
+
+def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
+    """讀取並驗證可替換的日報檔案，避免超過大小或副檔名白名單。"""
+    data = file.file.read(MAX_SIZE + 1)
+    if len(data) == 0:
+        raise HTTPException(400, "空檔案不可上傳")
+    if len(data) > MAX_SIZE:
+        raise HTTPException(400, "單檔上限 20MB")
+    safe = _safe_name(file.filename or "file")
+    ext = Path(safe).suffix.lower()
+    if ext not in ALLOWED_EXTS:
+        raise HTTPException(400, f"不支援的檔案格式 {ext}，僅允許 PDF/PNG/JPG/GIF/WebP")
+    return data, safe, (file.content_type or "").strip()[:120]
 
 def _row_to_out(row, can_delete: bool) -> dict:
     """將 DB row 轉為 API 回傳的 dict 格式。"""
@@ -82,18 +104,7 @@ def upload_signed_report(
         datetime.date.fromisoformat(report_date)
     except Exception:
         raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
-    data = file.file.read(MAX_SIZE + 1)
-    if len(data) == 0:
-        raise HTTPException(400, "空檔案不可上傳")
-    if len(data) > MAX_SIZE:
-        raise HTTPException(400, "單檔上限 20MB")
-    data = data[:MAX_SIZE]  # truncate to exact limit after size check
-    safe = _safe_name(file.filename or "file")
-    # 副檔名白名單：防止上傳 SVG/HTML 等含腳本的檔案類型
-    ext = Path(safe).suffix.lower()
-    if ext not in ALLOWED_EXTS:
-        raise HTTPException(400, f"不支援的檔案格式 {ext}，僅允許 PDF/PNG/JPG/GIF/WebP")
-    mime = (file.content_type or "").strip()[:120]
+    data, safe, mime = _read_upload(file)
 
     conn = get_db()
     asset = None
@@ -234,39 +245,108 @@ def list_signed_reports(
         conn.close()
 
 @router.patch("/api/signed-reports/{rid}")
-def update_signed_report(
+async def update_signed_report(
     rid: int,
-    payload: SignedReportUpdate,
+    request: Request,
     user: dict = Depends(require_login),
 ):
-    """編輯備註（上傳者或具全域刪除權限者）。"""
+    """編輯日期、檔案、上傳人與備註（上傳者或具全域刪除權限者）。"""
     if user is None:
         raise HTTPException(401, "未登入")
+    file = None
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
+        form = await request.form()
+        report_date = _form_text(form, "report_date")
+        uploader_name = _form_text(form, "uploader_name")
+        note = _form_text(form, "note")
+        candidate = form.get("file")
+        if candidate is not None and getattr(candidate, "filename", None) is not None:
+            file = candidate
+    else:
+        try:
+            payload = SignedReportUpdate.model_validate(await request.json())
+        except Exception as exc:
+            raise HTTPException(422, "編輯資料格式錯誤") from exc
+        report_date = payload.report_date
+        uploader_name = payload.uploader_name
+        note = payload.note
     conn = get_db()
+    new_asset = None
+    old_asset = None
+    old_fallback = None
     try:
+        # 先鎖定寫入交易，避免兩個替換同時讀到同一個舊 asset 而留下孤兒檔。
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
         can_all = _can_delete_all(conn, user)
         if not (can_all or row["uploader_user_id"] == user["id"]):
             raise HTTPException(403, "僅上傳者或具全域刪除權限者可編輯")
-        report_date = row["report_date"] if payload.report_date is None else payload.report_date.strip()
-        uploader_name = row["uploader_name"] if payload.uploader_name is None else payload.uploader_name.strip()
-        note = row["note"] or "" if payload.note is None else payload.note.strip()
+        report_date = row["report_date"] if report_date is None else report_date.strip()
+        uploader_name = row["uploader_name"] if uploader_name is None else uploader_name.strip()
+        note = row["note"] or "" if note is None else note.strip()
         if not (1 <= len(uploader_name) <= 50):
             raise HTTPException(400, "上傳人需 1-50 字")
+        if len(note) > 500:
+            raise HTTPException(400, "備註最多 500 字")
         try:
             datetime.date.fromisoformat(report_date)
         except Exception:
             raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
+
+        old_asset = get_owner_asset(conn, "signed_report", "signed_report", rid)
+        if not old_asset and row["stored_path"]:
+            try:
+                old_fallback = safe_upload_path(row["stored_path"], upload_dir=Path(STATIC_DIR) / "uploads")
+            except (FileNotFoundError, TypeError, ValueError):
+                old_fallback = None
+
+        update_fields = ["report_date=?", "uploader_name=?", "note=?"]
+        update_values = [report_date, uploader_name, note]
+        if file is not None:
+            data, safe, mime = _read_upload(file)
+            ym = report_date[:7]
+            stored = f"signed_reports/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
+            new_asset = store_asset(
+                conn, category="signed_report", owner_type="signed_report", owner_id=rid,
+                data=data, original_name=safe, mime_type=mime, year_month=ym,
+                legacy_original_path=stored, upload_dir=Path(STATIC_DIR) / "uploads",
+            )
+            update_fields.extend(["file_name=?", "stored_path=?", "file_size=?", "mime_type=?"])
+            update_values.extend([safe, new_asset.original_path, len(data), new_asset.mime_type])
         conn.execute(
-            "UPDATE daily_signed_reports SET report_date=?, uploader_name=?, note=? WHERE id=?",
-            (report_date, uploader_name, note, rid),
+            f"UPDATE daily_signed_reports SET {', '.join(update_fields)} WHERE id=?",
+            (*update_values, rid),
         )
+        if old_asset and new_asset:
+            conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old_asset["asset_id"],))
         conn.commit()
+        if new_asset:
+            finalize_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+            if old_asset:
+                delete_asset_files(old_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+            elif old_fallback:
+                old_fallback.unlink(missing_ok=True)
         updated = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
         can_delete = can_all or updated["uploader_user_id"] == user["id"]
         return _row_to_out(updated, can_delete)
+    except HTTPException:
+        conn.rollback()
+        if new_asset:
+            cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        raise
+    except ValueError as exc:
+        conn.rollback()
+        if new_asset:
+            cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        raise HTTPException(400, str(exc)) from exc
+    except Exception:
+        conn.rollback()
+        if new_asset:
+            cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        raise
     finally:
         conn.close()
 

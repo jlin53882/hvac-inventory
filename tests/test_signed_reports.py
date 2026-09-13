@@ -156,31 +156,43 @@ def test_delete_is_limited_to_owner_or_global_permission(signed_env):
     assert admin.get("/api/signed-reports").json()["total"] == 0
 
 
-def test_owner_can_edit_note_and_other_user_cannot(signed_env):
-    """報表日期、上傳人與備註可編輯，但只有上傳者或全域權限者可修改。"""
-    make_client, _ = signed_env
+def test_owner_can_edit_all_fields_and_replace_file(signed_env):
+    """報表日期、檔案、上傳人與備註可編輯，但只有上傳者或全域權限者可修改。"""
+    make_client, static_dir = signed_env
     owner = make_client("owner", "user")
     other = make_client("other", "user")
     admin = make_client()
     report = _upload(owner).json()
+    upload_dir = static_dir / "uploads" / "signed_reports" / "2026-09"
+    old_path = next(upload_dir.iterdir())
+    assert old_path.read_bytes() == b"%PDF-signed"
 
     forbidden = other.patch(
-        f"/api/signed-reports/{report['id']}", json={"note": "不應被修改"}
+        f"/api/signed-reports/{report['id']}",
+        data={"note": "不應被修改"},
     )
     assert forbidden.status_code == 403
 
     updated = owner.patch(
         f"/api/signed-reports/{report['id']}",
-        json={
+        data={
             "report_date": "2026-09-08",
             "uploader_name": "王大明",
             "note": "已更新備註",
         },
+        files={"file": ("updated.pdf", b"%PDF-updated", "application/pdf")},
     )
     assert updated.status_code == 200
     assert updated.json()["report_date"] == "2026-09-08"
     assert updated.json()["uploader_name"] == "王大明"
     assert updated.json()["note"] == "已更新備註"
+    assert updated.json()["file_name"] == "updated.pdf"
+    assert updated.json()["file_size"] == len(b"%PDF-updated")
+    assert owner.get(f"/api/signed-reports/{report['id']}/download").content == b"%PDF-updated"
+    stored_files = list(upload_dir.iterdir())
+    assert len(stored_files) == 1
+    assert stored_files[0].read_bytes() == b"%PDF-updated"
+    assert not old_path.exists()
     listed_item = owner.get("/api/signed-reports").json()["items"][0]
     assert listed_item["report_date"] == "2026-09-08"
     assert listed_item["uploader_name"] == "王大明"
@@ -191,6 +203,14 @@ def test_owner_can_edit_note_and_other_user_cannot(signed_env):
     )
     assert admin_updated.status_code == 200
     assert admin_updated.json()["note"] == "管理員補充"
+    assert admin_updated.json()["report_date"] == "2026-09-08"
+    assert admin_updated.json()["file_name"] == "updated.pdf"
+
+    form_updated = admin.patch(
+        f"/api/signed-reports/{report['id']}", data={"note": "URL encoded"}
+    )
+    assert form_updated.status_code == 200
+    assert form_updated.json()["note"] == "URL encoded"
 
 
 def test_edit_note_rejects_overlong_value(signed_env):
@@ -199,6 +219,6 @@ def test_edit_note_rejects_overlong_value(signed_env):
     owner = make_client("owner", "user")
     report = _upload(owner).json()
     response = owner.patch(
-        f"/api/signed-reports/{report['id']}", json={"note": "x" * 501}
+        f"/api/signed-reports/{report['id']}", data={"note": "x" * 501}
     )
     assert response.status_code in (400, 422)

@@ -247,13 +247,13 @@ def test_signed_reports_demo_layout_contract():
 
 
 def test_signed_reports_actions_and_editable_note_contract():
-    """DSR：圖片直接預覽；下載/刪除/編輯備註均為圖示加文字操作。"""
+    """DSR：圖片直接預覽；下載/刪除/編輯日期、檔案、上傳人與備註均為圖示加文字操作。"""
     js = read(SIGNED_REPORTS_RENDER_JS)
     css = read(SIGNED_REPORTS_CSS)
     assert "onclick=\"dsrPreview(${r.id})\"" in js
     assert "!isImage" in js
     assert "class=\"dsr-report-thumb\"" in js
-    assert "dsrEditNote(${r.id})" in js
+    assert "dsrEdit(${r.id})" in js
     assert "prompt('編輯報表日期" in js
     assert "prompt('編輯上傳人姓名" in js
     assert "prompt('編輯備註" in js
@@ -271,6 +271,11 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "⬇️ 下載" in js
     assert "🗑 刪除" in js
     assert "PATCH" in js
+    assert "FormData" in js
+    assert "await dsrLoadHistory()" in js
+    assert "function dsrKeepUploaderOnly" in js
+    assert "dsrKeepUploaderOnly();" in js
+    assert "replacement.accept = 'image/*,.pdf'" in js
     assert "/api/signed-reports/" in js and "note" in js
     assert ".dsr-report-thumb" in css
     assert ".dsr-action-btn" in css

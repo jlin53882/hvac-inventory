@@ -234,6 +234,23 @@ function dsrClearFile() {
   dsrSelectedFile = null;
 }
 
+// 上傳成功後清除欄位數值，保留表單、歷史表格與上傳人姓名。
+function dsrKeepUploaderOnly() {
+  const dateField = document.getElementById('dsr-report-date');
+  const noteField = document.getElementById('dsr-note');
+  const fileField = document.getElementById('dsr-file-input');
+  const cameraField = document.getElementById('dsr-camera-input');
+  if (dateField) dateField.value = _dsrIso(new Date());
+  if (noteField) noteField.value = '';
+  if (fileField) fileField.value = '';
+  if (cameraField) cameraField.value = '';
+  dsrSelectedFile = null;
+  const drop = document.getElementById('dsr-drop');
+  const preview = document.getElementById('dsr-file-preview');
+  if (drop) drop.style.display = 'block';
+  if (preview) preview.style.display = 'none';
+}
+
 // 預覽已選的本地檔案（上傳前）
 function dsrOpenPreviewFile() {
   if (!dsrSelectedFile) return;
@@ -266,6 +283,7 @@ async function dsrSubmitUpload() {
     bar.style.width = '100%';
     setTimeout(() => toast('✅ 上傳成功'), 300);
     dsrClearFile();
+    dsrKeepUploaderOnly();
     dsrLoadHistory();
   } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
 }
@@ -322,7 +340,7 @@ function dsrRenderTable() {
           </div>
           <div class="dsr-actions-cell">
             ${!isImage ? `<button class="dsr-action-btn" onclick="dsrPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_delete ? `<button class="dsr-action-btn" onclick="dsrEditNote(${r.id})">✏️ 編輯</button>` : ''}
+            ${r.can_delete ? `<button class="dsr-action-btn" onclick="dsrEdit(${r.id})">✏️ 編輯</button>` : ''}
             <button class="dsr-action-btn" onclick="dsrDownload(${r.id})">⬇️ 下載</button>
             ${r.can_delete ? `<button class="dsr-action-btn dsr-action-btn--danger" onclick="dsrDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>
@@ -402,29 +420,51 @@ function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
 function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function dsrDownload(id) { window.open('/api/signed-reports/' + id + '/download', '_blank'); }
-// 編輯報表備註（上傳者或全域權限者）
-async function dsrEditNote(id) {
+// 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）
+async function dsrEdit(id) {
   const report = dsrFiltered.find(item => item.id === id);
   if (!report) return;
-  const reportDate = prompt('編輯報表日期（YYYY-MM-DD）', report.report_date || '');
-  if (reportDate === null) return;
-  const uploaderName = prompt('編輯上傳人姓名（1-50 字）', report.uploader_name || '');
-  if (uploaderName === null) return;
-  const note = prompt('編輯備註（最多 500 字）', report.note || '');
-  if (note === null) return;
-  if (note.length > 500) return toast('⚠️ 備註最多 500 字');
-  const res = await fetch('/api/signed-reports/' + id, {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({report_date: reportDate, uploader_name: uploaderName, note})
+  const overlay = document.createElement('div');
+  overlay.className = 'dsr-overlay open';
+  overlay.innerHTML = `
+    <div class="dsr-modal dsr-edit-modal" role="dialog" aria-modal="true" aria-labelledby="dsr-edit-title">
+      <div class="dsr-modal__hd"><h3 id="dsr-edit-title">✏️ 編輯每日簽名日報表</h3><button class="dsr-btn-sm" type="button" data-dsr-edit-cancel>✕ 關閉</button></div>
+      <div class="dsr-modal__bd">
+        <div class="dsr-field"><label for="dsr-edit-date">報表日期（YYYY-MM-DD）</label><input id="dsr-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
+        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-uploader">上傳人姓名</label><input id="dsr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-note">備註</label><textarea id="dsr-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-file">替換檔案（選填）</label><input id="dsr-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+        <div class="dsr-hint">不選擇新檔案會保留目前檔案。</div>
+      </div>
+      <div class="dsr-modal__ft"><button class="dsr-btn dsr-btn--ghost" type="button" data-dsr-edit-cancel>取消</button><button class="dsr-btn dsr-btn--primary" type="button" data-dsr-edit-save>儲存</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-dsr-edit-cancel]').forEach(button => button.addEventListener('click', close));
+  overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+  overlay.querySelector('[data-dsr-edit-save]').addEventListener('click', async () => {
+    const reportDate = overlay.querySelector('#dsr-edit-date').value;
+    const uploaderName = overlay.querySelector('#dsr-edit-uploader').value.trim();
+    const note = overlay.querySelector('#dsr-edit-note').value.trim();
+    const file = overlay.querySelector('#dsr-edit-file').files[0];
+    if (!reportDate) return toast('⚠️ 請選擇報表日期');
+    if (!uploaderName) return toast('⚠️ 請填上傳人姓名');
+    if (note.length > 500) return toast('⚠️ 備註最多 500 字');
+    const fd = new FormData();
+    fd.append('report_date', reportDate);
+    fd.append('uploader_name', uploaderName);
+    fd.append('note', note);
+    if (file) fd.append('file', file);
+    try {
+      const res = await fetch('/api/signed-reports/' + id, { method: 'PATCH', body: fd });
+      const data = await res.json();
+      if (!res.ok) return toast('⚠️ ' + (data.detail || '報表更新失敗'));
+      close();
+      Object.assign(report, data);
+      await dsrLoadHistory();
+      toast('✅ 報表已更新');
+    } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
   });
-  const data = await res.json();
-  if (!res.ok) return toast('⚠️ ' + (data.detail || '備註更新失敗'));
-  report.report_date = data.report_date;
-  report.uploader_name = data.uploader_name;
-  report.note = data.note;
-  dsrRenderTable();
-  toast('✅ 備註已更新');
 }
 
 // 刪除簽名報表（二次確認）
