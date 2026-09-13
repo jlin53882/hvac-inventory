@@ -409,6 +409,33 @@ def test_petty_cash_frontend_contract():
     assert '@media (max-width: 767px)' in css
 
 
+def test_petty_cash_modal_step_contracts():
+    """一般／工程零用金 modal 的 step tabs 與切換契約一致。"""
+    general = read(PETTY_CASH_MODAL_JS)
+    engineering = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+    contracts = [
+        (general, 'pcModalGotoStep', 'pc-step-1-tab', 'pc-step-2-tab', 'pc-step-1', 'pc-step-2'),
+        (engineering, 'engGotoStep', 'eng-step-1-tab', 'eng-step-2-tab', 'eng-step-1', 'eng-step-2'),
+    ]
+    for js, goto, tab1, tab2, step1, step2 in contracts:
+        assert f'id="{tab1}" onclick="{goto}(1)"' in js
+        assert f'id="{tab2}" onclick="{goto}(2)"' in js
+        assert f'function {goto}' in js
+        assert f"document.getElementById('{step1}').style.display" in js
+        assert f"document.getElementById('{step2}').style.display" in js
+        assert 'if(n===2' in js or 'if (n === 2' in js
+
+
+def test_petty_cash_detail_renderers_keep_separate_business_bodies():
+    """共用 shell 可抽取，但一般／工程明細 renderer 必須保持分離。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert "if (pcDetail.report_type === 'engineering') return engRenderDetail();" in js
+    assert 'function pcGeneralEntryRowsHtml' in js
+    assert 'function engGroupHtml' in js
+    assert 'function pcDetailSubtableHtml(rows)' in js
+
+
+
 def test_petty_cash_kpi_grid_layout():
     """KPI 三欄使用 CSS grid 強制同行（2026-09-12）：repeat(3, minmax(0, 1fr))"""
     css = read(PETTY_CASH_CSS)
