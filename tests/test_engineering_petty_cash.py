@@ -7,6 +7,7 @@ import pytest
 import app.database as app_db
 import main as app_main
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
+from app.services.engineering_petty_cash import engineering_filename
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
@@ -125,3 +126,59 @@ def test_engineering_transaction_rolls_back_and_leaves_no_orphans(eng_client):
         assert conn.execute("SELECT COUNT(*) FROM engineering_expense_details").fetchone()[0] == 0
     finally:
         conn.close()
+
+
+def test_engineering_validation_and_filename_cases(eng_client):
+    body = payload()
+    body['start_date'] = '2026-09-05'
+    body['end_date'] = '2026-09-04'
+    assert eng_client.post('/api/petty-cash-reports', json=body).status_code == 422
+    body = payload(); body['upload_person'] = '   '
+    assert eng_client.post('/api/petty-cash-reports', json=body).status_code == 422
+    assert engineering_filename('2026-09-04', '2026-09-04', '藍先生') == '(0904)藍先生 工程零用金.xlsx'
+    assert engineering_filename('2026-09-04', '2026-09-04', '藍先生', '發票') == '(0904 發票)藍先生 工程零用金.xlsx'
+    assert engineering_filename('2026-12-30', '2027-01-03', '藍先生') == '(20261230-20270103)藍先生 工程零用金.xlsx'
+
+
+def test_engineering_delete_cascades_all_children(eng_client):
+    created = eng_client.post('/api/petty-cash-reports', json=payload()).json()
+    report_id = created['id']
+    assert eng_client.delete(f'/api/petty-cash-reports/{report_id}').status_code == 200
+    conn = app_db.get_db()
+    try:
+        for table in ('petty_cash_reports', 'engineering_expense_categories', 'engineering_expense_groups', 'engineering_expense_receipts', 'engineering_expense_details'):
+            assert conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_engineering_viewer_can_read_but_cannot_write(eng_client):
+    created = eng_client.post('/api/petty-cash-reports', json=payload()).json()
+    conn = app_db.get_db()
+    try:
+        conn.execute("INSERT INTO users (username,password_hash,display_name,role) VALUES ('eng-viewer','x','工程檢視者','viewer')")
+        conn.commit()
+        viewer_id = conn.execute("SELECT id FROM users WHERE username='eng-viewer'").fetchone()['id']
+        token = create_session(conn, viewer_id)
+    finally:
+        conn.close()
+    viewer = TestClient(app_main.app)
+    viewer.cookies.set(SESSION_COOKIE, token)
+    assert viewer.get(f"/api/petty-cash-reports/{created['id']}").status_code == 200
+    assert viewer.post('/api/petty-cash-reports', json=payload()).status_code == 403
+    assert viewer.delete(f"/api/petty-cash-reports/{created['id']}").status_code == 403
+
+
+def test_mixed_general_engineering_list_keeps_summary_shapes(eng_client):
+    engineering = eng_client.post('/api/petty-cash-reports', json=payload()).json()
+    general = {
+        'report_type': 'general', 'start_date': '2026-08-26', 'end_date': '2026-09-25',
+        'filename_text': '一般', 'upload_person': '王小明', 'prepared_by': '王小明',
+        'opening_balance': 0, 'opening_balance_source': 'manual', 'status': 'completed', 'entries': [],
+    }
+    assert eng_client.post('/api/petty-cash-reports', json=general).status_code == 201
+    items = eng_client.get('/api/petty-cash-reports').json()['items']
+    by_type = {item['report_type']: item for item in items}
+    assert by_type['engineering']['total_amount'] == engineering['total_amount']
+    assert 'closing_balance' not in by_type['engineering']
+    assert 'closing_balance' in by_type['general']

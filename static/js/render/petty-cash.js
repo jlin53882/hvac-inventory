@@ -218,17 +218,27 @@ function pcCardHtml(r) {
   </div>`;
 }
 
-// 報表操作共用更多選單：桌面與手機使用同一組 actions
-function pcMoreMenuHtml(r, engineering) {
+// 共用報表操作模型；Desktop／Mobile 只負責不同呈現方式
+function pcReportActionEntries(r, engineering) {
   const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
-  const del = `pcDelete(${r.id}${engineering ? ', true' : ''})`;
-  return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list"><button type="button" onclick="event.stopPropagation();pcOpenDetail(${r.id})">👁 檢視</button>${r.can_edit ? `<button type="button" onclick="event.stopPropagation();${edit}">✏️ 編輯</button>` : ''}<button type="button" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-more-menu__danger" onclick="event.stopPropagation();${del}">🗑 刪除</button>` : ''}</div></details></span>`;
+  const actions = [
+    { label: '👁 檢視', action: `pcOpenDetail(${r.id})` },
+    { label: '⬇️ 匯出', action: `pcExport(${r.id})` },
+  ];
+  if (r.can_edit) actions.splice(1, 0, { label: '✏️ 編輯', action: edit });
+  if (r.can_edit) actions.push({ label: '🗑 刪除', action: `pcDelete(${r.id}${engineering ? ', true' : ''})`, danger: true });
+  return actions;
+}
+
+function pcMoreMenuHtml(r, engineering) {
+  const actions = pcReportActionEntries(r, engineering);
+  return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
 }
 
 // Mobile 直接操作列：避免把常用操作藏在更多選單內
 function pcMobileOpsHtml(r, engineering) {
-  const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
-  return `<span class="pc-report-actions pc-report-actions--mobile" onclick="event.stopPropagation()"><button type="button" class="pc-mobile-action" onclick="pcOpenDetail(${r.id})">👁 檢視</button>${r.can_edit ? `<button type="button" class="pc-mobile-action" onclick="${edit}">✏️ 編輯</button>` : ''}<button type="button" class="pc-mobile-action" onclick="pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-mobile-action pc-mobile-action--danger" onclick="pcDelete(${r.id}${engineering ? ', true' : ''})">🗑 刪除</button>` : ''}</span>`;
+  const actions = pcReportActionEntries(r, engineering);
+  return `<span class="pc-report-actions pc-report-actions--mobile" onclick="event.stopPropagation()">${actions.map(action => `<button type="button" class="pc-mobile-action${action.danger ? ' pc-mobile-action--danger' : ''}" onclick="${esc(action.action)}">${esc(action.label)}</button>`).join('')}</span>`;
 }
 
 // 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
@@ -345,12 +355,15 @@ function pcItemText(it) {
 function pcItemAmount(it) {
   return it.amount == null || it.amount === '' ? '—' : '$' + _pcMoney(it.amount);
 }
+function pcDetailSubtableHtml(rows) {
+  return `<div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span><span>金額</span></div>${rows.map((row, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(row.description)}</span><span class="pc-general-detail-amount">${esc(row.amount || '—')}</span></div>`).join('')}</div>`;
+}
 function pcGeneralDetailsHtml(e) {
   if (!e.items || !e.items.length) return '';
   const detailTotal = e.detail_total == null ? null : '$' + _pcMoney(e.detail_total);
   const difference = e.difference == null ? null : (e.difference >= 0 ? '+$' : '-$') + _pcMoney(Math.abs(e.difference));
-  const rows = e.items.map((it, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(pcItemText(it))}</span><span class="pc-general-detail-amount">${esc(pcItemAmount(it))}</span></div>`).join('');
-  return `<div class="pc-general-detail-panel"><div class="pc-general-detail-title">單據明細（${esc(e.items.length)} 項）</div><div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span><span>金額</span></div>${rows}</div>${e.amount_warning ? `<div class="pc-general-discrepancy"><span>帳務支出 <b>$${esc(_pcMoney(e.amount))}</b></span><span>明細合計 <b>${esc(detailTotal || '—')}</b></span><span>差額 <b>${esc(difference || '—')}</b></span></div>` : ''}</div>`;
+  const rows = e.items.map(it => ({ description: pcItemText(it), amount: pcItemAmount(it) }));
+  return `<div class="pc-general-detail-panel"><div class="pc-general-detail-title">單據明細（${esc(e.items.length)} 項）</div>${pcDetailSubtableHtml(rows)}${e.amount_warning ? `<div class="pc-general-discrepancy"><span>帳務支出 <b>$${esc(_pcMoney(e.amount))}</b></span><span>明細合計 <b>${esc(detailTotal || '—')}</b></span><span>差額 <b>${esc(difference || '—')}</b></span></div>` : ''}</div>`;
 }
 function pcGeneralEntryRowsHtml(entries) {
   let seq = 0;
@@ -415,11 +428,11 @@ var engExpandedGroups = new Set();
 var engExpandedReceipts = new Set();
 var engUiInitialized = false;
 function engToggle(set, key) { if (set.has(key)) set.delete(key); else set.add(key); engRenderDetail(); }
-function engReceiptDetailsHtml(q, key) {
+function engReceiptDetailsHtml(q) {
   const details = q.details || [];
   if (!details.length) return '';
-  const rows = details.map((d, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(d)}</span><span class="pc-general-detail-amount">—</span></div>`).join('');
-  return `<div class="pc-general-detail-panel eng-receipt-details"><div class="pc-general-detail-title"><span>單據明細（${esc(details.length)} 項）</span><span class="eng-detail-total">單據金額 $${esc(_pcMoney(q.amount))}</span></div><div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span><span>金額</span></div>${rows}</div></div>`;
+  const rows = details.map(d => ({ description: d, amount: '—' }));
+  return `<div class="pc-general-detail-panel eng-receipt-details"><div class="pc-general-detail-title"><span>單據明細（${esc(details.length)} 項）</span><span class="eng-detail-total">單據金額 $${esc(_pcMoney(q.amount))}</span></div>${pcDetailSubtableHtml(rows)}</div>`;
 }
 function engReceiptHtml(q, ri, groupKey) {
   const receiptKey = groupKey + ':' + ri;
@@ -427,7 +440,7 @@ function engReceiptHtml(q, ri, groupKey) {
   const expanded = engExpandedReceipts.has(receiptKey);
   const hasDetails = details.length > 0;
   const toggle = hasDetails ? ` type="button" aria-expanded="${expanded}" onclick="engToggle(engExpandedReceipts,'${jsStr(receiptKey)}')"` : '';
-  const detailRow = expanded ? `<tr class="eng-receipt-detail-row"><td colspan="4">${engReceiptDetailsHtml(q, receiptKey)}</td></tr>` : '';
+  const detailRow = expanded ? `<tr class="eng-receipt-detail-row"><td colspan="4">${engReceiptDetailsHtml(q)}</td></tr>` : '';
   return `<tr class="eng-receipt-row"><td><button class="eng-receipt-toggle"${toggle}><span class="eng-receipt-chevron">${hasDetails ? (expanded ? '▼' : '▶') : '·'}</span><span class="eng-receipt-no">${esc(q.receipt_number || '未填寫單據')}</span></button></td><td><span class="eng-tax-mark">${esc(q.tax_id_mark || '—')}</span></td><td class="eng-detail-count">${hasDetails ? `${esc(details.length)} 項明細` : '無細項'}</td><td class="pc-num"><strong>$${esc(_pcMoney(q.amount))}</strong></td></tr>${detailRow}`;
 }
 function engGroupHtml(g, ci, gi) {

@@ -223,7 +223,7 @@ REVIEWED_SAFE_BODIES = {
     "_pcPeriodText(r)", "_pcFileLabel(r)", "pcStatusBadge(r.status)",
     "ops", "editBtn", "delBtn", "rowsHtml", "itemsHtml",
     "amt", "incomeCell", "expenseCell",
-    "pcItemText(first)", "pcItemText(items[i])",
+    "pcItemText(first)", "pcItemText(items[i])", "pcDetailSubtableHtml(rows)", "engReceiptDetailsHtml(q)",
     "id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'",
     "pcEntryType === 'income' ? ' active' : ''", "pcEntryType === 'expense' ? ' active' : ''",
     "pcEntryType === 'income' ? 'display:none' : ''",

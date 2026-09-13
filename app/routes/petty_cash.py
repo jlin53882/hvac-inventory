@@ -22,7 +22,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.database import get_db
 from app.models import EngineeringReportIn, PettyCashOptionIn, PettyCashOptionUpdate, PettyCashReportIn
 from app.services.engineering_petty_cash import (
-    _engineering_row, build_engineering_report, engineering_safe_filename, write_engineering,
+    _engineering_row, build_engineering_report, engineering_filename, engineering_safe_filename,
+    engineering_summary_totals, write_engineering,
 )
 from app.services.auth import require_login
 from app.services.petty_cash_report import build_petty_cash_report, download_filename
@@ -121,10 +122,35 @@ def _report_dict(conn, report_id: int) -> dict:
     }
 
 
-def _summary_dict(conn, row) -> dict:
+def _report_shell(row) -> dict:
+    report_type = row["report_type"] or "general"
+    filename = (
+        engineering_filename(row["start_date"], row["end_date"], row["upload_person"], row["filename_text"])
+        if report_type == "engineering"
+        else download_filename(row["filename_text"], row["start_date"], row["end_date"])
+    )
+    return {
+        "id": row["id"],
+        "report_type": report_type,
+        "start_date": row["start_date"],
+        "end_date": row["end_date"],
+        "filename_text": row["filename_text"] or "",
+        "filename": filename,
+        "upload_person": row["upload_person"],
+        "uploader_user_id": row["uploader_user_id"],
+        "prepared_by": row["prepared_by"],
+        "status": row["status"],
+        "last_exported_at": row["last_exported_at"] or "",
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def _summary_dict(conn, row, engineering_totals=None) -> dict:
+    shell = _report_shell(row)
     if row["report_type"] == "engineering":
-        data = _engineering_row(conn, row["id"])
-        return {"id": row["id"], "report_type": "engineering", "start_date": row["start_date"], "end_date": row["end_date"], "filename_text": row["filename_text"] or "", "filename": data["filename"], "upload_person": row["upload_person"], "prepared_by": row["prepared_by"], "total_amount": float(data["total_amount"]), "status": row["status"], "created_at": row["created_at"], "updated_at": row["updated_at"]}
+        total_amount = (engineering_totals or {}).get(row["id"], 0)
+        return {**shell, "total_amount": total_amount}
     sums = conn.execute(
         """SELECT
                COALESCE(SUM(CASE WHEN entry_type='income' THEN amount ELSE 0 END), 0) AS income,
@@ -137,21 +163,11 @@ def _summary_dict(conn, row) -> dict:
         {"entry_type": "expense", "amount": sums["expense"]},
     ])
     return {
-        "id": row["id"],
-        "report_type": row["report_type"] or "general",
-        "start_date": row["start_date"],
-        "end_date": row["end_date"],
-        "filename_text": row["filename_text"],
-        "filename": download_filename(row["filename_text"], row["start_date"], row["end_date"]),
-        "upload_person": row["upload_person"],
-        "prepared_by": row["prepared_by"],
+        **shell,
         "opening_balance": totals["opening_balance"],
         "income": totals["income"],
         "expense": totals["expense"],
         "closing_balance": totals["closing_balance"],
-        "status": row["status"],
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
     }
 
 
@@ -458,9 +474,12 @@ def list_petty_cash_reports(
             (*params, page_size, (page - 1) * page_size),
         ).fetchall()
         can_all = has_perm(conn, user, "petty-cash-delete-all")
+        engineering_totals = engineering_summary_totals(
+            conn, [r["id"] for r in rows if r["report_type"] == "engineering"]
+        )
         items = []
         for r in rows:
-            summary = _summary_dict(conn, r)
+            summary = _summary_dict(conn, r, engineering_totals)
             summary["can_edit"] = bool(
                 can_all or r["uploader_user_id"] == user["id"] or r["created_by"] == user["id"]
             )
@@ -546,6 +565,9 @@ def update_petty_cash_report(
     except HTTPException:
         conn.rollback()
         raise
+    except (ValueError, KeyError) as exc:
+        conn.rollback()
+        raise HTTPException(400 if isinstance(exc, ValueError) else 404, str(exc))
     except Exception:
         conn.rollback()
         raise

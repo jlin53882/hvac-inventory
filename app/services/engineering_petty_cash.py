@@ -34,6 +34,24 @@ def calculate_engineering_totals(categories):
     return {"categories": categories, "total_amount": total}
 
 
+def engineering_summary_totals(conn, report_ids):
+    """Return report totals in one aggregate query for mixed report lists."""
+    ids = [int(report_id) for report_id in report_ids]
+    if not ids:
+        return {}
+    placeholders = ",".join("?" for _ in ids)
+    rows = conn.execute(
+        f"""SELECT c.report_id, COALESCE(SUM(r.amount), 0) AS total_amount
+            FROM engineering_expense_categories c
+            JOIN engineering_expense_groups g ON g.category_id = c.id
+            JOIN engineering_expense_receipts r ON r.group_id = g.id
+            WHERE c.report_id IN ({placeholders})
+            GROUP BY c.report_id""",
+        ids,
+    ).fetchall()
+    return {row["report_id"]: money(row["total_amount"]) for row in rows}
+
+
 def engineering_filename(start_date, end_date, owner, note=""):
     start = datetime.date.fromisoformat(start_date)
     end = datetime.date.fromisoformat(end_date)
@@ -108,7 +126,7 @@ def write_engineering(conn, body, user_id, report_id=None):
         for gi, group in enumerate(cat.groups):
             g = conn.execute("INSERT INTO engineering_expense_groups(category_id,name,sort_order) VALUES(?,?,?)", (c,group.name,gi)).lastrowid
             for ri, receipt in enumerate(group.receipts):
-                r = conn.execute("INSERT INTO engineering_expense_receipts(group_id,tax_id_mark,receipt_number,amount,sort_order) VALUES(?,?,?,?,?)", (g,receipt.tax_id_mark,receipt.receipt_number,float(money(receipt.amount)),ri)).lastrowid
+                r = conn.execute("INSERT INTO engineering_expense_receipts(group_id,tax_id_mark,receipt_number,amount,sort_order) VALUES(?,?,?,?,?)", (g,receipt.tax_id_mark,receipt.receipt_number,str(money(receipt.amount)),ri)).lastrowid
                 for di, detail in enumerate(receipt.details):
                     conn.execute("INSERT INTO engineering_expense_details(receipt_id,description,sort_order) VALUES(?,?,?)", (r,detail,di))
     return report_id
@@ -127,16 +145,17 @@ def build_engineering_report(report):
     headers = ["類別", "項目", "統編", "發票號碼", "細項", "金額"]
     for col, value in enumerate(headers, 1):
         ws.cell(1, col).value = value
-    layout = []
-    for cat in report.get("categories", []):
-        for group in cat.get("groups", []):
-            for receipt in group.get("receipts", []):
-                for detail in (receipt.get("details") or [""]):
-                    layout.append(("data", cat, group, receipt, detail))
-        layout.append(("subtotal", cat))
+    needed = max(
+        1,
+        sum(
+            len(receipt.get("details") or [""])
+            for cat in report.get("categories", [])
+            for group in cat.get("groups", [])
+            for receipt in group.get("receipts", [])
+        ) + len(report.get("categories", [])),
+    )
     first_data = 2
     template_data = 2
-    needed = max(1, len(layout))
     if needed > source_rows - 1:
         ws.insert_rows(source_rows + 1, needed - (source_rows - 1))
     for r in range(first_data, first_data + needed):

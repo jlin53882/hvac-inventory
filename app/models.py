@@ -4,6 +4,8 @@ Pydantic 請求模型
 =================
 所有 API 的請求 body 定義集中管理。
 """
+from datetime import date
+from decimal import Decimal
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -353,7 +355,7 @@ class PettyCashOptionUpdate(BaseModel):
 class EngineeringReceiptIn(BaseModel):
     tax_id_mark: str = Field("", max_length=50)
     receipt_number: str = Field("", max_length=100)
-    amount: float = Field(..., ge=0)
+    amount: Decimal = Field(..., ge=Decimal("0"), max_digits=12, decimal_places=2)
     details: List[str] = Field(default_factory=list, max_length=100)
     sort_order: int = Field(0, ge=0, le=9999)
 
@@ -402,14 +404,25 @@ class EngineeringReportIn(BaseModel):
     upload_person: str = Field(..., min_length=1, max_length=50)
     prepared_by: str = Field(..., min_length=1, max_length=50)
     filename_text: str = Field("", max_length=50)
-    status: str = "draft"
+    status: Literal["draft", "completed"] = "draft"
     categories: List[EngineeringCategoryIn] = Field(default_factory=list, max_length=100)
+
+    @field_validator("upload_person", "prepared_by", "filename_text")
+    @classmethod
+    def clean_report_text(cls, value):
+        return (value or "").strip()
 
     @model_validator(mode="after")
     def validate_report(self):
-        if self.report_type != "engineering": raise ValueError("報表類型錯誤")
-        if self.status not in ("draft", "completed"): raise ValueError("狀態錯誤")
-        self.upload_person = self.upload_person.strip(); self.prepared_by = self.prepared_by.strip()
+        try:
+            start = date.fromisoformat(self.start_date)
+            end = date.fromisoformat(self.end_date)
+        except ValueError as exc:
+            raise ValueError("日期格式必須為 YYYY-MM-DD") from exc
+        if start > end:
+            raise ValueError("開始日期不可晚於結束日期")
+        if not self.upload_person or not self.prepared_by:
+            raise ValueError("報表歸屬人與製表人不可空白")
         return self
 
 
