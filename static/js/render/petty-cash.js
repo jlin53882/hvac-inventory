@@ -257,14 +257,24 @@ function pcBindMoreMenuEvents() {
   pcMoreMenuEventsBound = true;
   document.addEventListener('toggle', event => {
     const menu = event.target;
-    if (!menu.matches || !menu.matches('.pc-more-menu') || !menu.open) return;
+    if (!menu.matches || !menu.matches('.pc-more-menu')) return;
+    const row = menu.closest('tr');
+    if (!menu.open) {
+      if (row) row.classList.remove('pc-more-menu-row--open');
+      return;
+    }
+    document.querySelectorAll('.pc-more-menu-row--open').forEach(otherRow => {
+      otherRow.classList.remove('pc-more-menu-row--open');
+    });
     document.querySelectorAll('.pc-more-menu[open]').forEach(other => {
       if (other !== menu) other.removeAttribute('open');
     });
+    if (row) row.classList.add('pc-more-menu-row--open');
   }, true);
   document.addEventListener('click', event => {
     if (event.target.closest && event.target.closest('.pc-more-menu')) return;
     document.querySelectorAll('.pc-more-menu[open]').forEach(menu => menu.removeAttribute('open'));
+    document.querySelectorAll('.pc-more-menu-row--open').forEach(row => row.classList.remove('pc-more-menu-row--open'));
   }, true);
 }
 

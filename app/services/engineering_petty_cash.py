@@ -66,6 +66,16 @@ def engineering_filename(start_date, end_date, owner, note=""):
     return excel_safe(f"({inside}){(owner or '').strip()} 工程零用金.xlsx")
 
 
+def engineering_sheet_title(start_date, end_date):
+    """工程零用金工作表名稱：與報表期間一致，並符合 Excel 31 字限制。"""
+    start = datetime.date.fromisoformat(start_date)
+    end = datetime.date.fromisoformat(end_date)
+    if start == end:
+        return start.strftime("%m%d")
+    if start.year == end.year:
+        return f"{start:%m%d}-{end:%m%d}"
+    return f"{start:%Y%m%d}-{end:%Y%m%d}"
+
 def engineering_safe_filename(name):
     """工程報表保留規格所需括號/空格，同時阻擋路徑與危險字元。"""
     name = (name or "file").strip().replace("/", "_").replace("\\", "_")
@@ -197,7 +207,7 @@ def build_engineering_report(report):
     ws.cell(total_row, 1).value = "總計:"
     ws.cell(total_row, 6).value = float(money(report.get("total_amount")))
     ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=5)
-    ws.title = datetime.date.fromisoformat(report["start_date"]).strftime("%m%d")
+    ws.title = engineering_sheet_title(report["start_date"], report["end_date"])
     wb.calculation.fullCalcOnLoad = True
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
     return buf

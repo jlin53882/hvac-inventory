@@ -75,6 +75,7 @@ SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
+PETTY_CASH_PR8_CSS = os.path.join(STATIC, "css", "style.petty-cash-pr8.css")
 PETTY_CASH_ENGINEERING_MODAL_JS = os.path.join(STATIC, "js", "modals", "engineering-petty-cash.js")
 SETTINGS_HTML = os.path.join(STATIC, "settings.html")
 SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
@@ -88,6 +89,11 @@ def read(p):
     """讀檔 helper（UTF-8）"""
     with open(p, encoding="utf-8") as fh:
         return fh.read()
+
+def read_petty_cash_css():
+    """零用金 CSS：base 先載入，PR8 override 後載入，符合 index.html 順序。"""
+    return read(PETTY_CASH_CSS) + read(PETTY_CASH_PR8_CSS)
+
 
 def read_calendar_js_all():
     """calendar 拆檔後（2026-08-16）：render + modals/calendar + modals/calendar-settings + globals.js 合併讀。
@@ -373,6 +379,7 @@ def test_petty_cash_frontend_contract():
     assert 'src="/static/js/render/petty-cash.js"' in index
     assert 'src="/static/js/modals/petty-cash.js"' in index
     assert 'href="/static/css/style.petty-cash.css"' in index
+    assert 'href="/static/css/style.petty-cash-pr8.css"' in index
     app = read(APP_JS)
     assert "'petty-cash':'零用金月報'" in app
     assert "'petty-cash':'🪙'" in app
@@ -403,7 +410,7 @@ def test_petty_cash_frontend_contract():
     assert 'function pcModalGotoStep' in modal
     assert '/api/petty-cash-reports/previous-balance' in modal
     assert 'function esc(' not in modal  # esc 單一來源（統一用 utils.js）
-    css = read(PETTY_CASH_CSS)
+    css = read_petty_cash_css()
     assert '#content.pc-content' in css
     assert '.pc-table-wrap' in css and '.pc-cards' in css
     assert '@media (max-width: 767px)' in css
@@ -442,7 +449,7 @@ def test_petty_cash_detail_renderers_keep_separate_business_bodies():
 
 def test_petty_cash_kpi_grid_layout():
     """KPI 三欄使用 CSS grid 強制同行（2026-09-12）：repeat(3, minmax(0, 1fr))"""
-    css = read(PETTY_CASH_CSS)
+    css = read_petty_cash_css()
     assert 'display: grid' in css
     assert 'repeat(3, minmax(0, 1fr))' in css
     assert '.pc-kpi-row' in css
@@ -471,7 +478,7 @@ def test_petty_cash_income_expense_button_styling():
     assert 'pc-step--expense' in js
     assert '💰' in js
     assert '💸' in js
-    css = read(PETTY_CASH_CSS)
+    css = read_petty_cash_css()
     assert 'pc-step--income.active' in css
     assert 'pc-step--expense.active' in css
 
@@ -485,9 +492,10 @@ def test_petty_cash_items_header_columns():
     assert '單位' in js
     assert '金額' in js
     assert '刪除' in js
-    css = read(PETTY_CASH_CSS)
+    css = read_petty_cash_css()
     assert '.pc-items-header' in css
-
+    assert 'grid-template-columns: 1fr 76px 64px 96px 44px' in css
+    assert 'box-sizing: border-box' in css
 
 def test_petty_cash_desc_optional_with_items():
     """有明細項目時摘要改非必填（2026-09-12）"""
@@ -506,7 +514,7 @@ def test_petty_cash_entry_date_groups():
     assert 'pc-entry-date-header' in js
     assert 'pc-entry-date-body' in js
     assert 'collapsed' in js
-    css = read(PETTY_CASH_CSS)
+    css = read_petty_cash_css()
     assert '.pc-entry-date-group' in css
     assert '.pc-entry-date-header' in css
     assert '.pc-entry-date-group.collapsed' in css
@@ -521,8 +529,10 @@ def test_petty_cash_detail_table_mobile():
     assert 'pc-general-detail-head' in js
     assert 'pc-general-detail-amount' not in js
     assert 'pcItemText(it)' in js
-    css = read(PETTY_CASH_CSS)
-    assert 'grid-template-columns: 48px minmax(0, 1fr) 100px' in css
+    css = read_petty_cash_css()
+    assert 'grid-template-columns: 48px minmax(0, 1fr)' in css
+    assert '.pc-general-detail-head span:last-child { text-align: left; }' in css
+    assert 'grid-template-columns:auto minmax(0,1fr);' in css
     assert 'text-align: left !important' in css
     assert '.pc-report-list-table' in css
     assert 'table-layout: auto' in css
@@ -545,9 +555,9 @@ def test_petty_cash_settings_options_domain_layout():
     assert "panel.querySelectorAll('[data-petty-action]')" in js
     assert 'grid-template-columns:minmax(0,1fr) auto' in html
     assert 'width:auto; min-width:88px' in html
-    assert 'border-radius: 8px' in read(PETTY_CASH_CSS)
+    assert 'border-radius: 8px' in read_petty_cash_css()
     assert 'pc-opt-name-general-category' in js
-    petty_css = read(PETTY_CASH_CSS)
+    petty_css = read_petty_cash_css()
     assert '.eng-editor .eng-category-title > select' in petty_css
     assert '.eng-editor .eng-detail-row input' in petty_css
 
@@ -556,11 +566,14 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     """報表操作使用共用更多選單；工程檢視使用對齊表格（2026-09-13）。"""
     js = read(PETTY_CASH_RENDER_JS)
     modal_js = read(PETTY_CASH_MODAL_JS)
-    css = read(PETTY_CASH_CSS)
+    css = read_petty_cash_css()
     assert 'function pcMoreMenuHtml' in js
     assert 'class="pc-more-menu"' in js
     assert 'pcBindMoreMenuEvents' in js
     assert "other.removeAttribute('open')" in js
+    assert "pc-more-menu-row--open" in js
+    assert "row.classList.add('pc-more-menu-row--open')" in js
+    assert '.pc-more-menu-row--open' in css
     assert "menu.removeAttribute('open')" in js
     assert 'pc-report-list-table-wrap' in js
     assert 'Desktop report query: scroll rows while keeping the table header visible.' in css
@@ -597,6 +610,7 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'event.stopPropagation();pcOpenEntryModal(${i})' in modal_js
     assert 'function pcDetailSubtableHtml(rows)' in js
     assert '<span>項次</span><span>細項</span></div>' in js
+    assert 'grid-template-columns: 48px minmax(0, 1fr);' in css
     assert 'pc-general-detail-amount' not in js
     assert '.pc-entry-card--clickable' in css
     assert '.eng-detail-table th:first-child' in css
@@ -620,7 +634,7 @@ def test_petty_cash_general_detail_rows_are_expandable():
 def test_engineering_editor_inputs_are_rounded():
     """工程零用金編輯器輸入／選擇欄統一圓角（2026-09-13）。"""
     js = read(PETTY_CASH_ENGINEERING_MODAL_JS)
-    css = read(PETTY_CASH_CSS)
+    css = read_petty_cash_css()
     assert 'eng-tax' in js and 'eng-no' in js and 'eng-amount' in js and 'eng-detail' in js
     assert '.eng-editor input, .eng-editor select' in css
     assert '.eng-editor input:focus, .eng-editor select:focus' in css

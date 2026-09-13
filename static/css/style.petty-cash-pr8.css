@@ -1,0 +1,286 @@
+/* ========== 零用金月報 PR8 專用覆寫層 ========== */
+/*
+ * 載入順序：style.petty-cash.css → style.petty-cash-pr8.css
+ * 本檔只放 PR8 的列表、dynamic layout、responsive override 與
+ * general/engineering detail alignment；共用 base 元件留在 base 檔。
+ */
+
+/* 報表查詢列表：等寬欄位與置中掃描，mobile 改用既有 cards */
+.pc-report-list-table { table-layout: auto; }
+.pc-report-list-table th, .pc-report-list-table td { text-align: center; }
+.pc-report-list-table th:nth-child(1) { width: 5%; }
+.pc-report-list-table th:nth-child(2) { width: 12%; }
+.pc-report-list-table th:nth-child(3) { width: 13%; }
+.pc-report-list-table th:nth-child(4) { width: 24%; }
+.pc-report-list-table th:nth-child(5) { width: 10%; }
+.pc-report-list-table th:nth-child(6) { width: 10%; }
+.pc-report-list-table th:nth-child(7) { width: 14%; }
+.pc-report-list-table th:nth-child(8) { width: 8%; }
+.pc-report-list-table th:nth-child(9) { width: 10%; }
+.pc-report-list-table th:nth-child(1), .pc-report-list-table th:nth-child(2), .pc-report-list-table th:nth-child(3), .pc-report-list-table th:nth-child(5), .pc-report-list-table th:nth-child(6), .pc-report-list-table th:nth-child(8), .pc-report-list-table td:nth-child(1), .pc-report-list-table td:nth-child(2), .pc-report-list-table td:nth-child(3), .pc-report-list-table td:nth-child(5), .pc-report-list-table td:nth-child(6), .pc-report-list-table td:nth-child(8) { white-space: nowrap; }
+.pc-report-list-table .pc-num { text-align: center; }
+.pc-report-list-table .pc-row-actions { justify-content: center; white-space: nowrap; }
+.pc-report-list-table td:nth-child(4), .pc-report-list-table td:nth-child(7) { overflow-wrap: anywhere; }
+/* 工程零用金 editor：select／細項輸入框與統編欄位一致 */
+.eng-editor .eng-category-title,
+.eng-editor .eng-group-head {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+}
+.eng-editor .eng-category-title { grid-template-columns: minmax(180px, 1fr) auto auto; }
+.eng-editor .eng-group-head { grid-template-columns: minmax(180px, 1fr) auto auto auto; }
+.eng-editor .eng-category-title > select,
+.eng-editor .eng-group-head > select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.eng-editor .eng-detail-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.eng-editor .eng-detail-row button { white-space: nowrap; }
+@media (max-width: 767px) {
+  .eng-editor .eng-category-title,
+  .eng-editor .eng-group-head { display: flex; flex-direction: column; align-items: stretch; }
+  .eng-editor .eng-category-title > select,
+  .eng-editor .eng-group-head > select { width: 100%; }
+}
+/* 一般零用金展開明細：左對齊子表格，金額獨立靠右 */
+.pc-general-detail-row > td,
+.pc-general-detail-panel,
+.pc-general-detail-list,
+.pc-general-detail-item { text-align: left !important; }
+.pc-general-detail-panel { overflow: hidden; }
+.pc-general-detail-list { border: 1px solid #e2e8f0; border-radius: 7px; overflow: hidden; }
+.pc-general-detail-head,
+.pc-general-detail-item { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 10px; }
+.pc-general-detail-head { padding: 7px 10px; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 800; }
+.pc-general-detail-head span:last-child { text-align: left; }
+.pc-general-detail-item { min-height: 36px; padding: 6px 10px; border-top: 1px solid #f1f5f9; color: #475569; }
+.pc-general-detail-index { color: #94a3b8; font-size: 11px; font-variant-numeric: tabular-nums; }
+.pc-general-detail-description { min-width: 0; overflow-wrap: anywhere; }
+.pc-general-detail-amount { color: #334155; font-weight: 700; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 767px) {
+  .pc-general-detail-head,
+  .pc-general-detail-item { grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
+  .pc-general-detail-panel { padding: 9px 10px; }
+}
+/* 零用金首頁 KPI／Mobile 卡片：資訊層級與操作可見性 */
+#content .pc-kpi-card { position: relative; overflow: hidden; min-height: 104px; padding: 16px 18px 14px; border-radius: 14px; box-shadow: 0 2px 8px rgba(15,23,42,.06); }
+#content .pc-kpi-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: #2563eb; }
+#content .pc-kpi-card:nth-child(2)::before { background: #16a34a; }
+#content .pc-kpi-card:nth-child(3)::before { background: #d97706; }
+#content .pc-kpi-card__head .ui-kpi-icon { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; }
+#content .pc-kpi-card:nth-child(1) .ui-kpi-icon { background:#dbeafe; }
+#content .pc-kpi-card:nth-child(2) .ui-kpi-icon { background:#dcfce7; }
+#content .pc-kpi-card:nth-child(3) .ui-kpi-icon { background:#fef3c7; }
+#content .pc-kpi-card__num { margin-top: 10px; font-size: 30px; letter-spacing: -.02em; }
+#content .pc-kpi-card__foot { margin-top: 7px; text-align: left; }
+.pc-report-type { display:inline-flex; align-items:center; min-height:24px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+.pc-report-type--general { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+.pc-mobile-action { min-height:34px; padding:6px 9px; border:1px solid #dbe3ee; border-radius:8px; background:#fff; color:#334155; font-size:12px; font-weight:700; white-space:nowrap; cursor:pointer; }
+.pc-mobile-action:hover { background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; }
+.pc-mobile-action--danger { color:#b91c1c; }
+.pc-mobile-action--danger:hover { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+@media (max-width: 767px) {
+  #content .pc-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; }
+  #content .pc-kpi-card { min-height:88px; padding:12px 13px 11px; }
+  #content .pc-kpi-card:first-child { grid-column:1 / -1; min-height:96px; }
+  #content .pc-kpi-card__num { margin-top:7px; font-size:24px; }
+  #content .pc-kpi-card:first-child .pc-kpi-card__num { font-size:28px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { width:26px; height:26px; font-size:13px; }
+  .pc-report-card__top { flex-wrap:wrap; }
+  .pc-report-card__top .pc-status { margin-left:auto; }
+  .pc-row-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; }
+  .pc-report-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; width:100%; }
+  .pc-report-actions--mobile .pc-mobile-action { flex:1 1 auto; }
+}
+/* Desktop 更多選單：固定寬度與操作層級，避免表格操作欄重疊 */
+.pc-report-list-table .pc-row-actions { position: relative; overflow: visible; }
+.pc-report-list-table .pc-more-menu { position: relative; z-index: 30; }
+.pc-report-list-table .pc-more-menu > summary { min-width: 46px; min-height: 40px; }
+.pc-report-list-table .pc-more-menu__list { min-width: 176px; padding: 6px; gap: 2px; border-radius: 12px; box-shadow: 0 12px 28px rgba(15,23,42,.18); }
+.pc-report-list-table .pc-more-menu__list button { display:flex; align-items:center; width:100%; min-height:40px; gap:8px; padding:8px 11px; white-space:nowrap; }
+.pc-report-list-table td:last-child { position: relative; z-index: 1; overflow: visible; }
+.pc-report-list-table tbody tr.pc-more-menu-row--open { position: relative; z-index: 100; }
+.pc-report-list-table tbody tr.pc-more-menu-row--open td:last-child { z-index: 101; }
+.eng-receipt-details { margin:0 12px 10px 38px; }
+.eng-receipt-details .pc-general-detail-title { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.eng-detail-total { color:#1d4ed8; font-size:12px; white-space:nowrap; }
+@media (max-width:767px) {
+  .eng-receipt-details { margin-left:26px; }
+  .eng-receipt-details .pc-general-detail-title { align-items:flex-start; flex-direction:column; gap:4px; }
+}
+.pc-report-type--engineering { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
+.eng-category-head, .eng-group-head { cursor:pointer; }
+.eng-category-head:focus-visible, .eng-group-head:focus-visible, .eng-receipt-toggle:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }
+@media (max-width:767px) {
+  .eng-category-card { margin-bottom:10px; }
+  .eng-category-card .pc-card__bd { padding:10px; }
+  .eng-group-block { margin-bottom:10px; }
+  .eng-group-head { min-height:44px; }
+}
+/* Engineering editor receipt accordion */
+.eng-editor-receipt-toggle { width:100%; min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:0; border-radius:8px; background:#f8fafc; color:#1e3a5f; cursor:pointer; text-align:left; }
+.eng-editor-receipt-toggle:hover, .eng-receipt.is-expanded .eng-editor-receipt-toggle { background:#eff6ff; }
+.eng-editor-receipt-toggle > span { display:flex; align-items:center; gap:8px; min-width:0; }
+.eng-editor-receipt-no { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-weight:400; }
+.eng-editor-receipt-body { padding-top:10px; }
+.eng-editor-receipt-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.eng-editor-receipt-toggle:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }
+/* Mobile long-money layout: labels and values must shrink/wrap together. */
+#content .pc-kpi-card,
+#content .pc-kpi-card__head,
+#content .pc-kpi-card .ui-kpi-value { min-width:0; }
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value,
+.pc-report-card__balance,
+.eng-subtotal,
+.eng-group-head strong,
+.eng-editor-receipt-toggle strong { overflow-wrap:anywhere; word-break:break-word; }
+#content .pc-kpi-card__head .ui-kpi-label { line-height:1.2; }
+#content .pc-kpi-card .ui-kpi-value { white-space:normal; }
+@media (max-width:767px) {
+  .pc-page-title h1 { min-width:0; flex-wrap:wrap; line-height:1.25; }
+  #content .pc-kpi-card { min-height:76px; }
+  #content .pc-kpi-card .ui-kpi-value { font-size:clamp(16px,5.5vw,24px); line-height:1.1; }
+  .eng-category-head { min-width:0; flex-wrap:wrap; }
+  .eng-category-head > span { min-width:0; flex:1 1 100%; }
+  .eng-category-head .eng-subtotal { flex:1 1 100%; max-width:100%; text-align:left; white-space:normal; }
+  .eng-group-head strong { max-width:100%; white-space:normal; text-align:left; }
+  .eng-editor-receipt-toggle strong { max-width:42%; white-space:normal; text-align:right; }
+}
+/* Mobile engineering detail table: keep the first receipt column visible. */
+@media (max-width:768px) {
+  .eng-detail-table { width:100%; min-width:0; }
+  .eng-detail-table th,
+  .eng-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+  .eng-detail-table th:first-child,
+  .eng-detail-table td:first-child { padding-left:10px; }
+  .eng-receipt-toggle { min-width:0; overflow:visible; }
+  .eng-receipt-no { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+}
+
+/* PR8 dynamic content layout: variable labels, descriptions and amounts share content-driven tracks. */
+#content .pc-kpi-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+#content .pc-kpi-card,
+#content .pc-kpi-card__head,
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value { min-width:0; }
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value { overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.eng-category-head,
+.eng-group-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
+.eng-category-head > span,
+.eng-group-head > span { min-width:0; }
+.eng-subtotal,
+.eng-group-head strong { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.eng-detail-table,
+.pc-general-detail-table { table-layout:auto; }
+.eng-detail-table th,
+.eng-detail-table td,
+.pc-general-detail-table th,
+.pc-general-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+.eng-detail-table th:nth-child(1),
+.eng-detail-table th:nth-child(2),
+.eng-detail-table th:nth-child(3),
+.eng-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(1),
+.pc-general-detail-table th:nth-child(2),
+.pc-general-detail-table th:nth-child(3),
+.pc-general-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(5),
+.pc-general-detail-table th:nth-child(6),
+.pc-general-detail-table th:nth-child(7),
+.pc-general-detail-table th:nth-child(8) { width:auto; }
+.eng-detail-table td:nth-child(4),
+.pc-money { white-space:normal; overflow-wrap:anywhere; }
+.eng-editor .eng-category-title,
+.eng-editor .eng-group-head { grid-template-columns:minmax(0,1fr) auto auto auto; }
+.eng-editor .eng-category-title { grid-template-columns:minmax(0,1fr) auto auto; }
+.eng-receipt-grid { grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto; }
+.pc-item-row { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.pc-items-header { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.eng-receipt-table-head,
+.eng-receipt-parent { grid-template-columns:auto minmax(0,2fr) auto minmax(0,1fr) auto; }
+.pc-general-detail-head,
+.pc-general-detail-item { grid-template-columns:auto minmax(0,1fr); }
+.pc-report-list-table { table-layout:auto; }
+.pc-report-list-table th,
+.pc-report-list-table td { min-width:0; overflow-wrap:anywhere; word-break:break-word; }
+@media (max-width:767px) {
+  #content .pc-kpi-row { grid-template-columns:repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+  #content .pc-kpi-card:first-child { grid-column:auto; }
+  .eng-category-head,
+  .eng-group-head { grid-template-columns:minmax(0,1fr); }
+  .eng-category-head .eng-subtotal,
+  .eng-group-head strong { text-align:left; }
+  .eng-detail-table,
+  .pc-general-detail-table { min-width:0; }
+  .eng-editor .eng-category-title,
+  .eng-editor .eng-group-head { grid-template-columns:1fr; }
+  .eng-receipt-grid { grid-template-columns:1fr; }
+  .eng-receipt-table-head,
+  .eng-receipt-parent { grid-template-columns:minmax(0,1fr) auto; }
+  .pc-item-row { grid-template-columns:minmax(0,1fr) minmax(4rem,auto) minmax(5rem,auto); grid-template-areas:"name name del" "qty unit amount"; }
+  .pc-items-header { grid-template-columns:minmax(0,1fr) minmax(4rem,auto) minmax(5rem,auto); }
+  .pc-general-detail-head,
+  .pc-general-detail-item { grid-template-columns:auto minmax(0,1fr); }
+}
+/* PR8 variable text: data labels and values may wrap; controls stay compact. */
+.pc-table th,
+.pc-num,
+.pc-entry-status,
+.eng-detail-total,
+.eng-editor-receipt-no { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }
+/* PR8 KPI row: always stay on one horizontal line and scale evenly. */
+#content .pc-kpi-row { display:flex; grid-template-columns:none; align-items:stretch; }
+#content .pc-kpi-card { flex:1 1 0; width:0; }
+#content .pc-kpi-card:first-child { grid-column:auto; }
+#content .pc-kpi-card__head,
+#content .pc-kpi-card .ui-kpi-value { min-width:0; }
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value { overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.eng-detail-table th:nth-child(4),
+.eng-detail-table td:nth-child(4) { text-align:center !important; }
+@media (max-width:767px) {
+  #content .pc-kpi-row { display:flex; gap:4px; }
+  #content .pc-kpi-card { min-width:0; padding-left:6px; padding-right:6px; }
+  #content .pc-kpi-card__head { gap:3px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { flex:0 0 auto; }
+  #content .pc-kpi-card__head .ui-kpi-label { font-size:clamp(8px,2.7vw,11px); }
+  #content .pc-kpi-card .ui-kpi-value,
+  #content .pc-kpi-card:first-child .pc-kpi-card__num { font-size:clamp(14px,4.5vw,24px); }
+}
+/* General petty-cash editor: the whole entry card opens the entry editor. */
+.pc-entry-card--clickable { cursor:pointer; }
+.pc-entry-card--clickable:hover,
+.pc-entry-card--clickable:focus-visible { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.10); outline:0; }
+/* Desktop report query: scroll rows while keeping the table header visible. */
+@media (min-width:768px) {
+  .pc-report-list-table-wrap { max-height:calc(100vh - 360px); min-height:240px; overflow:auto; }
+  .pc-report-list-table-wrap .pc-report-list-table thead th { position:sticky; top:0; z-index:5; background:#f8fafc; }
+}
+/* General petty-cash modal steps are direct-access tabs on desktop and mobile. */
+.pc-steps .pc-step { border:0; cursor:pointer; font:inherit; }
+.pc-steps .pc-step:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }

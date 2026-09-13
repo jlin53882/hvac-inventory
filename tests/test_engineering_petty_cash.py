@@ -7,7 +7,7 @@ import pytest
 import app.database as app_db
 import main as app_main
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
-from app.services.engineering_petty_cash import engineering_filename
+from app.services.engineering_petty_cash import engineering_filename, engineering_sheet_title
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
@@ -74,6 +74,7 @@ def test_engineering_export_tax_values_merges_and_filename(eng_client, tmp_path)
     assert '(0901-0904 發票)藍先生 工程零用金.xlsx' in unquote(response.headers['content-disposition'])
     path = tmp_path / 'out.xlsx'; path.write_bytes(response.content)
     ws = load_workbook(path).active
+    assert ws.title == '0901-0904'
     assert ws['C2'].value == 'V'; assert ws['C3'].value == '12345678'
     assert ws['C2'].number_format == '@'; assert ws['C3'].font.name == 'Calibri'
     assert 'C5:C10' in [str(x) for x in ws.merged_cells.ranges]
@@ -134,6 +135,9 @@ def test_engineering_transaction_rolls_back_and_leaves_no_orphans(eng_client):
 
 
 def test_engineering_validation_and_filename_cases(eng_client):
+    assert engineering_sheet_title('2026-09-04', '2026-09-04') == '0904'
+    assert engineering_sheet_title('2026-09-01', '2026-09-04') == '0901-0904'
+    assert engineering_sheet_title('2026-12-30', '2027-01-03') == '20261230-20270103'
     body = payload()
     body['start_date'] = '2026-09-05'
     body['end_date'] = '2026-09-04'
