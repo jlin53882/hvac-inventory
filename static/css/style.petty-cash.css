@@ -514,7 +514,7 @@
 .eng-group-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-bottom:0; border-radius:9px 9px 0 0; }
 .eng-group-head h3 { margin:0; font-size:14px; color:#334155; }
 .eng-detail-table-wrap { overflow-x:auto; border:1px solid #e2e8f0; border-radius:0 0 9px 9px; }
-.eng-detail-table { width:100%; table-layout:fixed; border-collapse:collapse; }
+.eng-detail-table { width:100%; table-layout:auto; border-collapse:collapse; }
 .eng-detail-table th { background:#f1f5f9; color:#475569; font-size:12px; text-align:left; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
 .eng-detail-table th:nth-child(1) { width:42%; }
 .eng-detail-table th:nth-child(2) { width:20%; text-align:center; }
@@ -544,7 +544,7 @@
 @media (max-width:767px) { .pc-item-row { grid-template-columns: minmax(0,1fr) 70px 44px; grid-template-areas: "name name del" "qty unit amount"; gap:6px; } .pc-item-row input[data-k="item_name"] { grid-area:name; } .pc-item-row input[data-k="qty"] { grid-area:qty; } .pc-item-row input[data-k="unit"] { grid-area:unit; } .pc-item-row input[data-k="amount"] { grid-area:amount; } .pc-item-row .pc-btn-sm--danger { grid-area:del; } }
 
 /* 零用金檢視 responsive presentation：共用資料，桌面表格／手機卡片 */
-.pc-general-detail-table { table-layout:fixed; }
+.pc-general-detail-table { table-layout:auto; }
 .pc-general-detail-table th, .pc-general-detail-table td { text-align:center; }
 .pc-general-detail-table th:nth-child(1) { width:6%; }
 .pc-general-detail-table th:nth-child(2) { width:11%; }
@@ -779,4 +779,73 @@
   .eng-detail-table td:first-child { padding-left:10px; }
   .eng-receipt-toggle { min-width:0; overflow:visible; }
   .eng-receipt-no { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+}
+
+/* PR8 dynamic content layout: variable labels, descriptions and amounts share content-driven tracks. */
+#content .pc-kpi-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+#content .pc-kpi-card,
+#content .pc-kpi-card__head,
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value { min-width:0; }
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value { overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.eng-category-head,
+.eng-group-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
+.eng-category-head > span,
+.eng-group-head > span { min-width:0; }
+.eng-subtotal,
+.eng-group-head strong { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.eng-detail-table,
+.pc-general-detail-table { table-layout:auto; }
+.eng-detail-table th,
+.eng-detail-table td,
+.pc-general-detail-table th,
+.pc-general-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+.eng-detail-table th:nth-child(1),
+.eng-detail-table th:nth-child(2),
+.eng-detail-table th:nth-child(3),
+.eng-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(1),
+.pc-general-detail-table th:nth-child(2),
+.pc-general-detail-table th:nth-child(3),
+.pc-general-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(5),
+.pc-general-detail-table th:nth-child(6),
+.pc-general-detail-table th:nth-child(7),
+.pc-general-detail-table th:nth-child(8) { width:auto; }
+.eng-detail-table td:nth-child(4),
+.pc-money { white-space:normal; overflow-wrap:anywhere; }
+.eng-editor .eng-category-title,
+.eng-editor .eng-group-head { grid-template-columns:minmax(0,1fr) auto auto auto; }
+.eng-editor .eng-category-title { grid-template-columns:minmax(0,1fr) auto auto; }
+.eng-receipt-grid { grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto; }
+.pc-item-row { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.pc-items-header { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.eng-receipt-table-head,
+.eng-receipt-parent { grid-template-columns:auto minmax(0,2fr) auto minmax(0,1fr) auto; }
+.pc-general-detail-head,
+.pc-general-detail-item { grid-template-columns:auto minmax(0,1fr) auto; }
+.pc-report-list-table { table-layout:auto; }
+.pc-report-list-table th,
+.pc-report-list-table td { min-width:0; overflow-wrap:anywhere; word-break:break-word; }
+@media (max-width:767px) {
+  #content .pc-kpi-row { grid-template-columns:repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+  #content .pc-kpi-card:first-child { grid-column:auto; }
+  .eng-category-head,
+  .eng-group-head { grid-template-columns:minmax(0,1fr); }
+  .eng-category-head .eng-subtotal,
+  .eng-group-head strong { text-align:left; }
+  .eng-detail-table,
+  .pc-general-detail-table { min-width:0; }
+  .eng-editor .eng-category-title,
+  .eng-editor .eng-group-head { grid-template-columns:1fr; }
+  .eng-receipt-grid { grid-template-columns:1fr; }
+  .eng-receipt-table-head,
+  .eng-receipt-parent { grid-template-columns:minmax(0,1fr) auto; }
+  .pc-item-row { grid-template-columns:minmax(0,1fr) minmax(4rem,auto) minmax(5rem,auto); grid-template-areas:"name name del" "qty unit amount"; }
+  .pc-items-header { grid-template-columns:minmax(0,1fr) minmax(4rem,auto) minmax(5rem,auto); }
+  .pc-general-detail-head,
+  .pc-general-detail-item { grid-template-columns:auto minmax(0,1fr) auto; }
 }

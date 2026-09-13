@@ -537,7 +537,11 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert '.pc-more-menu__list' in css
     assert 'min-width: 176px' in css
     assert 'white-space:nowrap' in css
-    assert 'table-layout:fixed' in css
+    assert 'table-layout:fixed' not in css
+    assert 'PR8 dynamic content layout' in css
+    assert '.eng-detail-table,\n.pc-general-detail-table { table-layout:auto; }' in css
+    assert 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' in css
+    assert 'grid-template-columns:minmax(0,1fr) auto' in css
     assert '.eng-receipt-toggle' in css
     assert 'engToggle(engExpandedReceipts' in js
     assert '.pc-kpi-card .ui-kpi-value' in css
