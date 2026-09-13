@@ -67,6 +67,16 @@ def test_engineering_filter_and_update_are_shared_shell(eng_client):
     assert updated.json()['total_amount'] == 1929
 
 
+def test_engineering_duplicate_detection(eng_client):
+    created = eng_client.post('/api/petty-cash-reports', json=payload())
+    assert created.status_code == 201, created.text
+    duplicate = eng_client.post('/api/petty-cash-reports', json=payload())
+    assert duplicate.status_code == 409
+    assert '工程零用金月報' in duplicate.json()['detail']
+    updated = eng_client.put(f"/api/petty-cash-reports/{created.json()['id']}", json=payload())
+    assert updated.status_code == 200, updated.text
+
+
 def test_engineering_export_tax_values_merges_and_filename(eng_client, tmp_path):
     created = eng_client.post('/api/petty-cash-reports', json=payload()).json()
     response = eng_client.get(f"/api/petty-cash-reports/{created['id']}/export.xlsx")
