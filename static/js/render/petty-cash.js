@@ -330,6 +330,12 @@ function pcBindGeneralDetailEvents() {
 function pcEntryStatus(e) {
   return e.amount_warning ? '<span class="pc-entry-status pc-entry-status--warn">⚠ 金額不一致</span>' : '<span class="pc-entry-status">● 正常</span>';
 }
+function pcItemText(it) {
+  const name = esc(it.item_name || it.description || '—');
+  const qty = it.qty == null || it.qty === '' ? '' : ` ×${esc(it.qty)}${esc(it.unit || '')}`;
+  const amount = it.amount == null || it.amount === '' ? '' : `　$${esc(_pcMoney(it.amount))}`;
+  return name + qty + amount;
+}
 function pcGeneralDetailsHtml(e) {
   if (!e.items || !e.items.length) return '';
   const detailTotal = e.detail_total == null ? null : '$' + _pcMoney(e.detail_total);

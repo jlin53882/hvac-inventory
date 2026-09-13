@@ -477,6 +477,8 @@ def test_petty_cash_detail_table_mobile():
     js = read(PETTY_CASH_RENDER_JS)
     assert 'pc-general-detail-table-wrap' in js
     assert 'pc-general-mobile-list' in js
+    assert 'function pcItemText(it)' in js
+    assert 'pcItemText(it)' in js
     css = read(PETTY_CASH_CSS)
     assert '.pc-report-list-table' in css
     assert 'table-layout: auto' in css
@@ -501,6 +503,9 @@ def test_petty_cash_settings_options_domain_layout():
     assert 'width:auto; min-width:88px' in html
     assert 'border-radius: 8px' in read(PETTY_CASH_CSS)
     assert 'pc-opt-name-general-category' in js
+    petty_css = read(PETTY_CASH_CSS)
+    assert '.eng-editor .eng-category-title > select' in petty_css
+    assert '.eng-editor .eng-detail-row input' in petty_css
 
 
 def test_petty_cash_more_actions_and_aligned_engineering_table():

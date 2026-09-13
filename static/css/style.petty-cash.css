@@ -626,3 +626,44 @@
 .pc-report-list-table .pc-num { text-align: center; }
 .pc-report-list-table .pc-row-actions { justify-content: center; white-space: nowrap; }
 .pc-report-list-table td:nth-child(4), .pc-report-list-table td:nth-child(7) { overflow-wrap: anywhere; }
+/* 工程零用金 editor：select／細項輸入框與統編欄位一致 */
+.eng-editor .eng-category-title,
+.eng-editor .eng-group-head {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+}
+.eng-editor .eng-category-title { grid-template-columns: minmax(180px, 1fr) auto auto; }
+.eng-editor .eng-group-head { grid-template-columns: minmax(180px, 1fr) auto auto auto; }
+.eng-editor .eng-category-title > select,
+.eng-editor .eng-group-head > select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.eng-editor .eng-detail-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.eng-editor .eng-detail-row button { white-space: nowrap; }
+@media (max-width: 767px) {
+  .eng-editor .eng-category-title,
+  .eng-editor .eng-group-head { display: flex; flex-direction: column; align-items: stretch; }
+  .eng-editor .eng-category-title > select,
+  .eng-editor .eng-group-head > select { width: 100%; }
+}
