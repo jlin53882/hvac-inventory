@@ -91,6 +91,7 @@ def test_engineering_frontend_contract():
     assert "report_type" in render_text and "engineering" in render_text
     assert "pcChooseReportType" in render_text and "engRenderDetail" in render_text
     assert "engAddCategory" in modal_text and "tax_id_mark" in modal_text
+    assert "JSON.parse(JSON.stringify(d))" in modal_text
     assert "engineering-petty-cash.js" in index_text
 
 

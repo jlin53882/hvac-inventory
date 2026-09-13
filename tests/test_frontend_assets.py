@@ -389,7 +389,9 @@ def test_petty_cash_frontend_contract():
     assert 'ui-kpi-card' in js and 'ui-kpi-value' in js
     assert 'pcOpenDetail(${r.id})' in js
     assert 'function pcMobileOpsHtml' in js
+    assert 'function pcReportCardHtml' in js
     assert 'pc-report-type--general' in js
+    assert '本期餘額' in js
     assert 'pc-row-actions--mobile' in js
     assert "window.open('/api/petty-cash-reports/' + id + '/export.xlsx'" in js
     modal = read(PETTY_CASH_MODAL_JS)

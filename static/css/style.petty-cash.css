@@ -731,3 +731,12 @@
   .eng-receipt-details { margin-left:26px; }
   .eng-receipt-details .pc-general-detail-title { align-items:flex-start; flex-direction:column; gap:4px; }
 }
+.pc-report-type--engineering { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
+.eng-category-head, .eng-group-head { cursor:pointer; }
+.eng-category-head:focus-visible, .eng-group-head:focus-visible, .eng-receipt-toggle:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }
+@media (max-width:767px) {
+  .eng-category-card { margin-bottom:10px; }
+  .eng-category-card .pc-card__bd { padding:10px; }
+  .eng-group-block { margin-bottom:10px; }
+  .eng-group-head { min-height:44px; }
+}

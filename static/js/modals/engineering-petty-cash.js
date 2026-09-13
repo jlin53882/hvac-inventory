@@ -13,7 +13,7 @@ function pcOpenEngineeringModal(id) {
   engActiveCategory = 0;
   engData = {start_date:_pcIso(new Date()), end_date:_pcIso(new Date()), upload_person:'', prepared_by:'', filename_text:'', status:'draft', categories:[]};
   Promise.all(['category', 'group'].map(kind => fetch('/api/petty-cash-options?report_type=engineering&option_type='+kind).then(r=>r.ok ? r.json() : {items:[]}).then(d => { engOptions[kind] = d.items || []; })))
-    .then(() => id ? fetch('/api/petty-cash-reports/'+id).then(r=>r.json()).then(d=>{engData=d;engRenderModal();}) : engRenderModal())
+    .then(() => id ? fetch('/api/petty-cash-reports/'+id).then(r=>r.json()).then(d=>{engData=JSON.parse(JSON.stringify(d));engRenderModal();}) : engRenderModal())
     .catch(()=>toast('⚠️ 工程選單載入失敗'));
 }
 

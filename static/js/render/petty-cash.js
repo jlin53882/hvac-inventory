@@ -37,8 +37,11 @@ function _pcPeriodText(r) {
 }
 
 // UI 顯示檔名：零用金-資材08/26~09/25（斜線僅顯示用）
+function _pcFileLabelRaw(r) {
+  return r.filename || ('零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date) + '.xlsx');
+}
 function _pcFileLabel(r) {
-  return esc(r.filename || ('零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date) + '.xlsx'));
+  return esc(_pcFileLabelRaw(r));
 }
 
 // 狀態徽章（固定映射輸出，使用者輸入只決定分支）
@@ -201,21 +204,21 @@ function pcDesktopRowHtml(r, idx) {
   </tr>`;
 }
 
-// mobile 卡（期末餘額為重要視覺資訊）
-function pcCardHtml(r) {
-  if (r.report_type === 'engineering') return engCardHtml(r);
-  const ops = pcMobileOpsHtml(r, false);
+// Mobile report cards share one shell; only type and amount summary differ.
+function pcReportCardHtml(r, typeLabel, typeClass, summaryLabel, summaryValue, fileLabel, engineering) {
+  const ops = pcMobileOpsHtml(r, engineering);
   return `<div class="pc-report-card" onclick="pcOpenDetail(${r.id})">
-    <div class="pc-report-card__top">
-      <span class="pc-report-card__period">${_pcPeriodText(r)}</span>
-      <span class="pc-report-type pc-report-type--general">一般零用金</span>
-      ${pcStatusBadge(r.status)}
-    </div>
-    <div class="pc-report-card__file">${_pcFileLabel(r)}</div>
-    <div class="pc-report-card__meta">上傳人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div>
-    <div class="pc-report-card__balance">期末餘額 $${esc(_pcMoney(r.closing_balance))}</div>
+    <div class="pc-report-card__top"><span class="pc-report-card__period">${_pcPeriodText(r)}</span><span class="pc-report-type ${esc(typeClass)}">${esc(typeLabel)}</span>${pcStatusBadge(r.status)}</div>
+    <div class="pc-report-card__file">${esc(fileLabel)}</div>
+    <div class="pc-report-card__meta">報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div>
+    <div class="pc-report-card__balance"><span>${esc(summaryLabel)}</span> $${esc(_pcMoney(summaryValue))}</div>
     <div class="pc-row-actions pc-row-actions--mobile" style="margin-top:10px">${ops}</div>
   </div>`;
+}
+
+function pcCardHtml(r) {
+  if (r.report_type === 'engineering') return engCardHtml(r);
+  return pcReportCardHtml(r, '一般零用金', 'pc-report-type--general', '本期餘額', r.closing_balance, _pcFileLabelRaw(r), false);
 }
 
 // 共用報表操作模型；Desktop／Mobile 只負責不同呈現方式
@@ -419,8 +422,7 @@ function engDesktopRowHtml(r, idx) {
   return `<tr><td>${esc(idx + 1)}</td><td>${_pcPeriodText(r)}</td><td><span class="pc-status pc-status--engineering">工程零用金</span></td><td>${esc(r.filename || r.filename_text || '')}</td><td>${esc(r.upload_person)}</td><td>${esc(r.prepared_by)}</td><td class="pc-num"><strong>總計 $${esc(_pcMoney(r.total_amount))}</strong></td><td>${pcStatusBadge(r.status)}</td><td><div class="pc-row-actions">${ops}</div></td></tr>`;
 }
 function engCardHtml(r) {
-  const ops = pcMobileOpsHtml(r, true);
-  return `<div class="pc-report-card" onclick="pcOpenDetail(${r.id})"><div class="pc-report-card__top"><span class="pc-report-card__period">${_pcPeriodText(r)}</span>${pcStatusBadge(r.status)}</div><div class="pc-report-card__file"><span class="pc-status pc-status--engineering">工程零用金</span> ${esc(r.filename || r.filename_text || '')}</div><div class="pc-report-card__meta">報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div><div class="pc-report-card__balance">總計 $${esc(_pcMoney(r.total_amount))}</div><div class="pc-row-actions" style="margin-top:8px">${ops}</div></div>`;
+  return pcReportCardHtml(r, '工程零用金', 'pc-report-type--engineering', '總計', r.total_amount, r.filename || r.filename_text || '', true);
 }
 
 var engExpandedCategories = new Set();
