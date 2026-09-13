@@ -1878,6 +1878,8 @@ def test_stocktake_submit_includes_equal_qty():
     # 只要 item 和 stock 存在就 push（不限 diff）
     assert "if (item && stock) {" in js
     assert "items.push({ item_id: item.id, location: location, actual_qty: v })" in js
+    assert 'Qty.validFor(_raw, _unitType)' in js
+    assert "const _unitType = Qty.unitTypeOf(item ? item.unit : '')" in js
 
 
 def test_stocktake_reminder_hides_after_submit():

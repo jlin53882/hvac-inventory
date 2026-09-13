@@ -157,6 +157,18 @@ def test_engineering_delete_cascades_all_children(eng_client):
         conn.close()
 
 
+def test_engineering_export_formula_values_are_safe(eng_client, tmp_path):
+    body = payload()
+    body['categories'][0]['groups'][0]['receipts'][0]['tax_id_mark'] = '=1+1'
+    body['categories'][0]['groups'][0]['receipts'][0]['receipt_number'] = '+CMD'
+    created = eng_client.post('/api/petty-cash-reports', json=body).json()
+    response = eng_client.get(f"/api/petty-cash-reports/{created['id']}/export.xlsx")
+    path = tmp_path / 'formula-safe.xlsx'; path.write_bytes(response.content)
+    ws = load_workbook(path).active
+    assert ws['C2'].value == "'=1+1"
+    assert ws['D2'].value == "'+CMD"
+
+
 def test_engineering_viewer_can_read_but_cannot_write(eng_client):
     created = eng_client.post('/api/petty-cash-reports', json=payload()).json()
     conn = app_db.get_db()

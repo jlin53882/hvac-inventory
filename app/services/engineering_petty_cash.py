@@ -173,12 +173,12 @@ def build_engineering_report(report):
                     ws.cell(r, 1).value = excel_safe(cat.get("name", ""))
                     ws.cell(r, 2).value = excel_safe(group.get("name", ""))
                     tax_cell = ws.cell(r, 3)
-                    tax_cell.value = str(receipt.get("tax_id_mark", "") or "")
+                    tax_cell.value = excel_safe(str(receipt.get("tax_id_mark", "") or ""))
                     tax_cell.number_format = "@"
                     tax_font = copy(tax_cell.font)
                     tax_font.name = "Calibri"
                     tax_cell.font = tax_font
-                    ws.cell(r, 4).value = str(receipt.get("receipt_number", "") or "")
+                    ws.cell(r, 4).value = excel_safe(str(receipt.get("receipt_number", "") or ""))
                     ws.cell(r, 4).number_format = "@"
                     ws.cell(r, 5).value = excel_safe(detail)
                     if detail_index == 0:

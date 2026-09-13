@@ -26,6 +26,7 @@ function ok(cond, msg) {
 // ---------- parse ----------
 eq(Qty.parse('3'), { num: 3, den: 1, value: 3 }, 'parse int');
 eq(Qty.parse('0.5'), { num: 1, den: 2, value: 0.5 }, 'parse decimal');
+eq(Qty.parse('.5'), { num: 1, den: 2, value: 0.5 }, 'parse leading-dot decimal');
 eq(Qty.parse('0.25'), { num: 1, den: 4, value: 0.25 }, 'parse decimal 0.25');
 eq(Qty.parse('1/4'), { num: 1, den: 4, value: 0.25 }, 'parse fraction');
 eq(Qty.parse('1/3').num * 3, 3, 'parse 1/3 exact num');

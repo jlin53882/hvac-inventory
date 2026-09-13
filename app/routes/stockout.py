@@ -61,6 +61,7 @@ def _deduct(conn, item_id, qty, location=""):
     單一位置出庫會保存來源 stock id；跨多位置的舊式自動扣除保留為 legacy，
     退回時必須由使用者明確選擇回補位置。
     """
+    qty = round(float(qty), 3)
     stocks = conn.execute(
         "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
     total_before = sum(s["qty"] for s in stocks)

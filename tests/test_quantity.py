@@ -5,6 +5,7 @@
 - 前端：tests/qty.test.js（node 純函式矩陣）由本檔包裝執行
 """
 import os
+import sqlite3
 import subprocess
 
 import pytest
@@ -44,6 +45,22 @@ def test_qty_js_suite():
     """前端 Qty 純函式矩陣（parser/arithmetic/formatter/kitSets）全綠。"""
     r = subprocess.run(["node", QTY_TEST_JS], capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, f"qty.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
+def test_stockout_deduct_normalizes_fraction_precision():
+    """出庫先將分數數量正規化到庫存 canonical 3 位精度。"""
+    from app.routes.stockout import _deduct
+
+    conn = sqlite3.connect(':memory:')
+    conn.row_factory = sqlite3.Row
+    conn.execute('CREATE TABLE item_stocks (id INTEGER PRIMARY KEY, item_id INTEGER, location TEXT, qty REAL, updated_at TEXT)')
+    conn.execute("INSERT INTO item_stocks(item_id, location, qty) VALUES (1, 'A', 1.0)")
+    before, after, source_id = _deduct(conn, 1, 1 / 3, 'A')
+    assert before == pytest.approx(1.0)
+    assert after == pytest.approx(0.667)
+    assert source_id == 1
+    conn.close()
+
 
 
 def test_units_qty_type_crud(client):

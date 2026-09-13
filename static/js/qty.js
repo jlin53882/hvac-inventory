@@ -40,7 +40,7 @@ var Qty = (function() {
       return { num: n / g, den: d / g, value: n / d };
     }
     // 整數 / 小數（整個字串必須是合法數字，防 "1abc" 被 parseFloat 吃成 1）
-    if (/^\d+(\.\d+)?$/.test(t)) {
+    if (/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(t)) {
       const v = Number(t);
       if (!isFinite(v)) return { error: ERR_MSG };
       if (t.indexOf('.') === -1) return { num: v, den: 1, value: v };
