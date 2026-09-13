@@ -398,6 +398,9 @@ def test_petty_cash_frontend_contract():
     assert 'function pcOpenReportModal' in modal
     assert 'function pcEntrySave' in modal
     assert "pcModalSave('draft')" in modal and "pcModalSave('completed')" in modal
+    assert 'id="pc-step-1-tab" onclick="pcModalGotoStep(1)"' in modal
+    assert 'id="pc-step-2-tab" onclick="pcModalGotoStep(2)"' in modal
+    assert 'function pcModalGotoStep' in modal
     assert '/api/petty-cash-reports/previous-balance' in modal
     assert 'function esc(' not in modal  # esc 單一來源（統一用 utils.js）
     css = read(PETTY_CASH_CSS)

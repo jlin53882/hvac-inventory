@@ -64,8 +64,8 @@ async function pcOpenReportModal(id) {
         <div class="pc-modal__hd"><h3 id="pc-modal-title">${id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'}</h3><button class="pc-btn-sm" onclick="pcCloseReportModal()">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <div class="pc-step active" id="pc-step-1-tab">① 基本資料</div>
-            <div class="pc-step" id="pc-step-2-tab">② 收支明細</div>
+            <button type="button" class="pc-step active" id="pc-step-1-tab" onclick="pcModalGotoStep(1)">① 基本資料</button>
+            <button type="button" class="pc-step" id="pc-step-2-tab" onclick="pcModalGotoStep(2)">② 收支明細</button>
           </div>
           <div id="pc-step-1">
             <div class="pc-form-grid pc-form-grid--two">
