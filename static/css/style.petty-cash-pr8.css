@@ -100,9 +100,7 @@
 .pc-mobile-action--danger { color:#b91c1c; }
 .pc-mobile-action--danger:hover { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
 @media (max-width: 767px) {
-  #content .pc-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; }
   #content .pc-kpi-card { min-height:88px; padding:12px 13px 11px; }
-  #content .pc-kpi-card:first-child { grid-column:1 / -1; min-height:96px; }
   #content .pc-kpi-card__num { margin-top:7px; font-size:24px; }
   #content .pc-kpi-card:first-child .pc-kpi-card__num { font-size:28px; }
   #content .pc-kpi-card__head .ui-kpi-icon { width:26px; height:26px; font-size:13px; }
@@ -228,8 +226,6 @@
 .pc-report-list-table th,
 .pc-report-list-table td { min-width:0; overflow-wrap:anywhere; word-break:break-word; }
 @media (max-width:767px) {
-  #content .pc-kpi-row { grid-template-columns:repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
-  #content .pc-kpi-card:first-child { grid-column:auto; }
   .eng-category-head,
   .eng-group-head { grid-template-columns:minmax(0,1fr); }
   .eng-category-head .eng-subtotal,

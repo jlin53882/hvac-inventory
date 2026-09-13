@@ -459,8 +459,7 @@ def test_petty_cash_kpi_grid_layout():
     assert 'pc-kpi-card__head' in js
     assert 'pc-kpi-card__num' in js
     assert 'pc-kpi-card__foot' in js
-    assert 'grid-column:1 / -1' in css
-    # Mobile: KPI uses a full-width total plus two status cards
+    # Mobile: all KPI cards remain on one horizontal row
     assert '@media (max-width: 1200px)' in css
     assert '@media (max-width: 767px)' in css
 
@@ -593,7 +592,7 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'table-layout:fixed' not in css
     assert 'PR8 dynamic content layout' in css
     assert '.eng-detail-table,\n.pc-general-detail-table { table-layout:auto; }' in css
-    assert 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' in css
+    assert 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' not in css
     assert 'grid-template-columns:minmax(0,1fr) auto' in css
     assert 'PR8 variable text: data labels and values may wrap' in css
     assert '.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }' in css
