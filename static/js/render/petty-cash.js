@@ -331,16 +331,19 @@ function pcEntryStatus(e) {
   return e.amount_warning ? '<span class="pc-entry-status pc-entry-status--warn">⚠ 金額不一致</span>' : '<span class="pc-entry-status">● 正常</span>';
 }
 function pcItemText(it) {
-  const name = esc(it.item_name || it.description || '—');
-  const qty = it.qty == null || it.qty === '' ? '' : ` ×${esc(it.qty)}${esc(it.unit || '')}`;
-  const amount = it.amount == null || it.amount === '' ? '' : `　$${esc(_pcMoney(it.amount))}`;
-  return name + qty + amount;
+  const name = it.item_name || it.description || '—';
+  const qty = it.qty == null || it.qty === '' ? '' : ` ×${it.qty}${it.unit || ''}`;
+  return name + qty;
+}
+function pcItemAmount(it) {
+  return it.amount == null || it.amount === '' ? '—' : '$' + _pcMoney(it.amount);
 }
 function pcGeneralDetailsHtml(e) {
   if (!e.items || !e.items.length) return '';
   const detailTotal = e.detail_total == null ? null : '$' + _pcMoney(e.detail_total);
   const difference = e.difference == null ? null : (e.difference >= 0 ? '+$' : '-$') + _pcMoney(Math.abs(e.difference));
-  return `<div class="pc-general-detail-panel"><div class="pc-general-detail-title">單據明細（${esc(e.items.length)} 項）</div><div class="pc-general-detail-list">${e.items.map((it,i) => `<div class="pc-general-detail-item"><span>${esc(i+1)}. ${pcItemText(it)}</span></div>`).join('')}</div>${e.amount_warning ? `<div class="pc-general-discrepancy"><span>帳務支出 <b>$${esc(_pcMoney(e.amount))}</b></span><span>明細合計 <b>${esc(detailTotal || '—')}</b></span><span>差額 <b>${esc(difference || '—')}</b></span></div>` : ''}</div>`;
+  const rows = e.items.map((it, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(pcItemText(it))}</span><span class="pc-general-detail-amount">${esc(pcItemAmount(it))}</span></div>`).join('');
+  return `<div class="pc-general-detail-panel"><div class="pc-general-detail-title">單據明細（${esc(e.items.length)} 項）</div><div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span><span>金額</span></div>${rows}</div>${e.amount_warning ? `<div class="pc-general-discrepancy"><span>帳務支出 <b>$${esc(_pcMoney(e.amount))}</b></span><span>明細合計 <b>${esc(detailTotal || '—')}</b></span><span>差額 <b>${esc(difference || '—')}</b></span></div>` : ''}</div>`;
 }
 function pcGeneralEntryRowsHtml(entries) {
   let seq = 0;

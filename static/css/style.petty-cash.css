@@ -667,3 +667,23 @@
   .eng-editor .eng-category-title > select,
   .eng-editor .eng-group-head > select { width: 100%; }
 }
+/* 一般零用金展開明細：左對齊子表格，金額獨立靠右 */
+.pc-general-detail-row > td,
+.pc-general-detail-panel,
+.pc-general-detail-list,
+.pc-general-detail-item { text-align: left !important; }
+.pc-general-detail-panel { overflow: hidden; }
+.pc-general-detail-list { border: 1px solid #e2e8f0; border-radius: 7px; overflow: hidden; }
+.pc-general-detail-head,
+.pc-general-detail-item { display: grid; grid-template-columns: 48px minmax(0, 1fr) 100px; align-items: center; gap: 10px; }
+.pc-general-detail-head { padding: 7px 10px; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 800; }
+.pc-general-detail-head span:last-child { text-align: right; }
+.pc-general-detail-item { min-height: 36px; padding: 6px 10px; border-top: 1px solid #f1f5f9; color: #475569; }
+.pc-general-detail-index { color: #94a3b8; font-size: 11px; font-variant-numeric: tabular-nums; }
+.pc-general-detail-description { min-width: 0; overflow-wrap: anywhere; }
+.pc-general-detail-amount { color: #334155; font-weight: 700; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 767px) {
+  .pc-general-detail-head,
+  .pc-general-detail-item { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; }
+  .pc-general-detail-panel { padding: 9px 10px; }
+}

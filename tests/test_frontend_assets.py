@@ -478,8 +478,13 @@ def test_petty_cash_detail_table_mobile():
     assert 'pc-general-detail-table-wrap' in js
     assert 'pc-general-mobile-list' in js
     assert 'function pcItemText(it)' in js
+    assert 'function pcItemAmount(it)' in js
+    assert 'pc-general-detail-head' in js
+    assert 'pc-general-detail-amount' in js
     assert 'pcItemText(it)' in js
     css = read(PETTY_CASH_CSS)
+    assert 'grid-template-columns: 48px minmax(0, 1fr) 100px' in css
+    assert 'text-align: left !important' in css
     assert '.pc-report-list-table' in css
     assert 'table-layout: auto' in css
     assert '11.11%' not in css
