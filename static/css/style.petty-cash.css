@@ -717,3 +717,17 @@
   .pc-report-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; width:100%; }
   .pc-report-actions--mobile .pc-mobile-action { flex:1 1 auto; }
 }
+/* Desktop 更多選單：固定寬度與操作層級，避免表格操作欄重疊 */
+.pc-report-list-table .pc-row-actions { position: relative; overflow: visible; }
+.pc-report-list-table .pc-more-menu { position: relative; z-index: 30; }
+.pc-report-list-table .pc-more-menu > summary { min-width: 46px; min-height: 40px; }
+.pc-report-list-table .pc-more-menu__list { min-width: 176px; padding: 6px; gap: 2px; border-radius: 12px; box-shadow: 0 12px 28px rgba(15,23,42,.18); }
+.pc-report-list-table .pc-more-menu__list button { display:flex; align-items:center; width:100%; min-height:40px; gap:8px; padding:8px 11px; white-space:nowrap; }
+.pc-report-list-table td:last-child { position: relative; overflow: visible; }
+.eng-receipt-details { margin:0 12px 10px 38px; }
+.eng-receipt-details .pc-general-detail-title { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.eng-detail-total { color:#1d4ed8; font-size:12px; white-space:nowrap; }
+@media (max-width:767px) {
+  .eng-receipt-details { margin-left:26px; }
+  .eng-receipt-details .pc-general-detail-title { align-items:flex-start; flex-direction:column; gap:4px; }
+}

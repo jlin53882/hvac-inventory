@@ -418,7 +418,8 @@ function engToggle(set, key) { if (set.has(key)) set.delete(key); else set.add(k
 function engReceiptDetailsHtml(q, key) {
   const details = q.details || [];
   if (!details.length) return '';
-  return `<div class="eng-receipt-details"><div class="eng-receipt-details-title">單據明細（${esc(details.length)} 項）</div>${details.map((d,i) => `<div class="eng-detail-line"><span>${esc(i + 1)}. ${esc(d)}</span></div>`).join('')}</div>`;
+  const rows = details.map((d, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(d)}</span><span class="pc-general-detail-amount">—</span></div>`).join('');
+  return `<div class="pc-general-detail-panel eng-receipt-details"><div class="pc-general-detail-title"><span>單據明細（${esc(details.length)} 項）</span><span class="eng-detail-total">單據金額 $${esc(_pcMoney(q.amount))}</span></div><div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span><span>金額</span></div>${rows}</div></div>`;
 }
 function engReceiptHtml(q, ri, groupKey) {
   const receiptKey = groupKey + ':' + ri;

@@ -530,7 +530,11 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'pcMoreMenuHtml(r, true)' in js
     assert 'eng-detail-table' in js
     assert 'eng-receipt-detail-row' in js
+    assert 'pc-general-detail-head' in js
+    assert 'eng-detail-total' in js
     assert '.pc-more-menu__list' in css
+    assert 'min-width: 176px' in css
+    assert 'white-space:nowrap' in css
     assert 'table-layout:fixed' in css
     assert '.eng-receipt-toggle' in css
 
