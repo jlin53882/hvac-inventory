@@ -108,7 +108,7 @@ def _versioned_html(path: str) -> Response:
         return m.group(0)                     # 檔案不存在（不該發生）→ 原樣保留
 
     html = _STATIC_RE.sub(_swap, html)
-    return Response(html, media_type="text/html")
+    return Response(html, media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/")
 def index():
