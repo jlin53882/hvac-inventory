@@ -221,7 +221,7 @@ function pcCardHtml(r) {
 function pcMoreMenuHtml(r, engineering) {
   const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
   const del = `pcDelete(${r.id}${engineering ? ', true' : ''})`;
-  return `<details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list"><button type="button" onclick="event.stopPropagation();pcOpenDetail(${r.id})">檢視</button>${r.can_edit ? `<button type="button" onclick="event.stopPropagation();${edit}">✏️ 編輯</button>` : ''}<button type="button" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-more-menu__danger" onclick="event.stopPropagation();${del}">🗑 刪除</button>` : ''}</div></details>`;
+  return `<span class="pc-report-actions"><button type="button" class="pc-btn-sm pc-view-action" onclick="event.stopPropagation();pcOpenDetail(${r.id})">👁 檢視</button><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${r.can_edit ? `<button type="button" onclick="event.stopPropagation();${edit}">✏️ 編輯</button>` : ''}<button type="button" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-more-menu__danger" onclick="event.stopPropagation();${del}">🗑 刪除</button>` : ''}</div></details></span>`;
 }
 
 // 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
@@ -333,7 +333,7 @@ function pcGeneralEntryRowsHtml(entries) {
     const summary = e.description || (hasItems ? `${e.items.length} 項明細` : '—');
     const incomeText = e.entry_type === 'income' ? '+' + esc(_pcMoney(e.amount)) : '—';
     const expenseText = e.entry_type !== 'income' ? '-' + esc(_pcMoney(e.amount)) : '—';
-    const toggle = hasItems ? `<button type="button" class="pc-inline-expand" aria-expanded="${expanded}" onclick="event.stopPropagation();pcToggleGeneralEntry(${i})">${expanded ? '▼' : '▶'}</button>` : '';
+    const toggle = hasItems ? `<button type="button" class="pc-inline-expand" aria-expanded="${expanded}" onclick="pcToggleGeneralEntry(${i}); return false;">${expanded ? '▼' : '▶'}</button>` : '';
     const row = `<tr class="${hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'}"${hasItems ? ` onclick="pcToggleGeneralEntry(${i})"` : ''}><td>${esc(seq)}</td><td class="pc-nowrap">${esc(_pcDate(e.entry_date))}</td><td>${toggle}<span>${esc(summary)}</span>${hasItems ? ` <small>（${esc(e.items.length)} 項）</small>` : ''}</td><td class="pc-money pc-money--income">${incomeText}</td><td class="pc-money pc-money--expense">${expenseText}</td><td>${esc(e.category || '—')}</td><td>${pcEntryStatus(e)}</td><td>—</td></tr>`;
     const detail = expanded ? `<tr class="pc-general-detail-row"><td></td><td colspan="7">${pcGeneralDetailsHtml(e)}</td></tr>` : '';
     return row + detail;

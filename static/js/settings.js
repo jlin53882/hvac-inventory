@@ -17,7 +17,7 @@ async function loadPettyOptions() {
 function pettyOptionRows(type, kind, can) {
   const items = pettyOptionCache[type][kind] || [];
   if (!items.length) return '<div class="pc-option-empty">尚未設定選項</div>';
-  return items.map((o, i) => '<div class="pc-option-row"><div><span class="pc-option-index">' + (i + 1) + '</span><strong>' + esc(o.name) + '</strong><small class="pc-option-status ' + (o.is_active ? 'is-active' : 'is-off') + '">' + (o.is_active ? '● 使用中' : '○ 已停用') + '</small></div>' + (can ? '<span class="pc-option-actions"><button class="pc-icon-action" aria-label="編輯 ' + esc(o.name) + '" title="編輯" onclick="renamePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">✎</button><button class="pc-icon-action pc-icon-action--danger" aria-label="刪除 ' + esc(o.name) + '" title="刪除" onclick="deletePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">🗑</button></span>' : '') + '</div>').join('');
+  return items.map((o, i) => '<div class="pc-option-row"><div><span class="pc-option-index">' + (i + 1) + '</span><strong>' + esc(o.name) + '</strong><small class="pc-option-status ' + (o.is_active ? 'is-active' : 'is-off') + '">' + (o.is_active ? '● 使用中' : '○ 已停用') + '</small></div>' + (can ? '<span class="pc-option-actions"><button type="button" class="pc-icon-action" aria-label="編輯 ' + esc(o.name) + '" title="編輯" onclick="renamePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">✎</button><button type="button" class="pc-icon-action pc-icon-action--danger" aria-label="刪除 ' + esc(o.name) + '" title="刪除" onclick="deletePettyOption(' + o.id + ',' + jsStr(type) + ',' + jsStr(kind) + ')">🗑</button></span>' : '') + '</div>').join('');
 }
 function renderPettyOptionsPanel() {
   const can = hasPerm('petty-cash-config');
@@ -25,7 +25,7 @@ function renderPettyOptionsPanel() {
   if (!panel) return;
   let html = '<div class="pc-settings-title"><div><h4>🪙 零用金選單</h4><p>管理零用金報表使用的科目、分類與項目，資料不與其他報表類型共用。</p></div></div>';
   html += '<section class="pc-option-settings pc-option-settings--general"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">💳</span><div><h5>一般零用金</h5><p>管理一般零用金使用的科目</p></div></div><span class="pc-settings-note">ⓘ 僅需設定科目</span></div>';
-  if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-general">新增科目</label><div class="pc-option-add-row"><input id="pc-opt-name-general" maxlength="100" placeholder="輸入科目名稱（例如：文具費）"><button class="btn-primary" onclick="createPettyOption(\'general\')">＋ 新增科目</button></div></div>';
+  if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-general-category">新增科目</label><div class="pc-option-add-row"><input id="pc-opt-name-general-category" maxlength="100" placeholder="輸入科目名稱（例如：文具費）"><button class="btn-primary" onclick="createPettyOptionKind(\'general\',\'category\')">＋ 新增科目</button></div></div>';
   html += '<div class="pc-option-list-head"><span>#　科目名稱</span><span>操作</span></div><div class="pc-option-list">' + pettyOptionRows('general', 'category', can) + '</div></section>';
   html += '<section class="pc-option-settings pc-option-settings--engineering"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">👷</span><div><h5>工程零用金</h5><p>管理工程零用金使用的分類與項目</p></div></div></div><div class="pc-option-engineering-grid">';
   for (const kind of ['category', 'group']) {
@@ -48,16 +48,6 @@ async function createPettyOptionKind(type, kind) {
   await loadPettyOptions(); renderPettyOptionsPanel(); toast('✅ 已新增', 'success');
 }
 
-async function createPettyOption(type) {
-  const kind = document.getElementById('pc-opt-kind-' + type).value;
-  const input = document.getElementById('pc-opt-name-' + type);
-  const name = input.value.trim();
-  if (!name) return toast('請輸入選單名稱', 'error');
-  const res = await fetch('/api/petty-cash-options', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_type:type, option_type:kind, name:name, sort_order:pettyOptionCache[type][kind].length}) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) return toast(data.detail || '新增失敗', 'error');
-  await loadPettyOptions(); renderPettyOptionsPanel(); toast('✅ 已新增', 'success');
-}
 async function renamePettyOption(id, type, kind) {
   const old = (pettyOptionCache[type][kind].find(o => o.id === id) || {}).name || '';
   const name = prompt('請輸入新的選單名稱', old);

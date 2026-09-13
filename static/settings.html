@@ -219,7 +219,9 @@
   .pc-settings-note { white-space:normal; }
   .pc-option-add-row { flex-direction:column; }
   .pc-option-add-row .btn-primary { width:100%; min-height:42px; }
-  .pc-option-row { min-height:54px; }
+  .pc-option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:54px; }
+  .pc-option-row > div:first-child { min-width:0; flex-wrap:wrap; }
+  .pc-option-row > .pc-option-actions { justify-self:end; }
   .pc-icon-action { width:42px; height:42px; }
 }
 </style>

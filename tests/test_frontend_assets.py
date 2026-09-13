@@ -492,6 +492,11 @@ def test_petty_cash_settings_options_domain_layout():
     assert '新增科目' in js
     assert 'pc-option-engineering-grid' in js
     assert "option_type:kind" in js
+    assert "createPettyOptionKind(\\'general\\',\\'category\\')" in js
+    assert 'async function createPettyOption(type)' not in js
+    assert 'type="button" class="pc-icon-action"' in js
+    assert 'grid-template-columns:minmax(0,1fr) auto' in html
+    assert 'pc-opt-name-general-category' in js
 
 
 def test_petty_cash_more_actions_and_aligned_engineering_table():
@@ -500,7 +505,9 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     css = read(PETTY_CASH_CSS)
     assert 'function pcMoreMenuHtml' in js
     assert 'class="pc-more-menu"' in js
+    assert 'pc-report-actions' in js and '👁 檢視' in js
     assert 'pcRowOpsHtml' in js and 'pcMoreMenuHtml(r, false)' in js
+    assert 'pcMoreMenuHtml(r, true)' in js
     assert 'eng-detail-table' in js
     assert 'eng-receipt-detail-row' in js
     assert '.pc-more-menu__list' in css
@@ -512,7 +519,7 @@ def test_petty_cash_general_detail_rows_are_expandable():
     """一般零用金含明細的整列與按鈕都可展開（2026-09-13）。"""
     js = read(PETTY_CASH_RENDER_JS)
     assert 'pc-general-entry-row--expandable' in js
-    assert 'onclick="pcToggleGeneralEntry(${i})"' in js
+    assert 'onclick="pcToggleGeneralEntry(${i}); return false;"' in js
     assert 'type="button" class="pc-inline-expand"' in js
 
 
