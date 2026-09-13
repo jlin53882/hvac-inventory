@@ -544,6 +544,8 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'overflow-wrap:anywhere' in css
     assert 'clamp(16px,5.5vw,24px)' in css
     assert '.eng-category-head .eng-subtotal' in css
+    assert '.eng-detail-table th:first-child' in css
+    assert '.eng-receipt-no' in css
     assert 'aria-expanded="${expanded}"' in js
     assert '此單據尚無細項' in js
 

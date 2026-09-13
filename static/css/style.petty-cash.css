@@ -770,3 +770,13 @@
   .eng-group-head strong { max-width:100%; white-space:normal; text-align:left; }
   .eng-editor-receipt-toggle strong { max-width:42%; white-space:normal; text-align:right; }
 }
+/* Mobile engineering detail table: keep the first receipt column visible. */
+@media (max-width:768px) {
+  .eng-detail-table { width:100%; min-width:0; }
+  .eng-detail-table th,
+  .eng-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+  .eng-detail-table th:first-child,
+  .eng-detail-table td:first-child { padding-left:10px; }
+  .eng-receipt-toggle { min-width:0; overflow:visible; }
+  .eng-receipt-no { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+}
