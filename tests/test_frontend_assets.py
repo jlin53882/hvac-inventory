@@ -254,9 +254,16 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "!isImage" in js
     assert "class=\"dsr-report-thumb\"" in js
     assert "dsrEdit(${r.id})" in js
-    assert "prompt('編輯報表日期" in js
-    assert "prompt('編輯上傳人姓名" in js
-    assert "prompt('編輯備註" in js
+    assert "function dsrEdit(id)" in js
+    assert "data-dsr-edit-save" in js
+    assert "data-dsr-edit-cancel" in js
+    assert "id=\"dsr-edit-date\"" in js
+    assert "id=\"dsr-edit-uploader\"" in js
+    assert "id=\"dsr-edit-note\"" in js
+    assert "id=\"dsr-edit-file\"" in js
+    assert "prompt('編輯報表日期" not in js
+    assert "prompt('編輯上傳人姓名" not in js
+    assert "prompt('編輯備註" not in js
     assert "report_date" in js and "uploader_name" in js
     assert "✏️ 編輯" in js
     assert "function _dsrDateOnly" in js
@@ -275,7 +282,7 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "await dsrLoadHistory()" in js
     assert "function dsrKeepUploaderOnly" in js
     assert "dsrKeepUploaderOnly();" in js
-    assert "replacement.accept = 'image/*,.pdf'" in js
+    assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
     assert "/api/signed-reports/" in js and "note" in js
     assert ".dsr-report-thumb" in css
     assert ".dsr-action-btn" in css

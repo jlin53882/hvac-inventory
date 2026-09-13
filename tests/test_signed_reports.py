@@ -213,6 +213,51 @@ def test_owner_can_edit_all_fields_and_replace_file(signed_env):
     assert form_updated.json()["note"] == "URL encoded"
 
 
+def test_edit_rejects_invalid_date_and_extension(signed_env):
+    """編輯替換檔案沿用日期格式與副檔名白名單驗證。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    upload_dir = static_dir / "uploads" / "signed_reports" / "2026-09"
+    old_path = next(upload_dir.iterdir())
+
+    invalid_date = owner.patch(
+        f"/api/signed-reports/{report['id']}",
+        data={"report_date": "2026/09/08", "uploader_name": "王小明", "note": ""},
+    )
+    assert invalid_date.status_code == 400
+    assert old_path.read_bytes() == b"%PDF-signed"
+
+    invalid_extension = owner.patch(
+        f"/api/signed-reports/{report['id']}",
+        data={"report_date": "2026-09-07", "uploader_name": "王小明", "note": ""},
+        files={"file": ("payload.html", b"<script>x</script>", "text/html")},
+    )
+    assert invalid_extension.status_code == 400
+    assert old_path.exists()
+    assert len(list(upload_dir.iterdir())) == 1
+
+
+def test_edit_without_file_keeps_existing_asset(signed_env):
+    """編輯文字欄位時不選新檔案，既有實體檔案與 metadata 保持不變。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    upload_dir = static_dir / "uploads" / "signed_reports" / "2026-09"
+    old_path = next(upload_dir.iterdir())
+
+    updated = owner.patch(
+        f"/api/signed-reports/{report['id']}",
+        data={"note": "只改備註"},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["file_name"] == "daily.pdf"
+    assert old_path.exists()
+    assert old_path.read_bytes() == b"%PDF-signed"
+    assert len(list(upload_dir.iterdir())) == 1
+
+
 def test_edit_note_rejects_overlong_value(signed_env):
     """編輯資料仍限制備註最多 500 字，非法輸入回 422/400 而非 500。"""
     make_client, _ = signed_env
