@@ -204,16 +204,17 @@ function pcDesktopRowHtml(r, idx) {
 // mobile 卡（期末餘額為重要視覺資訊）
 function pcCardHtml(r) {
   if (r.report_type === 'engineering') return engCardHtml(r);
-  const ops = pcRowOpsHtml(r);
+  const ops = pcMobileOpsHtml(r, false);
   return `<div class="pc-report-card" onclick="pcOpenDetail(${r.id})">
     <div class="pc-report-card__top">
       <span class="pc-report-card__period">${_pcPeriodText(r)}</span>
+      <span class="pc-report-type pc-report-type--general">一般零用金</span>
       ${pcStatusBadge(r.status)}
     </div>
     <div class="pc-report-card__file">${_pcFileLabel(r)}</div>
     <div class="pc-report-card__meta">上傳人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div>
     <div class="pc-report-card__balance">期末餘額 $${esc(_pcMoney(r.closing_balance))}</div>
-    <div class="pc-row-actions" style="margin-top:8px" onclick="event.stopPropagation()">${ops}</div>
+    <div class="pc-row-actions pc-row-actions--mobile" style="margin-top:10px">${ops}</div>
   </div>`;
 }
 
@@ -222,6 +223,12 @@ function pcMoreMenuHtml(r, engineering) {
   const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
   const del = `pcDelete(${r.id}${engineering ? ', true' : ''})`;
   return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list"><button type="button" onclick="event.stopPropagation();pcOpenDetail(${r.id})">👁 檢視</button>${r.can_edit ? `<button type="button" onclick="event.stopPropagation();${edit}">✏️ 編輯</button>` : ''}<button type="button" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-more-menu__danger" onclick="event.stopPropagation();${del}">🗑 刪除</button>` : ''}</div></details></span>`;
+}
+
+// Mobile 直接操作列：避免把常用操作藏在更多選單內
+function pcMobileOpsHtml(r, engineering) {
+  const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
+  return `<span class="pc-report-actions pc-report-actions--mobile" onclick="event.stopPropagation()"><button type="button" class="pc-mobile-action" onclick="pcOpenDetail(${r.id})">👁 檢視</button>${r.can_edit ? `<button type="button" class="pc-mobile-action" onclick="${edit}">✏️ 編輯</button>` : ''}<button type="button" class="pc-mobile-action" onclick="pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-mobile-action pc-mobile-action--danger" onclick="pcDelete(${r.id}${engineering ? ', true' : ''})">🗑 刪除</button>` : ''}</span>`;
 }
 
 // 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
@@ -399,7 +406,7 @@ function engDesktopRowHtml(r, idx) {
   return `<tr><td>${esc(idx + 1)}</td><td>${_pcPeriodText(r)}</td><td><span class="pc-status pc-status--engineering">工程零用金</span></td><td>${esc(r.filename || r.filename_text || '')}</td><td>${esc(r.upload_person)}</td><td>${esc(r.prepared_by)}</td><td class="pc-num"><strong>總計 $${esc(_pcMoney(r.total_amount))}</strong></td><td>${pcStatusBadge(r.status)}</td><td><div class="pc-row-actions">${ops}</div></td></tr>`;
 }
 function engCardHtml(r) {
-  const ops = pcMoreMenuHtml(r, true);
+  const ops = pcMobileOpsHtml(r, true);
   return `<div class="pc-report-card" onclick="pcOpenDetail(${r.id})"><div class="pc-report-card__top"><span class="pc-report-card__period">${_pcPeriodText(r)}</span>${pcStatusBadge(r.status)}</div><div class="pc-report-card__file"><span class="pc-status pc-status--engineering">工程零用金</span> ${esc(r.filename || r.filename_text || '')}</div><div class="pc-report-card__meta">報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div><div class="pc-report-card__balance">總計 $${esc(_pcMoney(r.total_amount))}</div><div class="pc-row-actions" style="margin-top:8px">${ops}</div></div>`;
 }
 

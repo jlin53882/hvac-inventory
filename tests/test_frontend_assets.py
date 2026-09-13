@@ -388,6 +388,9 @@ def test_petty_cash_frontend_contract():
     assert '${esc(r.upload_person)}' in js
     assert 'ui-kpi-card' in js and 'ui-kpi-value' in js
     assert 'pcOpenDetail(${r.id})' in js
+    assert 'function pcMobileOpsHtml' in js
+    assert 'pc-report-type--general' in js
+    assert 'pc-row-actions--mobile' in js
     assert "window.open('/api/petty-cash-reports/' + id + '/export.xlsx'" in js
     modal = read(PETTY_CASH_MODAL_JS)
     assert 'function pcOpenReportModal' in modal
@@ -413,7 +416,8 @@ def test_petty_cash_kpi_grid_layout():
     assert 'pc-kpi-card__head' in js
     assert 'pc-kpi-card__num' in js
     assert 'pc-kpi-card__foot' in js
-    # Mobile: maintain 3 columns, only shrink sizes
+    assert 'grid-column:1 / -1' in css
+    # Mobile: KPI uses a full-width total plus two status cards
     assert '@media (max-width: 1200px)' in css
     assert '@media (max-width: 767px)' in css
 

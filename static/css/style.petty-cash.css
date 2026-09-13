@@ -687,3 +687,33 @@
   .pc-general-detail-item { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; }
   .pc-general-detail-panel { padding: 9px 10px; }
 }
+/* 零用金首頁 KPI／Mobile 卡片：資訊層級與操作可見性 */
+#content .pc-kpi-card { position: relative; overflow: hidden; min-height: 104px; padding: 16px 18px 14px; border-radius: 14px; box-shadow: 0 2px 8px rgba(15,23,42,.06); }
+#content .pc-kpi-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: #2563eb; }
+#content .pc-kpi-card:nth-child(2)::before { background: #16a34a; }
+#content .pc-kpi-card:nth-child(3)::before { background: #d97706; }
+#content .pc-kpi-card__head .ui-kpi-icon { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; }
+#content .pc-kpi-card:nth-child(1) .ui-kpi-icon { background:#dbeafe; }
+#content .pc-kpi-card:nth-child(2) .ui-kpi-icon { background:#dcfce7; }
+#content .pc-kpi-card:nth-child(3) .ui-kpi-icon { background:#fef3c7; }
+#content .pc-kpi-card__num { margin-top: 10px; font-size: 30px; letter-spacing: -.02em; }
+#content .pc-kpi-card__foot { margin-top: 7px; text-align: left; }
+.pc-report-type { display:inline-flex; align-items:center; min-height:24px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+.pc-report-type--general { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+.pc-mobile-action { min-height:34px; padding:6px 9px; border:1px solid #dbe3ee; border-radius:8px; background:#fff; color:#334155; font-size:12px; font-weight:700; white-space:nowrap; cursor:pointer; }
+.pc-mobile-action:hover { background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; }
+.pc-mobile-action--danger { color:#b91c1c; }
+.pc-mobile-action--danger:hover { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+@media (max-width: 767px) {
+  #content .pc-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; }
+  #content .pc-kpi-card { min-height:88px; padding:12px 13px 11px; }
+  #content .pc-kpi-card:first-child { grid-column:1 / -1; min-height:96px; }
+  #content .pc-kpi-card__num { margin-top:7px; font-size:24px; }
+  #content .pc-kpi-card:first-child .pc-kpi-card__num { font-size:28px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { width:26px; height:26px; font-size:13px; }
+  .pc-report-card__top { flex-wrap:wrap; }
+  .pc-report-card__top .pc-status { margin-left:auto; }
+  .pc-row-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; }
+  .pc-report-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; width:100%; }
+  .pc-report-actions--mobile .pc-mobile-action { flex:1 1 auto; }
+}
