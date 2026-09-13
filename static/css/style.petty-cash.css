@@ -748,3 +748,25 @@
 .eng-editor-receipt-body { padding-top:10px; }
 .eng-editor-receipt-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
 .eng-editor-receipt-toggle:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }
+/* Mobile long-money layout: labels and values must shrink/wrap together. */
+#content .pc-kpi-card,
+#content .pc-kpi-card__head,
+#content .pc-kpi-card .ui-kpi-value { min-width:0; }
+#content .pc-kpi-card__head .ui-kpi-label,
+#content .pc-kpi-card .ui-kpi-value,
+.pc-report-card__balance,
+.eng-subtotal,
+.eng-group-head strong,
+.eng-editor-receipt-toggle strong { overflow-wrap:anywhere; word-break:break-word; }
+#content .pc-kpi-card__head .ui-kpi-label { line-height:1.2; }
+#content .pc-kpi-card .ui-kpi-value { white-space:normal; }
+@media (max-width:767px) {
+  .pc-page-title h1 { min-width:0; flex-wrap:wrap; line-height:1.25; }
+  #content .pc-kpi-card { min-height:76px; }
+  #content .pc-kpi-card .ui-kpi-value { font-size:clamp(16px,5.5vw,24px); line-height:1.1; }
+  .eng-category-head { min-width:0; flex-wrap:wrap; }
+  .eng-category-head > span { min-width:0; flex:1 1 100%; }
+  .eng-category-head .eng-subtotal { flex:1 1 100%; max-width:100%; text-align:left; white-space:normal; }
+  .eng-group-head strong { max-width:100%; white-space:normal; text-align:left; }
+  .eng-editor-receipt-toggle strong { max-width:42%; white-space:normal; text-align:right; }
+}

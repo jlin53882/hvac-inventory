@@ -540,6 +540,10 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'table-layout:fixed' in css
     assert '.eng-receipt-toggle' in css
     assert 'engToggle(engExpandedReceipts' in js
+    assert '.pc-kpi-card .ui-kpi-value' in css
+    assert 'overflow-wrap:anywhere' in css
+    assert 'clamp(16px,5.5vw,24px)' in css
+    assert '.eng-category-head .eng-subtotal' in css
     assert 'aria-expanded="${expanded}"' in js
     assert '此單據尚無細項' in js
 
