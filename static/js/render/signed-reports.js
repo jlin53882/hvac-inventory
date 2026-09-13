@@ -420,7 +420,8 @@ function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
 function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function dsrDownload(id) { window.open('/api/signed-reports/' + id + '/download', '_blank'); }
-// 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）
+// 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）。
+// uploader_name 是顯示文字；後端仍依原始 uploader_user_id 判斷 owner/權限。
 async function dsrEdit(id) {
   const report = dsrFiltered.find(item => item.id === id);
   if (!report) return;
@@ -445,6 +446,7 @@ async function dsrEdit(id) {
   overlay.querySelector('[data-dsr-edit-save]').addEventListener('click', async () => {
     const reportDate = overlay.querySelector('#dsr-edit-date').value;
     const uploaderName = overlay.querySelector('#dsr-edit-uploader').value.trim();
+    // 只更新顯示名稱，不變更 uploader_user_id；權限 owner 仍是原始登入者。
     const note = overlay.querySelector('#dsr-edit-note').value.trim();
     const file = overlay.querySelector('#dsr-edit-file').files[0];
     if (!reportDate) return toast('⚠️ 請選擇報表日期');

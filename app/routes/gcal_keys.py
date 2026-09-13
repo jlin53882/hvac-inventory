@@ -26,6 +26,7 @@ def _uploaded_credentials_path(credentials_path: str) -> Path | None:
     return path if _UPLOADED_CREDENTIAL_NAME_RE.fullmatch(path.name) else None
 
 def _delete_uploaded_credentials(credentials_path: str) -> None:
+    """只清理由本系統上傳且已提交成功的憑證，不碰手動指定路徑。"""
     path = _uploaded_credentials_path(credentials_path)
     if path is None:
         return
@@ -103,6 +104,8 @@ router = APIRouter()
 
 def _row_to_dict(r):
     reminders_raw = r["reminders"] if "reminders" in r.keys() else "[]"
+    # 只顯示已通過 parser 的 Popup；舊 migration default 可能仍含 email，
+    # 這裡刻意不回寫 DB，避免在讀取設定時偷偷改動歷史資料。
     reminders = parse_popup_reminders(reminders_raw)
     return {
         "id": r["id"],
@@ -147,6 +150,8 @@ async def create_gcal_key(request: Request):
             storage_dir = Path(BASE_DIR) / "secrets" / "gcal"
             storage_dir.mkdir(parents=True, exist_ok=True)
             uploaded_path = storage_dir / f"{uuid.uuid4().hex}.json"
+            # 上傳檔案先寫入固定亂數檔名；DB commit 失敗時由 except 清除，
+            # 避免請求失敗留下可被誤認為有效憑證的孤兒檔。
             try:
                 uploaded_path.write_text(
                     json.dumps(credentials, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -199,7 +204,11 @@ async def create_gcal_key(request: Request):
 
 @router.put("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def update_gcal_key(key_id: int, k: GcalKeyUpdate):
-    """✏️ 編輯 key（名稱/路徑/calendar_id/啟停）。"""
+    """✏️ 編輯 key（名稱/路徑/calendar_id/啟停）。
+
+    更換 credentials_path 後只在 DB commit 成功時清理舊的系統上傳檔；
+    手動指定的外部路徑與新路徑都不會由此 endpoint 刪除。
+    """
     conn = get_db()
     try:
         row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()

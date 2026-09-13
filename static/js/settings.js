@@ -507,6 +507,7 @@ async function saveGcalSetting(key, value) {
 
 async function saveKeyReminders(keyId) {
   const rows = Array.from(document.querySelectorAll('#gcal-reminders-' + keyId + ' .gcal-reminder-row'));
+  // 儲存時重新依目前 DOM 的列順序組合；index 不是永久識別碼，刪除後由 reindexGcalReminders() 重排。
   if (!rows.length || rows.length > 5) return toast('通知數量需為 1~5 個', 'error');
   const reminders = [];
   for (let i = 0; i < rows.length; i += 1) {

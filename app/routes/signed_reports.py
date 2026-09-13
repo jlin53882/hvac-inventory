@@ -2,7 +2,7 @@
 """
 每日簽名報表路由
 ================
-- POST   /api/signed-reports              上傳（multipart，任意格式）
+- POST   /api/signed-reports              上傳（multipart，PDF/PNG/JPG/GIF/WebP）
 - GET    /api/signed-reports              列表（日期區間 + 關鍵字 + 分頁）
 - GET    /api/signed-reports/{id}/preview 線上預覽（登入保護，inline）
 - GET    /api/signed-reports/{id}/download 下載原檔
@@ -252,7 +252,13 @@ async def update_signed_report(
     request: Request,
     user: dict = Depends(require_login),
 ):
-    """編輯日期、檔案、上傳人與備註（上傳者或具全域刪除權限者）。"""
+    """編輯日期、檔案、上傳人與備註（上傳者或具全域刪除權限者）。
+
+    ``uploader_name`` 只是可修正的顯示文字；``uploader_user_id`` 永不改寫，
+    因此編輯上傳人不會轉移報表的權限 owner。替換檔案採「先提交 DB、
+    後搬移/清理檔案」：提交前失敗刪新檔，提交後清理失敗只記錄警告，
+    不回滾已可讀取的新資料。
+    """
     if user is None:
         raise HTTPException(401, "未登入")
     file = None
@@ -280,6 +286,7 @@ async def update_signed_report(
     committed = False
     try:
         # 先鎖定寫入交易，避免兩個替換同時讀到同一個舊 asset 而留下孤兒檔。
+        # asset 的 DB 對映在同一交易內切換；檔案本體則在 commit 後 finalize。
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
         if row is None:

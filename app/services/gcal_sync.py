@@ -99,10 +99,9 @@ def build_event(appt_row: dict, assignees: List[dict], settings: dict = None) ->
     svc = appt_row.get("service_name") or ""
     summary = f"{client}｜{svc}" if svc else client
     lines = []
-    # location 欄位（拆出 address，不塞 description）
-    if use_location and appt_row.get("address"):
-        pass  # location 獨立欄位，不塞 description
-    elif appt_row.get("address"):
+    # address 只有在 use_location=False 時才放入 description；否則由下方
+    # event["location"] 專欄承載，避免 Google Calendar 同時出現兩份地址。
+    if not use_location and appt_row.get("address"):
         lines.append(f"地址：{appt_row['address']}")
     owners = "、".join(a["name"] for a in assignees)
     if owners:
@@ -236,7 +235,8 @@ def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
     """對 due（[{appointment_id, key_id, op_type, google_event_id, last_modified_at}]
     每列對應一 key，逐列同步。回傳 (成功, 失敗, error_summary)。
 
-    error_summary 格式：{key_id: {"cal_id": str, "errors": {error_type: count}}}
+    error_summary 以 key_id 分組，保留 key_name、cal_id、errors 與 resolved；
+    errors 是需人工處理的錯誤，resolved 是 410/來源刪除等已自動收斂的結果。
 
     家豪二輪：成功刪隊列帶 last_modified_at 版本條件，不吞同步途中新編輯。
     A3：網路呼叫在交易外，讀寫用獨立短連線，不持 SQLite 寫鎖跨網路。

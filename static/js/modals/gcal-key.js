@@ -1,4 +1,5 @@
 // gcal-key.js — Google 行事曆同步 Key 新增/編輯 Modal
+// 新增可上傳 .json；編輯目前只送伺服器路徑（不重新上傳憑證）。
 // 依賴：utils.js（esc/toast）、settings.js（gcalKeys/loadGcalKeys/renderGcalPanel）
 
 var _gcalEditingId = null;  // null=新增, 數字=編輯
