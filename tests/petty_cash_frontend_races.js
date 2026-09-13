@@ -238,6 +238,7 @@ async function testModalLatestResponseWins() {
 async function testHistoryFilterContextsAndRefreshes() {
   const contexts = [
     ['pc-f-from', 'start_date=B', 'start_date=A'],
+    ['pc-f-to', 'end_date=B', 'end_date=A'],
     ['pc-f-person', 'upload_person=B', 'upload_person=A'],
     ['pc-f-status', 'status=B', 'status=A'],
     ['pc-f-type', 'report_type=B', 'report_type=A'],
@@ -291,6 +292,27 @@ function testPaginationRendersPageOffsets() {
   }
 }
 
+async function testMutationRefreshesKeepLatestResponse() {
+  for (const operation of ['save', 'delete']) {
+    elements['pc-f-from'].value = '';
+    elements['pc-f-to'].value = '';
+    elements['pc-f-person'].value = '';
+    elements['pc-f-status'].value = '';
+    elements['pc-f-type'].value = '';
+    elements['pc-f-q'].value = '';
+    context.pcPage = 1;
+    context.pcLoadHistory();
+    context.pcLoadHistory();
+    resolvePendingLast('page=1', { items: [report(302, `${operation}-latest`)], total: 1, page: 1, page_size: 20 });
+    await flush();
+    resolvePending('/api/petty-cash/kpi?', { total: 1, completed: 1, draft: 0 });
+    await flush();
+    resolvePending('page=1', { items: [report(301, `${operation}-stale`)], total: 1, page: 1, page_size: 20 });
+    await flush();
+    assert.strictEqual(context.pcReports[0].id, 302, `${operation} refresh was overwritten by stale response`);
+  }
+}
+
 async function testGeneralSaveIsSingleFlightAndRecovers() {
   context.pcValidateBasic = () => true;
   context.pcModalGotoStep = () => true;
@@ -323,6 +345,18 @@ async function testGeneralSaveIsSingleFlightAndRecovers() {
   assert(pending.some(x => x.url.includes('/api/petty-cash-reports/88')), 'general update used create endpoint');
   resolvePending('/api/petty-cash-reports/88', { id: 88 });
   await update;
+  context.pcModalEditingId = null;
+  context.pcModalOpenSeq = 103;
+  context.pcModalSessionType = 'general';
+  const completedCreate = context.pcModalSave('completed');
+  resolvePending('/api/petty-cash-reports', { id: 89 });
+  await completedCreate;
+  context.pcModalEditingId = 89;
+  context.pcModalOpenSeq = 104;
+  context.pcModalSessionType = 'general';
+  const draftUpdate = context.pcModalSave('draft');
+  resolvePending('/api/petty-cash-reports/89', { id: 89 });
+  await draftUpdate;
 }
 
 async function testEngineeringSaveIsSingleFlight() {
@@ -342,9 +376,21 @@ async function testEngineeringSaveIsSingleFlight() {
   await first;
   await second;
   assert.strictEqual(context.pcSaveInFlight, false, 'engineering save did not release the lock');
+  context.engEditingId = null;
+  context.pcModalSessionType = 'engineering';
+  context.pcModalOpenSeq = 202;
+  const draftCreate = context.engSave('draft');
+  resolvePending('/api/petty-cash-reports', { id: 32 });
+  await draftCreate;
+  context.engEditingId = 32;
+  context.pcModalSessionType = 'engineering';
+  context.pcModalOpenSeq = 203;
+  const draftUpdate = context.engSave('draft');
+  resolvePending('/api/petty-cash-reports/32', { id: 32 });
+  await draftUpdate;
   context.engEditingId = 77;
   context.pcModalSessionType = 'engineering';
-  context.pcModalOpenSeq = 201;
+  context.pcModalOpenSeq = 204;
   const failedUpdate = context.engSave('draft');
   const duplicateUpdate = context.engSave('completed');
   assert.strictEqual(pending.filter(x => x.url.includes('/api/petty-cash-reports/77')).length, 1, 'engineering update double click sent two writes');
@@ -360,6 +406,7 @@ async function testEngineeringSaveIsSingleFlight() {
 async function main() {
   await testHistoryLatestResponseWins();
   await testHistoryFilterContextsAndRefreshes();
+  await testMutationRefreshesKeepLatestResponse();
   await testDetailLatestResponseWins();
   await testModalLatestResponseWins();
   testPaginationRendersPageOffsets();
