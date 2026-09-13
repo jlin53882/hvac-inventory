@@ -525,6 +525,12 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     css = read(PETTY_CASH_CSS)
     assert 'function pcMoreMenuHtml' in js
     assert 'class="pc-more-menu"' in js
+    assert 'pcBindMoreMenuEvents' in js
+    assert "other.removeAttribute('open')" in js
+    assert "menu.removeAttribute('open')" in js
+    assert 'pc-report-list-table-wrap' in js
+    assert 'Desktop report query: scroll rows while keeping the table header visible.' in css
+    assert '.pc-report-list-table-wrap .pc-report-list-table thead th' in css
     assert 'pc-report-actions' in js and '👁 檢視' in js
     assert 'class="pc-view-action"' not in js
     assert 'pcOpenDetail(${r.id})' in js

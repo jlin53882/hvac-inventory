@@ -100,7 +100,7 @@ async function renderPettyCash() {
           </div>
         </div>
         <div class="pc-card__bd" style="padding-top:0">
-          <div class="pc-table-wrap"><table class="pc-table pc-report-list-table">
+          <div class="pc-table-wrap pc-report-list-table-wrap"><table class="pc-table pc-report-list-table">
             <thead><tr><th>#</th><th>報表期間</th><th>報表類型</th><th>檔名</th><th>報表歸屬人</th><th>製表人</th><th>金額摘要</th><th>狀態</th><th>操作</th></tr></thead>
             <tbody id="pc-tbody"></tbody>
           </table></div>
@@ -121,6 +121,7 @@ async function renderPettyCash() {
       </section>
     </div>`;
 
+  pcBindMoreMenuEvents();
   pcLoadPersons();
   pcLoadHistory();
 }
@@ -236,6 +237,22 @@ function pcReportActionEntries(r, engineering) {
 function pcMoreMenuHtml(r, engineering) {
   const actions = pcReportActionEntries(r, engineering);
   return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
+}
+var pcMoreMenuEventsBound = false;
+function pcBindMoreMenuEvents() {
+  if (pcMoreMenuEventsBound) return;
+  pcMoreMenuEventsBound = true;
+  document.addEventListener('toggle', event => {
+    const menu = event.target;
+    if (!menu.matches || !menu.matches('.pc-more-menu') || !menu.open) return;
+    document.querySelectorAll('.pc-more-menu[open]').forEach(other => {
+      if (other !== menu) other.removeAttribute('open');
+    });
+  }, true);
+  document.addEventListener('click', event => {
+    if (event.target.closest && event.target.closest('.pc-more-menu')) return;
+    document.querySelectorAll('.pc-more-menu[open]').forEach(menu => menu.removeAttribute('open'));
+  }, true);
 }
 
 // Mobile 直接操作列：避免把常用操作藏在更多選單內

@@ -879,3 +879,8 @@
 .pc-entry-card--clickable { cursor:pointer; }
 .pc-entry-card--clickable:hover,
 .pc-entry-card--clickable:focus-visible { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.10); outline:0; }
+/* Desktop report query: scroll rows while keeping the table header visible. */
+@media (min-width:768px) {
+  .pc-report-list-table-wrap { max-height:calc(100vh - 360px); min-height:240px; overflow:auto; }
+  .pc-report-list-table-wrap .pc-report-list-table thead th { position:sticky; top:0; z-index:5; background:#f8fafc; }
+}
