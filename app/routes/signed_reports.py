@@ -13,6 +13,7 @@
 安全：大小上限 20MB、檔名不可控、路徑穿越防護、登入保護讀取（仿 /uploads/{id}.jpg）
 """
 import datetime
+import logging
 import os
 import re
 import uuid
@@ -28,6 +29,7 @@ from app.services.file_storage import asset_variant_path, cleanup_asset_paths, d
 from app.models import SignedReportUpdate
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 MAX_SIZE = 20 * 1024 * 1024  # 20MB
 ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"}  # 副檔名白名單防 XSS
@@ -275,6 +277,7 @@ async def update_signed_report(
     new_asset = None
     old_asset = None
     old_fallback = None
+    committed = False
     try:
         # 先鎖定寫入交易，避免兩個替換同時讀到同一個舊 asset 而留下孤兒檔。
         conn.execute("BEGIN IMMEDIATE")
@@ -323,29 +326,36 @@ async def update_signed_report(
         if old_asset and new_asset:
             conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old_asset["asset_id"],))
         conn.commit()
+        committed = True
         if new_asset:
-            finalize_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
-            if old_asset:
-                delete_asset_files(old_asset, upload_dir=Path(STATIC_DIR) / "uploads")
-            elif old_fallback:
-                old_fallback.unlink(missing_ok=True)
+            try:
+                finalize_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+                if old_asset:
+                    delete_asset_files(old_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+                elif old_fallback:
+                    old_fallback.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning("簽名報表舊檔清理失敗 rid=%s: %s", rid, exc)
         updated = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
         can_delete = can_all or updated["uploader_user_id"] == user["id"]
         return _row_to_out(updated, can_delete)
     except HTTPException:
-        conn.rollback()
-        if new_asset:
-            cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        if not committed:
+            conn.rollback()
+            if new_asset:
+                cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
         raise
     except ValueError as exc:
-        conn.rollback()
-        if new_asset:
-            cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        if not committed:
+            conn.rollback()
+            if new_asset:
+                cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
         raise HTTPException(400, str(exc)) from exc
     except Exception:
-        conn.rollback()
-        if new_asset:
-            cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
+        if not committed:
+            conn.rollback()
+            if new_asset:
+                cleanup_asset_paths(new_asset, upload_dir=Path(STATIC_DIR) / "uploads")
         raise
     finally:
         conn.close()

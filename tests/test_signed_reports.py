@@ -258,6 +258,28 @@ def test_edit_without_file_keeps_existing_asset(signed_env):
     assert len(list(upload_dir.iterdir())) == 1
 
 
+def test_edit_keeps_committed_replacement_when_old_cleanup_fails(signed_env, monkeypatch):
+    """舊檔清理失敗不可回滾已提交的新檔或刪除新 asset。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+
+    def fail_cleanup(*args, **kwargs):
+        raise OSError("simulated cleanup failure")
+
+    monkeypatch.setattr(signed_reports, "delete_asset_files", fail_cleanup)
+    updated = owner.patch(
+        f"/api/signed-reports/{report['id']}",
+        data={"note": "新版本"},
+        files={"file": ("replacement.pdf", b"%PDF-replacement", "application/pdf")},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["file_name"] == "replacement.pdf"
+    assert owner.get(f"/api/signed-reports/{report['id']}/download").content == b"%PDF-replacement"
+    assert len(list((static_dir / "uploads" / "signed_reports" / "2026-09").iterdir())) == 2
+
+
 def test_edit_note_rejects_overlong_value(signed_env):
     """編輯資料仍限制備註最多 500 字，非法輸入回 422/400 而非 500。"""
     make_client, _ = signed_env
