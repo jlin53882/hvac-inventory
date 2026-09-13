@@ -499,6 +499,7 @@ def test_petty_cash_settings_options_domain_layout():
     assert "panel.querySelectorAll('[data-petty-action]')" in js
     assert 'grid-template-columns:minmax(0,1fr) auto' in html
     assert 'width:auto; min-width:88px' in html
+    assert 'border-radius: 8px' in read(PETTY_CASH_CSS)
     assert 'pc-opt-name-general-category' in js
 
 
@@ -528,6 +529,8 @@ def test_petty_cash_general_detail_rows_are_expandable():
     assert 'pcBindGeneralDetailEvents' in js
     assert 'pcGeneralDetailEventsBound' in js
     assert "event.target.closest('.pc-general-entry-row--expandable" in js
+    assert 'pcToggleGeneralEntry(Number(element.dataset.entryIndex));' in js
+    assert '  }, true);' in js
     assert 'type="button" class="pc-inline-expand"' in js
 
 

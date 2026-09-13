@@ -325,7 +325,7 @@ function pcBindGeneralDetailEvents() {
     event.preventDefault();
     event.stopPropagation();
     pcToggleGeneralEntry(Number(element.dataset.entryIndex));
-  });
+  }, true);
 }
 function pcEntryStatus(e) {
   return e.amount_warning ? '<span class="pc-entry-status pc-entry-status--warn">⚠ 金額不一致</span>' : '<span class="pc-entry-status">● 正常</span>';
