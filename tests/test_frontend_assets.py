@@ -506,6 +506,8 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'function pcMoreMenuHtml' in js
     assert 'class="pc-more-menu"' in js
     assert 'pc-report-actions' in js and '👁 檢視' in js
+    assert 'class="pc-view-action"' not in js
+    assert 'pcOpenDetail(${r.id})' in js
     assert 'pcRowOpsHtml' in js and 'pcMoreMenuHtml(r, false)' in js
     assert 'pcMoreMenuHtml(r, true)' in js
     assert 'eng-detail-table' in js

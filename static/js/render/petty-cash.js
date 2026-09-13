@@ -221,7 +221,7 @@ function pcCardHtml(r) {
 function pcMoreMenuHtml(r, engineering) {
   const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
   const del = `pcDelete(${r.id}${engineering ? ', true' : ''})`;
-  return `<span class="pc-report-actions"><button type="button" class="pc-btn-sm pc-view-action" onclick="event.stopPropagation();pcOpenDetail(${r.id})">👁 檢視</button><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${r.can_edit ? `<button type="button" onclick="event.stopPropagation();${edit}">✏️ 編輯</button>` : ''}<button type="button" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-more-menu__danger" onclick="event.stopPropagation();${del}">🗑 刪除</button>` : ''}</div></details></span>`;
+  return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list"><button type="button" onclick="event.stopPropagation();pcOpenDetail(${r.id})">👁 檢視</button>${r.can_edit ? `<button type="button" onclick="event.stopPropagation();${edit}">✏️ 編輯</button>` : ''}<button type="button" onclick="event.stopPropagation();pcExport(${r.id})">⬇️ 匯出</button>${r.can_edit ? `<button type="button" class="pc-more-menu__danger" onclick="event.stopPropagation();${del}">🗑 刪除</button>` : ''}</div></details></span>`;
 }
 
 // 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
