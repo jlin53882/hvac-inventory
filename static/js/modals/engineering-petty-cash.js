@@ -8,13 +8,30 @@ function pcChooseReportType() {
   document.getElementById('content').insertAdjacentHTML('beforeend', `<div id="eng-type-overlay" class="pc-overlay open"><div class="pc-modal" role="dialog" aria-label="新增零用金月報"><div class="pc-modal__hd"><h3>新增零用金月報</h3><button class="pc-btn-sm" onclick="document.getElementById('eng-type-overlay').remove()">✕</button></div><div class="pc-modal__bd"><p>請選擇報表類型</p><div class="pc-form-grid pc-form-grid--two"><button class="pc-btn pc-btn--ghost" onclick="document.getElementById('eng-type-overlay').remove();pcOpenReportModal()">一般零用金<br><small>收入／支出月報</small></button><button class="pc-btn pc-btn--primary" onclick="document.getElementById('eng-type-overlay').remove();pcOpenEngineeringModal()">工程零用金<br><small>發票、收據與工程費用</small></button></div></div></div></div>`);
 }
 
-function pcOpenEngineeringModal(id) {
+async function pcOpenEngineeringModal(id) {
+  const modalToken = ++pcModalOpenSeq;
+  pcModalSessionType = 'engineering';
+  document.getElementById('pc-report-overlay')?.remove();
+  document.getElementById('eng-report-overlay')?.remove();
   engEditingId = id || null;
   engActiveCategory = 0;
   engData = {start_date:_pcIso(new Date()), end_date:_pcIso(new Date()), upload_person:'', prepared_by:'', filename_text:'', status:'draft', categories:[]};
-  Promise.all(['category', 'group'].map(kind => fetch('/api/petty-cash-options?report_type=engineering&option_type='+kind).then(r=>r.ok ? r.json() : {items:[]}).then(d => { engOptions[kind] = d.items || []; })))
-    .then(() => id ? fetch('/api/petty-cash-reports/'+id).then(r=>r.json()).then(d=>{engData=JSON.parse(JSON.stringify(d));engRenderModal();}) : engRenderModal())
-    .catch(()=>toast('⚠️ 工程選單載入失敗'));
+  try {
+    await Promise.all(['category', 'group'].map(kind => fetch('/api/petty-cash-options?report_type=engineering&option_type='+kind).then(r=>r.ok ? r.json() : {items:[]}).then(d => {
+      if (_pcIsCurrentModal(modalToken, 'engineering')) engOptions[kind] = d.items || [];
+    })));
+    if (!_pcIsCurrentModal(modalToken, 'engineering')) return;
+    if (id) {
+      const res = await fetch('/api/petty-cash-reports/'+id);
+      if (!_pcIsCurrentModal(modalToken, 'engineering')) return;
+      if (!res.ok) return toast('⚠️ 讀取失敗');
+      const d = await res.json();
+      engData = JSON.parse(JSON.stringify(d));
+    }
+    if (_pcIsCurrentModal(modalToken, 'engineering')) engRenderModal();
+  } catch(e) {
+    if (_pcIsCurrentModal(modalToken, 'engineering')) toast('⚠️ 工程選單載入失敗');
+  }
 }
 
 function engRenderModal() {
@@ -70,6 +87,39 @@ function engSetNameFromSelect(select, kind, ci, gi) {
   engRenderEditor();
 }
 function engSyncInput(e){const x=e.target,d=engData.categories[+x.dataset.c],g=d?.groups?.[+x.dataset.g],r=g?.receipts?.[+x.dataset.r];if(x.classList.contains('eng-name'))d.name=x.value;if(x.classList.contains('eng-group'))g.name=x.value;if(r){if(x.classList.contains('eng-tax'))r.tax_id_mark=x.value;if(x.classList.contains('eng-no'))r.receipt_number=x.value;if(x.classList.contains('eng-amount'))r.amount=x.value;if(x.classList.contains('eng-detail'))r.details[+x.dataset.d]=x.value;}engFilenamePreview();}
-function engCloseModal(){document.getElementById('eng-report-overlay')?.remove();}
-function engSave(status){if(!engValidateBasic())return;engSyncAll();const body={report_type:'engineering',start_date:document.getElementById('eng-start').value,end_date:document.getElementById('eng-end').value,upload_person:document.getElementById('eng-owner').value.trim(),prepared_by:document.getElementById('eng-prepared').value.trim(),filename_text:document.getElementById('eng-note').value.trim(),status,categories:engData.categories.map((c,ci)=>({...c,sort_order:ci,groups:(c.groups||[]).map((g,gi)=>({...g,sort_order:gi,receipts:(g.receipts||[]).map((r,ri)=>({...r,sort_order:ri,amount:Number(r.amount)||0,details:(r.details||[]).filter(Boolean)}))}))}))};const url=engEditingId?'/api/petty-cash-reports/'+engEditingId:'/api/petty-cash-reports';fetch(url,{method:engEditingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(async res=>{const data=await res.json().catch(()=>({}));if(!res.ok)return toast('⚠️ '+(data.detail||'儲存失敗'));toast(status==='completed'?'✅ 已儲存完成':'✅ 草稿已儲存');engCloseModal();renderPettyCash();});}
+function engCloseModal(){
+  if (pcModalSessionType === 'engineering') {
+    pcModalOpenSeq += 1;
+    pcModalSessionType = '';
+  }
+  document.getElementById('eng-report-overlay')?.remove();
+}
+async function engSave(status){
+  if (pcSaveInFlight) { toast('⚠️ 目前已有儲存作業進行中'); return; }
+  if (!engValidateBasic()) return;
+  engSyncAll();
+  const body={report_type:'engineering',start_date:document.getElementById('eng-start').value,end_date:document.getElementById('eng-end').value,upload_person:document.getElementById('eng-owner').value.trim(),prepared_by:document.getElementById('eng-prepared').value.trim(),filename_text:document.getElementById('eng-note').value.trim(),status,categories:engData.categories.map((c,ci)=>({...c,sort_order:ci,groups:(c.groups||[]).map((g,gi)=>({...g,sort_order:gi,receipts:(g.receipts||[]).map((r,ri)=>({...r,sort_order:ri,amount:Number(r.amount)||0,details:(r.details||[]).filter(Boolean)}))}))}))};
+  const url=engEditingId?'/api/petty-cash-reports/'+engEditingId:'/api/petty-cash-reports';
+  const saveToken = pcModalOpenSeq;
+  pcSaveInFlight = true;
+  pcSaveInFlightToken = saveToken;
+  pcSetSaveButtonsDisabled('eng-report-overlay', true);
+  try {
+    const res=await fetch(url,{method:engEditingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json().catch(()=>({}));
+    if (saveToken !== pcModalOpenSeq) return;
+    if (!res.ok) return toast('⚠️ '+(data.detail||'儲存失敗'));
+    toast(status==='completed'?'✅ 已儲存完成':'✅ 草稿已儲存');
+    engCloseModal();
+    renderPettyCash();
+  } catch(e) {
+    if (saveToken === pcModalOpenSeq) toast('⚠️ 網路錯誤：' + e.message);
+  } finally {
+    if (pcSaveInFlightToken === saveToken) {
+      pcSaveInFlight = false;
+      pcSaveInFlightToken = 0;
+      if (saveToken === pcModalOpenSeq) pcSetSaveButtonsDisabled('eng-report-overlay', false);
+    }
+  }
+}
 function engSyncAll(){document.querySelectorAll('#eng-editor input').forEach(x=>engSyncInput({target:x}));}

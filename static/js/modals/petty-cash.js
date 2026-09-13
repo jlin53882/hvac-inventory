@@ -26,6 +26,10 @@ function pcGeneralCategoryChanged(select) {
 
 // 開啟新增/編輯月報 modal（id 缺省 = 新增）
 async function pcOpenReportModal(id) {
+  const modalToken = ++pcModalOpenSeq;
+  pcModalSessionType = 'general';
+  document.getElementById('pc-report-overlay')?.remove();
+  document.getElementById('eng-report-overlay')?.remove();
   pcModalEditingId = id || null;
   pcModalEntries = [];
   pcModalReturnToDetail = !!pcDetail && pcDetail.id === id;
@@ -38,15 +42,25 @@ async function pcOpenReportModal(id) {
   };
   try {
     const optionRes = await fetch('/api/petty-cash-options?report_type=general&option_type=category');
-    if (optionRes.ok) pcGeneralOptions.category = (await optionRes.json()).items || [];
+    if (optionRes.ok) {
+      const options = await optionRes.json();
+      if (!_pcIsCurrentModal(modalToken, 'general')) return;
+      pcGeneralOptions.category = options.items || [];
+    }
   } catch (e) { /* 選單載入失敗仍允許輸入自訂科目 */ }
+  if (!_pcIsCurrentModal(modalToken, 'general')) return;
   if (id) {
     try {
       const res = await fetch('/api/petty-cash-reports/' + id);
+      if (!_pcIsCurrentModal(modalToken, 'general')) return;
       if (!res.ok) return toast('⚠️ 讀取失敗');
       d = await res.json();
-    } catch(e) { return toast('⚠️ 網路錯誤：' + e.message); }
+    } catch(e) {
+      if (_pcIsCurrentModal(modalToken, 'general')) toast('⚠️ 網路錯誤：' + e.message);
+      return;
+    }
   }
+  if (!_pcIsCurrentModal(modalToken, 'general')) return;
   pcModalEntries = (d.entries || []).map((e, i) => ({
     _key: 'e' + Date.now() + '_' + i,
     entry_date: e.entry_date, entry_type: e.entry_type, description: e.description,
@@ -438,7 +452,10 @@ function pcCloseEntryModal() {
 
 // 月報存檔（草稿/完成皆完整驗證；後端再驗一次）
 async function pcModalSave(status) {
+  if (pcSaveInFlight) { toast('⚠️ 目前已有儲存作業進行中'); return; }
   if (!pcValidateBasic(false)) { pcModalGotoStep(1); return; }
+  const saveToken = pcModalOpenSeq;
+  const editingId = pcModalEditingId;
   const body = {
     start_date: document.getElementById('pc-m-start').value,
     end_date: document.getElementById('pc-m-end').value,
@@ -456,27 +473,43 @@ async function pcModalSave(status) {
       }))
     }))
   };
+  const url = editingId ? '/api/petty-cash-reports/' + editingId : '/api/petty-cash-reports';
+  pcSaveInFlight = true;
+  pcSaveInFlightToken = saveToken;
+  pcSetSaveButtonsDisabled('pc-report-overlay', true);
   try {
-    const url = pcModalEditingId ? '/api/petty-cash-reports/' + pcModalEditingId : '/api/petty-cash-reports';
     const res = await fetch(url, {
-      method: pcModalEditingId ? 'PUT' : 'POST',
+      method: editingId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const data = await res.json().catch(() => ({}));
+    if (saveToken !== pcModalOpenSeq) return;
     if (!res.ok) {
       if (res.status === 409 && data.detail) return toast('⚠️ ' + data.detail);
       return toast('⚠️ ' + (data.detail || '儲存失敗'));
     }
     toast(status === 'completed' ? '✅ 已儲存完成' : '✅ 草稿已儲存');
-    const savedId = data.id || pcModalEditingId;
+    const savedId = data.id || editingId;
     pcCloseReportModal();
     if (pcModalReturnToDetail && savedId) pcOpenDetail(savedId);
     else { pcDetail = null; renderPettyCash(); }
-  } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
+  } catch(e) {
+    if (saveToken === pcModalOpenSeq) toast('⚠️ 網路錯誤：' + e.message);
+  } finally {
+    if (pcSaveInFlightToken === saveToken) {
+      pcSaveInFlight = false;
+      pcSaveInFlightToken = 0;
+      if (saveToken === pcModalOpenSeq) pcSetSaveButtonsDisabled('pc-report-overlay', false);
+    }
+  }
 }
 
 // 關閉月報 modal
 function pcCloseReportModal() {
+  if (pcModalSessionType === 'general') {
+    pcModalOpenSeq += 1;
+    pcModalSessionType = '';
+  }
   document.getElementById('pc-report-overlay')?.remove();
 }

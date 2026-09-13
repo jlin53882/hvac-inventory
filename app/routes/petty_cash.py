@@ -186,6 +186,22 @@ def _check_duplicate(conn, body: PettyCashReportIn, exclude_id: int | None = Non
         )
 
 
+def _check_engineering_duplicate(conn, body: EngineeringReportIn, exclude_id: int | None = None) -> None:
+    sql = """SELECT id FROM petty_cash_reports
+             WHERE report_type='engineering' AND upload_person=? AND start_date=?
+               AND end_date=? AND filename_text=?"""
+    params: list = [body.upload_person, body.start_date, body.end_date, body.filename_text]
+    if exclude_id is not None:
+        sql += " AND id!=?"
+        params.append(exclude_id)
+    duplicate = conn.execute(sql, params).fetchone()
+    if duplicate is not None:
+        raise HTTPException(
+            409,
+            f"已存在相同期間與類型的工程零用金月報（id={duplicate['id']}），請開啟既有報表。",
+        )
+
+
 def _validate_body(body: PettyCashReportIn) -> None:
     start = parse_ymd(body.start_date, "開始日期")
     end = parse_ymd(body.end_date, "結束日期")
@@ -497,6 +513,7 @@ def create_petty_cash_report(body: PettyCashReportIn | EngineeringReportIn, user
     try:
         _require_pc_perm(conn, user, "petty-cash-create")
         if isinstance(body, EngineeringReportIn):
+            _check_engineering_duplicate(conn, body)
             report_id = write_engineering(conn, body, user["id"])
         else:
             report_id = _write_report(conn, body, user["id"])
@@ -557,6 +574,7 @@ def update_petty_cash_report(
         ):
             raise HTTPException(403, "僅建立者或具全域刪除權限者可編輯")
         if isinstance(body, EngineeringReportIn):
+            _check_engineering_duplicate(conn, body, exclude_id=report_id)
             write_engineering(conn, body, user["id"], report_id)
         else:
             _write_report(conn, body, user["id"], report_id)

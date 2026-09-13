@@ -7,6 +7,55 @@ var pcPageSize = 20;
 var pcTotal = 0;
 var pcPersons = [];
 var pcDetail = null;
+var pcHistoryRequestSeq = 0;
+var pcKpiRequestSeq = 0;
+var pcDetailRequestSeq = 0;
+var pcModalOpenSeq = 0;
+var pcModalSessionType = '';
+var pcSaveInFlight = false;
+var pcSaveInFlightToken = 0;
+
+function _pcFilterSnapshot() {
+  const value = id => {
+    const el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+  };
+  return {
+    start_date: value('pc-f-from'),
+    end_date: value('pc-f-to'),
+    upload_person: value('pc-f-person'),
+    status: value('pc-f-status'),
+    report_type: value('pc-f-type'),
+    search: value('pc-f-q'),
+  };
+}
+
+function _pcFilterKey(snapshot) {
+  return [snapshot.start_date, snapshot.end_date, snapshot.upload_person,
+    snapshot.status, snapshot.report_type, snapshot.search].join('\u001f');
+}
+
+function _pcIsCurrentModal(token, type) {
+  return token === pcModalOpenSeq && pcModalSessionType === type;
+}
+
+function pcSetSaveButtonsDisabled(overlayId, disabled) {
+  const overlay = document.getElementById(overlayId);
+  if (!overlay) return;
+  overlay.querySelectorAll('button[onclick*="pcModalSave"], button[onclick*="engSave"]').forEach(button => {
+    if (disabled) {
+      if (button.dataset.pcOriginalLabel === undefined) button.dataset.pcOriginalLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = '儲存中…';
+    } else {
+      button.disabled = false;
+      if (button.dataset.pcOriginalLabel !== undefined) {
+        button.textContent = button.dataset.pcOriginalLabel;
+        delete button.dataset.pcOriginalLabel;
+      }
+    }
+  });
+}
 
 // 將 Date 物件轉為 YYYY-MM-DD 字串
 function _pcIso(d) {
@@ -66,6 +115,9 @@ function pcSwitchModalStep(step, config) {
 
 // 渲染零用金月報首頁（含 KPI、篩選、列表）
 async function renderPettyCash() {
+  pcDetailRequestSeq += 1;
+  pcModalOpenSeq += 1;
+  pcModalSessionType = '';
   const el = document.getElementById('content');
   el.innerHTML = `
     <div class="pc-wrap">
@@ -160,25 +212,26 @@ async function pcLoadHistory(resetPage) {
   if (resetPage) pcPage = 1;
   const fromEl = document.getElementById('pc-f-from');
   if (!fromEl) return;
+  const filters = _pcFilterSnapshot();
+  const filterKey = _pcFilterKey(filters);
+  const requestPage = pcPage;
+  const requestSeq = ++pcHistoryRequestSeq;
   const p = new URLSearchParams({
-    start_date: fromEl.value || '',
-    end_date: document.getElementById('pc-f-to').value || '',
-    upload_person: document.getElementById('pc-f-person').value || '',
-    status: document.getElementById('pc-f-status').value || '',
-    report_type: document.getElementById('pc-f-type').value || '',
-    search: document.getElementById('pc-f-q').value.trim(),
-    page: pcPage, page_size: pcPageSize
+    ...filters,
+    page: requestPage,
+    page_size: pcPageSize,
   });
   try {
     const res = await fetch('/api/petty-cash-reports?' + p);
     if (!res.ok) return;
     const data = await res.json();
+    if (requestSeq !== pcHistoryRequestSeq || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
     pcReports = data.items || [];
     pcTotal = data.total || 0;
-    pcPage = data.page || pcPage;
+    pcPage = data.page || requestPage;
     document.getElementById('pc-result-count').textContent = pcTotal + ' 筆';
     pcRenderTable();
-    pcUpdateKPI();
+    pcUpdateKPI(filters);
   } catch(e) {}
 }
 
@@ -290,21 +343,16 @@ function pcRowOpsHtml(r) {
 }
 
 // KPI（同篩選全量，不受分頁影響）
-async function pcUpdateKPI() {
-  const fromEl = document.getElementById('pc-f-from');
-  if (!fromEl) return;
-  const p = new URLSearchParams({
-    start_date: fromEl.value || '',
-    end_date: document.getElementById('pc-f-to').value || '',
-    upload_person: document.getElementById('pc-f-person').value || '',
-    status: document.getElementById('pc-f-status').value || '',
-    report_type: document.getElementById('pc-f-type').value || '',
-    search: document.getElementById('pc-f-q').value.trim()
-  });
+async function pcUpdateKPI(filterSnapshot) {
+  const snapshot = filterSnapshot || _pcFilterSnapshot();
+  const filterKey = _pcFilterKey(snapshot);
+  const requestSeq = ++pcKpiRequestSeq;
+  const p = new URLSearchParams(snapshot);
   try {
     const res = await fetch('/api/petty-cash/kpi?' + p);
     if (!res.ok) return;
     const k = await res.json();
+    if (requestSeq !== pcKpiRequestSeq || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
     document.getElementById('pc-kpi-total').textContent = k.total;
     document.getElementById('pc-kpi-done').textContent = k.completed;
     document.getElementById('pc-kpi-draft').textContent = k.draft;
@@ -356,17 +404,23 @@ function pcChangePage(d) {
 
 // 開啟單份月報檢視
 async function pcOpenDetail(id) {
+  const requestSeq = ++pcDetailRequestSeq;
   try {
     const res = await fetch('/api/petty-cash-reports/' + id);
+    if (requestSeq !== pcDetailRequestSeq) return;
     if (!res.ok) return toast('⚠️ 讀取失敗');
-    pcDetail = await res.json();
+    const detail = await res.json();
+    if (requestSeq !== pcDetailRequestSeq) return;
+    pcDetail = detail;
     pcDetailExpanded = new Set();
     engExpandedCategories = new Set();
     engExpandedGroups = new Set();
     engExpandedReceipts = new Set();
     engUiInitialized = false;
     pcRenderDetail();
-  } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
+  } catch(e) {
+    if (requestSeq === pcDetailRequestSeq) toast('⚠️ 網路錯誤：' + e.message);
+  }
 }
 
 // 共用 detail page header；general／engineering 只注入不同的標籤與操作差異。
@@ -483,7 +537,7 @@ async function pcDelete(id, backToList) {
 
 function engDesktopRowHtml(r, idx) {
   const ops = pcMoreMenuHtml(r, true);
-  return `<tr><td>${esc(idx + 1)}</td><td>${_pcPeriodText(r)}</td><td><span class="pc-status pc-status--engineering">工程零用金</span></td><td>${esc(r.filename || r.filename_text || '')}</td><td>${esc(r.upload_person)}</td><td>${esc(r.prepared_by)}</td><td class="pc-num"><strong>總計 $${esc(_pcMoney(r.total_amount))}</strong></td><td>${pcStatusBadge(r.status)}</td><td><div class="pc-row-actions">${ops}</div></td></tr>`;
+  return `<tr><td>${esc(pcPageSize * (pcPage - 1) + idx + 1)}</td><td>${_pcPeriodText(r)}</td><td><span class="pc-status pc-status--engineering">工程零用金</span></td><td>${esc(r.filename || r.filename_text || '')}</td><td>${esc(r.upload_person)}</td><td>${esc(r.prepared_by)}</td><td class="pc-num"><strong>總計 $${esc(_pcMoney(r.total_amount))}</strong></td><td>${pcStatusBadge(r.status)}</td><td><div class="pc-row-actions">${ops}</div></td></tr>`;
 }
 function engCardHtml(r) {
   return pcReportCardHtml(r, '工程零用金', 'pc-report-type--engineering', '總計', r.total_amount, r.filename || r.filename_text || '', true);
