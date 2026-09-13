@@ -1,4 +1,6 @@
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import unquote
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -75,6 +77,24 @@ def test_engineering_duplicate_detection(eng_client):
     assert '工程零用金月報' in duplicate.json()['detail']
     updated = eng_client.put(f"/api/petty-cash-reports/{created.json()['id']}", json=payload())
     assert updated.status_code == 200, updated.text
+
+
+def test_engineering_concurrent_duplicate_create_is_serialized(eng_client):
+    token = eng_client.cookies.get(SESSION_COOKIE)
+    clients = []
+    for _ in range(2):
+        client = TestClient(app_main.app)
+        client.cookies.set(SESSION_COOKIE, token)
+        clients.append(client)
+    barrier = threading.Barrier(2)
+
+    def create(client):
+        barrier.wait(timeout=5)
+        return client.post('/api/petty-cash-reports', json=payload())
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(create, clients))
+    assert sorted(response.status_code for response in responses) == [201, 409]
 
 
 def test_engineering_export_tax_values_merges_and_filename(eng_client, tmp_path):

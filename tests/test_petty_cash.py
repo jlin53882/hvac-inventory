@@ -8,6 +8,8 @@
 import app.database as app_db
 import main as app_main
 import pytest
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
 from fastapi.testclient import TestClient
 
@@ -327,6 +329,25 @@ def test_duplicate_detection(pc_env):
     body["filename_text"] = "資材"
     r = c.put(f"/api/petty-cash-reports/{d['id']}", json=body)
     assert r.status_code == 200
+
+
+def test_concurrent_duplicate_create_is_serialized(pc_env):
+    primary = pc_env()
+    token = primary.cookies.get(SESSION_COOKIE)
+    clients = []
+    for _ in range(2):
+        client = TestClient(app_main.app)
+        client.cookies.set(SESSION_COOKIE, token)
+        clients.append(client)
+    barrier = threading.Barrier(2)
+
+    def create(client):
+        barrier.wait(timeout=5)
+        return client.post('/api/petty-cash-reports', json=_scenario_a())
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(create, clients))
+    assert sorted(response.status_code for response in responses) == [201, 409]
 
 
 def test_entry_date_outside_period_rejected(pc_env):

@@ -235,6 +235,62 @@ async function testModalLatestResponseWins() {
   await runPair('engineering', 'general');
 }
 
+async function testHistoryFilterContextsAndRefreshes() {
+  const contexts = [
+    ['pc-f-from', 'start_date=B', 'start_date=A'],
+    ['pc-f-person', 'upload_person=B', 'upload_person=A'],
+    ['pc-f-status', 'status=B', 'status=A'],
+    ['pc-f-type', 'report_type=B', 'report_type=A'],
+    ['pc-f-q', 'search=B', 'search=A'],
+  ];
+  for (const [field, latestFragment, staleFragment] of contexts) {
+    ['pc-f-from', 'pc-f-to', 'pc-f-person', 'pc-f-status', 'pc-f-type', 'pc-f-q'].forEach(id => {
+      elements[id].value = '';
+    });
+    elements[field].value = 'A';
+    context.pcLoadHistory(true);
+    elements[field].value = 'B';
+    context.pcLoadHistory(true);
+    resolvePending(latestFragment, { items: [report(200, 'B')], total: 1, page: 1, page_size: 20 });
+    await flush();
+    resolvePending('/api/petty-cash/kpi?', { total: 1, completed: 0, draft: 1 });
+    await flush();
+    resolvePending(staleFragment, { items: [report(100, 'A')], total: 1, page: 1, page_size: 20 });
+    await flush();
+    assert.strictEqual(context.pcReports[0].id, 200, `${field} stale response overwrote latest context`);
+  }
+
+  elements['pc-f-q'].value = '';
+  context.pcPage = 1;
+  context.pcLoadHistory();
+  context.pcPage = 2;
+  context.pcLoadHistory();
+  resolvePending('page=2', { items: [report(202, 'page-2')], total: 40, page: 2, page_size: 20 });
+  await flush();
+  resolvePending('/api/petty-cash/kpi?', { total: 40, completed: 20, draft: 20 });
+  await flush();
+  resolvePending('page=1', { items: [report(101, 'page-1')], total: 40, page: 1, page_size: 20 });
+  await flush();
+  assert.strictEqual(context.pcPage, 2, 'stale pagination response changed current page');
+  assert.strictEqual(context.pcReports[0].id, 202, 'stale pagination response replaced current rows');
+}
+
+function testPaginationRendersPageOffsets() {
+  context.pcReports = [
+    report(1, 'general'),
+    { ...report(2, 'engineering'), report_type: 'engineering', total_amount: 1004 },
+  ];
+  context.pcTotal = 60;
+  for (const page of [1, 2, 3]) {
+    context.pcPage = page;
+    context.pcRenderTable();
+    const html = elements['pc-tbody'].innerHTML;
+    const first = page === 1 ? '<td>1</td>' : page === 2 ? '<td>21</td>' : '<td>41</td>';
+    const second = page === 1 ? '<td>2</td>' : page === 2 ? '<td>22</td>' : '<td>42</td>';
+    assert(html.includes(first) && html.includes(second), `page ${page} mixed report sequence is incorrect`);
+  }
+}
+
 async function testGeneralSaveIsSingleFlightAndRecovers() {
   context.pcValidateBasic = () => true;
   context.pcModalGotoStep = () => true;
@@ -260,6 +316,13 @@ async function testGeneralSaveIsSingleFlightAndRecovers() {
   assert.strictEqual(pending.filter(x => x.url.includes('/api/petty-cash-reports')).length, 1, 'general retry was blocked after failure');
   resolvePending('/api/petty-cash-reports', { id: 30 });
   await retry;
+  context.pcModalEditingId = 88;
+  context.pcModalOpenSeq = 102;
+  context.pcModalSessionType = 'general';
+  const update = context.pcModalSave('completed');
+  assert(pending.some(x => x.url.includes('/api/petty-cash-reports/88')), 'general update used create endpoint');
+  resolvePending('/api/petty-cash-reports/88', { id: 88 });
+  await update;
 }
 
 async function testEngineeringSaveIsSingleFlight() {
@@ -279,12 +342,27 @@ async function testEngineeringSaveIsSingleFlight() {
   await first;
   await second;
   assert.strictEqual(context.pcSaveInFlight, false, 'engineering save did not release the lock');
+  context.engEditingId = 77;
+  context.pcModalSessionType = 'engineering';
+  context.pcModalOpenSeq = 201;
+  const failedUpdate = context.engSave('draft');
+  const duplicateUpdate = context.engSave('completed');
+  assert.strictEqual(pending.filter(x => x.url.includes('/api/petty-cash-reports/77')).length, 1, 'engineering update double click sent two writes');
+  rejectPending('/api/petty-cash-reports/77');
+  await failedUpdate;
+  await duplicateUpdate;
+  assert.strictEqual(context.pcSaveInFlight, false, 'engineering failure left the lock enabled');
+  const retry = context.engSave('completed');
+  resolvePending('/api/petty-cash-reports/77', { id: 77 });
+  await retry;
 }
 
 async function main() {
   await testHistoryLatestResponseWins();
+  await testHistoryFilterContextsAndRefreshes();
   await testDetailLatestResponseWins();
   await testModalLatestResponseWins();
+  testPaginationRendersPageOffsets();
   await testGeneralSaveIsSingleFlightAndRecovers();
   await testEngineeringSaveIsSingleFlight();
   const render = fs.readFileSync(path.join(ROOT, 'static/js/render/petty-cash.js'), 'utf8');
