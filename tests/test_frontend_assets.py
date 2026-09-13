@@ -498,6 +498,7 @@ def test_petty_cash_settings_options_domain_layout():
     assert 'data-petty-action="rename"' in js and 'data-petty-action="delete"' in js
     assert "panel.querySelectorAll('[data-petty-action]')" in js
     assert 'grid-template-columns:minmax(0,1fr) auto' in html
+    assert 'width:auto; min-width:88px' in html
     assert 'pc-opt-name-general-category' in js
 
 
@@ -525,6 +526,8 @@ def test_petty_cash_general_detail_rows_are_expandable():
     assert 'pc-general-entry-row--expandable' in js
     assert 'data-entry-index="${i}"' in js
     assert 'pcBindGeneralDetailEvents' in js
+    assert 'pcGeneralDetailEventsBound' in js
+    assert "event.target.closest('.pc-general-entry-row--expandable" in js
     assert 'type="button" class="pc-inline-expand"' in js
 
 

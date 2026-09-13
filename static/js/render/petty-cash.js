@@ -315,12 +315,16 @@ function pcToggleGeneralEntry(index) {
   if (pcDetailExpanded.has(index)) pcDetailExpanded.delete(index); else pcDetailExpanded.add(index);
   pcRenderDetail();
 }
+var pcGeneralDetailEventsBound = false;
 function pcBindGeneralDetailEvents() {
-  document.querySelectorAll('.pc-general-entry-row--expandable[data-entry-index], .pc-inline-expand[data-entry-index], .pc-general-detail-toggle[data-entry-index]').forEach(element => {
-    element.addEventListener('click', event => {
-      event.stopPropagation();
-      pcToggleGeneralEntry(Number(element.dataset.entryIndex));
-    });
+  if (pcGeneralDetailEventsBound) return;
+  pcGeneralDetailEventsBound = true;
+  document.addEventListener('click', event => {
+    const element = event.target.closest('.pc-general-entry-row--expandable[data-entry-index], .pc-inline-expand[data-entry-index], .pc-general-detail-toggle[data-entry-index]');
+    if (!element) return;
+    event.preventDefault();
+    event.stopPropagation();
+    pcToggleGeneralEntry(Number(element.dataset.entryIndex));
   });
 }
 function pcEntryStatus(e) {
