@@ -459,7 +459,11 @@ def test_petty_cash_kpi_grid_layout():
     assert 'pc-kpi-card__head' in js
     assert 'pc-kpi-card__num' in js
     assert 'pc-kpi-card__foot' in js
-    # Mobile: all KPI cards remain on one horizontal row
+    # Mobile decision: all KPI cards remain on one horizontal row.
+    assert '#content .pc-kpi-row { display:flex; grid-template-columns:none; align-items:stretch; }' in css
+    assert '#content .pc-kpi-card:first-child { grid-column:auto; }' in css
+    assert 'grid-column:1 / -1' not in css
+    assert '#content .pc-kpi-row { grid-template-columns: repeat(2,' not in css
     assert '@media (max-width: 1200px)' in css
     assert '@media (max-width: 767px)' in css
 
@@ -553,6 +557,8 @@ def test_petty_cash_settings_options_domain_layout():
     assert 'data-petty-action="rename"' in js and 'data-petty-action="delete"' in js
     assert "panel.querySelectorAll('[data-petty-action]')" in js
     assert 'grid-template-columns:minmax(0,1fr) auto' in html
+    assert '.pc-option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:54px; }' in html
+    assert '.pc-option-row { align-items: flex-start; flex-direction: column;' not in html
     assert 'width:auto; min-width:88px' in html
     assert 'border-radius: 8px' in read_petty_cash_css()
     assert 'pc-opt-name-general-category' in js
