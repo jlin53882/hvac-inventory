@@ -27,11 +27,30 @@ function engValidateBasic(){const s=document.getElementById('eng-start').value,e
 function engGotoStep(n){if(n===2&&!engValidateBasic())return;document.getElementById('eng-step-1').style.display=n===1?'':'none';document.getElementById('eng-step-2').style.display=n===2?'':'none';document.getElementById('eng-step-1-tab').classList.toggle('active',n===1);document.getElementById('eng-step-2-tab').classList.toggle('active',n===2);document.getElementById('eng-ops-1').style.display=n===1?'':'none';document.getElementById('eng-ops-2').style.display=n===2?'':'none';if(n===2)engRenderEditor();}
 function engAddCategory(){engData.categories.push({name:'',groups:[]});engActiveCategory=engData.categories.length-1;engRenderEditor();}
 function engAddGroup(ci){engData.categories[ci].groups.push({name:'',receipts:[]});engRenderEditor();}
-function engAddReceipt(ci,gi){engData.categories[ci].groups[gi].receipts.push({tax_id_mark:'',receipt_number:'',amount:'',details:['']});engRenderEditor();}
-function engAddDetail(ci,gi,ri){engData.categories[ci].groups[gi].receipts[ri].details.push('');engRenderEditor();}
-function engDeleteCategory(ci){if(!confirm('確定刪除分類及其底下所有資料？'))return;engData.categories.splice(ci,1);engActiveCategory=Math.max(0,Math.min(engActiveCategory,engData.categories.length-1));engRenderEditor();}
-function engDeleteGroup(ci,gi){if(!confirm('確定刪除項目及其底下所有單據？'))return;engData.categories[ci].groups.splice(gi,1);engRenderEditor();}
-function engDeleteReceipt(ci,gi,ri){if(!confirm('確定刪除這張單據及細項？'))return;engData.categories[ci].groups[gi].receipts.splice(ri,1);engRenderEditor();}
+var engEditorExpandedReceipts = new Set();
+function engEditorReceiptKey(ci, gi, ri) { return `${ci}:${gi}:${ri}`; }
+function engToggleEditorReceipt(ci, gi, ri) {
+  const key = engEditorReceiptKey(ci, gi, ri);
+  if (engEditorExpandedReceipts.has(key)) engEditorExpandedReceipts.delete(key);
+  else engEditorExpandedReceipts.add(key);
+  engRenderEditor();
+}
+function engAddReceipt(ci,gi){
+  engData.categories[ci].groups[gi].receipts.push({tax_id_mark:'',receipt_number:'',amount:'',details:['']});
+  engEditorExpandedReceipts.add(engEditorReceiptKey(ci, gi, engData.categories[ci].groups[gi].receipts.length - 1));
+  engRenderEditor();
+}
+function engAddDetail(ci,gi,ri){engData.categories[ci].groups[gi].receipts[ri].details.push('');engEditorExpandedReceipts.add(engEditorReceiptKey(ci, gi, ri));engRenderEditor();}
+function engDeleteCategory(ci){if(!confirm('確定刪除分類及其底下所有資料？'))return;engData.categories.splice(ci,1);engEditorExpandedReceipts.clear();engActiveCategory=Math.max(0,Math.min(engActiveCategory,engData.categories.length-1));engRenderEditor();}
+function engDeleteGroup(ci,gi){if(!confirm('確定刪除項目及其底下所有單據？'))return;engData.categories[ci].groups.splice(gi,1);engEditorExpandedReceipts.clear();engRenderEditor();}
+function engDeleteReceipt(ci,gi,ri){if(!confirm('確定刪除這張單據及細項？'))return;engData.categories[ci].groups[gi].receipts.splice(ri,1);engEditorExpandedReceipts.clear();engRenderEditor();}
+function engCategoryHtml(ci){
+  const c=engData.categories[ci];
+  return `<div class="eng-category-title"><select class="eng-name" data-c="${esc(ci)}" onchange="engSetNameFromSelect(this,'category',${esc(ci)})">${engOptionSelect('category', c.name)}</select><span>分類小計 $${esc(_pcMoney((c.groups||[]).reduce((n,g)=>n+(g.receipts||[]).reduce((m,r)=>m+(Number(r.amount)||0),0),0)))}</span><button class="pc-btn-sm pc-btn-sm--danger" onclick="engDeleteCategory(${esc(ci)})">刪除分類</button></div>${(c.groups||[]).map((g,gi)=>`<div class="eng-group-block"><div class="eng-group-head"><select class="eng-group" data-c="${esc(ci)}" data-g="${esc(gi)}" onchange="engSetNameFromSelect(this,'group',${esc(ci)},${esc(gi)})">${engOptionSelect('group', g.name)}</select><span>小計 $${esc(_pcMoney((g.receipts||[]).reduce((n,r)=>n+(Number(r.amount)||0),0)))} </span><button class="pc-btn-sm" onclick="engAddReceipt(${esc(ci)},${esc(gi)})">＋ 新增單據</button><button class="pc-btn-sm pc-btn-sm--danger" onclick="engDeleteGroup(${esc(ci)},${esc(gi)})">刪除項目</button></div><div class="eng-receipts">${(g.receipts||[]).map((r,ri)=>{
+    const key=engEditorReceiptKey(ci,gi,ri), expanded=engEditorExpandedReceipts.has(key), details=r.details||[], receiptClass=expanded?' is-expanded':'', receiptChevron=expanded?'▼':'▶';
+    return `<article class="eng-receipt${esc(receiptClass)}"><button type="button" class="eng-editor-receipt-toggle" aria-expanded="${expanded}" onclick="engToggleEditorReceipt(${esc(ci)},${esc(gi)},${esc(ri)})"><span><span class="eng-receipt-chevron">${esc(receiptChevron)}</span><b>單據 ${esc(ri+1)}</b><span class="eng-editor-receipt-no">${esc(r.receipt_number||'未填寫單據')}</span></span><strong>$${esc(_pcMoney(r.amount||0))}</strong></button>${expanded?`<div class="eng-editor-receipt-body"><div class="eng-receipt-grid"><div class="pc-field"><label>統編</label><input class="eng-tax" data-c="${esc(ci)}" data-g="${esc(gi)}" data-r="${esc(ri)}" value="${esc(r.tax_id_mark||'')}" placeholder="V／實際統編"></div><div class="pc-field"><label>發票號碼／收據</label><input class="eng-no" data-c="${esc(ci)}" data-g="${esc(gi)}" data-r="${esc(ri)}" value="${esc(r.receipt_number||'')}"></div><div class="pc-field"><label>金額 <span class="pc-required">*</span></label><input class="eng-amount" data-c="${esc(ci)}" data-g="${esc(gi)}" data-r="${esc(ri)}" type="number" min="0" step="0.01" value="${esc(r.amount??'')}"></div></div>${details.map((d,di)=>`<div class="eng-detail-row"><label>細項 ${esc(di+1)}</label><input class="eng-detail" data-c="${esc(ci)}" data-g="${esc(gi)}" data-r="${esc(ri)}" data-d="${esc(di)}" value="${esc(d||'')}"><button class="pc-btn-sm pc-btn-sm--danger" onclick="engData.categories[${esc(ci)}].groups[${esc(gi)}].receipts[${esc(ri)}].details.splice(${esc(di)},1);engRenderEditor()">刪除</button></div>`).join('')}<div class="eng-editor-receipt-actions"><button class="pc-btn-sm" onclick="engAddDetail(${esc(ci)},${esc(gi)},${esc(ri)})">＋ 新增細項</button><button class="pc-btn-sm pc-btn-sm--danger" onclick="engDeleteReceipt(${esc(ci)},${esc(gi)},${esc(ri)})">刪除單據</button></div></div>`:''}</article>`;
+  }).join('')}</div></div>`).join('')}</div>`;
+}
 function engRenderEditor(){const box=document.getElementById('eng-editor');if(!box)return;const cats=engData.categories||[];box.innerHTML=`<aside class="eng-category-nav"><strong>分類</strong>${cats.map((c,i)=>`<button class="eng-category-tab${i===engActiveCategory?' active':''}" onclick="engActiveCategory=${esc(i)};engRenderEditor()">${esc(c.name||'未命名分類')}</button>`).join('')}<button class="pc-btn-sm" onclick="engAddCategory()">＋ 新增分類</button></aside><section class="eng-detail-pane">${cats.length?engCategoryHtml(engActiveCategory):'<div class="pc-empty">尚未建立任何分類<br><button class="pc-btn-sm" onclick="engAddCategory()">＋ 新增第一個分類</button></div>'}</section>`;box.querySelectorAll('input,select').forEach(x=>x.addEventListener('input',engSyncInput));}
 function engOptionSelect(kind, value) {
   const current = String(value || '');

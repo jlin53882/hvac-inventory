@@ -92,6 +92,9 @@ def test_engineering_frontend_contract():
     assert "pcChooseReportType" in render_text and "engRenderDetail" in render_text
     assert "engAddCategory" in modal_text and "tax_id_mark" in modal_text
     assert "JSON.parse(JSON.stringify(d))" in modal_text
+    assert 'engToggleEditorReceipt' in modal_text
+    assert 'eng-editor-receipt-toggle' in modal_text
+    assert 'engEditorExpandedReceipts' in modal_text
     assert 'id="eng-owner"' in modal_text and 'oninput="engFilenamePreview()"' in modal_text
     assert "engineering-petty-cash.js" in index_text
 

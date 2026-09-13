@@ -740,3 +740,11 @@
   .eng-group-block { margin-bottom:10px; }
   .eng-group-head { min-height:44px; }
 }
+/* Engineering editor receipt accordion */
+.eng-editor-receipt-toggle { width:100%; min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:0; border-radius:8px; background:#f8fafc; color:#1e3a5f; cursor:pointer; text-align:left; }
+.eng-editor-receipt-toggle:hover, .eng-receipt.is-expanded .eng-editor-receipt-toggle { background:#eff6ff; }
+.eng-editor-receipt-toggle > span { display:flex; align-items:center; gap:8px; min-width:0; }
+.eng-editor-receipt-no { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-weight:400; }
+.eng-editor-receipt-body { padding-top:10px; }
+.eng-editor-receipt-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.eng-editor-receipt-toggle:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }
