@@ -512,6 +512,8 @@ def create_petty_cash_report(body: PettyCashReportIn | EngineeringReportIn, user
     conn = get_db()
     try:
         _require_pc_perm(conn, user, "petty-cash-create")
+        # Serialize duplicate check + insert/update so concurrent clients cannot both pass SELECT.
+        conn.execute("BEGIN IMMEDIATE")
         if isinstance(body, EngineeringReportIn):
             _check_engineering_duplicate(conn, body)
             report_id = write_engineering(conn, body, user["id"])
@@ -573,6 +575,8 @@ def update_petty_cash_report(
             can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
         ):
             raise HTTPException(403, "僅建立者或具全域刪除權限者可編輯")
+        # Keep the duplicate check and full replacement in one writer transaction.
+        conn.execute("BEGIN IMMEDIATE")
         if isinstance(body, EngineeringReportIn):
             _check_engineering_duplicate(conn, body, exclude_id=report_id)
             write_engineering(conn, body, user["id"], report_id)
