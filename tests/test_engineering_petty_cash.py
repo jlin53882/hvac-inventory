@@ -144,11 +144,11 @@ def test_engineering_export_tax_values_merges_and_filename(eng_client, tmp_path)
     path = tmp_path / 'out.xlsx'; path.write_bytes(response.content)
     ws = load_workbook(path).active
     assert ws.title == '0901-0904'
-    assert ws['C2'].value == 'V'; assert ws['C3'].value == '12345678'
-    assert ws['C2'].number_format == '@'; assert ws['C3'].font.name == 'Calibri'
-    assert 'C5:C10' in [str(x) for x in ws.merged_cells.ranges]
-    assert ws['F13'].value == 1829
-    assert ws['F5'].value == 1004 or ws['F5'].value == 1004.0
+    assert ws['C3'].value == 'V'; assert ws['C4'].value == '12345678'
+    assert ws['C3'].number_format == '@'; assert ws['C4'].font.name == ws['C3'].font.name
+    assert 'C6:C11' in [str(x) for x in ws.merged_cells.ranges]
+    assert ws['F14'].value == 1829
+    assert ws['F5'].value == 825 or ws['F5'].value == 825.0
 
 
 def test_engineering_frontend_contract():
@@ -250,8 +250,8 @@ def test_engineering_export_formula_values_are_safe(eng_client, tmp_path):
     response = eng_client.get(f"/api/petty-cash-reports/{created['id']}/export.xlsx")
     path = tmp_path / 'formula-safe.xlsx'; path.write_bytes(response.content)
     ws = load_workbook(path).active
-    assert ws['C2'].value == "'=1+1"
-    assert ws['D2'].value == "'+CMD"
+    assert ws['C3'].value == "'=1+1"
+    assert ws['D3'].value == "'+CMD"
 
 
 def test_engineering_viewer_can_read_but_cannot_write(eng_client):

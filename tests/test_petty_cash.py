@@ -399,7 +399,7 @@ def test_export_filename_title_merges(pc_env, tmp_path):
     assert ws["A1"].value == "08/26~09/25零用金收支明細表"  # Excel 內標題維持斜線
     assert ws["B2"].value == "115年"
     assert ws["E2"].value == 224
-    assert ws["E19"].value == 3911
+    assert ws["E16"].value == 3911
     merges = [str(m) for m in ws.merged_cells.ranges]
     assert "A1:F1" in merges
     # 員工福利 4 明細佔 12~15 列（前 8 筆單列佔 4~11 列），日期/支出/科目跨列合併
@@ -419,7 +419,7 @@ def test_export_prepared_by_without_uploader(pc_env, tmp_path):
     p.write_bytes(r.content)
     from openpyxl import load_workbook
     ws = load_workbook(p).active
-    assert ws["E21"].value == "王小明"
+    assert ws["E19"].value == "王小明"
     texts = [str(cell.value) for row in ws.iter_rows() for cell in row if cell.value]
     assert not any("老闆" in t for t in texts)
     assert any("王小明" in t for t in texts)

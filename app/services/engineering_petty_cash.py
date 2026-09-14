@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """工程零用金：階層資料計算、檔名與範本匯出。"""
-from copy import copy
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import re
@@ -9,6 +8,13 @@ import io
 
 from openpyxl import load_workbook
 
+from app.services.petty_cash_excel import (
+    configure_print_layout,
+    copy_role_style,
+    ensure_page_defaults,
+    period_display,
+    period_token,
+)
 from app.services.safety import excel_safe
 
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "assets" / "工程零用金範本.xlsx"
@@ -53,28 +59,15 @@ def engineering_summary_totals(conn, report_ids):
 
 
 def engineering_filename(start_date, end_date, owner, note=""):
-    start = datetime.date.fromisoformat(start_date)
-    end = datetime.date.fromisoformat(end_date)
-    if start == end:
-        period = start.strftime("%m%d")
-    elif start.year == end.year:
-        period = f"{start:%m%d}-{end:%m%d}"
-    else:
-        period = f"{start:%Y%m%d}-{end:%Y%m%d}"
+    period = period_token(start_date, end_date)
     note = (note or "").strip()
     inside = f"{period} {note}" if note else period
     return excel_safe(f"({inside}){(owner or '').strip()} 工程零用金.xlsx")
 
 
 def engineering_sheet_title(start_date, end_date):
-    """工程零用金工作表名稱：與報表期間一致，並符合 Excel 31 字限制。"""
-    start = datetime.date.fromisoformat(start_date)
-    end = datetime.date.fromisoformat(end_date)
-    if start == end:
-        return start.strftime("%m%d")
-    if start.year == end.year:
-        return f"{start:%m%d}-{end:%m%d}"
-    return f"{start:%Y%m%d}-{end:%Y%m%d}"
+    """工程零用金工作表名稱：使用不含 Excel 禁用字元的期間 token。"""
+    return period_token(start_date, end_date)
 
 def engineering_safe_filename(name):
     """工程報表保留規格所需括號/空格，同時阻擋路徑與危險字元。"""
@@ -86,16 +79,6 @@ def engineering_safe_filename(name):
         stem = "_" + stem[1:]
     stem = stem[:120 - len(suffix)] or "file"
     return stem + suffix
-
-
-def _style_row(ws, src, dst):
-    ws.row_dimensions[dst].height = ws.row_dimensions[src].height
-    for col in range(1, 7):
-        a, b = ws.cell(src, col), ws.cell(dst, col)
-        b._style = copy(a._style)
-        if a.has_style:
-            b.font = copy(a.font); b.fill = copy(a.fill); b.border = copy(a.border)
-            b.alignment = copy(a.alignment); b.number_format = a.number_format
 
 
 def _merge(ws, first, last, col):
@@ -145,72 +128,144 @@ def write_engineering(conn, body, user_id, report_id=None):
     return report_id
 
 
+def _xlsx_number(value):
+    amount = money(value)
+    return int(amount) if amount == amount.to_integral_value() else float(amount)
+
+
+def _clear_visible_body(ws, first_body_row):
+    for merged in list(ws.merged_cells.ranges):
+        ws.unmerge_cells(str(merged))
+    if ws.max_row >= first_body_row:
+        ws.delete_rows(first_body_row, ws.max_row - first_body_row + 1)
+    for key in list(ws.row_dimensions):
+        try:
+            row_number = int(key)
+        except (TypeError, ValueError):
+            continue
+        if row_number >= first_body_row:
+            del ws.row_dimensions[key]
+
+
 def build_engineering_report(report):
     wb = load_workbook(TEMPLATE_PATH)
     ws = wb.active
-    for merged in list(ws.merged_cells.ranges):
-        ws.unmerge_cells(str(merged))
-    source_rows = max(2, min(ws.max_row, 40))
-    # Keep the source header, clear all data/summary values, then rebuild rows.
-    for row in ws.iter_rows():
-        for cell in row:
-            cell.value = None
-    headers = ["類別", "項目", "統編", "發票號碼", "細項", "金額"]
-    for col, value in enumerate(headers, 1):
-        ws.cell(1, col).value = value
-    needed = max(
-        1,
-        sum(
-            len(receipt.get("details") or [""])
-            for cat in report.get("categories", [])
-            for group in cat.get("groups", [])
-            for receipt in group.get("receipts", [])
-        ) + len(report.get("categories", [])),
-    )
-    first_data = 2
-    template_data = 2
-    if needed > source_rows - 1:
-        ws.insert_rows(source_rows + 1, needed - (source_rows - 1))
-    for r in range(first_data, first_data + needed):
-        _style_row(ws, template_data, r)
-    pos = first_data
-    for cat in report.get("categories", []):
-        cat_start = pos
-        for group in cat.get("groups", []):
-            group_start = pos
-            for receipt in group.get("receipts", []):
-                details = receipt.get("details") or [""]
-                receipt_end = pos + len(details) - 1
-                for detail_index, detail in enumerate(details):
-                    r = pos + detail_index
-                    ws.cell(r, 1).value = excel_safe(cat.get("name", ""))
-                    ws.cell(r, 2).value = excel_safe(group.get("name", ""))
-                    tax_cell = ws.cell(r, 3)
-                    tax_cell.value = excel_safe(str(receipt.get("tax_id_mark", "") or ""))
-                    tax_cell.number_format = "@"
-                    tax_font = copy(tax_cell.font)
-                    tax_font.name = "Calibri"
-                    tax_cell.font = tax_font
-                    ws.cell(r, 4).value = excel_safe(str(receipt.get("receipt_number", "") or ""))
-                    ws.cell(r, 4).number_format = "@"
-                    ws.cell(r, 5).value = excel_safe(detail)
-                    if detail_index == 0:
-                        ws.cell(r, 6).value = float(money(receipt.get("amount")))
-                for col in (3, 4, 6): _merge(ws, pos, receipt_end, col)
-                pos = receipt_end + 1
-            _merge(ws, group_start, pos - 1, 2)
-        cat_end = pos - 1
-        _merge(ws, cat_start, cat_end, 1)
-        ws.cell(pos, 1).value = "小計:"
-        ws.cell(pos, 6).value = float(money(cat.get("subtotal", 0)))
-        ws.merge_cells(start_row=pos, start_column=1, end_row=pos, end_column=5)
-        pos += 1
-    total_row = pos + 1
-    _style_row(ws, template_data, total_row)
-    ws.cell(total_row, 1).value = "總計:"
-    ws.cell(total_row, 6).value = float(money(report.get("total_amount")))
-    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=5)
+    styles = wb["__styles__"]
+    _clear_visible_body(ws, 3)
+    ws.merge_cells("A1:F1")
+    ws["A1"] = f"{period_display(report['start_date'], report['end_date'])}工程零用金明細表"
+    for col, value in enumerate(["類別", "項目", "統編", "發票號碼", "細項", "金額"], 1):
+        ws.cell(2, col).value = value
+
+    categories = report.get("categories") or []
+    calculated = calculate_engineering_totals(categories)
+    categories = calculated["categories"]
+    calculated_total = calculated["total_amount"]
+    data_rows = []
+    category_merges = []
+    group_merges = []
+    receipt_merges = []
+    subtotal_rows = []
+    current_row = 3
+
+    def append_data(category_name, group_name, receipt, detail, category_start, group_start, receipt_start):
+        data_rows.append({
+            "category": category_name,
+            "group": group_name,
+            "tax_id_mark": (receipt or {}).get("tax_id_mark", "") if receipt else "",
+            "receipt_number": (receipt or {}).get("receipt_number", "") if receipt else "",
+            "detail": detail,
+            "amount": (receipt or {}).get("amount", 0) if receipt else 0,
+            "category_anchor": current_row == category_start,
+            "group_anchor": current_row == group_start,
+            "receipt_anchor": current_row == receipt_start,
+        })
+
+    for category in categories:
+        category_start = current_row
+        groups = category.get("groups") or []
+        if not groups:
+            append_data(category.get("name", ""), "", None, "", category_start, current_row, current_row)
+            current_row += 1
+        else:
+            for group in groups:
+                group_start = current_row
+                receipts = group.get("receipts") or []
+                if not receipts:
+                    append_data(category.get("name", ""), group.get("name", ""), None, "", category_start, group_start, current_row)
+                    current_row += 1
+                else:
+                    for receipt in receipts:
+                        receipt_start = current_row
+                        details = receipt.get("details") or [""]
+                        for detail_index, detail in enumerate(details):
+                            append_data(
+                                category.get("name", ""),
+                                group.get("name", ""),
+                                receipt,
+                                detail,
+                                category_start,
+                                group_start,
+                                receipt_start,
+                            )
+                            current_row += 1
+                        receipt_end = current_row - 1
+                        if receipt_end > receipt_start:
+                            receipt_merges.extend((receipt_start, receipt_end, col) for col in (3, 4, 6))
+                group_end = current_row - 1
+                if group_end >= group_start and group_end > group_start:
+                    group_merges.append((group_start, group_end, 2))
+        category_end = current_row - 1
+        if category_end > category_start:
+            category_merges.append((category_start, category_end, 1))
+        subtotal_rows.append((current_row, category.get("subtotal", 0)))
+        current_row += 1
+
+    for index, record in enumerate(data_rows):
+        row_number = 3 + index
+        copy_role_style(styles, "engineering_data", ws, row_number)
+        if record["category_anchor"]:
+            ws.cell(row_number, 1).value = excel_safe(record["category"])
+        if record["group_anchor"]:
+            ws.cell(row_number, 2).value = excel_safe(record["group"])
+        if record["receipt_anchor"]:
+            tax = ws.cell(row_number, 3)
+            tax.value = excel_safe(str(record["tax_id_mark"] or ""))
+            tax.number_format = "@"
+            number = ws.cell(row_number, 4)
+            number.value = excel_safe(str(record["receipt_number"] or ""))
+            number.number_format = "@"
+            ws.cell(row_number, 6).value = _xlsx_number(record["amount"])
+        ws.cell(row_number, 5).value = excel_safe(record["detail"])
+
+    for first, last, col in receipt_merges + group_merges + category_merges:
+        _merge(ws, first, last, col)
+
+    for row_number, subtotal in subtotal_rows:
+        copy_role_style(styles, "engineering_subtotal", ws, row_number)
+        ws.cell(row_number, 1).value = "小計:"
+        ws.cell(row_number, 6).value = _xlsx_number(subtotal)
+        ws.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=5)
+
+    spacer_row = current_row
+    copy_role_style(styles, "engineering_spacer", ws, spacer_row)
+    total_top = spacer_row + 1
+    for role, row_number in (
+        ("engineering_total_top", total_top),
+        ("engineering_total_middle", total_top + 1),
+        ("engineering_total_bottom", total_top + 2),
+    ):
+        copy_role_style(styles, role, ws, row_number)
+    ws.cell(total_top, 1).value = "總計:"
+    ws.cell(total_top, 6).value = _xlsx_number(report.get("total_amount", calculated_total))
+    ws.merge_cells(start_row=total_top, start_column=1, end_row=total_top + 2, end_column=5)
+    ws.merge_cells(start_row=total_top, start_column=6, end_row=total_top + 2, end_column=6)
+
     ws.title = engineering_sheet_title(report["start_date"], report["end_date"])
+    ensure_page_defaults(ws)
+    configure_print_layout(ws, total_top + 2, title_rows="$1:$2")
     wb.calculation.fullCalcOnLoad = True
-    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
     return buf
