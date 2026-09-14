@@ -173,7 +173,7 @@ def _summary_dict(conn, row, engineering_totals=None) -> dict:
 
 def _check_duplicate(conn, body: PettyCashReportIn, exclude_id: int | None = None) -> None:
     sql = """SELECT id FROM petty_cash_reports
-             WHERE upload_person=? AND start_date=? AND end_date=? AND filename_text=?"""
+             WHERE report_type='general' AND upload_person=? AND start_date=? AND end_date=? AND filename_text=?"""
     params: list = [body.upload_person, body.start_date, body.end_date, body.filename_text]
     if exclude_id is not None:
         sql += " AND id!=?"
@@ -449,7 +449,7 @@ def previous_balance(
             f"""SELECT r.id, r.start_date, r.end_date, r.opening_balance,
                        ({income_expr}) AS income, ({expense_expr}) AS expense
                 FROM petty_cash_reports r
-                WHERE r.upload_person=? AND r.end_date < ? AND r.status='completed'
+                WHERE r.report_type='general' AND r.upload_person=? AND r.end_date < ? AND r.status='completed'
                 ORDER BY r.end_date DESC, r.id DESC LIMIT 1""",
             (upload_person.strip(), before),
         ).fetchone()
@@ -543,7 +543,7 @@ def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
         _require_pc_perm(conn, user, "petty-cash-view")
         data = _report_dict(conn, report_id)
         row = conn.execute(
-            "SELECT uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
+            "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
             (report_id,),
         ).fetchone()
         can_all = has_perm(conn, user, "petty-cash-delete-all")
@@ -565,7 +565,7 @@ def update_petty_cash_report(
     try:
         _require_pc_perm(conn, user, "petty-cash-edit")
         row = conn.execute(
-            "SELECT uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
+            "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
             (report_id,),
         ).fetchone()
         if row is None:
@@ -575,8 +575,12 @@ def update_petty_cash_report(
             can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
         ):
             raise HTTPException(403, "僅建立者或具全域刪除權限者可編輯")
-        # Keep the duplicate check and full replacement in one writer transaction.
+        # Keep type validation, duplicate check, and full replacement in one writer transaction.
         conn.execute("BEGIN IMMEDIATE")
+        existing_type = row["report_type"] or "general"
+        requested_type = "engineering" if isinstance(body, EngineeringReportIn) else "general"
+        if existing_type != requested_type:
+            raise HTTPException(409, "不可用不同報表類型更新既有零用金月報")
         if isinstance(body, EngineeringReportIn):
             _check_engineering_duplicate(conn, body, exclude_id=report_id)
             write_engineering(conn, body, user["id"], report_id)
@@ -605,7 +609,7 @@ def delete_petty_cash_report(report_id: int, user: dict = Depends(require_login)
     try:
         _require_pc_perm(conn, user, "petty-cash-delete")
         row = conn.execute(
-            "SELECT uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
+            "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
             (report_id,),
         ).fetchone()
         if row is None:

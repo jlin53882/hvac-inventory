@@ -69,6 +69,45 @@ def test_engineering_filter_and_update_are_shared_shell(eng_client):
     assert updated.json()['total_amount'] == 1929
 
 
+def general_payload():
+    return {
+        'report_type': 'general', 'start_date': '2026-09-01', 'end_date': '2026-09-04',
+        'upload_person': '藍先生', 'prepared_by': '另一位製表人', 'filename_text': '發票',
+        'opening_balance': 100, 'status': 'completed', 'entries': [],
+    }
+
+
+def test_general_and_engineering_duplicate_keys_are_isolated(eng_client):
+    engineering = eng_client.post('/api/petty-cash-reports', json=payload())
+    assert engineering.status_code == 201, engineering.text
+    general = eng_client.post('/api/petty-cash-reports', json=general_payload())
+    assert general.status_code == 201, general.text
+    assert general.json()['report_type'] == 'general'
+
+
+def test_update_rejects_cross_report_type_payload(eng_client):
+    created = eng_client.post('/api/petty-cash-reports', json=payload())
+    assert created.status_code == 201, created.text
+    rejected = eng_client.put(
+        f"/api/petty-cash-reports/{created.json()['id']}", json=general_payload()
+    )
+    assert rejected.status_code == 409, rejected.text
+    unchanged = eng_client.get(f"/api/petty-cash-reports/{created.json()['id']}")
+    assert unchanged.status_code == 200
+    assert unchanged.json()['report_type'] == 'engineering'
+
+
+def test_previous_balance_ignores_engineering_reports(eng_client):
+    created = eng_client.post('/api/petty-cash-reports', json=payload())
+    assert created.status_code == 201, created.text
+    previous = eng_client.get(
+        '/api/petty-cash-reports/previous-balance',
+        params={'upload_person': '藍先生', 'before': '2026-09-05'},
+    )
+    assert previous.status_code == 200
+    assert previous.json()['found'] is False
+
+
 def test_engineering_duplicate_detection(eng_client):
     created = eng_client.post('/api/petty-cash-reports', json=payload())
     assert created.status_code == 201, created.text

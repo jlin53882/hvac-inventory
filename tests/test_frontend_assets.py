@@ -1898,7 +1898,8 @@ def test_stocktake_submit_includes_equal_qty():
     assert "if (item && stock) {" in js
     assert "items.push({ item_id: item.id, location: location, actual_qty: v })" in js
     assert 'Qty.validFor(_raw, _unitType)' in js
-    assert "const _unitType = Qty.unitTypeOf(item ? item.unit : '')" in js
+    assert "const _unitType = (typeof Qty.inputTypeOf === 'function')" in js
+    assert "Qty.inputTypeOf(item ? item.unit : '')" in js
 
 
 def test_stocktake_reminder_hides_after_submit():
@@ -3818,6 +3819,7 @@ def test_qty_merge_preserves_both_contracts():
     assert "function matchFrac(av, eps, maxDen)" in qty
     assert "function decPlaces(r3)" in qty
     assert "Qty.validFor(raw, t)" in qty
+    assert "function inputTypeOf(unitName)" in qty
     # id 與動態列 element 兩種 caller 都要相容。
     assert "function qtyInputOrToast(idOrEl, unit)" in qty
     assert "typeof idOrEl === 'string'" in qty
