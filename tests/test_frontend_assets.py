@@ -74,6 +74,8 @@ SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
 QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
 QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
+# 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
+QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation.js")
 PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
 # 待測：零用金月報（2026-09-12）
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
@@ -340,6 +342,27 @@ def test_quotation_upload_actions_and_edit_modal_contract():
     assert ".qup-edit-modal .qup-modal__bd" in css and "background: #fff" in css
     assert "isMobileView" in js and "開啟 PDF" in js
     assert "data-pdf-url" in js
+
+
+def test_quotation_history_loads_all_pages():
+    """歷史報價單全展開：quoteLoadHistory 自動翻頁載入全部，不只後端預設前 20 筆。
+
+    （2026-09-15：/api/quotations 預設 page_size=20，前端只抓第一頁，
+    第 21 筆後永遠看不到。舊版跑此測試必紅。）
+    """
+    js = read(QUOTATION_RENDER_JS)
+    assert "function quoteLoadHistory" in js
+    # 自動翻頁：用 page 逐頁抓、以上限 page_size 減少請求數
+    assert "page_size=100" in js
+    assert "&page=" in js
+    # 以後端回傳 total 判斷是否抓完，並累加各頁 items
+    assert "data.total" in js
+    assert ".concat(" in js
+    # 既有契約不變：搜尋參數、列表容器、空狀態、esc 渲染
+    assert "/api/quotations?q=" in js
+    assert "quote-history-list" in js
+    assert "quote-history-empty" in js
+    assert "目前沒有歷史報價單" in js
 
 
 def test_pdf_preview_button_runtime():
