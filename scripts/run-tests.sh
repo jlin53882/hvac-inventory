@@ -15,7 +15,14 @@
 #    app/database.py、app/services/auth.py、main.py、app/models.py、app/config.py
 set -e
 cd "$(dirname "$0")/.." || exit 1
-PY=".venv/Scripts/python.exe"
+if [ -x ".venv/Scripts/python.exe" ]; then
+  PY=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+  PY=".venv/bin/python"
+else
+  echo "找不到專案虛擬環境 Python（.venv/Scripts/python.exe 或 .venv/bin/python）"
+  exit 1
+fi
 
 case "${1:-all}" in
   core)       FILES="tests/test_main.py" ;;
@@ -32,4 +39,6 @@ echo "== 測試組: ${1:-all} =="
 # 2026-08-14 補：all（全量）用 pytest-xdist 並行加速（~150s → ~60s）；分組組別小不並行避免 overhead
 PARALLEL=""
 [ "${1:-all}" = "all" ] && PARALLEL="-n auto"
-exec env -u PYTHONPATH "$PY" -m pytest $FILES -q $PARALLEL
+JUNIT_ARG=""
+[ -n "${JUNITXML:-}" ] && JUNIT_ARG="--junitxml=${JUNITXML}"
+exec env -u PYTHONPATH "$PY" -m pytest $FILES -q $PARALLEL $JUNIT_ARG

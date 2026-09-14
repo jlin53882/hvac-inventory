@@ -72,6 +72,10 @@
 - 異常連續 2 次 → 自動推播 Discord 通知
 - 安裝：`scripts/install-monitor.bat`（需系統管理員）
 
+### GitHub Actions CI
+
+`.github/workflows/ci.yml` 會在 Pull Request、`master` push 或手動執行時啟動，使用 Windows runner 與 Python 3.11/3.12，透過 `uv.lock` 安裝固定依賴並執行完整測試。CI 只驗證程式碼，不直接連線或部署正式機器；正式上線仍需依 Windows runtime 驗證流程處理。
+
 ---
 
 ## 📁 專案結構
