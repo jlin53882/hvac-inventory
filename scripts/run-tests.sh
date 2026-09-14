@@ -32,7 +32,7 @@ case "${1:-all}" in
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   rbac)       FILES="tests/test_rbac.py tests/test_rbac_perms.py" ;;
   regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py tests/test_gcal_keys.py tests/test_deadvar_verify.py" ;;
-  petty_cash) FILES="tests/test_petty_cash.py" ;;
+  petty_cash) FILES="tests/test_petty_cash.py tests/test_engineering_petty_cash.py tests/test_petty_cash_frontend_races.py" ;;
   all)        FILES="tests/" ;;
   *) echo "用法: $0 [core|frontend|storage|auth|rbac|regression|petty_cash|all]"; exit 1 ;;
 esac

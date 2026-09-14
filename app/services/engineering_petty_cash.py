@@ -170,6 +170,7 @@ def build_engineering_report(report):
 
     def append_data(category_name, group_name, receipt, detail, category_start, group_start, receipt_start):
         data_rows.append({
+            "row_number": current_row,
             "category": category_name,
             "group": group_name,
             "tax_id_mark": (receipt or {}).get("tax_id_mark", "") if receipt else "",
@@ -221,8 +222,8 @@ def build_engineering_report(report):
         subtotal_rows.append((current_row, category.get("subtotal", 0)))
         current_row += 1
 
-    for index, record in enumerate(data_rows):
-        row_number = 3 + index
+    for record in data_rows:
+        row_number = record["row_number"]
         copy_role_style(styles, "engineering_data", ws, row_number)
         if record["category_anchor"]:
             ws.cell(row_number, 1).value = excel_safe(record["category"])

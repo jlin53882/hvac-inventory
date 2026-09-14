@@ -64,7 +64,22 @@ def test_engineering_excel_has_period_title_and_dynamic_body(tmp_path):
     assert ws.title == "0901-0904"
     assert ws["A1"].value == "09/01~09/04工程零用金明細表"
     assert [ws.cell(2, col).value for col in range(1, 7)] == ["類別", "項目", "統編", "發票號碼", "細項", "金額"]
+    assert ws["A3"].value == "交通費"
+    assert ws["B3"].value == "油資"
+    assert ws["C3"].value == "V"
+    assert ws["D3"].value == "DH-1"
+    assert ws["F3"].value == 100
+    assert ws["C4"].value == "12345678"
+    assert ws["D4"].value == "DH-2"
+    assert ws["F4"].value == 725
     assert ws["F5"].value == 825
+    assert ws["A6"].value == "工程材料費"
+    assert ws["B6"].value == "五金/工具"
+    assert ws["C6"].value == "V"
+    assert ws["D6"].value == "CB 20011829"
+    assert ws["E6"].value == "材料 0"
+    assert ws["F6"].value == 1004
+    assert [ws.cell(row, 5).value for row in range(7, 12)] == [f"材料 {i}" for i in range(1, 6)]
     assert ws["F12"].value == 1004
     assert ws["F14"].value == 1829
     assert "C6:C11" in [str(value) for value in ws.merged_cells.ranges]
@@ -121,3 +136,28 @@ def test_general_excel_rebuilds_body_after_more_than_template_capacity(tmp_path)
     assert ws["E27"].value == "王小明"
     assert ws.calculate_dimension() == "A1:F27"
     assert str(ws.print_area).endswith("$A$1:$F$27")
+
+
+def test_engineering_excel_three_categories_keep_subtotal_gaps(tmp_path):
+    """三分類 row plan 不得讓後續資料覆蓋前一分類 subtotal。"""
+    categories = [
+        {"name": "分類A", "groups": [{"name": "項目A", "receipts": [{"amount": 10, "details": ["A1"]}]}]},
+        {"name": "分類B", "groups": [{"name": "項目B", "receipts": [{"amount": 20, "details": ["B1", "B2", "B3"]}]}]},
+        {"name": "分類C", "groups": [{"name": "項目C", "receipts": [
+            {"amount": 30, "details": ["C1"]},
+            {"amount": 40, "details": ["C2"]},
+        ]}]},
+    ]
+    ws = _load_bytes(build_engineering_report, _engineering_report(categories), tmp_path, "engineering-three.xlsx")
+    assert ws["A3"].value == "分類A"
+    assert ws["F4"].value == 10
+    assert ws["A5"].value == "分類B"
+    assert ws["E7"].value == "B3"
+    assert ws["F8"].value == 20
+    assert ws["A9"].value == "分類C"
+    assert ws["A11"].value == "小計:"
+    assert ws["F11"].value == 70
+    assert ws["F13"].value == 100
+    assert ws.calculate_dimension() == "A1:F15"
+    assert "C5:C7" in [str(value) for value in ws.merged_cells.ranges]
+    assert "C9:C10" not in [str(value) for value in ws.merged_cells.ranges]
