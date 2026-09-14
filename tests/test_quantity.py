@@ -275,3 +275,74 @@ def test_prepared_out_uses_canonical_qty_for_all_state_and_movement(client):
     assert movement["before_qty"] == pytest.approx(1)
     assert movement["after_qty"] == pytest.approx(0.667)
     assert round(movement["before_qty"] + movement["delta"], 3) == pytest.approx(movement["after_qty"])
+
+
+def test_direct_stockout_allows_remaining_equal_prepared_qty(client):
+    """Regression: 0.3 - 0.1 must not reject remaining prepared 0.2."""
+    iid = _make(client, "CAN-GUARD", "直接出庫 guard 品", "罐", 0.3)
+    prepared = client.post(f"/api/items/{iid}/prepare", json={"qty": 0.2, "location": "鐵架"})
+    assert prepared.status_code == 200, prepared.text
+
+    response = client.post("/api/stockout", json={
+        "item_id": iid, "qty": 0.1, "destination": "測試案場",
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["total_qty"] == pytest.approx(0.2)
+    assert response.json()["prepared_qty"] == pytest.approx(0.2)
+
+    rows = client.get("/api/movements", params={"limit": 500}).json()
+    movement = next(row for row in rows if row["item_id"] == iid and row["reason"] == "出庫")
+    assert movement["before_qty"] == pytest.approx(0.3)
+    assert movement["delta"] == pytest.approx(-0.1)
+    assert movement["after_qty"] == pytest.approx(0.2)
+    assert movement["before_qty"] + movement["delta"] == pytest.approx(movement["after_qty"])
+    assert round(movement["before_qty"] + movement["delta"], 3) == movement["after_qty"]
+
+
+def test_legacy_return_repair_canonicalizes_return_total(client):
+    """Regression: 0.1 + 0.2 must equal a 0.3 legacy return parent total."""
+    iid = _make(client, "CAN-RETURN-SUM", "退回合計精度", "罐", 0.3)
+    stockout = client.post("/api/stockout", json={
+        "item_id": iid, "qty": 0.3, "destination": "測試案場",
+    })
+    assert stockout.status_code == 200, stockout.text
+    rows = client.get("/api/movements", params={"limit": 500}).json()
+    parent = next(row for row in rows if row["item_id"] == iid and row["reason"] == "出庫")
+    conn = app_db.get_db()
+    try:
+        stock_id = conn.execute("SELECT id FROM item_stocks WHERE item_id=?", (iid,)).fetchone()["id"]
+    finally:
+        conn.close()
+
+    conn = app_db.get_db()
+    try:
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, reason, source_movement_id) VALUES (?,?,?,?)",
+            (iid, 0.1, "退回已領出", parent["id"]),
+        )
+        cur = conn.execute(
+            "INSERT INTO movements (item_id, delta, reason) VALUES (?,?,?)",
+            (iid, 0.2, "退回已領出"),
+        )
+        legacy_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    repaired = client.post(
+        f"/api/stockout-returns/{legacy_id}/repair",
+        json={"source_movement_id": parent["id"], "return_stock_id": stock_id},
+    )
+    assert repaired.status_code == 200, repaired.text
+    parent_after = next(row for row in client.get("/api/movements", params={"limit": 500}).json() if row["id"] == parent["id"])
+    assert parent_after["reverted_at"]
+
+
+def test_prepare_accepts_canonical_boundary_after_existing_prepared_qty(client):
+    """Regression: prepared 0.2 + 0.1 must fit stock 0.3 atomically."""
+    iid = _make(client, "CAN-PREP-GUARD", "待領出 guard 品", "罐", 0.3)
+    first = client.post(f"/api/items/{iid}/prepare", json={"qty": 0.2, "location": "鐵架"})
+    assert first.status_code == 200, first.text
+    second = client.post(f"/api/items/{iid}/prepare", json={"qty": 0.1, "location": "鐵架"})
+    assert second.status_code == 200, second.text
+    assert second.json()["prepared_qty"] == pytest.approx(0.3)

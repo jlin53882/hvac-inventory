@@ -162,8 +162,9 @@ def stock_out(req: StockOutRequest):
         if before < qty:
             raise HTTPException(400, f"庫存不足！目前只剩 {before} {row['unit']}")
         # M3：出庫後剩餘不得低於待領出數量（保留準備量給「確認出庫」；與 adjust_qty 守衛一致）
-        prepared = row["prepared_qty"] or 0
-        if before - qty < prepared:
+        prepared = _canonical_qty(row["prepared_qty"] or 0)
+        remaining_after = _canonical_qty(before - qty)
+        if remaining_after < prepared:
             raise HTTPException(400, f"出庫後剩餘庫存不能低於待領出數量！目前庫存 {before}、待領出 {prepared}，請從「待領出」確認出庫")
 
         reason = "出庫"
@@ -489,8 +490,9 @@ def repair_stockout_return(movement_id: int, repair: StockoutReturnRepair):
             "WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL AND id!=?",
             (parent["id"], movement_id),
         ).fetchone()[0]
-        total_returned = active_returns + row["delta"]
-        if total_returned > -parent["delta"]:
+        total_returned = _canonical_qty(active_returns + row["delta"])
+        parent_qty = _canonical_qty(-parent["delta"])
+        if total_returned > parent_qty:
             raise HTTPException(400, "退回總量不可超過原始出庫數量")
 
         stock = _stock_payload(conn, return_stock_id, row["item_id"])
@@ -498,7 +500,7 @@ def repair_stockout_return(movement_id: int, repair: StockoutReturnRepair):
             raise HTTPException(400, "退回位置不存在，請重新選擇有效的庫存位置")
 
         parent_reverted_at = parent["reverted_at"]
-        if total_returned >= -parent["delta"]:
+        if total_returned >= parent_qty:
             parent_reverted_at = parent_reverted_at or row["created_at"] or datetime.datetime.now().isoformat()
         else:
             parent_reverted_at = None
@@ -536,12 +538,13 @@ def delete_stockout_return(movement_id: int):
         conn.execute("DELETE FROM movements WHERE id=?", (movement_id,))
         parent = conn.execute("SELECT * FROM movements WHERE id=?", (parent_id,)).fetchone()
         if parent:
-            remaining = conn.execute(
+            remaining = _canonical_qty(conn.execute(
                 "SELECT COALESCE(SUM(delta),0) FROM movements "
                 "WHERE source_movement_id=? AND reason='退回已領出' AND reverted_at IS NULL",
                 (parent["id"],),
-            ).fetchone()[0]
-            if remaining < -parent["delta"]:
+            ).fetchone()[0])
+            parent_qty = _canonical_qty(-parent["delta"])
+            if remaining < parent_qty:
                 conn.execute("UPDATE movements SET reverted_at=NULL WHERE id=?", (parent["id"],))
         conn.commit()
         return {
@@ -623,7 +626,7 @@ def prepare_item(item_id: int, req: PrepareRequest):
         # H6：單一原子 UPDATE 累加（併發 prepare 不 lost update）；守衛確保不超過可領數量
         cur = conn.execute(
             "UPDATE items SET prepared_qty = ROUND(prepared_qty + ?, 3), updated_at = ? "
-            "WHERE id = ? AND prepared_qty + ? <= (SELECT COALESCE(SUM(qty), 0) FROM item_stocks WHERE item_id = ?)",
+            "WHERE id = ? AND ROUND(prepared_qty + ?, 3) <= ROUND((SELECT COALESCE(SUM(qty), 0) FROM item_stocks WHERE item_id = ?), 3)",
             (qty, datetime.datetime.now().isoformat(), item_id, qty, item_id),
         )
         if cur.rowcount == 0:
