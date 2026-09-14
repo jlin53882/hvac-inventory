@@ -9,6 +9,18 @@ import sqlite3
 import subprocess
 
 import pytest
+from app.services.quantity import canonical_qty
+
+
+@pytest.mark.parametrize("value, expected", [
+    (0.0625, 0.063),
+    (1.2345, 1.235),
+    (2.3455, 2.346),
+    (-0.0625, -0.063),
+])
+def test_canonical_qty_uses_decimal_half_up(value, expected):
+    """Canonical quantity policy is deterministic for four-decimal ties."""
+    assert canonical_qty(value) == expected
 from fastapi.testclient import TestClient
 
 import app.database as app_db

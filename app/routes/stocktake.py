@@ -16,6 +16,7 @@ from fastapi import Depends, APIRouter, HTTPException, Query
 from app.database import get_db
 from app.models import StocktakeSubmit
 from app.services.auth import require_perm
+from app.services.quantity import canonical_qty
 
 # 盤點 API 路由
 router = APIRouter()
@@ -53,15 +54,15 @@ def submit_stocktake(req: StocktakeSubmit):
             system_qty = stock["qty"]
             raw_actual = it.get("actual_qty", system_qty)
             try:
-                actual_qty = round(float(raw_actual), 3)
-            except (TypeError, ValueError):  # M4/M7b：非數字 → 400（原本 500）
+                actual_qty = canonical_qty(raw_actual)
+            except ValueError:  # M4/M7b：非數字 → 400（原本 500）
                 raise HTTPException(400, "盤點數量格式錯誤")
             if actual_qty < 0:  # M4：負數拒絕
                 raise HTTPException(400, "盤點數量不能為負數")
             prepared = item["prepared_qty"] or 0
             if actual_qty < prepared:  # M4：盤點後不得低於待領出數量
                 raise HTTPException(400, f"盤點數量不能低於待領出數量 {prepared}")
-            diff = round(actual_qty - system_qty, 3)
+            diff = canonical_qty(actual_qty - system_qty)
             note = it.get("note", "")
 
             # 2026-08-14：樂觀鎖——寫回條件是「qty 仍是讀到的 system_qty」，
@@ -74,7 +75,7 @@ def submit_stocktake(req: StocktakeSubmit):
                 raise HTTPException(409, f"品項 {item['name']} 的庫存已被其他操作異動，請重新整理後再盤點")
             conn.execute(
                 "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                (it["item_id"], diff, system_qty, round(system_qty + diff, 3), "盤點調整", location),
+                (it["item_id"], diff, system_qty, canonical_qty(system_qty + diff), "盤點調整", location),
             )
             conn.execute(
                 "INSERT INTO stocktakes (take_date, item_id, location, system_qty, actual_qty, diff, note) VALUES (?,?,?,?,?,?,?)",

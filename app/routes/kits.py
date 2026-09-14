@@ -19,6 +19,7 @@ from app.database import get_db
 from app.models import KitAssemble, KitCreate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
+from app.services.quantity import canonical_qty
 
 # 整組 API 路由
 router = APIRouter()
@@ -26,8 +27,8 @@ router = APIRouter()
 
 def _total(conn, item_id) -> float:
     """計算單一品項的位置庫存總量，回傳 float"""
-    return conn.execute("SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=?",
-                        (item_id,)).fetchone()[0]
+    return canonical_qty(conn.execute("SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=?",
+                                     (item_id,)).fetchone()[0])
 
 
 @router.get("/api/kits", dependencies=[Depends(require_perm("kit-view"))])
@@ -89,7 +90,7 @@ def create_kit(kit: KitCreate):
             _validate_kit_comp(conn, comp, i)  # 材料驗證：格式/數量>0/品項存在（2026-08-12 補）
             conn.execute(
                 "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                (kit_id, comp["item_id"], round(float(comp.get("qty", 1)), 3)),
+                (kit_id, comp["item_id"], canonical_qty(comp.get("qty", 1))),
             )
         conn.commit()
         return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
@@ -105,8 +106,12 @@ def _validate_kit_comp(conn, comp, i) -> None:
     if not isinstance(comp, dict):
         raise HTTPException(400, f"第 {i} 筆材料格式錯誤（需為 JSON 物件）")
     qty = comp.get("qty", 1)
-    if not isinstance(qty, (int, float)) or isinstance(qty, bool) or qty <= 0:
-        raise HTTPException(400, f"第 {i} 筆材料數量必須大於 0")
+    try:
+        canonical = canonical_qty(qty)
+    except ValueError:
+        raise HTTPException(400, f"第 {i} 筆材料數量格式錯誤")
+    if canonical <= 0:
+        raise HTTPException(400, f"第 {i} 筆材料數量正規化後必須大於 0")
     cid = comp.get("item_id")
     if not isinstance(cid, int) or isinstance(cid, bool):
         raise HTTPException(400, f"第 {i} 筆材料品項 id 格式錯誤")
@@ -140,7 +145,7 @@ def update_kit(kit_id: int, kit: KitCreate):
         for i, comp in enumerate(kit.items, 1):
             _validate_kit_comp(conn, comp, i)  # 材料驗證（與 create 共用）
             conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                         (kit_id, comp["item_id"], round(float(comp.get("qty", 1)), 3)))
+                         (kit_id, comp["item_id"], canonical_qty(comp.get("qty", 1))))
         conn.commit()
         return {"ok": True, "id": kit_id, "name": kit.name}
     except Exception:
@@ -184,57 +189,67 @@ def delete_kit(kit_id: int):
 
 def _deduct_total(conn, item_id, need, reason):
     """從位置庫存由後往前扣 need，記錄 movements。不足則拋錯。
-    （2026-09-12：need 先 round-3 對齊後端 canonical 精度；remaining 容差 1e-9，防 0.3 vs 0.1+0.2 塵。）"""
+    （2026-09-14：need 與每次扣除均先 canonicalize 到 3dp，避免 binary float remainder。）"""
     stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
                           (item_id,)).fetchall()
-    before = sum(s["qty"] for s in stocks)
-    need = round(float(need), 3)
+    before = canonical_qty(sum(s["qty"] for s in stocks))
+    need = canonical_qty(need)
+    if need <= 0:
+        raise HTTPException(400, "扣除數量正規化後必須大於 0")
     remaining = need
     for s in stocks:  # M10：統一從頭扣（與 stockout._deduct 一致）
-        if remaining <= 1e-9:
+        if remaining <= 0:
             break
-        take = min(s["qty"], remaining)
+        take = canonical_qty(min(s["qty"], remaining))
         cur = conn.execute("UPDATE item_stocks SET qty=ROUND(qty-?,3), updated_at=? WHERE id=? AND qty>=?",
                            (take, datetime.datetime.now().isoformat(), s["id"], take))
         if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕，不超賣
             raise HTTPException(400, f"庫存不足！剩 {before}")
-        remaining -= take
-    if remaining > 1e-9:
+        remaining = canonical_qty(remaining - take)
+    if remaining > 0:
         raise HTTPException(400, f"庫存不足！剩 {before}")
     # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
-    after = sum(s["qty"] for s in conn.execute(
-        "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
+    after = canonical_qty(sum(s["qty"] for s in conn.execute(
+        "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, -need, after + need, after, reason, ""),
+        (item_id, -need, before, after, reason, ""),
     )
 
 
 def _add_total(conn, item_id, add, reason):
     """加入第一筆位置庫存，記錄 movements。"""
+    add = canonical_qty(add)
+    if add <= 0:
+        raise HTTPException(400, "增加數量正規化後必須大於 0")
     stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
                           (item_id,)).fetchall()
     target = stocks[0] if stocks else None
+    before = canonical_qty(sum(s["qty"] for s in stocks))
     if target:
         conn.execute("UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
-                     (round(add, 3), datetime.datetime.now().isoformat(), target["id"]))
+                     (add, datetime.datetime.now().isoformat(), target["id"]))
     else:
         conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                     (item_id, "", round(add, 3), ""))
+                     (item_id, "", add, ""))
     # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
-    after = sum(s["qty"] for s in conn.execute(
-        "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
+    after = canonical_qty(sum(s["qty"] for s in conn.execute(
+        "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
     conn.execute(
         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, add, after - add, after, reason, ""),
+        (item_id, add, before, after, reason, ""),
     )
 
 
 @router.post("/api/kits/{kit_id}/assemble", dependencies=[Depends(require_perm("kit-mgmt"))])
 def assemble_kit(kit_id: int, req: KitAssemble):
     """組裝：從材料庫存扣掉所需數量，整組庫存增加"""
-    if req.qty <= 0:
-        raise HTTPException(400, "組裝數量必須大於 0")
+    try:
+        qty = canonical_qty(req.qty)
+    except ValueError:
+        raise HTTPException(400, "組裝數量格式錯誤")
+    if qty <= 0:
+        raise HTTPException(400, "組裝數量正規化後必須大於 0")
     conn = get_db()
     try:
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
@@ -248,21 +263,21 @@ def assemble_kit(kit_id: int, req: KitAssemble):
             mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (c["item_id"],)).fetchone()
             if not mat:  # M6：材料已刪除 → 不可組裝
                 raise HTTPException(400, f"材料 id={c['item_id']} 已刪除，無法組裝")
-            need = c["qty"] * req.qty
+            need = canonical_qty(c["qty"] * qty)
             stock = _total(conn, c["item_id"])
-            if stock < need and (need - stock) > 1e-9:
+            if stock < need:
                 short.append(f"{mat['name']}（需要 {need}，剩 {stock}）")
         if short:
             raise HTTPException(400, "材料不足：" + "、".join(short))
 
         # 扣材料
         for c in comps:
-            need = c["qty"] * req.qty
+            need = canonical_qty(c["qty"] * qty)
             _deduct_total(conn, c["item_id"], need, f"組裝套件:{kit['name']}")
         # 加整組庫存
-        _add_total(conn, kit["item_id"], req.qty, f"組裝完成:{kit['name']}")
+        _add_total(conn, kit["item_id"], qty, f"組裝完成:{kit['name']}")
         conn.commit()
-        return {"ok": True, "kit": kit["name"], "qty": req.qty}
+        return {"ok": True, "kit": kit["name"], "qty": qty}
     except Exception:
         conn.rollback()
         raise
@@ -273,26 +288,30 @@ def assemble_kit(kit_id: int, req: KitAssemble):
 @router.post("/api/kits/{kit_id}/disassemble", dependencies=[Depends(require_perm("kit-mgmt"))])
 def disassemble_kit(kit_id: int, req: KitAssemble):
     """拆解：整組扣掉，材料庫存加回"""
-    if req.qty <= 0:
-        raise HTTPException(400, "拆解數量必須大於 0")
+    try:
+        qty = canonical_qty(req.qty)
+    except ValueError:
+        raise HTTPException(400, "拆解數量格式錯誤")
+    if qty <= 0:
+        raise HTTPException(400, "拆解數量正規化後必須大於 0")
     conn = get_db()
     try:
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not kit:
             raise HTTPException(404, "套件不存在")
         kit_stock = _total(conn, kit["item_id"])
-        if kit_stock < req.qty:
+        if kit_stock < qty:
             raise HTTPException(400, f"整組庫存不足！只剩 {kit_stock} 組")
 
         # 扣整組
-        _deduct_total(conn, kit["item_id"], req.qty, f"拆解:{kit['name']}")
+        _deduct_total(conn, kit["item_id"], qty, f"拆解:{kit['name']}")
         # 加回材料
         comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
         for c in comps:
-            add = c["qty"] * req.qty
+            add = canonical_qty(c["qty"] * qty)
             _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}")
         conn.commit()
-        return {"ok": True, "kit": kit["name"], "qty": req.qty}
+        return {"ok": True, "kit": kit["name"], "qty": qty}
     except Exception:
         conn.rollback()
         raise

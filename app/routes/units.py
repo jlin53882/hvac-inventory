@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
 from app.models import UnitIn, UnitUpdate, UnitConsolidate, UnitConsolidateItem, QTY_TYPES
 from app.services.auth import require_perm
+from app.services.quantity import canonical_qty
 
 router = APIRouter()
 
@@ -218,13 +219,17 @@ def consolidate_item(req: UnitConsolidateItem):
             stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=?", (req.item_id,)).fetchall()
             if len(stocks) != 1:
                 raise HTTPException(400, "多位置品項無法指定新總量（總量語意不明），請先合併位置或手動調整")
-            before = stocks[0]["qty"] or 0
-            new_qty = round(float(req.new_qty), 3)
+            before = canonical_qty(stocks[0]["qty"] or 0)
+            try:
+                new_qty = canonical_qty(req.new_qty)
+            except ValueError:
+                raise HTTPException(400, "新總量格式錯誤")
             conn.execute("UPDATE item_stocks SET qty=? WHERE id=?", (new_qty, stocks[0]["id"]))
-            if abs(new_qty - before) > 1e-9:
+            delta = canonical_qty(new_qty - before)
+            if delta != 0:
                 conn.execute(
                     "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason) VALUES (?,?,?,?,?)",
-                    (req.item_id, new_qty - before, before, new_qty, "歷史單位轉換"))
+                    (req.item_id, delta, before, new_qty, "歷史單位轉換"))
         conn.commit()
         resp = {"ok": True, "item_id": req.item_id, "to_unit": to}
         if new_qty is not None:
