@@ -9,7 +9,7 @@ import pytest
 import app.database as app_db
 import main as app_main
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
-from app.services.engineering_petty_cash import engineering_filename, engineering_sheet_title
+from app.services.engineering_petty_cash import engineering_filename, engineering_safe_filename, engineering_sheet_title
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
@@ -284,3 +284,28 @@ def test_mixed_general_engineering_list_keeps_summary_shapes(eng_client):
     assert by_type['engineering']['total_amount'] == engineering['total_amount']
     assert 'closing_balance' not in by_type['engineering']
     assert 'closing_balance' in by_type['general']
+
+
+
+def test_engineering_safe_filename_keeps_extension_with_max_length():
+    """Regression: truncation must never remove the .xlsx extension."""
+    raw = engineering_filename(
+        '2026-12-30', '2027-01-03', 'O' * 50, 'N' * 50,
+    )
+    safe = engineering_safe_filename(raw)
+    assert len(safe) <= 120
+    assert safe.endswith('.xlsx')
+    assert '/' not in safe and chr(92) not in safe
+
+
+def test_engineering_report_dates_are_stored_as_iso_canonical(eng_client):
+    """Regression: basic ISO input is canonicalized before SQLite storage."""
+    body = payload()
+    body['start_date'] = '20260901'
+    body['end_date'] = '20260904'
+    created = eng_client.post('/api/petty-cash-reports', json=body)
+    assert created.status_code == 201, created.text
+    report = eng_client.get(f"/api/petty-cash-reports/{created.json()['id']}")
+    assert report.status_code == 200, report.text
+    assert report.json()['start_date'] == '2026-09-01'
+    assert report.json()['end_date'] == '2026-09-04'

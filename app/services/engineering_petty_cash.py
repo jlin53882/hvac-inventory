@@ -80,9 +80,12 @@ def engineering_safe_filename(name):
     """工程報表保留規格所需括號/空格，同時阻擋路徑與危險字元。"""
     name = (name or "file").strip().replace("/", "_").replace("\\", "_")
     name = re.sub(r"[^0-9A-Za-z\u4e00-\u9fa5._()\- ]", "_", name)
-    if name[:1] in (".", "-", "=", "+", "@"):
-        name = "_" + name[1:]
-    return name[:120] or "file"
+    suffix = ".xlsx"
+    stem = name[:-len(suffix)] if name.lower().endswith(suffix) else name
+    if stem[:1] in (".", "-", "=", "+", "@"):
+        stem = "_" + stem[1:]
+    stem = stem[:120 - len(suffix)] or "file"
+    return stem + suffix
 
 
 def _style_row(ws, src, dst):

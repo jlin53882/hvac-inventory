@@ -425,8 +425,10 @@ class EngineeringReportIn(BaseModel):
         try:
             start = date.fromisoformat(self.start_date)
             end = date.fromisoformat(self.end_date)
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             raise ValueError("日期格式必須為 YYYY-MM-DD") from exc
+        self.start_date = start.isoformat()
+        self.end_date = end.isoformat()
         if start > end:
             raise ValueError("開始日期不可晚於結束日期")
         if not self.upload_person or not self.prepared_by:

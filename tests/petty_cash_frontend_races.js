@@ -437,6 +437,52 @@ async function testEngineeringSaveIsSingleFlight() {
   await retry;
 }
 
+async function testResetFilterClearsReportTypeAndReloadsAll() {
+  const oldQuerySelectorAll = document.querySelectorAll;
+  const chips = [0, 1, 2, 3].map(() => ({ classList: { add() {}, remove() {} } }));
+  document.querySelectorAll = selector => selector === '.pc-chip' ? chips : [];
+  try {
+    ['pc-f-from', 'pc-f-to', 'pc-f-person', 'pc-f-status', 'pc-f-type', 'pc-f-q'].forEach(id => {
+      elements[id].value = id === 'pc-f-type' ? 'engineering' : 'filled';
+    });
+    context.pcPage = 8;
+    context.pcResetFilter();
+    ['pc-f-from', 'pc-f-to', 'pc-f-person', 'pc-f-status', 'pc-f-type', 'pc-f-q'].forEach(id => {
+      assert.strictEqual(elements[id].value, '', `${id} was not cleared`);
+    });
+    assert.strictEqual(context.pcPage, 1, 'reset did not return to page 1');
+    const history = findPending('/api/petty-cash-reports?');
+    const query = new URL(history.url, 'http://test').searchParams;
+    assert.strictEqual(query.get('report_type'), '', 'reset history request kept report_type');
+    assert.strictEqual(query.get('status'), '', 'reset history request kept status');
+    assert.strictEqual(query.get('search'), '', 'reset history request kept search');
+    history.resolve(response({ items: [], total: 0, page: 1, page_size: 20 }));
+    await flush();
+    const kpi = findPending('/api/petty-cash/kpi?');
+    assert.strictEqual(new URL(kpi.url, 'http://test').searchParams.get('report_type'), '', 'reset KPI request kept report_type');
+    kpi.resolve(response({ total: 0, completed: 0, draft: 0 }));
+    await flush();
+  } finally {
+    document.querySelectorAll = oldQuerySelectorAll;
+  }
+}
+
+function testEngineeringFilenamePreviewUsesBackendPeriodToken() {
+  const cases = [
+    ['2026-09-04', '2026-09-04', '', '(0904)藍先生 工程零用金.xlsx'],
+    ['2026-09-01', '2026-09-04', '發票', '(0901-0904 發票)藍先生 工程零用金.xlsx'],
+    ['2026-12-30', '2027-01-03', '', '(20261230-20270103)藍先生 工程零用金.xlsx'],
+  ];
+  for (const [start, end, note, expected] of cases) {
+    elements['eng-start'].value = start;
+    elements['eng-end'].value = end;
+    elements['eng-owner'].value = '藍先生';
+    elements['eng-note'].value = note;
+    context.engFilenamePreview();
+    assert.strictEqual(elements['eng-filename'].textContent, `預覽檔名：${expected}`, `${start}~${end} preview mismatch`);
+  }
+}
+
 async function main() {
   await testHistoryLatestResponseWins();
   await testHistoryFilterContextsAndRefreshes();
@@ -446,6 +492,8 @@ async function main() {
   testPaginationRendersPageOffsets();
   await testGeneralSaveIsSingleFlightAndRecovers();
   await testEngineeringSaveIsSingleFlight();
+  await testResetFilterClearsReportTypeAndReloadsAll();
+  testEngineeringFilenamePreviewUsesBackendPeriodToken();
   const render = fs.readFileSync(path.join(ROOT, 'static/js/render/petty-cash.js'), 'utf8');
   assert(render.includes('pcPageSize * (pcPage - 1) + idx + 1'), 'engineering pagination offset contract missing');
   console.log('petty cash frontend race/single-flight regression harness: PASS');

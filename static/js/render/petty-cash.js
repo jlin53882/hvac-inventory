@@ -365,6 +365,7 @@ function pcResetFilter() {
   document.getElementById('pc-f-to').value = '';
   document.getElementById('pc-f-person').value = '';
   document.getElementById('pc-f-status').value = '';
+  document.getElementById('pc-f-type').value = '';
   document.getElementById('pc-f-q').value = '';
   document.querySelectorAll('.pc-chip').forEach(c => c.classList.remove('active'));
   document.querySelectorAll('.pc-chip')[3].classList.add('active');
