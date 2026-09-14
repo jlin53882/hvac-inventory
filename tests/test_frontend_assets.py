@@ -76,6 +76,7 @@ QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upl
 QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
 # 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
 QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation.js")
+QUOTATION_HISTORY_PAGINATION_JS = os.path.join(BASE_DIR, "tests", "quotation_history_pagination.test.js")
 PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
 # 待測：零用金月報（2026-09-12）
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
@@ -363,6 +364,16 @@ def test_quotation_history_loads_all_pages():
     assert "quote-history-list" in js
     assert "quote-history-empty" in js
     assert "目前沒有歷史報價單" in js
+
+
+def test_quotation_history_pagination_runtime():
+    """歷史報價單翻頁邏輯 runtime 回歸：node 實際執行 quoteLoadHistory。
+
+    （2026-09-15：舊版只抓第一頁，25 筆只渲染 20 列；字串斷言抓不到，
+    必須執行驗。舊版跑此測試必紅，已用 b6b5796 版驗證 6 項 FAIL。）
+    """
+    r = subprocess.run(["node", QUOTATION_HISTORY_PAGINATION_JS], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, f"quotation_history_pagination.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
 def test_pdf_preview_button_runtime():
