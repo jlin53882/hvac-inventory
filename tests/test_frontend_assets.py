@@ -1900,6 +1900,13 @@ def test_stocktake_submit_includes_equal_qty():
     assert 'Qty.validFor(_raw, _unitType)' in js
     assert "const _unitType = (typeof Qty.inputTypeOf === 'function')" in js
     assert "Qty.inputTypeOf(item ? item.unit : '')" in js
+    for caller in (
+        os.path.join(STATIC, "js", "modals", "qty.js"),
+        INVENTORY_RENDER_JS,
+        KITS_RENDER_JS,
+    ):
+        caller_js = read(caller)
+        assert "Qty.inputTypeOf" in caller_js, f"{caller} missing shared input type contract"
 
 
 def test_stocktake_reminder_hides_after_submit():
@@ -3791,7 +3798,7 @@ def test_qty_domain_mounted_and_wired():
                "function qtyInputOrToast", "function disp", "function signed"):
         assert fn in qty, f"qty.js 缺 {fn}"
     inv = read(INVENTORY_RENDER_JS)
-    assert "Qty.unitTypeOf(item.unit) !== 'integer'" in inv, "整數直調/分數 dialog 分流遺失"
+    assert "Qty.inputTypeOf(item.unit) !== 'integer'" in inv, "整數直調/分數 dialog 分流遺失"
     assert "openQtyDialog" in inv, "changeQty 未接 dialog"
     kits = read(KITS_RENDER_JS)
     assert "kitCompQtyChanged" in kits, "kit 材料需求量分數輸入遺失"

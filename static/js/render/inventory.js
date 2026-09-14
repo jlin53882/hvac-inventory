@@ -570,7 +570,7 @@ function changeQty(id, delta) {
   if (!item) return;
 
   // 2026-09-12 分數/小數單位：+/- 開 dialog 輸入增減量（整數維持直調 ±1）
-  if (typeof Qty !== 'undefined' && Qty.unitTypeOf(item.unit) !== 'integer') {
+  if (typeof Qty !== 'undefined' && Qty.inputTypeOf(item.unit) !== 'integer') {
     if (typeof openQtyDialog === 'function') { openQtyDialog(id, delta > 0 ? 'add' : 'sub'); return; }
   }
 
@@ -610,7 +610,7 @@ function quickSet(id) {
 
   let val;
   if (typeof Qty !== 'undefined') {
-    const v = Qty.validFor(input, Qty.unitTypeOf(item.unit));
+    const v = Qty.validFor(input, Qty.inputTypeOf(item.unit));
     if (!v.ok) { toast(v.error, 'error'); return; }
     val = v.value;
   } else {
