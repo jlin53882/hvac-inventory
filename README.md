@@ -85,7 +85,7 @@ hvac-inventory/
 ├── main.py              ← 後端入口（FastAPI + SQLite）
 ├── app/                 ← 後端套件（routes 18 個 + middleware + services + models）
 ├── static/              ← 前端（index.html + login.html + js/ + css/）
-├── tests/               ← pytest（1033 條，21 檔）
+├── tests/               ← pytest（1187 條，27 檔；rebase 後實測）
 ├── docs/                ← 維護文件（庫存/媒體/安全性/測試/權限/行事曆/Google同步）
 ├── scripts/             ← 啟動/外網/監控腳本
 ├── inventory.db         ← 資料庫（.gitignore）
