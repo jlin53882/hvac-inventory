@@ -1,0 +1,216 @@
+/* Engineering petty cash feature layer: hierarchy, detail view and editor. */
+/* 工程零用金：沿一般零用金的兩步 editor，分類與明細採左右分欄 */
+.eng-editor { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; align-items: start; }
+.eng-category-nav { display: flex; flex-direction: column; gap: 7px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+.eng-category-tab { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 8px; padding: 10px; text-align: left; font-weight: 700; cursor: pointer; }
+.eng-category-tab.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
+.eng-detail-pane { min-width: 0; }
+.eng-category-title, .eng-group-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.eng-category-title { margin-bottom: 10px; }
+.eng-category-title input, .eng-group-head input { flex: 1 1 180px; min-height: 44px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 10px; box-sizing: border-box; font-weight: 700; }
+.eng-editor input, .eng-editor select { border-radius: 8px; border: 1px solid #cbd5e1; background:#fff; transition:border-color .15s, box-shadow .15s; }
+.eng-editor input:focus, .eng-editor select:focus { outline:0; border-color:#60a5fa; box-shadow:0 0 0 3px rgba(59,130,246,.12); }
+.eng-group-block { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 10px; background: #fff; }
+.eng-receipts { margin-top: 10px; }
+.eng-receipt { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+.eng-receipt-grid { display: grid; grid-template-columns: 1fr 1.5fr 120px; gap: 8px; }
+.eng-detail-row { display: grid; grid-template-columns: 70px minmax(0,1fr) auto; gap: 8px; align-items: center; margin-top: 8px; }
+.eng-detail-row label { font-size: 12px; color: #64748b; font-weight: 700; }
+@media (max-width: 767px) {
+  .eng-editor { grid-template-columns: 1fr; }
+  .eng-category-nav { flex-direction: row; flex-wrap: wrap; }
+  .eng-category-nav strong { width: 100%; }
+  .eng-category-tab { flex: 1 1 120px; }
+  .eng-receipt-grid { grid-template-columns: 1fr; }
+  .eng-detail-row { grid-template-columns: 1fr; gap: 4px; }
+  .eng-detail-row button { justify-self: start; }
+}
+
+/* 工程零用金檢視：清楚區分分類／項目／單據／細項 */
+.pc-status--general { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.pc-status--engineering { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+.eng-guide-card .pc-card__bd { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; color:#475569; }
+.eng-guide-card strong { color:#1e3a5f; }
+.eng-file-label { color:#64748b; font-size:12px; overflow-wrap:anywhere; }
+.eng-category-card .pc-card__hd { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.eng-category-card .pc-card__hd h2 { margin:3px 0 0; }
+.eng-section-kicker { color:#64748b; font-size:11px; letter-spacing:.08em; }
+.eng-subtotal, .eng-group-head strong { color:#1e3a5f; white-space:nowrap; }
+.eng-group-block { margin-bottom:16px; }
+.eng-group-block:last-child { margin-bottom:0; }
+.eng-group-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-bottom:0; border-radius:9px 9px 0 0; }
+.eng-group-head h3 { margin:0; font-size:14px; color:#334155; }
+.eng-detail-table-wrap { overflow-x:auto; border:1px solid #e2e8f0; border-radius:0 0 9px 9px; }
+.eng-detail-table { width:100%; table-layout:auto; border-collapse:collapse; }
+.eng-detail-table th { background:#f1f5f9; color:#475569; font-size:12px; text-align:left; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
+.eng-detail-table th:nth-child(1) { width:42%; }
+.eng-detail-table th:nth-child(2) { width:20%; text-align:center; }
+.eng-detail-table th:nth-child(3) { width:20%; text-align:center; }
+.eng-detail-table th:nth-child(4) { width:18%; text-align:right; }
+.eng-detail-table td { padding:9px 10px; vertical-align:middle; border-bottom:1px solid #f1f5f9; }
+.eng-detail-table td:nth-child(2), .eng-detail-table td:nth-child(3) { text-align:center; }
+.eng-detail-table td:nth-child(4) { text-align:right; white-space:nowrap; }
+.eng-detail-table tbody tr:last-child td { border-bottom:0; }
+.eng-receipt-toggle { display:flex; align-items:center; gap:7px; width:100%; min-height:34px; padding:2px 0; border:0; background:transparent; color:#334155; text-align:left; cursor:pointer; }
+.eng-receipt-toggle:hover .eng-receipt-no { color:#1d4ed8; }
+.eng-receipt-detail-row td { padding:0 10px 10px; background:#f8fafc; }
+.eng-receipt-detail-row .eng-receipt-details { margin:0; }
+.eng-detail-cell { min-width:220px; white-space:pre-wrap; }
+.pc-general-entry-row--expandable { cursor:pointer; }
+.pc-general-entry-row--expandable:hover td { background:#f8fafc; }
+.eng-tax-mark { display:inline-flex; min-width:24px; justify-content:center; padding:2px 6px; border-radius:5px; background:#ecfdf5; color:#047857; font-weight:700; }
+.pc-empty-cell { color:#94a3b8; text-align:center; padding:18px; }
+@media (max-width:767px) { .eng-category-card .pc-card__hd, .eng-group-head { align-items:flex-start; flex-direction:column; } .eng-detail-table th, .eng-detail-table td { padding:8px 6px; } .eng-detail-table th:nth-child(1) { width:38%; } .eng-detail-table th:nth-child(2) { width:22%; } .eng-detail-table th:nth-child(3) { width:22%; } .eng-detail-table th:nth-child(4) { width:18%; } }
+
+.eng-category-head, .eng-group-head, .eng-receipt-parent { width:100%; border:0; text-align:left; cursor:pointer; }
+.eng-category-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:#fff; border-radius:12px; }
+.eng-category-head > span { display:flex; align-items:center; gap:8px; min-width:0; }
+.eng-category-head h2 { margin:2px 0 0; font-size:17px; }
+.eng-category-head:hover, .eng-group-head:hover, .eng-receipt-parent--expandable:hover { background:#f8fafc; }
+.eng-chevron { color:#64748b; font-size:12px; width:18px; flex:0 0 18px; }
+.eng-group-head { padding:11px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; display:flex; justify-content:space-between; align-items:center; }
+.eng-group-head > span { display:flex; align-items:center; gap:8px; }
+.eng-group-body { padding:8px 0 0; }
+.eng-receipt-table-head { display:grid; grid-template-columns:minmax(160px,2fr) 90px minmax(80px,1fr) 110px; gap:8px; padding:5px 12px; color:#64748b; font-size:11px; font-weight:700; }
+.eng-receipt-card { border:1px solid #e2e8f0; border-radius:8px; margin:5px 0; overflow:hidden; }
+.eng-receipt-parent { display:grid; grid-template-columns:18px minmax(160px,2fr) 90px minmax(80px,1fr) 110px; gap:8px; align-items:center; padding:10px 12px; background:#fff; }
+.eng-receipt-chevron { color:#64748b; }
+.eng-receipt-no { font-weight:700; overflow-wrap:anywhere; }
+.eng-detail-count { color:#64748b; font-size:12px; }
+.eng-receipt-details { margin:0 12px 10px 38px; padding:8px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; }
+.eng-receipt-details-title { font-size:12px; font-weight:700; color:#475569; margin-bottom:5px; }
+.eng-detail-line { padding:4px 0; color:#475569; font-size:12.5px; overflow-wrap:anywhere; }
+@media (max-width:767px) {
+  .pc-general-detail-table-wrap { display:none; }
+  .pc-general-mobile-list { display:block; }
+  .pc-general-discrepancy { display:grid; gap:4px; }
+  .eng-category-head { padding:12px; }
+  .eng-category-head h2 { font-size:15px; }
+  .eng-receipt-table-head { display:none; }
+  .eng-receipt-parent { grid-template-columns:18px minmax(0,1fr) auto; gap:6px; }
+  .eng-receipt-parent .eng-tax-mark { grid-column:2; justify-self:start; }
+  .eng-receipt-parent .eng-detail-count { grid-column:2; }
+  .eng-receipt-parent strong { grid-column:3; grid-row:1 / span 3; }
+  .eng-receipt-details { margin-left:26px; }
+}
+@media (min-width:768px) {
+  .pc-general-detail-table-wrap { display:block; }
+  .pc-general-mobile-list { display:none; }
+}
+.eng-editor .eng-category-title,
+.eng-editor .eng-group-head {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+}
+.eng-editor .eng-category-title { grid-template-columns: minmax(180px, 1fr) auto auto; }
+.eng-editor .eng-group-head { grid-template-columns: minmax(180px, 1fr) auto auto auto; }
+.eng-editor .eng-category-title > select,
+.eng-editor .eng-group-head > select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.eng-editor .eng-detail-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.eng-editor .eng-detail-row button { white-space: nowrap; }
+@media (max-width: 767px) {
+  .eng-editor .eng-category-title,
+  .eng-editor .eng-group-head { display: flex; flex-direction: column; align-items: stretch; }
+  .eng-editor .eng-category-title > select,
+  .eng-editor .eng-group-head > select { width: 100%; }
+}
+.eng-category-head, .eng-group-head { cursor:pointer; }
+.eng-category-head:focus-visible, .eng-group-head:focus-visible, .eng-receipt-toggle:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }
+@media (max-width:767px) {
+  .eng-category-card { margin-bottom:10px; }
+  .eng-category-card .pc-card__bd { padding:10px; }
+  .eng-group-block { margin-bottom:10px; }
+  .eng-group-head { min-height:44px; }
+}
+/* Engineering editor receipt accordion */
+.eng-editor-receipt-toggle { width:100%; min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:0; border-radius:8px; background:#f8fafc; color:#1e3a5f; cursor:pointer; text-align:left; }
+.eng-editor-receipt-toggle:hover, .eng-receipt.is-expanded .eng-editor-receipt-toggle { background:#eff6ff; }
+.eng-editor-receipt-toggle > span { display:flex; align-items:center; gap:8px; min-width:0; }
+.eng-editor-receipt-no { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-weight:400; }
+.eng-editor-receipt-body { padding-top:10px; }
+.eng-editor-receipt-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.eng-editor-receipt-toggle:focus-visible { outline:3px solid rgba(59,130,246,.25); outline-offset:2px; }
+/* Mobile engineering detail table: keep the first receipt column visible. */
+@media (max-width:767px) {
+  .eng-detail-table { width:100%; min-width:0; }
+  .eng-detail-table th,
+  .eng-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+  .eng-detail-table th:first-child,
+  .eng-detail-table td:first-child { padding-left:10px; }
+  .eng-receipt-toggle { min-width:0; overflow:visible; }
+  .eng-receipt-no { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+}
+.eng-category-head,
+.eng-group-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
+.eng-category-head > span,
+.eng-group-head > span { min-width:0; }
+.eng-subtotal,
+.eng-group-head strong { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+@media (max-width: 767px) {
+  .eng-category-head .eng-subtotal { flex:1 1 100%; max-width:100%; text-align:left; white-space:normal; }
+  .eng-group-head strong { max-width:100%; white-space:normal; text-align:left; }
+}
+.eng-detail-table,
+.pc-general-detail-table { table-layout:auto; }
+.eng-detail-table th,
+.eng-detail-table td,
+.pc-general-detail-table th,
+.pc-general-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+.eng-detail-table th:nth-child(1),
+.eng-detail-table th:nth-child(2),
+.eng-detail-table th:nth-child(3),
+.eng-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(1),
+.pc-general-detail-table th:nth-child(2),
+.pc-general-detail-table th:nth-child(3),
+.pc-general-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(5),
+.pc-general-detail-table th:nth-child(6),
+.pc-general-detail-table th:nth-child(7),
+.pc-general-detail-table th:nth-child(8) { width:auto; }
+.eng-detail-table td:nth-child(4),
+.pc-money { white-space:normal; overflow-wrap:anywhere; }
+.eng-editor .eng-category-title,
+.eng-editor .eng-group-head { grid-template-columns:minmax(0,1fr) auto auto auto; }
+.eng-editor .eng-category-title { grid-template-columns:minmax(0,1fr) auto auto; }
+.eng-receipt-grid { grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto; }
+.pc-item-row { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.pc-items-header { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.eng-receipt-table-head,
+.eng-receipt-parent { grid-template-columns:auto minmax(0,2fr) auto minmax(0,1fr) auto; }
+.pc-general-detail-head,
+.pc-general-detail-item { grid-template-columns:auto minmax(0,1fr); }
+.eng-detail-total, .eng-editor-receipt-no { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }
+.eng-detail-table th:nth-child(4),
+.eng-detail-table td:nth-child(4) { text-align:center; }
+/* Engineering detail role isolation: editor and viewer may share the noun but not layout overrides. */
+.eng-editor .eng-group-head { grid-template-columns:minmax(180px,1fr) auto auto auto; }
+.eng-detail-view .eng-group-head { grid-template-columns:minmax(0,1fr) auto; }
+@media (max-width: 767px) {
+  .eng-editor .eng-group-head { grid-template-columns:1fr; }
+  .eng-detail-view .eng-group-head { grid-template-columns:minmax(0,1fr); }
+}

@@ -130,14 +130,16 @@
 .pc-chip.active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
 .pc-result-count { margin-left: auto; font-size: 12.5px; color: #64748b; }
 
-/* KPI 三欄卡片佈局 */
+/* KPI canonical contract: three equal-width cards always stay in one row. */
 #content .pc-kpi-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  align-items: stretch;
   gap: 12px;
   margin-bottom: 16px;
 }
 #content .pc-kpi-card {
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
   min-height: 80px;
   display: flex;
@@ -149,34 +151,21 @@
   background: #fff;
   box-shadow: 0 1px 2px rgba(15,23,42,.04);
 }
-#content .pc-kpi-card__head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+#content .pc-kpi-card__head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 #content .pc-kpi-card__head .ui-kpi-icon {
-  width: 24px; height: 24px;
-  display: grid; place-items: center;
-  border-radius: 6px;
-  background: #eff6ff;
-  font-size: 13px;
-  flex-shrink: 0;
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 9px; background: #eff6ff; font-size: 15px; flex: 0 0 auto;
 }
-#content .pc-kpi-card__head .ui-kpi-label {
-  font-size: 12px; font-weight: 600; color: #64748b;
-  margin: 0;
-}
-#content .pc-kpi-card__num {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-#content .pc-kpi-card__foot {
-  font-size: 10.5px;
-  color: #94a3b8;
-  text-align: right;
-}
+#content .pc-kpi-card__head .ui-kpi-label { font-size: 12px; font-weight: 600; color: #64748b; margin: 0; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+#content .pc-kpi-card__num { font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; margin-top: 10px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+#content .pc-kpi-card__foot { font-size: 10.5px; color: #94a3b8; text-align: left; margin-top: 7px; }
+#content .pc-kpi-card .ui-kpi-value { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+#content .pc-kpi-card:nth-child(1) .ui-kpi-icon { background:#dbeafe; }
+#content .pc-kpi-card:nth-child(2) .ui-kpi-icon { background:#dcfce7; }
+#content .pc-kpi-card:nth-child(3) .ui-kpi-icon { background:#fef3c7; }
+#content .pc-kpi-blue { color: #2563eb; }
+#content .pc-kpi-green { color: #16a34a; }
+#content .pc-kpi-amber { color: #d97706; }
 /* 金額語意：上期 neutral / 收入 green / 支出 red / 餘額 blue */
 .pc-kpi-opening { color: #475569; }
 .pc-kpi-income { color: #15803d; }
@@ -213,33 +202,6 @@
 .pc-status--draft { background: #f1f5f9; color: #475569; }
 .pc-status--completed { background: #dcfce7; color: #15803d; }
 .pc-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.pc-report-actions { display:inline-flex; align-items:center; gap:6px; }
-.pc-more-menu { position: relative; display: inline-block; }
-.pc-more-menu > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; min-width: 42px; min-height: 42px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #1e3a5f; font-size: 22px; line-height: 1; font-weight: 900; cursor: pointer; }
-.pc-more-menu > summary::-webkit-details-marker { display: none; }
-.pc-more-menu > summary:hover, .pc-more-menu[open] > summary { background: #eff6ff; border-color: #93c5fd; }
-.pc-more-menu__list { position: absolute; z-index: 20; top: calc(100% + 5px); right: 0; display: grid; min-width: 132px; padding: 5px; border: 1px solid #dbe3ee; border-radius: 10px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.14); }
-.pc-more-menu__list button { min-height: 38px; padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #334155; text-align: left; font-weight: 700; cursor: pointer; }
-.pc-more-menu__list button:hover { background: #f1f5f9; }
-.pc-more-menu__list .pc-more-menu__danger { color: #b91c1c; }
-
-/* mobile cards（desktop 隱藏） */
-.pc-cards { display: none; }
-.pc-report-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
-  background: #fff;
-  cursor: pointer;
-}
-.pc-report-card__top { display: flex; align-items: center; gap: 8px; }
-.pc-report-card__period { font-weight: 900; color: #1e3a5f; font-size: 15px; }
-.pc-report-card__top .pc-status { margin-left: auto; }
-.pc-report-card__file { font-size: 13px; color: #334155; margin-top: 4px; word-break: break-all; }
-.pc-report-card__meta { font-size: 12.5px; color: #64748b; margin-top: 4px; }
-.pc-report-card__balance { font-size: 15px; font-weight: 900; color: #1d4ed8; margin-top: 6px; }
-
 .pc-empty { text-align: center; padding: 28px 12px; color: #64748b; }
 .pc-empty__icon { font-size: 32px; }
 .pc-hint { font-size: 12px; color: #94a3b8; margin-top: 8px; }
@@ -395,32 +357,26 @@
 .pc-detail-table td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
 
 /* RWD：手機不呈現超寬 table，改 card */
-/* 平板/手機：維持三欄，卡片自動縮小 */
+/* Mobile KPI presentation keeps the canonical three-card row. */
 @media (max-width: 1200px) {
   #content .pc-kpi-card { min-height: 68px; padding: 10px 12px 8px; }
   #content .pc-kpi-card__num { font-size: 22px; }
-  #content .pc-kpi-card__head .ui-kpi-icon { width: 20px; height: 20px; font-size: 11px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { width: 26px; height: 26px; font-size: 13px; }
   #content .pc-kpi-card__head .ui-kpi-label { font-size: 11px; }
   #content .pc-kpi-card__foot { font-size: 10px; }
 }
 @media (max-width: 767px) {
-  .pc-table-wrap:not(.pc-detail-table-wrap) { display: none; }
-  .pc-cards { display: block; }
-  .pc-item-row { grid-template-columns: 1fr 70px 58px 88px 44px; }
   .pc-filter-bar .pc-field { flex: 1 1 45%; min-width: 0; }
   .pc-page-actions { margin-left: 0; width: 100%; }
   .pc-page-actions .pc-btn { flex: 1; }
-  #content .pc-kpi-row { gap: 6px; }
-  #content .pc-kpi-card { min-height: 56px; padding: 8px 10px 6px; }
-  #content .pc-kpi-card__num { font-size: 18px; }
-  #content .pc-kpi-card__head .ui-kpi-icon { width: 18px; height: 18px; font-size: 10px; }
-  #content .pc-kpi-card__head .ui-kpi-label { font-size: 10px; }
+  .pc-kpi-row { gap: 4px; }
+  #content .pc-kpi-card { min-height: 76px; padding: 8px 6px 6px; }
+  #content .pc-kpi-card__num, #content .pc-kpi-card .ui-kpi-value { font-size: clamp(14px, 4.5vw, 24px); }
+  #content .pc-kpi-card__head { gap: 3px; }
+  #content .pc-kpi-card__head .ui-kpi-icon { width: 20px; height: 20px; font-size: 11px; }
+  #content .pc-kpi-card__head .ui-kpi-label { font-size: clamp(8px, 2.7vw, 11px); }
   #content .pc-kpi-card__foot { font-size: 9px; }
 }
-@media (min-width: 768px) {
-  .pc-cards { display: none; }
-}
-
 /* 收入/支出按鈕 active 色彩區分 */
 #content .pc-step.pc-step--income.active { background: #dcfce7; border: 2px solid #16a34a; color: #15803d; }
 #content .pc-step.pc-step--expense.active { background: #fee2e2; border: 2px solid #dc2626; color: #b91c1c; }
@@ -473,69 +429,6 @@
 
 
 
-/* 工程零用金：沿一般零用金的兩步 editor，分類與明細採左右分欄 */
-.eng-editor { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; align-items: start; }
-.eng-category-nav { display: flex; flex-direction: column; gap: 7px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
-.eng-category-tab { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 8px; padding: 10px; text-align: left; font-weight: 700; cursor: pointer; }
-.eng-category-tab.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
-.eng-detail-pane { min-width: 0; }
-.eng-category-title, .eng-group-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.eng-category-title { margin-bottom: 10px; }
-.eng-category-title input, .eng-group-head input { flex: 1 1 180px; min-height: 44px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 10px; box-sizing: border-box; font-weight: 700; }
-.eng-editor input, .eng-editor select { border-radius: 8px; border: 1px solid #cbd5e1; background:#fff; transition:border-color .15s, box-shadow .15s; }
-.eng-editor input:focus, .eng-editor select:focus { outline:0; border-color:#60a5fa; box-shadow:0 0 0 3px rgba(59,130,246,.12); }
-.eng-group-block { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 10px; background: #fff; }
-.eng-receipts { margin-top: 10px; }
-.eng-receipt { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
-.eng-receipt-grid { display: grid; grid-template-columns: 1fr 1.5fr 120px; gap: 8px; }
-.eng-detail-row { display: grid; grid-template-columns: 70px minmax(0,1fr) auto; gap: 8px; align-items: center; margin-top: 8px; }
-.eng-detail-row label { font-size: 12px; color: #64748b; font-weight: 700; }
-@media (max-width: 767px) {
-  .eng-editor { grid-template-columns: 1fr; }
-  .eng-category-nav { flex-direction: row; flex-wrap: wrap; }
-  .eng-category-nav strong { width: 100%; }
-  .eng-category-tab { flex: 1 1 120px; }
-  .eng-receipt-grid { grid-template-columns: 1fr; }
-  .eng-detail-row { grid-template-columns: 1fr; gap: 4px; }
-  .eng-detail-row button { justify-self: start; }
-}
-
-/* 工程零用金檢視：清楚區分分類／項目／單據／細項 */
-.pc-status--general { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
-.pc-status--engineering { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
-.eng-guide-card .pc-card__bd { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; color:#475569; }
-.eng-guide-card strong { color:#1e3a5f; }
-.eng-file-label { color:#64748b; font-size:12px; overflow-wrap:anywhere; }
-.eng-category-card .pc-card__hd { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.eng-category-card .pc-card__hd h2 { margin:3px 0 0; }
-.eng-section-kicker { color:#64748b; font-size:11px; letter-spacing:.08em; }
-.eng-subtotal, .eng-group-head strong { color:#1e3a5f; white-space:nowrap; }
-.eng-group-block { margin-bottom:16px; }
-.eng-group-block:last-child { margin-bottom:0; }
-.eng-group-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-bottom:0; border-radius:9px 9px 0 0; }
-.eng-group-head h3 { margin:0; font-size:14px; color:#334155; }
-.eng-detail-table-wrap { overflow-x:auto; border:1px solid #e2e8f0; border-radius:0 0 9px 9px; }
-.eng-detail-table { width:100%; table-layout:auto; border-collapse:collapse; }
-.eng-detail-table th { background:#f1f5f9; color:#475569; font-size:12px; text-align:left; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
-.eng-detail-table th:nth-child(1) { width:42%; }
-.eng-detail-table th:nth-child(2) { width:20%; text-align:center; }
-.eng-detail-table th:nth-child(3) { width:20%; text-align:center; }
-.eng-detail-table th:nth-child(4) { width:18%; text-align:right; }
-.eng-detail-table td { padding:9px 10px; vertical-align:middle; border-bottom:1px solid #f1f5f9; }
-.eng-detail-table td:nth-child(2), .eng-detail-table td:nth-child(3) { text-align:center; }
-.eng-detail-table td:nth-child(4) { text-align:right; white-space:nowrap; }
-.eng-detail-table tbody tr:last-child td { border-bottom:0; }
-.eng-receipt-toggle { display:flex; align-items:center; gap:7px; width:100%; min-height:34px; padding:2px 0; border:0; background:transparent; color:#334155; text-align:left; cursor:pointer; }
-.eng-receipt-toggle:hover .eng-receipt-no { color:#1d4ed8; }
-.eng-receipt-detail-row td { padding:0 10px 10px !important; background:#f8fafc; }
-.eng-receipt-detail-row .eng-receipt-details { margin:0; }
-.eng-detail-cell { min-width:220px; white-space:pre-wrap; }
-.pc-general-entry-row--expandable { cursor:pointer; }
-.pc-general-entry-row--expandable:hover td { background:#f8fafc; }
-.eng-tax-mark { display:inline-flex; min-width:24px; justify-content:center; padding:2px 6px; border-radius:5px; background:#ecfdf5; color:#047857; font-weight:700; }
-.pc-empty-cell { color:#94a3b8; text-align:center; padding:18px !important; }
-@media (max-width:768px) { .eng-category-card .pc-card__hd, .eng-group-head { align-items:flex-start; flex-direction:column; } .eng-detail-table th, .eng-detail-table td { padding:8px 6px; } .eng-detail-table th:nth-child(1) { width:38%; } .eng-detail-table th:nth-child(2) { width:22%; } .eng-detail-table th:nth-child(3) { width:22%; } .eng-detail-table th:nth-child(4) { width:18%; } }
-
 /* 一般零用金細項：卡片化輸入，與工程階層編輯保持同一視覺語言 */
 .pc-item-row { padding: 7px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .15s; }
 .pc-item-row:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,.10); }
@@ -544,69 +437,6 @@
 .pc-item-row .pc-btn-sm--danger { width:32px; height:32px; padding:0; border-radius:50%; justify-self:center; }
 @media (max-width:767px) { .pc-item-row { grid-template-columns: minmax(0,1fr) 70px 44px; grid-template-areas: "name name del" "qty unit amount"; gap:6px; } .pc-item-row input[data-k="item_name"] { grid-area:name; } .pc-item-row input[data-k="qty"] { grid-area:qty; } .pc-item-row input[data-k="unit"] { grid-area:unit; } .pc-item-row input[data-k="amount"] { grid-area:amount; } .pc-item-row .pc-btn-sm--danger { grid-area:del; } }
 
-/* 零用金檢視 responsive presentation：共用資料，桌面表格／手機卡片 */
-.pc-general-detail-table { table-layout:auto; }
-.pc-general-detail-table th, .pc-general-detail-table td { text-align:center; }
-.pc-general-detail-table th:nth-child(1) { width:6%; }
-.pc-general-detail-table th:nth-child(2) { width:11%; }
-.pc-general-detail-table th:nth-child(3) { width:25%; text-align:left; }
-.pc-general-detail-table th:nth-child(4), .pc-general-detail-table th:nth-child(5) { width:11%; }
-.pc-general-detail-table th:nth-child(6) { width:12%; }
-.pc-general-detail-table th:nth-child(7) { width:14%; }
-.pc-general-detail-table th:nth-child(8) { width:10%; }
-.pc-general-detail-table td:nth-child(3) { text-align:left; }
-.pc-money { font-weight:700; white-space:nowrap; text-align:center !important; }
-.pc-money--income { color:#15803d; }
-.pc-money--expense { color:#b91c1c; }
-.pc-nowrap { white-space:nowrap; }
-.pc-entry-status { color:#64748b; font-size:11px; white-space:nowrap; }
-.pc-entry-status--warn { color:#b45309; font-weight:700; }
-.pc-inline-expand { border:0; background:transparent; color:#2563eb; cursor:pointer; min-width:28px; min-height:28px; margin-right:4px; }
-.pc-general-detail-row > td { padding:0 12px 10px !important; background:#f8fafc; }
-.pc-general-detail-panel { padding:10px 14px; border:1px solid #dbeafe; border-radius:8px; background:#fff; }
-.pc-general-detail-title { font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; }
-.pc-general-detail-list { display:grid; gap:4px; color:#475569; font-size:12.5px; }
-.pc-general-detail-item { padding:4px 0; border-bottom:1px solid #f1f5f9; }
-.pc-general-discrepancy { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding-top:8px; border-top:1px dashed #f59e0b; color:#92400e; font-size:12px; }
-.pc-general-mobile-list { display:none; }
-.pc-general-tx-card { padding:12px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-.pc-general-tx-card + .pc-general-tx-card { margin-top:8px; }
-.pc-general-tx-top, .pc-general-tx-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.pc-general-tx-desc { margin:9px 0; font-weight:600; color:#334155; overflow-wrap:anywhere; }
-.pc-general-tx-bottom { font-weight:700; }
-.pc-general-detail-toggle { margin-top:9px; min-height:40px; width:100%; border:1px solid #bfdbfe; border-radius:8px; background:#eff6ff; color:#1d4ed8; font-weight:600; }
-.eng-category-head, .eng-group-head, .eng-receipt-parent { width:100%; border:0; text-align:left; cursor:pointer; }
-.eng-category-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:#fff; border-radius:12px; }
-.eng-category-head > span { display:flex; align-items:center; gap:8px; min-width:0; }
-.eng-category-head h2 { margin:2px 0 0; font-size:17px; }
-.eng-category-head:hover, .eng-group-head:hover, .eng-receipt-parent--expandable:hover { background:#f8fafc; }
-.eng-chevron { color:#64748b; font-size:12px; width:18px; flex:0 0 18px; }
-.eng-group-head { padding:11px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; display:flex; justify-content:space-between; align-items:center; }
-.eng-group-head > span { display:flex; align-items:center; gap:8px; }
-.eng-group-body { padding:8px 0 0; }
-.eng-receipt-table-head { display:grid; grid-template-columns:minmax(160px,2fr) 90px minmax(80px,1fr) 110px; gap:8px; padding:5px 12px; color:#64748b; font-size:11px; font-weight:700; }
-.eng-receipt-card { border:1px solid #e2e8f0; border-radius:8px; margin:5px 0; overflow:hidden; }
-.eng-receipt-parent { display:grid; grid-template-columns:18px minmax(160px,2fr) 90px minmax(80px,1fr) 110px; gap:8px; align-items:center; padding:10px 12px; background:#fff; }
-.eng-receipt-chevron { color:#64748b; }
-.eng-receipt-no { font-weight:700; overflow-wrap:anywhere; }
-.eng-detail-count { color:#64748b; font-size:12px; }
-.eng-receipt-details { margin:0 12px 10px 38px; padding:8px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; }
-.eng-receipt-details-title { font-size:12px; font-weight:700; color:#475569; margin-bottom:5px; }
-.eng-detail-line { padding:4px 0; color:#475569; font-size:12.5px; overflow-wrap:anywhere; }
-@media (max-width:767px) {
-  .pc-general-detail-table-wrap { display:none; }
-  .pc-general-mobile-list { display:block; }
-  .pc-general-discrepancy { display:grid; gap:4px; }
-  .eng-category-head { padding:12px; }
-  .eng-category-head h2 { font-size:15px; }
-  .eng-receipt-table-head { display:none; }
-  .eng-receipt-parent { grid-template-columns:18px minmax(0,1fr) auto; gap:6px; }
-  .eng-receipt-parent .eng-tax-mark { grid-column:2; justify-self:start; }
-  .eng-receipt-parent .eng-detail-count { grid-column:2; }
-  .eng-receipt-parent strong { grid-column:3; grid-row:1 / span 3; }
-  .eng-receipt-details { margin-left:26px; }
-}
-@media (min-width:768px) {
-  .pc-general-detail-table-wrap { display:block; }
-  .pc-general-mobile-list { display:none; }
-}
+/* General entry cards are shared by the petty-cash editor surface. */
+.pc-entry-card--clickable { cursor:pointer; }
+.pc-entry-card--clickable:hover, .pc-entry-card--clickable:focus-visible { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.10); outline:0; }

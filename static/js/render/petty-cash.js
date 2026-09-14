@@ -585,5 +585,5 @@ function engRenderDetail() {
     { label: '總單據數', value: String(totalReceipts), colorClass: 'pc-kpi-green', icon: '▤', iconClass: 'ui-kpi-icon--green' },
     { label: '工程零用金總計', value: '$' + _pcMoney(r.total_amount), colorClass: 'pc-kpi-balance', icon: '$', iconClass: 'ui-kpi-icon--amber' },
   ];
-  document.getElementById('content').innerHTML = `<div class="pc-wrap">${pcDetailHeaderHtml(r, true)}<section class="pc-card eng-guide-card"><div class="pc-card__bd"><strong>ⓘ 如何閱讀這份工程零用金？</strong><span>分類是費用大類；項目是分類下的用途；一張單據可包含多個明細項目，單據金額只計算一次。</span></div></section><section class="pc-card"><div class="pc-card__bd">${pcDetailKpiRowHtml(kpis)}</div></section>${categoryHtml || '<div class="pc-empty">尚未建立任何分類<br><small>請按「編輯」新增第一個分類</small></div>'}</div>`;
+  document.getElementById('content').innerHTML = `<div class="pc-wrap eng-detail-view">${pcDetailHeaderHtml(r, true)}<section class="pc-card eng-guide-card"><div class="pc-card__bd"><strong>ⓘ 如何閱讀這份工程零用金？</strong><span>分類是費用大類；項目是分類下的用途；一張單據可包含多個明細項目，單據金額只計算一次。</span></div></section><section class="pc-card"><div class="pc-card__bd">${pcDetailKpiRowHtml(kpis)}</div></section>${categoryHtml || '<div class="pc-empty">尚未建立任何分類<br><small>請按「編輯」新增第一個分類</small></div>'}</div>`;
 }

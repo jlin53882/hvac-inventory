@@ -14,6 +14,7 @@ pytest 後端測試測不到。此檔用「靜態資產檢查」當單元測試�
     env -u PYTHONPATH .venv\\Scripts\\python.exe -m pytest tests/test_frontend_assets.py -v
 """
 import os
+import re
 import subprocess
 import sys
 
@@ -75,7 +76,8 @@ SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
-PETTY_CASH_PR8_CSS = os.path.join(STATIC, "css", "style.petty-cash-pr8.css")
+PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "style.petty-cash-reports.css")
+PETTY_CASH_ENGINEERING_CSS = os.path.join(STATIC, "css", "style.petty-cash-engineering.css")
 PETTY_CASH_ENGINEERING_MODAL_JS = os.path.join(STATIC, "js", "modals", "engineering-petty-cash.js")
 SETTINGS_HTML = os.path.join(STATIC, "settings.html")
 SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
@@ -91,8 +93,8 @@ def read(p):
         return fh.read()
 
 def read_petty_cash_css():
-    """零用金 CSS：base 先載入，PR8 override 後載入，符合 index.html 順序。"""
-    return read(PETTY_CASH_CSS) + read(PETTY_CASH_PR8_CSS)
+    """零用金三層 CSS 合併內容（僅供既有行為測試）。"""
+    return read(PETTY_CASH_CSS) + read(PETTY_CASH_REPORTS_CSS) + read(PETTY_CASH_ENGINEERING_CSS)
 
 
 def read_calendar_js_all():
@@ -379,7 +381,9 @@ def test_petty_cash_frontend_contract():
     assert 'src="/static/js/render/petty-cash.js"' in index
     assert 'src="/static/js/modals/petty-cash.js"' in index
     assert 'href="/static/css/style.petty-cash.css"' in index
-    assert 'href="/static/css/style.petty-cash-pr8.css"' in index
+    assert 'href="/static/css/style.petty-cash-reports.css"' in index
+    assert 'href="/static/css/style.petty-cash-engineering.css"' in index
+    assert 'style.petty-cash-pr8.css' not in index
     app = read(APP_JS)
     assert "'petty-cash':'零用金月報'" in app
     assert "'petty-cash':'🪙'" in app
@@ -448,25 +452,41 @@ def test_petty_cash_detail_renderers_keep_separate_business_bodies():
 
 
 def test_petty_cash_kpi_grid_layout():
-    """KPI 三欄使用 CSS grid 強制同行（2026-09-12）：repeat(3, minmax(0, 1fr))"""
-    css = read_petty_cash_css()
-    assert 'display: grid' in css
-    assert 'repeat(3, minmax(0, 1fr))' in css
-    assert '.pc-kpi-row' in css
-    assert '.pc-kpi-card' in css
-    js = read(PETTY_CASH_RENDER_JS)
-    assert 'pc-kpi-row' in js
-    assert 'pc-kpi-card__head' in js
-    assert 'pc-kpi-card__num' in js
-    assert 'pc-kpi-card__foot' in js
-    # Mobile decision: all KPI cards remain on one horizontal row.
-    assert '#content .pc-kpi-row { display:flex; grid-template-columns:none; align-items:stretch; }' in css
-    assert '#content .pc-kpi-card:first-child { grid-column:auto; }' in css
-    assert 'grid-column:1 / -1' not in css
-    assert '#content .pc-kpi-row { grid-template-columns: repeat(2,' not in css
-    assert '@media (max-width: 1200px)' in css
+    """KPI 三欄使用 canonical flex contract，任何 viewport 都維持同行。"""
+    css = read(PETTY_CASH_CSS)
+    assert '#content .pc-kpi-row {\n  display: flex;' in css
+    assert '#content .pc-kpi-card {\n  flex: 1 1 0;' in css
+    assert 'width: 0;' in css and 'min-width: 0;' in css
+    assert css.count('#content .pc-kpi-row {') == 1
+    assert 'repeat(3, minmax(0, 1fr))' not in css
+    assert 'repeat(auto-fit' not in read_petty_cash_css()
+    assert 'grid-template-columns:none' not in read_petty_cash_css()
     assert '@media (max-width: 767px)' in css
 
+
+def test_petty_cash_css_ownership_and_breakpoint_contract():
+    """三份 petty-cash CSS 有明確 owner，且 feature 層不裸覆寫 base。"""
+    index = read(INDEX)
+    base = read(PETTY_CASH_CSS)
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    engineering = read(PETTY_CASH_ENGINEERING_CSS)
+    assert index.index('style.petty-cash.css') < index.index('style.petty-cash-reports.css') < index.index('style.petty-cash-engineering.css')
+    assert 'style.petty-cash-pr8.css' not in index
+    assert '.pc-report-list-table' in reports
+    assert '.pc-general-detail-table' in reports
+    assert '.eng-detail-table' in engineering
+    assert '.eng-editor' in engineering
+    for css in (reports, engineering):
+        assert re.search(r'(?m)^\s*\.pc-card\s*\{', css) is None
+        assert re.search(r'(?m)^\s*\.pc-num\s*\{', css) is None
+        assert re.search(r'(?m)^\s*\.pc-table\s+th\s*\{', css) is None
+        assert '#content .pc-kpi-card' not in css
+    assert '@media (max-width: 767px)' in reports
+    assert '@media (max-width: 767px)' in engineering
+    assert 'max-width:768px' not in read_petty_cash_css()
+    assert 'max-width: 768px' not in read_petty_cash_css()
+    assert '@media (min-width: 768px)' in reports
+    assert '@media (min-width: 768px)' in base
 
 def test_petty_cash_delete_button_text():
     """刪除按鈕包含文字「刪除」（2026-09-12）"""
@@ -536,7 +556,7 @@ def test_petty_cash_detail_table_mobile():
     assert 'grid-template-columns: 48px minmax(0, 1fr)' in css
     assert '.pc-general-detail-head span:last-child { text-align: left; }' in css
     assert 'grid-template-columns:auto minmax(0,1fr);' in css
-    assert 'text-align: left !important' in css
+    assert '.pc-general-detail-head span:last-child { text-align: left; }' in css
     assert '.pc-report-list-table' in css
     assert 'table-layout: auto' in css
     assert '11.11%' not in css
@@ -572,6 +592,7 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     js = read(PETTY_CASH_RENDER_JS)
     modal_js = read(PETTY_CASH_MODAL_JS)
     css = read_petty_cash_css()
+    reports_css = read(PETTY_CASH_REPORTS_CSS)
     assert 'function pcMoreMenuHtml' in js
     assert 'class="pc-more-menu"' in js
     assert 'pcBindMoreMenuEvents' in js
@@ -596,20 +617,20 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'min-width: 176px' in css
     assert 'white-space:nowrap' in css
     assert 'table-layout:fixed' not in css
-    assert 'PR8 dynamic content layout' in css
-    assert '.eng-detail-table,\n.pc-general-detail-table { table-layout:auto; }' in css
+    assert 'Report list owns its table behavior' in reports_css
+    assert '.pc-general-detail-table' in reports_css and '.eng-detail-table' in read(PETTY_CASH_ENGINEERING_CSS)
     assert 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' not in css
     assert 'grid-template-columns:minmax(0,1fr) auto' in css
-    assert 'PR8 variable text: data labels and values may wrap' in css
+    assert '.pc-report-list-table th, .pc-report-list-table td' in reports_css
     assert '.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }' in css
-    assert 'PR8 KPI row: always stay on one horizontal line' in css
-    assert '#content .pc-kpi-row { display:flex; grid-template-columns:none; align-items:stretch; }' in css
-    assert '.eng-detail-table td:nth-child(4) { text-align:center !important; }' in css
+    assert 'KPI canonical contract' in read(PETTY_CASH_CSS)
+    assert '#content .pc-kpi-row {\n  display: flex;' in read(PETTY_CASH_CSS)
+    assert '.eng-detail-table td:nth-child(4) { text-align:center; }' in read(PETTY_CASH_ENGINEERING_CSS)
     assert '.eng-receipt-toggle' in css
     assert 'engToggle(engExpandedReceipts' in js
     assert '.pc-kpi-card .ui-kpi-value' in css
     assert 'overflow-wrap:anywhere' in css
-    assert 'clamp(16px,5.5vw,24px)' in css
+    assert 'clamp(14px, 4.5vw, 24px)' in read(PETTY_CASH_CSS)
     assert '.eng-category-head .eng-subtotal' in css
     assert 'pc-entry-card--clickable' in modal_js
     assert 'event.stopPropagation();pcOpenEntryModal(${i})' in modal_js
