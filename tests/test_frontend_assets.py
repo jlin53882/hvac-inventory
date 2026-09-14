@@ -72,6 +72,9 @@ CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
 SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
+QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
+QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
+PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
 # 待測：零用金月報（2026-09-12）
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
