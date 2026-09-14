@@ -5,10 +5,13 @@ from pathlib import Path
 import re
 import datetime
 import io
+import math
 
 from openpyxl import load_workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from app.services.petty_cash_excel import (
+    INTEGER_MONEY_FORMAT,
     configure_print_layout,
     copy_role_style,
     ensure_page_defaults,
@@ -133,6 +136,59 @@ def _xlsx_number(value):
     return int(amount) if amount == amount.to_integral_value() else float(amount)
 
 
+def _apply_engineering_presentation(ws, row, role="data"):
+    """Apply the small dynamic presentation adjustments not encoded by roles."""
+    base_font = Font(name="Microsoft JhengHei", size=11, bold=role in {"header", "subtotal", "total"})
+    for col in range(1, 7):
+        cell = ws.cell(row, col)
+        cell.font = Font(name=base_font.name, size=base_font.sz, bold=base_font.bold)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
+    if role == "header":
+        fill = PatternFill("solid", fgColor="D9EAF7")
+        for col in range(1, 7):
+            ws.cell(row, col).fill = fill
+            ws.cell(row, col).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.row_dimensions[row].height = 24
+    elif role == "data":
+        ws.cell(row, 5).alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        ws.cell(row, 6).alignment = Alignment(horizontal="right", vertical="center", wrap_text=False)
+        ws.cell(row, 3).number_format = "@"
+        ws.cell(row, 4).number_format = "@"
+        ws.cell(row, 6).number_format = INTEGER_MONEY_FORMAT
+    elif role == "subtotal":
+        fill = PatternFill("solid", fgColor="EAF3F8")
+        for col in range(1, 7):
+            ws.cell(row, col).fill = fill
+        ws.cell(row, 1).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row, 6).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row, 6).number_format = INTEGER_MONEY_FORMAT
+    elif role == "note":
+        for col in range(1, 7):
+            ws.cell(row, col).font = Font(name="Microsoft JhengHei", size=10, italic=True)
+        ws.cell(row, 1).alignment = Alignment(horizontal="left", vertical="center")
+    elif role == "total":
+        fill = PatternFill("solid", fgColor="FFF2CC")
+        for col in range(1, 7):
+            ws.cell(row, col).fill = fill
+            ws.cell(row, col).border = Border(
+                left=Side(style="medium"), right=Side(style="medium"),
+                top=Side(style="medium"), bottom=Side(style="medium"),
+            )
+        total_font = Font(name="Microsoft JhengHei", size=14, bold=True)
+        ws.cell(row, 1).font = total_font
+        ws.cell(row, 6).font = total_font
+        ws.cell(row, 1).alignment = Alignment(horizontal="center", vertical="center")
+        ws.cell(row, 6).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row, 6).number_format = INTEGER_MONEY_FORMAT
+        ws.row_dimensions[row].height = 26
+
+
+def _detail_row_height(detail):
+    """Use a bounded estimate for wrapped detail text without a layout engine."""
+    length = max(len(str(detail or "")), 1)
+    return min(60, max(22, 15 * math.ceil(length / 38)))
+
+
 def _clear_visible_body(ws, first_body_row):
     for merged in list(ws.merged_cells.ranges):
         ws.unmerge_cells(str(merged))
@@ -152,15 +208,27 @@ def build_engineering_report(report):
     ws = wb.active
     styles = wb["__styles__"]
     _clear_visible_body(ws, 3)
+
+    widths = {"A": 16, "B": 16, "C": 14, "D": 18, "E": 60, "F": 14}
+    for column, width in widths.items():
+        ws.column_dimensions[column].width = width
+
     ws.merge_cells("A1:F1")
-    ws["A1"] = f"{period_display(report['start_date'], report['end_date'])}工程零用金明細表"
-    for col, value in enumerate(["類別", "項目", "統編", "發票號碼", "細項", "金額"], 1):
+    copy_role_style(styles, "engineering_title", ws, 1)
+    ws["A1"] = f"{period_display(report['start_date'], report['end_date']).replace('~', '～')} 工程零用金明細表"
+    ws["A1"].font = Font(name="Microsoft JhengHei", size=18, bold=True)
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws["A1"].fill = PatternFill("solid", fgColor="EAF3F8")
+    ws.row_dimensions[1].height = 30
+
+    copy_role_style(styles, "engineering_header", ws, 2)
+    for col, value in enumerate(["類別", "項目", "統編", "單據號碼", "細項", "金額"], 1):
         ws.cell(2, col).value = value
+    _apply_engineering_presentation(ws, 2, "header")
 
     categories = report.get("categories") or []
     calculated = calculate_engineering_totals(categories)
     categories = calculated["categories"]
-    calculated_total = calculated["total_amount"]
     data_rows = []
     category_merges = []
     group_merges = []
@@ -199,27 +267,22 @@ def build_engineering_report(report):
                     for receipt in receipts:
                         receipt_start = current_row
                         details = receipt.get("details") or [""]
-                        for detail_index, detail in enumerate(details):
+                        for detail in details:
                             append_data(
-                                category.get("name", ""),
-                                group.get("name", ""),
-                                receipt,
-                                detail,
-                                category_start,
-                                group_start,
-                                receipt_start,
+                                category.get("name", ""), group.get("name", ""), receipt,
+                                detail, category_start, group_start, receipt_start,
                             )
                             current_row += 1
                         receipt_end = current_row - 1
                         if receipt_end > receipt_start:
                             receipt_merges.extend((receipt_start, receipt_end, col) for col in (3, 4, 6))
                 group_end = current_row - 1
-                if group_end >= group_start and group_end > group_start:
+                if group_end > group_start:
                     group_merges.append((group_start, group_end, 2))
         category_end = current_row - 1
         if category_end > category_start:
             category_merges.append((category_start, category_end, 1))
-        subtotal_rows.append((current_row, category.get("subtotal", 0)))
+        subtotal_rows.append((current_row, category.get("name", ""), category_start, category_end))
         current_row += 1
 
     for record in data_rows:
@@ -230,41 +293,41 @@ def build_engineering_report(report):
         if record["group_anchor"]:
             ws.cell(row_number, 2).value = excel_safe(record["group"])
         if record["receipt_anchor"]:
-            tax = ws.cell(row_number, 3)
-            tax.value = excel_safe(str(record["tax_id_mark"] or ""))
-            tax.number_format = "@"
-            number = ws.cell(row_number, 4)
-            number.value = excel_safe(str(record["receipt_number"] or ""))
-            number.number_format = "@"
+            ws.cell(row_number, 3).value = excel_safe(str(record["tax_id_mark"] or ""))
+            ws.cell(row_number, 4).value = excel_safe(str(record["receipt_number"] or ""))
             ws.cell(row_number, 6).value = _xlsx_number(record["amount"])
         ws.cell(row_number, 5).value = excel_safe(record["detail"])
+        ws.row_dimensions[row_number].height = _detail_row_height(record["detail"])
+        _apply_engineering_presentation(ws, row_number, "data")
 
     for first, last, col in receipt_merges + group_merges + category_merges:
         _merge(ws, first, last, col)
 
-    for row_number, subtotal in subtotal_rows:
+    for row_number, category_name, data_start, data_end in subtotal_rows:
         copy_role_style(styles, "engineering_subtotal", ws, row_number)
-        ws.cell(row_number, 1).value = "小計:"
-        ws.cell(row_number, 6).value = _xlsx_number(subtotal)
+        ws.cell(row_number, 1).value = excel_safe(f"{category_name} 小計")
+        ws.cell(row_number, 6).value = f"=SUM(F{data_start}:F{data_end})"
         ws.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=5)
+        _apply_engineering_presentation(ws, row_number, "subtotal")
 
-    spacer_row = current_row
-    copy_role_style(styles, "engineering_spacer", ws, spacer_row)
-    total_top = spacer_row + 1
-    for role, row_number in (
-        ("engineering_total_top", total_top),
-        ("engineering_total_middle", total_top + 1),
-        ("engineering_total_bottom", total_top + 2),
-    ):
-        copy_role_style(styles, role, ws, row_number)
-    ws.cell(total_top, 1).value = "總計:"
-    ws.cell(total_top, 6).value = _xlsx_number(report.get("total_amount", calculated_total))
-    ws.merge_cells(start_row=total_top, start_column=1, end_row=total_top + 2, end_column=5)
-    ws.merge_cells(start_row=total_top, start_column=6, end_row=total_top + 2, end_column=6)
+    note_row = current_row
+    copy_role_style(styles, "engineering_spacer", ws, note_row)
+    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=6)
+    ws.cell(note_row, 1).value = "註：V＝有統編"
+    _apply_engineering_presentation(ws, note_row, "note")
+
+    total_row = note_row + 1
+    copy_role_style(styles, "engineering_total_top", ws, total_row)
+    ws.cell(total_row, 1).value = "總計"
+    subtotal_refs = ",".join(f"F{row_number}" for row_number, *_ in subtotal_rows)
+    ws.cell(total_row, 6).value = f"=SUM({subtotal_refs})" if subtotal_refs else f"=SUM(F{note_row}:F{note_row})"
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=5)
+    _apply_engineering_presentation(ws, total_row, "total")
 
     ws.title = engineering_sheet_title(report["start_date"], report["end_date"])
+    ws.sheet_view.showGridLines = False
     ensure_page_defaults(ws)
-    configure_print_layout(ws, total_top + 2, title_rows="$1:$2")
+    configure_print_layout(ws, total_row, title_rows="$1:$2")
     wb.calculation.fullCalcOnLoad = True
     buf = io.BytesIO()
     wb.save(buf)

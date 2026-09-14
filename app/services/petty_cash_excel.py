@@ -7,6 +7,7 @@ from openpyxl.worksheet.page import PageMargins
 
 
 XLSX_SUFFIX = ".xlsx"
+INTEGER_MONEY_FORMAT = "#,##0"
 
 
 def _as_date(value):

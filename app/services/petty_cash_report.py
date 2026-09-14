@@ -15,7 +15,9 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from app.services.petty_cash_excel import (
+    INTEGER_MONEY_FORMAT,
     configure_print_layout,
+    copy_cell_style,
     copy_role_style,
     ensure_page_defaults,
     period_display,
@@ -81,6 +83,7 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
     ws["B2"] = f"{roc_year}年"
     ws["D2"] = "上期餘額"
     ws["E2"] = _xlsx_number(opening)
+    ws["E2"].number_format = INTEGER_MONEY_FORMAT
     for col, value in enumerate(["項次", "日   期", "摘         要", "收   入", "支   出", "科 目"], 1):
         ws.cell(3, col).value = value
 
@@ -102,8 +105,7 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
     body_count = len(expanded)
     closing_row = 4 + body_count
     label_row = closing_row + 2
-    value_row = closing_row + 3
-    ws.insert_rows(4, body_count + 4)
+    ws.insert_rows(4, body_count + 3)
 
     seq = 0
     for index, (entry, item, item_index, item_count) in enumerate(expanded):
@@ -125,6 +127,7 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
             if item_index == 0:
                 ws.cell(row_number, 2).value = entry_date
                 ws.cell(row_number, 5).value = _xlsx_number(entry["amount"])
+                ws.cell(row_number, 5).number_format = INTEGER_MONEY_FORMAT
                 ws.cell(row_number, 6).value = excel_safe((entry.get("category") or "").strip())
             if item_count > 1 and item_index == 0:
                 for col in (2, 4, 5, 6):
@@ -138,24 +141,30 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
             ws.cell(row_number, 2).value = entry_date
             ws.cell(row_number, 3).value = excel_safe((entry.get("description") or "").strip())
             amount = _xlsx_number(entry["amount"])
-            ws.cell(row_number, 4 if entry.get("entry_type") == "income" else 5).value = amount
+            amount_column = 4 if entry.get("entry_type") == "income" else 5
+            ws.cell(row_number, amount_column).value = amount
+            ws.cell(row_number, amount_column).number_format = INTEGER_MONEY_FORMAT
             ws.cell(row_number, 6).value = excel_safe((entry.get("category") or "").strip())
 
-    income = round(sum(float(entry["amount"]) for entry in entries if entry.get("entry_type") == "income"), 2)
-    expense = round(sum(float(entry["amount"]) for entry in entries if entry.get("entry_type") != "income"), 2)
-    closing = round(opening + income - expense, 2)
     copy_role_style(styles, "general_closing", ws, closing_row)
     ws.cell(closing_row, 4).value = "本期餘額"
-    ws.cell(closing_row, 5).value = _xlsx_number(closing)
+    if body_count:
+        last_body_row = closing_row - 1
+        closing_formula = f"=E2+SUM(D4:D{last_body_row})-SUM(E4:E{last_body_row})"
+    else:
+        closing_formula = "=E2"
+    ws.cell(closing_row, 5).value = closing_formula
+    ws.cell(closing_row, 5).number_format = INTEGER_MONEY_FORMAT
     copy_role_style(styles, "general_signature_label", ws, label_row)
     ws.cell(label_row, 2).value = "主管:"
     ws.cell(label_row, 4).value = "製表人:"
-    copy_role_style(styles, "general_signature_value", ws, value_row)
-    ws.cell(value_row, 5).value = excel_safe((report.get("prepared_by") or "").strip())
+    copy_cell_style(styles.cell(10, 5), ws.cell(label_row, 5))
+    ws.cell(label_row, 5).value = excel_safe((report.get("prepared_by") or "").strip())
 
     ws.title = period_token(start, end)
     ensure_page_defaults(ws)
-    configure_print_layout(ws, value_row, title_rows="$1:$3")
+    configure_print_layout(ws, label_row, title_rows="$1:$3")
+    wb.calculation.fullCalcOnLoad = True
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

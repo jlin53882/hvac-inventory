@@ -147,8 +147,8 @@ def test_engineering_export_tax_values_merges_and_filename(eng_client, tmp_path)
     assert ws['C3'].value == 'V'; assert ws['C4'].value == '12345678'
     assert ws['C3'].number_format == '@'; assert ws['C4'].font.name == ws['C3'].font.name
     assert 'C6:C11' in [str(x) for x in ws.merged_cells.ranges]
-    assert ws['F14'].value == 1829
-    assert ws['F5'].value == 825 or ws['F5'].value == 825.0
+    assert ws['F14'].value == '=SUM(F5,F12)'
+    assert ws['F5'].value == '=SUM(F3:F4)'
 
 
 def test_engineering_frontend_contract():

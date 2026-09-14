@@ -115,6 +115,7 @@ function pcSwitchModalStep(step, config) {
 
 // 渲染零用金月報首頁（含 KPI、篩選、列表）
 async function renderPettyCash() {
+  pcCloseAllMoreMenus();
   pcDetailRequestSeq += 1;
   pcModalOpenSeq += 1;
   pcModalSessionType = '';
@@ -209,6 +210,7 @@ async function pcLoadPersons() {
 
 // 載入月報列表（後端篩選 + 分頁）
 async function pcLoadHistory(resetPage) {
+  pcCloseAllMoreMenus();
   if (resetPage) pcPage = 1;
   const fromEl = document.getElementById('pc-f-from');
   if (!fromEl) return;
@@ -302,34 +304,62 @@ function pcReportActionEntries(r, engineering) {
 
 function pcMoreMenuHtml(r, engineering) {
   const actions = pcReportActionEntries(r, engineering);
-  return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
+  return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();pcCloseMoreMenuFromAction(this);${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
 }
 var pcMoreMenuEventsBound = false;
 function pcPositionMoreMenu(menu, list) {
   const rect = menu.getBoundingClientRect();
-  list.style.top = `${rect.bottom + 5}px`;
-  list.style.left = `${Math.max(8, rect.right - list.offsetWidth)}px`;
+  const gap = 5;
+  const below = window.innerHeight - rect.bottom;
+  const top = below < list.offsetHeight + 8
+    ? Math.max(8, rect.top - list.offsetHeight - gap)
+    : rect.bottom + gap;
+  const left = Math.min(
+    Math.max(8, rect.right - list.offsetWidth),
+    Math.max(8, window.innerWidth - list.offsetWidth - 8),
+  );
+  list.style.top = `${top}px`;
+  list.style.left = `${left}px`;
+}
+function pcCloseMoreMenu(menu) {
+  if (!menu) return;
+  const list = menu._pcMoreMenuList;
+  if (list) {
+    if (list.parentNode !== menu) menu.appendChild(list);
+    list.classList.remove('pc-more-menu__list--portal');
+    list.style.position = '';
+    list.style.top = '';
+    list.style.left = '';
+    list.style.right = '';
+    list.style.zIndex = '';
+    delete list._pcMoreMenuOwner;
+    delete menu._pcMoreMenuList;
+  }
+  menu.removeAttribute('open');
+  const row = menu.closest('tr');
+  if (row) row.classList.remove('pc-more-menu-row--open');
+}
+function pcCloseMoreMenuFromAction(element) {
+  const list = element && element.closest('.pc-more-menu__list');
+  pcCloseMoreMenu((list && list._pcMoreMenuOwner) || (element && element.closest('.pc-more-menu')));
+}
+function pcCloseAllMoreMenus() {
+  document.querySelectorAll('.pc-more-menu').forEach(pcCloseMoreMenu);
+  document.querySelectorAll('.pc-more-menu__list--portal').forEach(list => {
+    if (!list._pcMoreMenuOwner) list.remove();
+  });
 }
 function pcPortalMoreMenu(menu) {
   const list = menu.querySelector('.pc-more-menu__list');
   if (!list || list.parentNode === document.body) return;
   menu._pcMoreMenuList = list;
+  list._pcMoreMenuOwner = menu;
+  list.classList.add('pc-more-menu__list--portal');
   document.body.appendChild(list);
   list.style.position = 'fixed';
   list.style.right = 'auto';
   list.style.zIndex = '1000';
   pcPositionMoreMenu(menu, list);
-}
-function pcRestoreMoreMenu(menu) {
-  const list = menu._pcMoreMenuList;
-  if (!list) return;
-  menu.appendChild(list);
-  list.style.position = '';
-  list.style.top = '';
-  list.style.left = '';
-  list.style.right = '';
-  list.style.zIndex = '';
-  delete menu._pcMoreMenuList;
 }
 function pcBindMoreMenuEvents() {
   if (pcMoreMenuEventsBound) return;
@@ -339,15 +369,11 @@ function pcBindMoreMenuEvents() {
     if (!menu.matches || !menu.matches('.pc-more-menu')) return;
     const row = menu.closest('tr');
     if (!menu.open) {
-      pcRestoreMoreMenu(menu);
-      if (row) row.classList.remove('pc-more-menu-row--open');
+      pcCloseMoreMenu(menu);
       return;
     }
-    document.querySelectorAll('.pc-more-menu-row--open').forEach(otherRow => {
-      otherRow.classList.remove('pc-more-menu-row--open');
-    });
     document.querySelectorAll('.pc-more-menu[open]').forEach(other => {
-      if (other !== menu) other.removeAttribute('open');
+      if (other !== menu) pcCloseMoreMenu(other);
     });
     pcPortalMoreMenu(menu);
     if (row) row.classList.add('pc-more-menu-row--open');
@@ -362,8 +388,7 @@ function pcBindMoreMenuEvents() {
   });
   document.addEventListener('click', event => {
     if (event.target.closest && event.target.closest('.pc-more-menu, .pc-more-menu__list')) return;
-    document.querySelectorAll('.pc-more-menu[open]').forEach(menu => menu.removeAttribute('open'));
-    document.querySelectorAll('.pc-more-menu-row--open').forEach(row => row.classList.remove('pc-more-menu-row--open'));
+    pcCloseAllMoreMenus();
   }, true);
 }
 
@@ -441,6 +466,7 @@ function pcChangePage(d) {
 
 // 開啟單份月報檢視
 async function pcOpenDetail(id) {
+  pcCloseAllMoreMenus();
   const requestSeq = ++pcDetailRequestSeq;
   try {
     const res = await fetch('/api/petty-cash-reports/' + id);
@@ -557,11 +583,13 @@ function pcRenderDetail() {
 
 // 匯出 Excel（檔名由後端安全格式產生）
 function pcExport(id) {
+  pcCloseAllMoreMenus();
   window.open('/api/petty-cash-reports/' + id + '/export.xlsx', '_blank');
 }
 
 // 刪除月報（二次確認；含 entries/items CASCADE）
 async function pcDelete(id, backToList) {
+  pcCloseAllMoreMenus();
   if (!confirm('確定刪除這份零用金月報？底下收支紀錄會一併刪除。')) return;
   const res = await fetch('/api/petty-cash-reports/' + id, { method: 'DELETE' });
   const data = await res.json().catch(() => ({}));

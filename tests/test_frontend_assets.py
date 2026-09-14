@@ -516,15 +516,26 @@ def test_petty_cash_css_feature_ownership_and_report_scroll_contract():
 
 
 def test_petty_cash_general_detail_ui_contract():
-    """一般 detail mobile KPI 維持 2x2，單據明細項次與欄位 padding 對齊。"""
+    """一般 detail KPI 沿用 base canonical layout，明細項次與欄位 padding 對齊。"""
     js = read(PETTY_CASH_RENDER_JS)
     reports = read(PETTY_CASH_REPORTS_CSS)
     assert 'pc-general-detail-kpi' in js
-    assert '#content .pc-general-detail-kpi .pc-kpi-row' in reports
-    assert 'grid-template-columns: repeat(2, minmax(0, 1fr));' in reports
+    assert '#content .pc-general-detail-kpi .pc-kpi-row' not in reports
+    assert 'grid-template-columns: repeat(2, minmax(0, 1fr));' not in reports
     assert '.pc-general-detail-table th, .pc-general-detail-table td { text-align:left; }' in reports
     assert '.pc-general-detail-item { min-height: 36px; padding: 6px 10px;' in reports
     assert '.pc-general-detail-item .pc-general-detail-index { text-align: left; }' in reports
+
+
+def test_petty_cash_more_menu_portal_lifecycle_contract():
+    js = read(PETTY_CASH_RENDER_JS)
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    assert 'function pcCloseMoreMenu(menu)' in js
+    assert 'pcCloseMoreMenuFromAction(this)' in js
+    assert 'pcCloseAllMoreMenus();' in js
+    assert 'pc-more-menu__list--portal' in js
+    assert 'pc-more-menu__list--portal' in reports
+    assert 'function pcRestoreMoreMenu' not in js
 
 
 def test_petty_cash_new_engineering_category_exposes_receipt_action():
@@ -640,7 +651,7 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert 'function pcMoreMenuHtml' in js
     assert 'class="pc-more-menu"' in js
     assert 'pcBindMoreMenuEvents' in js
-    assert "other.removeAttribute('open')" in js
+    assert 'pcCloseMoreMenu(other)' in js
     assert "pc-more-menu-row--open" in js
     assert "row.classList.add('pc-more-menu-row--open')" in js
     assert '.pc-more-menu-row--open' in css
