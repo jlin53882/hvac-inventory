@@ -53,7 +53,7 @@ EXPECTED_KEYS = tuple(EXPECTED_MATRIX.keys())
 
 
 def test_seed_roles_permissions(rbac_db):
-    """角色 4 個、權限 23 個、權限點清單與設計一致"""
+    """角色 4 個、權限 28 個、權限點清單與設計一致"""
     conn = get_db()
     try:
         roles = [r["name"] for r in conn.execute("SELECT name FROM roles ORDER BY id").fetchall()]
@@ -68,7 +68,7 @@ def test_seed_roles_permissions(rbac_db):
 @pytest.mark.parametrize("perm_key", EXPECTED_KEYS)
 @pytest.mark.parametrize("role_name", EXPECTED_ROLES)
 def test_seed_role_permission_matrix(rbac_db, perm_key, role_name):
-    """role_permissions 內容 = 設計 §5 矩陣（參數化 4×16 全比對）"""
+    """role_permissions 內容 = 設計 §5 矩陣（參數化 4×28 全比對）"""
     conn = get_db()
     try:
         on = conn.execute(
