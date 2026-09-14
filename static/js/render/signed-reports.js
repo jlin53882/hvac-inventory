@@ -411,7 +411,14 @@ function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
   const body = document.getElementById('dsr-preview-body');
   document.getElementById('dsr-preview-title').textContent = '👁 預覽 — ' + name;
   if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" style="width:100%">';
-  else if (mime === 'pdf') body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+  else if (mime === 'pdf') {
+    // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
+    // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
+    if (typeof isMobileView === 'function' && isMobileView()) {
+      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="dsr-btn dsr-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
+    } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+  }
   else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
   document.getElementById('dsr-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
   document.getElementById('dsr-overlay').classList.add('open');

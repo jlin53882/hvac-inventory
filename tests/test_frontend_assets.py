@@ -71,6 +71,9 @@ CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
 SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
+QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
+QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
+PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
 CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
@@ -288,6 +291,50 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert ".dsr-action-btn" in css
     assert "border: 1px solid #111827" in css
     assert ".dsr-note-cell" in css and "background: #fff7ed" in css
+    assert ".dsr-edit-modal .dsr-modal__hd h3" in css and "color: #fff" in css
+    assert "isMobileView" in js and "開啟 PDF" in js
+    assert "data-pdf-url" in js
+
+
+def test_quotation_upload_actions_and_edit_modal_contract():
+    """報價單上傳：同窗 modal 編輯（日期/檔案/上傳人/備註）+ 上傳後清理對齊 DSR。"""
+    js = read(QUOTATION_UPLOAD_RENDER_JS)
+    css = read(QUOTATION_UPLOAD_CSS)
+    assert "qupEdit(${r.id})" in js
+    assert "function qupEdit(id)" in js
+    assert "data-qup-edit-save" in js
+    assert "data-qup-edit-cancel" in js
+    assert 'id="qup-edit-date"' in js
+    assert 'id="qup-edit-uploader"' in js
+    assert 'id="qup-edit-note"' in js
+    assert 'id="qup-edit-file"' in js
+    assert "prompt('編輯報表日期" not in js
+    assert "prompt('編輯上傳人姓名" not in js
+    assert "prompt('編輯備註" not in js
+    assert "qupEditNote" not in js
+    assert "✏️ 編輯" in js
+    assert "function qupKeepUploaderOnly" in js
+    assert "qupKeepUploaderOnly();" in js
+    assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
+    assert "await qupLoadHistory()" in js
+    assert "PATCH" in js
+    assert "FormData" in js
+    assert ".qup-note-cell" in css and "white-space: pre-wrap" in css
+    assert ".qup-edit-modal" in css
+    assert ".qup-edit-modal .qup-modal__hd h3" in css and "color: #fff" in css
+    assert ".qup-edit-modal .qup-modal__bd" in css and "background: #fff" in css
+    assert "isMobileView" in js and "開啟 PDF" in js
+    assert "data-pdf-url" in js
+
+
+def test_pdf_preview_button_runtime():
+    """PDF 手機預覽按鈕 runtime 回歸：node 實際執行兩支 showPreview，斷言 URL 真代入且點擊開對網址。
+
+    （2026-09-14：inline onclick 引號轉義曾讓 previewUrl 變字面文字、按鈕點了沒反應；
+    node --check 只查語法抓不到，字串斷言也全綠，必須執行驗。舊版跑此測試必紅。）
+    """
+    r = subprocess.run(["node", PDF_PREVIEW_BUTTON_JS], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, f"pdf_preview_button.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
 def test_stocktake_calcDiff_has_st_diff_element():

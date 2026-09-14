@@ -235,6 +235,23 @@ function qupClearFile() {
   qupSelectedFile = null;
 }
 
+// 上傳成功後清除欄位數值，保留表單、歷史表格與上傳人姓名。
+function qupKeepUploaderOnly() {
+  const dateField = document.getElementById('qup-report-date');
+  const noteField = document.getElementById('qup-note');
+  const fileField = document.getElementById('qup-file-input');
+  const cameraField = document.getElementById('qup-camera-input');
+  if (dateField) dateField.value = _qupIso(new Date());
+  if (noteField) noteField.value = '';
+  if (fileField) fileField.value = '';
+  if (cameraField) cameraField.value = '';
+  qupSelectedFile = null;
+  const drop = document.getElementById('qup-drop');
+  const preview = document.getElementById('qup-file-preview');
+  if (drop) drop.style.display = 'block';
+  if (preview) preview.style.display = 'none';
+}
+
 // 預覽已選的本地檔案（上傳前）
 function qupOpenPreviewFile() {
   if (!qupSelectedFile) return;
@@ -266,7 +283,7 @@ async function qupSubmitUpload() {
     if (!res.ok) return toast('⚠️ ' + (data.detail || '上傳失敗'));
     bar.style.width = '100%';
     setTimeout(() => toast('✅ 上傳成功'), 300);
-    qupClearFile();
+    qupKeepUploaderOnly();
     qupLoadHistory();
   } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
 }
@@ -323,7 +340,7 @@ function qupRenderTable() {
           </div>
           <div class="qup-actions-cell">
             ${!isImage ? `<button class="qup-action-btn" onclick="qupPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_delete ? `<button class="qup-action-btn" onclick="qupEditNote(${r.id})">✏️ 編輯</button>` : ''}
+            ${r.can_delete ? `<button class="qup-action-btn" onclick="qupEdit(${r.id})">✏️ 編輯</button>` : ''}
             <button class="qup-action-btn" onclick="qupDownload(${r.id})">⬇️ 下載</button>
             ${r.can_delete ? `<button class="qup-action-btn qup-action-btn--danger" onclick="qupDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>
@@ -394,7 +411,14 @@ function qupShowPreview(name, mime, previewUrl, downloadUrl) {
   const body = document.getElementById('qup-preview-body');
   document.getElementById('qup-preview-title').textContent = '👁 預覽 — ' + name;
   if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" style="width:100%">';
-  else if (mime === 'pdf') body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+  else if (mime === 'pdf') {
+    // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
+    // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
+    if (typeof isMobileView === 'function' && isMobileView()) {
+      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="qup-btn qup-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
+    } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+  }
   else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
   document.getElementById('qup-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
   document.getElementById('qup-overlay').classList.add('open');
@@ -403,29 +427,53 @@ function qupShowPreview(name, mime, previewUrl, downloadUrl) {
 function qupClosePreview() { document.getElementById('qup-overlay').classList.remove('open'); document.getElementById('qup-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function qupDownload(id) { window.open('/api/quotation-uploads/' + id + '/download', '_blank'); }
-// 編輯報表備註（上傳者或全域權限者）
-async function qupEditNote(id) {
+// 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）。
+// uploader_name 是顯示文字；後端仍依原始 uploader_user_id 判斷 owner/權限。
+async function qupEdit(id) {
   const report = qupFiltered.find(item => item.id === id);
   if (!report) return;
-  const reportDate = prompt('編輯報表日期（YYYY-MM-DD）', report.report_date || '');
-  if (reportDate === null) return;
-  const uploaderName = prompt('編輯上傳人姓名（1-50 字）', report.uploader_name || '');
-  if (uploaderName === null) return;
-  const note = prompt('編輯備註（最多 500 字）', report.note || '');
-  if (note === null) return;
-  if (note.length > 500) return toast('⚠️ 備註最多 500 字');
-  const res = await fetch('/api/quotation-uploads/' + id, {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({report_date: reportDate, uploader_name: uploaderName, note})
+  const overlay = document.createElement('div');
+  overlay.className = 'qup-overlay open';
+  overlay.innerHTML = `
+    <div class="qup-modal qup-edit-modal" role="dialog" aria-modal="true" aria-labelledby="qup-edit-title">
+      <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="qup-btn-sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>
+      <div class="qup-modal__bd">
+        <div class="qup-field"><label for="qup-edit-date">報表日期（YYYY-MM-DD）</label><input id="qup-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
+        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-uploader">上傳人姓名</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-note">備註</label><textarea id="qup-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-file">替換檔案（選填）</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+        <div class="qup-hint">不選擇新檔案會保留目前檔案。</div>
+      </div>
+      <div class="qup-modal__ft"><button class="qup-btn qup-btn--ghost" type="button" data-qup-edit-cancel>取消</button><button class="qup-btn qup-btn--primary" type="button" data-qup-edit-save>儲存</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-qup-edit-cancel]').forEach(button => button.addEventListener('click', close));
+  overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+  overlay.querySelector('[data-qup-edit-save]').addEventListener('click', async () => {
+    const reportDate = overlay.querySelector('#qup-edit-date').value;
+    const uploaderName = overlay.querySelector('#qup-edit-uploader').value.trim();
+    // 只更新顯示名稱，不變更 uploader_user_id；權限 owner 仍是原始登入者。
+    const note = overlay.querySelector('#qup-edit-note').value.trim();
+    const file = overlay.querySelector('#qup-edit-file').files[0];
+    if (!reportDate) return toast('⚠️ 請選擇報表日期');
+    if (!uploaderName) return toast('⚠️ 請填上傳人姓名');
+    if (note.length > 500) return toast('⚠️ 備註最多 500 字');
+    const fd = new FormData();
+    fd.append('report_date', reportDate);
+    fd.append('uploader_name', uploaderName);
+    fd.append('note', note);
+    if (file) fd.append('file', file);
+    try {
+      const res = await fetch('/api/quotation-uploads/' + id, { method: 'PATCH', body: fd });
+      const data = await res.json();
+      if (!res.ok) return toast('⚠️ ' + (data.detail || '報表更新失敗'));
+      close();
+      Object.assign(report, data);
+      await qupLoadHistory();
+      toast('✅ 報表已更新');
+    } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
   });
-  const data = await res.json();
-  if (!res.ok) return toast('⚠️ ' + (data.detail || '備註更新失敗'));
-  report.report_date = data.report_date;
-  report.uploader_name = data.uploader_name;
-  report.note = data.note;
-  qupRenderTable();
-  toast('✅ 備註已更新');
 }
 
 // 刪除簽名報表（二次確認）

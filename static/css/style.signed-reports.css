@@ -314,6 +314,9 @@
 .dsr-modal__ft { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid #e2e8f0; }
 /* 編輯視窗使用白底表單，不沿用預覽視窗的深色內容區。 */
 .dsr-edit-modal { max-width: 560px; }
+.dsr-edit-modal .dsr-modal__hd { background: #1e3a5f; border-bottom: none; }
+.dsr-edit-modal .dsr-modal__hd h3 { color: #fff; }
+.dsr-edit-modal .dsr-modal__hd .dsr-btn-sm { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
 .dsr-edit-modal .dsr-modal__bd { padding: 16px; background: #fff; }
 .dsr-edit-modal .dsr-field + .dsr-field { margin-top: 14px !important; }
 .dsr-edit-modal .dsr-field label { margin-bottom: 6px; color: #334155; font-size: 13px; }

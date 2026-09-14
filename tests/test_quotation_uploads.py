@@ -218,3 +218,116 @@ def test_edit_note_rejects_overlong_value(signed_env):
         f"/api/quotation-uploads/{report['id']}", json={"note": "x" * 501}
     )
     assert response.status_code in (400, 422)
+
+
+def test_owner_can_edit_all_fields_and_replace_file(signed_env):
+    """日期/檔案/上傳人/備註可在同一 PATCH 換檔；舊檔刪、新檔留、單檔殘留。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    admin = make_client()
+    report = _upload(owner).json()
+    upload_dir = static_dir / "uploads" / "quotation_uploads" / "2026-09"
+    old_path = next(upload_dir.iterdir())
+    assert old_path.read_bytes() == b"%PDF-signed"
+
+    forbidden = other.patch(
+        f"/api/quotation-uploads/{report['id']}",
+        data={"note": "不應被修改"},
+    )
+    assert forbidden.status_code == 403
+
+    updated = owner.patch(
+        f"/api/quotation-uploads/{report['id']}",
+        data={
+            "report_date": "2026-09-08",
+            "uploader_name": "王大明",
+            "note": "已更新備註",
+        },
+        files={"file": ("updated.pdf", b"%PDF-updated", "application/pdf")},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["report_date"] == "2026-09-08"
+    assert updated.json()["uploader_name"] == "王大明"
+    assert updated.json()["note"] == "已更新備註"
+    assert updated.json()["file_name"] == "updated.pdf"
+    assert updated.json()["file_size"] == len(b"%PDF-updated")
+    assert owner.get(f"/api/quotation-uploads/{report['id']}/download").content == b"%PDF-updated"
+    stored_files = list(upload_dir.iterdir())
+    assert len(stored_files) == 1
+    assert stored_files[0].read_bytes() == b"%PDF-updated"
+    assert not old_path.exists()
+
+    admin_updated = admin.patch(
+        f"/api/quotation-uploads/{report['id']}", json={"note": "管理員補充"}
+    )
+    assert admin_updated.status_code == 200
+    assert admin_updated.json()["note"] == "管理員補充"
+    assert admin_updated.json()["file_name"] == "updated.pdf"
+
+
+def test_edit_rejects_invalid_date_and_extension(signed_env):
+    """編輯替換檔案沿用日期格式與副檔名白名單驗證，失敗不動舊檔。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    upload_dir = static_dir / "uploads" / "quotation_uploads" / "2026-09"
+    old_path = next(upload_dir.iterdir())
+
+    invalid_date = owner.patch(
+        f"/api/quotation-uploads/{report['id']}",
+        data={"report_date": "2026/09/08", "uploader_name": "王小明", "note": ""},
+    )
+    assert invalid_date.status_code == 400
+    assert old_path.read_bytes() == b"%PDF-signed"
+
+    invalid_extension = owner.patch(
+        f"/api/quotation-uploads/{report['id']}",
+        data={"report_date": "2026-09-07", "uploader_name": "王小明", "note": ""},
+        files={"file": ("payload.html", b"<script>x</script>", "text/html")},
+    )
+    assert invalid_extension.status_code == 400
+    assert old_path.exists()
+    assert len(list(upload_dir.iterdir())) == 1
+
+
+def test_edit_without_file_keeps_existing_asset(signed_env):
+    """只改文字不選新檔，既有實體檔與 metadata 保持不變。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    upload_dir = static_dir / "uploads" / "quotation_uploads" / "2026-09"
+    old_path = next(upload_dir.iterdir())
+
+    updated = owner.patch(
+        f"/api/quotation-uploads/{report['id']}",
+        data={"note": "只改備註"},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["file_name"] == "daily.pdf"
+    assert old_path.exists()
+    assert old_path.read_bytes() == b"%PDF-signed"
+    assert len(list(upload_dir.iterdir())) == 1
+
+
+def test_edit_keeps_committed_replacement_when_old_cleanup_fails(signed_env, monkeypatch):
+    """舊檔清理失敗不可回滾已提交的新檔（只記警告）。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+
+    def fail_cleanup(*args, **kwargs):
+        raise OSError("simulated cleanup failure")
+
+    monkeypatch.setattr(quotation_uploads, "delete_asset_files", fail_cleanup)
+    updated = owner.patch(
+        f"/api/quotation-uploads/{report['id']}",
+        data={"note": "新版本"},
+        files={"file": ("replacement.pdf", b"%PDF-replacement", "application/pdf")},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["file_name"] == "replacement.pdf"
+    assert owner.get(f"/api/quotation-uploads/{report['id']}/download").content == b"%PDF-replacement"
+    assert len(list((static_dir / "uploads" / "quotation_uploads" / "2026-09").iterdir())) == 2

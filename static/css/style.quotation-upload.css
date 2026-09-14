@@ -242,7 +242,7 @@
 .qup-report-detail__grid strong { color: #1e293b; font-size: 13px; }
 .qup-report-detail__file { grid-column: span 2; }
 .qup-report-detail__note { grid-column: 1 / -1; }
-.qup-report-detail__note .qup-note-cell { min-height: 38px; padding: 8px; background: #fff7ed; }
+.qup-report-detail__note .qup-note-cell { min-height: 38px; padding: 8px; background: #fff7ed; white-space: pre-wrap; overflow-wrap: anywhere; }
 .qup-table-wrap { margin-top: 12px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
 .qup-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
 .qup-table th { padding: 10px; border: 1px solid #111827; background: #f1f5f9; color: #475569; text-align: left; white-space: nowrap; font-weight: 800; }
@@ -314,3 +314,10 @@
 .qup-modal__ft { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid #e2e8f0; }
 .qup-modal__note { color: #64748b; font-size: 12px; }
 .qup-modal__actions { display: flex; gap: 8px; }
+/* 編輯視窗使用白底表單，窄版 560px。 */
+.qup-edit-modal { max-width: 560px; }
+.qup-edit-modal .qup-modal__hd { background: #1e3a5f; border-bottom: none; }
+.qup-edit-modal .qup-modal__hd h3 { color: #fff; }
+.qup-edit-modal .qup-modal__hd .qup-btn-sm { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
+.qup-edit-modal .qup-modal__bd { padding: 16px; background: #fff; }
+.qup-edit-modal .qup-field label { color: #334155; font-size: 13px; }

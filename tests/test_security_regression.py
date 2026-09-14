@@ -400,3 +400,30 @@ def test_daily_report_time_formula_guarded():
     ws = load_workbook(io.BytesIO(buf.getvalue())).active
     b4 = ws["B4"].value
     assert isinstance(b4, str) and b4.startswith("'"), f"時間欄應被 _safe 防護，卻拿到裸值: {b4!r}"
+def test_preview_csp_is_frame_ancestors_only_for_pdf_viewer(client):
+    """preview 的 CSP 不可含 default-src（Chrome PDF 閱讀器走 chrome-extension:// 會被擋）。
+
+    回歸：手機 iframe 開 PDF 顯示「這項內容已遭到封鎖」。
+    framing 保護保留（SAMEORIGIN + frame-ancestors 'self'）；非 preview 維持全站嚴格 CSP。
+    """
+    up = client.post(
+        "/api/signed-reports",
+        data={"report_date": "2026-09-14", "uploader_name": "測試", "note": ""},
+        files={"file": ("t.pdf", b"%PDF-1.4 test", "application/pdf")},
+    )
+    assert up.status_code == 200, up.text
+    rid = up.json()["id"]
+
+    preview = client.get(f"/api/signed-reports/{rid}/preview")
+    assert preview.status_code == 200
+    csp = preview.headers["content-security-policy"]
+    assert "frame-ancestors 'self'" in csp
+    assert "default-src" not in csp
+    assert preview.headers["x-frame-options"] == "SAMEORIGIN"
+    assert preview.headers["cache-control"] == "no-store"
+
+    other = client.get("/api/auth/me")
+    assert other.status_code == 200
+    other_csp = other.headers["content-security-policy"]
+    assert "default-src 'self'" in other_csp
+    assert "frame-ancestors 'none'" in other_csp

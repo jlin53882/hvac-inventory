@@ -135,14 +135,23 @@ async def security_headers_middleware(request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN" if is_signed_report_preview else "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data:; "
-        "connect-src 'self'; " +
-        ("frame-ancestors 'self'; " if is_signed_report_preview else "frame-ancestors 'none'; ") +
-        "base-uri 'self'; "
-        "form-action 'self'"
-    )
+    if is_signed_report_preview:
+        # Chrome 內建 PDF 閱讀器在 iframe 內以 chrome-extension:// 載入，
+        # 會被 default-src 'self' 的 fallback 擋掉（手機顯示「這項內容已遭到封鎖」）。
+        # preview 只對白名單 PDF/圖片回 inline（SVG/HTML 強制 attachment + octet-stream），
+        # 因此僅保留 framing 保護即可，不放行 active content。
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'self'"
+        # preview 不快取：擋掉 headers 修復前的壞回應殘留，也避免換檔後看到舊檔。
+        response.headers["Cache-Control"] = "no-store"
+    else:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
     return response
