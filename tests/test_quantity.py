@@ -216,3 +216,50 @@ def test_write_paths_round3_structural():
                 if key not in whitelist and "qty=?" not in line:
                     bad.append(key + ": " + line.strip()[:80])
     assert not bad, f"qty 寫入缺 ROUND(...,3)：{bad}"
+
+
+@pytest.mark.parametrize("requested, expected", [(1 / 3, 0.333), (1 / 7, 0.143)])
+def test_stockout_canonical_qty_keeps_movement_chain(client, requested, expected):
+    """Regression: stock and movement must use the same canonical 3-decimal qty."""
+    iid = _make(client, f"CAN-{expected}", "canonical 出庫品", "罐", 1)
+    response = client.post("/api/stockout", json={
+        "item_id": iid, "qty": requested, "destination": "測試案場",
+    })
+    assert response.status_code == 200, response.text
+    assert _total(client, f"CAN-{expected}") == pytest.approx(1 - expected)
+    rows = client.get("/api/movements", params={"limit": 500}).json()
+    movement = next(row for row in rows if row["item_id"] == iid and row["reason"] == "出庫")
+    assert movement["delta"] == pytest.approx(-expected)
+    assert movement["before_qty"] == pytest.approx(1)
+    assert movement["after_qty"] == pytest.approx(1 - expected)
+    assert round(movement["before_qty"] + movement["delta"], 3) == pytest.approx(movement["after_qty"])
+
+
+def test_stockout_sub_precision_qty_is_rejected_without_movement(client):
+    """Regression: 0.0004 rounds to zero and must not create a phantom movement."""
+    iid = _make(client, "CAN-DUST", "不可產生塵埃", "罐", 1)
+    response = client.post("/api/stockout", json={
+        "item_id": iid, "qty": 0.0004, "destination": "測試案場",
+    })
+    assert response.status_code == 400, response.text
+    assert _total(client, "CAN-DUST") == pytest.approx(1)
+    rows = client.get("/api/movements", params={"limit": 500}).json()
+    assert not any(row["item_id"] == iid and row["reason"] == "出庫" for row in rows)
+
+
+def test_prepared_out_uses_canonical_qty_for_all_state_and_movement(client):
+    """Regression: prepared-out keeps prepared_qty, stock, and movement aligned."""
+    iid = _make(client, "CAN-PREP", "待領出 canonical 品", "罐", 1)
+    prepared = client.post(f"/api/items/{iid}/prepare", json={"qty": 1 / 3, "location": "鐵架"})
+    assert prepared.status_code == 200, prepared.text
+    assert prepared.json()["prepared_qty"] == pytest.approx(0.333)
+    completed = client.post(f"/api/items/{iid}/prepared-out", json={"qty": 1 / 3, "note": "測試案場", "location": "鐵架"})
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["prepared_qty"] == pytest.approx(0)
+    assert _total(client, "CAN-PREP") == pytest.approx(0.667)
+    rows = client.get("/api/movements", params={"limit": 500}).json()
+    movement = next(row for row in rows if row["item_id"] == iid and row["reason"] == "出庫")
+    assert movement["delta"] == pytest.approx(-0.333)
+    assert movement["before_qty"] == pytest.approx(1)
+    assert movement["after_qty"] == pytest.approx(0.667)
+    assert round(movement["before_qty"] + movement["delta"], 3) == pytest.approx(movement["after_qty"])
