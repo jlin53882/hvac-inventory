@@ -161,3 +161,24 @@ def test_engineering_excel_three_categories_keep_subtotal_gaps(tmp_path):
     assert ws.calculate_dimension() == "A1:F15"
     assert "C5:C7" in [str(value) for value in ws.merged_cells.ranges]
     assert "C9:C10" not in [str(value) for value in ws.merged_cells.ranges]
+
+
+def test_engineering_excel_empty_hierarchy_has_explicit_total(tmp_path):
+    """空階層也要輸出明確總計，不產生固定範本殘留列。"""
+    empty = _load_bytes(
+        build_engineering_report, _engineering_report([]), tmp_path, "engineering-empty.xlsx"
+    )
+    assert empty["A1"].value == "09/01~09/04工程零用金明細表"
+    assert empty["F4"].value == 0
+    assert empty.calculate_dimension() == "A1:F6"
+    assert str(empty.print_area).endswith("$A$1:$F$6")
+
+    empty_category = _load_bytes(
+        build_engineering_report,
+        _engineering_report([{"name": "空分類", "groups": []}]),
+        tmp_path,
+        "engineering-empty-category.xlsx",
+    )
+    assert empty_category["A3"].value == "空分類"
+    assert empty_category["F4"].value == 0
+    assert empty_category["F6"].value == 0
