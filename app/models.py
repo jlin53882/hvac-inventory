@@ -352,6 +352,14 @@ class PettyCashOptionUpdate(BaseModel):
     sort_order: Optional[int] = Field(None, ge=0, le=9999)
     is_active: Optional[bool] = None
 
+    @field_validator("name")
+    @classmethod
+    def option_name(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("選單名稱不可空白")
+        return value
+
 class EngineeringReceiptIn(BaseModel):
     tax_id_mark: str = Field("", max_length=50)
     receipt_number: str = Field("", max_length=100)

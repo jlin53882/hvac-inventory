@@ -186,6 +186,18 @@ def test_petty_cash_options_are_separate_and_configured(eng_client):
     assert eng_client.delete(f'/api/petty-cash-options/{option_id}').status_code == 200
 
 
+def test_petty_cash_option_update_rejects_blank_name(eng_client):
+    created = eng_client.post('/api/petty-cash-options', json={
+        'report_type': 'engineering', 'option_type': 'group', 'name': '油資', 'sort_order': 0,
+    })
+    assert created.status_code == 201, created.text
+    option_id = created.json()['id']
+    rejected = eng_client.put(
+        f'/api/petty-cash-options/{option_id}', json={'name': '   '}
+    )
+    assert rejected.status_code == 422, rejected.text
+
+
 def test_petty_cash_options_reject_invalid_scope(eng_client):
     assert eng_client.get('/api/petty-cash-options?report_type=other&option_type=category').status_code == 400
     assert eng_client.get('/api/petty-cash-options?report_type=general&option_type=other').status_code == 400
