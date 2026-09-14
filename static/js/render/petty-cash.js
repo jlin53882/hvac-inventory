@@ -305,6 +305,32 @@ function pcMoreMenuHtml(r, engineering) {
   return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
 }
 var pcMoreMenuEventsBound = false;
+function pcPositionMoreMenu(menu, list) {
+  const rect = menu.getBoundingClientRect();
+  list.style.top = `${rect.bottom + 5}px`;
+  list.style.left = `${Math.max(8, rect.right - list.offsetWidth)}px`;
+}
+function pcPortalMoreMenu(menu) {
+  const list = menu.querySelector('.pc-more-menu__list');
+  if (!list || list.parentNode === document.body) return;
+  menu._pcMoreMenuList = list;
+  document.body.appendChild(list);
+  list.style.position = 'fixed';
+  list.style.right = 'auto';
+  list.style.zIndex = '1000';
+  pcPositionMoreMenu(menu, list);
+}
+function pcRestoreMoreMenu(menu) {
+  const list = menu._pcMoreMenuList;
+  if (!list) return;
+  menu.appendChild(list);
+  list.style.position = '';
+  list.style.top = '';
+  list.style.left = '';
+  list.style.right = '';
+  list.style.zIndex = '';
+  delete menu._pcMoreMenuList;
+}
 function pcBindMoreMenuEvents() {
   if (pcMoreMenuEventsBound) return;
   pcMoreMenuEventsBound = true;
@@ -313,6 +339,7 @@ function pcBindMoreMenuEvents() {
     if (!menu.matches || !menu.matches('.pc-more-menu')) return;
     const row = menu.closest('tr');
     if (!menu.open) {
+      pcRestoreMoreMenu(menu);
       if (row) row.classList.remove('pc-more-menu-row--open');
       return;
     }
@@ -322,10 +349,19 @@ function pcBindMoreMenuEvents() {
     document.querySelectorAll('.pc-more-menu[open]').forEach(other => {
       if (other !== menu) other.removeAttribute('open');
     });
+    pcPortalMoreMenu(menu);
     if (row) row.classList.add('pc-more-menu-row--open');
   }, true);
+  document.addEventListener('scroll', () => {
+    const menu = document.querySelector('.pc-more-menu[open]');
+    if (menu && menu._pcMoreMenuList) pcPositionMoreMenu(menu, menu._pcMoreMenuList);
+  }, true);
+  window.addEventListener('resize', () => {
+    const menu = document.querySelector('.pc-more-menu[open]');
+    if (menu && menu._pcMoreMenuList) pcPositionMoreMenu(menu, menu._pcMoreMenuList);
+  });
   document.addEventListener('click', event => {
-    if (event.target.closest && event.target.closest('.pc-more-menu')) return;
+    if (event.target.closest && event.target.closest('.pc-more-menu, .pc-more-menu__list')) return;
     document.querySelectorAll('.pc-more-menu[open]').forEach(menu => menu.removeAttribute('open'));
     document.querySelectorAll('.pc-more-menu-row--open').forEach(row => row.classList.remove('pc-more-menu-row--open'));
   }, true);
@@ -515,7 +551,7 @@ function pcRenderDetail() {
     { label: '本期支出', value: '-$' + _pcMoney(t.expense), colorClass: 'pc-kpi-expense' },
     { label: '本期餘額', value: '$' + _pcMoney(t.closing_balance), colorClass: 'pc-kpi-balance' },
   ];
-  el.innerHTML = `<div class="pc-wrap">${pcDetailHeaderHtml(r, false)}<section class="pc-card"><div class="pc-card__bd">${pcDetailKpiRowHtml(kpis)}</div></section><section class="pc-card"><div class="pc-card__hd"><h2>📝 收支明細</h2></div><div class="pc-card__bd"><div class="pc-table-wrap pc-general-detail-table-wrap"><table class="pc-detail-table pc-general-detail-table"><thead><tr><th>項次</th><th>日期</th><th>摘要／明細</th><th>收入</th><th>支出</th><th>科目</th><th>狀態</th><th>操作</th></tr></thead><tbody>${pcGeneralEntryRowsHtml(r.entries)}</tbody></table></div><div class="pc-general-mobile-list">${pcGeneralMobileCardsHtml(r.entries)}</div></div></section></div>`;
+  el.innerHTML = `<div class="pc-wrap">${pcDetailHeaderHtml(r, false)}<section class="pc-card pc-general-detail-kpi"><div class="pc-card__bd">${pcDetailKpiRowHtml(kpis)}</div></section><section class="pc-card"><div class="pc-card__hd"><h2>📝 收支明細</h2></div><div class="pc-card__bd"><div class="pc-table-wrap pc-general-detail-table-wrap"><table class="pc-detail-table pc-general-detail-table"><thead><tr><th>項次</th><th>日期</th><th>摘要／明細</th><th>收入</th><th>支出</th><th>科目</th><th>狀態</th><th>操作</th></tr></thead><tbody>${pcGeneralEntryRowsHtml(r.entries)}</tbody></table></div><div class="pc-general-mobile-list">${pcGeneralMobileCardsHtml(r.entries)}</div></div></section></div>`;
   pcBindGeneralDetailEvents();
 }
 

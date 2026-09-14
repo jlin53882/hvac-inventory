@@ -440,3 +440,7 @@
 /* General entry cards are shared by the petty-cash editor surface. */
 .pc-entry-card--clickable { cursor:pointer; }
 .pc-entry-card--clickable:hover, .pc-entry-card--clickable:focus-visible { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.10); outline:0; }
+/* Shared petty-cash detail/editor primitives. */
+.pc-empty-cell { color:#94a3b8; text-align:center; padding:18px; }
+.pc-item-row { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.pc-items-header { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }

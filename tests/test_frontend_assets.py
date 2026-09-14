@@ -488,6 +488,51 @@ def test_petty_cash_css_ownership_and_breakpoint_contract():
     assert '@media (min-width: 768px)' in reports
     assert '@media (min-width: 768px)' in base
 
+def test_petty_cash_css_feature_ownership_and_report_scroll_contract():
+    """engineering CSS 不得控制 general/base；report menu 不得犧牲 table scroll。"""
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    engineering = read(PETTY_CASH_ENGINEERING_CSS)
+    forbidden_engineering = (
+        'pc-item-row', 'pc-items-header', 'pc-general-detail-table',
+        'pc-general-detail-table-wrap', 'pc-general-mobile-list',
+        'pc-general-detail-head', 'pc-general-detail-item',
+        'pc-general-discrepancy', 'pc-money',
+        'pc-general-entry-row--expandable', 'pc-empty-cell',
+    )
+    for token in forbidden_engineering:
+        assert re.search(r'(?m)^\s*\.' + re.escape(token) + r'(?=[\s,{:#])', engineering) is None, token
+    assert '.pc-status--general' in reports
+    assert '.pc-status--engineering' in reports
+    assert '.pc-status--general' not in engineering
+    assert '.pc-status--engineering' not in engineering
+    assert '.pc-report-list-table-wrap { overflow: visible; }' not in reports
+    assert '.pc-card:has(.pc-report-list-table-wrap)' not in reports
+    assert reports.count('.pc-report-list-table .pc-row-actions {') == 1
+    assert reports.count('.pc-report-list-table .pc-more-menu {') == 1
+    assert reports.count('.pc-report-list-table .pc-more-menu__list {') == 1
+    assert reports.count('.pc-report-list-table tbody tr.pc-more-menu-row--open {') == 1
+    assert reports.count('.pc-report-actions--mobile .pc-mobile-action') == 1
+    assert 'overflow-x:auto' in reports
+
+
+def test_petty_cash_general_detail_ui_contract():
+    """一般 detail mobile KPI 維持 2x2，單據明細項次與欄位 padding 對齊。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    assert 'pc-general-detail-kpi' in js
+    assert '#content .pc-general-detail-kpi .pc-kpi-row' in reports
+    assert 'grid-template-columns: repeat(2, minmax(0, 1fr));' in reports
+    assert '.pc-general-detail-table th, .pc-general-detail-table td { text-align:left; }' in reports
+    assert '.pc-general-detail-item { min-height: 36px; padding: 6px 10px;' in reports
+    assert '.pc-general-detail-item .pc-general-detail-index { text-align: left; }' in reports
+
+
+def test_petty_cash_new_engineering_category_exposes_receipt_action():
+    """新增分類後建立空白項目，讓「新增單據」立即可見。"""
+    js = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+    assert "function engAddCategory(){engData.categories.push({name:'',groups:[{name:'',receipts:[]}]})" in js
+
+
 def test_petty_cash_delete_button_text():
     """刪除按鈕包含文字「刪除」（2026-09-12）"""
     js = read(PETTY_CASH_RENDER_JS)
@@ -554,9 +599,8 @@ def test_petty_cash_detail_table_mobile():
     assert 'pcItemText(it)' in js
     css = read_petty_cash_css()
     assert 'grid-template-columns: 48px minmax(0, 1fr)' in css
-    assert '.pc-general-detail-head span:last-child { text-align: left; }' in css
-    assert 'grid-template-columns:auto minmax(0,1fr);' in css
-    assert '.pc-general-detail-head span:last-child { text-align: left; }' in css
+    assert '.pc-general-detail-head span:first-child' in css and '.pc-general-detail-index { text-align: left; }' in css
+    assert '.pc-general-detail-head span:first-child' in css and '.pc-general-detail-index { text-align: left; }' in css
     assert '.pc-report-list-table' in css
     assert 'table-layout: auto' in css
     assert '11.11%' not in css

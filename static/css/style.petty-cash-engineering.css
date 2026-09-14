@@ -27,8 +27,6 @@
 }
 
 /* 工程零用金檢視：清楚區分分類／項目／單據／細項 */
-.pc-status--general { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
-.pc-status--engineering { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
 .eng-guide-card .pc-card__bd { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; color:#475569; }
 .eng-guide-card strong { color:#1e3a5f; }
 .eng-file-label { color:#64748b; font-size:12px; overflow-wrap:anywhere; }
@@ -56,10 +54,7 @@
 .eng-receipt-detail-row td { padding:0 10px 10px; background:#f8fafc; }
 .eng-receipt-detail-row .eng-receipt-details { margin:0; }
 .eng-detail-cell { min-width:220px; white-space:pre-wrap; }
-.pc-general-entry-row--expandable { cursor:pointer; }
-.pc-general-entry-row--expandable:hover td { background:#f8fafc; }
 .eng-tax-mark { display:inline-flex; min-width:24px; justify-content:center; padding:2px 6px; border-radius:5px; background:#ecfdf5; color:#047857; font-weight:700; }
-.pc-empty-cell { color:#94a3b8; text-align:center; padding:18px; }
 @media (max-width:767px) { .eng-category-card .pc-card__hd, .eng-group-head { align-items:flex-start; flex-direction:column; } .eng-detail-table th, .eng-detail-table td { padding:8px 6px; } .eng-detail-table th:nth-child(1) { width:38%; } .eng-detail-table th:nth-child(2) { width:22%; } .eng-detail-table th:nth-child(3) { width:22%; } .eng-detail-table th:nth-child(4) { width:18%; } }
 
 .eng-category-head, .eng-group-head, .eng-receipt-parent { width:100%; border:0; text-align:left; cursor:pointer; }
@@ -81,9 +76,6 @@
 .eng-receipt-details-title { font-size:12px; font-weight:700; color:#475569; margin-bottom:5px; }
 .eng-detail-line { padding:4px 0; color:#475569; font-size:12.5px; overflow-wrap:anywhere; }
 @media (max-width:767px) {
-  .pc-general-detail-table-wrap { display:none; }
-  .pc-general-mobile-list { display:block; }
-  .pc-general-discrepancy { display:grid; gap:4px; }
   .eng-category-head { padding:12px; }
   .eng-category-head h2 { font-size:15px; }
   .eng-receipt-table-head { display:none; }
@@ -92,10 +84,6 @@
   .eng-receipt-parent .eng-detail-count { grid-column:2; }
   .eng-receipt-parent strong { grid-column:3; grid-row:1 / span 3; }
   .eng-receipt-details { margin-left:26px; }
-}
-@media (min-width:768px) {
-  .pc-general-detail-table-wrap { display:block; }
-  .pc-general-mobile-list { display:none; }
 }
 .eng-editor .eng-category-title,
 .eng-editor .eng-group-head {
@@ -173,36 +161,20 @@
   .eng-category-head .eng-subtotal { flex:1 1 100%; max-width:100%; text-align:left; white-space:normal; }
   .eng-group-head strong { max-width:100%; white-space:normal; text-align:left; }
 }
-.eng-detail-table,
-.pc-general-detail-table { table-layout:auto; }
+.eng-detail-table { table-layout:auto; }
 .eng-detail-table th,
-.eng-detail-table td,
-.pc-general-detail-table th,
-.pc-general-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+.eng-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
 .eng-detail-table th:nth-child(1),
 .eng-detail-table th:nth-child(2),
 .eng-detail-table th:nth-child(3),
-.eng-detail-table th:nth-child(4),
-.pc-general-detail-table th:nth-child(1),
-.pc-general-detail-table th:nth-child(2),
-.pc-general-detail-table th:nth-child(3),
-.pc-general-detail-table th:nth-child(4),
-.pc-general-detail-table th:nth-child(5),
-.pc-general-detail-table th:nth-child(6),
-.pc-general-detail-table th:nth-child(7),
-.pc-general-detail-table th:nth-child(8) { width:auto; }
-.eng-detail-table td:nth-child(4),
-.pc-money { white-space:normal; overflow-wrap:anywhere; }
+.eng-detail-table th:nth-child(4) { width:auto; }
+.eng-detail-table td:nth-child(4) { white-space:normal; overflow-wrap:anywhere; }
 .eng-editor .eng-category-title,
 .eng-editor .eng-group-head { grid-template-columns:minmax(0,1fr) auto auto auto; }
 .eng-editor .eng-category-title { grid-template-columns:minmax(0,1fr) auto auto; }
 .eng-receipt-grid { grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto; }
-.pc-item-row { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
-.pc-items-header { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
 .eng-receipt-table-head,
 .eng-receipt-parent { grid-template-columns:auto minmax(0,2fr) auto minmax(0,1fr) auto; }
-.pc-general-detail-head,
-.pc-general-detail-item { grid-template-columns:auto minmax(0,1fr); }
 .eng-detail-total, .eng-editor-receipt-no { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
 .eng-editor-receipt-no { overflow:visible; text-overflow:clip; }
 .eng-detail-table th:nth-child(4),

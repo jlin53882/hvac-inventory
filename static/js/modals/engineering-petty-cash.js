@@ -50,7 +50,7 @@ function _engFilenamePeriod(start, end){
 function engFilenamePreview(){const s=document.getElementById('eng-start')?.value,e=document.getElementById('eng-end')?.value,n=document.getElementById('eng-note')?.value.trim()||'',o=document.getElementById('eng-owner')?.value.trim()||'？';const period=_engFilenamePeriod(s,e);const el=document.getElementById('eng-filename');if(el)el.textContent=`預覽檔名：(${period}${n?' '+n:''})${o} 工程零用金.xlsx`;}
 function engValidateBasic(){const s=document.getElementById('eng-start').value,e=document.getElementById('eng-end').value,o=document.getElementById('eng-owner').value.trim(),p=document.getElementById('eng-prepared').value.trim();if(!s||!e||s>e||!o||!p){toast('⚠️ 請完整填寫期間、報表歸屬人與製表人');return false;}return true;}
 function engGotoStep(n){return pcSwitchModalStep(n,{validate:engValidateBasic,stepIds:['eng-step-1','eng-step-2'],tabIds:['eng-step-1-tab','eng-step-2-tab'],opsIds:['eng-ops-1','eng-ops-2'],onDetail:engRenderEditor});}
-function engAddCategory(){engData.categories.push({name:'',groups:[]});engActiveCategory=engData.categories.length-1;engRenderEditor();}
+function engAddCategory(){engData.categories.push({name:'',groups:[{name:'',receipts:[]}]});engActiveCategory=engData.categories.length-1;engRenderEditor();}
 function engAddGroup(ci){engData.categories[ci].groups.push({name:'',receipts:[]});engRenderEditor();}
 var engEditorExpandedReceipts = new Set();
 function engEditorReceiptKey(ci, gi, ri) { return `${ci}:${gi}:${ri}`; }

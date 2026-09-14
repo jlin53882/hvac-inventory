@@ -14,7 +14,6 @@
 .pc-report-list-table th:nth-child(9) { width: 10%; }
 .pc-report-list-table th:nth-child(1), .pc-report-list-table th:nth-child(2), .pc-report-list-table th:nth-child(3), .pc-report-list-table th:nth-child(5), .pc-report-list-table th:nth-child(6), .pc-report-list-table th:nth-child(8), .pc-report-list-table td:nth-child(1), .pc-report-list-table td:nth-child(2), .pc-report-list-table td:nth-child(3), .pc-report-list-table td:nth-child(5), .pc-report-list-table td:nth-child(6), .pc-report-list-table td:nth-child(8) { white-space: nowrap; }
 .pc-report-list-table .pc-num { text-align: center; }
-.pc-report-list-table .pc-row-actions { justify-content: center; white-space: nowrap; }
 .pc-report-list-table td:nth-child(4), .pc-report-list-table td:nth-child(7) { overflow-wrap: anywhere; }
 .pc-report-actions { display:inline-flex; align-items:center; gap:6px; }
 .pc-more-menu { position: relative; display: inline-block; }
@@ -49,7 +48,7 @@
   .pc-report-actions--mobile .pc-mobile-action { flex:1 1 auto; }
 }
 /* Desktop 更多選單：固定寬度與操作層級，避免表格操作欄重疊 */
-.pc-report-list-table .pc-row-actions { position: relative; overflow: visible; }
+.pc-report-list-table .pc-row-actions { position: relative; overflow: visible; justify-content: center; white-space: nowrap; }
 .pc-report-list-table .pc-more-menu { position: relative; z-index: 30; }
 .pc-report-list-table .pc-more-menu > summary { min-width: 46px; min-height: 40px; }
 .pc-report-list-table .pc-more-menu__list { min-width: 176px; padding: 6px; gap: 2px; border-radius: 12px; box-shadow: 0 12px 28px rgba(15,23,42,.18); }
@@ -57,34 +56,16 @@
 .pc-report-list-table td:last-child { position: relative; z-index: 1; overflow: visible; }
 .pc-report-list-table tbody tr.pc-more-menu-row--open { position: relative; z-index: 100; }
 .pc-report-list-table tbody tr.pc-more-menu-row--open td:last-child { z-index: 101; }
-/* Desktop report list owns scrolling; the card remains visible around the popup. */
-.pc-report-list-table-wrap { overflow: visible; }
-.pc-card:has(.pc-report-list-table-wrap) { overflow: visible; }
 @media (min-width: 768px) {
-  .pc-report-list-table-wrap { max-height:calc(100vh - 360px); min-height:240px; overflow: visible; }
+  .pc-report-list-table-wrap { max-height:calc(100vh - 360px); min-height:240px; overflow-x:auto; overflow-y:auto; }
   .pc-report-list-table-wrap .pc-report-list-table thead th { position:sticky; top:0; z-index:5; background:#f8fafc; }
 }
 @media (max-width: 767px) { .pc-cards { display: block; } }
-.pc-report-list-table .pc-row-actions { position: relative; overflow: visible; }
-.pc-report-list-table .pc-more-menu { position: relative; z-index: 30; }
-.pc-report-list-table .pc-more-menu > summary { min-width: 46px; min-height: 40px; }
-.pc-report-list-table .pc-more-menu__list { min-width: 176px; padding: 6px; gap: 2px; border-radius: 12px; box-shadow: 0 12px 28px rgba(15,23,42,.18); }
-.pc-report-list-table .pc-more-menu__list button { display:flex; align-items:center; width:100%; min-height:40px; gap:8px; padding:8px 11px; white-space:nowrap; }
-.pc-report-list-table td:last-child { position: relative; z-index: 1; overflow: visible; }
-.pc-report-list-table tbody tr.pc-more-menu-row--open { position: relative; z-index: 100; }
-.pc-report-list-table tbody tr.pc-more-menu-row--open td:last-child { z-index: 101; }
 .pc-report-list-table th, .pc-report-list-table td { min-width:0; overflow-wrap:anywhere; word-break:break-word; }
-.pc-report-list-table .pc-row-actions { justify-content: center; white-space: nowrap; }
 .pc-report-list-table td:nth-child(4), .pc-report-list-table td:nth-child(7) { overflow-wrap:anywhere; }
-@media (max-width: 767px) {
-  .pc-report-card__top { flex-wrap:wrap; }
-  .pc-report-card__top .pc-status { margin-left:auto; }
-  .pc-row-actions--mobile, .pc-report-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; width:100%; }
-  .pc-report-actions--mobile .pc-mobile-action { flex:1 1 auto; }
-}
 /* 零用金檢視 responsive presentation：共用資料，桌面表格／手機卡片 */
 .pc-general-detail-table { table-layout:auto; }
-.pc-general-detail-table th, .pc-general-detail-table td { text-align:center; }
+.pc-general-detail-table th, .pc-general-detail-table td { text-align:left; }
 .pc-general-detail-table th:nth-child(1) { width:6%; }
 .pc-general-detail-table th:nth-child(2) { width:11%; }
 .pc-general-detail-table th:nth-child(3) { width:25%; text-align:left; }
@@ -93,7 +74,7 @@
 .pc-general-detail-table th:nth-child(7) { width:14%; }
 .pc-general-detail-table th:nth-child(8) { width:10%; }
 .pc-general-detail-table td:nth-child(3) { text-align:left; }
-.pc-money { font-weight:700; white-space:nowrap; text-align:center; }
+.pc-money { font-weight:700; white-space:normal; overflow-wrap:anywhere; text-align:center; }
 .pc-money--income { color:#15803d; }
 .pc-money--expense { color:#b91c1c; }
 .pc-nowrap { white-space:nowrap; }
@@ -107,7 +88,9 @@
 .pc-general-detail-head,
 .pc-general-detail-item { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 10px; }
 .pc-general-detail-head { padding: 7px 10px; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 800; }
-.pc-general-detail-head span:last-child { text-align: left; }
+.pc-general-detail-item { min-height: 36px; padding: 6px 10px; border-top: 1px solid #f1f5f9; color: #475569; }
+.pc-general-detail-head span:first-child,
+.pc-general-detail-item .pc-general-detail-index { text-align: left; }
 .pc-general-discrepancy { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding-top:8px; border-top:1px dashed #f59e0b; color:#92400e; font-size:12px; }
 .pc-general-mobile-list { display:none; }
 .pc-general-tx-card { padding:12px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
@@ -117,6 +100,15 @@
 .pc-general-tx-bottom { font-weight:700; }
 .pc-general-detail-toggle { margin-top:9px; min-height:40px; width:100%; border:1px solid #bfdbfe; border-radius:8px; background:#eff6ff; color:#1d4ed8; font-weight:600; }
 @media (max-width: 767px) {
+  #content .pc-general-detail-kpi .pc-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  #content .pc-general-detail-kpi .pc-kpi-card {
+    width: auto;
+    flex: initial;
+  }
   .pc-general-detail-head,
   .pc-general-detail-item { grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
   .pc-general-detail-panel { padding: 9px 10px; }
@@ -124,3 +116,24 @@
 /* Desktop report query: scroll rows while keeping the table header visible. */
 .pc-status--general { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
 .pc-status--engineering { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+.pc-general-entry-row--expandable { cursor:pointer; }
+.pc-general-entry-row--expandable:hover td { background:#f8fafc; }
+.pc-general-detail-table th,
+.pc-general-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+.pc-general-detail-table th:nth-child(1),
+.pc-general-detail-table th:nth-child(2),
+.pc-general-detail-table th:nth-child(3),
+.pc-general-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(5),
+.pc-general-detail-table th:nth-child(6),
+.pc-general-detail-table th:nth-child(7),
+.pc-general-detail-table th:nth-child(8) { width:auto; }
+@media (max-width:767px) {
+  .pc-general-detail-table-wrap { display:none; }
+  .pc-general-mobile-list { display:block; }
+  .pc-general-discrepancy { display:grid; gap:4px; }
+}
+@media (min-width:768px) {
+  .pc-general-detail-table-wrap { display:block; }
+  .pc-general-mobile-list { display:none; }
+}
