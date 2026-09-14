@@ -205,9 +205,12 @@ async function submitStocktake() {
       // 空白 → 視同實際數量 = 系統數量（留空表示確認）
       v = stock ? stock.qty : 0;
     } else if (typeof Qty !== 'undefined') {
-      const _p = Qty.parse(_raw);
-      if (_p.error) { toast('「' + (item ? item.name : '') + '」' + _p.error, 'error'); return; }
-      v = _p.value;
+      const _unitType = (typeof Qty.inputTypeOf === 'function')
+        ? Qty.inputTypeOf(item ? item.unit : '')
+        : Qty.unitTypeOf(item ? item.unit : '');
+      const _valid = Qty.validFor(_raw, _unitType);
+      if (!_valid.ok) { toast('「' + (item ? item.name : '') + '」' + (_valid.error || '請輸入符合單位類型的數量'), 'error'); return; }
+      v = _valid.value;
     } else {
       v = parseFloat(_raw);
       if (isNaN(v)) { toast('請輸入有效數量', 'error'); return; }

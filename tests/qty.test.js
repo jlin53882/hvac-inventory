@@ -11,6 +11,7 @@ const sandbox = {};
 vm.createContext(sandbox);
 vm.runInContext(src, sandbox);
 const Qty = sandbox.Qty;
+sandbox.unitList = [{ name: '個', qty_type: 'integer' }, { name: '罐', qty_type: 'fraction' }];
 
 let pass = 0, fail = 0;
 function eq(actual, expected, msg) {
@@ -26,6 +27,7 @@ function ok(cond, msg) {
 // ---------- parse ----------
 eq(Qty.parse('3'), { num: 3, den: 1, value: 3 }, 'parse int');
 eq(Qty.parse('0.5'), { num: 1, den: 2, value: 0.5 }, 'parse decimal');
+eq(Qty.parse('.5'), { num: 1, den: 2, value: 0.5 }, 'parse leading-dot decimal');
 eq(Qty.parse('0.25'), { num: 1, den: 4, value: 0.25 }, 'parse decimal 0.25');
 eq(Qty.parse('1/4'), { num: 1, den: 4, value: 0.25 }, 'parse fraction');
 eq(Qty.parse('1/3').num * 3, 3, 'parse 1/3 exact num');
@@ -66,6 +68,10 @@ eq(Qty.format(0.123, 'fraction'), '0.123', 'true decimal stays decimal');
 eq(Qty.format(0.333, 'integer'), '1/3', 'non-integer stock readable even for integer unit');
 eq(Qty.format(3, 'integer'), '3', 'integer');
 eq(Qty.formatWithUnit(0.75, '罐', 'fraction'), '3/4 罐', 'format with unit');
+
+eq(Qty.inputTypeOf('個'), 'integer', 'known integer input type');
+eq(Qty.inputTypeOf('罐'), 'fraction', 'known fraction input type');
+eq(Qty.inputTypeOf('歷史單位'), 'fraction', 'unknown historical input accepts fractions');
 
 // ---------- validFor ----------
 ok(Qty.validFor('3', 'integer').ok, 'integer accepts 3');

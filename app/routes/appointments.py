@@ -15,15 +15,14 @@
 import datetime
 import re
 from typing import List
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
 
 from app.database import get_db
 from app.models import AppointmentIn
 from app.services.auth import require_perm
 from app.services.report import build_daily_report
+from app.services.safety import xlsx_download
 from app.services import gcal_sync
 
 router = APIRouter()
@@ -486,11 +485,7 @@ def export_daily_report(date: str):
         # 2026-08-13：engineers 計算已移除——A2 固定寫「藍政達 蘇昱豪」（D3 dead code 清理）
         buf, mmdd = build_daily_report(date, day_events)
         filename = f"工程日報表{mmdd}.xlsx"
-        return Response(
-            buf.getvalue(),
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
-        )
+        return xlsx_download(buf.getvalue(), filename)
     finally:
         conn.close()
 

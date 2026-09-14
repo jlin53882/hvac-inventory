@@ -12,14 +12,14 @@ async function loadData(options) {
   dataAbortController = controller;
   const siteAtRequest = currentSite;
   try {
-    const skipItems = !full && ['calendar', 'signed-reports', 'quotation'].indexOf(currentTab) >= 0;
+    const skipItems = !full && ['calendar', 'signed-reports', 'quotation', 'petty-cash'].indexOf(currentTab) >= 0;
     if (skipItems) {
       if (requestId !== dataRequestSeq || siteAtRequest !== currentSite) return;
       ALL_ITEMS = [];
       fullItemsLoadedSite = '';
       updateNotifications();
       updateSubInfo();
-      if (currentTab !== 'signed-reports' && currentTab !== 'quotation') switchTab(currentTab);
+      if (currentTab !== 'signed-reports' && currentTab !== 'quotation' && currentTab !== 'petty-cash') switchTab(currentTab);
       loadPreparedBadge();
       return;
     }

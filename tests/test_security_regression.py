@@ -61,34 +61,6 @@ def client(tmp_path, monkeypatch):
 # 1. 掃描式：所有 HTML 模板內插必須 esc/jsStr（或明確安全）
 # ============================================================
 
-def _is_suspicious_interpolation(body: str) -> bool:
-    """判斷一個 ${...} 內插是否「可疑」（使用者可控資料未跳脫）。
-
-    安全（回 False）：
-      - 以 esc(/jsStr( 開頭
-      - 純數字/算術表達式
-      - 無點號的程式內變數（singleCount、enough 等）
-      - 含 '<' 的 HTML 常數輸出（三元常數、巢狀模板常數）
-      - e.message（本專案僅含 HTTP 狀態碼/瀏覽器原生訊息，無使用者輸入）
-    """
-    b = body.strip()
-    if b.startswith(("esc(", "jsStr(")):
-        return False
-    if re.fullmatch(r"[\d\s+\-*/().\[\]]+", b):
-        return False
-    if re.fullmatch(r"\w+\.id", b):          # 數字主鍵（如 e.id、p.id、c.item_id）
-        return False
-    if b in ("n", "i", "d", "idx", "cls", "total", "count", "index"):
-        return False
-    if "e.message" in b:
-        return False
-    if "<" in b or ">" in b:                 # HTML 常數輸出（非資料內插）→ 保守放行
-        return False
-    # 物件欄位內插（含 .）且無 esc → 使用者可控資料未跳脫
-    if re.search(r"\.\w+", b):
-        return True
-    return True  # 其餘（函式呼叫、未知變數）→ 可疑，列出人工確認
-
 
 # 已人工審核的「安全內插」白名單（2026-08-12 baseline 全檔審核）：
 # - 數字/算術/布林/常數三元/程式內變數/內部 HTML 參數（呼叫端已消毒）
@@ -159,6 +131,20 @@ REVIEWED_SAFE_BODIES = {
     # card.js 共用元件參數（呼叫端傳入已消毒 HTML）
     "p.moreBtnHTML || ''", "p.nameHTML", "p.thumb", "p.actionsHTML || ''",
     "p.extraHTML || ''", "p.qtyHTML",
+    # 工程／一般零用金：helper 內部對使用者資料已 esc，回傳固定 HTML 結構
+    "engOptionSelect('category', c.name)", "engOptionSelect('group', g.name)", "pcGeneralCategoryOptions(src.category || '')",
+    "seq", "receiptCells", "totalReceipts",
+    "incomeText", "expenseText",
+    "e.entry_type === 'income' ? '+' + esc(_pcMoney(e.amount)) :", "e.entry_type !== 'income' ? '-' + esc(_pcMoney(e.amount)) :",
+    # 零用金檢視 accordion/card：狀態與 helper 回傳固定 HTML，helper 內部已 esc 使用者資料（2026-09-13）
+    "expanded", "expanded ? '▼' : '▶'", "toggle", "pcEntryStatus(e)", "pcGeneralDetailsHtml(e)",
+    "isIncome ? 'pc-money--income' : 'pc-money--expense'", "isIncome ? '收入 +' : '支出 -'", "expanded ? pcGeneralDetailsHtml(e) : ''",
+    "pcGeneralEntryRowsHtml(r.entries)", "pcGeneralMobileCardsHtml(r.entries)",
+    "hasDetails ? ' eng-receipt-parent--expandable' : ''", "hasDetails ? (expanded ? '▼' : '▶') : '·'", "expanded ? engReceiptDetailsHtml(q, receiptKey) : ''",
+    "expanded ? ' is-open' : ''", "expanded ? engGroupHtml(g,ci,gi) : ''",
+    # petty cash UI 2026-09-13: fixed class/call fragments; all user fields in the surrounding row are escaped.
+    "hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'",
+    "engReceiptDetailsHtml(q, receiptKey)", "detailRow",
     # 含 esc 的組合內插
     "i.code ? ' · ' + esc(i.code) : ''", "sel ? esc(sel.brand) + ' ' + esc(sel.name) : ''",
     "s.note ? ' · 📝 ' + esc(s.note) : ''",
@@ -230,6 +216,20 @@ REVIEWED_SAFE_BODIES = {
     "(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)",
     "stocktakeInput(materialKey, materialSystemQty, c.unit)",
     "stocktakeInput(key, systemQty, item.unit)",
+    # 零用金月報（2026-09-12）：以下皆為內部已 esc 的 HTML fragment、固定映射或常數三元——
+    # _pcPeriodText/_pcFileLabel/pcItemText 回傳 esc() 組裝字串；amt/incomeCell/expenseCell 為 esc(_pcMoney()) 數字或空字串；
+    # ops/editBtn/delBtn/rowsHtml/itemsHtml 由 esc() 欄位 + DB 數字主鍵 + 固定 markup 組成；
+    # pcStatusBadge 為 draft/completed 固定映射；id/pcEntryType 三元只輸出固定文字/class（id 為數字主鍵）。
+    "_pcPeriodText(r)", "_pcFileLabel(r)", "pcStatusBadge(r.status)",
+    "ops", "editBtn", "delBtn", "rowsHtml", "itemsHtml",
+    "amt", "incomeCell", "expenseCell",
+    "pcItemText(first)", "pcItemText(items[i])", "pcDetailSubtableHtml(rows)", "engReceiptDetailsHtml(q)",
+    # petty_cash.py 共用 renderer：helper 回傳的 HTML 只由固定 markup 組成，資料在 helper 內逐欄 esc。
+    "titleBadge", "engineering ? '匯出' : '匯出 Excel'", "cards.map(pcDetailKpiCardHtml).join('')",
+    "pcDetailHeaderHtml(r, false)", "pcDetailHeaderHtml(r, true)", "pcDetailKpiRowHtml(kpis)",
+    "id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'",
+    "pcEntryType === 'income' ? ' active' : ''", "pcEntryType === 'expense' ? ' active' : ''",
+    "pcEntryType === 'income' ? 'display:none' : ''",
 }
 
 

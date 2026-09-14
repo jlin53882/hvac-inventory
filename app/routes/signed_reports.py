@@ -14,8 +14,6 @@
 """
 import datetime
 import logging
-import os
-import re
 import uuid
 from pathlib import Path
 
@@ -24,7 +22,8 @@ from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
 from app.database import get_db
-from app.services.auth import get_user_permissions, require_login
+from app.services.auth import require_login
+from app.services.safety import has_perm, safe_download_name
 from app.services.file_storage import asset_variant_path, cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, safe_upload_path, store_asset
 from app.models import SignedReportUpdate
 
@@ -33,19 +32,6 @@ logger = logging.getLogger(__name__)
 
 MAX_SIZE = 20 * 1024 * 1024  # 20MB
 ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"}  # 副檔名白名單防 XSS
-
-def _safe_name(name: str) -> str:
-    name = os.path.basename((name or "file").strip()) or "file"
-    # 保留中英文、數字、._-，其餘轉 _
-    name = re.sub(r"[^0-9A-Za-z\u4e00-\u9fa5._-]", "_", name)
-    # 防公式注入前綴與隱藏檔
-    if name[:1] in (".", "-", "=", "+", "@"):
-        name = "_" + name[1:]
-    return name[:120] or "file"
-
-def _can_delete_all(conn, user: dict) -> bool:
-    perms = get_user_permissions(conn, user["id"])
-    return bool(perms.get("signed-report-delete-all"))
 
 def _form_text(form, field: str) -> str | None:
     """讀取表單文字欄位，拒絕以檔案物件冒充文字而造成 500。"""
@@ -63,7 +49,7 @@ def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
         raise HTTPException(400, "空檔案不可上傳")
     if len(data) > MAX_SIZE:
         raise HTTPException(400, "單檔上限 20MB")
-    safe = _safe_name(file.filename or "file")
+    safe = safe_download_name(file.filename or "file")
     ext = Path(safe).suffix.lower()
     if ext not in ALLOWED_EXTS:
         raise HTTPException(400, f"不支援的檔案格式 {ext}，僅允許 PDF/PNG/JPG/GIF/WebP")
@@ -137,7 +123,7 @@ def upload_signed_report(
         conn.commit()
         finalize_asset_paths(asset, upload_dir=Path(STATIC_DIR) / "uploads")
         row = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
-        can_del = _can_delete_all(conn, user) or (row["uploader_user_id"] == user["id"])
+        can_del = has_perm(conn, user, "signed-report-delete-all") or (row["uploader_user_id"] == user["id"])
         return _row_to_out(row, can_del)
     except HTTPException:
         conn.rollback()
@@ -237,7 +223,7 @@ def list_signed_reports(
             f"SELECT * FROM daily_signed_reports {sql_where} ORDER BY report_date DESC, id DESC LIMIT ? OFFSET ?",
             (*params, page_size, (page - 1) * page_size),
         ).fetchall()
-        can_all = _can_delete_all(conn, user)
+        can_all = has_perm(conn, user, "signed-report-delete-all")
         items = []
         for r in rows:
             can_del = can_all or (r["uploader_user_id"] == user["id"])
@@ -291,7 +277,7 @@ async def update_signed_report(
         row = conn.execute("SELECT * FROM daily_signed_reports WHERE id=?", (rid,)).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
-        can_all = _can_delete_all(conn, user)
+        can_all = has_perm(conn, user, "signed-report-delete-all")
         if not (can_all or row["uploader_user_id"] == user["id"]):
             raise HTTPException(403, "僅上傳者或具全域刪除權限者可編輯")
         report_date = row["report_date"] if report_date is None else report_date.strip()
@@ -446,7 +432,7 @@ def delete_signed_report(rid: int, user: dict = Depends(require_login)):
         ).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
-        can_all = _can_delete_all(conn, user)
+        can_all = has_perm(conn, user, "signed-report-delete-all")
         if not (can_all or row["uploader_user_id"] == user["id"]):
             raise HTTPException(403, "僅上傳者或具全域刪除權限者可刪除")
         asset = get_owner_asset(conn, "signed_report", "signed_report", rid)

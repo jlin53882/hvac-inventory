@@ -7,6 +7,7 @@
 
 import app.database as app_db
 import app.routes.quotation_uploads as quotation_uploads
+import inspect
 import main as app_main
 import pytest
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
@@ -49,6 +50,14 @@ def signed_env(tmp_path, monkeypatch):
         return client
 
     yield make_client, tmp_path / "static"
+
+
+def test_shared_safety_helpers_are_the_only_quotation_helpers():
+    source = inspect.getsource(quotation_uploads)
+    assert "def _safe_name" not in source
+    assert "def _can_delete_all" not in source
+    assert "safe_download_name" in source
+    assert "has_perm" in source
 
 
 def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b"%PDF-signed"):

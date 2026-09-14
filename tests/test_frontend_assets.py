@@ -14,6 +14,7 @@ pytest 後端測試測不到。此檔用「靜態資產檢查」當單元測試�
     env -u PYTHONPATH .venv\\Scripts\\python.exe -m pytest tests/test_frontend_assets.py -v
 """
 import os
+import re
 import subprocess
 import sys
 
@@ -74,6 +75,15 @@ SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
 QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
 QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
 PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
+# 待測：零用金月報（2026-09-12）
+PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
+PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
+PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
+PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "style.petty-cash-reports.css")
+PETTY_CASH_ENGINEERING_CSS = os.path.join(STATIC, "css", "style.petty-cash-engineering.css")
+PETTY_CASH_ENGINEERING_MODAL_JS = os.path.join(STATIC, "js", "modals", "engineering-petty-cash.js")
+SETTINGS_HTML = os.path.join(STATIC, "settings.html")
+SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
 CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
@@ -84,6 +94,11 @@ def read(p):
     """讀檔 helper（UTF-8）"""
     with open(p, encoding="utf-8") as fh:
         return fh.read()
+
+def read_petty_cash_css():
+    """零用金三層 CSS 合併內容（僅供既有行為測試）。"""
+    return read(PETTY_CASH_CSS) + read(PETTY_CASH_REPORTS_CSS) + read(PETTY_CASH_ENGINEERING_CSS)
+
 
 def read_calendar_js_all():
     """calendar 拆檔後（2026-08-16）：render + modals/calendar + modals/calendar-settings + globals.js 合併讀。
@@ -358,6 +373,355 @@ def test_signed_reports_accept_no_docx():
     assert '.docx' not in js
     assert '.xlsx' not in js
     assert 'PDF / PNG / JPG' in js or 'PDF' in js
+
+
+def test_petty_cash_frontend_contract():
+    """零用金月報前端掛載 contract（2026-09-12）：sidebar/腳本/分派/篩選/匯出齊全，
+    與簽名日報表獨立（不可殘留呼叫 signed-reports API）。"""
+    index = read(INDEX)
+    assert 'id="sb-nav-petty-cash"' in index
+    assert "switchTab('petty-cash')" in index
+    assert 'src="/static/js/render/petty-cash.js"' in index
+    assert 'src="/static/js/modals/petty-cash.js"' in index
+    assert 'href="/static/css/style.petty-cash.css"' in index
+    assert 'href="/static/css/style.petty-cash-reports.css"' in index
+    assert 'href="/static/css/style.petty-cash-engineering.css"' in index
+    assert 'style.petty-cash-pr8.css' not in index
+    app = read(APP_JS)
+    assert "'petty-cash':'零用金月報'" in app
+    assert "'petty-cash':'🪙'" in app
+    assert "renderPettyCash" in app
+    assert "content.classList.toggle('pc-content', tab === 'petty-cash')" in app
+    assert "'petty-cash'" in app  # _TABS / F5 / isCal（含搜尋框隱藏）
+    api = read(API_JS)
+    assert "'petty-cash'" in api  # 切頁不載入庫存 + 不觸發 switchTab 重繪
+    js = read(PETTY_CASH_RENDER_JS)
+    assert 'function renderPettyCash' in js
+    assert '/api/petty-cash-reports' in js and '/api/petty-cash/kpi' in js
+    assert '/api/signed-reports' not in js  # 獨立功能，不可呼叫舊報表 API
+    assert '${esc(r.upload_person)}' in js
+    assert 'ui-kpi-card' in js and 'ui-kpi-value' in js
+    assert 'pcOpenDetail(${r.id})' in js
+    assert 'function pcMobileOpsHtml' in js
+    assert 'function pcReportCardHtml' in js
+    assert 'pc-report-type--general' in js
+    assert '本期餘額' in js
+    assert 'pc-row-actions--mobile' in js
+    assert "window.open('/api/petty-cash-reports/' + id + '/export.xlsx'" in js
+    modal = read(PETTY_CASH_MODAL_JS)
+    assert 'function pcOpenReportModal' in modal
+    assert 'function pcEntrySave' in modal
+    assert "pcModalSave('draft')" in modal and "pcModalSave('completed')" in modal
+    assert 'id="pc-step-1-tab" onclick="pcModalGotoStep(1)"' in modal
+    assert 'id="pc-step-2-tab" onclick="pcModalGotoStep(2)"' in modal
+    assert 'function pcModalGotoStep' in modal
+    assert '/api/petty-cash-reports/previous-balance' in modal
+    assert 'function esc(' not in modal  # esc 單一來源（統一用 utils.js）
+    css = read_petty_cash_css()
+    assert '#content.pc-content' in css
+    assert '.pc-table-wrap' in css and '.pc-cards' in css
+    assert '@media (max-width: 767px)' in css
+
+
+def test_petty_cash_modal_step_contracts():
+    """一般／工程零用金 modal 的 step tabs 與切換契約一致。"""
+    general = read(PETTY_CASH_MODAL_JS)
+    engineering = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+    shared = read(PETTY_CASH_RENDER_JS)
+    assert 'function pcSwitchModalStep(step, config)' in shared
+    assert "document.getElementById(config.stepIds[0]).style.display" in shared
+    assert "document.getElementById(config.opsIds[1]).style.display" in shared
+    contracts = [
+        (general, 'pcModalGotoStep', 'pc-step-1-tab', 'pc-step-2-tab'),
+        (engineering, 'engGotoStep', 'eng-step-1-tab', 'eng-step-2-tab'),
+    ]
+    for js, goto, tab1, tab2 in contracts:
+        assert f'id="{tab1}" onclick="{goto}(1)"' in js
+        assert f'id="{tab2}" onclick="{goto}(2)"' in js
+        assert f'function {goto}' in js
+        assert 'pcSwitchModalStep' in js
+    assert 'validate: () => pcValidateBasic(true)' in general
+    assert 'validate:engValidateBasic' in engineering
+
+
+def test_petty_cash_detail_renderers_keep_separate_business_bodies():
+    """共用 shell 可抽取，但一般／工程明細 renderer 必須保持分離。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert "if (pcDetail.report_type === 'engineering') return engRenderDetail();" in js
+    assert 'function pcGeneralEntryRowsHtml' in js
+    assert 'function engGroupHtml' in js
+    assert 'function pcDetailSubtableHtml(rows)' in js
+
+
+
+def test_petty_cash_kpi_grid_layout():
+    """KPI 三欄使用 canonical flex contract，任何 viewport 都維持同行。"""
+    css = read(PETTY_CASH_CSS)
+    assert '#content .pc-kpi-row {\n  display: flex;' in css
+    assert '#content .pc-kpi-card {\n  flex: 1 1 0;' in css
+    assert 'width: 0;' in css and 'min-width: 0;' in css
+    assert css.count('#content .pc-kpi-row {') == 1
+    assert 'repeat(3, minmax(0, 1fr))' not in css
+    assert 'repeat(auto-fit' not in read_petty_cash_css()
+    assert 'grid-template-columns:none' not in read_petty_cash_css()
+    assert '@media (max-width: 767px)' in css
+
+
+def test_petty_cash_css_ownership_and_breakpoint_contract():
+    """三份 petty-cash CSS 有明確 owner，且 feature 層不裸覆寫 base。"""
+    index = read(INDEX)
+    base = read(PETTY_CASH_CSS)
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    engineering = read(PETTY_CASH_ENGINEERING_CSS)
+    assert index.index('style.petty-cash.css') < index.index('style.petty-cash-reports.css') < index.index('style.petty-cash-engineering.css')
+    assert 'style.petty-cash-pr8.css' not in index
+    assert '.pc-report-list-table' in reports
+    assert '.pc-general-detail-table' in reports
+    assert '.eng-detail-table' in engineering
+    assert '.eng-editor' in engineering
+    for css in (reports, engineering):
+        assert re.search(r'(?m)^\s*\.pc-card\s*\{', css) is None
+        assert re.search(r'(?m)^\s*\.pc-num\s*\{', css) is None
+        assert re.search(r'(?m)^\s*\.pc-table\s+th\s*\{', css) is None
+        assert '#content .pc-kpi-card' not in css
+    assert '@media (max-width: 767px)' in reports
+    assert '@media (max-width: 767px)' in engineering
+    assert 'max-width:768px' not in read_petty_cash_css()
+    assert 'max-width: 768px' not in read_petty_cash_css()
+    assert '@media (min-width: 768px)' in reports
+    assert '@media (min-width: 768px)' in base
+
+def test_petty_cash_css_feature_ownership_and_report_scroll_contract():
+    """engineering CSS 不得控制 general/base；report menu 不得犧牲 table scroll。"""
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    engineering = read(PETTY_CASH_ENGINEERING_CSS)
+    forbidden_engineering = (
+        'pc-item-row', 'pc-items-header', 'pc-general-detail-table',
+        'pc-general-detail-table-wrap', 'pc-general-mobile-list',
+        'pc-general-detail-head', 'pc-general-detail-item',
+        'pc-general-discrepancy', 'pc-money',
+        'pc-general-entry-row--expandable', 'pc-empty-cell',
+    )
+    for token in forbidden_engineering:
+        assert re.search(r'(?m)^\s*\.' + re.escape(token) + r'(?=[\s,{:#])', engineering) is None, token
+    assert '.pc-status--general' in reports
+    assert '.pc-status--engineering' in reports
+    assert '.pc-status--general' not in engineering
+    assert '.pc-status--engineering' not in engineering
+    assert '.pc-report-list-table-wrap { overflow: visible; }' not in reports
+    assert '.pc-card:has(.pc-report-list-table-wrap)' not in reports
+    assert reports.count('.pc-report-list-table .pc-row-actions {') == 1
+    assert reports.count('.pc-report-list-table .pc-more-menu {') == 1
+    assert reports.count('.pc-report-list-table .pc-more-menu__list {') == 1
+    assert reports.count('.pc-report-list-table tbody tr.pc-more-menu-row--open {') == 1
+    assert reports.count('.pc-report-actions--mobile .pc-mobile-action') == 1
+    assert 'overflow-x:auto' in reports
+
+
+def test_petty_cash_general_detail_ui_contract():
+    """一般 detail KPI 沿用 base canonical layout，明細項次與欄位 padding 對齊。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    assert 'pc-general-detail-kpi' in js
+    assert '#content .pc-general-detail-kpi .pc-kpi-row' not in reports
+    assert 'grid-template-columns: repeat(2, minmax(0, 1fr));' not in reports
+    assert '.pc-general-detail-table th, .pc-general-detail-table td { text-align:left; }' in reports
+    assert '.pc-general-detail-item { min-height: 36px; padding: 6px 10px;' in reports
+    assert '.pc-general-detail-item .pc-general-detail-index { text-align: left; }' in reports
+
+
+def test_petty_cash_more_menu_portal_lifecycle_contract():
+    js = read(PETTY_CASH_RENDER_JS)
+    reports = read(PETTY_CASH_REPORTS_CSS)
+    assert 'function pcCloseMoreMenu(menu)' in js
+    assert 'pcCloseMoreMenuFromAction(this)' in js
+    assert 'pcCloseAllMoreMenus();' in js
+    assert 'pc-more-menu__list--portal' in js
+    assert 'pc-more-menu__list--portal' in reports
+    assert 'function pcRestoreMoreMenu' not in js
+
+
+def test_petty_cash_new_engineering_category_exposes_receipt_action():
+    """新增分類後建立空白項目，讓「新增單據」立即可見。"""
+    js = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+    assert "function engAddCategory(){engData.categories.push({name:'',groups:[{name:'',receipts:[]}]})" in js
+
+
+def test_petty_cash_delete_button_text():
+    """刪除按鈕包含文字「刪除」（2026-09-12）"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert '🗑 刪除' in js
+
+
+def test_petty_cash_income_expense_button_styling():
+    """收入/支出按鈕有獨立 class + emoji（2026-09-12）"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pc-step--income' in js
+    assert 'pc-step--expense' in js
+    assert '💰' in js
+    assert '💸' in js
+    css = read_petty_cash_css()
+    assert 'pc-step--income.active' in css
+    assert 'pc-step--expense.active' in css
+
+
+def test_petty_cash_items_header_columns():
+    """明細項目欄位標題列（2026-09-12）：項目名稱/數量/單位/金額/刪除"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pc-items-header' in js
+    assert '項目名稱' in js
+    assert '數量' in js
+    assert '單位' in js
+    assert '金額' in js
+    assert '刪除' in js
+    css = read_petty_cash_css()
+    assert '.pc-items-header' in css
+    assert 'grid-template-columns: 1fr 76px 64px 96px 44px' in css
+    assert 'box-sizing: border-box' in css
+
+def test_petty_cash_desc_optional_with_items():
+    """有明細項目時摘要改非必填（2026-09-12）"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pcUpdateDescRequired' in js
+    assert 'pc-e-desc-req' in js
+    # Validation: desc not required when items exist
+    assert 'hasItems' in js
+    assert '請填摘要（或新增明細項目以取代摘要）' in js
+
+
+def test_petty_cash_entry_date_groups():
+    """收支明細支援日期分組+摺疊（2026-09-12）"""
+    js = read(PETTY_CASH_MODAL_JS)
+    assert 'pc-entry-date-group' in js
+    assert 'pc-entry-date-header' in js
+    assert 'pc-entry-date-body' in js
+    assert 'collapsed' in js
+    css = read_petty_cash_css()
+    assert '.pc-entry-date-group' in css
+    assert '.pc-entry-date-header' in css
+    assert '.pc-entry-date-group.collapsed' in css
+
+
+def test_petty_cash_detail_table_mobile():
+    """詳細頁 desktop 使用 table、手機使用 transaction cards（2026-09-13）"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert 'pc-general-detail-table-wrap' in js
+    assert 'pc-general-mobile-list' in js
+    assert 'function pcItemText(it)' in js
+    assert 'pc-general-detail-head' in js
+    assert 'pc-general-detail-amount' not in js
+    assert 'pcItemText(it)' in js
+    css = read_petty_cash_css()
+    assert 'grid-template-columns: 48px minmax(0, 1fr)' in css
+    assert '.pc-general-detail-head span:first-child' in css and '.pc-general-detail-index { text-align: left; }' in css
+    assert '.pc-general-detail-head span:first-child' in css and '.pc-general-detail-index { text-align: left; }' in css
+    assert '.pc-report-list-table' in css
+    assert 'table-layout: auto' in css
+    assert '11.11%' not in css
+
+
+def test_petty_cash_settings_options_domain_layout():
+    """零用金設定 domain：一般只有科目，工程分開管理分類與項目（2026-09-13）。"""
+    html = read(SETTINGS_HTML)
+    js = read(SETTINGS_JS)
+    assert 'panel-petty-cash' in html
+    assert '一般零用金' in js and '工程零用金' in js
+    assert '新增科目' in js
+    assert 'pc-option-engineering-grid' in js
+    assert "option_type:kind" in js
+    assert "createPettyOptionKind(\\'general\\',\\'category\\')" in js
+    assert 'async function createPettyOption(type)' not in js
+    assert 'type="button" class="pc-icon-action"' in js
+    assert 'data-petty-action="rename"' in js and 'data-petty-action="delete"' in js
+    assert "panel.querySelectorAll('[data-petty-action]')" in js
+    assert 'grid-template-columns:minmax(0,1fr) auto' in html
+    assert '.pc-option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:54px; }' in html
+    assert '.pc-option-row { align-items: flex-start; flex-direction: column;' not in html
+    assert 'width:auto; min-width:88px' in html
+    assert 'border-radius: 8px' in read_petty_cash_css()
+    assert 'pc-opt-name-general-category' in js
+    petty_css = read_petty_cash_css()
+    assert '.eng-editor .eng-category-title > select' in petty_css
+    assert '.eng-editor .eng-detail-row input' in petty_css
+
+
+def test_petty_cash_more_actions_and_aligned_engineering_table():
+    """報表操作使用共用更多選單；工程檢視使用對齊表格（2026-09-13）。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    modal_js = read(PETTY_CASH_MODAL_JS)
+    css = read_petty_cash_css()
+    reports_css = read(PETTY_CASH_REPORTS_CSS)
+    assert 'function pcMoreMenuHtml' in js
+    assert 'class="pc-more-menu"' in js
+    assert 'pcBindMoreMenuEvents' in js
+    assert 'pcCloseMoreMenu(other)' in js
+    assert "pc-more-menu-row--open" in js
+    assert "row.classList.add('pc-more-menu-row--open')" in js
+    assert '.pc-more-menu-row--open' in css
+    assert "menu.removeAttribute('open')" in js
+    assert 'pc-report-list-table-wrap' in js
+    assert 'Desktop report query: scroll rows while keeping the table header visible.' in css
+    assert '.pc-report-list-table-wrap .pc-report-list-table thead th' in css
+    assert 'pc-report-actions' in js and '👁 檢視' in js
+    assert 'class="pc-view-action"' not in js
+    assert 'pcOpenDetail(${r.id})' in js
+    assert 'pcRowOpsHtml' in js and 'pcMoreMenuHtml(r, false)' in js
+    assert 'pcMoreMenuHtml(r, true)' in js
+    assert 'eng-detail-table' in js
+    assert 'eng-receipt-detail-row' in js
+    assert 'pc-general-detail-head' in js
+    assert 'eng-detail-total' in js
+    assert '.pc-more-menu__list' in css
+    assert 'min-width: 176px' in css
+    assert 'white-space:nowrap' in css
+    assert 'table-layout:fixed' not in css
+    assert 'Report list owns its table behavior' in reports_css
+    assert '.pc-general-detail-table' in reports_css and '.eng-detail-table' in read(PETTY_CASH_ENGINEERING_CSS)
+    assert 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' not in css
+    assert 'grid-template-columns:minmax(0,1fr) auto' in css
+    assert '.pc-report-list-table th, .pc-report-list-table td' in reports_css
+    assert '.eng-editor-receipt-no { overflow:visible; text-overflow:clip; }' in css
+    assert 'KPI canonical contract' in read(PETTY_CASH_CSS)
+    assert '#content .pc-kpi-row {\n  display: flex;' in read(PETTY_CASH_CSS)
+    assert '.eng-detail-table td:nth-child(4) { text-align:center; }' in read(PETTY_CASH_ENGINEERING_CSS)
+    assert '.eng-receipt-toggle' in css
+    assert 'engToggle(engExpandedReceipts' in js
+    assert '.pc-kpi-card .ui-kpi-value' in css
+    assert 'overflow-wrap:anywhere' in css
+    assert 'clamp(14px, 4.5vw, 24px)' in read(PETTY_CASH_CSS)
+    assert '.eng-category-head .eng-subtotal' in css
+    assert 'pc-entry-card--clickable' in modal_js
+    assert 'event.stopPropagation();pcOpenEntryModal(${i})' in modal_js
+    assert 'function pcDetailSubtableHtml(rows)' in js
+    assert '<span>項次</span><span>細項</span></div>' in js
+    assert 'grid-template-columns: 48px minmax(0, 1fr);' in css
+    assert 'pc-general-detail-amount' not in js
+    assert '.pc-entry-card--clickable' in css
+    assert '.eng-detail-table th:first-child' in css
+    assert '.eng-receipt-no' in css
+    assert 'aria-expanded="${expanded}"' in js
+    assert '此單據尚無細項' in js
+
+def test_petty_cash_general_detail_rows_are_expandable():
+    """一般零用金含明細的整列與按鈕都可展開（2026-09-13）。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    assert 'pc-general-entry-row--expandable' in js
+    assert 'data-entry-index="${i}"' in js
+    assert 'pcBindGeneralDetailEvents' in js
+    assert 'pcGeneralDetailEventsBound' in js
+    assert "event.target.closest('.pc-general-entry-row--expandable" in js
+    assert 'pcToggleGeneralEntry(Number(element.dataset.entryIndex));' in js
+    assert '  }, true);' in js
+    assert 'type="button" class="pc-inline-expand"' in js
+
+
+def test_engineering_editor_inputs_are_rounded():
+    """工程零用金編輯器輸入／選擇欄統一圓角（2026-09-13）。"""
+    js = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+    css = read_petty_cash_css()
+    assert 'eng-tax' in js and 'eng-no' in js and 'eng-amount' in js and 'eng-detail' in js
+    assert '.eng-editor input, .eng-editor select' in css
+    assert '.eng-editor input:focus, .eng-editor select:focus' in css
 
 
 def test_no_openDrawer_dead_code():
@@ -1612,6 +1976,16 @@ def test_stocktake_submit_includes_equal_qty():
     # 只要 item 和 stock 存在就 push（不限 diff）
     assert "if (item && stock) {" in js
     assert "items.push({ item_id: item.id, location: location, actual_qty: v })" in js
+    assert 'Qty.validFor(_raw, _unitType)' in js
+    assert "const _unitType = (typeof Qty.inputTypeOf === 'function')" in js
+    assert "Qty.inputTypeOf(item ? item.unit : '')" in js
+    for caller in (
+        os.path.join(STATIC, "js", "modals", "qty.js"),
+        INVENTORY_RENDER_JS,
+        KITS_RENDER_JS,
+    ):
+        caller_js = read(caller)
+        assert "Qty.inputTypeOf" in caller_js, f"{caller} missing shared input type contract"
 
 
 def test_stocktake_reminder_hides_after_submit():
@@ -2544,6 +2918,7 @@ def test_all_dashboard_kpis_share_common_responsive_contract():
         STOCKOUT_RENDER_JS, STOCKTAKE_JS, KITS_RENDER_JS,
         SIGNED_REPORTS_RENDER_JS,
         os.path.join(STATIC, "js", "render", "quotation-upload.js"),
+        PETTY_CASH_RENDER_JS,
     )
     for source in sources:
         js = read(source)
@@ -3502,7 +3877,7 @@ def test_qty_domain_mounted_and_wired():
                "function qtyInputOrToast", "function disp", "function signed"):
         assert fn in qty, f"qty.js 缺 {fn}"
     inv = read(INVENTORY_RENDER_JS)
-    assert "Qty.unitTypeOf(item.unit) !== 'integer'" in inv, "整數直調/分數 dialog 分流遺失"
+    assert "Qty.inputTypeOf(item.unit) !== 'integer'" in inv, "整數直調/分數 dialog 分流遺失"
     assert "openQtyDialog" in inv, "changeQty 未接 dialog"
     kits = read(KITS_RENDER_JS)
     assert "kitCompQtyChanged" in kits, "kit 材料需求量分數輸入遺失"
@@ -3521,3 +3896,28 @@ def test_qty_domain_mounted_and_wired():
     assert 'placeholder="數量（可輸 1/4）"' in edit
     assert "applyQtySuggest" in st_js, "歷史轉換建議套用遺失"
     assert "suggestQtyConvert" in st_js, "轉換建議解析遺失"
+
+
+def test_qty_merge_preserves_both_contracts():
+    """QTY rebase merge：保留兩邊有效能力並以一套 contract 對外。"""
+    qty = read(os.path.join(STATIC, "js", "qty.js"))
+    # base 的 §8 顯示策略與 PR8 的嚴格 validFor 都必須存在。
+    assert "function matchFrac(av, eps, maxDen)" in qty
+    assert "function decPlaces(r3)" in qty
+    assert "Qty.validFor(raw, t)" in qty
+    assert "function inputTypeOf(unitName)" in qty
+    # id 與動態列 element 兩種 caller 都要相容。
+    assert "function qtyInputOrToast(idOrEl, unit)" in qty
+    assert "typeof idOrEl === 'string'" in qty
+
+    edit = read(EDIT_JS)
+    assert 'input type="text" inputmode="decimal" class="stock-qty"' in edit
+    assert "qtyInputOrToast(_el" in edit
+
+    settings_js = read(os.path.join(STATIC, "js", "settings.js"))
+    settings_html = read(SETTINGS_HTML)
+    for qty_type in ("integer", "decimal", "fraction"):
+        assert 'value="%s"' % qty_type in settings_js
+    assert 'style="text-align:right"' in settings_js
+    assert "table-layout: fixed" in settings_html
+    assert "width: 33.33%" in settings_html

@@ -40,7 +40,7 @@ var Qty = (function() {
       return { num: n / g, den: d / g, value: n / d };
     }
     // 整數 / 小數（整個字串必須是合法數字，防 "1abc" 被 parseFloat 吃成 1）
-    if (/^\d+(\.\d+)?$/.test(t)) {
+    if (/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(t)) {
       const v = Number(t);
       if (!isFinite(v)) return { error: ERR_MSG };
       if (t.indexOf('.') === -1) return { num: v, den: 1, value: v };
@@ -163,6 +163,16 @@ var Qty = (function() {
 
   // 輸入是否符合該單位類型（integer：值為整數；decimal：小數禁分數；fraction：三者皆可）
   // 依單位類型驗證輸入；integer 拒分數，decimal 拒分數，fraction 全收
+  // 輸入驗證類型：未知/歷史單位允許分數，避免舊資料被 integer contract 誤擋。
+  function inputTypeOf(unitName) {
+    const t = unitTypeOf(unitName);
+    if (t !== 'integer' || !unitName) return t;
+    try {
+      if (typeof unitList !== 'undefined' && Array.isArray(unitList) &&
+          unitList.some(u => u.name === unitName)) return t;
+    } catch (e) { /* 查表失敗仍採寬容輸入 */ }
+    return 'fraction';
+  }
   function validFor(s, qtyType) {
     const p = parse(s);
     if (p.error) return { ok: false, error: p.error };
@@ -195,7 +205,7 @@ var Qty = (function() {
     parse: parse, add: add, sub: sub,
     format: format, formatWithUnit: formatWithUnit,
     disp: disp, signed: signed,
-    unitTypeOf: unitTypeOf, validFor: validFor
+    unitTypeOf: unitTypeOf, inputTypeOf: inputTypeOf, validFor: validFor
   };
 })();
 
@@ -212,7 +222,7 @@ function qtyInputOrToast(idOrEl, unit) {
   const el = (typeof idOrEl === 'string') ? document.getElementById(idOrEl) : idOrEl;
   const raw = el ? el.value : '';
   if (typeof Qty === 'undefined') return parseFloat(raw);
-  let t = unit ? Qty.unitTypeOf(unit) : 'fraction';
+  let t = unit ? Qty.inputTypeOf(unit) : 'fraction';
   if (t === 'integer' && unit && !unitKnownQty(unit)) t = 'fraction';
   const v = Qty.validFor(raw, t);
   if (!v.ok) { toast(v.error, 'error'); return NaN; }

@@ -31,8 +31,9 @@
 .u-add-row { display: flex; gap: 6px; margin-bottom: 12px; max-width: 420px; }
 .u-add-row select, .u-qty-type, .u-ci-to, .u-ci-fast { padding: 6px 8px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 13px; background: #fff; }
 .u-qty-label { font-size: 12.5px; color: #555; background: #eef4ff; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
-.u-table th { text-align: center; font-size: 12px; color: #888; font-weight: 600; padding: 4px 6px; border-bottom: 1px solid #e3e6ea; width: 33.33%; }
+.u-table th { text-align: left; font-size: 12px; color: #888; font-weight: 600; padding: 4px 6px; border-bottom: 1px solid #e3e6ea; width: 33.33%; }
 .u-table th:first-child { text-align: left; }
+.u-table th:last-child { text-align: right; }
 .u-suggest { margin: 4px 0; font-size: 12px; color: #2e7d32; }
 .u-suggest .btn-primary { margin-left: 6px; }
 .u-suggest.u-ambiguous { color: #a08a3e; }
@@ -53,8 +54,9 @@
 }
 .u-add-row input { flex: 1; padding: 8px 10px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 13.5px; }
 .u-table { width: 100%; font-size: 13.5px; border-collapse: collapse; table-layout: fixed; }
-.u-table td { padding: 9px 6px; border-bottom: 1px solid #eef0f3; text-align: center; }
+.u-table td { padding: 9px 6px; border-bottom: 1px solid #eef0f3; text-align: left; }
 .u-table td:first-child { text-align: left; }
+.u-table td:last-child { text-align: right; }
 .u-table th { width: 33.33%; }
 .u-table .off { color: #aaa; text-decoration: line-through; }
 .updown { color: #2d5a8e; cursor: pointer; font-size: 13px; text-decoration: none; margin: 0 2px; }
@@ -158,6 +160,66 @@
   .vb-crumb { margin-left: 10px; font-size: 15px; }
   .vb-crumb a, .vb-crumb .sep { display: none; }
 }
+.pc-option-settings { margin-top: 16px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.pc-option-settings__head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.pc-option-settings__head h5 { margin: 0; color: #1e3a5f; font-size: 15px; }
+.pc-option-settings__head span { color: #94a3b8; font-size: 12px; }
+.pc-option-add { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+.pc-option-add select, .pc-option-add input { min-height: 40px; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; box-sizing: border-box; }
+.pc-option-add input { flex: 1 1 220px; }
+.pc-option-kind { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 10px; margin-top: 8px; }
+.pc-option-kind > b { display: block; font-size: 12px; color: #64748b; margin-bottom: 5px; }
+.pc-option-empty { color: #94a3b8; font-size: 12px; padding: 5px 0; }
+
+/* 零用金選單：沿用設定中心 card，domain 分區而非混合 selector */
+.pc-settings-title { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+.pc-settings-title h4 { margin-bottom:4px; }
+.pc-settings-title p, .pc-settings-card-head p, .pc-option-column-head p { margin:0; color:#64748b; font-size:12px; }
+.pc-option-settings { margin-top:14px; padding:16px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+.pc-option-settings--general { border-top:3px solid #60a5fa; }
+.pc-option-settings--engineering { border-top:3px solid #14b8a6; }
+.pc-settings-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px; }
+.pc-settings-card-head > div:first-child { display:flex; align-items:center; gap:10px; }
+.pc-settings-icon { width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; background:#eff6ff; font-size:18px; }
+.pc-option-settings--engineering .pc-settings-icon { background:#ecfdf5; }
+.pc-settings-card-head h5 { margin:0 0 3px; color:#1e3a5f; font-size:16px; }
+.pc-settings-note { color:#64748b; font-size:12px; white-space:nowrap; }
+.pc-option-add { margin-bottom:12px; }
+.pc-option-add label { display:block; color:#475569; font-size:12px; font-weight:700; margin-bottom:5px; }
+.pc-option-add-row { display:flex; gap:8px; }
+.pc-option-add-row input { flex:1; min-width:0; min-height:40px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; }
+.pc-option-add-row .btn-primary { white-space:nowrap; }
+.pc-option-list-head { display:flex; justify-content:space-between; padding:6px 10px; color:#64748b; font-size:11px; border-bottom:1px solid #e2e8f0; }
+.pc-option-list { border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; }
+.pc-option-row { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:48px; padding:7px 10px; border-bottom:1px solid #f1f5f9; }
+.pc-option-row:last-child { border-bottom:0; }
+.pc-option-row > div:first-child { display:flex; align-items:center; gap:8px; min-width:0; overflow-wrap:anywhere; }
+.pc-option-index { color:#94a3b8; font-size:11px; min-width:16px; }
+.pc-option-status { font-size:11px; white-space:nowrap; }
+.pc-option-status.is-active { color:#15803d; }
+.pc-option-status.is-off { color:#94a3b8; }
+.pc-option-actions { display:flex; gap:5px; flex-shrink:0; }
+.pc-icon-action { width:auto; min-width:88px; min-height:36px; padding:0 12px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; color:#2563eb; cursor:pointer; font-weight:700; white-space:nowrap; }
+.pc-icon-action:hover { background:#eff6ff; }
+.pc-icon-action--danger { color:#dc2626; }
+.pc-icon-action--danger:hover { background:#fef2f2; }
+.pc-option-engineering-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+.pc-option-column { min-width:0; padding:12px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; }
+.pc-option-column-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:10px; }
+.pc-option-column-head h6 { margin:0 0 3px; color:#334155; font-size:14px; }
+.pc-option-column-head b { color:#0f766e; font-size:12px; white-space:nowrap; }
+.pc-option-column .pc-option-list { background:#fff; }
+@media (max-width:768px) {
+  .pc-option-engineering-grid { grid-template-columns:1fr; gap:12px; }
+  .pc-settings-card-head { flex-direction:column; }
+  .pc-settings-note { white-space:normal; }
+  .pc-option-add-row { flex-direction:column; }
+  .pc-option-add-row .btn-primary { width:100%; min-height:42px; }
+  .pc-option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:54px; }
+  .pc-option-row > div:first-child { min-width:0; flex-wrap:wrap; }
+  .pc-option-row > .pc-option-actions { justify-self:end; }
+  .pc-icon-action { width:auto; min-width:88px; min-height:42px; padding:0 12px; }
+}
 </style>
 </head>
 <body>
@@ -183,11 +245,13 @@
   <aside class="side-list" id="settingsSideList">
     <div class="side-item active" data-panel="units" onclick="settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
     <div class="side-item" data-panel="gcal" onclick="settingsSwitch('gcal')"><span class="ic">📅</span><div>行事曆同步<span class="desc">Google 行事曆同步</span></div></div>
+    <div class="side-item" data-panel="petty-cash" onclick="settingsSwitch('petty-cash')"><span class="ic">🪙</span><div>零用金選單<span class="desc">一般／工程分開管理</span></div></div>
     <div class="side-item" data-panel="pw" onclick="settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
   </aside>
   <main class="side-main">
     <div id="panel-units"></div>
     <div id="panel-gcal" style="display:none"></div>
+    <div id="panel-petty-cash" style="display:none"></div>
     <div id="panel-pw" style="display:none">
       <h4>🔑 修改密碼</h4>
       <div class="form-row">

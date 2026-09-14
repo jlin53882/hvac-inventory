@@ -8,13 +8,12 @@
 """
 import datetime
 import io
-from urllib.parse import quote
 
 from fastapi import Depends, APIRouter, HTTPException
-from fastapi.responses import Response
 
 from app.database import get_db
 from app.services.auth import require_perm
+from app.services.safety import excel_safe, xlsx_download
 
 # 匯出 API 路由
 router = APIRouter()
@@ -22,13 +21,6 @@ router = APIRouter()
 HEADER_FILL = "2E5C8A"
 # 匯出天數上限
 MAX_DAYS = 366
-
-
-def _safe(value):
-    """公式注入防護：= + - @ 開頭的字串加撇號，避免被 Excel 當公式執行"""
-    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
 
 
 def _style_header(ws):
@@ -77,8 +69,8 @@ def export_excel(days: int = 30):
             ORDER BY i.brand COLLATE NOCASE, i.name, s.id
         """, (site,)).fetchall()
         for r in rows:
-            ws.append([r["id"], _safe(r["brand"]), _safe(r["name"]), _safe(r["code"]),
-                       _safe(r["unit"]), _safe(r["location"]), r["qty"], _safe(r["note"]), r["total"]])
+            ws.append([r["id"], excel_safe(r["brand"]), excel_safe(r["name"]), excel_safe(r["code"]),
+                       excel_safe(r["unit"]), excel_safe(r["location"]), r["qty"], excel_safe(r["note"]), r["total"]])
         _set_widths(ws, [8, 14, 40, 16, 8, 30, 10, 24, 10])
 
     try:
@@ -101,7 +93,7 @@ def export_excel(days: int = 30):
             ORDER BY m.id DESC
         """, (f"-{days} days",)).fetchall()
         for m in movs:
-            ws3.append([_safe(x) for x in m])
+            ws3.append([excel_safe(x) for x in m])
         _set_widths(ws3, [20, 30, 10, 10, 10, 16, 30])
 
         # Sheet 4: 廠牌統計
@@ -114,20 +106,15 @@ def export_excel(days: int = 30):
             GROUP BY i.brand ORDER BY COUNT(DISTINCT i.id) DESC
         """).fetchall()
         for s in stats:
-            ws4.append([_safe(x) for x in s])
+            ws4.append([excel_safe(x) for x in s])
         _set_widths(ws4, [14, 10, 10])
     finally:
         conn.close()
 
-    # 記憶體回傳：不寫磁碟、伺服器不留檔案（Content-Disposition 需 RFC 5987 編碼，
-    # 直接塞中文檔名會 UnicodeEncodeError 500 —— 見 2026-08-11 實測）
+    # 記憶體回傳：不寫磁碟、伺服器不留檔案（中文檔名走 RFC 5987，見 safety.xlsx_download）
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"庫存報表_{ts}.xlsx"
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    return Response(
-        buf.getvalue(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
-    )
+    return xlsx_download(buf.getvalue(), filename)

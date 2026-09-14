@@ -170,7 +170,7 @@ function kitCompQtyChanged(idx, rawVal) {
   if (!row) return;
   const sel = row.item_id ? ALL_ITEMS.find(i => i.id == row.item_id) : null;
   if (typeof Qty !== 'undefined') {
-    const v = Qty.validFor(rawVal, sel ? Qty.unitTypeOf(sel.unit) : 'fraction');
+    const v = Qty.validFor(rawVal, sel ? Qty.inputTypeOf(sel.unit) : 'fraction');
     if (!v.ok || v.value <= 0) { toast(v.error || '材料數量必須大於 0', 'error'); renderKitCompRows(); return; }
     row.qty = v.value;
   } else {

@@ -4,9 +4,11 @@ Pydantic 請求模型
 =================
 所有 API 的請求 body 定義集中管理。
 """
+from datetime import date
+from decimal import Decimal
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------- 品項（v10 正規化：主檔 + 位置庫存） ----------
@@ -267,5 +269,170 @@ class QuotationIn(BaseModel):
     note: str = Field("", max_length=1000)
     items: List[QuotationItemIn] = Field(..., min_length=1, max_length=200)
 
+
+# ---------- 零用金月報（2026-09-12：report / entry / entry_item 三層） ----------
+class PettyCashEntryItemIn(BaseModel):
+    """一筆支出底下的明細項目（不綁庫存，可獨立運作）。"""
+    item_name: str = Field(..., min_length=1, max_length=200)
+    qty: float = Field(..., gt=0)
+    unit: str = Field("", max_length=20)
+    amount: float = Field(..., gt=0)
+
+    @field_validator("item_name")
+    @classmethod
+    def non_blank_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("品項名稱不可空白")
+        return value
+
+
+class PettyCashEntryIn(BaseModel):
+    """收支紀錄：收入不可帶明細；支出可帶 0~N 個明細項目。"""
+    entry_date: str = Field(..., max_length=10)
+    entry_type: Literal["income", "expense"]
+    description: str = Field("", max_length=500)
+    amount: float = Field(..., gt=0)
+    category: str = Field("", max_length=50)
+    sort_order: int = Field(0, ge=0, le=9999)
+    items: List[PettyCashEntryItemIn] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def check_description_or_items(self):
+        """收入必填摘要；支出無明細時必填摘要。"""
+        desc = (self.description or "").strip()
+        has_items = len(self.items) > 0
+        if self.entry_type == "income" and not desc:
+            raise ValueError("收入紀錄摘要不可空白")
+        if self.entry_type == "expense" and not has_items and not desc:
+            raise ValueError("支出紀錄（無明細項目）摘要不可空白")
+        self.description = desc
+        return self
+
+
+class PettyCashReportIn(BaseModel):
+    """零用金月報本體（PUT 採全量替換，與 QuotationIn 同模式）。"""
+    report_type: Literal["general"] = "general"
+    start_date: str = Field(..., max_length=10)
+    end_date: str = Field(..., max_length=10)
+    filename_text: str = Field(..., min_length=1, max_length=50)
+    upload_person: str = Field(..., min_length=1, max_length=50)
+    prepared_by: str = Field(..., min_length=1, max_length=50)
+    opening_balance: float = Field(0, ge=0)
+    opening_balance_source: Literal["auto", "manual"] = "manual"
+    status: Literal["draft", "completed"] = "draft"
+    entries: List[PettyCashEntryIn] = Field(default_factory=list, max_length=500)
+
+    @field_validator("filename_text", "upload_person", "prepared_by")
+    @classmethod
+    def non_blank_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("不可為空白")
+        return value
+
+
+class PettyCashOptionIn(BaseModel):
+    report_type: Literal["general", "engineering"]
+    option_type: Literal["category", "group"]
+    name: str = Field(..., min_length=1, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+
+    @field_validator("name")
+    @classmethod
+    def option_name(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("選單名稱不可空白")
+        return value
+
+
+class PettyCashOptionUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    sort_order: Optional[int] = Field(None, ge=0, le=9999)
+    is_active: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def option_name(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("選單名稱不可空白")
+        return value
+
+class EngineeringReceiptIn(BaseModel):
+    tax_id_mark: str = Field("", max_length=50)
+    receipt_number: str = Field("", max_length=100)
+    amount: Decimal = Field(..., ge=Decimal("0"), max_digits=12, decimal_places=2)
+    details: List[str] = Field(default_factory=list, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+
+    @field_validator("details")
+    @classmethod
+    def validate_details(cls, values):
+        cleaned = []
+        for value in values:
+            value = (value or "").strip()
+            if not value:
+                raise ValueError("細項不可空白")
+            cleaned.append(value)
+        return cleaned
+
+
+class EngineeringGroupIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+    receipts: List[EngineeringReceiptIn] = Field(default_factory=list, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value):
+        value = value.strip()
+        if not value: raise ValueError("項目名稱不可空白")
+        return value
+
+
+class EngineeringCategoryIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    sort_order: int = Field(0, ge=0, le=9999)
+    groups: List[EngineeringGroupIn] = Field(default_factory=list, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value):
+        value = value.strip()
+        if not value: raise ValueError("分類名稱不可空白")
+        return value
+
+
+class EngineeringReportIn(BaseModel):
+    report_type: Literal["engineering"]
+    start_date: str = Field(..., max_length=10)
+    end_date: str = Field(..., max_length=10)
+    upload_person: str = Field(..., min_length=1, max_length=50)
+    prepared_by: str = Field(..., min_length=1, max_length=50)
+    filename_text: str = Field("", max_length=50)
+    status: Literal["draft", "completed"] = "draft"
+    categories: List[EngineeringCategoryIn] = Field(default_factory=list, max_length=100)
+
+    @field_validator("upload_person", "prepared_by", "filename_text")
+    @classmethod
+    def clean_report_text(cls, value):
+        return (value or "").strip()
+
+    @model_validator(mode="after")
+    def validate_report(self):
+        try:
+            start = date.fromisoformat(self.start_date)
+            end = date.fromisoformat(self.end_date)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("日期格式必須為 YYYY-MM-DD") from exc
+        self.start_date = start.isoformat()
+        self.end_date = end.isoformat()
+        if start > end:
+            raise ValueError("開始日期不可晚於結束日期")
+        if not self.upload_person or not self.prepared_by:
+            raise ValueError("報表歸屬人與製表人不可空白")
+        return self
 
 
