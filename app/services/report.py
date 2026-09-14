@@ -14,6 +14,8 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string
 
+from app.services.safety import excel_safe
+
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 TEMPLATE_PATH = ASSETS_DIR / "工程日誌範本.xlsx"
 
@@ -30,13 +32,6 @@ BLOCKS = [
 ]
 # 勾選 ✓ 所在欄（清空區塊時要清的資料格；欄位名 D/F/H/J 不動）
 CHECK_COLS = ["E", "G", "I", "K"]
-
-
-def _safe(value):
-    """公式注入防護：= + - @ 開頭的字串加撇號，避免被 Excel 當公式執行（沿用 export.py）"""
-    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
 
 
 def build_daily_report(date_str: str, day_events: list, engineers: list = None):
@@ -74,19 +69,19 @@ def build_daily_report(date_str: str, day_events: list, engineers: list = None):
         r = b["data"]
         ws.cell(row=r, column=1).value = i + 1
         # 2026-08-13 Sarah：只寫開始時間，不用結束時間 → 日報表時間欄只填 start_time
-        ws.cell(row=r, column=2).value = _safe(e["start_time"])
-        ws.cell(row=r, column=3).value = _safe(e["client_name"])
+        ws.cell(row=r, column=2).value = excel_safe(e["start_time"])
+        ws.cell(row=r, column=3).value = excel_safe(e["client_name"])
         check_col = SVC_CHECK_COL.get(e["service_type_id"])
         if check_col:
             ws[f"{check_col}{r}"] = "✓"
         elif e.get("service_name"):
             # 非固定四類（如自訂服務）→ 地點欄附註
-            ws.cell(row=r, column=3).value = _safe(f"{e['client_name']}（{e['service_name']}）")
+            ws.cell(row=r, column=3).value = excel_safe(f"{e['client_name']}（{e['service_name']}）")
         # 備註區：第 1 列 地址（有填才顯示 + 前綴）、第 2 列 備註（不加前綴）
         if e.get("address"):
-            ws[b["note"]].value = _safe("地址：" + e["address"])
+            ws[b["note"]].value = excel_safe("地址：" + e["address"])
         if e.get("note"):
-            ws[f"B{int(b['note'][1:]) + 1}"].value = _safe(e["note"])
+            ws[f"B{int(b['note'][1:]) + 1}"].value = excel_safe(e["note"])
 
     buf = io.BytesIO()
     wb.save(buf)

@@ -30,7 +30,7 @@ function submitQtyDialog() {
   const item = (typeof ALL_ITEMS !== 'undefined' ? ALL_ITEMS : []).find(i => i.id === __qtyTargetId);
   if (!item) { closeModalForce('qty-dialog'); return; }
   const raw = document.getElementById('qtyd-input').value;
-  const v = Qty.validFor(raw, Qty.unitTypeOf(item.unit));
+  const v = Qty.validFor(raw, Qty.inputTypeOf(item.unit));
   if (!v.ok) { toast(v.error, 'error'); return; }
   if (v.value <= 0) { toast('增減數量必須大於 0。', 'error'); return; }
   const signed = __qtyMode === 'add' ? v.value : -v.value;

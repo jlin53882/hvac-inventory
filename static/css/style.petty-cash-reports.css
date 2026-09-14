@@ -1,0 +1,132 @@
+/* Petty Cash reports feature layer: report list, cards, menu and general detail. */
+/* Report list owns its table behavior; base .pc-table/.pc-num contracts remain unchanged. */
+/* 報表查詢列表：等寬欄位與置中掃描，mobile 改用既有 cards */
+.pc-report-list-table { table-layout: auto; }
+.pc-report-list-table th, .pc-report-list-table td { text-align: center; }
+.pc-report-list-table th:nth-child(1) { width: 5%; }
+.pc-report-list-table th:nth-child(2) { width: 12%; }
+.pc-report-list-table th:nth-child(3) { width: 13%; }
+.pc-report-list-table th:nth-child(4) { width: 24%; }
+.pc-report-list-table th:nth-child(5) { width: 10%; }
+.pc-report-list-table th:nth-child(6) { width: 10%; }
+.pc-report-list-table th:nth-child(7) { width: 14%; }
+.pc-report-list-table th:nth-child(8) { width: 8%; }
+.pc-report-list-table th:nth-child(9) { width: 10%; }
+.pc-report-list-table th:nth-child(1), .pc-report-list-table th:nth-child(2), .pc-report-list-table th:nth-child(3), .pc-report-list-table th:nth-child(5), .pc-report-list-table th:nth-child(6), .pc-report-list-table th:nth-child(8), .pc-report-list-table td:nth-child(1), .pc-report-list-table td:nth-child(2), .pc-report-list-table td:nth-child(3), .pc-report-list-table td:nth-child(5), .pc-report-list-table td:nth-child(6), .pc-report-list-table td:nth-child(8) { white-space: nowrap; }
+.pc-report-list-table .pc-num { text-align: center; }
+.pc-report-list-table td:nth-child(4), .pc-report-list-table td:nth-child(7) { overflow-wrap: anywhere; }
+.pc-report-actions { display:inline-flex; align-items:center; gap:6px; }
+.pc-more-menu { position: relative; display: inline-block; }
+.pc-more-menu > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; min-width: 42px; min-height: 42px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #1e3a5f; font-size: 22px; line-height: 1; font-weight: 900; cursor: pointer; }
+.pc-more-menu > summary::-webkit-details-marker { display: none; }
+.pc-more-menu > summary:hover, .pc-more-menu[open] > summary { background: #eff6ff; border-color: #93c5fd; }
+.pc-more-menu__list { position: absolute; z-index: 20; top: calc(100% + 5px); right: 0; display: grid; min-width: 132px; padding: 5px; border: 1px solid #dbe3ee; border-radius: 10px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.14); }
+.pc-more-menu__list button { min-height: 38px; padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #334155; text-align: left; font-weight: 700; cursor: pointer; }
+.pc-more-menu__list button:hover { background: #f1f5f9; }
+.pc-more-menu__list--portal { min-width: 176px; padding: 6px; gap: 2px; border-radius: 12px; box-shadow: 0 12px 28px rgba(15,23,42,.18); }
+.pc-more-menu__list--portal button { display:flex; align-items:center; width:100%; min-height:40px; gap:8px; padding:8px 11px; white-space:nowrap; }
+.pc-more-menu__list .pc-more-menu__danger { color: #b91c1c; }
+.pc-report-card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; background: #fff; cursor: pointer; }
+.pc-report-card__top { display: flex; align-items: center; gap: 8px; }
+.pc-report-card__period { font-weight: 900; color: #1e3a5f; font-size: 15px; }
+.pc-report-card__top .pc-status { margin-left: auto; }
+.pc-report-card__file { font-size: 13px; color: #334155; margin-top: 4px; word-break: break-all; }
+.pc-report-card__meta { font-size: 12.5px; color: #64748b; margin-top: 4px; }
+.pc-report-card__balance { font-size: 15px; font-weight: 900; color: #1d4ed8; margin-top: 6px; overflow-wrap:anywhere; }
+.pc-cards { display: none; }
+.pc-report-type { display:inline-flex; align-items:center; min-height:24px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+.pc-report-type--general { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+.pc-report-type--engineering { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
+.pc-mobile-action { min-height:34px; padding:6px 9px; border:1px solid #dbe3ee; border-radius:8px; background:#fff; color:#334155; font-size:12px; font-weight:700; white-space:nowrap; cursor:pointer; }
+.pc-mobile-action:hover { background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; }
+.pc-mobile-action--danger { color:#b91c1c; }
+.pc-mobile-action--danger:hover { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+@media (max-width: 767px) {
+  .pc-table-wrap:not(.pc-detail-table-wrap) { display: none; }
+  .pc-report-card__top { flex-wrap:wrap; }
+  .pc-report-card__top .pc-status { margin-left:auto; }
+  .pc-row-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; }
+  .pc-report-actions--mobile { display:flex; gap:6px; flex-wrap:wrap; width:100%; }
+  .pc-report-actions--mobile .pc-mobile-action { flex:1 1 auto; }
+}
+/* Desktop 更多選單：固定寬度與操作層級，避免表格操作欄重疊 */
+.pc-report-list-table .pc-row-actions { position: relative; overflow: visible; justify-content: center; white-space: nowrap; }
+.pc-report-list-table .pc-more-menu { position: relative; z-index: 30; }
+.pc-report-list-table .pc-more-menu > summary { min-width: 46px; min-height: 40px; }
+.pc-report-list-table .pc-more-menu__list { min-width: 176px; padding: 6px; gap: 2px; border-radius: 12px; box-shadow: 0 12px 28px rgba(15,23,42,.18); }
+.pc-report-list-table .pc-more-menu__list button { display:flex; align-items:center; width:100%; min-height:40px; gap:8px; padding:8px 11px; white-space:nowrap; }
+.pc-report-list-table td:last-child { position: relative; z-index: 1; overflow: visible; }
+.pc-report-list-table tbody tr.pc-more-menu-row--open { position: relative; z-index: 100; }
+.pc-report-list-table tbody tr.pc-more-menu-row--open td:last-child { z-index: 101; }
+@media (min-width: 768px) {
+  .pc-report-list-table-wrap { max-height:calc(100vh - 360px); min-height:240px; overflow-x:auto; overflow-y:auto; }
+  .pc-report-list-table-wrap .pc-report-list-table thead th { position:sticky; top:0; z-index:5; background:#f8fafc; }
+}
+@media (max-width: 767px) { .pc-cards { display: block; } }
+.pc-report-list-table th, .pc-report-list-table td { min-width:0; overflow-wrap:anywhere; word-break:break-word; }
+.pc-report-list-table td:nth-child(4), .pc-report-list-table td:nth-child(7) { overflow-wrap:anywhere; }
+/* 零用金檢視 responsive presentation：共用資料，桌面表格／手機卡片 */
+.pc-general-detail-table { table-layout:auto; }
+.pc-general-detail-table th, .pc-general-detail-table td { text-align:left; }
+.pc-general-detail-table th:nth-child(1) { width:6%; }
+.pc-general-detail-table th:nth-child(2) { width:11%; }
+.pc-general-detail-table th:nth-child(3) { width:25%; text-align:left; }
+.pc-general-detail-table th:nth-child(4), .pc-general-detail-table th:nth-child(5) { width:11%; }
+.pc-general-detail-table th:nth-child(6) { width:12%; }
+.pc-general-detail-table th:nth-child(7) { width:14%; }
+.pc-general-detail-table th:nth-child(8) { width:10%; }
+.pc-general-detail-table td:nth-child(3) { text-align:left; }
+.pc-money { font-weight:700; white-space:normal; overflow-wrap:anywhere; text-align:center; }
+.pc-money--income { color:#15803d; }
+.pc-money--expense { color:#b91c1c; }
+.pc-nowrap { white-space:nowrap; }
+.pc-entry-status { color:#64748b; font-size:11px; white-space:nowrap; }
+.pc-entry-status--warn { color:#b45309; font-weight:700; }
+.pc-inline-expand { border:0; background:transparent; color:#2563eb; cursor:pointer; min-width:28px; min-height:28px; margin-right:4px; }
+.pc-general-detail-row > td { padding:0 12px 10px; background:#f8fafc; }
+.pc-general-detail-panel { padding:10px 14px; border:1px solid #dbeafe; border-radius:8px; background:#fff; }
+.pc-general-detail-title { font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; }
+.pc-general-detail-list { display:grid; gap:4px; color:#475569; font-size:12.5px; }
+.pc-general-detail-head,
+.pc-general-detail-item { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 10px; }
+.pc-general-detail-head { padding: 7px 10px; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 800; }
+.pc-general-detail-item { min-height: 36px; padding: 6px 10px; border-top: 1px solid #f1f5f9; color: #475569; }
+.pc-general-detail-head span:first-child,
+.pc-general-detail-item .pc-general-detail-index { text-align: left; }
+.pc-general-discrepancy { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding-top:8px; border-top:1px dashed #f59e0b; color:#92400e; font-size:12px; }
+.pc-general-mobile-list { display:none; }
+.pc-general-tx-card { padding:12px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.pc-general-tx-card + .pc-general-tx-card { margin-top:8px; }
+.pc-general-tx-top, .pc-general-tx-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.pc-general-tx-desc { margin:9px 0; font-weight:600; color:#334155; overflow-wrap:anywhere; }
+.pc-general-tx-bottom { font-weight:700; }
+.pc-general-detail-toggle { margin-top:9px; min-height:40px; width:100%; border:1px solid #bfdbfe; border-radius:8px; background:#eff6ff; color:#1d4ed8; font-weight:600; }
+@media (max-width: 767px) {
+  .pc-general-detail-head,
+  .pc-general-detail-item { grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
+  .pc-general-detail-panel { padding: 9px 10px; }
+}
+/* Desktop report query: scroll rows while keeping the table header visible. */
+.pc-status--general { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.pc-status--engineering { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+.pc-general-entry-row--expandable { cursor:pointer; }
+.pc-general-entry-row--expandable:hover td { background:#f8fafc; }
+.pc-general-detail-table th,
+.pc-general-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+.pc-general-detail-table th:nth-child(1),
+.pc-general-detail-table th:nth-child(2),
+.pc-general-detail-table th:nth-child(3),
+.pc-general-detail-table th:nth-child(4),
+.pc-general-detail-table th:nth-child(5),
+.pc-general-detail-table th:nth-child(6),
+.pc-general-detail-table th:nth-child(7),
+.pc-general-detail-table th:nth-child(8) { width:auto; }
+@media (max-width:767px) {
+  .pc-general-detail-table-wrap { display:none; }
+  .pc-general-mobile-list { display:block; }
+  .pc-general-discrepancy { display:grid; gap:4px; }
+}
+@media (min-width:768px) {
+  .pc-general-detail-table-wrap { display:block; }
+  .pc-general-mobile-list { display:none; }
+}

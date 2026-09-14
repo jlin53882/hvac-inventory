@@ -24,6 +24,7 @@ from app.models import AdjustRequest, BatchLocationRequest, ItemCreate, ItemUpda
 from app.routes.photos import has_photo, list_photo_ids
 from app.services.auth import require_perm
 from app.services.file_storage import delete_asset_files
+from app.services.quantity import canonical_qty
 
 # 品項 API 路由
 router = APIRouter()
@@ -43,7 +44,7 @@ def _item_full(conn, row, kit_map: Optional[dict] = None,
         stocks = conn.execute(
             "SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (d["id"],)).fetchall()
     d["stocks"] = [dict(s) for s in stocks]
-    d["qty"] = sum(s["qty"] for s in d["stocks"])
+    d["qty"] = canonical_qty(sum(s["qty"] for s in d["stocks"]))
     d["total_qty"] = d["qty"]
     d["location"] = d["stocks"][0]["location"] if d["stocks"] else ""
     d["note"] = d["stocks"][0]["note"] if d["stocks"] else ""
@@ -349,7 +350,7 @@ def create_item(item: ItemCreate):
             for s in item.stocks:
                 conn.execute(
                     "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                    (new_id, s.location, s.qty, s.note),
+                    (new_id, s.location, canonical_qty(s.qty), s.note),
                 )
         else:
             # 至少一筆空位置庫存，維持「總量」語意（stocks 沒給時補 0）
@@ -401,17 +402,18 @@ def update_item(item_id: int, upd: ItemUpdate):
             existing = {r["location"]: r for r in conn.execute(
                 "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
             for loc, s in dedup.items():
-                new_qty = round(float(s.get("qty") or 0), 3)
+                new_qty = canonical_qty(s.get("qty") or 0)
                 if new_qty < 0:
                     raise HTTPException(400, f"位置「{loc}」的庫存數量不能為負數")
                 if loc in existing:
                     old = existing[loc]
                     conn.execute("UPDATE item_stocks SET qty=?, note=?, updated_at=? WHERE id=?",
                                  (new_qty, s.get("note") or "", datetime.datetime.now().isoformat(), old["id"]))
-                    if abs(new_qty - old["qty"]) > 1e-9:  # qty 變化才寫流水（浮點誤差不算）
+                    delta = canonical_qty(new_qty - old["qty"])
+                    if delta != 0:  # canonical qty 相同時不寫 phantom 流水
                         conn.execute(
                             "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                            (item_id, round(new_qty - old["qty"], 3), old["qty"], new_qty, "編輯品項調整", loc),
+                            (item_id, delta, old["qty"], new_qty, "編輯品項調整", loc),
                         )
                 else:
                     conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
@@ -500,7 +502,7 @@ def add_stock(item_id: int, st: StockUpdate):
         ).fetchone()
         if dup:
             raise HTTPException(400, f"該品項在「{location}」已有庫存，請用編輯修改數量")
-        qty = st.qty if st.qty is not None else 0
+        qty = canonical_qty(st.qty if st.qty is not None else 0)
         conn.execute(
             "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
             (item_id, location, qty, st.note or ""),
@@ -537,9 +539,10 @@ def update_stock(stock_id: int, st: StockUpdate):
                 raise HTTPException(400, f"該位置「{fields['location']}」已存在")
         # qty 差額處理（2026-08-14：併發 lost update 防護 + 補流水）
         if "qty" in fields:
-            diff = round(fields["qty"] - row["qty"], 3)
+            target_qty = canonical_qty(fields["qty"])
+            diff = canonical_qty(target_qty - canonical_qty(row["qty"]))
             fields.pop("qty")  # qty 已抽離，避免下方動態 UPDATE 覆寫
-            if abs(diff) > 1e-9:
+            if diff != 0:
                 item_row = conn.execute("SELECT * FROM items WHERE id=?", (row["item_id"],)).fetchone()
                 prepared = item_row["prepared_qty"] or 0
                 if diff < 0:
@@ -556,7 +559,7 @@ def update_stock(stock_id: int, st: StockUpdate):
                 )
                 conn.execute(
                     "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                    (row["item_id"], diff, row["qty"], round(row["qty"] + diff, 3), "編輯位置調整", ""),
+                    (row["item_id"], diff, row["qty"], canonical_qty(row["qty"] + diff), "編輯位置調整", ""),
                 )
         if fields:
             fields["updated_at"] = datetime.datetime.now().isoformat()
@@ -599,42 +602,45 @@ def adjust_qty(item_id: int, req: AdjustRequest):
         row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
         if not row:
             raise HTTPException(404, "品項無庫存位置")
-        total_before = sum(r["qty"] for r in row)
+        delta = canonical_qty(req.delta)
+        if delta == 0:
+            raise HTTPException(400, "調整數量正規化後不可為 0")
+        total_before = canonical_qty(sum(r["qty"] for r in row))
         # 負數調整：減少後庫存不得低於待領出數量（避免「可領數量」變負）
-        if req.delta < 0:
-            prepared = item_row["prepared_qty"] or 0
-            if total_before + req.delta < prepared:
+        if delta < 0:
+            prepared = canonical_qty(item_row["prepared_qty"] or 0)
+            if canonical_qty(total_before + delta) < prepared:
                 raise HTTPException(
                     400,
                     f"減少後庫存不能低於待領出數量！目前庫存 {total_before}、待領出 {prepared}，請先退回待領出",
                 )
-        # 第一筆位置作為調整標的（正數加入第一筆；負數從最後一筆往前扣）
-        if req.delta >= 0:
+        # 第一筆位置作為調整標的（正數加入第一筆；負數從第一筆往後扣）
+        if delta > 0:
             target = row[0]
             conn.execute("UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
-                         (req.delta, datetime.datetime.now().isoformat(), target["id"]))
+                         (delta, datetime.datetime.now().isoformat(), target["id"]))
         else:
-            remaining = -req.delta
+            remaining = canonical_qty(-delta)
             for r in row:  # M10：統一從頭扣（與 stockout._deduct 一致）
                 if remaining <= 0:
                     break
-                take = min(r["qty"], remaining)
+                take = canonical_qty(min(r["qty"], remaining))
                 cur = conn.execute("UPDATE item_stocks SET qty=ROUND(qty-?,3), updated_at=? WHERE id=? AND qty>=?",
                                    (take, datetime.datetime.now().isoformat(), r["id"], take))
                 if cur.rowcount == 0:  # H5：併發被扣走 → 保守拒絕
                     raise HTTPException(400, f"庫存不足！剩 {total_before}")
-                remaining -= take
+                remaining = canonical_qty(remaining - take)
             if remaining > 0:
                 raise HTTPException(400, f"庫存不足！剩 {total_before}")
-        # 2026-08-14 P4-1：寫後重讀真實總量（併發下流水鏈 before+delta=after 恆成立）
-        total_after = sum(r2["qty"] for r2 in conn.execute(
-            "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall())
+        # 寫後重讀真實總量；movement 使用 canonical request 與真正 write 前後狀態。
+        total_after = canonical_qty(sum(r2["qty"] for r2 in conn.execute(
+            "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
         conn.execute(
             "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (item_id, req.delta, total_after - req.delta, total_after, req.reason, req.destination),
+            (item_id, delta, total_before, total_after, req.reason, req.destination),
         )
         conn.commit()
-        return {"ok": True, "before": total_after - req.delta, "after": total_after}
+        return {"ok": True, "before": total_before, "after": total_after}
     except Exception:
         conn.rollback()
         raise
@@ -657,9 +663,11 @@ def import_items(items: list = Body(..., embed=True)):
             if not str(it.get("name", "")).strip():
                 raise HTTPException(400, f"第 {i} 筆缺少品項名稱")
             try:
-                qty_v = float(it.get("qty", 0))
+                qty_v = canonical_qty(it.get("qty", 0))
                 if qty_v < 0:  # 2026-08-12 補：負數入庫會造成負庫存（其他路徑都有 ge=0，import 獨漏）
                     raise HTTPException(400, f"第 {i} 筆數量不能為負數")
+            except HTTPException:
+                raise
             except (TypeError, ValueError):
                 raise HTTPException(400, f"第 {i} 筆數量「{it.get('qty')}」格式錯誤")
             try:
@@ -676,7 +684,7 @@ def import_items(items: list = Body(..., embed=True)):
             name = it.get("name", "")
             unit = it.get("unit", "個")
             site = it.get("site", "office")
-            qty = float(it.get("qty", 0))
+            qty = canonical_qty(it.get("qty", 0))
             location = it.get("location", "")
             note = it.get("note", "")
             exists = conn.execute(
@@ -694,7 +702,7 @@ def import_items(items: list = Body(..., embed=True)):
                                  (qty, note or it.get("note", ""), stock["id"]))
                 else:
                     conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                                 (exists["id"], location, round(qty, 3), note))
+                                 (exists["id"], location, qty, note))
                 merged += 1
             else:
                 cur = conn.execute(

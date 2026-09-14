@@ -9,6 +9,9 @@
 <link rel="stylesheet" href="/static/css/style.signed-reports.css">
 <link rel="stylesheet" href="/static/css/style.quotation.css">
 <link rel="stylesheet" href="/static/css/style.quotation-upload.css">
+<link rel="stylesheet" href="/static/css/style.petty-cash.css">
+<link rel="stylesheet" href="/static/css/style.petty-cash-reports.css">
+<link rel="stylesheet" href="/static/css/style.petty-cash-engineering.css">
 <link rel="stylesheet" href="/static/css/style.performance.css">
 <link rel="stylesheet" href="/static/css/style.inventory.css">
 <link rel="stylesheet" href="/static/css/style.kit.css">
@@ -36,6 +39,7 @@
     <a class="sb-nav-link active" id="sb-nav-calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
     <a class="sb-nav-link" id="sb-nav-signed-reports" onclick="switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
     <a class="sb-nav-link" id="sb-nav-quotation" onclick="switchTab('quotation')"><span class="ic">🧾</span>報價單</a>
+    <a class="sb-nav-link" id="sb-nav-petty-cash" onclick="switchTab('petty-cash')"><span class="ic">🪙</span>零用金月報</a>
     <a class="sb-nav-link" id="sb-nav-inventory" onclick="switchTab('inventory')"><span class="ic">📦</span>單一庫存</a>
     <a class="sb-nav-link" id="sb-nav-prepared" onclick="switchTab('prepared')"><span class="ic">📤</span>待領出<span class="badge" id="sb-prepared-badge" style="display:none">0</span></a>
     <a class="sb-nav-link" id="sb-nav-stockout" onclick="switchTab('stockout')"><span class="ic">🚚</span>已領出</a>
@@ -725,6 +729,7 @@
 <script src="/static/js/render/signed-reports.js" defer></script>
 <script src="/static/js/render/quotation.js" defer></script>
 <script src="/static/js/render/quotation-upload.js" defer></script>
+<script src="/static/js/render/petty-cash.js" defer></script>
 <script src="/static/js/modals/calendar.js" defer></script>
 <script src="/static/js/modals/calendar-settings.js" defer></script>
 <script src="/static/js/modals/edit.js" defer></script>
@@ -735,6 +740,8 @@
 <script src="/static/js/modals/qty.js" defer></script>
 <script src="/static/js/modals/changepw.js" defer></script>
 <script src="/static/js/modals/expiry.js" defer></script>
+<script src="/static/js/modals/petty-cash.js" defer></script>
+  <script src="/static/js/modals/engineering-petty-cash.js" defer></script>
 <script src="/static/js/bottomsheet.js" defer></script>
 <script src="/static/js/notifications.js" defer></script>
 <script src="/static/js/app.js" defer></script>

@@ -103,8 +103,8 @@ function renderSidebarUser(user) {
 }
 
 // ========== 頁籤切換 ==========
-var _TAB_LABEL = { calendar:'行事曆', inventory:'單一庫存', prepared:'待領出', stockout:'已領出', stocktake:'盤點', kit:'整組庫存', 'signed-reports':'每日簽名日報表', quotation:'報價單' };
-var _TAB_ICON  = { calendar:'📅', inventory:'📦', prepared:'📤', stockout:'🚚', stocktake:'📋', kit:'🔧', 'signed-reports':'🗂', quotation:'🧾' };
+var _TAB_LABEL = { calendar:'行事曆', inventory:'單一庫存', prepared:'待領出', stockout:'已領出', stocktake:'盤點', kit:'整組庫存', 'signed-reports':'每日簽名日報表', quotation:'報價單', 'petty-cash':'零用金月報' };
+var _TAB_ICON  = { calendar:'📅', inventory:'📦', prepared:'📤', stockout:'🚚', stocktake:'📋', kit:'🔧', 'signed-reports':'🗂', quotation:'🧾', 'petty-cash':'🪙' };
 
 function updateBreadcrumb(tab) {
   var el = document.getElementById('breadcrumb');
@@ -121,6 +121,7 @@ function switchTab(tab) {
   if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
   if (content) content.classList.toggle('cal-content', tab === 'calendar');
   if (content) content.classList.toggle('quotation-content', tab === 'quotation');
+  if (content) content.classList.toggle('pc-content', tab === 'petty-cash');
   if (content) content.classList.toggle('inventory-content', tab === 'inventory');
   if (content) content.classList.toggle('prepared-content', tab === 'prepared');
   if (content) content.classList.toggle('kit-content', tab === 'kit');
@@ -136,7 +137,7 @@ function switchTab(tab) {
   closeSidebar();
 
   // 行事曆與簽名報表不需要搜尋框、辦公室/倉庫分片與廠牌 tab
-  var isCal = tab === 'calendar' || tab === 'signed-reports' || tab === 'quotation';
+  var isCal = tab === 'calendar' || tab === 'signed-reports' || tab === 'quotation' || tab === 'petty-cash';
   var isInventory = tab === 'inventory';
   var sb = document.querySelector('.h-search');
   var st = document.querySelector('.h-site');
@@ -182,6 +183,7 @@ function switchTab(tab) {
   else if (tab === 'calendar') renderCalendar();
   else if (tab === 'signed-reports') renderSignedReports();
   else if (tab === 'quotation') renderQuotation();
+  else if (tab === 'petty-cash') renderPettyCash();
   syncViewUrl();
 }
 
@@ -223,7 +225,7 @@ window.addEventListener('load', function() {
 });
 
 // 多使用者即時性與畫面狀態持久化
-var _TABS = ['inventory', 'prepared', 'stockout', 'stocktake', 'kit', 'calendar', 'signed-reports', 'quotation'];
+var _TABS = ['inventory', 'prepared', 'stockout', 'stocktake', 'kit', 'calendar', 'signed-reports', 'quotation', 'petty-cash'];
 var _SITES = ['office', 'warehouse'];
 
 var _focusReloadTimer = null;
@@ -270,7 +272,7 @@ function syncViewUrl() {
     if (sbNav) sbNav.classList.add('active');
     loadData();
     // loadData 不重繪 DSR；F5 直接以 ?tab=signed-reports 開啟時在此建立頁面。
-    if (currentTab === 'signed-reports' || currentTab === 'quotation') switchTab(currentTab);
+    if (currentTab === 'signed-reports' || currentTab === 'quotation' || currentTab === 'petty-cash') switchTab(currentTab);
   } else {
     var content = document.getElementById('content');
     if (content) content.innerHTML = '<div class="empty">⚠️ 無法連線伺服器，請重新整理頁面<br><small>若持續發生請聯絡管理員</small></div>';

@@ -2891,3 +2891,151 @@ class TestCategory:
             assert "category" in item, f"品項 {item.get('name')} 缺 category 欄位"
         # 清理
         client.delete(f"/api/items/{item_id}")
+
+
+# ========== Deep merge-safety: canonical quantity ledger invariants ==========
+
+class TestDeepQtyIntegrity:
+    @pytest.mark.parametrize("initial,delta,expected_before,expected_after", [
+        (0, 1 / 3, 0, 0.333),
+        (1, -1 / 3, 1, 0.667),
+    ])
+    def test_adjust_canonical_delta_keeps_stock_and_movement_aligned(
+        self, client, initial, delta, expected_before, expected_after
+    ):
+        item = _add_item(client, name="調整精度", qty=initial)
+        response = client.post(f"/api/items/{item['id']}/adjust", json={"delta": delta, "reason": "深度稽核"})
+        assert response.status_code == 200, response.text
+        assert _get_item(client, item["id"])["total_qty"] == pytest.approx(expected_after)
+        movement = next(m for m in client.get("/api/movements").json() if m["item_id"] == item["id"])
+        assert movement["before_qty"] == pytest.approx(expected_before)
+        assert movement["delta"] == pytest.approx(expected_after - expected_before)
+        assert movement["after_qty"] == pytest.approx(expected_after)
+        assert round(movement["before_qty"] + movement["delta"], 3) == pytest.approx(movement["after_qty"])
+
+    def test_adjust_sub_precision_delta_rejected_without_phantom_movement(self, client):
+        item = _add_item(client, name="調整塵", qty=1)
+        response = client.post(f"/api/items/{item['id']}/adjust", json={"delta": 0.0004, "reason": "深度稽核"})
+        assert response.status_code == 400
+        assert _get_item(client, item["id"])["total_qty"] == 1
+        assert not any(m["item_id"] == item["id"] for m in client.get("/api/movements").json())
+
+    def test_stockout_three_locations_canonical_remainder(self, client):
+        response = client.post("/api/items", json={
+            "brand": "測試牌", "code": "Q-111", "name": "三位置精度",
+            "stocks": [
+                {"location": "A", "qty": 0.111},
+                {"location": "B", "qty": 0.111},
+                {"location": "C", "qty": 0.111},
+            ],
+        })
+        assert response.status_code == 201, response.text
+        item = response.json()
+        out = client.post("/api/stockout", json={"item_id": item["id"], "qty": 0.333})
+        assert out.status_code == 200, out.text
+        current = _get_item(client, item["id"])
+        assert current["total_qty"] == pytest.approx(0)
+        assert all(stock["qty"] == pytest.approx(0) for stock in current["stocks"])
+        movement = next(m for m in client.get("/api/movements").json() if m["item_id"] == item["id"])
+        assert movement["before_qty"] == pytest.approx(0.333)
+        assert movement["delta"] == pytest.approx(-0.333)
+        assert movement["after_qty"] == pytest.approx(0)
+
+    def test_prepared_repeated_fraction_has_no_dust_or_ghost_item(self, client):
+        item = _add_item(client, name="待領出精度", qty=1)
+        for _ in range(3):
+            response = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 1 / 3})
+            assert response.status_code == 200, response.text
+        prepared_item = _get_item(client, item["id"])
+        assert prepared_item["prepared_qty"] == 0.999
+        for _ in range(3):
+            response = client.post(f"/api/items/{item['id']}/prepared-out", json={"qty": 1 / 3})
+            assert response.status_code == 200, response.text
+        assert _get_item(client, item["id"])["prepared_qty"] == 0
+        assert not any(row["id"] == item["id"] for row in client.get("/api/prepared").json())
+
+    def test_kit_fractional_assemble_and_disassemble_ledger(self, client):
+        material = _add_item(client, name="組裝材料", qty=1)
+        kit_response = client.post("/api/kits", json={
+            "name": "精度整組", "items": [{"item_id": material["id"], "qty": 1}],
+        })
+        assert kit_response.status_code == 201, kit_response.text
+        kit_id = kit_response.json()["id"]
+        kit_item_id = kit_response.json()["item_id"]
+        assemble = client.post(f"/api/kits/{kit_id}/assemble", json={"qty": 1 / 3})
+        assert assemble.status_code == 200, assemble.text
+        assembled_movement = next(
+            m for m in client.get("/api/movements").json()
+            if m["item_id"] == kit_item_id and m["reason"].startswith("組裝完成")
+        )
+        assert assembled_movement["before_qty"] == pytest.approx(0)
+        assert assembled_movement["delta"] == pytest.approx(0.333)
+        assert assembled_movement["after_qty"] == pytest.approx(0.333)
+        disassemble = client.post(f"/api/kits/{kit_id}/disassemble", json={"qty": 1 / 3})
+        assert disassemble.status_code == 200, disassemble.text
+        disassembled_movement = next(
+            m for m in client.get("/api/movements").json()
+            if m["item_id"] == material["id"] and m["reason"].startswith("拆解套件")
+        )
+        assert disassembled_movement["delta"] == pytest.approx(0.333)
+        assert disassembled_movement["before_qty"] == pytest.approx(0.667)
+        assert disassembled_movement["after_qty"] == pytest.approx(1)
+
+    def test_stocktake_ledger_uses_canonical_actual_and_diff(self, client):
+        item = _add_item(client, name="盤點精度", qty=1)
+        response = client.post("/api/stocktake", json={
+            "take_date": "2026-09-14",
+            "items": [{"item_id": item["id"], "location": "測試位置", "actual_qty": 1 / 3}],
+        })
+        assert response.status_code == 200, response.text
+        result = response.json()["results"][0]
+        assert result["actual_qty"] == pytest.approx(0.333)
+        assert result["diff"] == pytest.approx(-0.667)
+        movement = next(m for m in client.get("/api/movements").json() if m["item_id"] == item["id"])
+        assert movement["before_qty"] == pytest.approx(1)
+        assert movement["delta"] == pytest.approx(-0.667)
+        assert movement["after_qty"] == pytest.approx(0.333)
+
+    def test_create_import_and_stock_edit_store_canonical_qty(self, client):
+        created = _add_item(client, name="建立精度", qty=1.2345)
+        assert created["stocks"][0]["qty"] == pytest.approx(1.235)
+
+        imported = client.post("/api/import", json={"items": [{
+            "brand": "匯入牌", "code": "IMP-1", "name": "匯入精度",
+            "unit": "個", "qty": 1.2345, "location": "匯入位置",
+        }]})
+        assert imported.status_code == 200, imported.text
+        imported_item = next(i for i in client.get("/api/items").json() if i["name"] == "匯入精度")
+        assert imported_item["total_qty"] == pytest.approx(1.235)
+
+        stock_id = created["stocks"][0]["id"]
+        edited = client.patch(f"/api/stocks/{stock_id}", json={"qty": 2.3455})
+        assert edited.status_code == 200, edited.text
+        current = _get_item(client, created["id"])
+        assert current["total_qty"] == pytest.approx(2.346)
+        movement = next(m for m in client.get("/api/movements").json() if m["item_id"] == created["id"])
+        assert movement["before_qty"] == pytest.approx(1.235)
+        assert movement["delta"] == pytest.approx(1.111)
+        assert movement["after_qty"] == pytest.approx(2.346)
+
+    def test_kit_assemble_rolls_back_material_deduction_if_add_fails(self, client, monkeypatch):
+        material = _add_item(client, name="組裝回滾材料", qty=1)
+        kit_response = client.post("/api/kits", json={
+            "name": "回滾整組", "items": [{"item_id": material["id"], "qty": 1}],
+        })
+        assert kit_response.status_code == 201, kit_response.text
+        kit_id = kit_response.json()["id"]
+        kit_item_id = kit_response.json()["item_id"]
+
+        import app.routes.kits as kits_route
+        def fail_after_deduct(*args, **kwargs):
+            raise RuntimeError("模擬整組增加失敗")
+        monkeypatch.setattr(kits_route, "_add_total", fail_after_deduct)
+
+        with pytest.raises(RuntimeError, match="模擬整組增加失敗"):
+            client.post(f"/api/kits/{kit_id}/assemble", json={"qty": 1})
+
+        assert _get_item(client, material["id"])["total_qty"] == pytest.approx(1)
+        assert _get_item(client, kit_item_id)["total_qty"] == pytest.approx(0)
+        assert not any(m["item_id"] in {material["id"], kit_item_id}
+                       for m in client.get("/api/movements").json())

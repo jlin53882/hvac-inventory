@@ -17,18 +17,9 @@ from fastapi.responses import Response
 from app.database import get_db
 from app.models import QuotationIn
 from app.services.auth import require_perm
+from app.services.safety import excel_safe, parse_ymd, xlsx_download
 
 router = APIRouter()
-
-XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-def _validate_date(value: str) -> str:
-    try:
-        return datetime.date.fromisoformat(value).isoformat()
-    except (TypeError, ValueError):
-        raise HTTPException(400, "日期格式需 YYYY-MM-DD")
-
 
 def _next_quote_number(conn) -> str:
     prefix = f"Q-{datetime.date.today():%Y%m}-"
@@ -109,7 +100,7 @@ def _validate_inventory_ids(conn, body: QuotationIn) -> None:
 
 
 def _write_quote(conn, body: QuotationIn, user_id: int, quote_id: int | None = None):
-    quote_date = _validate_date(body.quote_date)
+    quote_date = parse_ymd(body.quote_date)
     customer_name = body.customer_name.strip()
     if not customer_name:
         raise HTTPException(400, "客戶名稱不可空白")
@@ -223,10 +214,10 @@ def list_quotations(
             params.extend([like] * 4)
         if from_date:
             clauses.append("quote_date >= ?")
-            params.append(_validate_date(from_date))
+            params.append(parse_ymd(from_date))
         if to_date:
             clauses.append("quote_date <= ?")
-            params.append(_validate_date(to_date))
+            params.append(parse_ymd(to_date))
         where = " AND ".join(clauses)
         total = conn.execute(f"SELECT COUNT(*) FROM quotations WHERE {where}", params).fetchone()[0]
         offset = (page - 1) * page_size
@@ -285,12 +276,6 @@ def delete_quotation(quote_id: int):
         conn.close()
 
 
-def _safe(value):
-    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
-
-
 def _load_for_export(quote_id: int):
     conn = get_db()
     try:
@@ -310,20 +295,20 @@ def export_quotation_xlsx(quote_id: int):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "報價單"
-    ws.append(["報價單號", _safe(quote_data["quote_number"])])
-    ws.append(["報價日期", _safe(quote_data["quote_date"])])
-    ws.append(["客戶名稱", _safe(quote_data["customer_name"])])
-    ws.append(["聯絡人／電話", _safe(quote_data["contact"])])
-    ws.append(["工程地址", _safe(quote_data["address"])])
+    ws.append(["報價單號", excel_safe(quote_data["quote_number"])])
+    ws.append(["報價日期", excel_safe(quote_data["quote_date"])])
+    ws.append(["客戶名稱", excel_safe(quote_data["customer_name"])])
+    ws.append(["聯絡人／電話", excel_safe(quote_data["contact"])])
+    ws.append(["工程地址", excel_safe(quote_data["address"])])
     ws.append(["有效天數", quote_data["valid_days"]])
-    ws.append(["稅別", _safe("含稅" if quote_data["tax_type"] == "included" else "未稅")])
-    ws.append(["備註／付款條件", _safe(quote_data["note"])])
+    ws.append(["稅別", excel_safe("含稅" if quote_data["tax_type"] == "included" else "未稅")])
+    ws.append(["備註／付款條件", excel_safe(quote_data["note"])])
     ws.append([])
     ws.append(["品項名稱", "規格／說明", "數量", "單位", "單價", "小計"])
     header_row = ws.max_row
     for item in quote_data["items"]:
-        ws.append([_safe(item["item_name"]), _safe(item["specification"]), item["qty"],
-                   _safe(item["unit"]), item["unit_price"], item["line_total"]])
+        ws.append([excel_safe(item["item_name"]), excel_safe(item["specification"]), item["qty"],
+                   excel_safe(item["unit"]), item["unit_price"], item["line_total"]])
     ws.append([])
     ws.append(["未稅小計", quote_data["subtotal"]])
     ws.append(["稅額", quote_data["tax"]])
@@ -338,8 +323,7 @@ def export_quotation_xlsx(quote_id: int):
     buf = io.BytesIO()
     wb.save(buf)
     filename = f"報價單_{quote_data['quote_number']}.xlsx"
-    return Response(buf.getvalue(), media_type=XLSX_MIME,
-                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"})
+    return xlsx_download(buf.getvalue(), filename)
 
 
 def _pdf_text(value) -> str:
