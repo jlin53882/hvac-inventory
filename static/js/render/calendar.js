@@ -410,8 +410,12 @@ function calRenderDay() {
       `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
     const service = e.service_name
       ? `<span class="cal-service-badge cal-service-${esc(calServiceTone(e.service_name))}">${esc(e.service_name)}</span>` : '';
+    const hasSyncErr = e.sync_error && (e.sync_status === 'failed' || e.sync_status === 'partial_failed');
     const sync = e.sync_status && e.sync_status !== 'none'
-      ? `<span class="cal-sync-status cal-sync-${esc(e.sync_status)}" title="${esc(calSyncStatusLabel(e.sync_status))}">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></span>` : '';
+      ? (hasSyncErr
+        ? `<button type="button" class="cal-sync-status cal-sync-${esc(e.sync_status)} cal-sync-clickable" onclick="calShowSyncError(${e.id})" title="點擊查看同步錯誤詳情">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></button>`
+        : `<span class="cal-sync-status cal-sync-${esc(e.sync_status)}" title="${esc(calSyncStatusLabel(e.sync_status))}">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></span>`)
+      : '';
     const updated = e.updated_by_name && e.updated_by_name !== (e.created_by_name || '系統')
       ? `<span>最後編輯：${esc(e.updated_by_name)}</span>` : '';
     return `

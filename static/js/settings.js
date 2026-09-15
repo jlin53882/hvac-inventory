@@ -636,7 +636,18 @@ async function forceSyncNow() {
   try {
     var res = await fetch('/api/gcal-sync-now', { method: 'POST' });
     if (!res.ok) { toast((await res.json()).detail || '同步失敗', 'error'); return; }
-    toast('✅ 同步信號已發送', 'success');
+    toast('✅ 同步信號已發送，3 秒後自動更新狀態…', 'success');
+    // 3 秒後刷新行事曆（sync 在背景跑，等它完成）
+    setTimeout(async () => {
+      if (typeof calLoadData === 'function') {
+        try {
+          await calLoadData();
+          if (typeof calRenderMonth === 'function') calRenderMonth();
+          if (typeof calRenderDay === 'function') calRenderDay();
+          toast('🔄 行事曆已更新', 'success');
+        } catch (e) { console.error('[forceSyncNow] 刷新失敗', e); }
+      }
+    }, 3000);
   } catch (e) { toast('同步失敗', 'error'); }
 }
 

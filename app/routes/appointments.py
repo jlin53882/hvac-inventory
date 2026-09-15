@@ -155,7 +155,7 @@ def _sync_status(conn, appt_id: int) -> str:
 
 
 def _sync_statuses(conn, appt_ids):
-    """批次計算多筆行程的 Google sync status，避免每筆 2 次 SQL。"""
+    """批次計算多筆行程的 Google sync status，回傳 {id: {"status": str, "error": str|None, "key_name": str, "cal_id": str}}。"""
     ids = list(appt_ids)
     if not ids:
         return {}
@@ -168,22 +168,33 @@ def _sync_statuses(conn, appt_ids):
             chunk,
         ).fetchall())
         queue_rows.extend(conn.execute(
-            "SELECT appointment_id, last_error FROM appointment_sync_queue WHERE appointment_id IN (" + placeholders + ")",
+            "SELECT q.appointment_id, q.last_error, q.key_id, k.name AS key_name, k.calendar_id "
+            "FROM appointment_sync_queue q LEFT JOIN gcal_keys k ON k.id = q.key_id "
+            "WHERE q.appointment_id IN (" + placeholders + ")",
             chunk,
         ).fetchall())
     mapped = {row["appointment_id"] for row in map_rows}
     queue = {}
     for row in queue_rows:
-        queue.setdefault(row["appointment_id"], []).append(row["last_error"])
+        queue.setdefault(row["appointment_id"], []).append(row)
     result = {}
     for appt_id in ids:
-        errors = queue.get(appt_id, [])
+        entries = queue.get(appt_id, [])
+        errors = [r["last_error"] for r in entries]
         has_failed = any(errors)
         has_pending = bool(errors) and not has_failed
         if appt_id in mapped:
-            result[appt_id] = "partial_failed" if has_failed else "pending" if has_pending else "synced"
+            status = "partial_failed" if has_failed else "pending" if has_pending else "synced"
         else:
-            result[appt_id] = "failed" if has_failed else "pending" if errors else "none"
+            status = "failed" if has_failed else "pending" if errors else "none"
+        # 取第一個有 error 的 entry 的 key 資訊
+        failed_entry = next((r for r in entries if r["last_error"]), None)
+        result[appt_id] = {
+            "status": status,
+            "error": failed_entry["last_error"] if failed_entry else None,
+            "key_name": (failed_entry["key_name"] or "") if failed_entry else "",
+            "cal_id": (failed_entry["calendar_id"] or "") if failed_entry else "",
+        }
     return result
 
 
@@ -224,6 +235,7 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
     for appt_id in ids:
         row = by_id[appt_id]
         people = assignees.get(appt_id, [])
+        sync_info = statuses.get(appt_id, {"status": "none", "error": None, "key_name": "", "cal_id": ""})
         result.append({
             "id": row["id"],
             "client_name": row["client_name"],
@@ -245,7 +257,10 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
             "user_ids": [person["user_id"] for person in people],
             "assignees": [{"id": person["user_id"], "name": person["display_name"],
                            "color": person["color"] or "#1a73e8"} for person in people],
-            "sync_status": statuses[appt_id],
+            "sync_status": sync_info["status"],
+            "sync_error": sync_info.get("error") or "",
+            "sync_error_key": sync_info.get("key_name") or "",
+            "sync_error_cal": sync_info.get("cal_id") or "",
         })
     return result
 

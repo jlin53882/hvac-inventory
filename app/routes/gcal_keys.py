@@ -203,52 +203,109 @@ async def create_gcal_key(request: Request):
 
 
 @router.put("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("gcal-keys-manage"))])
-def update_gcal_key(key_id: int, k: GcalKeyUpdate):
-    """✏️ 編輯 key（名稱/路徑/calendar_id/啟停）。
+async def update_gcal_key(key_id: int, request: Request):
+    """✏️ 編輯 key（名稱/路徑/calendar_id/啟停），支援重新上傳 JSON。"""
 
-    更換 credentials_path 後只在 DB commit 成功時清理舊的系統上傳檔；
-    手動指定的外部路徑與新路徑都不會由此 endpoint 刪除。
-    """
     conn = get_db()
     try:
         row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Key 不存在")
-        updates, params = [], []
-        old_credentials_path = row["credentials_path"]
-        new_credentials_path = old_credentials_path
-        if k.name is not None:
-            name = k.name.strip()
-            if not name:
-                raise HTTPException(400, "Key 名稱不可為空白")
-            dup = conn.execute("SELECT id FROM gcal_keys WHERE name=? AND id!=?", (name, key_id)).fetchone()
-            if dup:
-                raise HTTPException(400, f"Key「{name}」已被使用")
-            updates.append("name=?")
-            params.append(name)
-        if k.credentials_path is not None:
-            new_credentials_path = k.credentials_path.strip()
-            updates.append("credentials_path=?")
-            params.append(new_credentials_path)
-        if k.calendar_id is not None:
-            updates.append("calendar_id=?")
-            params.append(k.calendar_id.strip())
-        if k.is_active is not None:
-            updates.append("is_active=?")
-            params.append(1 if k.is_active else 0)
-        if not updates:
-            raise HTTPException(400, "無可更新欄位")
-        params.append(key_id)
-        was_inactive = not row["is_active"] if "is_active" in row.keys() else False
-        conn.execute(f"UPDATE gcal_keys SET {','.join(updates)} WHERE id=?", params)
-        conn.commit()
     finally:
         conn.close()
+
+    content_type = request.headers.get("content-type", "").lower()
+    uploaded_path = None
+    old_credentials_path = row["credentials_path"]
+
+    if content_type.startswith("multipart/form-data"):
+        form = await request.form()
+        name = str(form.get("name") or "").strip()
+        credentials_path = str(form.get("credentials_path") or "").strip()
+        calendar_id = str(form.get("calendar_id") or "").strip()
+        is_active_raw = form.get("is_active")
+        is_active = None if is_active_raw is None else (str(is_active_raw).lower() in ("true", "1", "on"))
+        uploaded = form.get("credentials_file")
+        if uploaded is not None and getattr(uploaded, "filename", None) is not None:
+            filename = str(uploaded.filename or "")
+            if Path(filename).suffix.lower() != ".json":
+                raise HTTPException(400, "Service Account 檔案必須是 .json")
+            data = await uploaded.read(MAX_CREDENTIALS_SIZE + 1)
+            credentials = _credentials_data(data)
+            storage_dir = Path(BASE_DIR) / "secrets" / "gcal"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            uploaded_path = storage_dir / f"{uuid.uuid4().hex}.json"
+            try:
+                uploaded_path.write_text(
+                    json.dumps(credentials, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            except OSError:
+                uploaded_path.unlink(missing_ok=True)
+                raise
+            credentials_path = str(uploaded_path)
+    else:
+        try:
+            k = GcalKeyUpdate.model_validate(await request.json())
+        except Exception as exc:
+            raise HTTPException(422, "Key 資料格式錯誤") from exc
+        name = k.name.strip() if k.name else None
+        credentials_path = k.credentials_path.strip() if k.credentials_path else None
+        calendar_id = k.calendar_id.strip() if k.calendar_id else None
+        is_active = k.is_active
+
+    updates, params = [], []
+    new_credentials_path = old_credentials_path
+
+    if name is not None:
+        if not name:
+            raise HTTPException(400, "Key 名稱不可為空白")
+        conn2 = get_db()
+        try:
+            dup = conn2.execute("SELECT id FROM gcal_keys WHERE name=? AND id!=?", (name, key_id)).fetchone()
+        finally:
+            conn2.close()
+        if dup:
+            raise HTTPException(400, f"Key「{name}」已被使用")
+        updates.append("name=?")
+        params.append(name)
+    if credentials_path is not None:
+        new_credentials_path = credentials_path
+        updates.append("credentials_path=?")
+        params.append(credentials_path)
+    if calendar_id is not None:
+        updates.append("calendar_id=?")
+        params.append(calendar_id)
+    if is_active is not None:
+        updates.append("is_active=?")
+        params.append(1 if is_active else 0)
+    if not updates:
+        raise HTTPException(400, "無可更新欄位")
+
+    params.append(key_id)
+    was_inactive = not row["is_active"] if "is_active" in row.keys() else False
+    conn3 = get_db()
+    try:
+        conn3.execute(f"UPDATE gcal_keys SET {','.join(updates)} WHERE id=?", params)
+        conn3.commit()
+    finally:
+        conn3.close()
+
     if new_credentials_path != old_credentials_path:
         _delete_uploaded_credentials(old_credentials_path)
+        # 金鑰更換 → 重設此 key 的所有 sync_queue（attempts=0, last_error=''），讓 scheduler 用新金鑰重試
+        conn4 = get_db()
+        try:
+            conn4.execute(
+                "UPDATE appointment_sync_queue SET attempts=0, last_error='' WHERE key_id=?",
+                (key_id,),
+            )
+            conn4.commit()
+        finally:
+            conn4.close()
     # key 從停用重新啟用時，將舊行程加入 sync_queue
-    if was_inactive and k.is_active:
+    if was_inactive and is_active:
         _backfill_all_appointments(key_id)
+
     from app.database import get_db as _g
     _c = _g()
     try:

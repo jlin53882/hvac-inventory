@@ -88,6 +88,8 @@ REVIEWED_SAFE_BODIES = {
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'partial_failed' ? '部分同步失敗' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '✅' : e.sync_status === 'partial_failed' ? '⚠️' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''",
+    # sync_error（2026-09-15：syncErr 內含 esc() 跳脫，安全）
+    "syncErr",
     # settings.js（2026-08-16 設定中心）：u.is_active 為 DB bool 常數輸出（同帳號頁模式）；u.count 為 COUNT(*) 數字（已 esc）
     "u.is_active ? 'checked' : ''",
     # settings.js 方案 B 逐筆收編（2026-08-16）：it.item_id 為 DB 整數主鍵（同 c.item_id 先例）、
