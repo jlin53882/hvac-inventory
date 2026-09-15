@@ -2563,3 +2563,43 @@ def test_scheduler_restart_finalizes_empty_pending_migration(client, monkeypatch
             assert queue is None
     finally:
         conn.close()
+
+
+
+def test_calendar_finalize_rolls_back_when_backfill_fails(client, monkeypatch):
+    """finalize 與 new Calendar backfill 必須同一 transaction。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync, sync_scheduler
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "atomic-finalize-failure", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    sync_scheduler.stop()
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?", ("new@cal", key_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    def fail_backfill(conn, key_id):
+        raise RuntimeError("forced backfill failure")
+
+    monkeypatch.setattr(gcal_keys, "_backfill_all_appointments_with_conn", fail_backfill)
+
+    assert gcal_sync.maybe_finalize_calendar_migration(key_id) is False
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (row["calendar_id"], row["pending_calendar_id"]) == ("old@cal", "new@cal")
+        assert conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE key_id=?", (key_id,)
+        ).fetchone() is None
+    finally:
+        conn.close()

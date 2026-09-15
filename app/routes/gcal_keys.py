@@ -81,72 +81,81 @@ def _client_email_from_path(credentials_path: str) -> str:
     return ""
 
 
-def _backfill_all_appointments(key_id: int):
-    """新增/重新啟用 key 時，依 final payload hash 回填需要追上的行程。"""
-    try:
-        conn = get_db()
-        try:
-            key_row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
-            if key_row is None:
-                return 0
-            key_data = dict(key_row)
-            if gcal_sync.calendar_migration_pending(key_data):
-                # 舊 Calendar cleanup 未完成，不得建立任何 C/U 到舊 Calendar。
-                return 0
-            appt_ids = [r["id"] for r in conn.execute("SELECT id FROM appointments").fetchall()]
-            queued = 0
-            version = gcal_sync.sync_version_now()
-            for appt_id in appt_ids:
-                queued_row = conn.execute(
-                    "SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
-                    (appt_id, key_id),
-                ).fetchone()
-                if queued_row and queued_row["op_type"] == "D":
-                    # assignment loss already requested a remote DELETE; re-enable must not revive it.
-                    continue
-                existing = conn.execute(
-                    "SELECT google_event_id, data_hash FROM appointment_gcal_map "
-                    "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
-                ).fetchone()
-                target_ids = set(gcal_sync.resolve_target_keys(conn, appt_id))
-                if key_id not in target_ids:
-                    if existing and existing["google_event_id"]:
-                        conn.execute(
-                            "INSERT INTO appointment_sync_queue "
-                            "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
-                            "VALUES(?, ?, 'D', ?, ?, 0, '') "
-                            "ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
-                            "op_type='D', google_event_id=excluded.google_event_id, "
-                            "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
-                            (appt_id, key_id, existing["google_event_id"], version),
-                        )
-                        queued += 1
-                    continue
-                _, payload_hash = gcal_sync.load_event_payload(conn, appt_id, key_data)
-                if existing and existing["google_event_id"] and existing["data_hash"] == payload_hash:
-                    continue
-                op_type = "U" if existing and existing["google_event_id"] else "C"
-                google_event_id = existing["google_event_id"] if existing else ""
+def _backfill_all_appointments_with_conn(conn, key_id: int):
+    """在 caller transaction 內依既有規則建立 backfill queue。"""
+    key_row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+    if key_row is None:
+        return 0
+    key_data = dict(key_row)
+    if gcal_sync.calendar_migration_pending(key_data):
+        # 舊 Calendar cleanup 未完成，不得建立任何 C/U 到舊 Calendar。
+        return 0
+    appt_ids = [r["id"] for r in conn.execute("SELECT id FROM appointments").fetchall()]
+    queued = 0
+    version = gcal_sync.sync_version_now()
+    for appt_id in appt_ids:
+        queued_row = conn.execute(
+            "SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()
+        if queued_row and queued_row["op_type"] == "D":
+            # assignment loss already requested a remote DELETE; re-enable must not revive it.
+            continue
+        existing = conn.execute(
+            "SELECT google_event_id, data_hash FROM appointment_gcal_map "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone()
+        target_ids = set(gcal_sync.resolve_target_keys(conn, appt_id))
+        if key_id not in target_ids:
+            if existing and existing["google_event_id"]:
                 conn.execute(
                     "INSERT INTO appointment_sync_queue "
                     "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
-                    "VALUES(?, ?, ?, ?, ?, 0, '') "
+                    "VALUES(?, ?, 'D', ?, ?, 0, '') "
                     "ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
-                    "op_type=excluded.op_type, google_event_id=excluded.google_event_id, "
+                    "op_type='D', google_event_id=excluded.google_event_id, "
                     "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
-                    (appt_id, key_id, op_type, google_event_id or "", version),
+                    (appt_id, key_id, existing["google_event_id"], version),
                 )
                 queued += 1
-            conn.commit()
-            return queued
-        finally:
-            conn.close()
+            continue
+        _, payload_hash = gcal_sync.load_event_payload(conn, appt_id, key_data)
+        if existing and existing["google_event_id"] and existing["data_hash"] == payload_hash:
+            continue
+        op_type = "U" if existing and existing["google_event_id"] else "C"
+        google_event_id = existing["google_event_id"] if existing else ""
+        conn.execute(
+            "INSERT INTO appointment_sync_queue "
+            "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
+            "VALUES(?, ?, ?, ?, ?, 0, '') "
+            "ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+            "op_type=excluded.op_type, google_event_id=excluded.google_event_id, "
+            "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+            (appt_id, key_id, op_type, google_event_id or "", version),
+        )
+        queued += 1
+    return queued
+
+
+def _backfill_all_appointments(key_id: int):
+    """新增/重新啟用 key 時，依 final payload hash 回填需要追上的行程。"""
+    conn = None
+    try:
+        conn = get_db()
+        queued = _backfill_all_appointments_with_conn(conn, key_id)
+        conn.commit()
+        return queued
     except Exception as e:
+        if conn is not None:
+            conn.rollback()
         import logging
         logging.getLogger(__name__).error(
             "backfill sync_queue 失敗 key_id=%s: %s （新增 key 已成功但舊行程未加入同步佇列）",
             key_id, gcal_sync.safe_sync_error(e))
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _wake_scheduler() -> None:

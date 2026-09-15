@@ -501,13 +501,18 @@ def maybe_finalize_calendar_migration(key_id: int) -> bool:
             "UPDATE gcal_keys SET calendar_id=?, pending_calendar_id=NULL WHERE id=?",
             (target, key_id),
         )
+        # Backfill 使用同一 transaction；任何 queue 寫入失敗都 rollback Calendar 切換。
+        from app.routes import gcal_keys
+        gcal_keys._backfill_all_appointments_with_conn(conn, key_id)
         conn.commit()
+    except Exception:
+        conn.rollback()
+        return False
     finally:
         conn.close()
 
     # Import lazily to avoid the existing routes -> service import cycle.
     from app.routes import gcal_keys
-    gcal_keys._backfill_all_appointments(key_id)
     gcal_keys._wake_scheduler()
     return True
 
