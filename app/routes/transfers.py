@@ -112,7 +112,8 @@ def _deduct_source(conn, source_item_id: int, qty: float, source_location: str |
     prepared = canonical_qty(conn.execute(
         "SELECT prepared_qty FROM items WHERE id=?", (source_item_id,)
     ).fetchone()[0] or 0)
-    if before - qty < prepared:
+    after_transfer = canonical_qty(before - qty)
+    if after_transfer < prepared:
         raise HTTPException(400, f"調撥後庫存不能低於待領出數量（目前庫存 {before}、待領出 {prepared}）")
     remaining = qty
     for stock in stocks:

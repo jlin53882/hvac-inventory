@@ -235,7 +235,7 @@ def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", sit
     """
     params = []
     if site and site != "all":
-        sql += " AND (i.site = ? OR i.is_deleted = 1)"
+        sql += " AND (i.site = ? OR (i.is_deleted = 1 AND i.site = ''))"
         params.append(site)
     if search:
         sql += " AND (m.destination LIKE ? OR i.name LIKE ? OR i.brand LIKE ?)"
@@ -746,7 +746,7 @@ def list_prepared(site: Optional[InventorySiteQuery] = None):
     where = ""
     params = ()
     if site and site != "all":
-        where = " AND (site = ? OR is_deleted = 1)"  # 2026-08-16 修復：非庫存品項（is_deleted=1, site=''）不分 site 永遠顯示（比照 list_stock_outs）
+        where = " AND (site = ? OR (is_deleted = 1 AND site = ''))"  # 2026-08-16 修復：非庫存品項（is_deleted=1, site=''）不分 site 永遠顯示（比照 list_stock_outs）
         params = (site,)
     rows = conn.execute(f"""
         SELECT * FROM items WHERE prepared_qty > 0 AND (is_deleted = 0 OR site = ''){where} ORDER BY brand COLLATE NOCASE, name

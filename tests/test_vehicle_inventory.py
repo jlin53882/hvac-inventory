@@ -377,3 +377,65 @@ def test_transfer_rejects_qty_that_canonicalizes_to_zero(client):
     assert response.status_code == 400
     assert client.get("/api/items", params={"site": "van"}).json() == []
     assert client.get("/api/items", params={"site": "office"}).json()[0]["total_qty"] == 1
+
+
+def test_transfer_fraction_boundary_equal_prepared_is_allowed(client):
+    source = add_item(client, site="office", code="TRANSFER-FRACTION-PREPARED", qty=0.3, location="A")
+    prepared = client.post(f"/api/items/{source['id']}/prepare", json={"qty": 0.2})
+    assert prepared.status_code == 200, prepared.text
+    transferred = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 0.1, "source_location": "A",
+    })
+    assert transferred.status_code == 201, transferred.text
+    office = next(i for i in client.get("/api/items", params={"site": "office"}).json()
+                  if i["id"] == source["id"])
+    assert office["total_qty"] == 0.2
+    assert office["prepared_qty"] == 0.2
+
+
+def test_transfer_fraction_boundary_rejects_below_prepared(client):
+    source = add_item(client, site="office", code="TRANSFER-FRACTION-REJECT", qty=0.3, location="A")
+    prepared = client.post(f"/api/items/{source['id']}/prepare", json={"qty": 0.2})
+    assert prepared.status_code == 200, prepared.text
+    rejected = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 0.101, "source_location": "A",
+    })
+    assert rejected.status_code == 400
+    office = next(i for i in client.get("/api/items", params={"site": "office"}).json()
+                  if i["id"] == source["id"])
+    assert office["total_qty"] == 0.3
+    assert office["prepared_qty"] == 0.2
+
+
+def test_soft_deleted_inventory_stockout_stays_in_original_site(client):
+    item = add_item(client, site="office", code="DELETED-SITE", qty=3, location="A")
+    out = client.post("/api/stockout", json={
+        "item_id": item["id"], "qty": 1, "destination": "測試工地",
+    })
+    assert out.status_code == 200, out.text
+    deleted = client.delete(f"/api/items/{item['id']}")
+    assert deleted.status_code == 200, deleted.text
+    office = client.get("/api/stockouts", params={"site": "office"}).json()
+    van = client.get("/api/stockouts", params={"site": "van"}).json()
+    truck = client.get("/api/stockouts", params={"site": "truck"}).json()
+    assert any(row["item_id"] == item["id"] for row in office)
+    assert all(row["item_id"] != item["id"] for row in van)
+    assert all(row["item_id"] != item["id"] for row in truck)
+
+
+def test_nonstock_stockout_visible_in_all_inventory_sites(client):
+    response = client.post("/api/stockout/nonstock", json={
+        "name": "臨時耗材四區", "qty": 1, "destination": "某案場",
+    })
+    assert response.status_code == 200, response.text
+    item_id = response.json()["id"]
+    conn = app_db.get_db()
+    try:
+        row = conn.execute("SELECT is_deleted, site FROM items WHERE id=?", (item_id,)).fetchone()
+        assert row["is_deleted"] == 1
+        assert row["site"] == ""
+    finally:
+        conn.close()
+    for site in ("office", "warehouse", "van", "truck"):
+        rows = client.get("/api/stockouts", params={"site": site}).json()
+        assert any(row["item_id"] == item_id for row in rows), site
