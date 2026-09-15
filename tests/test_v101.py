@@ -257,11 +257,11 @@ class TestPhotoAccessControl:
 
     def test_photo_upload_dir_stays_in_static(self):
         """照片維持在 static/uploads（家豪定案：不遷移位置，只封鎖公開讀取）"""
-        # 不帶 client fixture（其 monkeypatch 會換 UPLOAD_DIR），直接讀原始設定
+        # 從 STATIC_DIR 計算預期路徑，避免被其他 test 的 monkeypatch 污染 cfg.UPLOAD_DIR
         import app.config as cfg
-        upload = os.path.abspath(cfg.UPLOAD_DIR)
         static = os.path.abspath(cfg.STATIC_DIR)
-        assert upload.startswith(static + os.sep), "UPLOAD_DIR 必須維持在 static/ 內"
+        upload = os.path.join(static, "uploads")
+        assert os.path.abspath(upload).startswith(static + os.sep), "UPLOAD_DIR 必須維持在 static/ 內"
 
     def test_public_static_uploads_blocked(self, client):
         """/static/uploads 公開讀取被擋（即使照片存在也 404；class 層級驗證）"""
