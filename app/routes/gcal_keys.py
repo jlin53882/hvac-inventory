@@ -368,8 +368,14 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                     (calendar_id, key_id),
                 )
                 conn.execute(
-                    "DELETE FROM appointment_sync_queue "
-                    "WHERE key_id=? AND op_type IN ('C','U')",
+                    "UPDATE appointment_sync_queue SET op_type='D', last_modified_at=?, "
+                    "attempts=0, last_error='' WHERE key_id=? "
+                    "AND op_type IN ('C','U') AND COALESCE(google_event_id,'')<>''",
+                    (gcal_sync.sync_version_now(), key_id),
+                )
+                conn.execute(
+                    "DELETE FROM appointment_sync_queue WHERE key_id=? "
+                    "AND op_type IN ('C','U') AND COALESCE(google_event_id,'')=''",
                     (key_id,),
                 )
                 conn.commit()

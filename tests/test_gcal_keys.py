@@ -1813,7 +1813,7 @@ def test_calendar_migration_discards_stale_cu_and_backfills_latest_state(client,
             "INSERT INTO appointment_sync_queue"
             "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
             "VALUES(?,?, 'U', ?, ?, 0, '')",
-            (appt_a, key_id, "event-a", "2026-08-28 09:00:00"),
+            (appt_a, key_id, "", "2026-08-28 09:00:00"),
         )
         conn.execute(
             "INSERT INTO appointment_sync_queue"
@@ -1846,5 +1846,117 @@ def test_calendar_migration_discards_stale_cu_and_backfills_latest_state(client,
             "SELECT appointment_id, op_type FROM appointment_sync_queue WHERE key_id=?", (key_id,)
         ).fetchall()
         assert [(row["appointment_id"], row["op_type"]) for row in rows] == [(appt_a, "C")]
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("op_type", ["C", "U"])
+def test_calendar_migration_preserves_remote_bearing_cu_as_d(client, monkeypatch, op_type):
+    """C/U queue 已有 remote id 時，migration 必須轉 D 而非遺失追蹤資訊。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": f"remote-bearing-{op_type}", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            (f"remote-{op_type}", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,?,?, ?, ?, 0, '')",
+            (appt_id, key_id, op_type, "checkpoint-event", "2026-08-28 09:00:00"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"})
+
+    assert response.status_code == 200
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"]) == ("old@cal", "new@cal")
+        queue = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+        ).fetchone()
+        assert (queue["op_type"], queue["google_event_id"]) == ("D", "checkpoint-event")
+    finally:
+        conn.close()
+
+
+def test_inactive_calendar_migration_can_finalize_without_activation(client, monkeypatch):
+    """inactive Key 的 migration cleanup 完成後仍應 finalize，但不可 backfill。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "inactive-migration-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
+    response = client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"})
+
+    assert response.status_code == 200
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id, is_active FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"], key["is_active"]) == ("new@cal", None, 0)
+        assert conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE key_id=?", (key_id,)
+        ).fetchone() is None
+    finally:
+        conn.close()
+
+
+
+def test_inactive_migration_enable_backfills_only_new_calendar(client, monkeypatch):
+    """inactive migration finalize 後，enable 才依 new Calendar 建立最新 C queue。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "inactive-enable-migration-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "inactive-enable-appt", "date": "2026-08-28",
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
+    }).json()["id"]
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"}).status_code == 200
+
+    conn = get_db()
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone() is None
+    finally:
+        conn.close()
+
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": True}).status_code == 200
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id, is_active FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"], key["is_active"]) == ("new@cal", None, 1)
+        queue = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+        ).fetchone()
+        assert (queue["op_type"], queue["google_event_id"]) == ("C", "")
     finally:
         conn.close()

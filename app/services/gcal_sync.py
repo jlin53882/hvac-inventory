@@ -436,7 +436,7 @@ def maybe_finalize_calendar_migration(key_id: int) -> bool:
             "SELECT id, is_active, calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?",
             (key_id,),
         ).fetchone()
-        if row is None or not row["is_active"] or not row["pending_calendar_id"]:
+        if row is None or not row["pending_calendar_id"]:
             return False
         if conn.execute(
             "SELECT 1 FROM appointment_gcal_map WHERE key_id=? LIMIT 1", (key_id,)
