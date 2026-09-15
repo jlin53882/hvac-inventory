@@ -707,3 +707,172 @@ def test_search_appointments_no_params(client):
     r = client.get("/api/appointments/search")
     assert r.status_code == 200
     assert len(r.json()) >= 1
+
+
+# ===== 2026-09-15：sync_error + key 資訊回傳 =====
+class TestSyncStatusesErrorInfo:
+    """_sync_statuses 回傳 error key_name / cal_id，讓前端顯示「哪個 Key 出錯」。"""
+
+    @pytest.fixture(autouse=True)
+    def _conn(self, tmp_path, monkeypatch):
+        import app.database as app_db
+        monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "sync_err.db"))
+        app_db.init_db()
+        c = app_db.get_db()
+        try:
+            c.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                      "VALUES('公司帳號','a.json','sarah@test.com',1)")
+            c.execute("INSERT INTO appointments(client_name, address, date, start_time, end_time) "
+                      "VALUES('測試客戶','地址','2026-09-15','09:00','11:00')")
+            c.commit()
+            _appt_id = c.execute("SELECT id FROM appointments").fetchone()["id"]
+            yield c, _appt_id
+        finally:
+            c.close()
+
+    def test_sync_statuses_returns_key_info(self, _conn):
+        """_sync_statuses 回傳 key_name 和 cal_id"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_sync_queue"
+                     "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                     "VALUES(?,1,'U','',datetime('now'),3,'invalid_grant')", (appt_id,))
+        conn.commit()
+        result = apt._sync_statuses(conn, [appt_id])
+        info = result[appt_id]
+        assert info["status"] == "failed"
+        assert info["error"] == "invalid_grant"
+        assert info["key_name"] == "公司帳號"
+        assert info["cal_id"] == "sarah@test.com"
+
+    def test_sync_statuses_no_error_no_key(self, _conn):
+        """synced 的行程不回傳 key 資訊"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                     "VALUES(?,1,'ev1','h1')", (appt_id,))
+        conn.commit()
+        result = apt._sync_statuses(conn, [appt_id])
+        info = result[appt_id]
+        assert info["status"] == "synced"
+        assert info["error"] is None
+        assert info["key_name"] == ""
+        assert info["cal_id"] == ""
+
+
+class TestAppointmentApiSyncFields:
+    """API 回傳 sync_error / sync_error_key / sync_error_cal 欄位。"""
+
+    def test_api_includes_sync_error_fields(self, client):
+        """list_appointments 回傳 sync_error 相關欄位"""
+        r = client.post("/api/appointments", json=_appt_body(
+            client_name="SyncTest", date="2026-09-15", start_time="10:00", end_time="11:00"))
+        assert r.status_code == 200
+        appt_id = r.json()["id"]
+
+        # 沒有 sync 錯誤時，欄位存在但為空
+        r2 = client.get("/api/appointments?year=2026&month=9")
+        assert r2.status_code == 200
+        data = r2.json()
+        target = next((a for a in data if a["id"] == appt_id), None)
+        assert target is not None
+        assert "sync_error" in target
+        assert "sync_error_key" in target
+        assert "sync_error_cal" in target
+        assert target["sync_error"] == ""
+
+
+# ===== 2026-09-15：gcal_keys PUT 金鑰更新重設 queue =====
+class TestGcalKeyUpdateResetsQueue:
+    """更新 gcal_key 的 credentials_path 時，自動重設 sync_queue。"""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        import app.database as app_db
+        monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "key_reset.db"))
+        app_db.init_db()
+        # 寫一個假的 JSON 檔
+        secrets_dir = tmp_path / "secrets" / "gcal"
+        secrets_dir.mkdir(parents=True)
+        fake_json = secrets_dir / "old_key.json"
+        fake_json.write_text('{"client_email":"old@test.com","project_id":"p","type":"service_account","private_key":"k"}')
+        fake_json2 = secrets_dir / "new_key.json"
+        fake_json2.write_text('{"client_email":"new@test.com","project_id":"p","type":"service_account","private_key":"k"}')
+
+        c = app_db.get_db()
+        try:
+            c.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                      "VALUES('test_key',?,'cal@test.com',1)", (str(fake_json),))
+            key_id = c.execute("SELECT id FROM gcal_keys WHERE name='test_key'").fetchone()["id"]
+            c.execute("INSERT INTO appointments(client_name, address, date, start_time, end_time) "
+                      "VALUES('客戶','地址','2026-09-15','09:00','11:00')")
+            appt_id = c.execute("SELECT id FROM appointments").fetchone()["id"]
+            # 建立一個 exhausted queue entry
+            c.execute("INSERT INTO appointment_sync_queue"
+                      "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                      "VALUES(?,?,'U','',datetime('now'),5,'old error')", (appt_id, key_id))
+            c.commit()
+        finally:
+            c.close()
+        # 建立用同一個 DB 的 test client + 登入（session injection）
+        from fastapi.testclient import TestClient
+        from main import app as fastapi_app
+        from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
+        self._key_id = key_id
+        self._appt_id = appt_id
+        self._new_json = str(fake_json2)
+        tc = TestClient(fastapi_app)
+        # 直接注入 admin session
+        _conn2 = app_db.get_db()
+        try:
+            init_admin_if_missing(_conn2)
+            _admin_id = _conn2.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+            _token = create_session(_conn2, _admin_id)
+        finally:
+            _conn2.close()
+        tc.cookies.set(SESSION_COOKIE, _token)
+        self._client = tc
+        yield
+
+    def test_update_credentials_resets_queue(self, _setup):
+        """PUT gcal-key 更新 credentials_path 後，queue attempts 歸零"""
+        r = self._client.put(f"/api/gcal-keys/{self._key_id}", json={
+            "credentials_path": self._new_json,
+        })
+        assert r.status_code == 200
+
+        # 驗證 queue 已重設
+        import app.database as app_db
+        c = app_db.get_db()
+        try:
+            row = c.execute(
+                "SELECT attempts, last_error FROM appointment_sync_queue "
+                "WHERE appointment_id=? AND key_id=?",
+                (self._appt_id, self._key_id),
+            ).fetchone()
+            assert row is not None
+            assert row["attempts"] == 0
+            assert row["last_error"] == ""
+        finally:
+            c.close()
+
+    def test_update_name_only_does_not_reset_queue(self, _setup):
+        """PUT gcal-key 只改名稱（不改 credentials_path），queue 不變"""
+        r = self._client.put(f"/api/gcal-keys/{self._key_id}", json={
+            "name": "renamed_key",
+        })
+        assert r.status_code == 200
+
+        import app.database as app_db
+        c = app_db.get_db()
+        try:
+            row = c.execute(
+                "SELECT attempts, last_error FROM appointment_sync_queue "
+                "WHERE appointment_id=? AND key_id=?",
+                (self._appt_id, self._key_id),
+            ).fetchone()
+            assert row is not None
+            assert row["attempts"] == 5  # 未重設
+            assert row["last_error"] == "old error"
+        finally:
+            c.close()
