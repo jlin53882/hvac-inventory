@@ -3979,3 +3979,41 @@ def test_btn_sm_canonical_shared_owner_and_consumers():
     assert ".inventory-content .btn-sm" in inventory, "Inventory-specific .btn-sm delta must remain"
     assert 'class=\"btn-sm' in calendar_js, "Calendar .btn-sm consumers must remain"
     assert 'class=\"btn-sm' in inventory_js, "Inventory .btn-sm consumers must remain"
+
+
+def test_calendar_btn_edit_is_feature_owned():
+    """Regression: Calendar must own the feature-only edit button contract."""
+    core = read(CSS_CORE)
+    calendar = read(CSS_CAL)
+    index = read(INDEX)
+    calendar_js = read(CALENDAR_RENDER_JS)
+
+    assert not re.search(r"(?m)^\s*\.btn-edit\s*\{", core), (
+        "Core must not own the Calendar-only .btn-edit base"
+    )
+    assert not re.search(r"(?m)^\s*\.btn-edit:hover\s*\{", core), (
+        "Core must not own the Calendar-only .btn-edit hover"
+    )
+    assert (
+        ".cal-card-actions .cal-icon-btn.btn-edit "
+        "{ margin-top: 5px; transition: background 0.15s; }"
+    ) in calendar, "Calendar must preserve the former effective edit-button contract"
+    assert 'class=\"cal-icon-btn btn-edit\"' in calendar_js, (
+        "Calendar edit-button producer must remain"
+    )
+    assert index.index("style.core.css") < index.index("style.calendar.css"), (
+        "Core must load before Calendar CSS"
+    )
+
+    token = re.compile(r"(?<![A-Za-z0-9_-])btn-edit(?![A-Za-z0-9_-])")
+    js_root = os.path.join(STATIC, "js")
+    for directory, _, names in os.walk(js_root):
+        for name in names:
+            if not name.endswith(".js"):
+                continue
+            js_path = os.path.join(directory, name)
+            if os.path.normcase(js_path) == os.path.normcase(CALENDAR_RENDER_JS):
+                continue
+            assert not token.search(read(js_path)), (
+                f"non-Calendar JS must not produce exact .btn-edit: {js_path}"
+            )
