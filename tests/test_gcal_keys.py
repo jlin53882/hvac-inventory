@@ -1504,3 +1504,219 @@ def test_sync_interval_change_does_not_invalidate_existing_mapping(client, monke
         ).fetchone()["value"] == "1"
     finally:
         conn.close()
+
+
+
+def _seed_partial_calendar_migration(client):
+    from app.database import get_db
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "lifecycle-calendar-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_ids = []
+        for name in ("lifecycle-A", "lifecycle-B", "lifecycle-C"):
+            appt_ids.append(conn.execute(
+                "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+                (name, "2026-08-28", "09:00", "10:00"),
+            ).lastrowid)
+        for appt_id, event_id in zip(appt_ids, ("event-a", "event-b", "event-c")):
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                "VALUES(?,?,?,?)", (appt_id, key_id, event_id, "hash"),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return key_id, appt_ids
+
+
+def _partial_delete_service():
+    from unittest.mock import MagicMock
+
+    service = MagicMock()
+
+    def delete(calendarId, eventId):
+        assert calendarId == "old@cal"
+        if eventId == "event-c":
+            error = RuntimeError("Google API 403")
+            error.resp = type("Response", (), {"status": 403})()
+            raise error
+        return MagicMock()
+
+    service.events().delete.side_effect = delete
+    return service
+
+
+def test_calendar_migration_pending_blocks_appointment_edit(client, monkeypatch):
+    """partial cleanup 後編輯 A 不得再把 C/U 寫回 old Calendar。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id, appt_ids = _seed_partial_calendar_migration(client)
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: _partial_delete_service())
+    response = client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"})
+    assert response.status_code == 409
+
+    edited = client.put(f"/api/appointments/{appt_ids[0]}", json={
+        "client_name": "lifecycle-A-edited", "date": "2026-08-28",
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
+    })
+    assert edited.status_code == 200
+    conn = get_db()
+    try:
+        assert conn.execute(
+            "SELECT pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()["pending_calendar_id"] == "new@cal"
+        assert conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_ids[0], key_id),
+        ).fetchone() is None
+    finally:
+        conn.close()
+
+
+def test_calendar_migration_pending_survives_disable_enable(client, monkeypatch):
+    """停用再啟用 pending Key 不得把成功刪除的 A/B backfill 成 old C。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id, appt_ids = _seed_partial_calendar_migration(client)
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: _partial_delete_service())
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"}).status_code == 409
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": True}).status_code == 200
+
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"]) == ("old@cal", "new@cal")
+        for appt_id in appt_ids[:2]:
+            assert conn.execute(
+                "SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone() is None
+    finally:
+        conn.close()
+
+
+def test_calendar_migration_d_retry_finalizes_and_backfills_new_calendar(client, monkeypatch):
+    """最後 D 成功後切換 new Calendar，backfill 才建立 C queue。"""
+    from unittest.mock import MagicMock
+
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id, appt_ids = _seed_partial_calendar_migration(client)
+    old_service = _partial_delete_service()
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: old_service)
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"}).status_code == 409
+
+    old_service.events().delete.side_effect = lambda calendarId, eventId: MagicMock()
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM appointment_sync_queue WHERE appointment_id=? AND key_id=? AND op_type='D'",
+            (appt_ids[2], key_id),
+        ).fetchone()
+    finally:
+        conn.close()
+    ok, failed, _ = gcal_sync.sync_pending([dict(row)])
+    assert (ok, failed) == (1, 0)
+
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"]) == ("new@cal", None)
+        queued = conn.execute(
+            "SELECT appointment_id, op_type, google_event_id FROM appointment_sync_queue WHERE key_id=?",
+            (key_id,),
+        ).fetchall()
+        assert {r["appointment_id"] for r in queued} == set(appt_ids)
+        assert all(r["op_type"] == "C" and r["google_event_id"] == "" for r in queued)
+    finally:
+        conn.close()
+
+
+def test_calendar_migration_pending_persists_across_db_reopen(client):
+    """pending_calendar_id 存在 DB 後，重新開啟連線仍可恢復 migration state。"""
+    from app.database import get_db
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "restart-migration-key", "credentials_path": "restart.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?", ("new@cal", key_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    reopened = get_db()
+    try:
+        row = reopened.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (row["calendar_id"], row["pending_calendar_id"]) == ("old@cal", "new@cal")
+    finally:
+        reopened.close()
+
+
+def test_same_reminders_are_noop_but_changed_reminders_enqueue(client, monkeypatch):
+    """相同 effective reminders 不建 queue；改值才 invalidation。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "reminder-noop-key", "credentials_path": "reminder.json", "calendar_id": "reminder@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("reminder-noop-appt", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+            "VALUES(?,?,?,?)", (appt_id, key_id, "reminder-event", "hash"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    reminders = [
+        {"method": "popup", "minutes": 1440},
+        {"method": "popup", "minutes": 120},
+        {"method": "popup", "minutes": 15},
+    ]
+    first = client.put(f"/api/gcal-keys/{key_id}/reminders", json={"reminders": reminders})
+    assert first.status_code == 200 and first.json()["affected"] == 1
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id, key_id))
+        conn.commit()
+    finally:
+        conn.close()
+    same = client.put(f"/api/gcal-keys/{key_id}/reminders", json={"reminders": reminders})
+    assert same.status_code == 200 and same.json()["affected"] == 0
+    conn = get_db()
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone() is None
+    finally:
+        conn.close()
+    changed = client.put(f"/api/gcal-keys/{key_id}/reminders", json={"reminders": reminders[:-1] + [{"method": "popup", "minutes": 30}]})
+    assert changed.status_code == 200 and changed.json()["affected"] == 1

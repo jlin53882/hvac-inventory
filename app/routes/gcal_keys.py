@@ -90,6 +90,9 @@ def _backfill_all_appointments(key_id: int):
             if key_row is None:
                 return 0
             key_data = dict(key_row)
+            if gcal_sync.calendar_migration_pending(key_data):
+                # 舊 Calendar cleanup 未完成，不得建立任何 C/U 到舊 Calendar。
+                return 0
             appt_ids = [r["id"] for r in conn.execute("SELECT id FROM appointments").fetchall()]
             queued = 0
             version = gcal_sync.sync_version_now()
@@ -339,23 +342,32 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
             new_credentials_path = credentials_path
             updates.append("credentials_path=?")
             params.append(credentials_path)
-        if calendar_id is not None:
-            if not calendar_id or len(calendar_id) > 300:
-                raise HTTPException(400, "Calendar ID 長度不合法")
-            updates.append("calendar_id=?")
-            params.append(calendar_id)
-        if is_active is not None:
-            updates.append("is_active=?")
-            params.append(1 if is_active else 0)
-        if not updates:
-            raise HTTPException(400, "無可更新欄位")
-
         was_inactive = not bool(row["is_active"])
         new_is_active = bool(row["is_active"]) if is_active is None else bool(is_active)
         calendar_changed = calendar_id is not None and calendar_id != row["calendar_id"]
-        params.append(key_id)
+        if calendar_id is not None:
+            if not calendar_id or len(calendar_id) > 300:
+                raise HTTPException(400, "Calendar ID 長度不合法")
+            if calendar_changed:
+                # Keep old calendar_id authoritative until every old remote event is cleaned.
+                pass
+            else:
+                updates.append("calendar_id=?")
+                params.append(calendar_id)
+        if is_active is not None:
+            updates.append("is_active=?")
+            params.append(1 if is_active else 0)
+        if not updates and not calendar_changed:
+            raise HTTPException(400, "無可更新欄位")
+
         conn = get_db()
         try:
+            if calendar_changed:
+                conn.execute(
+                    "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?",
+                    (calendar_id, key_id),
+                )
+                conn.commit()
             maps = []
             deleted_ok = 0
             failed_maps = {}
@@ -447,6 +459,10 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                         )
                     conn.execute("DELETE FROM appointment_gcal_map WHERE key_id=?", (key_id,))
 
+            if calendar_changed:
+                updates.extend(["calendar_id=?", "pending_calendar_id=NULL"])
+                params.append(calendar_id)
+            params.append(key_id)
             conn.execute(f"UPDATE gcal_keys SET {','.join(updates)} WHERE id=?", params)
             if name is not None and name != row["name"]:
                 conn.execute(
@@ -712,9 +728,11 @@ def update_key_reminders(key_id: int, body: dict):
             raise HTTPException(400, "minutes 範圍 0~40320")
     conn = get_db()
     try:
-        row = conn.execute("SELECT id FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+        row = conn.execute("SELECT id, reminders FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Key 不存在")
+        if parse_popup_reminders(row["reminders"]) == reminders:
+            return {"ok": True, "reminders": reminders, "affected": 0}
         conn.execute("UPDATE gcal_keys SET reminders=? WHERE id=?",
                      (_json.dumps(reminders, ensure_ascii=False), key_id))
         conn.commit()

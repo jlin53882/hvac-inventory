@@ -384,7 +384,7 @@ def enqueue_existing_mappings(
             batches = [appointment_ids[i:i + 400] for i in range(0, len(appointment_ids), 400)]
         version = sync_version_now()
         for batch in batches:
-            where = ["k.is_active=1"]
+            where = ["k.is_active=1", "COALESCE(k.pending_calendar_id,'')=''"]
             params = []
             if key_id is not None:
                 where.append("m.key_id=?")
@@ -420,6 +420,48 @@ def enqueue_existing_mappings(
         return count
     finally:
         conn.close()
+
+def calendar_migration_pending(key_row) -> bool:
+    """pending_calendar_id 存在時，Key 仍在舊 Calendar cleanup migration。"""
+    if hasattr(key_row, "keys"):
+        return bool(key_row["pending_calendar_id"]) if "pending_calendar_id" in key_row.keys() else False
+    return bool((key_row or {}).get("pending_calendar_id"))
+
+
+def maybe_finalize_calendar_migration(key_id: int) -> bool:
+    """D queue 全部完成後切換 Calendar，並只在新 Calendar 上 backfill。"""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, is_active, calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?",
+            (key_id,),
+        ).fetchone()
+        if row is None or not row["is_active"] or not row["pending_calendar_id"]:
+            return False
+        if conn.execute(
+            "SELECT 1 FROM appointment_gcal_map WHERE key_id=? LIMIT 1", (key_id,)
+        ).fetchone() is not None:
+            return False
+        if conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE key_id=? AND op_type='D' LIMIT 1",
+            (key_id,),
+        ).fetchone() is not None:
+            return False
+        target = row["pending_calendar_id"]
+        conn.execute(
+            "UPDATE gcal_keys SET calendar_id=?, pending_calendar_id=NULL WHERE id=?",
+            (target, key_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Import lazily to avoid the existing routes -> service import cycle.
+    from app.routes import gcal_keys
+    gcal_keys._backfill_all_appointments(key_id)
+    gcal_keys._wake_scheduler()
+    return True
+
 
 def _queue_delete_for_missing_appointment(appt_id: int, key_id: int, google_event_id: str) -> bool:
     """若本地行程在 remote C/U 後消失，建立/補全 D queue 避免遠端 orphan。"""
@@ -524,6 +566,9 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
             if fresh_key_row is None:
                 continue
             key_row = dict(fresh_key_row)
+            if calendar_migration_pending(key_row) and op != "D":
+                # Migration cleanup owns the old Calendar; C/U must wait for finalize.
+                continue
             with _event_process_lock(appt_id, key_id):
                 try:
                     cal_id = key_row["calendar_id"]
@@ -680,6 +725,8 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
                     finally:
                         wc.close()
                     ok += 1
+                    if op == "D":
+                        maybe_finalize_calendar_migration(key_id)
                 except Exception as e:
                     # map upsert 與本地 delete 之間仍可能有極窄 race；若 remote side effect
                     # 已完成，先補 D queue，再進一般錯誤分類，避免把 orphan 當成 resolved。
@@ -742,6 +789,8 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
                                            key_row.get("name", "") if key_row else "")
                         if outcome == "remote_already_deleted":
                             ok += 1
+                            if op == "D":
+                                maybe_finalize_calendar_migration(key_id)
                         continue
 
                     logger.warning("gcal 同步失敗 appointment=%s key=%s (%s) cal=%s: %s", appt_id, key_id, op, cal_id, safe_sync_error(e))

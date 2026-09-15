@@ -149,6 +149,7 @@ def _exec_init(conn):
             name             TEXT NOT NULL UNIQUE,
             credentials_path TEXT NOT NULL,
             calendar_id      TEXT NOT NULL,
+            pending_calendar_id TEXT,
             is_active        INTEGER NOT NULL DEFAULT 1,
             reminders        TEXT DEFAULT '[{"method":"popup","minutes":30},{"method":"email","minutes":60}]',
             created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -526,6 +527,9 @@ def _exec_init(conn):
     if "reminders" not in gcal_cols:
         conn.execute("ALTER TABLE gcal_keys ADD COLUMN reminders TEXT DEFAULT '[{\"method\":\"popup\",\"minutes\":30},{\"method\":\"email\",\"minutes\":60}]'")
         logger.info("[migrate] gcal_keys.reminders 欄位已新增（per-key 提醒）")
+    if "pending_calendar_id" not in gcal_cols:
+        conn.execute("ALTER TABLE gcal_keys ADD COLUMN pending_calendar_id TEXT")
+        logger.info("[migrate] gcal_keys.pending_calendar_id 欄位已新增（Calendar migration pending）")
     # M7：gcal_sync_settings 表（2026-08-27 同步設定頁）
     conn.execute("""CREATE TABLE IF NOT EXISTS gcal_sync_settings (
             key   TEXT PRIMARY KEY,

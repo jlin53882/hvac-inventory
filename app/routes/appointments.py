@@ -49,6 +49,13 @@ def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
                     c.rollback()
                     return
                 keys = gcal_sync.resolve_target_keys(c, appt_id)
+                if keys:
+                    placeholders = ",".join("?" * len(keys))
+                    keys = [row["id"] for row in c.execute(
+                        "SELECT id FROM gcal_keys WHERE is_active=1 "
+                        "AND COALESCE(pending_calendar_id,'')='' "
+                        f"AND id IN ({placeholders})", keys,
+                    ).fetchall()]
             else:  # D
                 keys = [r[0] for r in map_rows] if map_rows else []
             version = gcal_sync.sync_version_now()
