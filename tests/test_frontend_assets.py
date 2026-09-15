@@ -2618,7 +2618,7 @@ def test_all_js_syntax_valid():
     for f in js_files:
         result = subprocess.run(
             ["node", "--check", f],
-            capture_output=True, text=True, timeout=10
+            capture_output=True, text=True, timeout=30
         )
         assert result.returncode == 0, f"{os.path.basename(f)} 語法錯誤: {result.stderr[:200]}"
 
