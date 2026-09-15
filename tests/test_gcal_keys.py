@@ -1653,10 +1653,12 @@ def test_calendar_migration_d_retry_finalizes_and_backfills_new_calendar(client,
 def test_calendar_migration_pending_persists_across_db_reopen(client):
     """pending_calendar_id 存在 DB 後，重新開啟連線仍可恢復 migration state。"""
     from app.database import get_db
+    from app.services import sync_scheduler
 
     key_id = client.post("/api/gcal-keys", json={
         "name": "restart-migration-key", "credentials_path": "restart.json", "calendar_id": "old@cal",
     }).json()["id"]
+    sync_scheduler.stop()
     conn = get_db()
     try:
         conn.execute(

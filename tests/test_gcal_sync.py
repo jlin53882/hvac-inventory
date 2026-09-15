@@ -2516,3 +2516,50 @@ def test_inactive_pending_migration_recovery_only_creates_d(client):
         ).fetchone() is None
     finally:
         conn.close()
+
+
+@pytest.mark.parametrize("is_active", [True, False])
+def test_scheduler_restart_finalizes_empty_pending_migration(client, monkeypatch, is_active):
+    """restart 後 maps/D 都清空時，scheduler 應 finalize pending migration。"""
+    from app.database import get_db
+    from app.services import sync_scheduler
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": f"empty-pending-recovery-{is_active}",
+        "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    sync_scheduler.stop()
+    conn = get_db()
+    try:
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            (f"empty-pending-{is_active}", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "UPDATE gcal_keys SET pending_calendar_id=?, is_active=? WHERE id=?",
+            ("new@cal", int(is_active), key_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    sync_scheduler._run_once(force=True)
+
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id, is_active FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"], key["is_active"]) == (
+            "new@cal", None, int(is_active)
+        )
+        queue = conn.execute(
+            "SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()
+        if is_active:
+            assert queue["op_type"] == "C"
+        else:
+            assert queue is None
+    finally:
+        conn.close()

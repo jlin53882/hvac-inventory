@@ -14,6 +14,7 @@ Log 行為：
 - 無 due 項目：靜默（不寫 log）
 """
 import json
+import sqlite3
 import threading
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -229,6 +230,27 @@ def _format_sync_error_line(key_id: int, info: dict) -> str:
     return f"❌ Key「{key_name}」／Calendar「{cal_id}」：{err_lines}"
 
 
+def _finalize_pending_migrations():
+    """Recovery 後讓已無 map/D queue 的 pending Key 走既有 finalize gate。"""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id FROM gcal_keys WHERE pending_calendar_id IS NOT NULL"
+        ).fetchall()
+    except sqlite3.OperationalError as error:
+        # Fake scheduler connections in unit tests may not expose the schema.
+        if "no such table" not in str(error):
+            raise
+        return
+    finally:
+        conn.close()
+    for row in rows:
+        try:
+            key_id = row["id"]
+        except (KeyError, IndexError, TypeError):
+            continue
+        gcal_sync.maybe_finalize_calendar_migration(key_id)
+
 def _run_once(force: bool = False):
     """單輪同步；同一 process 的 scheduler/force 入口不可重疊。"""
     with _run_lock:
@@ -236,6 +258,7 @@ def _run_once(force: bool = False):
         health_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         _set_health(last_run_at=health_now)
         gcal_sync.recover_pending_calendar_migrations()
+        _finalize_pending_migrations()
         if not gcal_sync.is_enabled():
             _set_health(last_success_at=health_now, last_error=None)
             return
