@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Google 行事曆同步 Phase 1-5 單元測試"""
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import app.database as app_db
 import main as app_main
@@ -127,6 +127,18 @@ class TestBuildEvent:
 
         assert event["reminders"] == {"useDefault": False, "overrides": reminders}
         assert all(item["method"] == "popup" for item in event["reminders"]["overrides"])
+
+
+    def test_exact_multiple_popup_reminders_payload(self):
+        """1 天、2 小時、15 分鐘必須原樣成為 Google popup overrides。"""
+        from app.services.gcal_sync import build_event
+        reminders = [
+            {"method": "popup", "minutes": 1440},
+            {"method": "popup", "minutes": 120},
+            {"method": "popup", "minutes": 15},
+        ]
+        event = build_event(self._make_appt(), self._make_assignees(), {"reminders": reminders})
+        assert event["reminders"] == {"useDefault": False, "overrides": reminders}
 
 
 class TestPopupReminderParser:
@@ -492,57 +504,110 @@ class TestSyncPending:
     def test_version_condition_prevents_lost_edit(self, client, monkeypatch):
         """🔴 防回歸：成功刪隊列帶 last_modified_at 版本條件"""
         from app.database import get_db
-        from app.services import gcal_sync
+        from app.services import gcal_sync, sync_scheduler
 
-        # 建 key
+        # 此測試要控制 snapshot；停止 TestClient worker，避免它處理手動設定的 T2。
+        sync_scheduler.stop()
+        monkeypatch.setattr(sync_scheduler, "start", lambda: None)
+        monkeypatch.setattr(sync_scheduler, "wake", lambda force=False: None)
+
         conn = get_db()
         try:
-            conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
-                         "VALUES('VerKey', 'fake.json', 'ver@cal', 1)")
+            key_id = conn.execute(
+                "INSERT INTO gcal_keys(name, credentials_path, calendar_id) VALUES('VerKey','fake.json','ver@cal')"
+            ).lastrowid
             conn.execute("UPDATE users SET gcal_key='VerKey' WHERE username='admin'")
+            appt_id = conn.execute(
+                "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+                ("版本測試", "2026-08-28", "09:00", "11:00"),
+            ).lastrowid
+            conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,1)", (appt_id,))
+            t1 = gcal_sync.sync_version_now()
+            conn.execute(
+                "INSERT INTO appointment_sync_queue"
+                "(appointment_id,key_id,op_type,google_event_id,last_modified_at) VALUES(?,?, 'C', '', ?)",
+                (appt_id, key_id, t1),
+            )
             conn.commit()
         finally:
             conn.close()
 
-        # 建行程
-        r = client.post("/api/appointments", json={
-            "client_name": "版本測試", "date": "2026-08-28",
-            "start_time": "09:00", "end_time": "11:00",
-            "user_ids": [1], "note": ""
-        })
-        appt_id = r.json()["id"]
-
-        # 讀出 mark_sync_pending 自動建的隊列列（last_modified_at = T1）
+        t2 = gcal_sync.sync_version_now()
         conn = get_db()
         try:
-            q = conn.execute("SELECT * FROM appointment_sync_queue WHERE appointment_id=?",
-                             (appt_id,)).fetchone()
-            t1 = q["last_modified_at"]
-        finally:
-            conn.close()
-
-        # 模擬「同步途中被編輯」-> 重置 last_modified_at 為 T2
-        conn = get_db()
-        try:
-            conn.execute("UPDATE appointment_sync_queue SET last_modified_at='2026-08-28 01:00:00' "
-                         "WHERE appointment_id=?", (appt_id,))
+            conn.execute(
+                "UPDATE appointment_sync_queue SET last_modified_at=? WHERE appointment_id=? AND key_id=?",
+                (t2, appt_id, key_id),
+            )
             conn.commit()
         finally:
             conn.close()
 
         mock_svc = self._mock_service()
         monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda kr: mock_svc)
-
-        # 用 T1 的快照嘗試同步 -> sync_pending 仍會同步，但刪隊列時 T1 不符 T2 -> 隊列保留
-        due = [{"appointment_id": appt_id, "key_id": q["key_id"], "op_type": "C",
-                "google_event_id": "", "last_modified_at": t1}]
-        ok, fail, _ = gcal_sync.sync_pending(due)
-        # sync_pending 會嘗試同步（成功），但刪隊列 WHERE last_modified_at=t1 不符 t2 -> 隊列保留
+        ok, fail, _ = gcal_sync.sync_pending([{
+            "appointment_id": appt_id, "key_id": key_id, "op_type": "C",
+            "google_event_id": "", "last_modified_at": t1,
+        }])
+        assert (ok, fail) == (1, 0)
         conn = get_db()
         try:
-            q2 = conn.execute("SELECT * FROM appointment_sync_queue WHERE appointment_id=?",
-                              (appt_id,)).fetchone()
-            assert q2 is not None  # 隊列仍存在（版本不符沒刪掉）
+            row = conn.execute(
+                "SELECT last_modified_at FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone()
+            assert row is not None
+            assert row["last_modified_at"] == t2
+        finally:
+            conn.close()
+
+    def test_stale_completion_does_not_overwrite_newer_map_hash(self, client, monkeypatch):
+        """舊同步完成時不可覆蓋 newer queue/map 版本，避免遠端內容被誤標 synced。"""
+        from app.database import get_db
+        from app.services import gcal_sync, sync_scheduler
+
+        sync_scheduler.stop()
+        conn = get_db()
+        try:
+            key_id = conn.execute(
+                "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('stale-map-key','x.json','stale@cal')"
+            ).lastrowid
+            appt_id = conn.execute(
+                "INSERT INTO appointments(client_name,date,start_time,end_time,note) VALUES(?,?,?,?,?)",
+                ("stale-map", "2026-08-28", "09:00", "10:00", "new note"),
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)",
+                (appt_id, key_id, "stale-event", "newer-map-hash"),
+            )
+            newer_version = gcal_sync.sync_version_now()
+            conn.execute(
+                "INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+                "VALUES(?,?, 'U', ?, ?)", (appt_id, key_id, "stale-event", newer_version),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        service = self._mock_service()
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+        ok, fail, _ = gcal_sync.sync_pending([{
+            "appointment_id": appt_id, "key_id": key_id, "op_type": "U",
+            "google_event_id": "stale-event", "last_modified_at": "older-version",
+        }])
+        assert (ok, fail) == (1, 0)
+        conn = get_db()
+        try:
+            mapping = conn.execute(
+                "SELECT data_hash FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone()
+            queue = conn.execute(
+                "SELECT last_modified_at FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone()
+            assert mapping["data_hash"] == "newer-map-hash"
+            assert queue["last_modified_at"] == newer_version
         finally:
             conn.close()
 
@@ -577,8 +642,65 @@ class TestSyncPending:
         finally:
             conn.close()
 
+    def test_stale_delete_410_does_not_remove_newer_map(self, client, monkeypatch):
+        """舊 D/410 completion 不可清除 newer U 的 map/queue。"""
+        from app.database import get_db
+        from app.services import gcal_sync, sync_scheduler
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        sync_scheduler.stop()
+        conn = get_db()
+        try:
+            key_id = conn.execute(
+                "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('stale-delete-key','x.json','sd@cal')"
+            ).lastrowid
+            appt_id = conn.execute(
+                "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+                ("stale-delete", "2026-08-28", "09:00", "10:00"),
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)",
+                (appt_id, key_id, "new-event", "new-map-hash"),
+            )
+            newer_version = gcal_sync.sync_version_now()
+            conn.execute(
+                "INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+                "VALUES(?,?, 'U', ?, ?)", (appt_id, key_id, "new-event", newer_version),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        gone = Exception("remote deleted")
+        gone.resp = SimpleNamespace(status=410)
+        service = MagicMock()
+        service.events().delete.return_value.execute.side_effect = gone
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+        ok, fail, _ = gcal_sync.sync_pending([{
+            "appointment_id": appt_id, "key_id": key_id, "op_type": "D",
+            "google_event_id": "old-event", "last_modified_at": "old-version",
+        }])
+        assert (ok, fail) == (1, 0)
+        conn = get_db()
+        try:
+            mapping = conn.execute(
+                "SELECT google_event_id,data_hash FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone()
+            queue = conn.execute(
+                "SELECT op_type,google_event_id,last_modified_at FROM appointment_sync_queue "
+                "WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+            ).fetchone()
+            assert (mapping["google_event_id"], mapping["data_hash"]) == ("new-event", "new-map-hash")
+            assert (queue["op_type"], queue["google_event_id"], queue["last_modified_at"]) == (
+                "U", "new-event", newer_version
+            )
+        finally:
+            conn.close()
+
     def test_disabled_key_skipped(self, client, monkeypatch):
-        """key 停用 -> 該列直接清不阻塞"""
+        """key 停用 -> 本輪不呼叫 Google，queue 保留供重新啟用 catch up"""
         from app.database import get_db
         from app.services import gcal_sync
 
@@ -586,8 +708,10 @@ class TestSyncPending:
         try:
             conn.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
                          "VALUES('OffKey', 'fake.json', 'off@cal', 0)")  # 停用
-            conn.commit()
             key_id = conn.execute("SELECT id FROM gcal_keys WHERE name='OffKey'").fetchone()["id"]
+            conn.execute("INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,last_modified_at) "
+                         "VALUES(999,?, 'C', '2026-08-28 00:00:00')", (key_id,))
+            conn.commit()
         finally:
             conn.close()
 
@@ -596,12 +720,12 @@ class TestSyncPending:
         ok, fail, _ = gcal_sync.sync_pending(due)
         assert ok == 0
         assert fail == 0
-        # 隊列應被清掉
+        # 停用 key 的 queue 不應被誤清，重新啟用時 backfill 才能 catch up。
         conn = get_db()
         try:
             q = conn.execute("SELECT COUNT(*) c FROM appointment_sync_queue WHERE key_id=?",
                              (key_id,)).fetchone()
-            assert q["c"] == 0
+            assert q["c"] == 1
         finally:
             conn.close()
 
@@ -695,6 +819,15 @@ class TestDueIds:
                  "last_modified_at": "2026-08-28 10:00:00"}]
         assert _due_ids(rows, now, window=300) == {(1, 1)}
 
+    def test_subsecond_timestamp_still_obeys_debounce(self):
+        """queue 的微秒版本不可被舊秒級 parser 誤判成永遠 due。"""
+        from app.services.sync_scheduler import _due_ids
+        from datetime import datetime
+        rows = [{"appointment_id": 1, "key_id": 1,
+                 "last_modified_at": "2026-08-28 10:04:30.500000"}]
+        assert _due_ids(rows, datetime(2026, 8, 28, 10, 5, 0), window=300) == set()
+        assert _due_ids(rows, datetime(2026, 8, 28, 10, 9, 31), window=300) == {(1, 1)}
+
     def test_invalid_timestamp(self):
         """無效時間戳 -> datetime.min -> 永遠 due"""
         from app.services.sync_scheduler import _due_ids
@@ -715,7 +848,7 @@ class TestComputeEventHash:
         h1 = compute_event_hash(row, assignees)
         h2 = compute_event_hash(row, assignees)
         assert h1 == h2
-        assert len(h1) == 32  # MD5 hex
+        assert len(h1) == 64  # canonical SHA-256 hex
 
     def test_different_data_different_hash(self):
         """不同資料 -> 不同 hash"""
@@ -735,7 +868,7 @@ class TestComputeEventHash:
                "start_time": "09:00", "end_time": "11:00",
                "note": "", "service_type_id": None}
         h = compute_event_hash(row, [])
-        assert len(h) == 32
+        assert len(h) == 64
 
     def test_address_change_changes_hash(self):
         """A7 防回歸：address 納入 hash → 只改地址也觸發同步。
@@ -1322,7 +1455,8 @@ class TestStopGuard:
     def test_stop_idempotent(self, monkeypatch):
         """連續呼叫 stop() 兩次只 log 一次"""
         from app.services import sync_scheduler
-        import threading, logging
+        import threading
+        import logging
         log_msgs = []
         handler = logging.Handler()
         handler.emit = lambda record: log_msgs.append(record.getMessage())
@@ -1389,6 +1523,626 @@ class TestDiscordNotificationFormat:
         sync_scheduler._run_once()
         assert len(notified) == 0
 
+
+class TestCanonicalEventHash:
+    def _row(self, **overrides):
+        row = {
+            "client_name": "客戶A",
+            "service_name": "維修",
+            "address": "台北市",
+            "date": "2026-08-28",
+            "start_time": "09:00",
+            "end_time": "11:00",
+            "note": "備註",
+        }
+        row.update(overrides)
+        return row
+
+    def test_hash_changes_when_service_display_name_changes(self):
+        from app.services.gcal_sync import compute_event_hash
+
+        assert compute_event_hash(self._row(service_name="維修"), []) != compute_event_hash(
+            self._row(service_name="保養"), []
+        )
+
+    def test_hash_changes_when_assignee_display_name_changes(self):
+        from app.services.gcal_sync import compute_event_hash
+
+        first = [{"id": 1, "name": "王先生", "color": "#111111"}]
+        renamed = [{"id": 1, "name": "王師傅", "color": "#111111"}]
+        assert compute_event_hash(self._row(), first) != compute_event_hash(self._row(), renamed)
+
+    def test_hash_changes_for_effective_settings(self):
+        from app.services.gcal_sync import compute_event_hash
+
+        base = self._row(end_time="")
+        reminders = [{"method": "popup", "minutes": 120}]
+        baseline = compute_event_hash(base, [], {"duration_min": 60, "use_location": True,
+                                                "transparency": "transparent", "reminders": reminders})
+        assert baseline != compute_event_hash(
+            base, [], {"duration_min": 90, "use_location": True,
+                       "transparency": "transparent", "reminders": reminders}
+        )
+        assert baseline != compute_event_hash(
+            base, [], {"duration_min": 60, "use_location": False,
+                       "transparency": "transparent", "reminders": reminders}
+        )
+        assert baseline != compute_event_hash(
+            base, [], {"duration_min": 60, "use_location": True,
+                       "transparency": "opaque", "reminders": reminders}
+        )
+        assert baseline != compute_event_hash(
+            base, [], {"duration_min": 60, "use_location": True,
+                       "transparency": "transparent",
+                       "reminders": [{"method": "popup", "minutes": 1440}]}
+        )
+
+    def test_hash_is_canonical_sha256_of_final_event_payload(self):
+        import hashlib
+        import json
+        from app.services.gcal_sync import build_event, compute_event_hash
+
+        row = self._row()
+        assignees = [{"id": 1, "name": "王先生", "color": "#111111"}]
+        settings = {"duration_min": 60, "use_location": True,
+                    "transparency": "opaque", "reminders": [{"method": "popup", "minutes": 15}]}
+        event = build_event(row, assignees, settings)
+        canonical = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        expected = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        assert compute_event_hash(row, assignees, settings) == expected
+        assert len(expected) == 64
+
+    def test_remote_reminder_probe_reads_google_payload(self):
+        from unittest.mock import MagicMock
+        from app.services.gcal_sync import verify_remote_event_reminders
+
+        service = MagicMock()
+        service.events().get.return_value.execute.return_value = {
+            "reminders": {"useDefault": False, "overrides": [{"method": "popup", "minutes": 1440}]}
+        }
+        result = verify_remote_event_reminders(service, "calendar@example.com", "event-1")
+        assert result == {"useDefault": False, "overrides": [{"method": "popup", "minutes": 1440}]}
+        service.events().get.assert_called_once_with(calendarId="calendar@example.com", eventId="event-1")
+
+
+class TestSchedulerReliability:
+    class _FakeThread:
+        def __init__(self, alive=False):
+            self.alive = alive
+            self.started = False
+
+        def is_alive(self):
+            return self.alive
+
+        def start(self):
+            self.started = True
+            self.alive = True
+
+        def join(self, timeout=None):
+            self.alive = False
+
+    def test_start_creates_worker_without_active_key(self, monkeypatch):
+        from app.services import sync_scheduler
+
+        created = []
+        monkeypatch.setattr(sync_scheduler.threading, "Thread", lambda *args, **kwargs: created.append(self._FakeThread()) or created[-1])
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: False)
+        sync_scheduler._thread = None
+        sync_scheduler._stop.clear()
+        try:
+            sync_scheduler.start()
+            assert len(created) == 1
+            assert created[0].started is True
+            assert sync_scheduler._thread is created[0]
+        finally:
+            sync_scheduler._thread = None
+            sync_scheduler._stop.set()
+
+    def test_start_replaces_dead_worker(self, monkeypatch):
+        from app.services import sync_scheduler
+
+        dead = self._FakeThread(alive=False)
+        created = []
+        monkeypatch.setattr(sync_scheduler.threading, "Thread", lambda *args, **kwargs: created.append(self._FakeThread()) or created[-1])
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: False)
+        sync_scheduler._thread = dead
+        sync_scheduler._stop.clear()
+        try:
+            sync_scheduler.start()
+            assert created and sync_scheduler._thread is created[0]
+            assert sync_scheduler._thread is not dead
+        finally:
+            sync_scheduler._thread = None
+            sync_scheduler._stop.set()
+
+    def _run_rows(self, attempts=0, last_modified_at="2026-01-01 00:00:00"):
+        return [{"appointment_id": 1, "key_id": 1, "op_type": "U",
+                 "google_event_id": "event-1", "last_modified_at": last_modified_at,
+                 "attempts": attempts}]
+
+    def test_health_error_does_not_leak_credential_path(self, monkeypatch):
+        from app.services import sync_scheduler
+
+        def broken_db():
+            raise RuntimeError(r"C:\secrets\service-account.json: private_key")
+
+        monkeypatch.setattr(sync_scheduler, "get_db", broken_db)
+        health = sync_scheduler.get_health()
+        assert health["last_error"] == "RuntimeError: scheduler round failed"
+        assert "service-account.json" not in str(health)
+
+    def test_normal_run_keeps_debounce(self, monkeypatch):
+        from datetime import datetime, timedelta
+        from app.services import sync_scheduler
+
+        called = []
+        recent = (datetime.utcnow() - timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
+        sync_scheduler._run_once(force=False)
+        assert called == []
+
+    def test_force_run_bypasses_debounce(self, monkeypatch):
+        from datetime import datetime, timedelta
+        from app.services import sync_scheduler
+
+        called = []
+        recent = (datetime.utcnow() - timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
+        sync_scheduler._run_once(force=True)
+        assert len(called) == 1
+        assert called[0][0]["appointment_id"] == 1
+
+    def test_force_run_does_not_select_exhausted_queue(self, monkeypatch):
+        from app.services import sync_scheduler
+
+        called = []
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(attempts=5)))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
+        sync_scheduler._run_once(force=True)
+        assert called == []
+
+    def test_scheduler_run_lock_serializes_force_runs(self, monkeypatch):
+        import threading
+        import time
+        from app.services import sync_scheduler
+
+        entered = threading.Event()
+        release = threading.Event()
+        active = 0
+        max_active = 0
+        calls = 0
+        state_lock = threading.Lock()
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows()))
+
+        def fake_sync(due):
+            nonlocal active, max_active, calls
+            with state_lock:
+                calls += 1
+                active += 1
+                max_active = max(max_active, active)
+            entered.set()
+            release.wait(2)
+            with state_lock:
+                active -= 1
+            return 1, 0, {}
+
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", fake_sync)
+        first = threading.Thread(target=lambda: sync_scheduler._run_once(force=True))
+        second = threading.Thread(target=lambda: sync_scheduler._run_once(force=True))
+        first.start()
+        assert entered.wait(1)
+        second.start()
+        time.sleep(0.05)
+        assert max_active == 1
+        release.set()
+        first.join(2)
+        second.join(2)
+        assert calls == 2
+        assert max_active == 1
+
+
+
+class TestSyncReliabilityFailures:
+    def test_delete_missing_appointment_network_error_retains_queue(self, client, monkeypatch):
+        """D + local appointment missing is not proof of remote delete; network failure keeps queue."""
+        from app.database import get_db
+        from app.services import gcal_sync
+        from unittest.mock import MagicMock
+
+        conn = get_db()
+        try:
+            key_id = conn.execute(
+                "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('delete-retry','x.json','dr@cal')"
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO appointment_sync_queue"
+                "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                "VALUES(?,?, 'D', ?, '2026-08-28 00:00:00', 0, '')",
+                (700, key_id, "remote-event-700"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        service = MagicMock()
+        service.events().delete.return_value.execute.side_effect = OSError("network down")
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+        ok, fail, _ = gcal_sync.sync_pending([{
+            "appointment_id": 700, "key_id": key_id, "op_type": "D",
+            "google_event_id": "remote-event-700", "last_modified_at": "2026-08-28 00:00:00",
+        }])
+        assert (ok, fail) == (0, 1)
+        conn = get_db()
+        try:
+            row = conn.execute(
+                "SELECT google_event_id, attempts, last_error FROM appointment_sync_queue "
+                "WHERE appointment_id=700 AND key_id=?", (key_id,)
+            ).fetchone()
+            assert row["google_event_id"] == "remote-event-700"
+            assert row["attempts"] == 1
+            assert "network down" in row["last_error"]
+        finally:
+            conn.close()
+
+    def test_identical_payload_skips_google_patch(self, client, monkeypatch):
+        """queue 重試/backfill 時 final payload unchanged 不得重複 PATCH。"""
+        from app.database import get_db
+        from app.services import gcal_sync
+        from unittest.mock import MagicMock
+
+        conn = get_db()
+        try:
+            key_id = conn.execute(
+                "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('hash-skip','x.json','hs@cal')"
+            ).lastrowid
+            appt_id = conn.execute(
+                "INSERT INTO appointments(client_name,date,start_time,end_time,note) VALUES(?,?,?,?,?)",
+                ("unchanged", "2026-08-28", "09:00", "10:00", ""),
+            ).lastrowid
+            key_row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+            _, payload_hash = gcal_sync.load_event_payload(conn, appt_id, dict(key_row))
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)",
+                (appt_id, key_id, "unchanged-event", payload_hash),
+            )
+            conn.execute(
+                "INSERT INTO appointment_sync_queue"
+                "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                "VALUES(?,?, 'U', ?, '2026-08-28 00:00:00', 0, '')",
+                (appt_id, key_id, "unchanged-event"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        service = MagicMock()
+        monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+        ok, fail, _ = gcal_sync.sync_pending([{
+            "appointment_id": appt_id, "key_id": key_id, "op_type": "U",
+            "google_event_id": "unchanged-event", "last_modified_at": "2026-08-28 00:00:00",
+        }])
+        assert (ok, fail) == (1, 0)
+        service.events().patch.assert_not_called()
+        service.events().insert.assert_not_called()
+        conn = get_db()
+        try:
+            assert conn.execute(
+                "SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone() is None
+        finally:
+            conn.close()
+
+
+
+def test_insert_id_is_checkpointed_before_map_write_failure(client, monkeypatch):
+    """insert 成功後 map 寫入失敗，下一次重試不得再 insert 相同 Event。"""
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+    from unittest.mock import MagicMock
+
+    sync_scheduler.stop()
+    conn = get_db()
+    try:
+        key_id = conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('checkpoint-key','x.json','cp@cal')"
+        ).lastrowid
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("checkpoint", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,1)", (appt_id,))
+        version = gcal_sync.sync_version_now()
+        conn.execute(
+            "INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+            "VALUES(?,?, 'C', '', ?)", (appt_id, key_id, version)
+        )
+        conn.execute(
+            "CREATE TRIGGER fail_checkpoint_map BEFORE INSERT ON appointment_gcal_map "
+            "BEGIN SELECT RAISE(ABORT, 'map write failed'); END"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    service = MagicMock()
+    service.events().insert.return_value.execute.return_value = {"id": "checkpoint-event"}
+    service.events().patch.return_value.execute.return_value = {"id": "checkpoint-event"}
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+    due = [{
+        "appointment_id": appt_id, "key_id": key_id, "op_type": "C",
+        "google_event_id": "", "last_modified_at": version,
+    }]
+    ok, fail, _ = gcal_sync.sync_pending(due)
+    assert (ok, fail) == (0, 1)
+
+    conn = get_db()
+    try:
+        conn.execute("DROP TRIGGER fail_checkpoint_map")
+        queued = conn.execute(
+            "SELECT * FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()
+        assert queued["google_event_id"] == "checkpoint-event"
+        conn.commit()
+    finally:
+        conn.close()
+
+    ok, fail, _ = gcal_sync.sync_pending([dict(queued)])
+    assert (ok, fail) == (1, 0)
+    service.events().insert.assert_called_once()
+    service.events().patch.assert_called_once()
+
+
+
+def test_insert_then_local_delete_creates_compensating_delete_queue(client, monkeypatch):
+    """C API race: local delete during insert must preserve a D task for the new remote id."""
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+    from unittest.mock import MagicMock
+
+    sync_scheduler.stop()
+    conn = get_db()
+    try:
+        key_id = conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('race-key','x.json','race@cal')"
+        ).lastrowid
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("race", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,1)", (appt_id,))
+        version = gcal_sync.sync_version_now()
+        conn.execute(
+            "INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+            "VALUES(?,?, 'C', '', ?)", (appt_id, key_id, version)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    service = MagicMock()
+    def insert_and_delete_locally():
+        local = get_db()
+        try:
+            local.execute("DELETE FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id, key_id))
+            local.execute("DELETE FROM appointments WHERE id=?", (appt_id,))
+            local.commit()
+        finally:
+            local.close()
+        return {"id": "race-remote-event"}
+    service.events().insert.return_value.execute.side_effect = insert_and_delete_locally
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+
+    ok, fail, _ = gcal_sync.sync_pending([{
+        "appointment_id": appt_id, "key_id": key_id, "op_type": "C",
+        "google_event_id": "", "last_modified_at": version,
+    }])
+    assert (ok, fail) == (1, 0)
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()
+        assert row["op_type"] == "D"
+        assert row["google_event_id"] == "race-remote-event"
+    finally:
+        conn.close()
+
+
+
+
+def test_late_local_delete_during_map_write_preserves_delete_queue(client, monkeypatch):
+    """map upsert 前的 committed delete 也必須保留 remote id 與 D queue。"""
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+    from unittest.mock import MagicMock
+
+    sync_scheduler.stop()
+    conn=get_db()
+    try:
+        key_id=conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('late-race-key','x.json','late@cal')"
+        ).lastrowid
+        appt_id=conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("late-race", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,1)", (appt_id,))
+        version=gcal_sync.sync_version_now()
+        conn.execute(
+            "INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+            "VALUES(?,?, 'C', '', ?)", (appt_id,key_id,version)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    real_get_db=gcal_sync.get_db
+    class ConnectionProxy:
+        def __init__(self, connection):
+            self.connection=connection
+            self.deleted=False
+
+        def execute(self, sql, params=()):
+            if sql == "BEGIN IMMEDIATE":
+                # 讓測試保留一個可注入的 map-write window；production 仍使用短 IMMEDIATE tx。
+                return None
+            if "SELECT op_type, last_modified_at, google_event_id" in sql and not self.deleted:
+                cursor = self.connection.execute(sql, params)
+                cleanup=real_get_db()
+                try:
+                    cleanup.execute("DELETE FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id,key_id))
+                    cleanup.execute("DELETE FROM appointments WHERE id=?", (appt_id,))
+                    cleanup.commit()
+                finally:
+                    cleanup.close()
+                self.deleted=True
+                return cursor
+            return self.connection.execute(sql, params)
+
+        def __getattr__(self, name):
+            return getattr(self.connection, name)
+
+    def wrapped_get_db():
+        return ConnectionProxy(real_get_db())
+
+    service=MagicMock()
+    service.events().insert.return_value.execute.return_value={"id":"late-race-event"}
+    monkeypatch.setattr(gcal_sync,"get_db",wrapped_get_db)
+    monkeypatch.setattr(gcal_sync,"get_service_for_key",lambda row: service)
+    ok,fail,_=gcal_sync.sync_pending([{
+        "appointment_id":appt_id,"key_id":key_id,"op_type":"C",
+        "google_event_id":"","last_modified_at":version,
+    }])
+    assert (ok,fail)==(1,0)
+    conn=real_get_db()
+    try:
+        row=conn.execute(
+            "SELECT op_type,google_event_id FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id,key_id),
+        ).fetchone()
+        assert row["op_type"] == "D"
+        assert row["google_event_id"] == "late-race-event"
+    finally:
+        conn.close()
+
+
+def test_direct_sync_pending_serializes_same_queue_insert(client, monkeypatch):
+    """scheduler/HTTP-style direct callers must not create duplicate Google events."""
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+    from unittest.mock import MagicMock
+    import threading
+    import time
+
+    sync_scheduler.stop()
+    conn=get_db()
+    try:
+        key_id=conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('direct-lock-key','x.json','direct@cal')"
+        ).lastrowid
+        appt_id=conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("direct-lock", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,1)", (appt_id,))
+        version=gcal_sync.sync_version_now()
+        conn.execute(
+            "INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+            "VALUES(?,?, 'C', '', ?)", (appt_id,key_id,version)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    entered=threading.Event()
+    release=threading.Event()
+    active=0
+    max_active=0
+    state_lock=threading.Lock()
+    service=MagicMock()
+    def slow_insert():
+        nonlocal active,max_active
+        with state_lock:
+            active += 1
+            max_active=max(max_active,active)
+        entered.set()
+        release.wait(2)
+        with state_lock:
+            active -= 1
+        return {"id":"direct-lock-event"}
+    service.events().insert.return_value.execute.side_effect=slow_insert
+    monkeypatch.setattr(gcal_sync,"get_service_for_key",lambda row: service)
+    due={"appointment_id":appt_id,"key_id":key_id,"op_type":"C","google_event_id":"","last_modified_at":version}
+    results=[]
+    first=threading.Thread(target=lambda: results.append(gcal_sync.sync_pending([due])))
+    second=threading.Thread(target=lambda: results.append(gcal_sync.sync_pending([due])))
+    first.start()
+    assert entered.wait(1)
+    second.start()
+    time.sleep(0.05)
+    assert max_active == 1
+    release.set()
+    first.join(2)
+    second.join(2)
+    assert len(results)==2
+    assert service.events().insert.call_count == 1
+
+
+def test_insert_conflict_uses_stable_event_id_and_patch(client, monkeypatch):
+    """跨 process 同一 C insert 遇 duplicate event id 時，必須 patch existing event。"""
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    sync_scheduler.stop()
+    conn=get_db()
+    try:
+        key_id=conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('stable-id-key','x.json','stable@cal')"
+        ).lastrowid
+        appt_id=conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("stable-id", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+            "VALUES(?,?, 'C', '', ?)", (appt_id,key_id,gcal_sync.sync_version_now())
+        )
+        conn.commit()
+        version=conn.execute(
+            "SELECT last_modified_at FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id,key_id),
+        ).fetchone()["last_modified_at"]
+    finally:
+        conn.close()
+
+    conflict=Exception("duplicate event id")
+    conflict.resp=SimpleNamespace(status=409)
+    service=MagicMock()
+    service.events().insert.return_value.execute.side_effect=conflict
+    service.events().patch.return_value.execute.return_value={"id":"stable-event"}
+    monkeypatch.setattr(gcal_sync,"get_service_for_key",lambda row: service)
+    ok,fail,_=gcal_sync.sync_pending([{
+        "appointment_id":appt_id,"key_id":key_id,"op_type":"C",
+        "google_event_id":"","last_modified_at":version,
+    }])
+    assert (ok,fail)==(1,0)
+    insert_kwargs=service.events().insert.call_args.kwargs
+    assert insert_kwargs["eventId"] == gcal_sync.stable_event_id(appt_id,key_id)
+    patch_kwargs=service.events().patch.call_args.kwargs
+    assert patch_kwargs["eventId"] == insert_kwargs["eventId"]
+
+
 class _FakeConn:
     """測試用假 DB 連線"""
     def __init__(self, rows=None):
@@ -1401,3 +2155,106 @@ class _FakeConn:
         return self._rows[0] if self._rows else None
     def close(self):
         pass
+
+
+
+def test_sync_persists_redacted_credential_error(client, monkeypatch):
+    """同步失敗寫入 queue 時不得保存 credential path。"""
+    from app.database import get_db
+    from app.services import gcal_sync
+
+    conn = get_db()
+    try:
+        key_id = conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('sync-redaction-key','x.json','sr@cal')"
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,?, 'D', ?, '2026-08-28 00:00:00', 0, '')",
+            (701, key_id, "remote-event-701"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    service = MagicMock()
+    service.events().delete.return_value.execute.side_effect = FileNotFoundError(
+        "No such file or directory: C:/private/service-account.json"
+    )
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+
+    ok, fail, _ = gcal_sync.sync_pending([{
+        "appointment_id": 701,
+        "key_id": key_id,
+        "op_type": "D",
+        "google_event_id": "remote-event-701",
+        "last_modified_at": "2026-08-28 00:00:00",
+    }])
+
+    assert (ok, fail) == (0, 1)
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT last_error FROM appointment_sync_queue WHERE appointment_id=701 AND key_id=?",
+            (key_id,),
+        ).fetchone()
+        assert row["last_error"] == "Credential file unavailable"
+        assert "service-account.json" not in row["last_error"]
+    finally:
+        conn.close()
+
+
+
+def test_sync_rechecks_key_after_key_lock_before_remote_io(client, monkeypatch):
+    """key 在等待同步期間被刪除後，舊 snapshot 不得再建立 remote C event。"""
+    from contextlib import contextmanager
+
+    from app.database import get_db
+    from app.services import gcal_sync
+
+    conn = get_db()
+    try:
+        key_id = conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('stale-key-lock','x.json','skl@cal')"
+        ).lastrowid
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("stale-key-lock-appt", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,?, 'C', '', '2026-08-28 00:00:00', 0, '')",
+            (appt_id, key_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    service = MagicMock()
+
+    @contextmanager
+    def delete_key_while_waiting(locked_key_id):
+        assert locked_key_id == key_id
+        deleting = get_db()
+        try:
+            deleting.execute("DELETE FROM gcal_keys WHERE id=?", (key_id,))
+            deleting.commit()
+        finally:
+            deleting.close()
+        yield
+
+    monkeypatch.setattr(gcal_sync, "_key_process_lock", delete_key_while_waiting)
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+
+    ok, fail, _ = gcal_sync.sync_pending([{
+        "appointment_id": appt_id,
+        "key_id": key_id,
+        "op_type": "C",
+        "google_event_id": "",
+        "last_modified_at": "2026-08-28 00:00:00",
+    }])
+
+    assert (ok, fail) == (0, 0)
+    service.events().insert.assert_not_called()

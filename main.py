@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     try:
         cleanup_expired(_conn)      # 2026-08-15：啟動時清理過期 session（避免 sessions 表無限增長）
         init_admin_if_missing(_conn)
-        sync_scheduler.start()   # 無啟用 key → no-op
+        sync_scheduler.start()   # worker 一律啟動；無啟用 key 時單輪 no-op
     finally:
         _conn.close()
     yield

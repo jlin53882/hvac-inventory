@@ -190,7 +190,7 @@ function calShowSyncError(apptId) {
   if (!e) return;
   document.getElementById('cal-sync-err-client').textContent = e.client_name || '';
   document.getElementById('cal-sync-err-date').textContent = e.date || '';
-  const statusMap = { failed: '❌ 同步失敗', partial_failed: '⚠️ 部分同步失敗', pending: '⏳ 等待同步' };
+  const statusMap = { failed: '❌ 同步失敗', partial_failed: '⚠️ 部分同步失敗', partial_retrying: '🔄 部分同步重試中', retrying: '🔄 同步重試中', pending: '⏳ 等待同步' };
   document.getElementById('cal-sync-err-status').textContent = statusMap[e.sync_status] || e.sync_status;
   document.getElementById('cal-sync-err-key').textContent = e.sync_error_key || '（未知 Key）';
   document.getElementById('cal-sync-err-cal').textContent = e.sync_error_cal || '（未知日曆）';

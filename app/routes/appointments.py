@@ -32,31 +32,48 @@ def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
     """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
     獨立短連線，失敗不影響主操作。
     A4：C/U op 每次都進 queue（hash-skip 已移除——queue 是暫態，不值得為省 row 引入 op_type 錯位風險）。"""
-    if not gcal_sync.is_enabled():
+    # C/U 需要 active key 才有目標；D 則依賴保留下來的 map/event id，
+    # 即使唯一 key 已停用也必須保留刪除任務，不能把本地刪除當成遠端成功。
+    if op in ("C", "U") and not gcal_sync.is_enabled():
+        return
+    if op == "D" and not map_rows:
         return
     try:
         c = get_db()
         try:
+            # Serialize the existence check and queue upsert with appointment writes.
+            # A delayed C/U after DELETE must not resurrect the deleted appointment.
+            c.execute("BEGIN IMMEDIATE")
             if op in ("C", "U"):
+                if c.execute("SELECT 1 FROM appointments WHERE id=?", (appt_id,)).fetchone() is None:
+                    c.rollback()
+                    return
                 keys = gcal_sync.resolve_target_keys(c, appt_id)
             else:  # D
                 keys = [r[0] for r in map_rows] if map_rows else []
+            version = gcal_sync.sync_version_now()
             for key_id in keys:
                 gid = next((g for (k, g) in map_rows if k == key_id), "") if map_rows else ""
                 c.execute(
                     "INSERT INTO appointment_sync_queue(appointment_id, key_id, op_type,"
                     " google_event_id, last_modified_at, attempts, last_error) "
-                    " VALUES(?,?,?,?,datetime('now'),0,'') "
+                    " VALUES(?,?,?,?,?,0,'') "
                     " ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
                     " op_type=excluded.op_type, google_event_id=excluded.google_event_id,"
                     " last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
-                    (appt_id, key_id, op, gid))
+                    (appt_id, key_id, op, gid, version))
             c.commit()
         finally:
             c.close()
+        # queue 已提交後只喚醒既有 worker；normal run 仍遵守 debounce。
+        from app.services import sync_scheduler
+        sync_scheduler.start()
+        sync_scheduler.wake()
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning("gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, e)
+        logging.getLogger(__name__).warning(
+            "gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, gcal_sync.safe_sync_error(e)
+        )
 
 
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -128,31 +145,15 @@ def _find_conflict(conn, user_ids, date, start_time, end_time, exclude_id=0):
 
 
 def _sync_status(conn, appt_id: int) -> str:
-    """回傳同步狀態：synced / partial_failed / pending / failed / none
-
-    多 key 情境：appointment_gcal_map 有任一列 = 至少一個 key 已同步，
-    但若 sync_queue 仍有失敗/等待列（其他 key 未完成）→ 不可回 synced。
-    """
-    # 有 gcal_map → 至少一個 key 已同步
-    m = conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=?", (appt_id,)).fetchone()
-    # 有 sync_queue → 還有 key 待處理或失敗
-    q = conn.execute(
-        "SELECT last_error, attempts FROM appointment_sync_queue WHERE appointment_id=?",
+    """回傳同步狀態，attempts 1~4 的錯誤屬於 retrying，不是永久 failed。"""
+    mapped = conn.execute(
+        "SELECT 1 FROM appointment_gcal_map WHERE appointment_id=?", (appt_id,)
+    ).fetchone() is not None
+    rows = conn.execute(
+        "SELECT attempts, last_error FROM appointment_sync_queue WHERE appointment_id=?",
         (appt_id,),
     ).fetchall()
-    has_failed = any(r["last_error"] for r in q)
-    has_pending = bool(q) and not has_failed
-    if m:
-        if has_failed:
-            return "partial_failed"   # 部分 key 成功 + 部分失敗
-        if has_pending:
-            return "pending"          # 部分 key 成功 + 部分等待中
-        return "synced"
-    # 無 map：全看 queue
-    if q:
-        return "failed" if has_failed else "pending"
-    return "none"
-
+    return gcal_sync.appointment_sync_status(mapped, rows)
 
 def _sync_statuses(conn, appt_ids):
     """批次計算多筆行程的 Google sync status，回傳 {id: {"status": str, "error": str|None, "key_name": str, "cal_id": str}}。"""
@@ -168,7 +169,8 @@ def _sync_statuses(conn, appt_ids):
             chunk,
         ).fetchall())
         queue_rows.extend(conn.execute(
-            "SELECT q.appointment_id, q.last_error, q.key_id, k.name AS key_name, k.calendar_id "
+            "SELECT q.appointment_id, q.last_error, q.attempts, q.op_type, q.key_id, "
+            "k.name AS key_name, k.calendar_id "
             "FROM appointment_sync_queue q LEFT JOIN gcal_keys k ON k.id = q.key_id "
             "WHERE q.appointment_id IN (" + placeholders + ")",
             chunk,
@@ -180,20 +182,17 @@ def _sync_statuses(conn, appt_ids):
     result = {}
     for appt_id in ids:
         entries = queue.get(appt_id, [])
-        errors = [r["last_error"] for r in entries]
-        has_failed = any(errors)
-        has_pending = bool(errors) and not has_failed
-        if appt_id in mapped:
-            status = "partial_failed" if has_failed else "pending" if has_pending else "synced"
-        else:
-            status = "failed" if has_failed else "pending" if errors else "none"
-        # 取第一個有 error 的 entry 的 key 資訊
-        failed_entry = next((r for r in entries if r["last_error"]), None)
+        status = gcal_sync.appointment_sync_status(appt_id in mapped, entries)
+        # 混合狀態優先顯示 attempts 較高的錯誤，讓 partial_failed 不被 retrying 詳情掩蓋。
+        failed_entries = [r for r in entries if r["last_error"]]
+        failed_entry = max(failed_entries, key=lambda r: int(r["attempts"] or 0), default=None)
         result[appt_id] = {
             "status": status,
-            "error": failed_entry["last_error"] if failed_entry else None,
+            "error": gcal_sync.safe_sync_error(failed_entry["last_error"]) if failed_entry else None,
             "key_name": (failed_entry["key_name"] or "") if failed_entry else "",
             "cal_id": (failed_entry["calendar_id"] or "") if failed_entry else "",
+            "attempts": failed_entry["attempts"] if failed_entry else 0,
+            "op_type": failed_entry["op_type"] if failed_entry else "",
         }
     return result
 
@@ -235,7 +234,7 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
     for appt_id in ids:
         row = by_id[appt_id]
         people = assignees.get(appt_id, [])
-        sync_info = statuses.get(appt_id, {"status": "none", "error": None, "key_name": "", "cal_id": ""})
+        sync_info = statuses.get(appt_id, {"status": "none", "error": None, "key_name": "", "cal_id": "", "attempts": 0, "op_type": ""})
         result.append({
             "id": row["id"],
             "client_name": row["client_name"],
@@ -261,6 +260,8 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
             "sync_error": sync_info.get("error") or "",
             "sync_error_key": sync_info.get("key_name") or "",
             "sync_error_cal": sync_info.get("cal_id") or "",
+            "sync_error_attempts": sync_info.get("attempts", 0),
+            "sync_error_op": sync_info.get("op_type") or "",
         })
     return result
 

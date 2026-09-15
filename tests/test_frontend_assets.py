@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -1410,7 +1411,6 @@ def test_xss_escapes_present():
     # Phase 1（2026-08-11）：已領出 modal 位置選項顯示文字 + topbar 帳號名 escape
     so = read(os.path.join(STATIC, "js", "modals", "stockout.js"))
     assert "esc(s.location || '未標示')" in so  # H1：option 顯示文字也走 esc
-    au = read(AUTH_JS)
     # Shell v2: avatar dropdown is static HTML (textContent safe, no esc needed)
     # Shell v2: avatar dropdown is static HTML
     ut = read(UTILS_JS)
@@ -1440,7 +1440,6 @@ def test_changepw_expiry_ui_present():
     # Shell v2: logout is static HTML in dropdown
     # Shell v2: logout text is static HTML  # 登出按鈕含文字（手機版 .users-text 會被隱藏 → 獨立 span）
     # Shell v2: no topbar menu button（2026-08-13 Sarah：不要下拉選單）
-    css_all = read_css_all()
     # Shell v2: .btn-logout-direct CSS 規則已移除（topbar user menu 不再使用）
     bs = read(BOTTOMSHEET_JS)
     # 2026-08-13 Sarah：☰ 功能選單整個移除（不要下拉選單）——openTopMenu 已刪
@@ -4017,3 +4016,59 @@ def test_calendar_btn_edit_is_feature_owned():
             assert not token.search(read(js_path)), (
                 f"non-Calendar JS must not produce exact .btn-edit: {js_path}"
             )
+
+def test_gcal_sync_health_and_queue_ui_contract():
+    """設定頁必須接上 health、queue、指定列 retry，且不把錯誤只留在 calendar card。"""
+    js = read(SETTINGS_JS)
+    html = read(SETTINGS_HTML)
+    assert "/api/gcal-sync-status" in js
+    assert "/api/gcal-sync-queue" in js
+    assert "retrySyncQueue" in js
+    assert "gcal-sync-health" in js
+    assert "gcal-sync-issues" in js
+    assert "data-sync-appt" in js
+    assert "Key 已停用，等待重新啟用" in js
+    assert "paused_count" in js
+    assert "gcal-sync-health" in html
+    assert "gcal-sync-issues" in html
+
+
+def test_gcal_sync_health_mobile_cards_contract():
+    """設定頁新增同步資訊在手機要使用 card stack，不得固定 table 寬度。"""
+    html = read(SETTINGS_HTML)
+    assert ".gcal-sync-issue" in html
+    assert "@media (max-width: 768px)" in html
+    assert ".gcal-sync-issue-actions" in html
+
+
+def test_calendar_sync_status_semantic_css_contract():
+    """Calendar badge 對 retrying/partial 狀態有低干擾的個別顏色。"""
+    js = read_calendar_js_all()
+    css = read(CSS_CAL)
+    for token in ("retrying", "partial_retrying", "partial_failed", "failed"):
+        assert token in js
+        assert f".cal-sync-{token}" in css
+
+
+def test_calendar_sync_status_labels_distinguish_retry_and_exhausted():
+    js = read_calendar_js_all()
+    assert "同步重試中" in js
+    assert "部分同步重試中" in js
+    assert "同步失敗" in js
+    assert "status === 'partial_retrying' ? '🔄'" in js
+    assert "status === 'retrying' ? '🔄'" in js
+
+
+def test_gcal_sync_interval_explains_debounce_semantics():
+    js = read(SETTINGS_JS)
+    assert "掃描待同步隊列" in js
+    assert "5 分鐘編輯防抖等待" in js
+    assert "立即同步會略過防抖" in js
+
+
+
+def test_gcal_key_modal_does_not_render_server_credentials_path():
+    """前端編輯 key 不得把 server-side credential path 回填到 input。"""
+    source = (Path(STATIC) / "js" / "modals" / "gcal-key.js").read_text(encoding="utf-8")
+    assert "k.credentials_path" not in source
+    assert "server path is intentionally not exposed" in source

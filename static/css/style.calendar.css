@@ -351,3 +351,12 @@
     white-space: nowrap;
   }
 }
+
+/* Google sync state badges: quiet but semantically distinct. */
+.cal-sync-synced { background: #ecfdf5; color: #15803d; }
+.cal-sync-pending { background: #eff6ff; color: #2563eb; }
+.cal-sync-retrying, .cal-sync-partial_retrying { background: #fffbeb; color: #b45309; }
+.cal-sync-partial_failed { background: #fff7ed; color: #c2410c; }
+.cal-sync-failed { background: #fff1f2; color: #b91c1c; }
+.cal-sync-clickable.cal-sync-retrying, .cal-sync-clickable.cal-sync-partial_retrying { border-color: #fcd34d; }
+.cal-sync-clickable.cal-sync-failed, .cal-sync-clickable.cal-sync-partial_failed { border-color: #fecaca; }

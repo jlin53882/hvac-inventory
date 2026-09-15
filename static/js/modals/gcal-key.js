@@ -1,5 +1,5 @@
 // gcal-key.js — Google 行事曆同步 Key 新增/編輯 Modal
-// 新增可上傳 .json；編輯目前只送伺服器路徑（不重新上傳憑證）。
+// 新增可上傳 .json；編輯也可重新上傳，但伺服器端憑證路徑不回傳到瀏覽器。
 // 依賴：utils.js（esc/toast）、settings.js（gcalKeys/loadGcalKeys/renderGcalPanel）
 
 var _gcalEditingId = null;  // null=新增, 數字=編輯
@@ -40,7 +40,7 @@ function openGcalKeyModal(id) {
     // 編輯模式：填入現有值
     const k = gcalKeys.find(x => x.id === _gcalEditingId);
     document.getElementById('gk-name').value = k ? k.name : '';
-    document.getElementById('gk-cred').value = k ? k.credentials_path : '';
+    document.getElementById('gk-cred').value = ''; // server path is intentionally not exposed
     clearGcalFile();
     document.getElementById('gk-cal').value = k ? k.calendar_id : '';
     document.querySelector('#gcalKeyModal h4').textContent = '✏️ 編輯 Service Account Key';

@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.database import get_db
 from app.models import UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate
 from app.services.auth import _check_pw, get_user_permissions, hash_password, require_perm
+from app.services import gcal_sync
 
 # 使用者管理 API 路由
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -103,6 +104,36 @@ def _audit(conn, operator_id: int, target_id: int, action: str, detail: str = ""
     )
 
 
+def _reconcile_user_gcal_key(user_id: int) -> None:
+    """使用者換綁定 Key 後，為既有行程建立新 target 並刪除舊 target。"""
+    conn = get_db()
+    try:
+        appt_ids = [r["appointment_id"] for r in conn.execute(
+            "SELECT DISTINCT appointment_id FROM appointment_assignees WHERE user_id=?", (user_id,)
+        ).fetchall()]
+        changes = []
+        for appt_id in appt_ids:
+            target_ids = set(gcal_sync.resolve_target_keys(conn, appt_id))
+            maps = conn.execute(
+                "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
+                (appt_id,),
+            ).fetchall()
+            orphan_rows = [
+                (row["key_id"], row["google_event_id"])
+                for row in maps if row["key_id"] not in target_ids
+            ]
+            changes.append((appt_id, orphan_rows))
+    finally:
+        conn.close()
+
+    # 只在讀取/計算完成後寫 queue，避免持 DB 連線跨任何外部工作。
+    from app.routes.appointments import mark_sync_pending
+    for appt_id, orphan_rows in changes:
+        mark_sync_pending(appt_id, "U")
+        if orphan_rows:
+            mark_sync_pending(appt_id, "D", map_rows=orphan_rows)
+
+
 # ---------- API ----------
 @router.get("")
 def list_users(admin: dict = Depends(require_perm("user-mgmt"))):
@@ -141,7 +172,7 @@ def create_users_batch(body: UserBatch, admin: dict = Depends(require_perm("user
         created = 0
         for u in body.users:
             try:
-                user = _create_user_single(conn, u, operator_id=admin["id"])
+                _create_user_single(conn, u, operator_id=admin["id"])
                 created += 1
                 results.append({"username": u.username.strip(), "status": "ok", "detail": "已建立"})
             except HTTPException as e:
@@ -187,6 +218,8 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
                     raise HTTPException(status_code=400, detail="系統至少需要一名啟用的管理員")
 
         gcal_key = row["gcal_key"] if body.gcal_key is None else body.gcal_key.strip()
+        display_name_changed = body.display_name is not None and display_name != row["display_name"]
+        gcal_key_changed = body.gcal_key is not None and gcal_key != row["gcal_key"]
         conn.execute(
             "UPDATE users SET display_name = ?, role = ?, is_active = ?, color = ?, gcal_key = ?, updated_at = datetime('now') WHERE id = ?",
             (display_name, role, is_active, color, gcal_key, user_id),
@@ -201,12 +234,29 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
             _audit(conn, admin["id"], user_id, "deactivate" if is_active == 0 else "activate",
                    json.dumps({"is_active": is_active}, ensure_ascii=False))
         conn.commit()
-        return _user_out(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
+        result = _user_out(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+
+    if gcal_key_changed:
+        _reconcile_user_gcal_key(user_id)
+    # display_name 會進入 Google description；只失效此使用者被指派行程的既有 mappings。
+    elif display_name_changed:
+        affected_conn = get_db()
+        try:
+            affected_ids = [r["appointment_id"] for r in affected_conn.execute(
+                "SELECT DISTINCT appointment_id FROM appointment_assignees WHERE user_id=?", (user_id,)
+            ).fetchall()]
+        finally:
+            affected_conn.close()
+        if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
+            from app.services import sync_scheduler
+            sync_scheduler.start()
+            sync_scheduler.wake()
+    return result
 
 
 @router.put("/{user_id}/password")
