@@ -37,7 +37,7 @@ async function submitKit() {
     const res = await fetch('/api/kits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, items: items, note: document.getElementById('k-note').value.trim() })
+      body: JSON.stringify({ name: name, site: currentSite, items: items, note: document.getElementById('k-note').value.trim() })
     });
     if (!res.ok) throw new Error();
     closeModalForce('kit-modal');

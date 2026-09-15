@@ -20,6 +20,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
+from app.models import InventorySiteQuery
 from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
@@ -223,7 +224,7 @@ def stock_out_nonstock(req: NonStockOutRequest):
 
 
 @router.get("/api/stockouts", dependencies=[Depends(require_perm("prepared"))])
-def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[str] = None):
+def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[InventorySiteQuery] = None):
     """出庫紀錄（含去向）+ 退回紀錄（2026-09-07 Sarah：退回要顯示在已領出頁）"""
     conn = get_db()
     sql = """
@@ -234,7 +235,7 @@ def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", sit
     """
     params = []
     if site and site != "all":
-        sql += " AND (i.site = ? OR i.is_deleted = 1)"
+        sql += " AND (i.site = ? OR (i.is_deleted = 1 AND i.site = ''))"
         params.append(site)
     if search:
         sql += " AND (m.destination LIKE ? OR i.name LIKE ? OR i.brand LIKE ?)"
@@ -739,13 +740,13 @@ def prepared_return(item_id: int, req: PrepareRequest):
     finally:
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.get("/api/prepared", dependencies=[Depends(require_perm("prepared"))])
-def list_prepared(site: Optional[str] = None):
+def list_prepared(site: Optional[InventorySiteQuery] = None):
     """準備中清單（已領出尚未出庫）"""
     conn = get_db()
     where = ""
     params = ()
     if site and site != "all":
-        where = " AND (site = ? OR is_deleted = 1)"  # 2026-08-16 修復：非庫存品項（is_deleted=1, site=''）不分 site 永遠顯示（比照 list_stock_outs）
+        where = " AND (site = ? OR (is_deleted = 1 AND site = ''))"  # 2026-08-16 修復：非庫存品項（is_deleted=1, site=''）不分 site 永遠顯示（比照 list_stock_outs）
         params = (site,)
     rows = conn.execute(f"""
         SELECT * FROM items WHERE prepared_qty > 0 AND (is_deleted = 0 OR site = ''){where} ORDER BY brand COLLATE NOCASE, name

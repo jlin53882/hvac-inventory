@@ -4113,3 +4113,84 @@ def test_gcal_sync_wording_describes_all_keys_and_trigger_semantics():
     assert "所有啟用中的 Google Calendar Key 共用此掃描間隔" in source
     assert "已觸發全部 Key 立即同步" in source
     assert "立即處理待同步" not in source
+
+def test_vehicle_inventory_sites_are_wired_in_frontend():
+    index = read(INDEX)
+    globals_js = read(GLOBALS_JS)
+    app_js = read(APP_JS)
+    api_js = read(API_JS)
+    for site, label in (("van", "廂型車"), ("truck", "貨車")):
+        assert f'id="site-{site}"' in index
+        assert label in index
+        assert f"switchSite('{site}')" in index
+    assert "['office', 'warehouse', 'van', 'truck']" in globals_js
+    assert "INVENTORY_SITES.indexOf(site)" in app_js
+    assert "van: summary.van || {}" in api_js
+    assert "truck: summary.truck || {}" in api_js
+    assert index.count('value="van"') == 2
+    assert index.count('value="truck"') == 2
+
+
+def test_inventory_transfer_ui_is_mounted_and_wired():
+    index = read(INDEX)
+    transfer = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    inventory = read(INVENTORY_RENDER_JS)
+    kits = read(KITS_RENDER_JS)
+    assert '/static/js/modals/transfer.js' in index
+    assert 'id="transfer-modal"' in index
+    assert 'function openTransferModal' in transfer
+    assert '/api/inventory/transfers' in transfer
+    assert 'openTransferModal(itemId)' in inventory
+    assert 'openTransferModal(${k.item_id})' in kits
+
+
+def test_stocktake_frontend_sends_current_site():
+    stocktake = read(os.path.join(STATIC, "js", "render", "stocktake.js"))
+    assert "site: currentSite" in stocktake
+    assert "/api/stocktake/dates?site=${encodeURIComponent(currentSite)}" in stocktake
+def test_submit_kit_sends_current_site():
+    js = read(KIT_MODAL_JS)
+    assert "site: currentSite" in js
+    assert "JSON.stringify({ name: name, site: currentSite" in js
+
+
+def test_url_restore_uses_all_inventory_sites():
+    js = read(APP_JS)
+    assert "var _SITES" not in js
+    assert "INVENTORY_SITES.indexOf(_s) >= 0" in js
+    assert "currentSite = _s" in js
+
+
+def test_existing_item_edit_cannot_change_site():
+    js = read(EDIT_JS)
+    assert "getElementById('e-site').disabled = true" in js
+    assert "site: document.getElementById('e-site').value" not in js
+
+
+def test_transfer_empty_location_is_not_serialized_as_all_locations():
+    js = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    assert "sourceLocationValue === '__ALL__' ? null : sourceLocationValue" in js
+    assert "value || null" not in js
+
+
+def test_batch_location_only_sends_location():
+    js = read(INVENTORY_RENDER_JS)
+    assert "new_site: site" not in js
+    assert "new_location: target" in js
+def test_transfer_submit_has_single_flight_guard():
+    js = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    index = read(INDEX)
+    assert "var transferSubmitting = false" in js
+    assert "if (!transferItemId || transferSubmitting) return" in js
+    assert "transferSubmitting = true" in js
+    assert "transferSubmitting = false" in js
+    assert 'id="transfer-submit"' in index
+    assert "submitBtn.disabled = true" in js
+    assert "submitBtn.textContent = '調撥中…'" in js
+
+
+def test_transfer_uses_shared_qty_contract():
+    js = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    assert "Qty.validFor" in js
+    assert "Qty.inputTypeOf" in js
+    assert "Number(document.getElementById('transfer-qty').value)" not in js

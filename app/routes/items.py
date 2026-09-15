@@ -20,7 +20,15 @@ from typing import Optional
 from fastapi import Depends, APIRouter, Body, HTTPException
 
 from app.database import get_db
-from app.models import AdjustRequest, BatchLocationRequest, ItemCreate, ItemUpdate, StockUpdate
+from app.models import (
+    AdjustRequest,
+    BatchLocationRequest,
+    InventorySiteQuery,
+    ItemCreate,
+    ItemUpdate,
+    INVENTORY_SITES,
+    StockUpdate,
+)
 from app.routes.photos import has_photo, list_photo_ids
 from app.services.auth import require_perm
 from app.services.file_storage import delete_asset_files
@@ -174,7 +182,7 @@ def list_items(
     search: Optional[str] = None,
     location: Optional[str] = None,
     sort: str = "brand",
-    site: Optional[str] = None,
+    site: Optional[InventorySiteQuery] = None,
     category: Optional[str] = None,
     categories: Optional[str] = None,
     brands: Optional[str] = None,
@@ -269,7 +277,7 @@ def list_items(
 
 
 @router.get("/api/items/facets")
-def item_facets(site: Optional[str] = None):
+def item_facets(site: Optional[InventorySiteQuery] = None):
     """回傳庫存篩選 facets，不需把完整品項清單送到瀏覽器。"""
     conn = get_db()
     try:
@@ -348,7 +356,7 @@ def update_item(item_id: int, upd: ItemUpdate):
         """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
         conn = get_db()
         conn.execute("BEGIN IMMEDIATE")
-        row0 = conn.execute("SELECT id, updated_at FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+        row0 = conn.execute("SELECT id, site, updated_at FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row0:
             raise HTTPException(404, "品項不存在")
         data = upd.model_dump()
@@ -356,6 +364,8 @@ def update_item(item_id: int, upd: ItemUpdate):
         # updated_at 是樂觀鎖快照值不可當 SET 欄位覆寫）
         fields = {k: v for k, v in data.items()
                   if k not in ("qty", "location", "note", "stocks", "updated_at") and v is not None}
+        if fields.get("site") is not None and fields["site"] != row0["site"]:
+            raise HTTPException(400, "品項不能直接變更庫存區，請使用庫存調撥")
         if not fields and data.get("stocks") is None:
             raise HTTPException(400, "沒有要更新的欄位")
         if fields:
@@ -727,6 +737,9 @@ def import_items(items: list = Body(..., embed=True)):
                 raise HTTPException(400, f"第 {i} 筆格式錯誤（需為 JSON 物件）")
             if not str(it.get("name", "")).strip():
                 raise HTTPException(400, f"第 {i} 筆缺少品項名稱")
+            site = it.get("site", "office")
+            if site not in INVENTORY_SITES:
+                raise HTTPException(400, f"第 {i} 筆庫存區無效：{site}")
             try:
                 qty_v = canonical_qty(it.get("qty", 0))
                 if qty_v < 0:  # 2026-08-12 補：負數入庫會造成負庫存（其他路徑都有 ge=0，import 獨漏）
@@ -812,40 +825,25 @@ def batch_update_location(body: BatchLocationRequest):
                 item = conn.execute("SELECT name FROM items WHERE id=?", (row["item_id"],)).fetchone()
                 raise HTTPException(400, f"「{item['name']}」在「{body.new_location}」已有庫存記錄")
 
-        # 若指定新分片，品項主檔與選取的位置庫存一起搬移
+        # new_site 僅保留向後相容驗證；跨 site 必須使用正式 transfer API。
         if body.new_site:
-            item_ids = {row["item_id"] for row in rows}
-            for item_id in item_ids:
-                item = conn.execute(
-                    "SELECT brand, code, name, unit FROM items WHERE id=? AND is_deleted=0",
-                    (item_id,),
-                ).fetchone()
-                duplicate = conn.execute(
-                    """SELECT id FROM items
-                       WHERE brand=? AND code=? AND name=? AND unit=?
-                         AND site=? AND is_deleted=0 AND id!=?""",
-                    (item["brand"], item["code"], item["name"], item["unit"],
-                     body.new_site, item_id),
-                ).fetchone()
-                if duplicate:
-                    raise HTTPException(
-                        400,
-                        f"品項「{item['name']}」在「{body.new_site}」已有主檔，無法搬移",
-                    )
+            item_ids = list({row["item_id"] for row in rows})
+            item_placeholders = ",".join("?" * len(item_ids))
+            item_sites = {
+                item["site"] for item in conn.execute(
+                    "SELECT DISTINCT site FROM items WHERE id IN (" + item_placeholders + ") AND is_deleted=0",
+                    item_ids,
+                ).fetchall()
+            }
+            if any(site != body.new_site for site in item_sites):
+                raise HTTPException(400, "品項不能直接變更庫存區，請使用庫存調撥")
 
-        # 批次更新位置（M3：統一使用 Python isoformat 精度，不混用 SQLite datetime('now')）
+        # 批次更新位置；此 API 永遠不修改 items.site。
         now = datetime.datetime.now().isoformat()
         conn.execute(
             f"UPDATE item_stocks SET location=?, updated_at=? WHERE id IN ({placeholders})",
             [body.new_location, now] + body.stock_ids
         )
-        if body.new_site:
-            item_ids = {row["item_id"] for row in rows}
-            item_placeholders = ",".join("?" * len(item_ids))
-            conn.execute(
-                f"UPDATE items SET site=?, updated_at=? WHERE id IN ({item_placeholders})",
-                [body.new_site, now] + list(item_ids),
-            )
         conn.commit()
         return {"ok": True, "updated": len(body.stock_ids)}
     except HTTPException:
