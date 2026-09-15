@@ -826,7 +826,7 @@
     <div class="form-row"><label for="transfer-target-site">目標庫存區</label><select id="transfer-target-site"></select></div>
     <div class="form-row"><label for="transfer-target-location">目標位置</label><input type="text" id="transfer-target-location" maxlength="100" placeholder="車內工具櫃｜左側"></div>
     <div id="transfer-error" role="alert" style="color:#b91c1c;min-height:20px"></div>
-    <div class="modal-actions"><button class="btn-cancel" onclick="closeTransferModal()">取消</button><button class="btn-confirm" onclick="submitTransfer()">✅ 確認調撥</button></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeTransferModal()">取消</button><button type="button" class="btn-confirm" id="transfer-submit" onclick="submitTransfer()">✅ 確認調撥</button></div>
   </div>
 </div>
 </body>
