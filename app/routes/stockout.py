@@ -23,6 +23,7 @@ from app.database import get_db
 from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
+from app.services.inventory_stock import assert_projected_inventory
 from app.services.quantity import canonical_qty
 
 # 出庫/待領出 API 路由
@@ -155,17 +156,15 @@ def stock_out(req: StockOutRequest):
     qty = _positive_qty(req.qty, "出庫數量")
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
         before = _total_qty(conn, req.item_id)
         if before < qty:
             raise HTTPException(400, f"庫存不足！目前只剩 {before} {row['unit']}")
-        # M3：出庫後剩餘不得低於待領出數量（保留準備量給「確認出庫」；與 adjust_qty 守衛一致）
-        prepared = _canonical_qty(row["prepared_qty"] or 0)
-        remaining_after = _canonical_qty(before - qty)
-        if remaining_after < prepared:
-            raise HTTPException(400, f"出庫後剩餘庫存不能低於待領出數量！目前庫存 {before}、待領出 {prepared}，請從「待領出」確認出庫")
+        # P0-C：最終 committed state 必須滿足 total >= prepared（同一 writer transaction 內驗證）
+        assert_projected_inventory(conn, req.item_id, stock_delta=-qty)
 
         reason = "出庫"
         if req.note:
@@ -357,6 +356,8 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
             new_qty = _positive_qty(upd.qty, "數量")
             diff = _canonical_qty(new_qty - old_qty)  # >0 需多扣庫存；<0 補回庫存
             if diff > 0:
+                # P0-C：加量重扣不得把 total 壓到 prepared 之下（BEGIN IMMEDIATE 已持有）
+                assert_projected_inventory(conn, m["item_id"], stock_delta=-diff)
                 if m["source_stock_id"]:
                     _deduct_from_stock(conn, m["item_id"], diff, m["source_stock_id"])
                 else:
@@ -428,6 +429,8 @@ def update_stockout_return(movement_id: int, upd: StockoutReturnUpdate):
         old_stock = _stock_payload(conn, old_stock_id, row["item_id"])
         if not old_stock:
             raise HTTPException(400, "原退回位置不存在，無法調整")
+        # P0-C：位置/數量變更的最終 total 不得低於 prepared（BEGIN IMMEDIATE 已持有）
+        assert_projected_inventory(conn, row["item_id"], stock_delta=_canonical_qty(new_qty - old_qty))
 
         before_total = _canonical_qty(_total_qty(conn, row["item_id"]))
         movement_before = _canonical_qty(before_total - old_qty)
@@ -532,6 +535,8 @@ def delete_stockout_return(movement_id: int):
         parent_id = row["source_movement_id"]
         restored_qty = 0
         if not row["reverted_at"] and row["return_stock_id"]:
+            # P0-C：刪除活動退回 = 庫存減少，最終 total 不得低於 prepared
+            assert_projected_inventory(conn, row["item_id"], stock_delta=-_canonical_qty(row["delta"]))
             _deduct_from_stock(conn, row["item_id"], row["delta"], row["return_stock_id"])
             restored_qty = row["delta"]
 
@@ -651,6 +656,7 @@ def prepared_out(item_id: int, req: PrepareRequest):
     qty = _positive_qty(req.qty, "數量")
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
@@ -675,6 +681,9 @@ def prepared_out(item_id: int, req: PrepareRequest):
             return payload
 
         new_prepared = _canonical_qty(row["prepared_qty"] - qty)
+
+        # P0-C：projected final state 驗證（stock -qty 且 prepared -qty 同步降，3>=3 合法不過擋）
+        assert_projected_inventory(conn, item_id, stock_delta=-qty, prepared_delta=-qty)
 
         # 2026-08-14 審查修（P4-1）：before/after 用 _deduct 寫後重讀值（鏈一致）
         before, after, source_stock_id = _deduct(conn, item_id, qty, req.location)

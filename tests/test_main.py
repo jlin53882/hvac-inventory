@@ -176,6 +176,8 @@ class TestItemsCRUD:
         """v4 pro 審查補測 #5：位置刪光 → stocks=[]、qty=0、location=""、note=""（批量 path 空分支）"""
         item = _add_item(client, name="零庫存", qty=5, location="Z倉")
         sid = item["stocks"][0]["id"]
+        # P0-A：非 0 庫存不可直接 DELETE——先調零再刪
+        assert client.patch(f"/api/stocks/{sid}", json={"qty": 0}).status_code == 200
         r = client.delete(f"/api/stocks/{sid}")
         assert r.status_code == 200
         items = client.get("/api/items").json()
@@ -216,8 +218,11 @@ class TestItemsCRUD:
         assert len(items) == 1
 
     def test_update_item(self, client):
-        """v10：更新位置用 stocks 全量替換"""
+        """v10：更新位置用 stocks 全量替換（P1-A：有貨位置不可靜默移除）"""
         item = _add_item(client, name="舊名", qty=5, location="A倉")
+        # 先把A倉清零才能移除（P1-A 保護有貨位置不被靜默滅失）
+        sid = item["stocks"][0]["id"]
+        client.patch(f"/api/stocks/{sid}", json={"qty": 0})
         r = client.patch(f"/api/items/{item['id']}", json={
             "stocks": [
                 {"location": "B倉", "qty": 3},
@@ -323,11 +328,13 @@ class TestStocksCRUD:
         assert updated["total_qty"] == 8
 
     def test_delete_stock(self, client):
-        """驗證刪除位置庫存後總量同步扣減"""
+        """驗證刪除位置庫存後總量同步扣減（P0-A：先清零再刪）"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         client.post(f"/api/items/{item['id']}/stocks",
                     json={"location": "B倉", "qty": 3})
         sid = _get_item(client, item["id"])["stocks"][1]["id"]
+        # P0-A：非 0 庫存不可 DELETE——先調零
+        client.patch(f"/api/stocks/{sid}", json={"qty": 0})
         r = client.delete(f"/api/stocks/{sid}")
         assert r.status_code == 200
         updated = _get_item(client, item["id"])

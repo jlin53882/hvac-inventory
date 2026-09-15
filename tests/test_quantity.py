@@ -225,7 +225,8 @@ def test_write_paths_round3_structural():
         for i, line in enumerate(src.split("\n"), 1):
             if re.search(r"SET qty\s*=", line) and "ROUND(" not in line:
                 key = f"app/routes/{fn}:{i}"
-                if key not in whitelist and "qty=?" not in line:
+                # qty=0 與 qty=? 不需 ROUND（字面零/參數化寫入無 binary float 殘留風險）
+                if key not in whitelist and "qty=?" not in line and "qty=0" not in line:
                     bad.append(key + ": " + line.strip()[:80])
     assert not bad, f"qty 寫入缺 ROUND(...,3)：{bad}"
 

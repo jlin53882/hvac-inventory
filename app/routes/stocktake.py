@@ -16,6 +16,7 @@ from fastapi import Depends, APIRouter, HTTPException, Query
 from app.database import get_db
 from app.models import StocktakeSubmit
 from app.services.auth import require_perm
+from app.services.inventory_stock import assert_projected_inventory
 from app.services.quantity import canonical_qty
 
 # 盤點 API 路由
@@ -32,6 +33,7 @@ def submit_stocktake(req: StocktakeSubmit):
     """
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         take_date = req.take_date or datetime.date.today().isoformat()
         results = []
 
@@ -47,7 +49,8 @@ def submit_stocktake(req: StocktakeSubmit):
                 (it["item_id"], location),
             ).fetchone()
             if not stock:
-                continue
+                # P0-F：盤點屬高正確性操作，不可 silent skip——整批拒絕 + rollback
+                raise HTTPException(409, f"品項 {it['item_id']} 在「{location}」的庫存位置已異動，請重新載入盤點資料")
             item = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (it["item_id"],)).fetchone()
             if not item:  # M6：soft-delete 品項不可盤點
                 raise HTTPException(400, f"品項 {it['item_id']} 已刪除，無法盤點")
@@ -59,10 +62,10 @@ def submit_stocktake(req: StocktakeSubmit):
                 raise HTTPException(400, "盤點數量格式錯誤")
             if actual_qty < 0:  # M4：負數拒絕
                 raise HTTPException(400, "盤點數量不能為負數")
-            prepared = item["prepared_qty"] or 0
-            if actual_qty < prepared:  # M4：盤點後不得低於待領出數量
-                raise HTTPException(400, f"盤點數量不能低於待領出數量 {prepared}")
+            # P0-E：prepared 是 item total 級——判定式必須是
+            # other_locations_total + this_location_actual >= prepared
             diff = canonical_qty(actual_qty - system_qty)
+            assert_projected_inventory(conn, it["item_id"], stock_delta=diff)
             note = it.get("note", "")
 
             # 2026-08-14：樂觀鎖——寫回條件是「qty 仍是讀到的 system_qty」，
