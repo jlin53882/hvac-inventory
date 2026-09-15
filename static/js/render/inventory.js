@@ -384,6 +384,7 @@ function getInventoryItemActions(itemId, isViewer, includePhoto) {
     { key: 'edit', icon: '✏️', label: '編輯品項', fn: () => openEditModal(itemId) }
   ];
   if (includePhoto !== false) actions.push({ key: 'photo', icon: '📷', label: '更換照片', fn: () => openEditModal(itemId) });
+  if (hasPerm('stock-mgmt')) actions.push({ key: 'transfer', icon: '🔄', label: '調撥庫存', fn: () => openTransferModal(itemId) });
   actions.push({ key: 'delete', icon: '🗑', label: '刪除品項', cls: 'del', fn: () => deleteItem(itemId) });
   return actions;
 }
@@ -392,7 +393,7 @@ function buildInventoryItemActionMenu(itemId, isViewer) {
   const actions = getInventoryItemActions(itemId, isViewer, false);
   if (!actions.length) return '';
   const buttons = actions.map(a => {
-    const command = a.key === 'edit' ? 'openEditModal(' + itemId + ')' : 'deleteItem(' + itemId + ')';
+    const command = a.key === 'edit' ? 'openEditModal(' + itemId + ')' : (a.key === 'transfer' ? 'openTransferModal(' + itemId + ')' : 'deleteItem(' + itemId + ')');
     return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" onclick="' + command + ';closeInventoryActionMenus()">' + a.icon + ' ' + a.label + '</button>';
   }).join('');
   return '<div class="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" onclick="openInventoryActionMenu(this, event)">⋮</button><div class="inventory-action-dropdown">' + buttons + '</div></div>';

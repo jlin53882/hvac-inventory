@@ -3,19 +3,27 @@
 from fastapi import APIRouter, Query
 
 from app.database import get_db
+from app.models import InventorySiteQuery
 
 router = APIRouter()
 
 
 @router.get("/api/movements")
-def list_movements(limit: int = Query(50, ge=1, le=500)):
-    """異動紀錄（含品項名稱/品牌），依 id 倒序回傳最近 limit 筆"""
+def list_movements(limit: int = Query(50, ge=1, le=500), site: InventorySiteQuery = "all"):
+    """異動紀錄（含名稱/品牌/site），依 id 倒序並可按庫存區過濾。"""
     conn = get_db()
+    where = ""
+    params = []
+    if site != "all":
+        where = " WHERE i.site=?"
+        params.append(site)
+    params.append(limit)
     rows = conn.execute(
-        """SELECT m.*, i.name, i.brand FROM movements m
+        f"""SELECT m.*, i.name, i.brand, i.site FROM movements m
            JOIN items i ON i.id = m.item_id
+           {where}
            ORDER BY m.id DESC LIMIT ?""",
-        (limit,),
+        params,
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

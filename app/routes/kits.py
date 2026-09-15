@@ -17,7 +17,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException
 
 from app.database import get_db
-from app.models import KitAssemble, KitCreate
+from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, current_state
@@ -34,7 +34,7 @@ def _total(conn, item_id) -> float:
 
 
 @router.get("/api/kits", dependencies=[Depends(require_perm("kit-view"))])
-def list_kits(site: Optional[str] = None):
+def list_kits(site: Optional[InventorySiteQuery] = None):
     """套件清單（含組成材料）"""
     conn = get_db()
     where = ""
@@ -74,10 +74,14 @@ def create_kit(kit: KitCreate):
         raise HTTPException(400, "套件名稱與材料都不能空白")
     conn = get_db()
     try:
+        site: InventorySite = kit.site or "office"
+        # 先驗證材料存在且與整組同一分片，避免留下跨區 BOM
+        for i, comp in enumerate(kit.items, 1):
+            _validate_kit_comp(conn, comp, i, site)
         # 建立套件品項（v10：主檔 + 一筆空位置 stock）
         cur = conn.execute(
             "INSERT INTO items (brand, code, name, unit, is_kit, site) VALUES (?,?,?,?,1,?)",
-            (kit.brand.strip(), kit.code.strip(), kit.name, "組", "office"),
+            (kit.brand.strip(), kit.code.strip(), kit.name, "組", site),
         )
         kit_item_id = cur.lastrowid
         conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
@@ -114,8 +118,8 @@ def create_kit(kit: KitCreate):
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
-def _validate_kit_comp(conn, comp, i) -> None:
-    """整組材料單筆驗證：物件格式 / 數量必須 >0（防負 qty 假流水）/ 品項必須存在且未刪除"""
+def _validate_kit_comp(conn, comp, i, site: Optional[InventorySite] = None) -> None:
+    """整組材料單筆驗證：格式、正數、存在，且可選擇要求同一 site。"""
     if not isinstance(comp, dict):
         raise HTTPException(400, f"第 {i} 筆材料格式錯誤（需為 JSON 物件）")
     qty = comp.get("qty", 1)
@@ -128,8 +132,13 @@ def _validate_kit_comp(conn, comp, i) -> None:
     cid = comp.get("item_id")
     if not isinstance(cid, int) or isinstance(cid, bool):
         raise HTTPException(400, f"第 {i} 筆材料品項 id 格式錯誤")
-    if conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (cid,)).fetchone() is None:
+    component = conn.execute(
+        "SELECT id, site FROM items WHERE id=? AND is_deleted=0", (cid,)
+    ).fetchone()
+    if component is None:
         raise HTTPException(400, f"第 {i} 筆材料品項 id={cid} 不存在或已刪除")
+    if site and component["site"] != site:
+        raise HTTPException(400, f"第 {i} 筆材料必須位於「{site}」庫存區")
 
 
 @router.put("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -142,6 +151,14 @@ def update_kit(kit_id: int, kit: KitCreate):
         row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not row:
             raise HTTPException(404, "整組不存在")
+        kit_item = conn.execute("SELECT site FROM items WHERE id=? AND is_deleted=0", (row["item_id"],)).fetchone()
+        if kit_item is None:
+            raise HTTPException(404, "整組品項不存在或已刪除")
+        site = kit_item["site"]
+        if kit.site and kit.site != site:
+            raise HTTPException(400, "整組不能直接變更庫存區，請使用庫存調撥")
+        for i, comp in enumerate(kit.items, 1):
+            _validate_kit_comp(conn, comp, i, site)
         # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
         if kit.updated_at:
             cur = conn.execute(
@@ -162,7 +179,7 @@ def update_kit(kit_id: int, kit: KitCreate):
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
         seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i)
+            _validate_kit_comp(conn, comp, i, site)
             cid = comp["item_id"]
             if cid in seen_items:
                 raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")

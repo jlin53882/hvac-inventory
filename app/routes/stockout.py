@@ -22,6 +22,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
+from app.models import InventorySiteQuery
 from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
@@ -240,7 +241,7 @@ def stock_out_nonstock(req: NonStockOutRequest):
 
 
 @router.get("/api/stockouts", dependencies=[Depends(require_perm("prepared"))])
-def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[str] = None):
+def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[InventorySiteQuery] = None):
     """出庫紀錄（含去向）+ 退回紀錄（2026-09-07 Sarah：退回要顯示在已領出頁）"""
     conn = get_db()
     sql = """
@@ -752,7 +753,7 @@ def prepared_return(item_id: int, req: PrepareRequest):
     finally:
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.get("/api/prepared", dependencies=[Depends(require_perm("prepared"))])
-def list_prepared(site: Optional[str] = None):
+def list_prepared(site: Optional[InventorySiteQuery] = None):
     """準備中清單（已領出尚未出庫）"""
     conn = get_db()
     where = ""

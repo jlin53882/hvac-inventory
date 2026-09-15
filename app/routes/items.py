@@ -20,7 +20,14 @@ from typing import Optional
 from fastapi import Depends, APIRouter, Body, HTTPException
 
 from app.database import get_db
-from app.models import AdjustRequest, BatchLocationRequest, ItemCreate, ItemUpdate, StockUpdate
+from app.models import (
+    AdjustRequest,
+    BatchLocationRequest,
+    InventorySiteQuery,
+    ItemCreate,
+    ItemUpdate,
+    StockUpdate,
+)
 from app.routes.photos import has_photo, list_photo_ids
 from app.services.auth import require_perm
 from app.services.file_storage import delete_asset_files
@@ -174,7 +181,7 @@ def list_items(
     search: Optional[str] = None,
     location: Optional[str] = None,
     sort: str = "brand",
-    site: Optional[str] = None,
+    site: Optional[InventorySiteQuery] = None,
     category: Optional[str] = None,
     categories: Optional[str] = None,
     brands: Optional[str] = None,
@@ -269,7 +276,7 @@ def list_items(
 
 
 @router.get("/api/items/facets")
-def item_facets(site: Optional[str] = None):
+def item_facets(site: Optional[InventorySiteQuery] = None):
     """回傳庫存篩選 facets，不需把完整品項清單送到瀏覽器。"""
     conn = get_db()
     try:

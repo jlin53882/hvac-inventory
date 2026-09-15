@@ -10,7 +10,7 @@ async function renderStocktake() {
   let takeDates = [];
   let loadError = false;
   try {
-    const res = await fetch('/api/stocktake/dates');
+    const res = await fetch(`/api/stocktake/dates?site=${encodeURIComponent(currentSite)}`);
     if (!res.ok) { console.error('[renderStocktake] /api/stocktake/dates 失敗', res.status); throw new Error('dates ' + res.status); }
     takeDates = await res.json();
   } catch (e) {
@@ -230,7 +230,7 @@ async function submitStocktake() {
     const res = await fetch('/api/stocktake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ take_date: todayStr(), items: items })
+      body: JSON.stringify({ take_date: todayStr(), site: currentSite, items: items })
     });
     if (!res.ok) throw new Error();
     const r = await res.json();
