@@ -600,6 +600,68 @@ class TestStockRevisionContract:
 
 
 
+# ========== Transient UNIQUE collision fix ==========
+
+class TestLocationRenameTwoPhase:
+    def test_existing_stock_locations_can_swap(self, client):
+        """A ↔ B swap: two-phase rename prevents intermediate UNIQUE collision."""
+        item = _add_item(client, name="冷媒",
+                         stocks=[{"location": "A倉", "qty": 5, "note": ""},
+                                 {"location": "B倉", "qty": 3, "note": ""}])
+        sa = item["stocks"][0]  # A倉 id=...
+        sb = item["stocks"][1]  # B倉 id=...
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sa["id"], "location": "B倉", "qty": 5, "note": "", "stock_updated_at": sa["updated_at"]},
+            {"id": sb["id"], "location": "A倉", "qty": 3, "note": "", "stock_updated_at": sb["updated_at"]},
+        ]})
+        assert r.status_code == 200, r.text
+        updated = r.json()
+        by_id = {s["id"]: s for s in updated["stocks"]}
+        assert by_id[sa["id"]]["location"] == "B倉"
+        assert by_id[sa["id"]]["qty"] == 5
+        assert by_id[sb["id"]]["location"] == "A倉"
+        assert by_id[sb["id"]]["qty"] == 3
+        assert updated["total_qty"] == 8
+        # no fake quantity movement from pure rename
+        movs = _movements(client, item["id"])
+        assert not any(m["reason"] == "編輯品項調整" and abs(m["delta"]) == 5 for m in movs)
+
+    def test_existing_stock_location_rename_chain(self, client):
+        """A→B, B→C rename chain: intermediate collision avoided by two-phase."""
+        item = _add_item(client, name="冷媒",
+                         stocks=[{"location": "A倉", "qty": 5, "note": ""},
+                                 {"location": "B倉", "qty": 3, "note": ""}])
+        sa = item["stocks"][0]
+        sb = item["stocks"][1]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sa["id"], "location": "B倉", "qty": 5, "note": "", "stock_updated_at": sa["updated_at"]},
+            {"id": sb["id"], "location": "C倉", "qty": 3, "note": "", "stock_updated_at": sb["updated_at"]},
+        ]})
+        assert r.status_code == 200, r.text
+        updated = r.json()
+        by_id = {s["id"]: s for s in updated["stocks"]}
+        assert by_id[sa["id"]]["location"] == "B倉"
+        assert by_id[sb["id"]]["location"] == "C倉"
+        assert updated["total_qty"] == 8
+        assert len(updated["stocks"]) == 2
+
+    def test_duplicate_final_location_still_rejected(self, client):
+        """A→C, B→C: true duplicate final state → 400 (not allowed)."""
+        item = _add_item(client, name="冷媒",
+                         stocks=[{"location": "A倉", "qty": 5, "note": ""},
+                                 {"location": "B倉", "qty": 3, "note": ""}])
+        sa = item["stocks"][0]
+        sb = item["stocks"][1]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sa["id"], "location": "C倉", "qty": 5, "note": "", "stock_updated_at": sa["updated_at"]},
+            {"id": sb["id"], "location": "C倉", "qty": 3, "note": "", "stock_updated_at": sb["updated_at"]},
+        ]})
+        assert r.status_code == 400, r.text
+        assert "重複" in r.json()["detail"]
+        # original state preserved
+        assert _db_sum(item["id"]) == 8
+
+
 # ========== F1：Duplicate BOM ==========
 
 class TestDuplicateBOM:

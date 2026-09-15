@@ -431,7 +431,20 @@ def update_item(item_id: int, upd: ItemUpdate):
 
             now = datetime.datetime.now().isoformat()
 
-            # remove first (before INSERT, avoid UNIQUE conflict)
+            # Phase A — 暫時搬離有 location 變動的 existing stock（避免逐筆 UPDATE 撞 UNIQUE）
+            import uuid
+            tmp_locs = {}  # stock_id -> temporary location
+            for stock_id, stock in payload_existing.items():
+                old = existing[stock_id]
+                new_loc = stock.get("location") or ""
+                if new_loc != (old["location"] or ""):
+                    tmp = f"__tmp_stock_edit__{stock_id}_{uuid.uuid4().hex}"
+                    tmp_locs[stock_id] = tmp
+                    conn.execute(
+                        "UPDATE item_stocks SET location=?, updated_at=? WHERE id=? AND item_id=?",
+                        (tmp, now, stock_id, item_id))
+
+            # remove omitted stocks
             payload_ids = set(payload_existing)
             for stock_id, old in existing.items():
                 if stock_id in payload_ids:
@@ -441,7 +454,7 @@ def update_item(item_id: int, upd: ItemUpdate):
                         400, f"位置「{old['location']}」仍有庫存 {old['qty']}，請先將數量調整為 0 再移除")
                 conn.execute("DELETE FROM item_stocks WHERE id=? AND item_id=?", (stock_id, item_id))
 
-            # update existing
+            # Phase B — 正式寫入 final location + qty + note
             for stock_id, stock in payload_existing.items():
                 old = existing[stock_id]
                 new_qty = canonical_qty(stock.get("qty") or 0)
