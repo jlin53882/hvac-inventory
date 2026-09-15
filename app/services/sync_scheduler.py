@@ -249,7 +249,8 @@ def _finalize_pending_migrations():
             key_id = row["id"]
         except (KeyError, IndexError, TypeError):
             continue
-        gcal_sync.maybe_finalize_calendar_migration(key_id)
+        with gcal_sync._key_process_lock(key_id):
+            gcal_sync.maybe_finalize_calendar_migration(key_id)
 
 def _run_once(force: bool = False):
     """單輪同步；同一 process 的 scheduler/force 入口不可重疊。"""

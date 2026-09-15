@@ -2603,3 +2603,55 @@ def test_calendar_finalize_rolls_back_when_backfill_fails(client, monkeypatch):
         ).fetchone() is None
     finally:
         conn.close()
+
+
+
+def test_scheduler_finalize_rechecks_pending_target_after_key_lock(client, monkeypatch):
+    """scheduler finalize 取得 per-key lock 後必須讀取最新 pending target。"""
+    from contextlib import contextmanager
+
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "finalize-lock-race",
+        "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    sync_scheduler.stop()
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE gcal_keys SET pending_calendar_id=?, is_active=0 WHERE id=?",
+            ("new-A@cal", key_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    @contextmanager
+    def mutate_pending_before_lock_yields(locked_key_id):
+        assert locked_key_id == key_id
+        conn = get_db()
+        try:
+            conn.execute(
+                "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?",
+                ("new-B@cal", key_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        yield
+
+    monkeypatch.setattr(gcal_sync, "_key_process_lock", mutate_pending_before_lock_yields)
+
+    sync_scheduler._finalize_pending_migrations()
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert row["calendar_id"] == "new-B@cal"
+        assert row["pending_calendar_id"] is None
+    finally:
+        conn.close()
