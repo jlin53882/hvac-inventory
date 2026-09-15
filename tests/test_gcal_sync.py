@@ -2483,12 +2483,13 @@ def test_recovered_d_success_finalizes_and_backfills_new_calendar(client, monkey
 
 def test_inactive_pending_migration_recovery_only_creates_d(client):
     from app.database import get_db
-    from app.services import gcal_sync
+    from app.services import gcal_sync, sync_scheduler
 
     key_id = client.post("/api/gcal-keys", json={
         "name": "inactive-recovery", "credentials_path": "calendar.json", "calendar_id": "old@cal",
     }).json()["id"]
     assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
+    sync_scheduler.stop()
     conn = get_db()
     try:
         appt_id = _seed_pending_map(conn, key_id)
