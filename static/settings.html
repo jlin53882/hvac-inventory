@@ -220,6 +220,47 @@
   .pc-option-row > .pc-option-actions { justify-self:end; }
   .pc-icon-action { width:auto; min-width:88px; min-height:42px; padding:0 12px; }
 }
+
+/* Google Calendar sync health / queue cards */
+.gcal-sync-health { margin: 0 0 16px; padding: 14px 16px; border: 1px solid #dbeafe; border-radius: 12px; background: #f8fbff; }
+.gcal-health-head, .gcal-sync-issues-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.gcal-health-head > div { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.gcal-health-head strong, .gcal-sync-issues-head strong { color: #1e3a5f; font-size: 14px; }
+.gcal-health-running { font-size: 12px; font-weight: 700; }
+.gcal-health-running.is-ok { color: #15803d; }
+.gcal-health-counts .is-pending { color: #2563eb; }
+.gcal-health-running.is-failed, .gcal-health-counts .is-failed { color: #b91c1c; }
+.gcal-health-meta { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; color: #64748b; font-size: 11.5px; }
+.gcal-health-counts { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; color: #475569; font-size: 12px; }
+.gcal-health-counts b { margin-left: 4px; font-size: 15px; }
+.gcal-health-counts .is-retrying { color: #b45309; }
+.gcal-health-counts .is-paused { color: #64748b; }
+.gcal-health-error { margin-top: 10px; padding: 7px 9px; border-left: 3px solid #ef4444; background: #fff1f2; color: #991b1b; font-size: 11px; overflow-wrap: anywhere; }
+.gcal-sync-issues { margin-top: 16px; padding-top: 14px; border-top: 1px solid #eef2f7; }
+.gcal-sync-issues-head { color: #64748b; font-size: 11.5px; }
+.gcal-sync-issues-head span { white-space: nowrap; }
+.gcal-sync-issues-empty { padding: 16px 4px 4px; color: #64748b; font-size: 12px; }
+.gcal-sync-issue-list { display: grid; gap: 8px; margin-top: 10px; }
+.gcal-sync-issue { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 11px 12px; border: 1px solid #e2e8f0; border-left: 3px solid #60a5fa; border-radius: 9px; background: #fff; }
+.gcal-sync-issue--retrying { border-left-color: #f59e0b; }
+.gcal-sync-issue--exhausted { border-left-color: #ef4444; background: #fffafa; }
+.gcal-sync-issue-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gcal-sync-issue-main strong { color: #1e293b; font-size: 13px; overflow-wrap: anywhere; }
+.gcal-sync-issue-main span, .gcal-sync-issue-detail { color: #64748b; font-size: 11px; }
+.gcal-sync-issue-detail { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; grid-column: 1 / -1; }
+.gcal-sync-issue-status { font-weight: 700; color: #b45309; }
+.gcal-sync-issue--exhausted .gcal-sync-issue-status { color: #b91c1c; }
+.gcal-sync-issue-error { grid-column: 1 / -1; max-height: 90px; margin: 0; padding: 7px 9px; overflow: auto; border: 1px solid #fee2e2; border-radius: 6px; background: #fff7f7; color: #991b1b; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gcal-sync-issue-actions { display: flex; justify-content: flex-end; align-items: center; min-width: 0; }
+.gcal-sync-retry { white-space: nowrap; }
+@media (max-width: 768px) {
+  .gcal-health-head { align-items: flex-start; flex-direction: column; }
+  .gcal-health-force { width: 100%; min-height: 42px; }
+  .gcal-health-meta, .gcal-health-counts { gap: 7px 14px; }
+  .gcal-sync-issue { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .gcal-sync-issue-actions { justify-content: stretch; }
+  .gcal-sync-retry { width: 100%; min-height: 42px; }
+}
 </style>
 </head>
 <body>

@@ -73,6 +73,8 @@ async function deletePettyOption(id, type, kind) {
 var gcalKeys = [];
 var gcalUsers = [];
 var gcalSettings = {};
+var gcalHealth = {};
+var gcalQueueItems = [];
 var selectedKeyId = null;
 
 
@@ -360,12 +362,84 @@ async function loadGcalSettings() {
   } catch (e) { console.error('[loadGcalSettings]', e); }
 }
 
+async function loadGcalSyncStatus() {
+  try {
+    const res = await fetch('/api/gcal-sync-status');
+    if (res.ok) gcalHealth = await res.json();
+  } catch (e) { console.error('[loadGcalSyncStatus]', e); }
+}
+
+async function loadGcalQueue() {
+  try {
+    const res = await fetch('/api/gcal-sync-queue');
+    if (res.ok) gcalQueueItems = (await res.json()).items || [];
+  } catch (e) { console.error('[loadGcalQueue]', e); }
+}
+
+async function refreshGcalSyncData(render = true) {
+  await Promise.all([loadGcalSyncStatus(), loadGcalQueue()]);
+  if (render && document.getElementById('panel-gcal')) renderGcalPanel();
+}
+
+function gcalQueueStatusLabel(status, keyActive = true) {
+  if (!keyActive) return 'Key 已停用，等待重新啟用';
+  return status === 'exhausted' ? '失敗／已達重試上限'
+    : status === 'retrying' ? '同步重試中'
+    : '等待同步';
+}
+
+function renderGcalHealth(canForce) {
+  const h = gcalHealth || {};
+  const running = h.thread_alive ? '● 排程器正常' : '○ 排程器未運作';
+  const runningClass = h.thread_alive ? 'is-ok' : 'is-failed';
+  const lastRun = h.last_run_at || '尚未執行';
+  const lastSuccess = h.last_success_at || '尚未成功執行';
+  const error = h.last_error ? '<div class="gcal-health-error">' + esc(String(h.last_error)) + '</div>' : '';
+  const action = canForce
+    ? '<button type="button" class="btn-primary gcal-health-force" onclick="forceSyncNow()">立即同步全部 Key</button>'
+    : '';
+  return '<section class="gcal-sync-health" aria-label="Google 行事曆同步健康狀態">' +
+    '<div class="gcal-health-head"><div><strong>Google 行事曆同步</strong><span class="gcal-health-running ' + runningClass + '">' + running + '</span></div>' + action + '</div>' +
+    '<div class="gcal-health-meta"><span>上次執行：' + esc(String(lastRun)) + '</span><span>上次成功：' + esc(String(lastSuccess)) + '</span></div>' +
+    '<div class="gcal-health-counts"><span class="is-pending">待同步 <b>' + esc(String(h.pending_count || 0)) + '</b></span><span class="is-retrying">重試中 <b>' + esc(String(h.retrying_count || 0)) + '</b></span><span class="is-failed">失敗 <b>' + esc(String(h.exhausted_count || 0)) + '</b></span>' + (h.paused_count ? '<span class="is-paused">停用 Key 暫停 <b>' + esc(String(h.paused_count)) + '</b></span>' : '') + '</div>' +
+    error + '</section>';
+}
+
+function renderGcalQueueIssues(canSync) {
+  const items = Array.isArray(gcalQueueItems) ? gcalQueueItems : [];
+  let html = '<section class="gcal-sync-issues" aria-label="需要處理的同步問題"><div class="gcal-sync-issues-head"><strong>需要處理的同步問題</strong><span>' + esc(String(items.length)) + ' 筆</span></div>';
+  if (!items.length) return html + '<div class="gcal-sync-issues-empty">目前沒有待處理的同步問題</div></section>';
+  html += '<div class="gcal-sync-issue-list">';
+  items.forEach(item => {
+    const apptId = String(item.appointment_id || '');
+    const keyId = String(item.key_id || '');
+    const title = item.is_deleted ? '已刪除行程 #' + apptId : (item.client_name || '未命名行程');
+    const opLabel = item.op_type === 'D' ? '刪除 Google Event' : item.op_type === 'C' ? '建立' : '更新';
+    const keyLabel = (item.key_name || ('#' + keyId)) + (item.key_active ? '' : '（已停用）');
+    const error = item.last_error ? '<pre class="gcal-sync-issue-error">' + esc(String(item.last_error)) + '</pre>' : '';
+    html += '<article class="gcal-sync-issue gcal-sync-issue--' + esc(item.status || 'pending') + '">' +
+      '<div class="gcal-sync-issue-main"><strong>' + esc(title) + '</strong><span>' + esc(item.date || '本地行程已刪除') + '</span></div>' +
+      '<div class="gcal-sync-issue-detail"><span>Key：' + esc(keyLabel) + '</span><span>操作：' + esc(opLabel) + '</span><span>嘗試：' + esc(String(item.attempts || 0)) + ' / ' + esc(String(item.max_attempts || 5)) + '</span><span class="gcal-sync-issue-status">' + esc(gcalQueueStatusLabel(item.status, item.key_active)) + '</span></div>' +
+      error +
+      '<div class="gcal-sync-issue-actions">' + (canSync ? '<button type="button" class="btn-sm gcal-sync-retry" data-sync-appt="' + esc(apptId) + '" data-sync-key="' + esc(keyId) + '">重新嘗試</button>' : '') + '</div>' +
+      '</article>';
+  });
+  return html + '</div></section>';
+}
+
+function bindGcalQueueActions() {
+  document.querySelectorAll('#panel-gcal .gcal-sync-retry').forEach(button => {
+    button.addEventListener('click', () => retrySyncQueue(Number(button.dataset.syncAppt), Number(button.dataset.syncKey)));
+  });
+}
+
 function renderGcalPanel() {
   const canManage = hasPerm('gcal-keys-manage');
   const canSync = hasPerm('gcal-sync-manage');
   const canForce = hasPerm('gcal-sync-force');
 
   let html = '<h4>📅 行事曆同步</h4>';
+  if (canSync) html += renderGcalHealth(canForce);
 
   // 左側 Key 列表 + 右側面板（用 CSS flex 模擬）
   html += '<div class="gcal-layout" style="display:flex;gap:16px;margin-top:12px;align-items:flex-start">';
@@ -374,7 +448,6 @@ function renderGcalPanel() {
   html += '<div class="gcal-key-list" style="width:220px;flex-shrink:0;background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden">';
   gcalKeys.forEach(k => {
     const isActive = k.id === selectedKeyId;
-    const cls = k.is_active ? 'on' : 'off';
     html += '<div class="gcal-key-item' + (isActive ? ' active' : '') + '" onclick="selectGcalKey(' + k.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s' + (isActive ? ';background:#e6f4ff;border-left:3px solid #1890ff' : '') + '">' +
       '<div style="width:30px;height:30px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#bbb') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📅</div>' +
       '<div style="flex:1;min-width:0">' +
@@ -442,13 +515,10 @@ function renderGcalPanel() {
   html += '</div>'; // flex 結束
 
   // 直接同步按鈕
-  if (canForce) {
-    html += '<div style="margin-top:16px;padding:12px 16px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:8px;display:flex;align-items:center;justify-content:space-between">' +
-      '<div><b>🔄 強制立即同步</b><div style="font-size:12px;color:#666;margin-top:2px">忽略排程間隔，立即執行同步</div></div>' +
-      '<button class="btn-primary" onclick="forceSyncNow()">立即同步</button></div>';
-  }
+  html += renderGcalQueueIssues(canSync);
 
   document.getElementById('panel-gcal').innerHTML = html;
+  bindGcalQueueActions();
 }
 
 function renderGcalSyncSettings(key) {
@@ -487,10 +557,10 @@ function renderGcalSyncSettings(key) {
 
   // 同步間隔
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">同步間隔</label>' +
+    '<label style="font-size:13px;color:#444;font-weight:600;min-width:180px">全部 Key 同步掃描間隔</label>' +
     '<input type="number" value="' + (gcalSettings.gcal_sync_interval_min || '5') + '" min="1" max="30" ' +
     'onchange="saveGcalSetting(\'gcal_sync_interval_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px;width:70px"> 分鐘' +
-    '<span style="font-size:11px;color:#999">背景排程器每 N 分鐘掃描待同步隊列（1~30）</span></div>';
+    '<span style="font-size:11px;color:#999">所有啟用中的 Google Calendar Key 共用此掃描間隔，背景排程器會掃描待同步隊列；行程修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖（立即同步全部 Key）</span></div>';
   html += '</div>';
 
   // Per-Key 提醒設定
@@ -564,12 +634,15 @@ function switchGcalTab(tab) {
 
 async function saveGcalSetting(key, value) {
   try {
-    await fetch('/api/gcal-sync-settings', {
+    const res = await fetch('/api/gcal-sync-settings', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [key]: value })
     });
+    if (!res.ok) { toast((await res.json()).detail || '儲存失敗', 'error'); return; }
     gcalSettings[key] = value;
-    toast('✅ 已儲存', 'success');
+    await refreshGcalSyncData(false);
+    renderGcalPanel();
+    toast('✅ 已儲存，受影響事件已重新評估', 'success');
   } catch (e) { toast('儲存失敗', 'error'); }
 }
 
@@ -594,8 +667,9 @@ async function saveKeyReminders(keyId) {
     if (!res.ok) { toast((await res.json()).detail || '儲存失敗', 'error'); return; }
     const key = gcalKeys.find(k => k.id === keyId);
     if (key) key.reminders = reminders;
+    await refreshGcalSyncData(false);
     renderGcalPanel();
-    toast('✅ 提醒設定已儲存', 'success');
+    toast('✅ 提醒設定已儲存，既有事件已重新評估', 'success');
   } catch (e) { toast('儲存失敗', 'error'); }
 }
 
@@ -636,8 +710,33 @@ async function forceSyncNow() {
   try {
     var res = await fetch('/api/gcal-sync-now', { method: 'POST' });
     if (!res.ok) { toast((await res.json()).detail || '同步失敗', 'error'); return; }
-    toast('✅ 同步信號已發送', 'success');
+    await refreshGcalSyncData(false);
+    renderGcalPanel();
+    toast('✅ 已觸發全部 Key 立即同步；已耗盡項目請按重新嘗試', 'success');
+    setTimeout(async () => {
+      await refreshGcalSyncData(false);
+      renderGcalPanel();
+      if (typeof calLoadData === 'function') {
+        try {
+          await calLoadData();
+          if (typeof calRenderMonth === 'function') calRenderMonth();
+          if (typeof calRenderDay === 'function') calRenderDay();
+          toast('🔄 行事曆已更新', 'success');
+        } catch (e) { console.error('[forceSyncNow] 刷新失敗', e); }
+      }
+    }, 3000);
   } catch (e) { toast('同步失敗', 'error'); }
+}
+
+async function retrySyncQueue(apptId, keyId) {
+  if (!Number.isInteger(apptId) || !Number.isInteger(keyId)) return;
+  try {
+    const res = await fetch('/api/gcal-sync-queue/reset?appt_id=' + apptId + '&key_id=' + keyId, { method: 'PUT' });
+    if (!res.ok) { toast((await res.json()).detail || '重新嘗試失敗', 'error'); return; }
+    await refreshGcalSyncData(false);
+    renderGcalPanel();
+    toast('✅ 已重設指定同步項目', 'success');
+  } catch (e) { toast('重新嘗試失敗', 'error'); }
 }
 
 async function toggleGcalKey(id, on) {
@@ -649,6 +748,7 @@ async function toggleGcalKey(id, on) {
     if (!res.ok) { toast((await res.json()).detail || '操作失敗', 'error'); return; }
     const k = gcalKeys.find(x => x.id === id);
     if (k) k.is_active = on;
+    await refreshGcalSyncData(false);
     renderGcalPanel();
     toast(on ? '✅ 已啟用' : '已停用', on ? 'success' : '');
   } catch (e) { toast('操作失敗', 'error'); }
@@ -660,10 +760,18 @@ async function deleteGcalKey(id) {
   if (!confirm('確定要刪除 Key「' + name + '」？\n\n此操作會同時刪除 Google 行事曆上已同步的事件。')) return;
   try {
     const res = await fetch('/api/gcal-keys/' + id, { method: 'DELETE' });
-    if (!res.ok) { toast((await res.json()).detail || '刪除失敗', 'error'); return; }
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      const detail = typeof errorData.detail === 'string'
+        ? errorData.detail
+        : 'Google 事件刪除未完成，Key 與同步問題已保留，請先處理同步清單';
+      toast(detail, 'error');
+      return;
+    }
     const data = await res.json();
     gcalKeys = gcalKeys.filter(k => k.id !== id);
     if (selectedKeyId === id) selectedKeyId = gcalKeys.length ? gcalKeys[0].id : null;
+    await refreshGcalSyncData(false);
     renderGcalPanel();
     var msg = '✅ Key「' + name + '」已刪除';
     if (data.google_deleted > 0) msg += '（Google 事件 ' + data.google_deleted + ' 筆已清除）';
@@ -681,6 +789,8 @@ async function bindGcalUser(userId, keyName) {
     if (!res.ok) { toast((await res.json()).detail || '綁定失敗', 'error'); return; }
     const u = gcalUsers.find(x => x.id === userId);
     if (u) u.gcal_key = keyName;
+    await refreshGcalSyncData(false);
+    renderGcalPanel();
     toast('✅ 已綁定', 'success');
   } catch (e) { toast('綁定失敗', 'error'); }
 }
@@ -710,7 +820,7 @@ async function bindGcalUser(userId, keyName) {
      .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
-  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings(), loadPettyOptions()]);
+  await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings(), loadGcalSyncStatus(), loadGcalQueue(), loadPettyOptions()]);
   // 預選第一個 key
   if (gcalKeys.length && !selectedKeyId) selectedKeyId = gcalKeys[0].id;
   settingsSwitch(canUnits ? 'units' : canPettyOptions ? 'petty-cash' : 'pw');

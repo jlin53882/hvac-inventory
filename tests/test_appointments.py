@@ -216,8 +216,10 @@ def test_appointment_concurrent_double_booking_rejected(client):
 
     t1 = threading.Thread(target=worker, args=(1,))
     t2 = threading.Thread(target=worker, args=(2,))
-    t1.start(); t2.start()
-    t1.join(); t2.join()
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
 
     codes = sorted(results.values())
     assert codes == [200, 409], f"併發雙重派工未被擋住: {results}"
@@ -308,7 +310,7 @@ def test_double_assignee_and_delete(client):
     # 刪除
     r = client.delete(f"/api/appointments/{d['id']}")
     assert r.status_code == 200
-    assert client.get(f"/api/appointments?date=2026-08-12").json() == []
+    assert client.get("/api/appointments?date=2026-08-12").json() == []
 
 
 def test_viewer_write_403(client):
@@ -491,8 +493,20 @@ class TestSyncStatus:
         conn.commit()
         assert apt._sync_status(conn, appt_id) == "synced"
 
-    def test_partial_failed_when_map_plus_queue_error(self, _conn):
-        """map 有列 + queue 有 last_error → partial_failed（不掩蓋失敗）"""
+    def test_partial_failed_when_map_plus_exhausted_queue_error(self, _conn):
+        """map 有列 + queue 達上限 → partial_failed（不掩蓋永久失敗）"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                     "VALUES(?,1,'ev1','h1')", (appt_id,))
+        conn.execute("INSERT INTO appointment_sync_queue"
+                     "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                     "VALUES(?,2,'U','',datetime('now'),5,'Google 404')", (appt_id,))
+        conn.commit()
+        assert apt._sync_status(conn, appt_id) == "partial_failed"
+
+    def test_partial_retrying_when_map_plus_retrying_queue(self, _conn):
+        """map 有列 + queue attempts 1~4 且有錯誤 → partial_retrying。"""
         from app.routes import appointments as apt
         conn, appt_id = _conn
         conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
@@ -501,7 +515,7 @@ class TestSyncStatus:
                      "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
                      "VALUES(?,2,'U','',datetime('now'),3,'Google 404')", (appt_id,))
         conn.commit()
-        assert apt._sync_status(conn, appt_id) == "partial_failed"
+        assert apt._sync_status(conn, appt_id) == "partial_retrying"
 
     def test_pending_when_map_plus_queue_waiting(self, _conn):
         """map 有列 + queue 等待中（無 error）→ pending（未全部完成）"""
@@ -521,7 +535,7 @@ class TestSyncStatus:
         conn, appt_id = _conn
         conn.execute("INSERT INTO appointment_sync_queue"
                      "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
-                     "VALUES(?,1,'C','',datetime('now'),2,'network error')", (appt_id,))
+                     "VALUES(?,1,'C','',datetime('now'),5,'network error')", (appt_id,))
         conn.commit()
         assert apt._sync_status(conn, appt_id) == "failed"
 
@@ -564,9 +578,6 @@ class TestB2OrphanBoundKeys:
 
     def test_orphan_delete_when_reassign_to_different_key(self):
         """換人指派（keyOld→keyNew）→ keyOld 應 orphan 刪除"""
-        from app.routes.appointments import mark_sync_pending
-        from app.services import gcal_sync
-        import app.database as app_db
 
         conn = self.conn
         # 建行程（指派 admin = keyOld）
@@ -707,3 +718,378 @@ def test_search_appointments_no_params(client):
     r = client.get("/api/appointments/search")
     assert r.status_code == 200
     assert len(r.json()) >= 1
+
+
+# ===== 2026-09-15：sync_error + key 資訊回傳 =====
+class TestSyncStatusesErrorInfo:
+    """_sync_statuses 回傳 error key_name / cal_id，讓前端顯示「哪個 Key 出錯」。"""
+
+    @pytest.fixture(autouse=True)
+    def _conn(self, tmp_path, monkeypatch):
+        import app.database as app_db
+        monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "sync_err.db"))
+        app_db.init_db()
+        c = app_db.get_db()
+        try:
+            c.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                      "VALUES('公司帳號','a.json','sarah@test.com',1)")
+            c.execute("INSERT INTO appointments(client_name, address, date, start_time, end_time) "
+                      "VALUES('測試客戶','地址','2026-09-15','09:00','11:00')")
+            c.commit()
+            _appt_id = c.execute("SELECT id FROM appointments").fetchone()["id"]
+            yield c, _appt_id
+        finally:
+            c.close()
+
+    def test_sync_statuses_returns_key_info(self, _conn):
+        """_sync_statuses 回傳 key_name 和 cal_id"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_sync_queue"
+                     "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                     "VALUES(?,1,'U','',datetime('now'),5,'invalid_grant')", (appt_id,))
+        conn.commit()
+        result = apt._sync_statuses(conn, [appt_id])
+        info = result[appt_id]
+        assert info["status"] == "failed"
+        assert info["error"] == "invalid_grant"
+        assert info["key_name"] == "公司帳號"
+        assert info["cal_id"] == "sarah@test.com"
+
+    def test_sync_statuses_no_error_no_key(self, _conn):
+        """synced 的行程不回傳 key 資訊"""
+        from app.routes import appointments as apt
+        conn, appt_id = _conn
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                     "VALUES(?,1,'ev1','h1')", (appt_id,))
+        conn.commit()
+        result = apt._sync_statuses(conn, [appt_id])
+        info = result[appt_id]
+        assert info["status"] == "synced"
+        assert info["error"] is None
+        assert info["key_name"] == ""
+        assert info["cal_id"] == ""
+
+
+    def test_sync_statuses_redacts_credential_path(self, _conn):
+        """appointment API 不得把歷史 queue 的 credential path 直接回傳。"""
+        from app.routes import appointments as apt
+
+        conn, appt_id = _conn
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,1,'U','',datetime('now'),5,?)",
+            (appt_id, "FileNotFoundError: No such file or directory: C:/private/service-account.json"),
+        )
+        conn.commit()
+
+        result = apt._sync_statuses(conn, [appt_id])
+
+        assert result[appt_id]["error"] == "Credential file unavailable"
+        assert "service-account.json" not in result[appt_id]["error"]
+
+
+class TestAppointmentApiSyncFields:
+    """API 回傳 sync_error / sync_error_key / sync_error_cal 欄位。"""
+
+    def test_api_includes_sync_error_fields(self, client):
+        """list_appointments 回傳 sync_error 相關欄位"""
+        r = client.post("/api/appointments", json=_appt_body(
+            client_name="SyncTest", date="2026-09-15", start_time="10:00", end_time="11:00"))
+        assert r.status_code == 200
+        appt_id = r.json()["id"]
+
+        # 沒有 sync 錯誤時，欄位存在但為空
+        r2 = client.get("/api/appointments?year=2026&month=9")
+        assert r2.status_code == 200
+        data = r2.json()
+        target = next((a for a in data if a["id"] == appt_id), None)
+        assert target is not None
+        assert "sync_error" in target
+        assert "sync_error_key" in target
+        assert "sync_error_cal" in target
+        assert target["sync_error"] == ""
+
+
+# ===== 2026-09-15：gcal_keys PUT 金鑰更新重設 queue =====
+class TestGcalKeyUpdateResetsQueue:
+    """更新 gcal_key 的 credentials_path 時，自動重設 sync_queue。"""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        import app.database as app_db
+        monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "key_reset.db"))
+        from app.routes import gcal_keys as gcal_keys_route
+        monkeypatch.setattr(gcal_keys_route, "_wake_scheduler", lambda: None)
+        app_db.init_db()
+        # 寫一個假的 JSON 檔
+        secrets_dir = tmp_path / "secrets" / "gcal"
+        secrets_dir.mkdir(parents=True)
+        fake_json = secrets_dir / "old_key.json"
+        fake_json.write_text('{"client_email":"old@test.com","project_id":"p","type":"service_account","private_key":"k"}')
+        fake_json2 = secrets_dir / "new_key.json"
+        fake_json2.write_text('{"client_email":"new@test.com","project_id":"p","type":"service_account","private_key":"k"}')
+
+        c = app_db.get_db()
+        try:
+            c.execute("INSERT INTO gcal_keys(name, credentials_path, calendar_id, is_active) "
+                      "VALUES('test_key',?,'cal@test.com',1)", (str(fake_json),))
+            key_id = c.execute("SELECT id FROM gcal_keys WHERE name='test_key'").fetchone()["id"]
+            c.execute("INSERT INTO appointments(client_name, address, date, start_time, end_time) "
+                      "VALUES('客戶','地址','2026-09-15','09:00','11:00')")
+            appt_id = c.execute("SELECT id FROM appointments").fetchone()["id"]
+            # 建立一個 exhausted queue entry
+            c.execute("INSERT INTO appointment_sync_queue"
+                      "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                      "VALUES(?,?,'U','',datetime('now'),5,'old error')", (appt_id, key_id))
+            c.commit()
+        finally:
+            c.close()
+        # 建立用同一個 DB 的 test client + 登入（session injection）
+        from fastapi.testclient import TestClient
+        from main import app as fastapi_app
+        from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
+        self._key_id = key_id
+        self._appt_id = appt_id
+        self._new_json = str(fake_json2)
+        tc = TestClient(fastapi_app)
+        # 直接注入 admin session
+        _conn2 = app_db.get_db()
+        try:
+            init_admin_if_missing(_conn2)
+            _admin_id = _conn2.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+            _token = create_session(_conn2, _admin_id)
+        finally:
+            _conn2.close()
+        tc.cookies.set(SESSION_COOKIE, _token)
+        self._client = tc
+        yield
+
+    def test_update_credentials_resets_queue(self, _setup):
+        """PUT gcal-key 更新 credentials_path 後，queue attempts 歸零"""
+        r = self._client.put(f"/api/gcal-keys/{self._key_id}", json={
+            "credentials_path": self._new_json,
+        })
+        assert r.status_code == 200
+
+        # 驗證 queue 已重設
+        import app.database as app_db
+        c = app_db.get_db()
+        try:
+            row = c.execute(
+                "SELECT attempts, last_error FROM appointment_sync_queue "
+                "WHERE appointment_id=? AND key_id=?",
+                (self._appt_id, self._key_id),
+            ).fetchone()
+            assert row is not None
+            assert row["attempts"] == 0
+            assert row["last_error"] == ""
+        finally:
+            c.close()
+
+    def test_update_name_only_does_not_reset_queue(self, _setup):
+        """PUT gcal-key 只改名稱（不改 credentials_path），queue 不變"""
+        r = self._client.put(f"/api/gcal-keys/{self._key_id}", json={
+            "name": "renamed_key",
+        })
+        assert r.status_code == 200
+
+        import app.database as app_db
+        c = app_db.get_db()
+        try:
+            row = c.execute(
+                "SELECT attempts, last_error FROM appointment_sync_queue "
+                "WHERE appointment_id=? AND key_id=?",
+                (self._appt_id, self._key_id),
+            ).fetchone()
+            assert row is not None
+            assert row["attempts"] == 5  # 未重設
+            assert row["last_error"] == "old error"
+        finally:
+            c.close()
+
+def test_appointment_api_reports_retrying_status(client):
+    """attempts 1~4 + error 應是 retrying，不是永久 failed。"""
+    from app.database import get_db
+
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "retrying-status", "date": "2026-08-28",
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [1],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        key_id = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('status-key','x.json','s@cal')").lastrowid
+        conn.execute("INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,last_modified_at,attempts,last_error) VALUES(?,?, 'U',datetime('now'),2,'timeout')",
+                     (appt_id, key_id))
+        conn.commit()
+    finally:
+        conn.close()
+    item = client.get("/api/appointments?date=2026-08-28").json()[0]
+    assert item["sync_status"] == "retrying"
+
+
+def test_appointment_api_reports_exhausted_as_failed(client):
+    """attempts >= MAX_ATTEMPTS 應是 failed/exhausted，不是 retrying。"""
+    from app.database import get_db
+
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "exhausted-status", "date": "2026-08-28",
+        "start_time": "11:00", "end_time": "12:00", "user_ids": [1],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        key_id = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('exhausted-key','x.json','e@cal')").lastrowid
+        conn.execute("INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,last_modified_at,attempts,last_error) VALUES(?,?, 'U',datetime('now'),5,?)", (appt_id, key_id, "403"))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+
+    item = next(x for x in client.get("/api/appointments?date=2026-08-28").json() if x["id"] == appt_id)
+    assert item["sync_status"] == "failed"
+    assert item["sync_error_attempts"] == 5
+
+
+def test_partial_retrying_status_is_distinct(client):
+    """已有一個 map、另一個 key retrying 時回傳 partial_retrying。"""
+    from app.database import get_db
+
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "partial-retrying", "date": "2026-08-28",
+        "start_time": "13:00", "end_time": "14:00", "user_ids": [1],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        key_a = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('partial-A','a.json','pa@cal')").lastrowid
+        key_b = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('partial-B','b.json','pb@cal')").lastrowid
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)",
+                     (appt_id, key_a, "event-a", "hash-a"))
+        conn.execute("INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,last_modified_at,attempts,last_error) VALUES(?,?, 'U',datetime('now'),1,'timeout')",
+                     (appt_id, key_b))
+        conn.commit()
+    finally:
+        conn.close()
+    item = client.get("/api/appointments?date=2026-08-28").json()[0]
+    assert item["sync_status"] == "partial_retrying"
+
+# ===== GCal delete queue must survive inactive keys =====
+def test_delete_with_only_inactive_mapped_key_enqueues_delete(client):
+    """Regression: D must retain the remote event id even when every key is inactive."""
+    from app.database import get_db
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "inactive-delete-key", "credentials_path": "inactive.json", "calendar_id": "inactive@cal",
+    }).json()["id"]
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
+    appointment = client.post("/api/appointments", json={
+        "client_name": "停用 Key 刪除測試", "date": "2026-08-28",
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
+    }).json()
+    appt_id = appointment["id"]
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+            "VALUES(?,?,?,?)", (appt_id, key_id, "inactive-remote-event", "hash"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert client.delete(f"/api/appointments/{appt_id}").status_code == 200
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+        ).fetchone()
+        assert row["op_type"] == "D"
+        assert row["google_event_id"] == "inactive-remote-event"
+    finally:
+        conn.close()
+
+
+def test_mark_sync_pending_wakes_scheduler_after_commit(client, monkeypatch):
+    """Queue producer should wake the normal debounce worker after committing."""
+    from app.database import get_db
+    from app.routes.appointments import mark_sync_pending
+    from app.services import sync_scheduler
+
+    conn=get_db()
+    try:
+        conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('wake-key','x.json','wake@cal')")
+        conn.execute("UPDATE users SET gcal_key='wake-key' WHERE id=1")
+        appt_id=conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("wake", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,1)", (appt_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    calls=[]
+    monkeypatch.setattr(sync_scheduler, "start", lambda: calls.append("start"))
+    monkeypatch.setattr(sync_scheduler, "wake", lambda: calls.append("wake"))
+    mark_sync_pending(appt_id, "C")
+    assert calls == ["start", "wake"]
+
+
+
+def test_stale_update_queue_cannot_resurrect_after_delete(client, monkeypatch):
+    """delete 先提交後，延遲的 update queue write 不得把 D 改回 U。"""
+    from app.database import get_db
+    from app.routes import appointments as appointments_route
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "stale-queue-key", "credentials_path": "stale.json", "calendar_id": "stale@cal",
+    }).json()["id"]
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "stale queue race", "date": "2026-08-28",
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)",
+            (appt_id, key_id, "stale-remote-event", "hash"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    original = appointments_route.mark_sync_pending
+    delayed = []
+
+    def delay_update(appt, op, map_rows=()):
+        if op == "U" and not delayed:
+            delayed.append((appt, op, map_rows))
+            return
+        original(appt, op, map_rows)
+
+    monkeypatch.setattr(appointments_route, "mark_sync_pending", delay_update)
+    updated = client.put(f"/api/appointments/{appt_id}", json={
+        "client_name": "stale queue race updated", "date": "2026-08-28",
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
+    })
+    assert updated.status_code == 200
+    assert delayed
+
+    deleted = client.delete(f"/api/appointments/{appt_id}")
+    assert deleted.status_code == 200
+    original(*delayed[0])
+
+    conn = get_db()
+    try:
+        queue = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone()
+        assert (queue["op_type"], queue["google_event_id"]) == ("D", "stale-remote-event")
+    finally:
+        conn.close()

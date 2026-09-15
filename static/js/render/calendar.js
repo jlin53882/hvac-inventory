@@ -49,6 +49,8 @@ function calServiceTone(name) {
 function calSyncStatusLabel(status) {
   return status === 'synced' ? '已同步到 Google 行事曆'
     : status === 'partial_failed' ? '部分同步失敗'
+    : status === 'partial_retrying' ? '部分同步重試中'
+    : status === 'retrying' ? '同步重試中'
     : status === 'pending' ? '等待同步'
     : status === 'failed' ? '同步失敗'
     : '未綁定同步 Key';
@@ -57,6 +59,8 @@ function calSyncStatusLabel(status) {
 function calSyncStatusIcon(status) {
   return status === 'synced' ? '✅'
     : status === 'partial_failed' ? '⚠️'
+    : status === 'partial_retrying' ? '🔄'
+    : status === 'retrying' ? '🔄'
     : status === 'pending' ? '⏳'
     : status === 'failed' ? '❌' : '';
 }
@@ -410,8 +414,12 @@ function calRenderDay() {
       `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
     const service = e.service_name
       ? `<span class="cal-service-badge cal-service-${esc(calServiceTone(e.service_name))}">${esc(e.service_name)}</span>` : '';
+    const hasSyncErr = e.sync_error && ['failed', 'partial_failed', 'retrying', 'partial_retrying'].includes(e.sync_status);
     const sync = e.sync_status && e.sync_status !== 'none'
-      ? `<span class="cal-sync-status cal-sync-${esc(e.sync_status)}" title="${esc(calSyncStatusLabel(e.sync_status))}">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></span>` : '';
+      ? (hasSyncErr
+        ? `<button type="button" class="cal-sync-status cal-sync-${esc(e.sync_status)} cal-sync-clickable" onclick="calShowSyncError(${e.id})" title="點擊查看同步錯誤詳情">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></button>`
+        : `<span class="cal-sync-status cal-sync-${esc(e.sync_status)}" title="${esc(calSyncStatusLabel(e.sync_status))}">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></span>`)
+      : '';
     const updated = e.updated_by_name && e.updated_by_name !== (e.created_by_name || '系統')
       ? `<span>最後編輯：${esc(e.updated_by_name)}</span>` : '';
     return `

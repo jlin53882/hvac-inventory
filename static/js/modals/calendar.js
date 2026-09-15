@@ -46,6 +46,24 @@ function calModalHtml(isAdmin) {
         <button class="btn-confirm" onclick="calSubmitAppt()">檢查並寫入</button>
       </div>
     </div>
+  </div>
+      <!-- 同步錯誤詳情 modal -->
+  <div class="modal-overlay" id="cal-sync-error-modal" onclick="if(event.target===this) closeModal('cal-sync-error-modal')">
+    <div class="modal">
+      <h3>⚠️ 同步錯誤詳情</h3>
+      <div class="cal-sync-err-detail">
+        <div class="cal-sync-err-row"><span class="cal-sync-err-label">行程</span><span id="cal-sync-err-client"></span></div>
+        <div class="cal-sync-err-row"><span class="cal-sync-err-label">日期</span><span id="cal-sync-err-date"></span></div>
+        <div class="cal-sync-err-row"><span class="cal-sync-err-label">狀態</span><span id="cal-sync-err-status"></span></div>
+        <div class="cal-sync-err-row"><span class="cal-sync-err-label">同步 Key</span><span id="cal-sync-err-key"></span></div>
+        <div class="cal-sync-err-row"><span class="cal-sync-err-label">目標日曆</span><span id="cal-sync-err-cal"></span></div>
+        <div class="cal-sync-err-row cal-sync-err-full"><span class="cal-sync-err-label">錯誤訊息</span><pre id="cal-sync-err-msg"></pre></div>
+        <div class="cal-sync-err-suggestion" id="cal-sync-err-suggestion"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('cal-sync-error-modal')">關閉</button>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -164,4 +182,30 @@ function closeCalModal() {
   document.getElementById('cal-appt-modal').style.display = 'none';
   const set = document.getElementById('cal-set-modal');
   if (set) set.style.display = 'none';
+}
+
+// ========== 同步錯誤詳情 ==========
+function calShowSyncError(apptId) {
+  const e = (typeof calEvents !== 'undefined' ? calEvents : []).find(x => x.id === apptId);
+  if (!e) return;
+  document.getElementById('cal-sync-err-client').textContent = e.client_name || '';
+  document.getElementById('cal-sync-err-date').textContent = e.date || '';
+  const statusMap = { failed: '❌ 同步失敗', partial_failed: '⚠️ 部分同步失敗', partial_retrying: '🔄 部分同步重試中', retrying: '🔄 同步重試中', pending: '⏳ 等待同步' };
+  document.getElementById('cal-sync-err-status').textContent = statusMap[e.sync_status] || e.sync_status;
+  document.getElementById('cal-sync-err-key').textContent = e.sync_error_key || '（未知 Key）';
+  document.getElementById('cal-sync-err-cal').textContent = e.sync_error_cal || '（未知日曆）';
+  document.getElementById('cal-sync-err-msg').textContent = e.sync_error || '（無錯誤訊息）';
+  // 建議
+  let suggestion = '';
+  if (e.sync_error && e.sync_error.includes('invalid_grant')) {
+    suggestion = '🔑 Service Account 金鑰已失效。請到 Google Cloud Console 重新產生 JSON 金鑰，再從系統設定 → Google 行事曆 Key 上傳新金鑰。';
+  } else if (e.sync_error && e.sync_error.includes('404')) {
+    suggestion = '📅 Calendar ID 可能不正確，或 Service Account 沒有該日曆的存取權限。請確認日曆已分享給 Service Account email。';
+  } else if (e.sync_error && e.sync_error.includes('network')) {
+    suggestion = '🌐 網路連線問題。請確認伺服器可連線到 Google API。';
+  } else {
+    suggestion = '請檢查 gcal_sync.log 取得完整錯誤資訊。';
+  }
+  document.getElementById('cal-sync-err-suggestion').textContent = suggestion;
+  openModal('cal-sync-error-modal');
 }
