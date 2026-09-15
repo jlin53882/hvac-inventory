@@ -4,8 +4,10 @@ async function loadData(options) {
   const full = Boolean(options && options.full);
   const requestId = ++dataRequestSeq;
   if (dataAbortController) dataAbortController.abort();
+  // P1-D：mutation 後的 loadData 預設刷新 global summary；搜尋/換頁/filter 走 wrapper（不刷）。
+  const refreshSummary = !options || options.refreshSummary !== false;
   if (!full && currentTab === 'inventory') {
-    await loadInventoryPage(INVENTORY_META.page || 1);
+    await loadInventoryPageImpl(INVENTORY_META.page || 1, refreshSummary);
     return;
   }
   const controller = new AbortController();
@@ -47,7 +49,13 @@ async function loadData(options) {
 }
 
 // 庫存頁只取當前頁資料，篩選與 facets 在伺服器端完成。
+// P1-D：搜尋/換頁/filter 入口——只用 body.stats 更新 KPI，不重打 /api/stats/summary。
 async function loadInventoryPage(page) {
+  return loadInventoryPageImpl(page, false);
+}
+
+// refreshSummary=true：mutation 成功後，global summary cache 已過期才重刷。
+async function loadInventoryPageImpl(page, refreshSummary) {
   dataRequestSeq++;
   if (dataAbortController) dataAbortController.abort();
   const requestId = ++inventoryRequestSeq;
@@ -96,7 +104,11 @@ async function loadInventoryPage(page) {
     buildFilterPanel();
     checkReminder();
     updateNotifications();
-    updateSubInfo();
+    if (refreshSummary || !hasSummaryCache()) {
+      await updateSubInfo();
+    } else {
+      renderSubInfo();
+    }
     renderInventory();
   } catch (e) {
     if (e.name === 'AbortError' || requestId !== inventoryRequestSeq || siteAtRequest !== currentSite) return;
@@ -124,6 +136,25 @@ async function loadPreparedBadge() {
   } catch (e) { if (e.name !== 'AbortError') return; }
 }
 
+// P1-D：global summary 渲染只吃 cache（ALERTS_BY_SITE），body.stats 是 filter dataset，兩者語意不同不可互蓋。
+function hasSummaryCache() {
+  return typeof ALERTS_BY_SITE !== 'undefined' && ALERTS_BY_SITE && ALERTS_BY_SITE.all &&
+    typeof ALERTS_BY_SITE.all.single_items !== 'undefined';
+}
+
+function renderSubInfo() {
+  if (!hasSummaryCache()) return;
+  const current = ALERTS_BY_SITE[currentSite] || ALERTS_BY_SITE.all;
+  document.getElementById('sub-info').textContent =
+    `單一材料 ${current.single_items} 項 · 整組 ${current.kit_items} 組 · ${current.brands} 種廠牌 · 缺貨 ${current.zero_stock} 項`;
+  const officeStats = ALERTS_BY_SITE.office;
+  const warehouseStats = ALERTS_BY_SITE.warehouse;
+  document.getElementById('site-office-sub').textContent =
+    `${officeStats.total_items} 項 · ${officeStats.total_qty}`;
+  document.getElementById('site-warehouse-sub').textContent =
+    `${warehouseStats.total_items} 項 · ${warehouseStats.total_qty}`;
+}
+
 // 更新頂部統計資訊（單一材料/整組/廠牌/缺貨數 + 分片按鈕數字）
 async function updateSubInfo() {
   const requestId = ++statsRequestSeq;
@@ -141,15 +172,7 @@ async function updateSubInfo() {
       office: summary.office || {},
       warehouse: summary.warehouse || {},
     };
-    const current = ALERTS_BY_SITE[currentSite] || ALERTS_BY_SITE.all;
-    document.getElementById('sub-info').textContent =
-      `單一材料 ${current.single_items} 項 · 整組 ${current.kit_items} 組 · ${current.brands} 種廠牌 · 缺貨 ${current.zero_stock} 項`;
-    const officeStats = ALERTS_BY_SITE.office;
-    const warehouseStats = ALERTS_BY_SITE.warehouse;
-    document.getElementById('site-office-sub').textContent =
-      `${officeStats.total_items} 項 · ${officeStats.total_qty}`;
-    document.getElementById('site-warehouse-sub').textContent =
-      `${warehouseStats.total_items} 項 · ${warehouseStats.total_qty}`;
+    renderSubInfo();
     updateNotifications();
   } catch (e) {
     if (e.name !== 'AbortError' && requestId === statsRequestSeq && siteAtRequest === currentSite) {

@@ -19,6 +19,7 @@ from app.database import get_db
 from app.models import KitAssemble, KitCreate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
+from app.services.inventory_stock import assert_projected_inventory, current_state
 from app.services.quantity import canonical_qty
 
 # 整組 API 路由
@@ -86,11 +87,16 @@ def create_kit(kit: KitCreate):
             (kit_item_id, kit.name, kit.note),
         )
         kit_id = cur2.lastrowid
+        seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i)  # 材料驗證：格式/數量>0/品項存在（2026-08-12 補）
+            _validate_kit_comp(conn, comp, i)
+            cid = comp["item_id"]
+            if cid in seen_items:
+                raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
+            seen_items.add(cid)
             conn.execute(
                 "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                (kit_id, comp["item_id"], canonical_qty(comp.get("qty", 1))),
+                (kit_id, cid, canonical_qty(comp.get("qty", 1))),
             )
         conn.commit()
         return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
@@ -142,10 +148,15 @@ def update_kit(kit_id: int, kit: KitCreate):
         conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
                      (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
+        seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i)  # 材料驗證（與 create 共用）
+            _validate_kit_comp(conn, comp, i)
+            cid = comp["item_id"]
+            if cid in seen_items:
+                raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
+            seen_items.add(cid)
             conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                         (kit_id, comp["item_id"], canonical_qty(comp.get("qty", 1))))
+                         (kit_id, cid, canonical_qty(comp.get("qty", 1))))
         conn.commit()
         return {"ok": True, "id": kit_id, "name": kit.name}
     except Exception:
@@ -160,10 +171,25 @@ def delete_kit(kit_id: int):
     """刪除整組定義：套件、材料關聯、套件品項（含流水/盤點/位置庫存/照片）"""
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not row:
             raise HTTPException(404, "整組不存在")
         item_id = row["item_id"]
+        # 與 DELETE item 相同 contract：prepared 不得遺留、stock 不得隱藏殘留、movement 與 persisted 一致
+        kit_item = conn.execute("SELECT prepared_qty FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
+        if kit_item and canonical_qty(kit_item["prepared_qty"] or 0) > 0:
+            raise HTTPException(400, f"該整組有待領出數量 {kit_item['prepared_qty']}，請先處理待領出再刪除")
+        kit_stocks = conn.execute(
+            "SELECT location, qty FROM item_stocks WHERE item_id=? AND qty != 0",
+            (item_id,)).fetchall()
+        for s in kit_stocks:
+            if s["qty"] > 0:
+                conn.execute(
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or ""))
+        if kit_stocks:
+            conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
         conn.execute("DELETE FROM kits WHERE id=?", (kit_id,))
         # M6：套件品項 soft-delete（保留 movements/stocktakes 稽核軌跡）
@@ -252,28 +278,38 @@ def assemble_kit(kit_id: int, req: KitAssemble):
         raise HTTPException(400, "組裝數量正規化後必須大於 0")
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not kit:
             raise HTTPException(404, "套件不存在")
         comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
 
-        # 檢查材料庫存（2026-09-12：容差 1e-9，浮點殘留如 0.3 vs 0.1+0.2 不得誤判不足）
-        short = []
+        # F1：aggregate BOM by item_id（防止 duplicate BOM cumulative deduction 突破 prepared invariant）
+        required_by_item: dict = {}
+        mat_names: dict = {}
         for c in comps:
-            mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (c["item_id"],)).fetchone()
-            if not mat:  # M6：材料已刪除 → 不可組裝
-                raise HTTPException(400, f"材料 id={c['item_id']} 已刪除，無法組裝")
-            need = canonical_qty(c["qty"] * qty)
-            stock = _total(conn, c["item_id"])
-            if stock < need:
-                short.append(f"{mat['name']}（需要 {need}，剩 {stock}）")
+            cid = c["item_id"]
+            mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (cid,)).fetchone()
+            if not mat:
+                raise HTTPException(400, f"材料 id={cid} 已刪除，無法組裝")
+            mat_names[cid] = mat["name"]
+            cumulative_need = canonical_qty(c["qty"] * qty)
+            required_by_item[cid] = canonical_qty(required_by_item.get(cid, 0) + cumulative_need)
+
+        # 檢查材料庫存（P0-D：可用量 = total - prepared，同一 writer transaction 內驗證）
+        short = []
+        for cid, need in required_by_item.items():
+            try:
+                assert_projected_inventory(conn, cid, stock_delta=-need)
+            except HTTPException:
+                total, prepared = current_state(conn, cid)
+                short.append(f"{mat_names[cid]}（需要 {need}，可用 {canonical_qty(total - prepared)}）")
         if short:
             raise HTTPException(400, "材料不足：" + "、".join(short))
 
-        # 扣材料
-        for c in comps:
-            need = canonical_qty(c["qty"] * qty)
-            _deduct_total(conn, c["item_id"], need, f"組裝套件:{kit['name']}")
+        # 扣材料（使用 aggregate cumulative need）
+        for cid, need in required_by_item.items():
+            _deduct_total(conn, cid, need, f"組裝套件:{kit['name']}")
         # 加整組庫存
         _add_total(conn, kit["item_id"], qty, f"組裝完成:{kit['name']}")
         conn.commit()
@@ -296,12 +332,15 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         raise HTTPException(400, "拆解數量正規化後必須大於 0")
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not kit:
             raise HTTPException(404, "套件不存在")
         kit_stock = _total(conn, kit["item_id"])
         if kit_stock < qty:
             raise HTTPException(400, f"整組庫存不足！只剩 {kit_stock} 組")
+        # P0-D：拆解降低整組自身庫存，拆後 total 不得低於其 prepared（同一 writer transaction 內驗證）
+        assert_projected_inventory(conn, kit["item_id"], stock_delta=-qty)
 
         # 扣整組
         _deduct_total(conn, kit["item_id"], qty, f"拆解:{kit['name']}")

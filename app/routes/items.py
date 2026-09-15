@@ -24,6 +24,7 @@ from app.models import AdjustRequest, BatchLocationRequest, ItemCreate, ItemUpda
 from app.routes.photos import has_photo, list_photo_ids
 from app.services.auth import require_perm
 from app.services.file_storage import delete_asset_files
+from app.services.inventory_stock import assert_projected_inventory
 from app.services.quantity import canonical_qty
 
 # 品項 API 路由
@@ -242,10 +243,12 @@ def list_items(
             "created": "i.id DESC",
         }
         order_sql = sort_map.get(sort, sort_map["brand"])
-        count_sql = "SELECT COUNT(DISTINCT i.id)" + from_sql + where_sql
-        total = conn.execute(count_sql, params).fetchone()[0]
+        # P1-B：paged total 直接取 page_stats.item_count（省一次 COUNT）；
+        # unpaged response 不用 total，完全不執行 COUNT
         page_stats = (_inventory_page_stats(conn, from_sql, where_sql, params, include_alert_items)
                       if page is not None else None)
+        if page is not None:
+            total = page_stats["item_count"]
         sql = "SELECT i.*, ROUND(COALESCE(SUM(s.qty),0),3) AS total_qty, COUNT(s.id) AS stock_count" + from_sql + where_sql
         sql += " GROUP BY i.id ORDER BY " + order_sql
         query_params = list(params)
@@ -254,37 +257,9 @@ def list_items(
             query_params.extend([page_size, (page - 1) * page_size])
         rows = conn.execute(sql, query_params).fetchall()
 
-        kit_map: dict = {}
-        for r in conn.execute(
-            "SELECT ki.item_id, k.name FROM kit_items ki JOIN kits k ON k.id = ki.kit_id "
-            "JOIN items i ON i.id = k.item_id AND i.is_deleted = 0 ORDER BY k.name"
-        ):
-            kit_map.setdefault(r["item_id"], []).append(r["name"])
-        stocks_map: dict = {}
+        # P1-C：沿用既有 batch helper（只載本頁 ids，不掃全量 kit relation）
         ids = [r["id"] for r in rows]
-        for i in range(0, len(ids), 500):
-            chunk = ids[i:i + 500]
-            if not chunk:
-                continue
-            placeholders = ",".join("?" * len(chunk))
-            for s in conn.execute(
-                f"SELECT * FROM item_stocks WHERE item_id IN ({placeholders}) ORDER BY item_id, id",
-                chunk,
-            ):
-                stocks_map.setdefault(s["item_id"], []).append(s)
-        photo_ids = list_photo_ids()
-        photo_map = {}
-        for i in range(0, len(ids), 500):
-            chunk = ids[i:i + 500]
-            if not chunk:
-                continue
-            placeholders = ",".join("?" * len(chunk))
-            for photo in conn.execute(
-                "SELECT asset_id, owner_id, preview_path, thumbnail_path FROM file_assets "
-                "WHERE category='item_photo' AND owner_type='item' AND owner_id IN (" + placeholders + ")",
-                [str(item_id) for item_id in chunk],
-            ):
-                photo_map[photo["owner_id"]] = photo
+        kit_map, stocks_map, photo_ids, photo_map = _item_detail_maps(conn, ids)
         result = [_item_full(conn, r, kit_map, stocks_map, photo_ids, photo_map) for r in rows]
         if page is not None:
             return {"items": result, "total": total, "page": page, "page_size": page_size, "stats": page_stats}
@@ -372,6 +347,7 @@ def update_item(item_id: int, upd: ItemUpdate):
     try:
         """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
         conn = get_db()
+        conn.execute("BEGIN IMMEDIATE")
         row0 = conn.execute("SELECT id, updated_at FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row0:
             raise HTTPException(404, "品項不存在")
@@ -394,33 +370,117 @@ def update_item(item_id: int, upd: ItemUpdate):
                     raise HTTPException(409, "該品項已被他人修改，請重新整理後再編輯")
             else:
                 conn.execute(f"UPDATE items SET {sets} WHERE id=?", (*fields.values(), item_id))
-        # stocks 全量同步（M1：同位置 UPDATE 保留 stock id；新增 INSERT、消失 DELETE；qty 變化寫流水）
+        # F2/F3：stocks 全量同步——使用 stock id 作為 identity（不再是 location）
+        # payload stock 有 id → existing stock（id + stock_updated_at 樂觀鎖）
+        # payload stock 無 id → new location
+        # DB stock 不在 payload → 刪除（qty=0 才允許）
+        # M1/M2/M3：stocks 全量同步——stock id = identity（無 location fallback）
         if data.get("stocks") is not None:
-            dedup = {}
-            for s in data["stocks"]:
-                dedup[s.get("location") or ""] = s
-            existing = {r["location"]: r for r in conn.execute(
-                "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
-            for loc, s in dedup.items():
-                new_qty = canonical_qty(s.get("qty") or 0)
-                if new_qty < 0:
-                    raise HTTPException(400, f"位置「{loc}」的庫存數量不能為負數")
-                if loc in existing:
-                    old = existing[loc]
-                    conn.execute("UPDATE item_stocks SET qty=?, note=?, updated_at=? WHERE id=?",
-                                 (new_qty, s.get("note") or "", datetime.datetime.now().isoformat(), old["id"]))
-                    delta = canonical_qty(new_qty - old["qty"])
-                    if delta != 0:  # canonical qty 相同時不寫 phantom 流水
-                        conn.execute(
-                            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                            (item_id, delta, old["qty"], new_qty, "編輯品項調整", loc),
-                        )
-                else:
-                    conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                                 (item_id, loc, new_qty, s.get("note") or ""))
-            for loc, old in existing.items():
-                if loc not in dedup:
-                    conn.execute("DELETE FROM item_stocks WHERE id=?", (old["id"],))
+            existing = {
+                row["id"]: row
+                for row in conn.execute(
+                    "SELECT * FROM item_stocks WHERE item_id=?",
+                    (item_id,),
+                ).fetchall()
+            }
+
+            payload_existing = {}
+            payload_new = []
+
+            for stock in data["stocks"]:
+                stock_id = stock.get("id")
+
+                # new stock
+                if stock_id is None:
+                    payload_new.append(stock)
+                    continue
+
+                # existing stock id must belong to this item
+                if stock_id not in existing:
+                    raise HTTPException(409, "庫存位置已異動，請重新整理後再編輯")
+
+                revision = stock.get("stock_updated_at")
+                if not revision:
+                    raise HTTPException(409, "庫存資料版本已過期，請重新整理後再編輯")
+
+                current = existing[stock_id]
+                if not current["updated_at"] or revision != current["updated_at"]:
+                    raise HTTPException(
+                        409, f"位置「{current['location']}」已被其他操作修改，請重新整理後再編輯")
+
+                payload_existing[stock_id] = stock
+
+            # M2：final location uniqueness
+            def _payload_location(s):
+                return s.get("location") or ""
+
+            final_locations = [_payload_location(s) for s in payload_existing.values()]
+            final_locations.extend(_payload_location(s) for s in payload_new)
+            if len(final_locations) != len(set(final_locations)):
+                raise HTTPException(400, "同一品項不可有重複庫存位置")
+
+            # projected total >= prepared
+            projected_total = canonical_qty(
+                sum(canonical_qty(s.get("qty") or 0) for s in payload_existing.values()) +
+                sum(canonical_qty(s.get("qty") or 0) for s in payload_new))
+            prepared_now = canonical_qty(conn.execute(
+                "SELECT prepared_qty FROM items WHERE id=?", (item_id,)).fetchone()["prepared_qty"] or 0)
+            if projected_total < prepared_now:
+                raise HTTPException(
+                    400, f"更新後總庫存 {projected_total} 將低於待領出數量 {prepared_now}")
+
+            now = datetime.datetime.now().isoformat()
+
+            # Phase A — 暫時搬離有 location 變動的 existing stock（避免逐筆 UPDATE 撞 UNIQUE）
+            import uuid
+            tmp_locs = {}  # stock_id -> temporary location
+            for stock_id, stock in payload_existing.items():
+                old = existing[stock_id]
+                new_loc = stock.get("location") or ""
+                if new_loc != (old["location"] or ""):
+                    tmp = f"__tmp_stock_edit__{stock_id}_{uuid.uuid4().hex}"
+                    tmp_locs[stock_id] = tmp
+                    conn.execute(
+                        "UPDATE item_stocks SET location=?, updated_at=? WHERE id=? AND item_id=?",
+                        (tmp, now, stock_id, item_id))
+
+            # remove omitted stocks
+            payload_ids = set(payload_existing)
+            for stock_id, old in existing.items():
+                if stock_id in payload_ids:
+                    continue
+                if canonical_qty(old["qty"]) != 0:
+                    raise HTTPException(
+                        400, f"位置「{old['location']}」仍有庫存 {old['qty']}，請先將數量調整為 0 再移除")
+                conn.execute("DELETE FROM item_stocks WHERE id=? AND item_id=?", (stock_id, item_id))
+
+            # Phase B — 正式寫入 final location + qty + note
+            for stock_id, stock in payload_existing.items():
+                old = existing[stock_id]
+                new_qty = canonical_qty(stock.get("qty") or 0)
+                new_location = stock.get("location") or ""
+                new_note = stock.get("note") if stock.get("note") is not None else old["note"]
+                conn.execute(
+                    "UPDATE item_stocks SET qty=?, location=?, note=?, updated_at=? WHERE id=? AND item_id=?",
+                    (new_qty, new_location, new_note, now, stock_id, item_id))
+                delta = canonical_qty(new_qty - old["qty"])
+                if delta != 0:
+                    conn.execute(
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                        (item_id, delta, old["qty"], new_qty, "編輯品項調整", new_location))
+
+            # insert new
+            for stock in payload_new:
+                new_qty = canonical_qty(stock.get("qty") or 0)
+                new_location = stock.get("location") or ""
+                new_note = stock.get("note") or ""
+                conn.execute(
+                    "INSERT INTO item_stocks (item_id, location, qty, note, updated_at) VALUES (?,?,?,?,?)",
+                    (item_id, new_location, new_qty, new_note, now))
+                if new_qty > 0:
+                    conn.execute(
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                        (item_id, new_qty, 0, new_qty, "編輯品項調整", new_location))
         conn.commit()
         row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         full = _item_full(conn, row)
@@ -438,11 +498,12 @@ def delete_item(item_id: int):
     conn = get_db()
     photo_assets = []
     try:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
         # 安全檢查：有待領出數量時不可刪除
-        prepared = row["prepared_qty"] or 0
+        prepared = canonical_qty(row["prepared_qty"] or 0)
         if prepared > 0:
             raise HTTPException(400, f"該品項有待領出數量 {prepared}，請先處理待領出再刪除")
         # 檢查是否還有庫存，有庫存則記錄稽核流水後清零
@@ -455,6 +516,10 @@ def delete_item(item_id: int):
                 conn.execute(
                     "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
                     (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or ""))
+        if stocks:
+            # P0-B：movement 說 qty → 0，persisted stock 必須真歸零（同一 transaction）
+            conn.execute("UPDATE item_stocks SET qty=0, updated_at=? WHERE item_id=?",
+                         (datetime.datetime.now().isoformat(), item_id))
         conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
                      (datetime.datetime.now().isoformat(), item_id))
         photo_assets = conn.execute(
@@ -491,6 +556,7 @@ def add_stock(item_id: int, st: StockUpdate):
     """新增位置庫存（同位置重複 → 400 拒絕），回傳該品項全部位置清單"""
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         item = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not item:
             raise HTTPException(404, "品項不存在")
@@ -507,6 +573,12 @@ def add_stock(item_id: int, st: StockUpdate):
             "INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
             (item_id, location, qty, st.note or ""),
         )
+        if qty > 0:
+            # P1-A：新位置 qty > 0 不可憑空出現，補 audit 流水
+            conn.execute(
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                (item_id, qty, 0, qty, "編輯品項調整", location),
+            )
         conn.commit()
         row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
         return [dict(r) for r in row]
@@ -526,6 +598,7 @@ def update_stock(stock_id: int, st: StockUpdate):
     """
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         fields = {k: v for k, v in st.model_dump().items() if v is not None}
         row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
         if not row:
@@ -543,15 +616,8 @@ def update_stock(stock_id: int, st: StockUpdate):
             diff = canonical_qty(target_qty - canonical_qty(row["qty"]))
             fields.pop("qty")  # qty 已抽離，避免下方動態 UPDATE 覆寫
             if diff != 0:
-                item_row = conn.execute("SELECT * FROM items WHERE id=?", (row["item_id"],)).fetchone()
-                prepared = item_row["prepared_qty"] or 0
-                if diff < 0:
-                    # 總量語意：品項所有位置合計不得低於待領出（與 adjust_qty 一致）
-                    total_before = conn.execute(
-                        "SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=?",
-                        (row["item_id"],)).fetchone()[0]
-                    if total_before + diff < prepared:
-                        raise HTTPException(400, f"減少後庫存不能低於待領出數量 {prepared}")
+                # P0-C：整個 item 的 new total 不得低於 prepared（同一 writer transaction 內驗證）
+                assert_projected_inventory(conn, row["item_id"], stock_delta=diff)
                 now = datetime.datetime.now().isoformat()
                 conn.execute(
                     "UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
@@ -576,13 +642,17 @@ def update_stock(stock_id: int, st: StockUpdate):
 
 @router.delete("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])
 def delete_stock(stock_id: int):
-    """刪除指定位置庫存"""
+    """刪除指定位置庫存（P0-A：非 0 數量拒絕，避免總庫存無流水消失）"""
     conn = get_db()
     try:
-        cur = conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
-        conn.commit()
-        if cur.rowcount == 0:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
+        if not row:
             raise HTTPException(404, "找不到該庫存位置")
+        if canonical_qty(row["qty"]) != 0:
+            raise HTTPException(400, f"此位置仍有庫存 {row['qty']}，請先將數量調整為 0 再刪除位置")
+        conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
+        conn.commit()
         return {"ok": True}
     except Exception:
         conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
@@ -596,6 +666,7 @@ def adjust_qty(item_id: int, req: AdjustRequest):
     """加減庫存：正數=盤點補入、負數=扣減"""
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         item_row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not item_row:
             raise HTTPException(404, "品項不存在")
@@ -606,14 +677,8 @@ def adjust_qty(item_id: int, req: AdjustRequest):
         if delta == 0:
             raise HTTPException(400, "調整數量正規化後不可為 0")
         total_before = canonical_qty(sum(r["qty"] for r in row))
-        # 負數調整：減少後庫存不得低於待領出數量（避免「可領數量」變負）
-        if delta < 0:
-            prepared = canonical_qty(item_row["prepared_qty"] or 0)
-            if canonical_qty(total_before + delta) < prepared:
-                raise HTTPException(
-                    400,
-                    f"減少後庫存不能低於待領出數量！目前庫存 {total_before}、待領出 {prepared}，請先退回待領出",
-                )
+        # P0-C：最終 committed state 必須滿足 total >= prepared（同一 writer transaction 內驗證）
+        assert_projected_inventory(conn, item_id, stock_delta=delta)
         # 第一筆位置作為調整標的（正數加入第一筆；負數從第一筆往後扣）
         if delta > 0:
             target = row[0]
@@ -698,8 +763,8 @@ def import_items(items: list = Body(..., embed=True)):
                     (exists["id"], location),
                 ).fetchone()
                 if stock:
-                    conn.execute("UPDATE item_stocks SET qty = ROUND(qty + ?,3), note=? WHERE id=?",
-                                 (qty, note or it.get("note", ""), stock["id"]))
+                    conn.execute("UPDATE item_stocks SET qty = ROUND(qty + ?,3), note=?, updated_at=? WHERE id=?",
+                                 (qty, note or it.get("note", ""), datetime.datetime.now().isoformat(), stock["id"]))
                 else:
                     conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
                                  (exists["id"], location, qty, note))
@@ -768,17 +833,18 @@ def batch_update_location(body: BatchLocationRequest):
                         f"品項「{item['name']}」在「{body.new_site}」已有主檔，無法搬移",
                     )
 
-        # 批次更新位置
+        # 批次更新位置（M3：統一使用 Python isoformat 精度，不混用 SQLite datetime('now')）
+        now = datetime.datetime.now().isoformat()
         conn.execute(
-            f"UPDATE item_stocks SET location=?, updated_at=datetime('now') WHERE id IN ({placeholders})",
-            [body.new_location] + body.stock_ids
+            f"UPDATE item_stocks SET location=?, updated_at=? WHERE id IN ({placeholders})",
+            [body.new_location, now] + body.stock_ids
         )
         if body.new_site:
             item_ids = {row["item_id"] for row in rows}
             item_placeholders = ",".join("?" * len(item_ids))
             conn.execute(
-                f"UPDATE items SET site=?, updated_at=datetime('now') WHERE id IN ({item_placeholders})",
-                [body.new_site] + list(item_ids),
+                f"UPDATE items SET site=?, updated_at=? WHERE id IN ({item_placeholders})",
+                [body.new_site, now] + list(item_ids),
             )
         conn.commit()
         return {"ok": True, "updated": len(body.stock_ids)}

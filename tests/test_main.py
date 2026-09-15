@@ -176,6 +176,8 @@ class TestItemsCRUD:
         """v4 pro 審查補測 #5：位置刪光 → stocks=[]、qty=0、location=""、note=""（批量 path 空分支）"""
         item = _add_item(client, name="零庫存", qty=5, location="Z倉")
         sid = item["stocks"][0]["id"]
+        # P0-A：非 0 庫存不可直接 DELETE——先調零再刪
+        assert client.patch(f"/api/stocks/{sid}", json={"qty": 0}).status_code == 200
         r = client.delete(f"/api/stocks/{sid}")
         assert r.status_code == 200
         items = client.get("/api/items").json()
@@ -216,8 +218,11 @@ class TestItemsCRUD:
         assert len(items) == 1
 
     def test_update_item(self, client):
-        """v10：更新位置用 stocks 全量替換"""
+        """v10：更新位置用 stocks 全量替換（P1-A：有貨位置不可靜默移除）"""
         item = _add_item(client, name="舊名", qty=5, location="A倉")
+        # 先把A倉清零才能移除（P1-A 保護有貨位置不被靜默滅失）
+        sid = item["stocks"][0]["id"]
+        client.patch(f"/api/stocks/{sid}", json={"qty": 0})
         r = client.patch(f"/api/items/{item['id']}", json={
             "stocks": [
                 {"location": "B倉", "qty": 3},
@@ -277,8 +282,8 @@ class TestDedup:
         })
         assert r.status_code == 201
 
-    def test_duplicate_stock_location_merged_on_edit(self, client):
-        """編輯送重複位置 → 全量替換後不產生重複位置（最後一筆勝出）"""
+    def test_duplicate_stock_location_rejected_on_edit(self, client):
+        """M2：編輯送重複位置 → 400（不再靜默合併）"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         r = client.patch(f"/api/items/{item['id']}", json={
             "stocks": [
@@ -286,11 +291,9 @@ class TestDedup:
                 {"location": "A倉", "qty": 4},
             ],
         })
-        assert r.status_code == 200
-        updated = r.json()
-        locs = [s["location"] for s in updated["stocks"]]
-        assert locs.count("A倉") == 1  # 無重複位置
-        assert updated["total_qty"] == 4
+        assert r.status_code == 400
+        assert "重複" in r.json()["detail"]
+        assert _get_item(client, item["id"])["total_qty"] == 5  # unchanged
 
 
 # ========== 位置庫存 CRUD ==========
@@ -323,11 +326,13 @@ class TestStocksCRUD:
         assert updated["total_qty"] == 8
 
     def test_delete_stock(self, client):
-        """驗證刪除位置庫存後總量同步扣減"""
+        """驗證刪除位置庫存後總量同步扣減（P0-A：先清零再刪）"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         client.post(f"/api/items/{item['id']}/stocks",
                     json={"location": "B倉", "qty": 3})
         sid = _get_item(client, item["id"])["stocks"][1]["id"]
+        # P0-A：非 0 庫存不可 DELETE——先調零
+        client.patch(f"/api/stocks/{sid}", json={"qty": 0})
         r = client.delete(f"/api/stocks/{sid}")
         assert r.status_code == 200
         updated = _get_item(client, item["id"])
@@ -2417,7 +2422,8 @@ class TestPhase4Audit:
         """M1：編輯品項同位置保留 stock id + qty 變化寫流水（不再 DELETE+INSERT 全量替換）"""
         item = _add_item(client, name="M1品項", qty=10, location="A倉")
         sid = item["stocks"][0]["id"]
-        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"location": "A倉", "qty": 7, "note": ""}]})
+        rev = item["stocks"][0]["updated_at"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"id": sid, "location": "A倉", "qty": 7, "note": "", "stock_updated_at": rev}]})
         assert r.status_code == 200
         it = _get_item(client, item["id"])
         assert it["stocks"][0]["id"] == sid, "stock id 應保留"
@@ -2435,7 +2441,9 @@ class TestPhase4Audit:
     def test_edit_item_same_qty_no_movement(self, client):
         """M1：qty 沒變不寫流水"""
         item = _add_item(client, name="M1不變", qty=5, location="A倉")
-        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"location": "A倉", "qty": 5, "note": "改備註"}]})
+        sid = item["stocks"][0]["id"]
+        rev = item["stocks"][0]["updated_at"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"id": sid, "location": "A倉", "qty": 5, "note": "改備註", "stock_updated_at": rev}]})
         assert r.status_code == 200
         conn = app_db.get_db()
         try:

@@ -1,9 +1,11 @@
 """單位字典 CRUD + 歷史收編（2026-08-16 單位動態清單）"""
+import datetime
 import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
 from app.models import UnitIn, UnitUpdate, UnitConsolidate, UnitConsolidateItem, QTY_TYPES
 from app.services.auth import require_perm
+from app.services.inventory_stock import assert_projected_inventory
 from app.services.quantity import canonical_qty
 
 router = APIRouter()
@@ -196,6 +198,7 @@ def consolidate_item(req: UnitConsolidateItem):
         raise HTTPException(400, "目標單位不可為空白")
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         item = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
         if not item:
             raise HTTPException(404, "品項不存在")
@@ -224,7 +227,9 @@ def consolidate_item(req: UnitConsolidateItem):
                 new_qty = canonical_qty(req.new_qty)
             except ValueError:
                 raise HTTPException(400, "新總量格式錯誤")
-            conn.execute("UPDATE item_stocks SET qty=? WHERE id=?", (new_qty, stocks[0]["id"]))
+            # P0-C：new_qty 降低總量時，最終 total 不得低於 prepared（同一 writer transaction 內驗證）
+            assert_projected_inventory(conn, req.item_id, stock_delta=canonical_qty(new_qty - before))
+            conn.execute("UPDATE item_stocks SET qty=?, updated_at=? WHERE id=?", (new_qty, datetime.datetime.now().isoformat(), stocks[0]["id"]))
             delta = canonical_qty(new_qty - before)
             if delta != 0:
                 conn.execute(

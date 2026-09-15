@@ -20,9 +20,11 @@ class SignedReportUpdate(BaseModel):
 
 
 class StockItem(BaseModel):
+    id: Optional[int] = None          # F2/F3：existing stock identity（None = new location）
     location: str = ""
     qty: float = Field(0, ge=0)
     note: str = ""
+    stock_updated_at: Optional[str] = None  # F2：stock-level optimistic lock revision
 
 
 class ItemCreate(BaseModel):
