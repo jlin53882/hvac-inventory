@@ -1,13 +1,14 @@
 // 庫存管理系統 - 入口控制（v8 拆分 → Phase 1 Shell v2 2026-09-06）
 // 載入順序：globals → utils → api → render/* → modals/* → 本檔（最後觸發啟動）
 
-// ========== 分片切換（辦公室 / 倉庫） ==========
+// ========== 分片切換（辦公室 / 倉庫 / 廂型車 / 貨車） ==========
 // M15：有未儲存的數量調整 → 切分片/重整前先確認，避免 pending 錯位或靜默丟失
 function hasPending() {
   return typeof pending !== 'undefined' && Object.keys(pending).length > 0;
 }
 
 function switchSite(site) {
+  if (INVENTORY_SITES.indexOf(site) < 0) return;
   if (site === currentSite) return;
   if (hasPending() && !confirm('⚠️ 有未儲存的數量調整，切換分片將遺失。確定要切換嗎？')) return;
   currentSite = site;

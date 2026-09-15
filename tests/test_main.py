@@ -2026,7 +2026,7 @@ class TestV10CompatAndCascade:
         assert r.status_code == 200
 
     def test_export_workbook_content(self, client):
-        """匯出 workbook 可開、3 sheet 欄位正確、品項×位置展開語意、檔名 RFC 5987 編碼"""
+        """匯出 workbook 可開、四區 sheet 欄位正確、品項×位置展開語意、檔名 RFC 5987 編碼"""
         _add_item(client, name="冷媒管", qty=5, location="A倉")
         r = client.get("/api/export")
         assert r.status_code == 200
@@ -2038,7 +2038,7 @@ class TestV10CompatAndCascade:
         from openpyxl import load_workbook
         wb = load_workbook(_io.BytesIO(r.content))
         # 2026-08-13 家豪：庫存明細拆「辦公室」「倉庫」兩頁
-        assert wb.sheetnames == ["辦公室", "倉庫", "異動紀錄", "廠牌統計"]
+        assert wb.sheetnames == ["辦公室", "倉庫", "廂型車", "貨車", "異動紀錄", "廠牌統計"]
 
         ws = wb["辦公室"]
         assert [c.value for c in ws[1]] == \

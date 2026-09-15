@@ -2,7 +2,7 @@
 """
 匯出路由：Excel 報表（記憶體回傳版）
 ================================
-- GET /api/export?days=30  匯出 3 個 Sheet（庫存明細 / 異動紀錄 / 廠牌統計）
+- GET /api/export?days=30  匯出 6 個 Sheet（四庫存區明細 / 異動紀錄 / 廠牌統計）
 - 改版重點：BytesIO 記憶體回傳，不寫磁碟 → exports/ 零檔案累積、無撞名
 - 安全：公式注入防護（= + - @ 開頭的字串加撇號）
 """
@@ -74,12 +74,15 @@ def export_excel(days: int = 30):
         _set_widths(ws, [8, 14, 40, 16, 8, 30, 10, 24, 10])
 
     try:
-        # Sheet 1/2: 庫存明細拆「辦公室」「倉庫」兩頁（單一 JOIN 消除 N+1）
+        # Sheet 1-4：四個獨立庫存區明細（單一 JOIN 消除 N+1）
         ws = wb.active
-        ws.title = "辦公室"
-        _fill_stock_sheet(ws, "office")
-        ws2 = wb.create_sheet("倉庫")
-        _fill_stock_sheet(ws2, "warehouse")
+        for sheet, site in (("辦公室", "office"), ("倉庫", "warehouse"),
+                            ("廂型車", "van"), ("貨車", "truck")):
+            if ws.title != "Sheet":
+                ws = wb.create_sheet(sheet)
+            else:
+                ws.title = sheet
+            _fill_stock_sheet(ws, site)
 
         # Sheet 3: 異動紀錄（days 控制範圍，取代寫死的 LIMIT 500）
         ws3 = wb.create_sheet("異動紀錄")

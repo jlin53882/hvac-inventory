@@ -11,6 +11,11 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+INVENTORY_SITES = ("office", "warehouse", "van", "truck")
+InventorySite = Literal["office", "warehouse", "van", "truck"]
+InventorySiteQuery = Literal["all", "office", "warehouse", "van", "truck"]
+
+
 # ---------- 品項（v10 正規化：主檔 + 位置庫存） ----------
 class SignedReportUpdate(BaseModel):
     """編輯每日簽名報表的日期、上傳人與備註。"""
@@ -33,7 +38,7 @@ class ItemCreate(BaseModel):
     name: str
     unit: str = "個"
     low_stock: float = 0
-    site: str = "office"  # office=辦公室 / warehouse=倉庫
+    site: InventorySite = "office"  # office=辦公室 / warehouse=倉庫 / van=廂型車 / truck=貨車
     category: str = Field("", max_length=50)  # 品項分類（遙控器/電子零件/管材/...）
     stocks: List[StockItem] = []  # 位置庫存清單（第一筆為預設位置）
 
@@ -44,7 +49,7 @@ class ItemUpdate(BaseModel):
     name: Optional[str] = None
     unit: Optional[str] = None
     low_stock: Optional[float] = Field(None, ge=0)
-    site: Optional[str] = None
+    site: Optional[InventorySite] = None
     category: Optional[str] = Field(None, max_length=50)  # 品項分類
     stocks: Optional[List[StockItem]] = None  # v10：完整位置清單全量替換
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯 modal 開啟時的快照值
@@ -119,6 +124,7 @@ class PrepareRequest(BaseModel):
 # ---------- 整組（套件） ----------
 class KitCreate(BaseModel):
     name: str
+    site: Optional[InventorySite] = None
     items: list  # [{item_id, qty}]
     note: str = ""
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯整組時的 updated_at 快照
@@ -131,6 +137,7 @@ class KitAssemble(BaseModel):
 # ---------- 盤點 ----------
 class StocktakeSubmit(BaseModel):
     take_date: str = ""  # 預設今天
+    site: Optional[InventorySite] = None
     items: list  # [{item_id, location, actual_qty, note}]
 
 # ---------- 單位字典（2026-08-16 單位動態清單） ----------
@@ -237,10 +244,19 @@ class GcalKeyUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class TransferRequest(BaseModel):
+    """跨庫存區調撥：來源 item 保持不變，目標區自動建立同一物料主檔。"""
+    item_id: int = Field(..., ge=1)
+    target_site: InventorySite
+    qty: float = Field(..., gt=0)
+    source_location: Optional[str] = Field(None, max_length=100)
+    target_location: str = Field("", max_length=100)
+
+
 class BatchLocationRequest(BaseModel):
     stock_ids: List[int] = Field(..., min_length=1)
     new_location: str = Field(..., min_length=1, max_length=100)
-    new_site: Optional[Literal["office", "warehouse"]] = None
+    new_site: Optional[InventorySite] = None
 
 
 class QuotationItemIn(BaseModel):
