@@ -1561,6 +1561,37 @@ def test_kit_modal_demo_css_styles():
     assert "1890FF" in css
 
 
+
+def test_kit_modal_input_selector_matches_type():
+    """整組 Modal 數量 input 的 CSS 選擇器必須匹配實際 type="text"（防回歸 2026-09-15）。
+
+    2026-09-12 數量系統改 type="number" -> type="text" inputmode="decimal"（支援分數），
+    但 CSS 仍寫 .selected-row input[type="number"]，導致 type="text" 的 input 不匹配，
+    .form-row input { width:100% } 趁虛而入撑滿整行、擠壓 .info div。
+    修法：改 .selected-row input（無 type 限制）。
+
+    防回歸：若有人改回 input[type="number"] 或 kits.js 改回 type="number"，此測試紅。
+    """
+    css = read_css_all()
+    js = read(KITS_RENDER_JS)
+
+    # CSS 必須有 .selected-row input（不帶 type 限制）才能匹配 type="text" 的 input
+    assert '.selected-row input {' in css or '.selected-row input{' in css, (
+        'CSS 缺少 .selected-row input 選擇器（會被 .form-row input width:100% 覆蓋）'
+    )
+
+    # CSS 不可有 .selected-row input[type="number"]（不匹配 type="text"）
+    assert 'selected-row input[type="number"]' not in css, (
+        'CSS 仍有 input[type="number"] 選擇器 -- 2026-09-12 已改 type="text"，此選擇器不匹配'
+    )
+
+    # kits.js 的數量 input 必須是 type="text"（不是 type="number"）
+    assert 'type="text"' in js, 'kits.js 數量 input 應為 type="text" inputmode="decimal"'
+    assert 'inputmode="decimal"' in js, 'kits.js 數量 input 缺少 inputmode="decimal"'
+
+    # .form-row input { width:100% } 確實存在（specificity 背景）
+    assert '.form-row input' in css, 'CSS 缺少 .form-row input 規則（specificity 上下文不存在）'
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
 

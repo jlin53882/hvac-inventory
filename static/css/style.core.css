@@ -694,7 +694,7 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .selected-row .info .bd { font-size: 11.5px; color: #6b7a90; }
-  .selected-row input[type="number"] {
+  .selected-row input {
     width: 58px; height: 36px; text-align: center;
     border: 1.5px solid #d8dee9; border-radius: 8px; font-size: 14px; outline: none;
   }
