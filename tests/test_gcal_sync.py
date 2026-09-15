@@ -2095,7 +2095,7 @@ def test_direct_sync_pending_serializes_same_queue_insert(client, monkeypatch):
     first=threading.Thread(target=lambda: results.append(gcal_sync.sync_pending([due])))
     second=threading.Thread(target=lambda: results.append(gcal_sync.sync_pending([due])))
     first.start()
-    assert entered.wait(1)
+    assert entered.wait(5)
     second.start()
     time.sleep(0.05)
     assert max_active == 1
@@ -2279,6 +2279,7 @@ def test_scheduler_restart_recovers_pending_migration_map_without_d_queue(client
     key_id = client.post("/api/gcal-keys", json={
         "name": "restart-recovery-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
     }).json()["id"]
+    sync_scheduler.stop()
     conn = get_db()
     try:
         appt_id = conn.execute(
@@ -2328,11 +2329,12 @@ def _seed_pending_map(conn, key_id, calendar_id="old@cal", pending_calendar_id="
 
 def test_pending_migration_recovery_is_idempotent_and_preserves_retry_state(client):
     from app.database import get_db
-    from app.services import gcal_sync
+    from app.services import gcal_sync, sync_scheduler
 
     key_id = client.post("/api/gcal-keys", json={
         "name": "recovery-idempotent", "credentials_path": "calendar.json", "calendar_id": "old@cal",
     }).json()["id"]
+    sync_scheduler.stop()
     conn = get_db()
     try:
         appt_id = _seed_pending_map(conn, key_id)
@@ -2367,11 +2369,12 @@ def test_pending_migration_recovery_is_idempotent_and_preserves_retry_state(clie
 
 def test_pending_migration_recovery_does_not_reset_exhausted_d(client):
     from app.database import get_db
-    from app.services import gcal_sync
+    from app.services import gcal_sync, sync_scheduler
 
     key_id = client.post("/api/gcal-keys", json={
         "name": "recovery-exhausted", "credentials_path": "calendar.json", "calendar_id": "old@cal",
     }).json()["id"]
+    sync_scheduler.stop()
     conn = get_db()
     try:
         appt_id = _seed_pending_map(conn, key_id)
@@ -2399,11 +2402,12 @@ def test_pending_migration_recovery_does_not_reset_exhausted_d(client):
 
 def test_pending_migration_recovery_ignores_empty_map_google_id(client):
     from app.database import get_db
-    from app.services import gcal_sync
+    from app.services import gcal_sync, sync_scheduler
 
     key_id = client.post("/api/gcal-keys", json={
         "name": "recovery-empty-gid", "credentials_path": "calendar.json", "calendar_id": "old@cal",
     }).json()["id"]
+    sync_scheduler.stop()
     conn = get_db()
     try:
         appt_id = conn.execute(
@@ -2436,12 +2440,13 @@ def test_recovered_d_success_finalizes_and_backfills_new_calendar(client, monkey
 
     from app.database import get_db
     from app.routes import gcal_keys
-    from app.services import gcal_sync
+    from app.services import gcal_sync, sync_scheduler
 
     monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
     key_id = client.post("/api/gcal-keys", json={
         "name": "recovery-finalize", "credentials_path": "calendar.json", "calendar_id": "old@cal",
     }).json()["id"]
+    sync_scheduler.stop()
     conn = get_db()
     try:
         appt_id = _seed_pending_map(conn, key_id)
