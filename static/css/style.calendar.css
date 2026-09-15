@@ -87,9 +87,6 @@
 .cal-icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 7px; background: transparent; color: #334155; cursor: pointer; font-size: 16px; }
 .cal-icon-btn:hover, .cal-icon-btn:focus-visible { background: #e8f0fe; outline: 2px solid #93c5fd; }
 .cal-icon-btn.btn-delete:hover, .cal-icon-btn.btn-delete:focus-visible { background: #fee2e2; color: #b91c1c; }
-/* ⚠️ 共享樣式：.btn-sm/.btn-card 被 inventory.js「＋新增/⬇️匯出」使用，勿單獨移除（2026-08-16 拆檔註記） */
-.btn-sm { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #333; }
-.btn-sm.btn-primary { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }
 .cal-card { padding: 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 .cal-month-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .cal-month-header h3 { margin: 0; font-size: 17px; color: #2d5a8e; }

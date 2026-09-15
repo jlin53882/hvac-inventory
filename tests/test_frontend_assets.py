@@ -3955,3 +3955,27 @@ def test_qty_merge_preserves_both_contracts():
     assert 'style="text-align:right"' in settings_js
     assert "table-layout: fixed" in settings_html
     assert "width: 33.33%" in settings_html
+
+
+def test_btn_sm_canonical_shared_owner_and_consumers():
+    """Regression: .btn-sm base must be shared, not owned by Calendar."""
+    core = read(CSS_CORE)
+    calendar = read(CSS_CAL)
+    inventory = read(CSS_INVENTORY)
+    calendar_js = read(CALENDAR_RENDER_JS)
+    inventory_js = read(INVENTORY_RENDER_JS)
+    index = read(INDEX)
+
+    exact_base = ".btn-sm { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #333; }"
+    exact_primary = ".btn-sm.btn-primary { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }"
+    assert exact_base in core, "shared .btn-sm base values must remain unchanged"
+    assert exact_primary in core, "shared .btn-sm primary values must remain unchanged"
+    assert index.index("style.core.css") < index.index("style.calendar.css") < index.index("style.inventory.css"), "shared owner must load before feature CSS"
+
+    assert re.search(r"(?m)^\s*\.btn-sm\s*\{", core), "shared core must own .btn-sm base"
+    assert re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", core), "shared core must own .btn-sm primary variant"
+    assert not re.search(r"(?m)^\s*\.btn-sm\s*\{", calendar), "Calendar must not own .btn-sm base"
+    assert not re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", calendar), "Calendar must not own .btn-sm primary variant"
+    assert ".inventory-content .btn-sm" in inventory, "Inventory-specific .btn-sm delta must remain"
+    assert 'class=\"btn-sm' in calendar_js, "Calendar .btn-sm consumers must remain"
+    assert 'class=\"btn-sm' in inventory_js, "Inventory .btn-sm consumers must remain"
