@@ -1229,6 +1229,7 @@ class TestDiscordNotification:
         notified = []
         monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
@@ -1245,6 +1246,7 @@ class TestDiscordNotification:
         notified = []
         monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
@@ -1269,6 +1271,7 @@ class TestDiscordNotification:
         notified = []
         monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
@@ -1488,6 +1491,7 @@ class TestDiscordNotificationFormat:
         notified = []
         monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
@@ -1512,6 +1516,7 @@ class TestDiscordNotificationFormat:
         notified = []
         monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
@@ -1678,6 +1683,7 @@ class TestSchedulerReliability:
         called = []
         recent = (datetime.utcnow() - timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=False)
@@ -1690,6 +1696,7 @@ class TestSchedulerReliability:
         called = []
         recent = (datetime.utcnow() - timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=True)
@@ -1701,6 +1708,7 @@ class TestSchedulerReliability:
 
         called = []
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(attempts=5)))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=True)
@@ -1718,6 +1726,7 @@ class TestSchedulerReliability:
         calls = 0
         state_lock = threading.Lock()
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows()))
 
         def fake_sync(due):
@@ -2258,3 +2267,246 @@ def test_sync_rechecks_key_after_key_lock_before_remote_io(client, monkeypatch):
 
     assert (ok, fail) == (0, 0)
     service.events().insert.assert_not_called()
+
+
+
+def test_scheduler_restart_recovers_pending_migration_map_without_d_queue(client, monkeypatch):
+    """server restart 後 pending migration 應補出 old Calendar cleanup 的 D queue。"""
+    from app.database import get_db
+    from app.services import sync_scheduler
+
+    monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda message: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "restart-recovery-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("restart-recovery", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?", ("new@cal", key_id)
+        )
+        conn.execute(
+            "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+            "VALUES(?,?,?,?)", (appt_id, key_id, "event-a", "hash"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    sync_scheduler._run_once(force=True)
+
+    conn = get_db()
+    try:
+        queue = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+        ).fetchone()
+        assert (queue["op_type"], queue["google_event_id"]) == ("D", "event-a")
+    finally:
+        conn.close()
+
+
+
+def _seed_pending_map(conn, key_id, calendar_id="old@cal", pending_calendar_id="new@cal"):
+    appt_id = conn.execute(
+        "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+        ("recovery-appointment", "2026-08-28", "09:00", "10:00"),
+    ).lastrowid
+    conn.execute(
+        "UPDATE gcal_keys SET calendar_id=?, pending_calendar_id=? WHERE id=?",
+        (calendar_id, pending_calendar_id, key_id),
+    )
+    conn.execute(
+        "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+        "VALUES(?,?,?,?)", (appt_id, key_id, "event-a", "hash"),
+    )
+    return appt_id
+
+
+def test_pending_migration_recovery_is_idempotent_and_preserves_retry_state(client):
+    from app.database import get_db
+    from app.services import gcal_sync
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "recovery-idempotent", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = _seed_pending_map(conn, key_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert gcal_sync.recover_pending_calendar_migrations() == 1
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE appointment_sync_queue SET attempts=1, last_error=? "
+            "WHERE appointment_id=? AND key_id=?", ("Google API 403", appt_id, key_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert gcal_sync.recover_pending_calendar_migrations() == 0
+    conn = get_db()
+    try:
+        queue = conn.execute(
+            "SELECT op_type, google_event_id, attempts, last_error "
+            "FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+        ).fetchone()
+        assert (queue["op_type"], queue["google_event_id"], queue["attempts"], queue["last_error"]) == (
+            "D", "event-a", 1, "Google API 403"
+        )
+    finally:
+        conn.close()
+
+
+def test_pending_migration_recovery_does_not_reset_exhausted_d(client):
+    from app.database import get_db
+    from app.services import gcal_sync
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "recovery-exhausted", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = _seed_pending_map(conn, key_id)
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,?, 'D', ?, ?, ?, ?)",
+            (appt_id, key_id, "event-a", "2026-08-28 09:00:00", gcal_sync.MAX_ATTEMPTS, "Google API 403"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert gcal_sync.recover_pending_calendar_migrations() == 0
+    conn = get_db()
+    try:
+        queue = conn.execute(
+            "SELECT attempts, last_error FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()
+        assert (queue["attempts"], queue["last_error"]) == (gcal_sync.MAX_ATTEMPTS, "Google API 403")
+    finally:
+        conn.close()
+
+
+def test_pending_migration_recovery_ignores_empty_map_google_id(client):
+    from app.database import get_db
+    from app.services import gcal_sync
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "recovery-empty-gid", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("empty-gid", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?", ("new@cal", key_id)
+        )
+        conn.execute(
+            "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+            "VALUES(?,?,?,?)", (appt_id, key_id, "", "hash"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert gcal_sync.recover_pending_calendar_migrations() == 0
+    conn = get_db()
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone() is None
+    finally:
+        conn.close()
+
+
+def test_recovered_d_success_finalizes_and_backfills_new_calendar(client, monkeypatch):
+    from unittest.mock import MagicMock
+
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "recovery-finalize", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = _seed_pending_map(conn, key_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert gcal_sync.recover_pending_calendar_migrations() == 1
+    service = MagicMock()
+    service.events().delete.return_value.execute.return_value = {}
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+    conn = get_db()
+    try:
+        queue = dict(conn.execute(
+            "SELECT * FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone())
+    finally:
+        conn.close()
+
+    ok, failed, _ = gcal_sync.sync_pending([queue])
+
+    assert (ok, failed) == (1, 0)
+    service.events().delete.assert_called_once_with(calendarId="old@cal", eventId="event-a")
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"]) == ("new@cal", None)
+        queue = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+        ).fetchone()
+        assert (queue["op_type"], queue["google_event_id"]) == ("C", "")
+    finally:
+        conn.close()
+
+
+
+def test_inactive_pending_migration_recovery_only_creates_d(client):
+    from app.database import get_db
+    from app.services import gcal_sync
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "inactive-recovery", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
+    conn = get_db()
+    try:
+        appt_id = _seed_pending_map(conn, key_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert gcal_sync.recover_pending_calendar_migrations() == 1
+    conn = get_db()
+    try:
+        queue = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id),
+        ).fetchone()
+        assert (queue["op_type"], queue["google_event_id"]) == ("D", "event-a")
+        assert conn.execute(
+            "SELECT 1 FROM appointment_sync_queue WHERE key_id=? AND op_type IN ('C','U')",
+            (key_id,),
+        ).fetchone() is None
+    finally:
+        conn.close()

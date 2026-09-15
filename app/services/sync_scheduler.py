@@ -235,6 +235,7 @@ def _run_once(force: bool = False):
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         health_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         _set_health(last_run_at=health_now)
+        gcal_sync.recover_pending_calendar_migrations()
         if not gcal_sync.is_enabled():
             _set_health(last_success_at=health_now, last_error=None)
             return

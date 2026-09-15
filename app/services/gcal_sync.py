@@ -421,6 +421,55 @@ def enqueue_existing_mappings(
     finally:
         conn.close()
 
+def recover_pending_calendar_migrations() -> int:
+    """為 pending migration 補回 map 對應的 old Calendar D queue。"""
+    conn = get_db()
+    recovered = 0
+    try:
+        keys = conn.execute(
+            "SELECT id FROM gcal_keys WHERE pending_calendar_id IS NOT NULL"
+        ).fetchall()
+        version = sync_version_now()
+        for key in keys:
+            mappings = conn.execute(
+                "SELECT appointment_id, google_event_id FROM appointment_gcal_map "
+                "WHERE key_id=? AND COALESCE(google_event_id,'')<>''",
+                (key["id"],),
+            ).fetchall()
+            for mapping in mappings:
+                existing = conn.execute(
+                    "SELECT op_type, google_event_id FROM appointment_sync_queue "
+                    "WHERE appointment_id=? AND key_id=?",
+                    (mapping["appointment_id"], key["id"]),
+                ).fetchone()
+                if existing and existing["op_type"] == "D":
+                    if not existing["google_event_id"]:
+                        conn.execute(
+                            "UPDATE appointment_sync_queue SET google_event_id=? "
+                            "WHERE appointment_id=? AND key_id=?",
+                            (mapping["google_event_id"], mapping["appointment_id"], key["id"]),
+                        )
+                    continue
+                if existing:
+                    conn.execute(
+                        "UPDATE appointment_sync_queue SET op_type='D', google_event_id=? "
+                        "WHERE appointment_id=? AND key_id=?",
+                        (mapping["google_event_id"], mapping["appointment_id"], key["id"]),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO appointment_sync_queue "
+                        "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                        "VALUES(?,?, 'D', ?, ?, 0, '')",
+                        (mapping["appointment_id"], key["id"], mapping["google_event_id"], version),
+                    )
+                recovered += 1
+        conn.commit()
+        return recovered
+    finally:
+        conn.close()
+
+
 def calendar_migration_pending(key_row) -> bool:
     """pending_calendar_id 存在時，Key 仍在舊 Calendar cleanup migration。"""
     if hasattr(key_row, "keys"):
