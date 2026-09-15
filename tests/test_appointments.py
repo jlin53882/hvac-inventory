@@ -820,6 +820,8 @@ class TestGcalKeyUpdateResetsQueue:
     def _setup(self, tmp_path, monkeypatch):
         import app.database as app_db
         monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "key_reset.db"))
+        from app.routes import gcal_keys as gcal_keys_route
+        monkeypatch.setattr(gcal_keys_route, "_wake_scheduler", lambda: None)
         app_db.init_db()
         # 寫一個假的 JSON 檔
         secrets_dir = tmp_path / "secrets" / "gcal"
