@@ -415,8 +415,10 @@ class TestStocktake:
 class TestStockAuditBoundary:
     def test_new_location_positive_qty_writes_movement(self, client):
         item = _add_item(client, name="冷媒", qty=10)
+        sid = item["stocks"][0]["id"]
+        rev = item["stocks"][0]["updated_at"]
         r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
-            {"location": "測試位置", "qty": 10, "note": ""},
+            {"id": sid, "location": "測試位置", "qty": 10, "note": "", "stock_updated_at": rev},
             {"location": "B倉", "qty": 5, "note": ""}]})
         assert r.status_code == 200, r.text
         assert _get_item(client, item["id"])["total_qty"] == 15
@@ -427,8 +429,10 @@ class TestStockAuditBoundary:
 
     def test_new_location_zero_qty_no_movement(self, client):
         item = _add_item(client, name="冷媒", qty=10)
+        sid = item["stocks"][0]["id"]
+        rev = item["stocks"][0]["updated_at"]
         r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
-            {"location": "測試位置", "qty": 10, "note": ""},
+            {"id": sid, "location": "測試位置", "qty": 10, "note": "", "stock_updated_at": rev},
             {"location": "B倉", "qty": 0, "note": ""}]})
         assert r.status_code == 200, r.text
         assert _get_item(client, item["id"])["total_qty"] == 10
@@ -439,8 +443,10 @@ class TestStockAuditBoundary:
         item = _add_item(client, name="冷媒",
                          stocks=[{"location": "A倉", "qty": 5, "note": ""},
                                  {"location": "B倉", "qty": 3, "note": ""}])
+        sid_a = item["stocks"][0]["id"]
+        rev_a = item["stocks"][0]["updated_at"]
         r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
-            {"location": "A倉", "qty": 5, "note": ""}]})
+            {"id": sid_a, "location": "A倉", "qty": 5, "note": "", "stock_updated_at": rev_a}]})
         assert r.status_code == 400, r.text
         assert _db_sum(item["id"]) == 8  # B倉還在
 
@@ -448,21 +454,26 @@ class TestStockAuditBoundary:
         item = _add_item(client, name="冷媒",
                          stocks=[{"location": "A倉", "qty": 5, "note": ""},
                                  {"location": "B倉", "qty": 0, "note": ""}])
+        sid_a = item["stocks"][0]["id"]
+        rev_a = item["stocks"][0]["updated_at"]
         r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
-            {"location": "A倉", "qty": 5, "note": ""}]})
+            {"id": sid_a, "location": "A倉", "qty": 5, "note": "", "stock_updated_at": rev_a}]})
         assert r.status_code == 200, r.text
         assert [s["location"] for s in _get_item(client, item["id"])["stocks"]] == ["A倉"]
 
     def test_stocks_sync_projected_total_checked_order_independent(self, client):
         """一次 payload 改多倉：先算 projected final total 再驗（順序無關）。"""
-        for idx, payload in enumerate((
-            [{"location": "A倉", "qty": 1, "note": ""}, {"location": "B倉", "qty": 4, "note": ""}],
-            [{"location": "B倉", "qty": 4, "note": ""}, {"location": "A倉", "qty": 1, "note": ""}],
-        )):
+        for idx, qtys in enumerate(([1, 4], [4, 1])):
             item = _add_item(client, name=f"冷媒同步{idx}",
                              stocks=[{"location": "A倉", "qty": 6, "note": ""},
                                      {"location": "B倉", "qty": 4, "note": ""}])
             client.post(f"/api/items/{item['id']}/prepare", json={"qty": 8})
+            sa = item["stocks"][0]
+            sb = item["stocks"][1]
+            payload = [
+                {"id": sa["id"], "location": "A倉", "qty": qtys[0], "note": "", "stock_updated_at": sa["updated_at"]},
+                {"id": sb["id"], "location": "B倉", "qty": qtys[1], "note": "", "stock_updated_at": sb["updated_at"]},
+            ]
             r = client.patch(f"/api/items/{item['id']}", json={"stocks": payload})
             assert r.status_code == 400, r.text  # new total 5 < 8
             assert _db_sum(item["id"]) == 10
@@ -500,6 +511,93 @@ class TestItemsListContract:
         loc_total = client.get("/api/items",
                                params={"page": 1, "location": "測試位置"}).json()["total"]
         assert loc_total == 2
+
+
+# ========== M1/M2/M3：Stock revision + uniqueness + timestamp precision ==========
+
+class TestStockRevisionContract:
+    def test_new_row_duplicated_with_existing_location_rejects(self, client):
+        """T1：id=null + location 匹配既有 → uniqueness 400。"""
+        item = _add_item(client, name="冷媒", qty=5, location="A倉")
+        sid = item["stocks"][0]["id"]
+        rev = item["stocks"][0]["updated_at"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sid, "location": "A倉", "qty": 5, "note": "", "stock_updated_at": rev},
+            {"id": None, "location": "A倉", "qty": 0, "note": ""},
+        ]})
+        assert r.status_code == 400, r.text
+        assert "重複" in r.json()["detail"]
+        assert _db_sum(item["id"]) == 5
+        assert len(item["stocks"]) == 1  # stock count unchanged
+
+    def test_existing_stock_without_revision_rejected(self, client):
+        """T2：existing stock 缺 stock_updated_at → 409。"""
+        item = _add_item(client, name="冷媒", qty=5, location="A倉")
+        sid = item["stocks"][0]["id"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sid, "location": "A倉", "qty": 5, "note": ""},
+        ]})
+        assert r.status_code == 409, r.text
+        assert "版本" in r.json()["detail"]
+
+    def test_legacy_no_id_payload_cannot_overwrite(self, client):
+        """T3：no-id payload 無法覆蓋 existing stock（treated as new → uniqueness reject）。"""
+        item = _add_item(client, name="冷媒", qty=10, location="A倉")
+        # Simulate concurrent stockout: qty 10→5
+        import app.database as _db
+        conn = _db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=5 WHERE id=?", (item["stocks"][0]["id"],))
+            conn.commit()
+        finally:
+            conn.close()
+        # Send old-style payload (no id)
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"location": "A倉", "qty": 10, "note": ""},
+        ]})
+        # No id → treated as new. existingA倉 (qty=5) not in payload → removal check: qty=5 → 400
+        assert r.status_code == 400
+        assert _db_sum(item["id"]) == 5  # DB remains 5
+        # No fake +5 movement
+        movs = _movements(client, item["id"])
+        assert not any(m["reason"] == "編輯品項調整" and m["delta"] == 5 for m in movs)
+
+    def test_batch_location_invalidates_stock_revision(self, client):
+        """T4：batch-location 更新後 stock_updated_at 改變 → stale revision 409。"""
+        item = _add_item(client, name="冷媒", qty=5, location="A倉")
+        sid = item["stocks"][0]["id"]
+        old_rev = item["stocks"][0]["updated_at"]
+        # batch-location changes A倉→B倉
+        r = client.post("/api/stocks/batch-location", json={
+            "stock_ids": [sid], "new_location": "B倉"})
+        assert r.status_code == 200, r.text
+        # Verify updated_at changed
+        import app.database as _db
+        conn = _db.get_db()
+        try:
+            new_rev = conn.execute("SELECT updated_at FROM item_stocks WHERE id=?",
+                                   (sid,)).fetchone()["updated_at"]
+        finally:
+            conn.close()
+        assert new_rev != old_rev, "batch-location must change stock updated_at"
+        # Now try stale revision → 409
+        r2 = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sid, "location": "B倉", "qty": 5, "note": "", "stock_updated_at": old_rev},
+        ]})
+        assert r2.status_code == 409
+
+    def test_duplicate_final_location_rejects(self, client):
+        """M2：payload 兩筆同 location → 400，不是 500。"""
+        item = _add_item(client, name="冷媒", qty=5, location="A倉")
+        sid = item["stocks"][0]["id"]
+        rev = item["stocks"][0]["updated_at"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sid, "location": "C倉", "qty": 5, "note": "", "stock_updated_at": rev},
+            {"id": None, "location": "C倉", "qty": 0, "note": ""},
+        ]})
+        assert r.status_code == 400, r.text
+        assert "重複" in r.json()["detail"]
+
 
 
 # ========== F1：Duplicate BOM ==========

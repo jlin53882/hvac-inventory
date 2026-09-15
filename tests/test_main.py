@@ -282,8 +282,8 @@ class TestDedup:
         })
         assert r.status_code == 201
 
-    def test_duplicate_stock_location_merged_on_edit(self, client):
-        """編輯送重複位置 → 全量替換後不產生重複位置（最後一筆勝出）"""
+    def test_duplicate_stock_location_rejected_on_edit(self, client):
+        """M2：編輯送重複位置 → 400（不再靜默合併）"""
         item = _add_item(client, name="冷媒", location="A倉", qty=5)
         r = client.patch(f"/api/items/{item['id']}", json={
             "stocks": [
@@ -291,11 +291,9 @@ class TestDedup:
                 {"location": "A倉", "qty": 4},
             ],
         })
-        assert r.status_code == 200
-        updated = r.json()
-        locs = [s["location"] for s in updated["stocks"]]
-        assert locs.count("A倉") == 1  # 無重複位置
-        assert updated["total_qty"] == 4
+        assert r.status_code == 400
+        assert "重複" in r.json()["detail"]
+        assert _get_item(client, item["id"])["total_qty"] == 5  # unchanged
 
 
 # ========== 位置庫存 CRUD ==========
@@ -2424,7 +2422,8 @@ class TestPhase4Audit:
         """M1：編輯品項同位置保留 stock id + qty 變化寫流水（不再 DELETE+INSERT 全量替換）"""
         item = _add_item(client, name="M1品項", qty=10, location="A倉")
         sid = item["stocks"][0]["id"]
-        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"location": "A倉", "qty": 7, "note": ""}]})
+        rev = item["stocks"][0]["updated_at"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"id": sid, "location": "A倉", "qty": 7, "note": "", "stock_updated_at": rev}]})
         assert r.status_code == 200
         it = _get_item(client, item["id"])
         assert it["stocks"][0]["id"] == sid, "stock id 應保留"
@@ -2442,7 +2441,9 @@ class TestPhase4Audit:
     def test_edit_item_same_qty_no_movement(self, client):
         """M1：qty 沒變不寫流水"""
         item = _add_item(client, name="M1不變", qty=5, location="A倉")
-        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"location": "A倉", "qty": 5, "note": "改備註"}]})
+        sid = item["stocks"][0]["id"]
+        rev = item["stocks"][0]["updated_at"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [{"id": sid, "location": "A倉", "qty": 5, "note": "改備註", "stock_updated_at": rev}]})
         assert r.status_code == 200
         conn = app_db.get_db()
         try:
