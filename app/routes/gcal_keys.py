@@ -15,6 +15,12 @@ from app.services.gcal_sync import parse_popup_reminders
 
 MAX_CREDENTIALS_SIZE = 1024 * 1024
 CLIENT_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+PAYLOAD_AFFECTING_SETTINGS = {
+    "gcal_default_duration_min",
+    "gcal_use_location",
+    "gcal_transparency",
+}
+SCHEDULER_ONLY_SETTINGS = {"gcal_sync_interval_min"}
 UPLOADED_CREDENTIALS_DIR = (Path(BASE_DIR) / "secrets" / "gcal").resolve()
 _UPLOADED_CREDENTIAL_NAME_RE = re.compile(r"^[0-9a-f]{32}\.json$")
 
@@ -426,7 +432,9 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                                 ),
                             )
                         conn.commit()
-                        _backfill_all_appointments(key_id)
+                        # Partial migration must not backfill against the still-old
+                        # calendar_id: successful deletes must stay deleted.  Wake
+                        # only so the retained D rows can retry their remote delete.
                         _wake_scheduler()
                         raise HTTPException(
                             409,
@@ -637,14 +645,15 @@ def get_gcal_sync_settings():
 
 @router.put("/api/gcal-sync-settings", dependencies=[Depends(require_perm("gcal-sync-manage"))])
 def update_gcal_sync_settings(body: dict):
-    """更新全域同步設定（部分更新），並 invalidation 所有 active mappings。"""
-    allowed = {"gcal_default_duration_min", "gcal_use_location", "gcal_transparency", "gcal_sync_interval_min"}
+    """更新全域同步設定；只有會改變 Event payload 的設定才 invalidation mappings。"""
+    allowed = PAYLOAD_AFFECTING_SETTINGS | SCHEDULER_ONLY_SETTINGS
     unknown = set(body) - allowed
     if unknown:
         raise HTTPException(400, f"未知同步設定：{', '.join(sorted(unknown))}")
     if not body:
         raise HTTPException(400, "至少要提供一個同步設定")
     changed = False
+    payload_changed = False
     conn = get_db()
     try:
         for k, v in body.items():
@@ -669,6 +678,9 @@ def update_gcal_sync_settings(body: dict):
             old = conn.execute("SELECT value FROM gcal_sync_settings WHERE key=?", (k,)).fetchone()
             value = str(v)
             changed = changed or old is None or old["value"] != value
+            payload_changed = payload_changed or (
+                k in PAYLOAD_AFFECTING_SETTINGS and (old is None or old["value"] != value)
+            )
             conn.execute(
                 "INSERT INTO gcal_sync_settings(key, value) VALUES(?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -676,7 +688,7 @@ def update_gcal_sync_settings(body: dict):
         conn.commit()
     finally:
         conn.close()
-    affected = gcal_sync.enqueue_existing_mappings() if changed else 0
+    affected = gcal_sync.enqueue_existing_mappings() if payload_changed else 0
     if changed:
         _wake_scheduler()
     return {"ok": True, "affected": affected}

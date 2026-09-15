@@ -4072,3 +4072,13 @@ def test_gcal_key_modal_does_not_render_server_credentials_path():
     source = (Path(STATIC) / "js" / "modals" / "gcal-key.js").read_text(encoding="utf-8")
     assert "k.credentials_path" not in source
     assert "server path is intentionally not exposed" in source
+
+
+def test_gcal_sync_wording_describes_all_keys_and_trigger_semantics():
+    """Settings 文案必須反映 force sync 是全部 Key 且為背景觸發。"""
+    source = Path(SETTINGS_JS).read_text(encoding="utf-8")
+    assert "立即同步全部 Key" in source
+    assert "全部 Key 同步掃描間隔" in source
+    assert "所有啟用中的 Google Calendar Key 共用此掃描間隔" in source
+    assert "已觸發全部 Key 立即同步" in source
+    assert "立即處理待同步" not in source

@@ -403,11 +403,16 @@ def test_update_key_reminders_validation(client):
 
 # ========== 強制同步 API 測試 ==========
 
-def test_force_sync_now(client):
+def test_force_sync_now(client, monkeypatch):
     """POST /api/gcal-sync-now 立即同步"""
+    from app.services import sync_scheduler
+
+    calls = []
+    monkeypatch.setattr(sync_scheduler, "reset_now", lambda: calls.append(True))
     r = client.post("/api/gcal-sync-now")
     assert r.status_code == 200
     assert r.json()["ok"] is True
+    assert calls == [True]
 
 
 def test_force_sync_now_viewer_forbidden(client):
@@ -1385,3 +1390,117 @@ def test_create_uploaded_file_is_cleaned_when_db_acquisition_fails(client, monke
             },
         )
     assert not list(storage.glob("*.json"))
+
+
+
+def test_calendar_change_partial_delete_does_not_backfill_old_calendar(client, monkeypatch):
+    """Calendar migration 部分 DELETE 失敗時，不得把成功刪除項目回填回舊 Calendar。"""
+    from unittest.mock import MagicMock
+
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "partial-calendar-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_ids = []
+        for name in ("partial-A", "partial-B", "partial-C"):
+            appt_ids.append(conn.execute(
+                "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+                (name, "2026-08-28", "09:00", "10:00"),
+            ).lastrowid)
+        for appt_id, event_id in zip(appt_ids, ("event-a", "event-b", "event-c")):
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                "VALUES(?,?,?,?)", (appt_id, key_id, event_id, "hash"),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    service = MagicMock()
+
+    def delete(calendarId, eventId):
+        assert calendarId == "old@cal"
+        if eventId == "event-c":
+            error = RuntimeError("Google API 403")
+            error.resp = type("Response", (), {"status": 403})()
+            raise error
+        return MagicMock()
+
+    service.events().delete.side_effect = delete
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+
+    response = client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"})
+
+    assert response.status_code == 409
+    conn = get_db()
+    try:
+        key = conn.execute("SELECT calendar_id FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+        assert key["calendar_id"] == "old@cal"
+        for appt_id in appt_ids[:2]:
+            assert conn.execute(
+                "SELECT 1 FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone() is None
+            assert conn.execute(
+                "SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+                (appt_id, key_id),
+            ).fetchone() is None
+        remaining = conn.execute(
+            "SELECT google_event_id FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+            (appt_ids[2], key_id),
+        ).fetchone()
+        assert remaining["google_event_id"] == "event-c"
+        retry = conn.execute(
+            "SELECT op_type, google_event_id, attempts, last_error FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (appt_ids[2], key_id),
+        ).fetchone()
+        assert (retry["op_type"], retry["google_event_id"], retry["attempts"]) == ("D", "event-c", 1)
+        assert retry["last_error"] == "Google API 403"
+    finally:
+        conn.close()
+
+
+def test_sync_interval_change_does_not_invalidate_existing_mapping(client, monkeypatch):
+    """同步掃描間隔只影響 scheduler，不得把既有 mapping 建成 U queue。"""
+    from app.database import get_db
+    from app.routes import gcal_keys
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "interval-only-key", "credentials_path": "interval.json", "calendar_id": "interval@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("interval-appt", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+            "VALUES(?,?,?,?)", (appt_id, key_id, "interval-event", "current-hash"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.put("/api/gcal-sync-settings", json={"gcal_sync_interval_min": "1"})
+
+    assert response.status_code == 200
+    assert response.json()["affected"] == 0
+    conn = get_db()
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) AS c FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()["c"] == 0
+        assert conn.execute(
+            "SELECT value FROM gcal_sync_settings WHERE key='gcal_sync_interval_min'"
+        ).fetchone()["value"] == "1"
+    finally:
+        conn.close()

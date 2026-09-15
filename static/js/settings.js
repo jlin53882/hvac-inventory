@@ -396,7 +396,7 @@ function renderGcalHealth(canForce) {
   const lastSuccess = h.last_success_at || '尚未成功執行';
   const error = h.last_error ? '<div class="gcal-health-error">' + esc(String(h.last_error)) + '</div>' : '';
   const action = canForce
-    ? '<button type="button" class="btn-primary gcal-health-force" onclick="forceSyncNow()">立即處理待同步</button>'
+    ? '<button type="button" class="btn-primary gcal-health-force" onclick="forceSyncNow()">立即同步全部 Key</button>'
     : '';
   return '<section class="gcal-sync-health" aria-label="Google 行事曆同步健康狀態">' +
     '<div class="gcal-health-head"><div><strong>Google 行事曆同步</strong><span class="gcal-health-running ' + runningClass + '">' + running + '</span></div>' + action + '</div>' +
@@ -557,10 +557,10 @@ function renderGcalSyncSettings(key) {
 
   // 同步間隔
   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">同步間隔</label>' +
+    '<label style="font-size:13px;color:#444;font-weight:600;min-width:180px">全部 Key 同步掃描間隔</label>' +
     '<input type="number" value="' + (gcalSettings.gcal_sync_interval_min || '5') + '" min="1" max="30" ' +
     'onchange="saveGcalSetting(\'gcal_sync_interval_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px;width:70px"> 分鐘' +
-    '<span style="font-size:11px;color:#999">背景排程器每 N 分鐘掃描待同步隊列（1~30）；修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖</span></div>';
+    '<span style="font-size:11px;color:#999">所有啟用中的 Google Calendar Key 共用此掃描間隔，背景排程器會掃描待同步隊列；行程修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖（立即同步全部 Key）</span></div>';
   html += '</div>';
 
   // Per-Key 提醒設定
@@ -712,7 +712,7 @@ async function forceSyncNow() {
     if (!res.ok) { toast((await res.json()).detail || '同步失敗', 'error'); return; }
     await refreshGcalSyncData(false);
     renderGcalPanel();
-    toast('✅ 已立即處理待同步項目；已耗盡項目請按重新嘗試', 'success');
+    toast('✅ 已觸發全部 Key 立即同步；已耗盡項目請按重新嘗試', 'success');
     setTimeout(async () => {
       await refreshGcalSyncData(false);
       renderGcalPanel();
