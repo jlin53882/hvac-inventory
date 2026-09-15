@@ -207,3 +207,173 @@ def test_assembled_kit_transfer_copies_definition_to_target_site(client):
     assert target_kits[0]["name"] == "車用工具組"
     assert target_kits[0]["stock_qty"] == 1
     assert target_kits[0]["components"][0]["name"] == "車用材料"
+
+
+def test_item_patch_rejects_cross_site_change(client):
+    item = add_item(client, site="office", code="PATCH-SITE", qty=3)
+    response = client.patch(f"/api/items/{item['id']}", json={"site": "van"})
+    assert response.status_code == 400
+    assert client.get("/api/items", params={"site": "office"}).json()[0]["id"] == item["id"]
+    assert client.get("/api/items", params={"site": "van"}).json() == []
+
+
+def test_batch_location_rejects_cross_site_move(client):
+    item = add_item(client, site="office", code="BATCH-SITE", qty=2, location="A")
+    stock_id = item["stocks"][0]["id"]
+    response = client.post("/api/stocks/batch-location", json={
+        "stock_ids": [stock_id], "new_location": "B", "new_site": "van",
+    })
+    assert response.status_code == 400
+    current = client.get("/api/items", params={"site": "office"}).json()[0]
+    assert current["site"] == "office"
+    assert current["stocks"][0]["location"] == "A"
+
+
+def test_batch_location_does_not_move_unselected_stock_to_other_site(client):
+    item = add_item(client, site="office", code="BATCH-SELECT", qty=2, location="A")
+    extra_response = client.post(f"/api/items/{item['id']}/stocks", json={"location": "B", "qty": 3})
+    assert extra_response.status_code == 201
+    response = client.post("/api/stocks/batch-location", json={
+        "stock_ids": [item["stocks"][0]["id"]], "new_location": "C", "new_site": "van",
+    })
+    assert response.status_code == 400
+    current = client.get("/api/items", params={"site": "office"}).json()[0]
+    assert {s["location"] for s in current["stocks"]} == {"A", "B"}
+
+
+def test_transfer_rejects_when_qty_would_drop_below_prepared(client):
+    source = add_item(client, site="office", code="PREP-TRANSFER", qty=10, location="A")
+    prepared = client.post(f"/api/items/{source['id']}/prepare", json={"qty": 8})
+    assert prepared.status_code == 200, prepared.text
+    allowed = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 2, "source_location": "A",
+    })
+    assert allowed.status_code == 201, allowed.text
+    rejected = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "truck", "qty": 1, "source_location": "A",
+    })
+    assert rejected.status_code == 400
+    office = client.get("/api/items", params={"site": "office"}).json()[0]
+    assert office["total_qty"] == 8
+    assert office["prepared_qty"] == 8
+
+
+def _create_kit(client, *, site, component, name):
+    response = client.post("/api/kits", json={
+        "name": name, "site": site, "items": [{"item_id": component["id"], "qty": 1}],
+    })
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_transfer_existing_normal_item_can_reuse_target(client):
+    source = add_item(client, site="van", code="REUSE-NORMAL", qty=2, location="車內")
+    target = add_item(client, site="truck", code="REUSE-NORMAL", qty=0, location="車內")
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "truck", "qty": 1,
+    })
+    assert response.status_code == 201, response.text
+    assert response.json()["target_item_id"] == target["id"]
+    target_item = next(i for i in client.get("/api/items", params={"site": "truck"}).json()
+                       if i["id"] == target["id"])
+    assert target_item["total_qty"] == 1
+
+
+def test_transfer_rejects_target_when_kit_flag_mismatch(client):
+    component = add_item(client, site="van", code="FLAG-COMP", name="組件", qty=1, location="車內")
+    source_kit = _create_kit(client, site="van", component=component, name="旗標衝突組")
+    assembled = client.post(f"/api/kits/{source_kit['id']}/assemble", json={"qty": 1})
+    assert assembled.status_code == 200
+    normal_target = client.post("/api/items", json={
+        "brand": "", "code": "", "name": "旗標衝突組", "unit": "組", "site": "truck",
+        "stocks": [{"location": "車內", "qty": 0}],
+    })
+    assert normal_target.status_code == 201
+    rejected = client.post("/api/inventory/transfers", json={
+        "item_id": source_kit["item_id"], "target_site": "truck", "qty": 1,
+    })
+    assert rejected.status_code == 409
+    source_item = client.get("/api/items", params={"site": "van"}).json()
+    assert source_item[0]["total_qty"] == 1
+    assert client.get("/api/items", params={"site": "truck"}).json()[0]["total_qty"] == 0
+
+
+def test_transfer_existing_identical_kit_reuses_target(client):
+    van_component = add_item(client, site="van", code="IDENTICAL-COMP", name="同材料", qty=2, location="車內")
+    truck_component = add_item(client, site="truck", code="IDENTICAL-COMP", name="同材料", qty=0, location="車內")
+    source_kit = _create_kit(client, site="van", component=van_component, name="相同 BOM 組")
+    target_kit = _create_kit(client, site="truck", component=truck_component, name="相同 BOM 組")
+    assert client.post(f"/api/kits/{source_kit['id']}/assemble", json={"qty": 1}).status_code == 200
+    transferred = client.post("/api/inventory/transfers", json={
+        "item_id": source_kit["item_id"], "target_site": "truck", "qty": 1,
+    })
+    assert transferred.status_code == 201, transferred.text
+    assert transferred.json()["target_item_id"] == target_kit["item_id"]
+    target_item = next(i for i in client.get("/api/items", params={"site": "truck"}).json()
+                       if i["id"] == target_kit["item_id"])
+    assert target_item["total_qty"] == 1
+
+
+def test_transfer_rejects_existing_kit_with_different_bom(client):
+    source_component = add_item(client, site="van", code="BOM-A", name="材料 A", qty=2, location="車內")
+    target_component = add_item(client, site="truck", code="BOM-B", name="材料 B", qty=2, location="車內")
+    source_kit = _create_kit(client, site="van", component=source_component, name="不同 BOM 組")
+    _create_kit(client, site="truck", component=target_component, name="不同 BOM 組")
+    assert client.post(f"/api/kits/{source_kit['id']}/assemble", json={"qty": 1}).status_code == 200
+    before = client.get("/api/movements", params={"site": "van"}).json()
+    rejected = client.post("/api/inventory/transfers", json={
+        "item_id": source_kit["item_id"], "target_site": "truck", "qty": 1,
+    })
+    assert rejected.status_code == 409
+    source_items = client.get("/api/items", params={"site": "van"}).json()
+    assert any(i["id"] == source_kit["item_id"] and i["total_qty"] == 1 for i in source_items)
+    assert len(client.get("/api/movements", params={"site": "van"}).json()) == len(before)
+
+
+def test_transfer_from_empty_location_only_deducts_empty_location(client):
+    source = add_item(client, site="office", code="EMPTY-LOCATION", qty=2, location="")
+    client.post(f"/api/items/{source['id']}/stocks", json={"location": "A", "qty": 5})
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 2, "source_location": "",
+    })
+    assert response.status_code == 201, response.text
+    current = client.get("/api/items", params={"site": "office"}).json()[0]
+    assert {s["location"]: s["qty"] for s in current["stocks"]} == {"": 0, "A": 5}
+
+
+def test_transfer_with_source_location_none_can_deduct_across_locations(client):
+    source = add_item(client, site="office", code="ALL-LOCATIONS", qty=2, location="A")
+    client.post(f"/api/items/{source['id']}/stocks", json={"location": "B", "qty": 3})
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 4, "source_location": None,
+    })
+    assert response.status_code == 201, response.text
+    current = client.get("/api/items", params={"site": "office"}).json()[0]
+    assert current["total_qty"] == 1
+
+
+def test_import_rejects_unknown_site(client):
+    response = client.post("/api/import", json={"items": [{
+        "brand": "大金", "code": "BAD-IMPORT", "name": "未知分片", "site": "factory", "qty": 1,
+    }]})
+    assert response.status_code == 400
+
+
+def test_import_accepts_van_and_truck(client):
+    response = client.post("/api/import", json={"items": [
+        {"brand": "大金", "code": "IMPORT-VAN", "name": "車料一", "site": "van", "qty": 1},
+        {"brand": "大金", "code": "IMPORT-TRUCK", "name": "車料二", "site": "truck", "qty": 1},
+    ]})
+    assert response.status_code == 200, response.text
+    assert client.get("/api/items", params={"site": "van"}).json()[0]["site"] == "van"
+    assert client.get("/api/items", params={"site": "truck"}).json()[0]["site"] == "truck"
+
+
+def test_transfer_rejects_qty_that_canonicalizes_to_zero(client):
+    source = add_item(client, site="office", code="ZERO-CANON", qty=1, location="A")
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 0.0004,
+    })
+    assert response.status_code == 400
+    assert client.get("/api/items", params={"site": "van"}).json() == []
+    assert client.get("/api/items", params={"site": "office"}).json()[0]["total_qty"] == 1

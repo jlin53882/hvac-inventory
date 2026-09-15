@@ -968,21 +968,17 @@ function _syncBatchUI() {
 function cancelBatch() {
   selectedStockIds.clear();
   document.getElementById('batch-bar').classList.remove('show');
-  document.getElementById('batch-site').value = '';
   document.getElementById('batch-cabinet').value = '';
   document.getElementById('batch-sub').value = '';
   renderInventory();
 }
 
 function showBatchConfirm() {
-  var site = document.getElementById('batch-site').value;
-  if (!site) { toast('請先選擇目標場所'); return; }
   var cab = document.getElementById('batch-cabinet').value;
   if (!cab) { toast('\u26a0\ufe0f \u8acb\u5148\u9078\u64c7\u76ee\u6a19\u6ac3\u5b50'); return; }
   var sub = document.getElementById('batch-sub').value.trim();
   var target = sub ? cab + ' | ' + sub : cab;
-  var siteLabel = site === 'warehouse' ? '🏭 倉庫' : '🏢 辦公室';
-  var targetDisplay = siteLabel + '／' + target;
+  var targetDisplay = target;
   document.getElementById('batch-confirm-count').textContent = selectedStockIds.size;
   document.getElementById('batch-confirm-loc').textContent = targetDisplay;
   var details = [];
@@ -1002,19 +998,16 @@ function closeBatchConfirm() {
 }
 
 async function submitBatchLocation() {
-  var site = document.getElementById('batch-site').value;
-  if (!site) { toast('請先選擇目標場所'); return; }
   var cab = document.getElementById('batch-cabinet').value;
   var sub = document.getElementById('batch-sub').value.trim();
   var target = sub ? cab + ' | ' + sub : cab;
-  var siteLabel = site === 'warehouse' ? '🏭 倉庫' : '🏢 辦公室';
-  var targetDisplay = siteLabel + '／' + target;
+  var targetDisplay = target;
   closeBatchConfirm();
   try {
     var res = await fetch('/api/stocks/batch-location', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stock_ids: Array.from(selectedStockIds), new_location: target, new_site: site })
+      body: JSON.stringify({ stock_ids: Array.from(selectedStockIds), new_location: target })
     });
     if (!res.ok) {
       var err = await res.json();

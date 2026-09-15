@@ -18,6 +18,38 @@ def _total(conn, item_id: int) -> float:
     ).fetchone()[0])
 
 
+def _kit_bom_signature(conn, kit_id: int, expected_site: str | None = None) -> tuple:
+    """回傳以材料 identity + canonical qty 組成的穩定 BOM signature。"""
+    rows = conn.execute(
+        """SELECT i.brand, i.code, i.name, i.unit, ki.qty, i.site, i.is_kit
+           FROM kit_items ki JOIN items i ON i.id=ki.item_id
+           WHERE ki.kit_id=?""",
+        (kit_id,),
+    ).fetchall()
+    if expected_site and any(row["site"] != expected_site for row in rows):
+        raise HTTPException(409, "整組與組成材料必須位於同一庫存區")
+    if any(row["is_kit"] for row in rows):
+        raise HTTPException(400, "含有巢狀整組的材料，請先拆解後再調撥")
+    return tuple(sorted(
+        (row["brand"], row["code"], row["name"], row["unit"], canonical_qty(row["qty"]))
+        for row in rows
+    ))
+
+
+def _validate_existing_target_kit(conn, source, target) -> None:
+    """確認既有 target 與 source 的 kit flag、BOM 定義相容。"""
+    if bool(source["is_kit"]) != bool(target["is_kit"]):
+        raise HTTPException(409, "來源與目標同一物料但整組設定不同，無法調撥")
+    if not source["is_kit"]:
+        return
+    source_kit = conn.execute("SELECT * FROM kits WHERE item_id=?", (source["id"],)).fetchone()
+    target_kit = conn.execute("SELECT * FROM kits WHERE item_id=?", (target["id"],)).fetchone()
+    if source_kit is None or target_kit is None:
+        raise HTTPException(409, "來源或目標整組缺少組成材料定義，無法調撥")
+    if _kit_bom_signature(conn, source_kit["id"], source["site"]) != _kit_bom_signature(conn, target_kit["id"], target["site"]):
+        raise HTTPException(409, "目標庫存區已有同名整組，但組成材料定義不同")
+
+
 def _create_target_item(conn, source, target_site: str) -> int:
     """依來源主檔在目標 site 建立品項；若已存在則重用。"""
     target = conn.execute(
@@ -26,6 +58,7 @@ def _create_target_item(conn, source, target_site: str) -> int:
         (source["brand"], source["code"], source["name"], source["unit"], target_site),
     ).fetchone()
     if target:
+        _validate_existing_target_kit(conn, source, target)
         return target["id"]
     cur = conn.execute(
         """INSERT INTO items (brand, code, name, unit, low_stock, is_kit, site, category)
@@ -38,23 +71,26 @@ def _create_target_item(conn, source, target_site: str) -> int:
     # 整組定義跟著已組裝整組複製；材料主檔只建立零庫存目標副本。
     if source["is_kit"]:
         source_kit = conn.execute("SELECT * FROM kits WHERE item_id=?", (source["id"],)).fetchone()
-        if source_kit:
-            kit_cur = conn.execute(
-                "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
-                (item_id, source_kit["name"], source_kit["note"]),
+        if source_kit is None:
+            raise HTTPException(409, "來源整組缺少組成材料定義，無法調撥")
+        kit_cur = conn.execute(
+            "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
+            (item_id, source_kit["name"], source_kit["note"]),
+        )
+        components = conn.execute(
+            "SELECT ki.qty, i.* FROM kit_items ki JOIN items i ON i.id=ki.item_id WHERE ki.kit_id=?",
+            (source_kit["id"],),
+        ).fetchall()
+        for component in components:
+            if component["is_kit"]:
+                raise HTTPException(400, "含有巢狀整組的材料，請先拆解後再調撥")
+            if component["site"] != source["site"]:
+                raise HTTPException(409, "整組與組成材料必須位於同一庫存區")
+            component_id = _create_target_item(conn, component, target_site)
+            conn.execute(
+                "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                (kit_cur.lastrowid, component_id, component["qty"]),
             )
-            components = conn.execute(
-                "SELECT ki.qty, i.* FROM kit_items ki JOIN items i ON i.id=ki.item_id WHERE ki.kit_id=?",
-                (source_kit["id"],),
-            ).fetchall()
-            for component in components:
-                if component["is_kit"]:
-                    raise HTTPException(400, "含有巢狀整組的材料，請先拆解後再調撥")
-                component_id = _create_target_item(conn, component, target_site)
-                conn.execute(
-                    "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                    (kit_cur.lastrowid, component_id, component["qty"]),
-                )
     return item_id
 
 
@@ -73,6 +109,11 @@ def _deduct_source(conn, source_item_id: int, qty: float, source_location: str |
     if available < qty:
         raise HTTPException(400, f"來源位置庫存不足（可調撥 {available}，要求 {qty}）")
     before = _total(conn, source_item_id)
+    prepared = canonical_qty(conn.execute(
+        "SELECT prepared_qty FROM items WHERE id=?", (source_item_id,)
+    ).fetchone()[0] or 0)
+    if before - qty < prepared:
+        raise HTTPException(400, f"調撥後庫存不能低於待領出數量（目前庫存 {before}、待領出 {prepared}）")
     remaining = qty
     for stock in stocks:
         if remaining <= 0:
@@ -124,9 +165,16 @@ def _add_target(conn, target_item_id: int, qty: float, location: str, source_sit
              dependencies=[Depends(require_perm("stock-mgmt"))])
 def transfer_inventory(req: TransferRequest):
     """將一個品項的庫存由來源 site 調撥至目標 site。"""
-    qty = canonical_qty(req.qty)
+    try:
+        qty = canonical_qty(req.qty)
+    except ValueError:
+        raise HTTPException(400, "調撥數量格式錯誤")
+    if qty <= 0:
+        raise HTTPException(400, "調撥數量正規化後必須大於 0")
     conn = get_db()
     try:
+        # 必須在任何 correctness read 前鎖住 writer，避免 stale snapshot 調撥。
+        conn.execute("BEGIN IMMEDIATE")
         source = conn.execute(
             "SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)
         ).fetchone()
