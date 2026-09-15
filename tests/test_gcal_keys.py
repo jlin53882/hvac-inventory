@@ -1632,6 +1632,7 @@ def test_calendar_migration_d_retry_finalizes_and_backfills_new_calendar(client,
         conn.close()
     ok, failed, _ = gcal_sync.sync_pending([dict(row)])
     assert (ok, failed) == (1, 0)
+    old_service.events().delete.assert_any_call(calendarId="old@cal", eventId="event-c")
 
     conn = get_db()
     try:
@@ -1720,3 +1721,130 @@ def test_same_reminders_are_noop_but_changed_reminders_enqueue(client, monkeypat
         conn.close()
     changed = client.put(f"/api/gcal-keys/{key_id}/reminders", json={"reminders": reminders[:-1] + [{"method": "popup", "minutes": 30}]})
     assert changed.status_code == 200 and changed.json()["affected"] == 1
+
+
+
+def test_calendar_change_existing_d_queue_blocks_finalize(client, monkeypatch):
+    """舊 Calendar 尚有既有 D retry 時，migration 不得提前切換到 new Calendar。"""
+    from unittest.mock import MagicMock
+
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "existing-d-migration-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_ids = []
+        for name, event_id in (("existing-D-A", "event-a"), ("existing-D-B", "event-b")):
+            appt_id = conn.execute(
+                "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+                (name, "2026-08-28", "09:00", "10:00"),
+            ).lastrowid
+            appt_ids.append(appt_id)
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                "VALUES(?,?,?,?)", (appt_id, key_id, event_id, "hash"),
+            )
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,?, 'D', ?, ?, 3, ?)",
+            (999991, key_id, "old-deleted-event", "2026-08-28 09:00:00", "Google API 403"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    service = MagicMock()
+    service.events().delete.return_value.execute.return_value = {}
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+
+    response = client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"})
+
+    assert response.status_code == 200
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"]) == ("old@cal", "new@cal")
+        retry = conn.execute(
+            "SELECT op_type, google_event_id FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?", (999991, key_id),
+        ).fetchone()
+        assert (retry["op_type"], retry["google_event_id"]) == ("D", "old-deleted-event")
+    finally:
+        conn.close()
+
+
+
+def test_calendar_migration_discards_stale_cu_and_backfills_latest_state(client, monkeypatch):
+    """migration 丟棄舊 C/U，finalize 後只依最新 target 建立 queue。"""
+    from unittest.mock import MagicMock
+
+    from app.database import get_db
+    from app.routes import gcal_keys
+    from app.services import gcal_sync
+
+    monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "stale-cu-migration-key", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    conn = get_db()
+    try:
+        appt_a = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("stale-CU-A", "2026-08-28", "09:00", "10:00"),
+        ).lastrowid
+        appt_b = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) VALUES(?,?,?,?)",
+            ("stale-CU-B", "2026-08-28", "11:00", "12:00"),
+        ).lastrowid
+        for appt_id, event_id in ((appt_a, "event-a"), (appt_b, "event-b")):
+            conn.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) "
+                "VALUES(?,?,?,?)", (appt_id, key_id, event_id, "hash"),
+            )
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,?, 'U', ?, ?, 0, '')",
+            (appt_a, key_id, "event-a", "2026-08-28 09:00:00"),
+        )
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+            "VALUES(?,?, 'C', ?, ?, 0, '')",
+            (appt_b, key_id, "", "2026-08-28 09:00:00"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    service = MagicMock()
+    service.events().delete.return_value.execute.return_value = {}
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+    monkeypatch.setattr(
+        gcal_sync, "resolve_target_keys",
+        lambda conn, appt_id: [key_id] if appt_id == appt_a else [],
+    )
+
+    response = client.put(f"/api/gcal-keys/{key_id}", json={"calendar_id": "new@cal"})
+
+    assert response.status_code == 200
+    conn = get_db()
+    try:
+        key = conn.execute(
+            "SELECT calendar_id, pending_calendar_id FROM gcal_keys WHERE id=?", (key_id,)
+        ).fetchone()
+        assert (key["calendar_id"], key["pending_calendar_id"]) == ("new@cal", None)
+        rows = conn.execute(
+            "SELECT appointment_id, op_type FROM appointment_sync_queue WHERE key_id=?", (key_id,)
+        ).fetchall()
+        assert [(row["appointment_id"], row["op_type"]) for row in rows] == [(appt_a, "C")]
+    finally:
+        conn.close()

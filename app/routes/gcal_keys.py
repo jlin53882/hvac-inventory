@@ -367,6 +367,11 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                     "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?",
                     (calendar_id, key_id),
                 )
+                conn.execute(
+                    "DELETE FROM appointment_sync_queue "
+                    "WHERE key_id=? AND op_type IN ('C','U')",
+                    (key_id,),
+                )
                 conn.commit()
             maps = []
             deleted_ok = 0
@@ -459,11 +464,9 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                         )
                     conn.execute("DELETE FROM appointment_gcal_map WHERE key_id=?", (key_id,))
 
-            if calendar_changed:
-                updates.extend(["calendar_id=?", "pending_calendar_id=NULL"])
-                params.append(calendar_id)
-            params.append(key_id)
-            conn.execute(f"UPDATE gcal_keys SET {','.join(updates)} WHERE id=?", params)
+            if updates:
+                params.append(key_id)
+                conn.execute(f"UPDATE gcal_keys SET {','.join(updates)} WHERE id=?", params)
             if name is not None and name != row["name"]:
                 conn.execute(
                     "UPDATE users SET gcal_key=? WHERE gcal_key=?", (name, row["name"])
@@ -488,7 +491,9 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                 conn.commit()
             finally:
                 conn.close()
-        if calendar_changed or (was_inactive and new_is_active):
+        if calendar_changed:
+            gcal_sync.maybe_finalize_calendar_migration(key_id)
+        elif was_inactive and new_is_active:
             _backfill_all_appointments(key_id)
         _wake_scheduler()
 
