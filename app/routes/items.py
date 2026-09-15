@@ -370,51 +370,92 @@ def update_item(item_id: int, upd: ItemUpdate):
                     raise HTTPException(409, "該品項已被他人修改，請重新整理後再編輯")
             else:
                 conn.execute(f"UPDATE items SET {sets} WHERE id=?", (*fields.values(), item_id))
-        # stocks 全量同步（M1：同位置 UPDATE 保留 stock id；新增 INSERT、消失 DELETE；qty 變化寫流水）
+        # F2/F3：stocks 全量同步——使用 stock id 作為 identity（不再是 location）
+        # payload stock 有 id → existing stock（id + stock_updated_at 樂觀鎖）
+        # payload stock 無 id → new location
+        # DB stock 不在 payload → 刪除（qty=0 才允許）
         if data.get("stocks") is not None:
-            dedup = {}
-            for s in data["stocks"]:
-                dedup[s.get("location") or ""] = s
-            existing = {r["location"]: r for r in conn.execute(
+            existing = {r["id"]: r for r in conn.execute(
                 "SELECT * FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()}
-            # P1-A：一次 payload 可能改多倉——先算 projected final total（順序無關）再驗 prepared
+
+            # 區分 existing vs new
+            # F2/F3：有 id → 用 id 做 identity + revision check
+            # 無 id 但 location 匹配既有 → backward compat（location 做 identity）
+            # 無 id 無匹配 → new location
+            payload_existing = {}  # stock_id -> stock payload
+            payload_new = []       # stocks without id and no location match
+            existing_by_loc = {r["location"]: r for r in existing.values()}
+            for s in data["stocks"]:
+                sid = s.get("id")
+                if sid is not None and sid in existing:
+                    payload_existing[sid] = s
+                elif sid is not None and sid not in existing:
+                    raise HTTPException(409, "庫存位置已異動，請重新整理後再編輯")
+                else:
+                    # no id: try location fallback
+                    loc = s.get("location") or ""
+                    if loc in existing_by_loc:
+                        payload_existing[existing_by_loc[loc]["id"]] = s
+                    else:
+                        payload_new.append(s)
+
+            # F2：stale snapshot guard——逐 stock 檢查 stock_updated_at revision
+            for sid, s in payload_existing.items():
+                old = existing[sid]
+                if s.get("stock_updated_at") and old["updated_at"] and s["stock_updated_at"] != old["updated_at"]:
+                    raise HTTPException(409, f"位置「{old['location']}」已被其他操作修改，請重新整理後再編輯")
+
+            # projected total = payload existing qty + new qty
             projected_total = canonical_qty(
-                sum(canonical_qty(s.get("qty") or 0) for s in dedup.values()))
+                sum(canonical_qty(s.get("qty") or 0) for s in payload_existing.values()) +
+                sum(canonical_qty(s.get("qty") or 0) for s in payload_new))
             prepared_now = canonical_qty(conn.execute(
                 "SELECT prepared_qty FROM items WHERE id=?", (item_id,)).fetchone()["prepared_qty"] or 0)
             if projected_total < prepared_now:
                 raise HTTPException(
                     400, f"更新後總庫存 {projected_total} 將低於待領出數量 {prepared_now}")
-            for loc, s in dedup.items():
+
+            now = datetime.datetime.now().isoformat()
+            # 更新 existing stocks（F3：id = identity，location 是 editable property）
+            for sid, s in payload_existing.items():
+                old = existing[sid]
                 new_qty = canonical_qty(s.get("qty") or 0)
+                new_location = s.get("location") or old["location"]
+                new_note = s.get("note") if s.get("note") is not None else old["note"]
                 if new_qty < 0:
-                    raise HTTPException(400, f"位置「{loc}」的庫存數量不能為負數")
-                if loc in existing:
-                    old = existing[loc]
-                    conn.execute("UPDATE item_stocks SET qty=?, note=?, updated_at=? WHERE id=?",
-                                 (new_qty, s.get("note") or "", datetime.datetime.now().isoformat(), old["id"]))
-                    delta = canonical_qty(new_qty - old["qty"])
-                    if delta != 0:  # canonical qty 相同時不寫 phantom 流水
-                        conn.execute(
-                            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                            (item_id, delta, old["qty"], new_qty, "編輯品項調整", loc),
-                        )
-                else:
-                    conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                                 (item_id, loc, new_qty, s.get("note") or ""))
-                    if new_qty > 0:
-                        # P1-A：新位置 qty > 0 不可憑空出現，補 audit 流水
-                        conn.execute(
-                            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                            (item_id, new_qty, 0, new_qty, "編輯品項調整", loc),
-                        )
-            for loc, old in existing.items():
-                if loc not in dedup:
-                    # P1-A：有貨位置不可透過全量同步滅失，先調零再移除
+                    raise HTTPException(400, f"位置「{new_location}」的庫存數量不能為負數")
+                conn.execute("UPDATE item_stocks SET qty=?, location=?, note=?, updated_at=? WHERE id=?",
+                             (new_qty, new_location, new_note, now, sid))
+                delta = canonical_qty(new_qty - old["qty"])
+                if delta != 0:
+                    conn.execute(
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                        (item_id, delta, old["qty"], new_qty, "編輯品項調整", new_location),
+                    )
+
+            # 新增 locations
+            for s in payload_new:
+                new_qty = canonical_qty(s.get("qty") or 0)
+                new_location = s.get("location") or ""
+                new_note = s.get("note") or ""
+                if new_qty < 0:
+                    raise HTTPException(400, f"位置「{new_location}」的庫存數量不能為負數")
+                conn.execute("INSERT INTO item_stocks (item_id, location, qty, note, updated_at) VALUES (?,?,?,?,?)",
+                             (item_id, new_location, new_qty, new_note, now))
+                if new_qty > 0:
+                    conn.execute(
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
+                        (item_id, new_qty, 0, new_qty, "編輯品項調整", new_location),
+                    )
+
+            # 移除 payload 中不存在的 DB stocks
+            payload_ids = set(payload_existing.keys())
+            for sid, old in existing.items():
+                if sid not in payload_ids:
                     if canonical_qty(old["qty"]) != 0:
                         raise HTTPException(
-                            400, f"位置「{loc}」仍有庫存 {old['qty']}，請先將數量調整為 0 再移除")
-                    conn.execute("DELETE FROM item_stocks WHERE id=?", (old["id"],))
+                            400, f"位置「{old['location']}」仍有庫存 {old['qty']}，請先將數量調整為 0 再移除")
+                    conn.execute("DELETE FROM item_stocks WHERE id=?", (sid,))
         conn.commit()
         row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         full = _item_full(conn, row)
@@ -697,8 +738,8 @@ def import_items(items: list = Body(..., embed=True)):
                     (exists["id"], location),
                 ).fetchone()
                 if stock:
-                    conn.execute("UPDATE item_stocks SET qty = ROUND(qty + ?,3), note=? WHERE id=?",
-                                 (qty, note or it.get("note", ""), stock["id"]))
+                    conn.execute("UPDATE item_stocks SET qty = ROUND(qty + ?,3), note=?, updated_at=? WHERE id=?",
+                                 (qty, note or it.get("note", ""), datetime.datetime.now().isoformat(), stock["id"]))
                 else:
                     conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
                                  (exists["id"], location, qty, note))

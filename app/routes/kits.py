@@ -87,11 +87,16 @@ def create_kit(kit: KitCreate):
             (kit_item_id, kit.name, kit.note),
         )
         kit_id = cur2.lastrowid
+        seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i)  # 材料驗證：格式/數量>0/品項存在（2026-08-12 補）
+            _validate_kit_comp(conn, comp, i)
+            cid = comp["item_id"]
+            if cid in seen_items:
+                raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
+            seen_items.add(cid)
             conn.execute(
                 "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                (kit_id, comp["item_id"], canonical_qty(comp.get("qty", 1))),
+                (kit_id, cid, canonical_qty(comp.get("qty", 1))),
             )
         conn.commit()
         return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
@@ -143,10 +148,15 @@ def update_kit(kit_id: int, kit: KitCreate):
         conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
                      (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
+        seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i)  # 材料驗證（與 create 共用）
+            _validate_kit_comp(conn, comp, i)
+            cid = comp["item_id"]
+            if cid in seen_items:
+                raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
+            seen_items.add(cid)
             conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                         (kit_id, comp["item_id"], canonical_qty(comp.get("qty", 1))))
+                         (kit_id, cid, canonical_qty(comp.get("qty", 1))))
         conn.commit()
         return {"ok": True, "id": kit_id, "name": kit.name}
     except Exception:
@@ -274,26 +284,32 @@ def assemble_kit(kit_id: int, req: KitAssemble):
             raise HTTPException(404, "套件不存在")
         comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
 
-        # 檢查材料庫存（2026-09-12：容差 1e-9，浮點殘留如 0.3 vs 0.1+0.2 不得誤判不足）
-        # P0-D：可用量 = total - prepared（reserved 待領出不可吃掉），同一 writer transaction 內驗證
-        short = []
+        # F1：aggregate BOM by item_id（防止 duplicate BOM cumulative deduction 突破 prepared invariant）
+        required_by_item: dict = {}
+        mat_names: dict = {}
         for c in comps:
-            mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (c["item_id"],)).fetchone()
-            if not mat:  # M6：材料已刪除 → 不可組裝
-                raise HTTPException(400, f"材料 id={c['item_id']} 已刪除，無法組裝")
-            need = canonical_qty(c["qty"] * qty)
+            cid = c["item_id"]
+            mat = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (cid,)).fetchone()
+            if not mat:
+                raise HTTPException(400, f"材料 id={cid} 已刪除，無法組裝")
+            mat_names[cid] = mat["name"]
+            cumulative_need = canonical_qty(c["qty"] * qty)
+            required_by_item[cid] = canonical_qty(required_by_item.get(cid, 0) + cumulative_need)
+
+        # 檢查材料庫存（P0-D：可用量 = total - prepared，同一 writer transaction 內驗證）
+        short = []
+        for cid, need in required_by_item.items():
             try:
-                assert_projected_inventory(conn, c["item_id"], stock_delta=-need)
+                assert_projected_inventory(conn, cid, stock_delta=-need)
             except HTTPException:
-                total, prepared = current_state(conn, c["item_id"])
-                short.append(f"{mat['name']}（需要 {need}，可用 {canonical_qty(total - prepared)}）")
+                total, prepared = current_state(conn, cid)
+                short.append(f"{mat_names[cid]}（需要 {need}，可用 {canonical_qty(total - prepared)}）")
         if short:
             raise HTTPException(400, "材料不足：" + "、".join(short))
 
-        # 扣材料
-        for c in comps:
-            need = canonical_qty(c["qty"] * qty)
-            _deduct_total(conn, c["item_id"], need, f"組裝套件:{kit['name']}")
+        # 扣材料（使用 aggregate cumulative need）
+        for cid, need in required_by_item.items():
+            _deduct_total(conn, cid, need, f"組裝套件:{kit['name']}")
         # 加整組庫存
         _add_total(conn, kit["item_id"], qty, f"組裝完成:{kit['name']}")
         conn.commit()

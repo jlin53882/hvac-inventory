@@ -53,8 +53,11 @@ function renderEditStockRows(stocks, unit) {
     const cabinet = pipeIdx >= 0 ? loc.substring(0, pipeIdx) : loc;
     const sub = pipeIdx >= 0 ? loc.substring(pipeIdx + 3) : '';
     const qv = (typeof Qty !== 'undefined') ? Qty.format(s.qty ?? 0, _t) : (s.qty ?? 0);
+    // F2/F3：保留 stock id + updated_at 作為 identity + optimistic lock revision
+    const stockId = s.id != null ? s.id : '';
+    const stockRev = s.updated_at || '';
     return `
-    <div class="stock-row" data-idx="${idx}">
+    <div class="stock-row" data-idx="${idx}" data-stock-id="${esc(String(stockId))}" data-stock-updated-at="${esc(stockRev)}">
       <select class="stock-cabinet">${_cabinetOptions(cabinet)}</select>
       <input type="text" class="stock-sub" value="${esc(sub)}" list="location-list" placeholder="位置">
       <input type="text" inputmode="decimal" class="stock-qty" value="${esc(qv)}" placeholder="數量（可輸 1/4）">
@@ -124,10 +127,15 @@ async function submitEdit() {
       const _qv = qtyInputOrToast(_el, document.getElementById('e-unit').value);
       if (typeof _qv !== 'number' || isNaN(_qv)) return null;
       const _qq = _qv;
+      // F2/F3：送回 stock id + stock_updated_at（existing = 有 id；new = 無 id）
+      const sid = row.dataset.stockId;
+      const srev = row.dataset.stockUpdatedAt;
       return {
+        id: sid !== '' ? Number(sid) : null,
         location: location,
-        qty: _qq,
+        qty: _qv,
         note: row.querySelector('.stock-note').value.trim(),
+        stock_updated_at: srev || null,
       };
     }),
     // 2026-08-14 樂觀鎖：帶開啟時的 updated_at 快照，後端比對被他人改過 → 409

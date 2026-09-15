@@ -319,16 +319,53 @@ class TestPreparedOutRollback:
             conn.close()
         assert prep == 3  # prepared 也降了
 
-    def test_prepared_out_rollback_on_connection_error(self, client):
-        """DB connection 中斷時 prepared-out 不會留下半筆資料。"""
-        item = _add_item(client, name="冷媒_R2", qty=10)
-        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 5})
-        n_mov = len(_movements(client, item["id"]))
-        # 用不存在的 item_id 觸發 404，不影響任何資料
-        r = client.post("/api/items/99999/prepared-out", json={"qty": 2, "note": "案場"})
-        assert r.status_code == 404
-        assert _get_item(client, item["id"])["total_qty"] == 10
-        assert len(_movements(client, item["id"])) == n_mov
+    def test_prepared_out_rollback_on_write_failure(self, monkeypatch):
+        """F4：stock deduction 已執行但後續 exception → rollback：stock/prepared/movement 全不變。"""
+        from starlette.testclient import TestClient
+        import app.routes.stockout as stockout_mod
+        import main as app_main
+        from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
+        import app.database as _db
+        # 獨立 fixture（不共用 client，因為要 raise_server_exceptions=False）
+        import tempfile, pathlib
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        test_db = tmp / "test.db"
+        test_upload = tmp / "uploads"
+        test_upload.mkdir()
+        _db.DB_PATH = str(test_db)
+        import app.config as _cfg; _cfg.UPLOAD_DIR = str(test_upload)
+        _db.init_db()
+        conn = _db.get_db()
+        try:
+            init_admin_if_missing(conn)
+            aid = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+            token = create_session(conn, aid)
+        finally:
+            conn.close()
+        try:
+            with TestClient(app_main.app, raise_server_exceptions=False) as c:
+                c.cookies.set(SESSION_COOKIE, token)
+                item = _add_item(c, name="冷媒_R2", qty=10)
+                c.post(f"/api/items/{item['id']}/prepare", json={"qty": 5})
+                n_mov = len(_movements(c, item["id"]))
+                def boom(*a, **k):
+                    raise RuntimeError("F4: injected failure after stock deduction")
+                monkeypatch.setattr(stockout_mod, "_stock_payload", boom)
+                r = c.post(f"/api/items/{item['id']}/prepared-out",
+                           json={"qty": 2, "note": "案場"})
+                assert r.status_code == 500
+                assert _get_item(c, item["id"])["total_qty"] == 10
+                conn2 = _db.get_db()
+                try:
+                    prep = conn2.execute("SELECT prepared_qty FROM items WHERE id=?",
+                                         (item["id"],)).fetchone()["prepared_qty"]
+                finally:
+                    conn2.close()
+                assert prep == 5
+                assert len(_movements(c, item["id"])) == n_mov
+        finally:
+            try: test_db.unlink()
+            except: pass
 
 
 # ========== P0-E/F：stocktake ==========
@@ -463,3 +500,181 @@ class TestItemsListContract:
         loc_total = client.get("/api/items",
                                params={"page": 1, "location": "測試位置"}).json()["total"]
         assert loc_total == 2
+
+
+# ========== F1：Duplicate BOM ==========
+
+class TestDuplicateBOM:
+    def test_duplicate_bom_cumulative_need_below_prepared_rejected(self, client):
+        """F1：duplicate BOM cumulative need 突破 prepared invariant → 400。"""
+        mat = _add_item(client, name="銅管", qty=10)
+        client.post(f"/api/items/{mat['id']}/prepare", json={"qty": 5})
+        # 手動建立 duplicate BOM（模擬 legacy data）
+        kit = client.post("/api/kits", json={
+            "name": "銅管組", "items": [{"item_id": mat["id"], "qty": 3}]}).json()
+        # 手動插入 duplicate BOM row
+        import app.database as _db
+        conn = _db.get_db()
+        try:
+            conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                         (kit["id"], mat["id"], 3))
+            conn.commit()
+        finally:
+            conn.close()
+        # assemble: cumulative need = 6, total=10, prepared=5, available=5 < 6
+        r = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 1})
+        assert r.status_code == 400, r.text
+        assert _get_item(client, mat["id"])["total_qty"] == 10
+
+    def test_duplicate_bom_cumulative_legal(self, client):
+        """F1：duplicate BOM cumulative need 在 available 範圍內 → success。"""
+        mat = _add_item(client, name="銅管", qty=10)
+        client.post(f"/api/items/{mat['id']}/prepare", json={"qty": 2})
+        kit = client.post("/api/kits", json={
+            "name": "銅管組", "items": [{"item_id": mat["id"], "qty": 3}]}).json()
+        # 手動插入 duplicate BOM row
+        import app.database as _db
+        conn = _db.get_db()
+        try:
+            conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                         (kit["id"], mat["id"], 3))
+            conn.commit()
+        finally:
+            conn.close()
+        # cumulative need = 6, available = 10-2 = 8 >= 6
+        r = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 1})
+        assert r.status_code == 200, r.text
+        assert _get_item(client, mat["id"])["total_qty"] == 4  # 10-6=4
+
+    def test_create_kit_rejects_duplicate_item(self, client):
+        """F1：create kit API 拒絕重複 item_id。"""
+        mat = _add_item(client, name="銅管", qty=10)
+        r = client.post("/api/kits", json={
+            "name": "銅管組",
+            "items": [{"item_id": mat["id"], "qty": 2}, {"item_id": mat["id"], "qty": 3}]})
+        assert r.status_code == 400, r.text
+        assert "重複" in r.json()["detail"]
+
+    def test_update_kit_rejects_duplicate_item(self, client):
+        """F1：update kit API 拒絕重複 item_id。"""
+        mat = _add_item(client, name="銅管", qty=10)
+        kit = client.post("/api/kits", json={
+            "name": "銅管組", "items": [{"item_id": mat["id"], "qty": 1}]}).json()
+        r = client.put(f"/api/kits/{kit['id']}", json={
+            "name": "銅管組",
+            "items": [{"item_id": mat["id"], "qty": 2}, {"item_id": mat["id"], "qty": 3}]})
+        assert r.status_code == 400, r.text
+        assert "重複" in r.json()["detail"]
+
+
+# ========== F2/F3：Stock identity + optimistic lock ==========
+
+class TestStockIdentity:
+    def test_rename_nonzero_stock_location(self, client):
+        """F3：rename location（same id）不被當成 delete+insert。"""
+        item = _add_item(client, name="冷媒", qty=5, location="A倉")
+        sid = item["stocks"][0]["id"]
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sid, "location": "B倉", "qty": 5, "note": "", "stock_updated_at": item["stocks"][0]["updated_at"]}
+        ]})
+        assert r.status_code == 200, r.text
+        updated = r.json()
+        assert updated["total_qty"] == 5
+        assert updated["stocks"][0]["id"] == sid  # 同一 stock id
+        assert updated["stocks"][0]["location"] == "B倉"
+        # 沒有假的 +5/-5 movement
+        movs = _movements(client, item["id"])
+        assert not any(m["reason"] == "編輯品項調整" and abs(m["delta"]) == 5 for m in movs)
+
+    def test_remove_nonzero_stock_rejected(self, client):
+        """F3：移除有貨 location → 400。"""
+        item = _add_item(client, name="冷媒",
+                         stocks=[{"location": "A倉", "qty": 5, "note": ""},
+                                 {"location": "B倉", "qty": 0, "note": ""}])
+        # payload 只含B倉 → 要移除A倉（有貨）→ 拒絕
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": item["stocks"][1]["id"], "location": "B倉", "qty": 0, "note": "",
+             "stock_updated_at": item["stocks"][1]["updated_at"]}
+        ]})
+        assert r.status_code == 400, r.text
+        assert _db_sum(item["id"]) == 5
+
+    def test_remove_zero_stock_ok(self, client):
+        """F3：移除零貨 location → success。"""
+        item = _add_item(client, name="冷媒",
+                         stocks=[{"location": "A倉", "qty": 5, "note": ""},
+                                 {"location": "B倉", "qty": 0, "note": ""}])
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": item["stocks"][0]["id"], "location": "A倉", "qty": 5, "note": "",
+             "stock_updated_at": item["stocks"][0]["updated_at"]}
+        ]})
+        assert r.status_code == 200, r.text
+        assert len(r.json()["stocks"]) == 1
+
+    def test_stale_stock_revision_rejected(self, client):
+        """F2：stale stock_updated_at → 409，不覆蓋。"""
+        item = _add_item(client, name="冷媒", qty=10)
+        sid = item["stocks"][0]["id"]
+        old_rev = item["stocks"][0]["updated_at"]
+        # 模擬 concurrent stockout：直接改 DB qty
+        import app.database as _db
+        conn = _db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=5, updated_at=? WHERE id=?",
+                         ("2099-01-01T00:00:00", sid))
+            conn.commit()
+        finally:
+            conn.close()
+        # 送舊 revision
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sid, "location": "A倉", "qty": 10, "note": "",
+             "stock_updated_at": old_rev}
+        ]})
+        assert r.status_code == 409, r.text
+        assert "修改" in r.json()["detail"]
+        # DB 仍為 5
+        assert _db_sum(item["id"]) == 5
+
+    def test_stale_revision_no_movement_written(self, client):
+        """F2：stale revision 拒絕後不寫 movement。"""
+        item = _add_item(client, name="冷媒", qty=10)
+        sid = item["stocks"][0]["id"]
+        old_rev = item["stocks"][0]["updated_at"]
+        n_mov = len(_movements(client, item["id"]))
+        import app.database as _db
+        conn = _db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=5, updated_at=? WHERE id=?",
+                         ("2099-01-01T00:00:00", sid))
+            conn.commit()
+        finally:
+            conn.close()
+        r = client.patch(f"/api/items/{item['id']}", json={"stocks": [
+            {"id": sid, "location": "A倉", "qty": 10, "note": "",
+             "stock_updated_at": old_rev}
+        ]})
+        assert r.status_code == 409
+        assert len(_movements(client, item["id"])) == n_mov
+
+    def test_name_edit_with_concurrent_stock_mutation_gets_409(self, client):
+        """F2：只改名但帶 stale stocks → 409（不覆蓋 stock）。"""
+        item = _add_item(client, name="冷媒", qty=10)
+        sid = item["stocks"][0]["id"]
+        old_rev = item["stocks"][0]["updated_at"]
+        import app.database as _db
+        conn = _db.get_db()
+        try:
+            conn.execute("UPDATE item_stocks SET qty=5, updated_at=? WHERE id=?",
+                         ("2099-01-01T00:00:00", sid))
+            conn.commit()
+        finally:
+            conn.close()
+        # 只改名，但帶完整 stale stocks
+        r = client.patch(f"/api/items/{item['id']}", json={
+            "name": "冷媒R22",
+            "stocks": [{"id": sid, "location": "A倉", "qty": 10, "note": "",
+                        "stock_updated_at": old_rev}]
+        })
+        assert r.status_code == 409
+        # 名稱也沒改
+        assert _get_item(client, item["id"])["name"] == "冷媒"
