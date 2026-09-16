@@ -77,7 +77,10 @@ def _item_payload(conn, row) -> dict:
             """SELECT ki.qty AS need_qty, i.id AS item_id, i.brand, i.name, i.code, i.unit,
                       (SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=i.id) AS stock,
                       0 AS has_photo
-               FROM kit_items ki JOIN items i ON i.id=ki.item_id WHERE ki.kit_id=?""",
+               FROM kit_items ki
+               JOIN kits k ON k.id = ki.kit_id
+               JOIN items i ON i.id = ki.item_id
+               WHERE k.item_id=?""",
             (d["id"],)
         ).fetchall()
         d["components"] = [dict(c) for c in comps]
