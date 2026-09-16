@@ -448,18 +448,18 @@ function renderGcalPanel() {
   html += '<div class="gcal-key-list" style="width:220px;flex-shrink:0;background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden">';
   gcalKeys.forEach(k => {
     const isActive = k.id === selectedKeyId;
-    html += '<div class="gcal-key-item' + (isActive ? ' active' : '') + '" onclick="selectGcalKey(' + k.id + ')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s' + (isActive ? ';background:#e6f4ff;border-left:3px solid #1890ff' : '') + '">' +
-      '<div style="width:30px;height:30px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#bbb') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📅</div>' +
+    html += '<div class="gcal-key-item' + (isActive ? ' active' : '') + '" onclick="selectGcalKey(' + k.id + ')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s' + (isActive ? ';background:#e6f4ff;border-left:3px solid #1890ff' : '') + '">' +
+      '<div style="width:30px;height:30px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#9ca3af') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📅</div>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(k.name) + '</div>' +
-        '<div style="font-size:11px;color:#888;margin-top:1px">' + (k.is_active ? '✅ 啟用' : '⏸ 停用') + '</div>' +
-        '<div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(k.client_email || '') + '">' + esc(k.client_email || 'Client email 未讀取') + '</div>' +
+        '<div style="font-size:11px;color:' + (k.is_active ? '#15803d' : '#dc2626') + ';margin-top:2px;font-weight:600">' + (k.is_active ? '帳號啟用' : '帳號停用') + '</div>' +
+        '<div class="gcal-key-email" style="font-size:10px;color:#64748b;margin-top:2px;word-break:break-all" title="' + esc(k.client_email || '') + '">' + esc(k.client_email || '—') + '</div>' +
       '</div>' +
-      '<div style="width:8px;height:8px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#ff4d4f') + ';flex-shrink:0"></div>' +
+      '<button onclick="event.stopPropagation();toggleGcalKey(' + k.id + ',' + (!k.is_active) + ')" style="flex-shrink:0;padding:4px 8px;font-size:11px;border:1px solid ' + (k.is_active ? '#fecaca' : '#bbf7d0') + ';border-radius:6px;background:' + (k.is_active ? '#fff2f0' : '#f0fdf4') + ';color:' + (k.is_active ? '#dc2626' : '#15803d') + ';cursor:pointer;white-space:nowrap">' + (k.is_active ? '停用' : '啟用') + '</button>' +
       '</div>';
   });
   if (canManage) {
-    html += '<div onclick="openGcalKeyModal()" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-top:1px solid #f0f0f0;color:#1890ff;font-size:13px;cursor:pointer">＋ 新增 Key</div>';
+    html += '<div class="gcal-key-add" onclick="openGcalKeyModal()" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-top:1px solid #f0f0f0;color:#1890ff;font-size:13px;cursor:pointer">＋ 新增 Key</div>';
   }
   html += '</div>';
 
@@ -470,17 +470,17 @@ function renderGcalPanel() {
     const key = gcalKeys.find(k => k.id === selectedKeyId);
     if (key) {
       // Panel Head
-      html += '<div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">' +
-        '<div style="width:40px;height:40px;border-radius:50%;background:#52c41a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px">📅</div>' +
-        '<div style="flex:1"><div style="font-size:16px;font-weight:700">' + esc(key.name) + '</div>' +
+      html += '<div class="gcal-detail-head" style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">' +
+        '<div style="width:40px;height:40px;border-radius:50%;background:#52c41a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">📅</div>' +
+        '<div class="gcal-detail-info" style="flex:1"><div style="font-size:16px;font-weight:700">' + esc(key.name) + '</div>' +
         '<div style="font-size:12px;color:#888;margin-top:2px">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div>' +
         '<div style="font-size:12px;color:#2563eb;margin-top:3px">Client email：' + esc(key.client_email || '未讀取') + '</div></div>';
       // 操作按鈕
       if (canManage) {
-        html += '<div style="display:flex;gap:6px;align-items:center">' +
+        html += '<div class="gcal-detail-actions" style="display:flex;gap:6px;align-items:center">' +
           '<label class="settings-switch" title="' + (key.is_active ? '點擊停用' : '點擊啟用') + '"><input type="checkbox" ' + (key.is_active ? 'checked' : '') + ' onchange="toggleGcalKey(' + key.id + ', this.checked)"><span class="slider"></span></label>' +
-          '<button onclick="openGcalKeyModal(' + key.id + ')" style="padding:4px 8px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer">✏️ 編輯</button>' +
-          '<button type="button" onclick="deleteGcalKey(' + key.id + ')" style="padding:4px 8px;font-size:12px;border:1px solid #fecaca;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer">🗑️ 刪除</button>' +
+          '<button onclick="openGcalKeyModal(' + key.id + ')" style="padding:6px 10px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;min-height:36px">✏️ 編輯</button>' +
+          '<button type="button" onclick="deleteGcalKey(' + key.id + ')" style="padding:6px 10px;font-size:12px;border:1px solid #fecaca;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer;min-height:36px">🗑️ 刪除</button>' +
           '</div>';
       }
       html += '</div>';
@@ -528,39 +528,39 @@ function renderGcalSyncSettings(key) {
   html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">📍 Event 內容</div>';
 
   // 地址→地點欄位
-  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+  html += '<div class="gcal-settings-row" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
     '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">地址同步到地點欄位</label>' +
     '<label class="settings-switch"><input type="checkbox" ' + (gcalSettings.gcal_use_location === '1' ? 'checked' : '') + ' onchange="saveGcalSetting(\'gcal_use_location\', this.checked ? \'1\' : \'0\')"><span class="slider"></span></label>' +
-    '<span style="font-size:11px;color:#999">客戶地址顯示在 Google Calendar 的「地點」欄位</span></div>';
+    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">客戶地址顯示在 Google Calendar 的「地點」欄位</span></div>';
 
   // 顯示為
-  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+  html += '<div class="gcal-settings-row" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
     '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">顯示為</label>' +
     '<select onchange="saveGcalSetting(\'gcal_transparency\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px">' +
     '<option value="transparent"' + (gcalSettings.gcal_transparency === 'transparent' ? ' selected' : '') + '>🟢 空閒（不阻塞時段）</option>' +
     '<option value="opaque"' + (gcalSettings.gcal_transparency === 'opaque' ? ' selected' : '') + '>🔴 忙碌（阻塞時段）</option></select>' +
-    '<span style="font-size:11px;color:#999">空閒 = 不會阻塞行事曆上的其他邀請</span></div>';
+    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">空閒 = 不會阻塞行事曆上的其他邀請</span></div>';
   html += '</div>';
 
   // 時間設定區塊
   html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">⏰ 時間設定</div>';
 
   // 預設截止時間
-  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+  html += '<div class="gcal-settings-row" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
     '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">預設截止時間</label>' +
     '<select onchange="saveGcalSetting(\'gcal_default_duration_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px">' +
     ['15', '30', '45', '60', '90', '120'].map(v => {
       var label = v === '60' ? '60 分鐘（1 小時）' : v === '120' ? '120 分鐘（2 小時）' : v + ' 分鐘';
       return '<option value="' + v + '"' + (gcalSettings.gcal_default_duration_min === v ? ' selected' : '') + '>' + label + '</option>';
     }).join('') + '</select>' +
-    '<span style="font-size:11px;color:#999">未填截止時間的行程，同步時使用此時長</span></div>';
+    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">未填截止時間的行程，同步時使用此時長</span></div>';
 
   // 同步間隔
-  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+  html += '<div class="gcal-settings-row gcal-sync-interval-hint" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
     '<label style="font-size:13px;color:#444;font-weight:600;min-width:180px">全部 Key 同步掃描間隔</label>' +
     '<input type="number" value="' + (gcalSettings.gcal_sync_interval_min || '5') + '" min="1" max="30" ' +
     'onchange="saveGcalSetting(\'gcal_sync_interval_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px;width:70px"> 分鐘' +
-    '<span style="font-size:11px;color:#999">所有啟用中的 Google Calendar Key 共用此掃描間隔，背景排程器會掃描待同步隊列；行程修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖（立即同步全部 Key）</span></div>';
+    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">所有啟用中的 Google Calendar Key 共用此掃描間隔，背景排程器會掃描待同步隊列；行程修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖（立即同步全部 Key）</span></div>';
   html += '</div>';
 
   // Per-Key 提醒設定

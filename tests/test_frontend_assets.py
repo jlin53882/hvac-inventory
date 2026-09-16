@@ -4113,3 +4113,55 @@ def test_gcal_sync_wording_describes_all_keys_and_trigger_semantics():
     assert "所有啟用中的 Google Calendar Key 共用此掃描間隔" in source
     assert "已觸發全部 Key 立即同步" in source
     assert "立即處理待同步" not in source
+
+
+# ---------- GCal 手機版 UI 改版（2026-09-16） ----------
+
+def test_gcal_key_list_shows_status_label():
+    """Key 列表顯示「帳號啟用」/「帳號停用」狀態文字"""
+    js = read(SETTINGS_JS)
+    assert "帳號啟用" in js
+    assert "帳號停用" in js
+
+
+def test_gcal_key_list_shows_full_client_email():
+    """Key 列表完整顯示 client_email（不截斷）"""
+    js = read(SETTINGS_JS)
+    # 必須顯示完整 email（esc(k.client_email || '—')）
+    assert "esc(k.client_email || '—')" in js
+    # 不得截斷 email 為 username-only（移除 emailShort 邏輯）
+    assert "emailShort" not in js
+
+
+def test_gcal_key_list_has_toggle_button():
+    """Key 列表有停用/啟用 toggle 按鈕（event.stopPropagation）"""
+    js = read(SETTINGS_JS)
+    assert "event.stopPropagation()" in js
+    assert "toggleGcalKey(" in js
+    # 按鈕文字
+    assert "停用" in js
+    assert "啟用" in js
+
+
+def test_gcal_settings_row_has_class():
+    """同步設定行有 gcal-settings-row class（手機版 CSS hook）"""
+    js = read(SETTINGS_JS)
+    assert 'class="gcal-settings-row' in js
+
+
+def test_gcal_detail_head_has_class():
+    """Detail header 有 gcal-detail-head / gcal-detail-info / gcal-detail-actions class"""
+    js = read(SETTINGS_JS)
+    assert 'class="gcal-detail-head"' in js
+    assert 'class="gcal-detail-info"' in js
+    assert 'class="gcal-detail-actions"' in js
+
+
+def test_settings_html_gcal_mobile_css():
+    """settings.html 手機版 CSS 包含 GCal 優化規則"""
+    html = read(SETTINGS_HTML)
+    assert ".gcal-key-item" in html
+    assert ".gcal-key-add" in html
+    assert ".gcal-detail-head" in html
+    assert ".gcal-settings-row" in html
+    assert ".gcal-sync-interval-hint" in html
