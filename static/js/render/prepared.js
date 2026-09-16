@@ -27,7 +27,7 @@ function renderKitSubItems(item) {
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover" loading="lazy">'
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover;cursor:pointer" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')">'
       : '<div style="width:28px;height:28px;border-radius:4px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">📷</div>';
     html += '<div class="kit-subitem">';
     html += photo;
@@ -49,7 +49,7 @@ function renderKitSubItemsMobile(item) {
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover" loading="lazy">'
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover;cursor:pointer" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')">'
       : '<div style="width:28px;height:28px;border-radius:4px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">📷</div>';
     html += '<div class="kit-subitem">';
     html += photo;

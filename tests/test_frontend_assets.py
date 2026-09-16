@@ -4165,3 +4165,107 @@ def test_settings_html_gcal_mobile_css():
     assert ".gcal-detail-head" in html
     assert ".gcal-settings-row" in html
     assert ".gcal-sync-interval-hint" in html
+
+
+# ========== 2026-09-16 待領出功能補測 ==========
+
+def test_prepared_kit_subitems_mobile():
+    """prepared.js 手機版整組子品項展開 renderKitSubItemsMobile 存在"""
+    js = read(PREPARED_RENDER_JS)
+    assert "renderKitSubItemsMobile" in js
+    assert "kit-subitems-mobile-wrap" in js
+
+
+def test_prepared_kit_subitems_desktop():
+    """prepared.js 桌面版整組子品項展開 renderKitSubItems 存在"""
+    js = read(PREPARED_RENDER_JS)
+    assert "renderKitSubItems" in js
+    assert "kit-subitems-toggle" in js
+    assert "toggleKitSubItems" in js
+
+
+def test_prepared_kit_photo_lightbox():
+    """整組子品項照片可點擊看大圖（openPhotoLightbox）"""
+    js = read(PREPARED_RENDER_JS)
+    assert "openPhotoLightbox" in js
+    # 兩處：桌面版 renderKitSubItems + 手機版 renderKitSubItemsMobile
+    count = js.count("openPhotoLightbox")
+    assert count >= 2, f"openPhotoLightbox 應出現 >=2 次（桌面+手機），實際 {count}"
+
+
+def test_prepared_destination_display():
+    """待領出頁顯示準備說明（destination）"""
+    js = read(PREPARED_RENDER_JS)
+    assert "destination" in js
+    # 桌面版
+    assert "prepared-item-dest" in js
+    # 手機版
+    assert "prepared-card-dest" in js
+
+
+def test_prepared_no_item_note_in_location():
+    """待領出頁不再顯示 item.note（位置備註），只顯示 destination"""
+    js = read(PREPARED_RENDER_JS)
+    # item.note 不應出現在 location 顯示行
+    assert "item.location" in js  # 位置仍顯示
+    # 確認沒有 `${note}` 在 location 行
+    lines = js.split("\n")
+    for line in lines:
+        if "prepared-item-location" in line or "prepared-mobile-location" in line:
+            assert "${note}" not in line, f"location 行不應有 note: {line.strip()}"
+
+
+def test_kit_prepare_modal_has_note_field():
+    """整組待領出 BOM modal 有備註欄位"""
+    html = read(INDEX)
+    assert "kit-prepare-note" in html
+    assert "kit-prepare-list" in html
+    assert "kit-prepare-submit" in html
+
+
+def test_kit_prepare_submit_sends_location():
+    """submitKitPrepare 同時傳 note + location"""
+    js = read(STOCKOUT_MODAL_JS)
+    assert "submitKitPrepare" in js
+    assert "location: note" in js
+
+
+def test_prepared_edit_modal_has_destination():
+    """待領出編輯 modal 有準備說明欄位"""
+    html = read(INDEX)
+    assert "prepared-edit-modal" in html
+    assert "pe-dest" in html
+    assert "pe-name" in html
+    assert "pe-qty" in html
+
+
+def test_prepared_edit_saves_destination():
+    """submitPreparedEdit 呼叫 PUT /api/prepared/{id}/destination"""
+    js = read(STOCKOUT_MODAL_JS)
+    assert "submitPreparedEdit" in js
+    assert "/api/prepared/" in js
+    assert "destination" in js
+
+
+def test_prepared_edit_populates_destination():
+    """openPreparedEditModal 填入 destination"""
+    js = read(STOCKOUT_MODAL_JS)
+    assert "openPreparedEditModal" in js
+    assert "pe-dest" in js
+    assert "item.destination" in js
+
+
+def test_kit_prepare_modal_cancel_works():
+    """整組待領出 BOM modal 取消按鈕用 closeModal（非動態 innerHTML）"""
+    html = read(INDEX)
+    # kit-prepare-modal 在 HTML 中預建
+    assert 'id="kit-prepare-modal"' in html
+    # 取消用 closeModal
+    assert "closeModal('kit-prepare-modal')" in html or 'closeModal("kit-prepare-modal")' in html
+
+
+def test_prepare_submit_sends_location():
+    """submitPrepare 傳 location 參數（備註存入 movements.destination）"""
+    js = read(STOCKOUT_MODAL_JS)
+    assert "submitPrepare" in js
+    assert "location: note" in js
