@@ -559,6 +559,7 @@ function openKitPrepareModal(kitId, kitName) {
     '</div>';
   });
   document.getElementById('kit-prepare-list').innerHTML = listHtml;
+  document.getElementById('kit-prepare-note').value = '';
   document.getElementById('kit-prepare-submit').onclick = function() { submitKitPrepare(kit.item_id); };
   openModal('kit-prepare-modal');
 }
@@ -566,11 +567,12 @@ function openKitPrepareModal(kitId, kitName) {
 async function submitKitPrepare(kitItemId) {
   const item = ALL_ITEMS.find(i => i.id === kitItemId);
   if (!item) { toast('品項不存在', 'error'); return; }
+  const note = document.getElementById('kit-prepare-note').value.trim();
   try {
     const res = await fetch(`/api/items/${kitItemId}/prepare`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: 1, note: '' })
+      body: JSON.stringify({ qty: 1, location: note })
     });
     if (!res.ok) {
       const err = await res.json();
