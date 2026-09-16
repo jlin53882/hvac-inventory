@@ -477,3 +477,99 @@ async function deleteStockoutReturn(movementId) {
     await renderStockOuts();
   } catch (e) { toast('⚠️ ' + e.message, 'error'); }
 }
+
+
+// ========== 待領出編輯（複用 edit-modal） ==========
+var _preparedEditContext = false;  // 標記目前 edit-modal 是從待領出頁開啟
+
+function openPreparedEditModal(id) {
+  const item = (typeof preparedItems !== 'undefined' && preparedItems)
+    ? preparedItems.find(i => i.id === id)
+    : null;
+  if (!item) return;
+  _preparedEditContext = true;
+  editItemId = id;
+  editUpdatedAt = item.updated_at || null;
+  document.getElementById('e-brand').value = item.brand || '';
+  document.getElementById('e-code').value = item.code || '';
+  document.getElementById('e-name').value = item.name || '';
+  fillUnitSelect(document.getElementById('e-unit'), item.unit || '個');
+  const eUnitAdd = document.getElementById('e-unit-add');
+  if (eUnitAdd) eUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
+  const eUnitSearch = document.getElementById('e-unit-search');
+  if (eUnitSearch) eUnitSearch.value = '';
+  document.getElementById('e-lowstock').value = item.low_stock || 0;
+  document.getElementById('e-site').value = item.site || 'office';
+  document.getElementById('e-category').value = item.category || '';
+  const stocks = item.stocks && item.stocks.length
+    ? item.stocks
+    : [{ location: item.location || '', qty: item.qty || 0, note: item.note || '' }];
+  renderEditStockRows(stocks, item.unit || '個');
+  renderPhotoBox(id, !!item.has_photo);
+  const warnBox = document.getElementById('e-similar-warn');
+  if (warnBox) { warnBox.style.display = 'none'; warnBox.innerHTML = ''; }
+  openModal('edit-modal');
+  bindSimilarCheck('e-name', 'e-code', 'e-similar-warn', id);
+}
+
+// 整組待領出 BOM Modal
+function openKitPrepareModal(kitId, kitName) {
+  const kit = (typeof currentKitItems !== 'undefined' && currentKitItems)
+    ? currentKitItems.find(k => k.item_id === kitId || k.id === kitId)
+    : null;
+  if (!kit) return;
+  const comps = kit.components || [];
+  let html = `<div class="modal-overlay" id="kit-prepare-modal" onclick="if(event.target===this)closeModalForce('kit-prepare-modal')">
+    <div class="modal" style="max-width:520px">
+      <h3>📤 整組待領出：${esc(kit.name)}</h3>
+      <p style="font-size:12px;color:#666;margin-bottom:12px">整組包含以下品項，按「確認領出」一次領出整組。</p>
+      <div style="max-height:400px;overflow-y:auto">`;
+  comps.forEach(c => {
+    const photo = c.has_photo
+      ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" style="width:36px;height:36px;border-radius:6px;object-fit:cover" loading="lazy">`
+      : '<div style="width:36px;height:36px;border-radius:6px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:14px">📷</div>';
+    const stockOk = (c.stock || 0) >= c.need_qty;
+    html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9">
+      ${photo}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${esc(c.brand || '')} ${esc(c.name)}</div>
+        <div style="font-size:11px;color:#888">${c.code ? '型號：' + esc(c.code) : ''}</div>
+      </div>
+      <div style="text-align:right;font-size:12px">
+        <div>需要 ${c.need_qty} ${esc(c.unit || '個')}</div>
+        <div style="color:${stockOk ? '#15803d' : '#dc2626'}">庫存 ${c.stock || 0}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn-cancel" style="flex:1" onclick="closeModalForce('kit-prepare-modal')">取消</button>
+        <button class="btn-confirm" style="flex:2" onclick="submitKitPrepare(${kit.item_id})">📤 確認領出整組</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  openModal('kit-prepare-modal');
+}
+
+async function submitKitPrepare(kitItemId) {
+  const item = ALL_ITEMS.find(i => i.id === kitItemId);
+  if (!item) { toast('品項不存在', 'error'); return; }
+  // 整組：一次領出 qty=1（整組單位）
+  try {
+    const res = await fetch(`/api/items/${kitItemId}/prepare`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qty: 1, note: '' })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || '領出失敗');
+    }
+    closeModalForce('kit-prepare-modal');
+    toast(`📤 已標記待領出 1 ${item.unit || '組'}（整組）`, 'success');
+    await loadData();
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}

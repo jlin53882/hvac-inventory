@@ -118,9 +118,9 @@ function renderKitStatusBadge(status) {
 
 function renderKitActionButtons(k, isViewer, isM, status) {
   if (isViewer) return '';
-  if (isM) return `<div class="kit-mobile-actions"><button class="kit-action is-prepare" onclick="openPrepareModal(${k.item_id}, event)">📤 待領出</button><button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button><button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
+  if (isM) return `<div class="kit-mobile-actions"><button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(k.name)}')">📤 待領出</button><button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button><button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
   return `<div class="kit-assembly-actions">
-    <button class="kit-action is-prepare" onclick="openPrepareModal(${k.item_id}, event)">📤 待領出</button>
+    <button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(k.name)}')">📤 待領出</button>
     <button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>
     <button class="kit-action is-edit" onclick="editKit(${k.id})">✏️ 編輯</button>
     <button class="kit-action is-delete" onclick="deleteKit(${k.id})">🗑 刪除</button>

@@ -77,6 +77,11 @@ REVIEWED_SAFE_BODIES = {
     "o.item_id", "absNum(o.delta)", "absNum(s.qty)", "val",
     # kits.js 整組待領出/已領出按鈕（2026-08-14 工作區既有改動）：k.item_id 為 DB 數字主鍵（同 c.item_id/o.item_id）
     "k.item_id",
+    # kit BOM 待領出 modal（2026-09-16）：c.code 含 esc()、stockOk 為 bool 常數色碼、c.stock/kit.item_id 為 DB 數字
+    "c.code ? '型號：' + esc(c.code) : ''",
+    "stockOk ? '#15803d' : '#dc2626'",
+    "c.stock || 0",
+    "kit.item_id",
     "prevTotal - i + 1", "locItems.length", "counts[b] || ALL_ITEMS.length",
     "last.diff_count", "last.item_count", "last.total_diff",
     "d.diff_count", "d.item_count", "d.total_diff", "ALL_ITEMS.length",

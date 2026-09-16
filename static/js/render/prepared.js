@@ -26,6 +26,7 @@ function renderPreparedDesktopRow(item, isViewer) {
   const location = item.location || '未標示';
   const note = item.note ? ` · ${esc(item.note)}` : '';
   const actions = isViewer ? '' : `<td class="prepared-actions-cell"><div class="prepared-row-actions">
+    <button class="btn-prepare" onclick="openPreparedEditModal(${item.id})">✏️ 編輯</button>
     <button class="btn-out" onclick="openPreparedOutModal(${item.id})">🚚 已領出</button>
     ${item.is_deleted ? '' : `<button class="btn-prepare" onclick="returnPrepared(${item.id})">↩ 退回</button>`}
     <button class="btn-del" onclick="clearPrepared(${item.id}, ${item.prepared_qty})">🗑 刪除</button>
@@ -178,6 +179,7 @@ function openPreparedSheet(itemId) {
 
   if (!isViewer) {
 
+    actions.push({ icon: '✏️', label: '編輯', cls: 'back', fn: () => openPreparedEditModal(itemId) });
     actions.push({ icon: '🚚', label: '已領出', cls: 'out', fn: () => openPreparedOutModal(itemId) });
 
     if (!item.is_deleted) actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnPrepared(itemId) });  // 非庫存無退回（家豪 2026-08-16）

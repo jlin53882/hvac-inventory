@@ -2367,10 +2367,10 @@ def test_stocktake_view_for_all_roles():
 
 
 def test_kit_stockout_actions():
-    """2026-08-13 Sarah：整組庫存也要有「待領出/已領出」按鈕（手機+桌面），直接複用單一庫存 modal"""
+    """2026-08-13 Sarah：整組庫存也要有「待領出/已領出」按鈕（手機+桌面），整組用 openKitPrepareModal 顯示 BOM"""
     js = read(KITS_RENDER_JS)
-    # 手機卡片 kit-mobile-actions + 桌面操作列：各一組 openPrepareModal/openOutModal（用 kit 的 item_id）
-    assert js.count("openPrepareModal(${k.item_id}") >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
+    # 手機卡片 kit-mobile-actions + 桌面操作列：各一組 openKitPrepareModal/openOutModal（用 kit 的 item_id）
+    assert js.count("openKitPrepareModal(${k.item_id}") >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
     assert js.count("openOutModal(${k.item_id}") >= 2, "整組卡片已領出按鈕（手機+桌面）缺失"
     assert "kit-mobile-actions" in js, "手機整組卡片缺 kit-mobile-actions 按鈕列"
     # 桌面版：待領出/已領出要在編輯按鈕前面（設計圖：操作列最前面）
@@ -3641,7 +3641,7 @@ def test_kit_desktop_dashboard_assets_and_existing_actions():
         "kit-component-table", "kit-status-badge", "kit-empty-state",
     ):
         assert token in js or token in css, f"整組頁缺少 {token}"
-    for token in ("openPrepareModal", "openOutModal", "editKit", "deleteKit", "assembleKit", "disassembleKit"):
+    for token in ("openKitPrepareModal", "openOutModal", "editKit", "deleteKit", "assembleKit", "disassembleKit"):
         assert token in js
     assert ".kit-content" in css
 
@@ -3866,7 +3866,7 @@ def test_kit_mobile_actions_stay_on_one_row_in_requested_order():
     assert 'kit-mobile-actions' in js
     assert 'renderKitActionButtons(k, isViewer, isM, status)' in js
     assert 'kit-mobile-actions .kit-action' in css
-    assert js.index('openPrepareModal(${k.item_id}, event)') < js.index('openOutModal(${k.item_id}, event)')
+    assert js.index('openKitPrepareModal(${k.item_id}, ') < js.index('openOutModal(${k.item_id}, event)')
     assert js.index('openOutModal(${k.item_id}, event)') < js.index('openKitSheet(${k.id})')
 
 

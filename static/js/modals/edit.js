@@ -157,7 +157,13 @@ async function submitEdit() {
     }
     closeModalForce('edit-modal');
     toast('✅ 已儲存修改', 'success');
-    await loadData();
+    // 待領出頁編輯後刷新待領出頁（而非全量 loadData）
+    if (_preparedEditContext && typeof renderPrepared === 'function') {
+      _preparedEditContext = false;
+      await renderPrepared();
+    } else {
+      await loadData();
+    }
   } catch (e) {
     toast('儲存失敗', 'error');
   }
