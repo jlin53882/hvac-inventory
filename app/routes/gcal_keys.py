@@ -775,6 +775,35 @@ def force_sync_now():
 
 # ========== 個人／團隊重試 API ==========
 
+def _resolve_assigned_user_key_ids(conn, appt_id: int, user_id: int) -> list[int]:
+    """只解析指定有效指派人的 active、非 migration-pending Key。"""
+    rows = conn.execute(
+        "SELECT DISTINCT k.id "
+        "FROM appointment_assignees aa "
+        "JOIN users u ON u.id=aa.user_id AND u.is_active=1 "
+        "JOIN gcal_keys k ON k.name=u.gcal_key AND k.is_active=1 "
+        "AND COALESCE(k.pending_calendar_id,'')='' "
+        "WHERE aa.appointment_id=? AND u.id=?",
+        (appt_id, user_id),
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def _resolve_retry_all_key_ids(conn, appt_id: int) -> list[int]:
+    """重用同步 authoritative resolver，再套用 mark_sync_pending 的 migration gate。"""
+    target_ids = gcal_sync.resolve_target_keys(conn, appt_id)
+    if not target_ids:
+        return []
+    placeholders = ",".join("?" * len(target_ids))
+    rows = conn.execute(
+        "SELECT id FROM gcal_keys WHERE is_active=1 "
+        "AND COALESCE(pending_calendar_id,'')='' "
+        f"AND id IN ({placeholders})",
+        target_ids,
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
 def _reset_sync_queue_for_keys(appt_id: int, key_ids: list[int]) -> int:
     if appt_id < 0:
         raise HTTPException(400, "appointment_id 不可為負數")
@@ -791,7 +820,7 @@ def _reset_sync_queue_for_keys(appt_id: int, key_ids: list[int]) -> int:
         ).fetchall()
         if not rows:
             raise HTTPException(404, "找不到可重試的同步 Queue")
-        actual_ids = [row["key_id"] for row in rows]
+        actual_ids = sorted({row["key_id"] for row in rows})
         placeholders = ",".join("?" * len(actual_ids))
         conn.execute(
             "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
@@ -816,18 +845,12 @@ def reset_my_sync_queue(appt_id: int, user: dict = Depends(require_login)):
     """只重試目前登入者在該行程的同步 Queue。"""
     conn = get_db()
     try:
-        row = conn.execute(
-            "SELECT k.id FROM appointment_assignees aa "
-            "JOIN users u ON u.id=aa.user_id "
-            "JOIN gcal_keys k ON k.name=u.gcal_key AND k.is_active=1 "
-            "WHERE aa.appointment_id=? AND u.id=? AND u.is_active=1",
-            (appt_id, user["id"]),
-        ).fetchone()
+        key_ids = _resolve_assigned_user_key_ids(conn, appt_id, user["id"])
     finally:
         conn.close()
-    if not row:
+    if not key_ids:
         raise HTTPException(404, "你不是此行程的有效同步人員")
-    count = _reset_sync_queue_for_keys(appt_id, [row["id"]])
+    count = _reset_sync_queue_for_keys(appt_id, key_ids)
     return {"ok": True, "scope": "mine", "reset": count}
 
 
@@ -838,19 +861,12 @@ def reset_sync_queue_scope(appt_id: int, scope: str = "all", target_user_id: int
         raise HTTPException(400, "scope 只能是 all 或 user")
     conn = get_db()
     try:
-        sql = (
-            "SELECT DISTINCT k.id FROM appointment_assignees aa "
-            "JOIN users u ON u.id=aa.user_id AND u.is_active=1 "
-            "JOIN gcal_keys k ON k.name=u.gcal_key AND k.is_active=1 "
-            "WHERE aa.appointment_id=?"
-        )
-        params = [appt_id]
-        if scope == "user":
+        if scope == "all":
+            key_ids = _resolve_retry_all_key_ids(conn, appt_id)
+        else:
             if target_user_id <= 0:
                 raise HTTPException(400, "指定人員時需要有效 target_user_id")
-            sql += " AND u.id=?"
-            params.append(target_user_id)
-        key_ids = [row["id"] for row in conn.execute(sql, params).fetchall()]
+            key_ids = _resolve_assigned_user_key_ids(conn, appt_id, target_user_id)
     finally:
         conn.close()
     count = _reset_sync_queue_for_keys(appt_id, key_ids)

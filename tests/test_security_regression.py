@@ -94,6 +94,8 @@ REVIEWED_SAFE_BODIES = {
     "s.sort_order", "totalQtyStr", "low", "zero", "s.qty", "id",
     # 布林三元（常數輸出或含 esc 分支）
     "u.is_active ? '⏸ 帳號停用' : '▶️ 帳號啟用'", "u.is_active ? '✅ 啟用' : '⛔ 停用'",
+    # Calendar team retry fragment：固定 markup，兩個 handler id 在產生前已各自 esc（2026-09-17）
+    "retry",
     # sync_status（2026-08-27 gcal sync：server 端產生的固定字串，非使用者輸入）
     "e.sync_status === 'synced' ? '✅' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''",
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",

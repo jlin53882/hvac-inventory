@@ -71,11 +71,35 @@ function calSyncStatusIcon(status) {
 }
 
 function calPersonalSync(e) {
-  return e.my_sync_status || { status: e.sync_status || 'none', error: e.sync_error || '' };
+  return e.my_sync_status || {
+    status: e.sync_status || 'none',
+    key_name: e.sync_error_key || '',
+    cal_id: e.sync_error_cal || '',
+    error: e.sync_error || '',
+    attempts: e.sync_error_attempts || 0,
+  };
+}
+
+function calCanRetrySyncStatus(status) {
+  return ['pending', 'retrying', 'partial_retrying', 'failed', 'partial_failed'].includes(status);
+}
+
+function calHasTeamSyncInfo(team) {
+  if (!team) return false;
+  return (team.eligible_people || 0)
+    + (team.unbound_people || 0)
+    + (team.paused_people || 0)
+    + (team.inactive_people || 0) > 0;
+}
+
+function calTeamHasRetryableTarget(team) {
+  return Boolean(team && Array.isArray(team.details)
+    && team.details.some(person => calCanRetrySyncStatus(person.status)));
 }
 
 function calTeamSyncLabel(team) {
-  if (!team || !team.eligible_people) return '';
+  if (!calHasTeamSyncInfo(team)) return '';
+  if (!team.eligible_people) return '團隊：目前無有效同步人員';
   const icon = team.failed_people ? ' ⚠️' : team.pending_people || team.retrying_people ? ' ⏳' : '';
   return `團隊：${team.synced_people}/${team.eligible_people} 同步${icon}`;
 }
@@ -437,7 +461,7 @@ function calRenderDay() {
         ? `<button type="button" class="cal-sync-status cal-sync-${esc(personal.status)} cal-sync-clickable" onclick="calShowSyncError(${e.id})" title="點擊查看我的同步錯誤">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(personal.status))}</span></button>`
         : `<span class="cal-sync-status cal-sync-${esc(personal.status)}" title="${esc(calSyncStatusLabel(personal.status))}">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(personal.status))}</span></span>`)
       : (isAssigned ? '' : '<span class="cal-sync-status cal-sync-not-assigned">未指派給你</span>');
-    const myRetry = isAssigned && ['pending', 'retrying', 'failed'].includes(personal.status)
+    const myRetry = isAssigned && calCanRetrySyncStatus(personal.status)
       ? `<button type="button" class="cal-sync-retry-btn" onclick="calRetryMySync(${e.id})">重試我的</button>` : '';
     const isAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'admin';
     const teamLabel = isAdmin ? calTeamSyncLabel(e.team_sync) : '';

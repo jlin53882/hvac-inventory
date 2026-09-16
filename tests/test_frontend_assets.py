@@ -4151,6 +4151,12 @@ def test_calendar_sync_status_uses_personal_and_admin_team_contract():
     assert "/api/gcal-sync-queue/reset-mine" in modal
     assert "scope=user" in modal
     assert "scope=all" in modal
+    assert "function calCanRetrySyncStatus" in js
+    assert "partial_retrying" in js
+    assert "partial_failed" in js
+    assert "calTeamHasRetryableTarget" in js
+    assert "cal-team-sync-retry-all" in modal
+    assert "inactive_people" in modal
 
 
 def test_gcal_sync_interval_explains_debounce_semantics():

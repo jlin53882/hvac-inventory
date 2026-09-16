@@ -162,6 +162,22 @@ def _sync_status(conn, appt_id: int) -> str:
     ).fetchall()
     return gcal_sync.appointment_sync_status(mapped, rows)
 
+_TEAM_STATUS_BUCKET = {
+    "synced": "synced",
+    "pending": "pending",
+    "not_targeted": "pending",
+    "retrying": "retrying",
+    "partial_retrying": "retrying",
+    "failed": "failed",
+    "partial_failed": "failed",
+}
+
+
+def _team_status_bucket(status: str) -> str:
+    """把個人／歷史 partial 狀態收斂成團隊統計 bucket。"""
+    return _TEAM_STATUS_BUCKET.get(status, "pending")
+
+
 def _single_sync_info(mapped: bool, entries) -> dict:
     """以單一 Key 計算狀態，並保留最高 attempts 的錯誤摘要。"""
     rows = list(entries or [])
@@ -252,9 +268,10 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
         team = None
         if is_admin:
             team_people = []
-            excluded = {"not_bound": 0, "paused": 0}
+            excluded = {"not_bound": 0, "paused": 0, "inactive": 0}
             for person in assigned:
                 if not person["user_active"]:
+                    excluded["inactive"] += 1
                     continue
                 if not person["gcal_key"]:
                     excluded["not_bound"] += 1
@@ -273,18 +290,24 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                     "display_name": person["display_name"] or "",
                     **person_info,
                 })
-            counts = {"synced": 0, "pending": 0, "retrying": 0, "failed": 0, "not_targeted": 0}
+            counts = {"synced": 0, "pending": 0, "retrying": 0, "failed": 0}
+            unknown_people = 0
             for person in team_people:
-                if person["status"] in counts:
-                    counts[person["status"]] += 1
+                status = person["status"]
+                bucket = _team_status_bucket(status)
+                counts[bucket] += 1
+                if status not in _TEAM_STATUS_BUCKET:
+                    unknown_people += 1
             team = {
                 "eligible_people": len(team_people),
                 "synced_people": counts["synced"],
-                "pending_people": counts["pending"] + counts["not_targeted"],
+                "pending_people": counts["pending"],
                 "retrying_people": counts["retrying"],
                 "failed_people": counts["failed"],
+                "unknown_status_people": unknown_people,
                 "unbound_people": excluded["not_bound"],
                 "paused_people": excluded["paused"],
+                "inactive_people": excluded["inactive"],
                 "details": team_people,
             }
         if viewer_user is None:
@@ -356,6 +379,7 @@ def _appt_rows(conn, appt_ids, viewer_user=None) -> list[dict]:
             "my_sync_status": {
                 "status": sync_info["status"],
                 "key_name": sync_info.get("key_name") or "",
+                "cal_id": sync_info.get("cal_id") or "",
                 "error": sync_info.get("error") or "",
                 "attempts": sync_info.get("attempts", 0),
                 "op_type": sync_info.get("op_type") or "",
@@ -363,10 +387,10 @@ def _appt_rows(conn, appt_ids, viewer_user=None) -> list[dict]:
             "team_sync": sync_info.get("team"),
             "is_assigned_to_me": sync_info["status"] != "not_assigned",
             "sync_error": sync_info.get("error") or "",
-            "sync_error_key": sync_info.get("key_name") or "",
-            "sync_error_cal": sync_info.get("cal_id") or "",
-            "sync_error_attempts": sync_info.get("attempts", 0),
-            "sync_error_op": sync_info.get("op_type") or "",
+            "sync_error_key": sync_info.get("key_name") or "" if sync_info.get("error") else "",
+            "sync_error_cal": sync_info.get("cal_id") or "" if sync_info.get("error") else "",
+            "sync_error_attempts": sync_info.get("attempts", 0) if sync_info.get("error") else 0,
+            "sync_error_op": sync_info.get("op_type") or "" if sync_info.get("error") else "",
         })
     return result
 

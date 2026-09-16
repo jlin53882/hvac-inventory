@@ -1025,6 +1025,33 @@ def test_admin_team_sync_counts_people_not_unique_keys(client):
     assert len(item["team_sync"]["details"]) == 2
 
 
+def test_shared_key_retry_all_resets_one_queue_for_two_people(client):
+    """共用 Key 兩位人員仍算 2 人，但 retry-all 只重設 1 個 queue。"""
+    from app.database import get_db
+
+    teammate = _create_user(client, "shared-retry-user", "user")
+    conn = get_db()
+    try:
+        key_id = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('shared-retry-key','x.json','shared@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key='shared-retry-key' WHERE id IN (1, ?)", (teammate["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "shared-retry", "date": "2026-08-28",
+        "start_time": "16:00", "end_time": "17:00", "user_ids": [1, teammate["id"]],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        conn.execute("UPDATE appointment_sync_queue SET attempts=5,last_error='timeout' WHERE appointment_id=? AND key_id=?", (appt_id, key_id))
+        conn.commit()
+    finally:
+        conn.close()
+    response = client.put(f"/api/gcal-sync-queue/reset-scope?appt_id={appt_id}&scope=all")
+    assert response.status_code == 200
+    assert response.json()["reset"] == 1
+
+
 def test_non_assignee_gets_personal_not_assigned_status(client):
     """非指派人員不應看到其他人的同步狀態。"""
     from app.database import get_db
@@ -1114,6 +1141,176 @@ def test_admin_reset_scope_can_target_person_or_all_effective_targets(client):
     all_targets = client.put(f"/api/gcal-sync-queue/reset-scope?appt_id={appt_id}&scope=all")
     assert all_targets.status_code == 200
     assert all_targets.json()["reset"] == 2
+
+
+def test_retry_all_reuses_no_assignee_fallback_targets(client):
+    """無指派人員時，retry-all 必須重用同步 engine 的 all-active fallback。"""
+    from app.database import get_db
+
+    conn = get_db()
+    try:
+        keys = [
+            conn.execute(
+                "INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES(?,?,?)",
+                (f"fallback-{suffix}", f"{suffix}.json", f"{suffix}@cal"),
+            ).lastrowid
+            for suffix in ("a", "b")
+        ]
+        conn.commit()
+    finally:
+        conn.close()
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "fallback-retry", "date": "2026-08-28",
+        "start_time": "22:00", "end_time": "23:00", "user_ids": [],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        conn.execute("UPDATE appointment_sync_queue SET attempts=5,last_error='timeout' WHERE appointment_id=?", (appt_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    response = client.put(f"/api/gcal-sync-queue/reset-scope?appt_id={appt_id}&scope=all")
+    assert response.status_code == 200
+    assert response.json()["reset"] == 2
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT key_id,attempts,last_error FROM appointment_sync_queue WHERE appointment_id=?", (appt_id,)).fetchall()
+        assert {row["key_id"] for row in rows} == set(keys)
+        assert all(row["attempts"] == 0 and row["last_error"] == "" for row in rows)
+    finally:
+        conn.close()
+
+
+def test_admin_team_counts_partial_statuses(client):
+    """partial_failed / partial_retrying 必須分別進 failed/retrying bucket。"""
+    from app.database import get_db
+
+    conn = get_db()
+    try:
+        key_id = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('partial-team','x.json','partial@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key='partial-team' WHERE id=1")
+        conn.commit()
+    finally:
+        conn.close()
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "partial-team", "date": "2026-08-28",
+        "start_time": "23:00", "end_time": "23:30", "user_ids": [1],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)", (appt_id, key_id, "partial-event", "hash"))
+        conn.execute("UPDATE appointment_sync_queue SET attempts=5,last_error='timeout' WHERE appointment_id=? AND key_id=?", (appt_id, key_id))
+        conn.commit()
+    finally:
+        conn.close()
+    item = next(row for row in client.get("/api/appointments?date=2026-08-28").json() if row["id"] == appt_id)
+    assert item["my_sync_status"]["status"] == "partial_failed"
+    assert item["team_sync"]["failed_people"] == 1
+    assert item["team_sync"]["retrying_people"] == 0
+
+    conn = get_db()
+    try:
+        conn.execute("UPDATE appointment_sync_queue SET attempts=2,last_error='timeout' WHERE appointment_id=? AND key_id=?", (appt_id, key_id))
+        conn.commit()
+    finally:
+        conn.close()
+    item = next(row for row in client.get("/api/appointments?date=2026-08-28").json() if row["id"] == appt_id)
+    assert item["my_sync_status"]["status"] == "partial_retrying"
+    assert item["team_sync"]["retrying_people"] == 1
+
+
+def test_admin_team_reports_inactive_assignee_even_with_zero_eligible(client):
+    """停用但仍被歷史行程指派的帳號要另列，不得讓 team_sync 消失。"""
+    from app.database import get_db
+
+    teammate = _create_user(client, "inactive-assignee", "user")
+    conn = get_db()
+    try:
+        conn.execute("UPDATE users SET is_active=0 WHERE id=?", (teammate["id"],))
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,address,service_type_id,date,start_time,end_time,note) VALUES(?,?,?,?,?,?,?)",
+            ("inactive-team", "", None, "2026-08-28", "23:30", "23:59", ""),
+        ).lastrowid
+        conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,?)", (appt_id, teammate["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    item = next(row for row in client.get("/api/appointments?date=2026-08-28").json() if row["id"] == appt_id)
+    assert item["team_sync"]["eligible_people"] == 0
+    assert item["team_sync"]["inactive_people"] == 1
+
+
+def test_general_user_non_assignee_does_not_receive_team_or_other_error(client):
+    """一般非指派 user 不得看到其他人的 team/error/key/calendar。"""
+    from app.database import get_db
+
+    user_a = _create_user(client, "privacy-a", "user")
+    user_b = _create_user(client, "privacy-b", "user")
+    conn = get_db()
+    try:
+        key_b = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('privacy-b-key','b.json','b@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key='privacy-b-key' WHERE id=?", (user_b["id"],))
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,address,service_type_id,date,start_time,end_time,note) VALUES(?,?,?,?,?,?,?)",
+            ("privacy-check", "", None, "2026-08-28", "23:40", "23:59", ""),
+        ).lastrowid
+        conn.execute("INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,?)", (appt_id, user_b["id"]))
+        conn.execute("INSERT INTO appointment_sync_queue(appointment_id,key_id,op_type,last_modified_at,attempts,last_error) VALUES(?,?, 'U',datetime('now'),5,'timeout')", (appt_id, key_b))
+        conn.commit()
+    finally:
+        conn.close()
+    general = _login(None, "privacy-a", "Passw0rd!")
+    try:
+        item = next(row for row in general.get("/api/appointments?date=2026-08-28").json() if row["id"] == appt_id)
+        assert item["my_sync_status"]["status"] == "not_assigned"
+        assert item["is_assigned_to_me"] is False
+        assert item["team_sync"] is None
+        assert item["sync_error"] == ""
+        assert item["sync_error_key"] == ""
+        assert item["sync_error_cal"] == ""
+        assert item["sync_error_attempts"] == 0
+    finally:
+        general.close()
+
+
+def test_assigned_general_user_is_not_polluted_by_other_assignee_failure(client):
+    """一般 user A 只看自己的 synced，不得被 user B failure 污染。"""
+    from app.database import get_db
+
+    user_a = _create_user(client, "assigned-a", "user")
+    user_b = _create_user(client, "assigned-b", "user")
+    conn = get_db()
+    try:
+        key_a = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('assigned-a-key','a.json','a@cal')").lastrowid
+        key_b = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('assigned-b-key','b.json','b@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key='assigned-a-key' WHERE id=?", (user_a["id"],))
+        conn.execute("UPDATE users SET gcal_key='assigned-b-key' WHERE id=?", (user_b["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    appt_id = client.post("/api/appointments", json={
+        "client_name": "assigned-privacy", "date": "2026-08-28",
+        "start_time": "23:45", "end_time": "23:59", "user_ids": [user_a["id"], user_b["id"]],
+    }).json()["id"]
+    conn = get_db()
+    try:
+        conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)", (appt_id, key_a, "a-event", "hash"))
+        conn.execute("DELETE FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id, key_a))
+        conn.execute("UPDATE appointment_sync_queue SET attempts=5,last_error='timeout' WHERE appointment_id=? AND key_id=?", (appt_id, key_b))
+        conn.commit()
+    finally:
+        conn.close()
+    general = _login(None, "assigned-a", "Passw0rd!")
+    try:
+        item = next(row for row in general.get("/api/appointments?date=2026-08-28").json() if row["id"] == appt_id)
+        assert item["my_sync_status"]["status"] == "synced"
+        assert item["team_sync"] is None
+        assert item["sync_error"] == ""
+        assert item["sync_error_key"] == ""
+        assert item["sync_error_cal"] == ""
+        assert item["sync_error_attempts"] == 0
+    finally:
+        general.close()
 
 
 def test_delete_with_only_inactive_mapped_key_enqueues_delete(client):
