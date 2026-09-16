@@ -497,6 +497,7 @@ function openPreparedEditModal(id) {
   fillUnitSelect(document.getElementById('pe-unit'), item.unit || '個');
   document.getElementById('pe-qty').value = item.prepared_qty || 0;
   document.getElementById('pe-note').value = item.note || '';
+  document.getElementById('pe-dest').value = item.destination || '';
   openModal('prepared-edit-modal');
 }
 
@@ -519,9 +520,15 @@ async function submitPreparedEdit() {
       const err = await res.json();
       throw new Error(err.detail || '更新失敗');
     }
-    // 同步更新待領出數量（如果有改）
-    if (qty !== (preparedItems.find(i => i.id === editItemId) || {}).prepared_qty) {
-      // 備註透過 movements.destination 更新
+    // 更新準備說明（movements.destination）
+    const dest = document.getElementById('pe-dest').value.trim();
+    const curDest = (preparedItems.find(i => i.id === editItemId) || {}).destination || '';
+    if (dest !== curDest) {
+      await fetch(`/api/prepared/${editItemId}/destination`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination: dest })
+      });
     }
     closeModalForce('prepared-edit-modal');
     toast('✅ 已儲存修改', 'success');

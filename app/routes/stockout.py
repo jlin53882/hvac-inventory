@@ -772,3 +772,21 @@ def list_prepared(site: Optional[str] = None):
         p["destination"] = mv["destination"] if mv and mv["destination"] else ""
     conn.close()
     return payloads
+
+@router.put("/api/prepared/{item_id}/destination", dependencies=[Depends(require_perm("stockout"))])
+def update_prepared_destination(item_id: int, body: dict):
+    """更新待領出品項的準備說明（movements.destination）"""
+    dest = (body.get("destination") or "").strip()[:200]
+    conn = get_db()
+    try:
+        mv = conn.execute(
+            "SELECT id FROM movements WHERE item_id=? AND reason='領出準備' ORDER BY id DESC LIMIT 1",
+            (item_id,)
+        ).fetchone()
+        if not mv:
+            raise HTTPException(404, "該品項沒有領出準備紀錄")
+        conn.execute("UPDATE movements SET destination=? WHERE id=?", (dest, mv["id"]))
+        conn.commit()
+        return {"ok": True, "destination": dest}
+    finally:
+        conn.close()
