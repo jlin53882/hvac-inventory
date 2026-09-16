@@ -651,7 +651,7 @@ def prepare_item(item_id: int, req: PrepareRequest):
         new_prepared = _canonical_qty(row["prepared_qty"] + qty)
         conn.execute(
             "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (item_id, 0, _canonical_qty(row["prepared_qty"]), new_prepared, "領出準備", req.location),
+            (item_id, 0, _canonical_qty(row["prepared_qty"]), new_prepared, "領出準備", req.location or req.note),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
