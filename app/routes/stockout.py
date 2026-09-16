@@ -761,5 +761,12 @@ def list_prepared(site: Optional[str] = None):
         SELECT * FROM items WHERE prepared_qty > 0 AND (is_deleted = 0 OR site = ''){where} ORDER BY brand COLLATE NOCASE, name
     """, params).fetchall()
     payloads = [_item_payload(conn, r) for r in rows]  # 補 total_qty/location/stocks 相容欄位
+    # 補 destination（準備說明）：取該品項最新一筆「領出準備」movements 的 destination
+    for p in payloads:
+        mv = conn.execute(
+            "SELECT destination FROM movements WHERE item_id=? AND reason='領出準備' ORDER BY id DESC LIMIT 1",
+            (p["id"],)
+        ).fetchone()
+        p["destination"] = mv["destination"] if mv and mv["destination"] else ""
     conn.close()
     return payloads

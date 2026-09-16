@@ -69,7 +69,8 @@ function renderPreparedDesktopRow(item, isViewer) {
     <td class="prepared-photo-cell">${photo}</td>
     <td class="prepared-item-cell"><div class="prepared-item-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')} ${nonStock}</div>
       <div class="prepared-item-model">${item.code ? '型號： ' + esc(item.code) : ''}</div>
-      <div class="prepared-item-location">📍 ${esc(location)}${note}</div></td>
+      <div class="prepared-item-location">📍 ${esc(location)}${note}</div>
+      ${item.destination ? '<div class="prepared-item-dest">📋 ' + esc(item.destination) + '</div>' : ''}</td>
     <td class="prepared-quantity-cell"><span class="prepared-qty-badge">📦 ${(typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty)} <small>${esc(item.unit)}</small></span></td>
     <td class="prepared-stock-cell"><span class="prepared-stock-badge">目前庫存 ${(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)} <small>${esc(item.unit)}</small></span></td>
     ${actions}

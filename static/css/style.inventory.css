@@ -1350,3 +1350,7 @@ button.inventory-kpi-card:focus-visible,
 .kit-subitem-name { flex: 1; font-weight: 500; }
 .kit-subitem-code { color: #888; font-size: 11px; }
 .kit-subitem-qty { font-weight: 600; color: #334155; white-space: nowrap; }
+
+/* ========== 待領出準備說明 ========== */
+.prepared-item-dest { font-size: 11px; color: #0369a1; margin-top: 2px; }
+.prepared-card-dest { font-size: 11px; color: #0369a1; margin-top: 2px; }

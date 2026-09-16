@@ -163,7 +163,7 @@ async function submitPrepare() {
     const res = await fetch(`/api/items/${prepareItemId}/prepare`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: qty, note: note })
+      body: JSON.stringify({ qty: qty, location: note })
     });
     if (!res.ok) {
       const err = await res.json();

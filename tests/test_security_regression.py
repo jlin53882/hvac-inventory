@@ -84,6 +84,8 @@ REVIEWED_SAFE_BODIES = {
     "kit.item_id",
     # renderKitSubItems 內部全用 esc() 處理子品項資料（2026-09-16）
     "renderKitSubItems(item)",
+    # 準備說明 destination 顯示（esc 處理，2026-09-16）
+    "item.destination",
     "prevTotal - i + 1", "locItems.length", "counts[b] || ALL_ITEMS.length",
     "last.diff_count", "last.item_count", "last.total_diff",
     "d.diff_count", "d.item_count", "d.total_diff", "ALL_ITEMS.length",
