@@ -76,7 +76,7 @@ def create_kit(kit: KitCreate):
         # 建立套件品項（v10：主檔 + 一筆空位置 stock）
         cur = conn.execute(
             "INSERT INTO items (brand, name, unit, is_kit, site) VALUES (?,?,?,1,?)",
-            ("", kit.name, "組", "office"),
+            (kit.brand, kit.name, "組", "office"),
         )
         kit_item_id = cur.lastrowid
         conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
@@ -145,8 +145,8 @@ def update_kit(kit_id: int, kit: KitCreate):
         else:
             conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
                          (kit.name, kit.note, kit_id))
-        conn.execute("UPDATE items SET name=?, updated_at=? WHERE id=?",
-                     (kit.name, datetime.datetime.now().isoformat(), row["item_id"]))
+        conn.execute("UPDATE items SET name=?, brand=?, updated_at=? WHERE id=?",
+                     (kit.name, kit.brand, datetime.datetime.now().isoformat(), row["item_id"]))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
         seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):

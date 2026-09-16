@@ -119,6 +119,7 @@ class PrepareRequest(BaseModel):
 # ---------- 整組（套件） ----------
 class KitCreate(BaseModel):
     name: str
+    brand: str = ""
     items: list  # [{item_id, qty}]
     note: str = ""
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯整組時的 updated_at 快照

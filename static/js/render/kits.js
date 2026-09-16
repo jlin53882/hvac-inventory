@@ -462,6 +462,7 @@ async function editKit(kitId) {
   document.getElementById('k-name').value = kit.name;
 
   document.getElementById('k-note').value = kit.note || '';
+  document.getElementById('k-brand').value = kit.brand || '';
 
   document.querySelector('#kit-modal h3').textContent = '🔧 編輯整組';
 

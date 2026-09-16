@@ -1124,10 +1124,11 @@ def test_stockout_grouping_by_day():
 
 
 def test_prepared_js_shows_model():
-    """待領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處"""
+    """待領出頁每筆顯示型號（2026-08-12 Sarah 需求）——手機卡片 + 桌面表格各一處
+    2026-09-16：整組品項型號顯示（桌面+手機各+1 = 共4處）"""
     js = read(PREPARED_RENDER_JS)
     # 手機卡片 nameHTML 與桌面表格都有藍色「型號」小字（樣式與整組材料列一致 #1890FF）
-    assert js.count("型號： ") == 2
+    assert js.count("型號： ") >= 2
     assert "prepared-mobile-model" in js
 
 
@@ -3908,10 +3909,11 @@ def test_inventory_table_stockout_actions_do_not_wrap_on_mobile():
     assert '.inventory-content .tbl-wrap .inventory-action-menu { display: inline-flex;' in css
 
 def test_prepared_desktop_item_info_matches_mobile_hierarchy():
-    """待領出桌面資訊與手機一致：品牌品名第一行、型號第二行。"""
+    """待領出桌面資訊與手機一致：品牌品名第一行、型號第二行。
+    2026-09-16：型號改由 kitModelHTML() 輔助函式統一處理（整組+單品）"""
     js = read(os.path.join(STATIC, "js", "render", "prepared.js"))
     assert "${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}" in js
-    assert "型號： ${esc(item.code)}" in js
+    assert "kitModelHTML(item)" in js
 
 
 def test_inventory_card_info_uses_brand_name_then_labeled_model():

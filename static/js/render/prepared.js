@@ -74,6 +74,15 @@ function toggleKitSubItems(el) {
   }
 }
 
+// 整組品項型號/標籤顯示（桌面+手機共用）
+function kitModelHTML(item) {
+  if (item.is_kit && item.components && item.components.length) {
+    if (item.code) return '型號： ' + esc(item.code) + ' · 整組 ' + item.components.length + ' 項';
+    return '整組 · ' + item.components.length + ' 個品項';
+  }
+  return item.code ? '型號： ' + esc(item.code) : '';
+}
+
 function renderPreparedDesktopRow(item, isViewer) {
   const photo = item.has_photo
     ? `<img class="prepared-photo" src="${photoSrc(item.id, 'thumbnail')}" alt="" loading="lazy" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">`
@@ -89,7 +98,7 @@ function renderPreparedDesktopRow(item, isViewer) {
   return `<tr class="prepared-row">
     <td class="prepared-photo-cell">${photo}</td>
     <td class="prepared-item-cell"><div class="prepared-item-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')} ${nonStock}</div>
-      <div class="prepared-item-model">${item.code ? '型號： ' + esc(item.code) : ''}</div>
+      <div class="prepared-item-model">${kitModelHTML(item)}</div>
       <div class="prepared-item-location">📍 ${esc(location)}</div>
       ${item.destination ? '<div class="prepared-item-dest">📋 ' + esc(item.destination) + '</div>' : ''}</td>
     <td class="prepared-quantity-cell"><span class="prepared-qty-badge">📦 ${(typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty)} <small>${esc(item.unit)}</small></span></td>
@@ -142,7 +151,7 @@ async function renderPrepared() {
           moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="openPreparedSheet(${item.id})">⋯</button>`,
           thumb: buildThumb(item.id, item.has_photo, item.name, '📷'),
           nameHTML: `<span class="prepared-mobile-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}</span>${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
-          subHTML: item.code ? `<span class="prepared-mobile-model">型號： ${esc(item.code)}</span>` : '',
+          subHTML: `<span class="prepared-mobile-model">${kitModelHTML(item)}</span>`,
           extraHTML: `<div class="prepared-mobile-location">位置：${esc(item.location || '未標示')}</div>${item.destination ? '<div class="prepared-card-dest">📋 ' + esc(item.destination) + '</div>' : ''}<div class="prepared-mobile-meta"><span class="prepared-status-badge">📦 待領出</span><span class="prepared-stock-badge">目前庫存 ${(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)} ${esc(item.unit)}</span></div>`,
           qtyHTML: buildQtyNum(item.prepared_qty, item.unit, 'qty-violet'),
           actionsHTML: ''
