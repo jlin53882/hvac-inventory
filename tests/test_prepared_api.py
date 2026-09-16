@@ -223,6 +223,44 @@ class TestPreparedEditContract:
         assert client.patch(f"/api/prepared/{item_id}", json={"prepared_qty": 1}).status_code == 404
 
 
+    def test_prepared_kit_metadata_is_rejected_without_splitting_names(self, client):
+        component = _add_item(client, name="組件", qty=5)
+        kit = client.post("/api/kits", json={
+            "name": "舊整組", "brand": "大金", "code": "KIT-01",
+            "items": [{"item_id": component["id"], "qty": 1}],
+        }).json()
+        kit_item_id = kit["item_id"]
+        client.post(f"/api/items/{kit_item_id}/stocks", json={"location": "L1", "qty": 2})
+        prepared = client.post(f"/api/items/{kit_item_id}/prepare", json={"qty": 1}).json()
+        rejected = client.patch(f"/api/prepared/{kit_item_id}", json={
+            "name": "偷偷改名", "brand": "其他品牌", "prepared_qty": 1,
+            "updated_at": prepared["updated_at"],
+        })
+        assert rejected.status_code == 400
+        import app.database as db
+        conn = db.get_db()
+        item = conn.execute("SELECT name, brand, code, prepared_qty FROM items WHERE id=?", (kit_item_id,)).fetchone()
+        master = conn.execute("SELECT name FROM kits WHERE id=?", (kit["id"],)).fetchone()
+        conn.close()
+        assert tuple(item) == ("舊整組", "大金", "KIT-01", 1)
+        assert master["name"] == "舊整組"
+
+    def test_prepared_metadata_duplicate_returns_400_and_rolls_back(self, client):
+        _add_item(client, brand="A", code="001", name="品項", unit="個", qty=5)
+        second = _add_item(client, brand="B", code="002", name="其他品項", unit="個", qty=5)
+        prepared = client.post(f"/api/items/{second['id']}/prepare", json={"qty": 1, "location": "原地點"}).json()
+        rejected = client.patch(f"/api/prepared/{second['id']}", json={
+            "name": "品項", "brand": "A", "code": "001", "unit": "個",
+            "prepared_qty": 1, "updated_at": prepared["updated_at"],
+        })
+        assert rejected.status_code == 400, rejected.text
+        import app.database as db
+        conn = db.get_db()
+        row = conn.execute("SELECT brand, code, name, unit, prepared_qty FROM items WHERE id=?", (second["id"],)).fetchone()
+        conn.close()
+        assert tuple(row) == ("B", "002", "其他品項", "個", 1)
+
+
 # ========== _item_payload kit components ==========
 
 class TestKitComponentsInPayload:

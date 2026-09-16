@@ -16,6 +16,7 @@ v10 數量語意：
   prepared_qty 保留在主檔（總量維度）
 """
 import datetime
+import sqlite3
 from typing import Optional
 
 from fastapi import Depends, APIRouter, HTTPException, Query
@@ -794,6 +795,7 @@ def update_prepared_item(
             raise HTTPException(409, "該品項已被其他人修改，請重新整理後再編輯")
 
         is_nonstock = bool(row["is_deleted"])
+        is_kit = bool(row["is_kit"])
         metadata_fields = {
             "name": upd.name,
             "brand": upd.brand,
@@ -801,6 +803,8 @@ def update_prepared_item(
             "unit": upd.unit,
         }
         has_metadata = any(value is not None for value in metadata_fields.values())
+        if is_kit and has_metadata:
+            raise HTTPException(400, "整組主檔請至整組庫存頁編輯")
         if has_metadata and not is_nonstock and not user.get("permissions", {}).get("item-mgmt"):
             raise HTTPException(403, "修改庫存品項主檔需要品項管理權限")
 
@@ -839,10 +843,16 @@ def update_prepared_item(
         if fields or upd.destination is not None:
             fields["updated_at"] = datetime.datetime.now().isoformat()
             sets = ", ".join(f"{key}=?" for key in fields)
-            conn.execute(
-                f"UPDATE items SET {sets} WHERE id=?",
-                (*fields.values(), item_id),
-            )
+            try:
+                conn.execute(
+                    f"UPDATE items SET {sets} WHERE id=?",
+                    (*fields.values(), item_id),
+                )
+            except sqlite3.IntegrityError as exc:
+                message = str(exc)
+                if "idx_items_unique" in message or "UNIQUE constraint failed" in message:
+                    raise HTTPException(400, "相同品牌、型號、名稱、單位與站點的品項已存在") from exc
+                raise
         if movement is not None:
             conn.execute(
                 "UPDATE movements SET destination=? WHERE id=?",

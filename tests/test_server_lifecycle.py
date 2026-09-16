@@ -21,8 +21,10 @@ def test_start_launcher_exists_and_owns_single_instance():
     assert "-PassThru" in source
     assert "function Wait-ServerReady" in source
 
-    release = source.index("ReleaseMutex")
-    wait_process = source.index("Wait-Process")
+    normal_release = "if ($ownsMutex) { $mutex.ReleaseMutex(); $ownsMutex = $false }"
+    assert normal_release in source
+    release = source.index(normal_release)
+    wait_process = source.index("Wait-Process -Id")
     assert release < wait_process
 
 

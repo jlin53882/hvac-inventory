@@ -484,6 +484,10 @@ async function deleteStockoutReturn(movementId) {
 // ========== 待領出編輯（pre-built modal） ==========
 var _preparedEditContext = false;  // 標記從待領出頁開啟
 
+function canEditPreparedMaster(item) {
+  return !item.is_kit && (Boolean(item.is_deleted) || hasPerm('item-mgmt'));
+}
+
 function openPreparedEditModal(id) {
   const item = (typeof preparedItems !== 'undefined' && preparedItems)
     ? preparedItems.find(i => i.id === id)
@@ -491,7 +495,7 @@ function openPreparedEditModal(id) {
   if (!item) return;
   _preparedEditContext = true;
   editItemId = id;  // 復用 editItemId 供共用流程
-  const canEditMaster = Boolean(item.is_deleted) || hasPerm('item-mgmt');
+  const canEditMaster = canEditPreparedMaster(item);
   ['pe-name', 'pe-brand', 'pe-code', 'pe-unit'].forEach(function(fieldId) {
     const field = document.getElementById(fieldId);
     if (field) field.disabled = !canEditMaster;
@@ -510,7 +514,7 @@ async function submitPreparedEdit() {
     ? preparedItems.find(i => i.id === editItemId)
     : null;
   if (!item) { toast('找不到待領出品項', 'error'); return; }
-  const canEditMaster = Boolean(item.is_deleted) || hasPerm('item-mgmt');
+  const canEditMaster = canEditPreparedMaster(item);
   const unit = document.getElementById('pe-unit').value;
   const qty = qtyInputOrToast('pe-qty', unit);
   if (!Number.isFinite(qty) || qty < 0) return;

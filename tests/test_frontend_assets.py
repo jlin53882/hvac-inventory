@@ -1107,6 +1107,29 @@ def test_kit_edit_rerenders_directly_after_save():
     assert "data-kit-id" not in render
 
 
+def test_qty_parser_accepts_prepared_fractions():
+    script = (
+        "const fs=require('fs');"
+        "eval(fs.readFileSync('static/js/qty.js','utf8'));"
+        "const a=Qty.validFor('3/4','fraction');"
+        "const b=Qty.validFor('1 1/2','fraction');"
+        "if(!a.ok || a.value !== 0.75 || !b.ok || b.value !== 1.5) process.exit(1);"
+    )
+    result = subprocess.run(
+        ['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_prepared_edit_kit_boundary_and_fraction_input():
+    js = read(STOCKOUT_MODAL_JS)
+    html = read(INDEX)
+    assert "!item.is_kit" in js
+    assert "qtyInputOrToast('pe-qty', unit)" in js
+    assert 'type="number" id="pe-qty"' not in html
+    assert 'type="text" id="pe-qty"' in html
+
+
 def test_prepared_js_viewer_mode():
     """prepared.js 有 viewer 模式：隱藏操作欄（已領出/退回按鈕）"""
     js = read(PREPARED_RENDER_JS)
