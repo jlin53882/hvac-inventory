@@ -18,6 +18,40 @@ function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
   <div class="prepared-alert" role="note">💡 <b>待領出不會扣庫存</b>，請確認真正出去時再按「已領出」。</div>`;
 }
 
+
+// ========== 整組子品項展開 ==========
+function renderKitSubItems(item) {
+  if (!item.is_kit || !item.components || !item.components.length) return '';
+  let html = '<tr class="kit-subitems-row"><td colspan="6"><div class="kit-subitems-toggle" onclick="toggleKitSubItems(this)">';
+  html += '<span class="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
+  html += '</div><div class="kit-subitems-list" style="display:none">';
+  item.components.forEach(c => {
+    const photo = c.has_photo
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover" loading="lazy">'
+      : '<div style="width:28px;height:28px;border-radius:4px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">📷</div>';
+    html += '<div class="kit-subitem">';
+    html += photo;
+    html += '<span class="kit-subitem-name">' + esc(c.brand || '') + ' ' + esc(c.name) + '</span>';
+    html += '<span class="kit-subitem-code">' + (c.code ? esc(c.code) : '') + '</span>';
+    html += '<span class="kit-subitem-qty">×' + c.need_qty + ' ' + esc(c.unit || '個') + '</span>';
+    html += '</div>';
+  });
+  html += '</div></td></tr>';
+  return html;
+}
+
+function toggleKitSubItems(el) {
+  const list = el.nextElementSibling;
+  const arrow = el.querySelector('.kit-subitems-arrow');
+  if (list.style.display === 'none') {
+    list.style.display = 'block';
+    arrow.textContent = '▼';
+  } else {
+    list.style.display = 'none';
+    arrow.textContent = '▶';
+  }
+}
+
 function renderPreparedDesktopRow(item, isViewer) {
   const photo = item.has_photo
     ? `<img class="prepared-photo" src="${photoSrc(item.id, 'thumbnail')}" alt="" loading="lazy" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">`
@@ -39,7 +73,7 @@ function renderPreparedDesktopRow(item, isViewer) {
     <td class="prepared-quantity-cell"><span class="prepared-qty-badge">📦 ${(typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty)} <small>${esc(item.unit)}</small></span></td>
     <td class="prepared-stock-cell"><span class="prepared-stock-badge">目前庫存 ${(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)} <small>${esc(item.unit)}</small></span></td>
     ${actions}
-  </tr>`;
+  </tr>${renderKitSubItems(item)}`;
 }
 
 // ========== 待領出頁籤 ==========

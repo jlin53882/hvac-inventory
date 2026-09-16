@@ -71,6 +71,16 @@ def _item_payload(conn, row) -> dict:
     d["location"] = stocks[0]["location"] if stocks else ""
     d["note"] = stocks[0]["note"] if stocks else ""
     d["has_photo"] = has_photo(d["id"])  # 待領出/回傳清單顯示品項照片縮圖（與已領出一致）
+    # 整組品項：回傳 BOM 子品項（待領出頁展開用）
+    if d.get("is_kit"):
+        comps = conn.execute(
+            """SELECT ki.qty AS need_qty, i.id AS item_id, i.brand, i.name, i.code, i.unit,
+                      (SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=i.id) AS stock,
+                      EXISTS(SELECT 1 FROM photos WHERE item_id=i.id) AS has_photo
+               FROM kit_items ki JOIN items i ON i.id=ki.item_id WHERE ki.kit_id=?""",
+            (d["id"],)
+        ).fetchall()
+        d["components"] = [dict(c) for c in comps]
     return d
 
 

@@ -356,6 +356,59 @@
   </div>
 </div>
 
+
+<!-- 整組待領出 BOM Modal -->
+<div class="modal-overlay" id="kit-prepare-modal">
+  <div class="modal" style="max-width:520px">
+    <h3 id="kit-prepare-title">📤 整組待領出</h3>
+    <p style="font-size:12px;color:#666;margin-bottom:12px" id="kit-prepare-desc">整組包含以下品項，按「確認領出」一次領出整組。</p>
+    <div id="kit-prepare-list" style="max-height:400px;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('kit-prepare-modal')">取消</button>
+      <button class="btn-confirm" id="kit-prepare-submit">📤 確認領出整組</button>
+    </div>
+  </div>
+</div>
+
+<!-- 待領出編輯 Modal -->
+<div class="modal-overlay" id="prepared-edit-modal">
+  <div class="modal" style="max-width:440px">
+    <h3>✏️ 編輯待領出品項</h3>
+    <div class="form-row">
+      <label>品項名稱</label>
+      <input type="text" id="pe-name">
+    </div>
+    <div class="form-2col">
+      <div class="form-row">
+        <label>廠牌</label>
+        <input type="text" id="pe-brand">
+      </div>
+      <div class="form-row">
+        <label>型號</label>
+        <input type="text" id="pe-code">
+      </div>
+    </div>
+    <div class="form-2col">
+      <div class="form-row">
+        <label>單位</label>
+        <select id="pe-unit"></select>
+      </div>
+      <div class="form-row">
+        <label>待領出數量</label>
+        <input type="number" id="pe-qty" min="0" step="0.01" inputmode="decimal">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>備註</label>
+      <input type="text" id="pe-note" placeholder="備註（選填）">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('prepared-edit-modal')">取消</button>
+      <button class="btn-confirm" onclick="submitPreparedEdit()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 已領出 Modal -->
 <div class="modal-overlay" id="out-modal">
   <div class="modal">
