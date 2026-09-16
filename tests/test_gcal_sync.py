@@ -2602,6 +2602,11 @@ def test_scheduler_restart_finalizes_empty_pending_migration(client, monkeypatch
     finally:
         conn.close()
 
+    # Mock _notify_discord to prevent real Discord webhook calls during tests.
+    # Without this, scheduler failures (e.g. missing credential files) would send
+    # production Discord notifications with test data — see issue #XXX.
+    notified = []
+    monkeypatch.setattr(sync_scheduler, "_notify_discord", lambda msg: notified.append(msg))
     sync_scheduler._run_once(force=True)
 
     conn = get_db()
@@ -2620,6 +2625,11 @@ def test_scheduler_restart_finalizes_empty_pending_migration(client, monkeypatch
             assert queue["op_type"] == "C"
         else:
             assert queue is None
+        # Mock prevents REAL Discord webhook calls during tests.
+        # When is_active=True, the scheduler runs sync → fails (missing credential)
+        # → triggers a notification. This is expected; the mock just prevents it
+        # from reaching the production Discord channel.
+        # (notification content is captured in `notified` for optional debugging)
     finally:
         conn.close()
 
