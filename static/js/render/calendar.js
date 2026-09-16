@@ -47,12 +47,16 @@ function calServiceTone(name) {
 }
 
 function calSyncStatusLabel(status) {
-  return status === 'synced' ? '已同步到 Google 行事曆'
+  return status === 'synced' ? '已同步至你的 Google 日曆'
     : status === 'partial_failed' ? '部分同步失敗'
     : status === 'partial_retrying' ? '部分同步重試中'
     : status === 'retrying' ? '同步重試中'
     : status === 'pending' ? '等待同步'
     : status === 'failed' ? '同步失敗'
+    : status === 'not_assigned' ? '未指派給你'
+    : status === 'not_bound' ? '未綁定同步 Key'
+    : status === 'paused' ? '同步 Key 已停用'
+    : status === 'not_targeted' ? '尚未同步至你的日曆'
     : '未綁定同步 Key';
 }
 
@@ -62,7 +66,18 @@ function calSyncStatusIcon(status) {
     : status === 'partial_retrying' ? '🔄'
     : status === 'retrying' ? '🔄'
     : status === 'pending' ? '⏳'
-    : status === 'failed' ? '❌' : '';
+    : status === 'failed' ? '❌'
+    : status === 'paused' ? '⏸️' : '';
+}
+
+function calPersonalSync(e) {
+  return e.my_sync_status || { status: e.sync_status || 'none', error: e.sync_error || '' };
+}
+
+function calTeamSyncLabel(team) {
+  if (!team || !team.eligible_people) return '';
+  const icon = team.failed_people ? ' ⚠️' : team.pending_people || team.retrying_people ? ' ⏳' : '';
+  return `團隊：${team.synced_people}/${team.eligible_people} 同步${icon}`;
 }
 
 // ========== 頁面載入 ==========
@@ -414,12 +429,22 @@ function calRenderDay() {
       `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
     const service = e.service_name
       ? `<span class="cal-service-badge cal-service-${esc(calServiceTone(e.service_name))}">${esc(e.service_name)}</span>` : '';
-    const hasSyncErr = e.sync_error && ['failed', 'partial_failed', 'retrying', 'partial_retrying'].includes(e.sync_status);
-    const sync = e.sync_status && e.sync_status !== 'none'
+    const personal = calPersonalSync(e);
+    const hasSyncErr = personal.error && ['failed', 'partial_failed', 'retrying', 'partial_retrying'].includes(personal.status);
+    const isAssigned = e.is_assigned_to_me !== false;
+    const personalSync = isAssigned && personal.status && personal.status !== 'none'
       ? (hasSyncErr
-        ? `<button type="button" class="cal-sync-status cal-sync-${esc(e.sync_status)} cal-sync-clickable" onclick="calShowSyncError(${e.id})" title="點擊查看同步錯誤詳情">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></button>`
-        : `<span class="cal-sync-status cal-sync-${esc(e.sync_status)}" title="${esc(calSyncStatusLabel(e.sync_status))}">${esc(calSyncStatusIcon(e.sync_status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(e.sync_status).replace('到 Google 行事曆', ''))}</span></span>`)
-      : '';
+        ? `<button type="button" class="cal-sync-status cal-sync-${esc(personal.status)} cal-sync-clickable" onclick="calShowSyncError(${e.id})" title="點擊查看我的同步錯誤">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(personal.status))}</span></button>`
+        : `<span class="cal-sync-status cal-sync-${esc(personal.status)}" title="${esc(calSyncStatusLabel(personal.status))}">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(calSyncStatusLabel(personal.status))}</span></span>`)
+      : (isAssigned ? '' : '<span class="cal-sync-status cal-sync-not-assigned">未指派給你</span>');
+    const myRetry = isAssigned && ['pending', 'retrying', 'failed'].includes(personal.status)
+      ? `<button type="button" class="cal-sync-retry-btn" onclick="calRetryMySync(${e.id})">重試我的</button>` : '';
+    const isAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'admin';
+    const teamLabel = isAdmin ? calTeamSyncLabel(e.team_sync) : '';
+    const teamSync = teamLabel
+      ? `<button type="button" class="cal-sync-status cal-sync-team cal-sync-clickable" onclick="calShowTeamSyncDetails(${e.id})" title="查看全員同步細節">${esc(teamLabel)}</button>` : '';
+    const sync = personalSync || myRetry || teamSync ? `${personalSync}${myRetry}${teamSync}` : '';
+
     const updated = e.updated_by_name && e.updated_by_name !== (e.created_by_name || '系統')
       ? `<span>最後編輯：${esc(e.updated_by_name)}</span>` : '';
     return `

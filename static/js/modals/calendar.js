@@ -64,6 +64,17 @@ function calModalHtml(isAdmin) {
         <button class="btn-cancel" onclick="closeModal('cal-sync-error-modal')">關閉</button>
       </div>
     </div>
+  </div>
+  <div class="modal-overlay" id="cal-team-sync-modal" onclick="if(event.target===this) closeModal('cal-team-sync-modal')">
+    <div class="modal">
+      <h3>👥 全員同步細節</h3>
+      <div id="cal-team-sync-summary"></div>
+      <div class="cal-sync-team-actions"><button type="button" class="btn-sm btn-primary" onclick="calRetryTeamSync()">重試全體</button></div>
+      <div id="cal-team-sync-details" class="cal-sync-team-details"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('cal-team-sync-modal')">關閉</button>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -208,4 +219,71 @@ function calShowSyncError(apptId) {
   }
   document.getElementById('cal-sync-err-suggestion').textContent = suggestion;
   openModal('cal-sync-error-modal');
+}
+
+let calTeamSyncApptId = null;
+function calShowTeamSyncDetails(apptId) {
+  calTeamSyncApptId = apptId;
+  const e = (typeof calEvents !== 'undefined' ? calEvents : []).find(x => x.id === apptId);
+  const team = e && e.team_sync;
+  if (!team) return;
+  const summary = document.getElementById('cal-team-sync-summary');
+  const details = document.getElementById('cal-team-sync-details');
+  if (!summary || !details) return;
+  summary.textContent = `有效同步人員：${team.synced_people}/${team.eligible_people} 已同步`;
+  details.innerHTML = (team.details || []).map(person => {
+    const status = calSyncStatusLabel(person.status);
+    const error = person.error ? `：${person.error}` : '';
+    return `<div class="cal-sync-team-row"><strong>${esc(person.display_name)}</strong><span>${esc(status)}${esc(error)}</span><button type="button" class="btn-sm" onclick="calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button></div>`;
+  }).join('') || '<div class="cal-sync-team-row">目前沒有有效同步人員</div>';
+  if (team.unbound_people || team.paused_people) {
+    const extra = document.createElement('div');
+    extra.className = 'cal-sync-team-extra';
+    extra.textContent = `未綁定 ${team.unbound_people || 0} 人・Key 已停用 ${team.paused_people || 0} 人（不計入比例）`;
+    details.appendChild(extra);
+  }
+  openModal('cal-team-sync-modal');
+}
+
+async function calReloadAfterSyncAction() {
+  const applied = await calLoadData();
+  if (applied === null || calLoadError) return;
+  calRenderMonth();
+  calRenderDay();
+}
+
+async function calRetryMySync(apptId) {
+  const res = await fetch(`/api/gcal-sync-queue/reset-mine?appt_id=${encodeURIComponent(apptId)}`, { method: 'PUT' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    toast('❌ ' + (data.detail || '重試我的同步失敗'));
+    return;
+  }
+  toast('🔄 已重設你的同步 Queue');
+  await calReloadAfterSyncAction();
+}
+
+async function calRetryTeamMember(apptId, userId) {
+  const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(apptId)}&scope=user&target_user_id=${encodeURIComponent(userId)}`, { method: 'PUT' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    toast('❌ ' + (data.detail || '重試指定人員失敗'));
+    return;
+  }
+  toast('🔄 已重設指定人員的同步 Queue');
+  closeModal('cal-team-sync-modal');
+  await calReloadAfterSyncAction();
+}
+
+async function calRetryTeamSync() {
+  if (!calTeamSyncApptId || !confirm('確定重試這筆行程的全部有效同步目標嗎？')) return;
+  const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(calTeamSyncApptId)}&scope=all`, { method: 'PUT' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    toast('❌ ' + (data.detail || '重試全體同步失敗'));
+    return;
+  }
+  toast('🔄 已重設這筆行程全部有效同步 Queue');
+  closeModal('cal-team-sync-modal');
+  await calReloadAfterSyncAction();
 }

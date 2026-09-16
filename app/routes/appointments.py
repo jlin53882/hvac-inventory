@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_db
 from app.models import AppointmentIn
-from app.services.auth import require_perm
+from app.services.auth import require_login, require_perm
 from app.services.report import build_daily_report
 from app.services.safety import xlsx_download
 from app.services import gcal_sync
@@ -162,49 +162,138 @@ def _sync_status(conn, appt_id: int) -> str:
     ).fetchall()
     return gcal_sync.appointment_sync_status(mapped, rows)
 
-def _sync_statuses(conn, appt_ids):
-    """批次計算多筆行程的 Google sync status，回傳 {id: {"status": str, "error": str|None, "key_name": str, "cal_id": str}}。"""
+def _single_sync_info(mapped: bool, entries) -> dict:
+    """以單一 Key 計算狀態，並保留最高 attempts 的錯誤摘要。"""
+    rows = list(entries or [])
+    status = gcal_sync.appointment_sync_status(mapped, rows)
+    failed_entry = max(
+        (row for row in rows if row["last_error"]),
+        key=lambda row: int(row["attempts"] or 0),
+        default=None,
+    )
+    return {
+        "status": status,
+        "error": gcal_sync.safe_sync_error(failed_entry["last_error"]) if failed_entry else "",
+        "key_name": (failed_entry["key_name"] or "") if failed_entry else "",
+        "cal_id": (failed_entry["calendar_id"] or "") if failed_entry else "",
+        "attempts": failed_entry["attempts"] if failed_entry else 0,
+        "op_type": failed_entry["op_type"] if failed_entry else "",
+    }
+
+
+def _sync_statuses(conn, appt_ids, viewer_user=None):
+    """批次回傳登入者個人狀態；Admin 另附指派團隊人員摘要。"""
     ids = list(appt_ids)
     if not ids:
         return {}
+    if viewer_user is None:
+        # 保留內部相容性；API 路由一律傳入登入者，避免一般請求暴露全體狀態。
+        viewer_user_id = None
+        is_admin = False
+    else:
+        viewer_user_id = viewer_user["id"]
+        is_admin = viewer_user.get("role") == "admin"
+
     map_rows = []
     queue_rows = []
+    assignee_rows = []
     for chunk in _id_chunks(ids):
         placeholders = ",".join("?" * len(chunk))
         map_rows.extend(conn.execute(
-            "SELECT appointment_id FROM appointment_gcal_map WHERE appointment_id IN (" + placeholders + ")",
-            chunk,
+            "SELECT appointment_id, key_id FROM appointment_gcal_map "
+            "WHERE appointment_id IN (" + placeholders + ")", chunk,
         ).fetchall())
         queue_rows.extend(conn.execute(
             "SELECT q.appointment_id, q.last_error, q.attempts, q.op_type, q.key_id, "
             "k.name AS key_name, k.calendar_id "
-            "FROM appointment_sync_queue q LEFT JOIN gcal_keys k ON k.id = q.key_id "
-            "WHERE q.appointment_id IN (" + placeholders + ")",
-            chunk,
+            "FROM appointment_sync_queue q LEFT JOIN gcal_keys k ON k.id=q.key_id "
+            "WHERE q.appointment_id IN (" + placeholders + ")", chunk,
         ).fetchall())
-    mapped = {row["appointment_id"] for row in map_rows}
+        assignee_rows.extend(conn.execute(
+            "SELECT aa.appointment_id, u.id AS user_id, u.display_name, u.is_active AS user_active, "
+            "u.gcal_key, k.id AS key_id, k.name AS key_name, k.calendar_id, k.is_active AS key_active "
+            "FROM appointment_assignees aa JOIN users u ON u.id=aa.user_id "
+            "LEFT JOIN gcal_keys k ON k.name=u.gcal_key "
+            "WHERE aa.appointment_id IN (" + placeholders + ") ORDER BY aa.id", chunk,
+        ).fetchall())
+    mapped = {(row["appointment_id"], row["key_id"]) for row in map_rows}
     queue = {}
     for row in queue_rows:
-        queue.setdefault(row["appointment_id"], []).append(row)
+        queue.setdefault((row["appointment_id"], row["key_id"]), []).append(row)
+
+    people = {}
+    for row in assignee_rows:
+        people.setdefault(row["appointment_id"], []).append(row)
+
     result = {}
     for appt_id in ids:
-        entries = queue.get(appt_id, [])
-        status = gcal_sync.appointment_sync_status(appt_id in mapped, entries)
-        # 混合狀態優先顯示 attempts 較高的錯誤，讓 partial_failed 不被 retrying 詳情掩蓋。
-        failed_entries = [r for r in entries if r["last_error"]]
-        failed_entry = max(failed_entries, key=lambda r: int(r["attempts"] or 0), default=None)
-        result[appt_id] = {
-            "status": status,
-            "error": gcal_sync.safe_sync_error(failed_entry["last_error"]) if failed_entry else None,
-            "key_name": (failed_entry["key_name"] or "") if failed_entry else "",
-            "cal_id": (failed_entry["calendar_id"] or "") if failed_entry else "",
-            "attempts": failed_entry["attempts"] if failed_entry else 0,
-            "op_type": failed_entry["op_type"] if failed_entry else "",
-        }
+        assigned = people.get(appt_id, [])
+        me = next((row for row in assigned if row["user_id"] == viewer_user_id), None) if viewer_user else None
+        if viewer_user is None:
+            info = _single_sync_info(
+                any((appt_id, key_id) in mapped for key_id in {r["key_id"] for r in map_rows if r["appointment_id"] == appt_id}),
+                [row for (aid, _), rows_for_key in queue.items() if aid == appt_id for row in rows_for_key],
+            )
+        elif me is None:
+            info = {"status": "not_assigned", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": ""}
+        elif not me["gcal_key"]:
+            info = {"status": "not_bound", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": ""}
+        elif not me["key_id"] or not me["key_active"]:
+            info = {"status": "paused", "error": "", "key_name": me["gcal_key"], "cal_id": "", "attempts": 0, "op_type": ""}
+        else:
+            key_id = me["key_id"]
+            entries = queue.get((appt_id, key_id), [])
+            info = _single_sync_info((appt_id, key_id) in mapped, entries)
+            if not entries and (appt_id, key_id) not in mapped:
+                info["status"] = "not_targeted"
+            info["key_name"] = me["key_name"] or ""
+            info["cal_id"] = me["calendar_id"] or ""
+
+        team = None
+        if is_admin:
+            team_people = []
+            excluded = {"not_bound": 0, "paused": 0}
+            for person in assigned:
+                if not person["user_active"]:
+                    continue
+                if not person["gcal_key"]:
+                    excluded["not_bound"] += 1
+                    continue
+                if not person["key_id"] or not person["key_active"]:
+                    excluded["paused"] += 1
+                    continue
+                person_info = _single_sync_info(
+                    (appt_id, person["key_id"]) in mapped,
+                    queue.get((appt_id, person["key_id"]), []),
+                )
+                if not queue.get((appt_id, person["key_id"]), []) and (appt_id, person["key_id"]) not in mapped:
+                    person_info["status"] = "not_targeted"
+                team_people.append({
+                    "user_id": person["user_id"],
+                    "display_name": person["display_name"] or "",
+                    **person_info,
+                })
+            counts = {"synced": 0, "pending": 0, "retrying": 0, "failed": 0, "not_targeted": 0}
+            for person in team_people:
+                if person["status"] in counts:
+                    counts[person["status"]] += 1
+            team = {
+                "eligible_people": len(team_people),
+                "synced_people": counts["synced"],
+                "pending_people": counts["pending"] + counts["not_targeted"],
+                "retrying_people": counts["retrying"],
+                "failed_people": counts["failed"],
+                "unbound_people": excluded["not_bound"],
+                "paused_people": excluded["paused"],
+                "details": team_people,
+            }
+        if viewer_user is None:
+            info["error"] = info["error"] or None
+        result[appt_id] = {**info, "team": team}
     return result
 
 
-def _appt_rows(conn, appt_ids) -> list[dict]:
+def _appt_rows(conn, appt_ids, viewer_user=None) -> list[dict]:
     """批次取得行程完整 response，避免 list/search 對每筆呼叫 _appt_row。"""
     ids = list(appt_ids)
     if not ids:
@@ -235,7 +324,7 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
     assignees = {}
     for row in assignee_rows:
         assignees.setdefault(row["appointment_id"], []).append(row)
-    statuses = _sync_statuses(conn, ids)
+    statuses = _sync_statuses(conn, ids, viewer_user)
     by_id = {row["id"]: row for row in rows}
     result = []
     for appt_id in ids:
@@ -263,7 +352,16 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
             "user_ids": [person["user_id"] for person in people],
             "assignees": [{"id": person["user_id"], "name": person["display_name"],
                            "color": person["color"] or "#1a73e8"} for person in people],
-            "sync_status": sync_info["status"],
+            "sync_status": sync_info["status"],  # 舊欄位相容，內容改為目前登入者視角
+            "my_sync_status": {
+                "status": sync_info["status"],
+                "key_name": sync_info.get("key_name") or "",
+                "error": sync_info.get("error") or "",
+                "attempts": sync_info.get("attempts", 0),
+                "op_type": sync_info.get("op_type") or "",
+            },
+            "team_sync": sync_info.get("team"),
+            "is_assigned_to_me": sync_info["status"] != "not_assigned",
             "sync_error": sync_info.get("error") or "",
             "sync_error_key": sync_info.get("key_name") or "",
             "sync_error_cal": sync_info.get("cal_id") or "",
@@ -273,13 +371,13 @@ def _appt_rows(conn, appt_ids) -> list[dict]:
     return result
 
 
-def _appt_row(conn, appt_id: int) -> dict:
+def _appt_row(conn, appt_id: int, viewer_user=None) -> dict:
     """單筆相容 wrapper，共用批次 formatter。"""
-    return _appt_rows(conn, [appt_id])[0]
+    return _appt_rows(conn, [appt_id], viewer_user)[0]
 
 
 @router.get("/api/appointments")
-def list_appointments(year: int = 0, month: int = 0, date: str = ""):
+def list_appointments(year: int = 0, month: int = 0, date: str = "", user: dict = Depends(require_login)):
     """月曆（year+month）或當日（date）行程清單"""
     conn = get_db()
     try:
@@ -297,13 +395,13 @@ def list_appointments(year: int = 0, month: int = 0, date: str = ""):
                 - datetime.timedelta(days=1)
             rows = conn.execute("SELECT id FROM appointments WHERE date BETWEEN ? AND ?",
                                 (start, end.isoformat())).fetchall()
-        return _appt_rows(conn, [r["id"] for r in rows])
+        return _appt_rows(conn, [r["id"] for r in rows], user)
     finally:
         conn.close()
 
 
 @router.get("/api/appointments/search")
-def search_appointments(date_from: str = "", date_to: str = "", q: str = ""):
+def search_appointments(date_from: str = "", date_to: str = "", q: str = "", user: dict = Depends(require_login)):
     """搜尋行程（日期範圍 + 關鍵字）"""
     conn = get_db()
     try:
@@ -339,7 +437,7 @@ def search_appointments(date_from: str = "", date_to: str = "", q: str = ""):
                 params.extend([kw, kw, kw, kw])
         sql += " ORDER BY date DESC, start_time ASC"
         rows = conn.execute(sql, params).fetchall()
-        return _appt_rows(conn, [r["id"] for r in rows])
+        return _appt_rows(conn, [r["id"] for r in rows], user)
     finally:
         conn.close()
 
@@ -372,7 +470,7 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("c
                          (appt_id, uid))
         conn.commit()
         mark_sync_pending(appt_id, "C")
-        return _appt_row(conn, appt_id)
+        return _appt_row(conn, appt_id, user)
     except:
         conn.rollback()
         raise
@@ -448,7 +546,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         mark_sync_pending(appt_id, "U")
         if orphan_d_rows:
             mark_sync_pending(appt_id, "D", map_rows=orphan_d_rows)
-        return _appt_row(conn, appt_id)
+        return _appt_row(conn, appt_id, user)
     except:
         conn.rollback()
         raise
