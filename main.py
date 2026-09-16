@@ -204,7 +204,15 @@ def read_media(asset_id: str, variant: str, user: dict = Depends(require_login))
         conn.close()
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 直接執行 main.py 也必須走 single-instance launcher；不要再建立裸 uvicorn。
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    launcher = Path(__file__).resolve().parent / "scripts" / "start-server.ps1"
+    raise SystemExit(subprocess.call([
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", str(launcher), *sys.argv[1:],
+    ]))
 
 

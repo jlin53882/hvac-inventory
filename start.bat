@@ -25,5 +25,6 @@ echo   在瀏覽器打開: http://127.0.0.1:8000
 echo   手機連線:      http://你的電腦IP:8000
 echo   停止:          關閉這個視窗即可
 echo.
-".venv\Scripts\python.exe" -m uvicorn main:app --host 0.0.0.0 --port 8000
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-server.ps1"
+if errorlevel 1 pause
 pause

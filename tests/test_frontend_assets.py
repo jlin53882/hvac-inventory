@@ -1084,6 +1084,29 @@ def test_kits_js_viewer_mode():
     assert "submitKitEdit" in read(KIT_MODAL_JS)
 
 
+def test_kit_edit_rerenders_directly_after_save():
+    """整組編輯成功後直接重繪整組，避免 loadData 的舊 render 覆蓋品牌/型號。"""
+    js = read(KIT_MODAL_JS)
+    start = js.index("async function submitKitEdit()")
+    body = js[start:]
+    assert "await loadData({ full: true });" in body
+    assert "await renderKits();" not in body
+    render = read(os.path.join(STATIC, "js", "render", "kits.js"))
+    assert "kitRenderRequestSeq" in render
+    assert "renderRequestId !== kitRenderRequestSeq" in render
+    assert "'${esc(jsStr(k.name))}'" in render
+    assert "siteAtRequest !== currentSite" in render
+    prepared = read(PREPARED_RENDER_JS)
+    assert "preparedRenderRequestSeq" in prepared
+    assert "renderRequestId !== preparedRenderRequestSeq" in prepared
+    assert "siteAtRequest !== currentSite" in prepared
+    render = read(os.path.join(STATIC, "js", "render", "kits.js"))
+    assert "kit-assembly-model" in render
+    assert "esc(k.code)" in render
+    assert "[kit.name, kit.brand, kit.code, kit.note" in render
+    assert "data-kit-id" not in render
+
+
 def test_prepared_js_viewer_mode():
     """prepared.js 有 viewer 模式：隱藏操作欄（已領出/退回按鈕）"""
     js = read(PREPARED_RENDER_JS)

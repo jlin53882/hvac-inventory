@@ -1278,17 +1278,26 @@ class TestKits:
         a = _add_item(client, name="銅管", qty=10)
         b = _add_item(client, name="接頭", qty=20)
         c = _add_item(client, name="閥體", qty=5)
-        kit = client.post("/api/kits", json={
-            "name": "舊名", "note": "舊備註",
+        kit_response = client.post("/api/kits", json={
+            "name": "舊名", "brand": "原品牌", "code": "OLD-001", "note": "舊備註",
             "items": [{"item_id": a["id"], "qty": 2}],
-        }).json()
+        })
+        assert kit_response.status_code == 201
+        kit = kit_response.json()
+        created = client.get("/api/kits").json()[0]
+        assert created["brand"] == "原品牌"
+        assert created["code"] == "OLD-001"
         r = client.put(f"/api/kits/{kit['id']}", json={
-            "name": "新名", "note": "新備註",
+            "name": "新名", "brand": "測試品牌", "code": "M-001", "note": "新備註",
             "items": [{"item_id": b["id"], "qty": 1}, {"item_id": c["id"], "qty": 3}],
         })
         assert r.status_code == 200
+        assert r.json()["brand"] == "測試品牌"
+        assert r.json()["code"] == "M-001"
         k = client.get("/api/kits").json()[0]
         assert k["name"] == "新名"
+        assert k["brand"] == "測試品牌"
+        assert k["code"] == "M-001"
         assert k["note"] == "新備註"
         assert [x["item_id"] for x in k["components"]] == [b["id"], c["id"]]
         assert [x["need_qty"] for x in k["components"]] == [1, 3]

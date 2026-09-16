@@ -19,9 +19,17 @@ param(
 
 $ErrorActionPreference = 'Continue'
 
+# 同一台主機只允許一個 monitor；重複安裝／手動啟動時直接退出，避免多個
+# monitor 同時判定 health failure 並輪流重啟同一個 server。
+$monitorMutex = [System.Threading.Mutex]::new($false, 'Local\hvac-inventory-monitor')
+if (-not $monitorMutex.WaitOne(0)) {
+    Write-Host 'hvac-inventory monitor 已在執行，略過第二個 instance'
+    exit 0
+}
+
 $TS        = 'C:\Program Files\Tailscale\tailscale.exe'
 $PROJ      = Split-Path $PSScriptRoot -Parent
-$STARTBAT  = Join-Path $PROJ 'start.bat'
+$STARTPS1   = Join-Path $PROJ 'scripts\start-server.ps1'
 $HEARTBEAT = Join-Path $env:TEMP 'hvac_monitor_heartbeat.txt'
 $STATE     = Join-Path $env:TEMP 'hvac_monitor_state.json'
 $INTERVAL  = 600   # 檢查間隔秒數（10 分鐘）
@@ -82,10 +90,10 @@ function Test-OneRound {
     } else {
         $s.local_fails++
         Write-Host "⚠️ 本機 server 無回應（第 $($s.local_fails) 次）：$LocalUrl" -ForegroundColor Yellow
-        # 自動重啟（start 開新視窗跑 start.bat）
+        # 自動重啟（只透過 single-instance launcher）
         if (-not $DryRun) {
-            Write-Host "   🔄 執行 start 開新視窗跑 start.bat 重啟 server..." -ForegroundColor Cyan
-            Start-Process cmd -ArgumentList "/c", "start", "`"振佳空調庫存系統`"", "`"$STARTBAT`"" -WindowStyle Hidden
+            Write-Host "   🔄 呼叫 single-instance launcher 重啟 server..." -ForegroundColor Cyan
+            Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$STARTPS1`"", "-Restart" -WindowStyle Hidden
             Start-Sleep -Seconds 8   # 等 server 起來
             $recovered = Test-Health $LocalUrl
             Write-Host "   ↳ 重啟後檢查: $($(if($recovered){'✅ 已恢復'}else{'❌ 仍未回應'}))" -ForegroundColor $(if($recovered){'Green'}else{'Red'})

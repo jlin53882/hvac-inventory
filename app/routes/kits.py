@@ -11,6 +11,7 @@ v10 數量語意：材料庫存 = SUM(item_stocks.qty)
 套件品項本身也配一筆空位置 stock（維持總量語意）
 """
 import datetime
+import sqlite3
 from typing import Optional
 
 from fastapi import Depends, APIRouter, HTTPException
@@ -75,8 +76,8 @@ def create_kit(kit: KitCreate):
     try:
         # 建立套件品項（v10：主檔 + 一筆空位置 stock）
         cur = conn.execute(
-            "INSERT INTO items (brand, name, unit, is_kit, site) VALUES (?,?,?,1,?)",
-            (kit.brand, kit.name, "組", "office"),
+            "INSERT INTO items (brand, code, name, unit, is_kit, site) VALUES (?,?,?,?,1,?)",
+            (kit.brand.strip(), kit.code.strip(), kit.name, "組", "office"),
         )
         kit_item_id = cur.lastrowid
         conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
@@ -99,7 +100,13 @@ def create_kit(kit: KitCreate):
                 (kit_id, cid, canonical_qty(comp.get("qty", 1))),
             )
         conn.commit()
-        return {"id": kit_id, "item_id": kit_item_id, "name": kit.name}
+        return {"id": kit_id, "item_id": kit_item_id, "name": kit.name,
+                "brand": kit.brand.strip(), "code": kit.code.strip()}
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+        if "idx_items_unique" in str(exc):
+            raise HTTPException(400, "相同的整組已存在，請調整品牌、型號或名稱") from exc
+        raise
     except Exception:
         conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
         raise
@@ -146,7 +153,7 @@ def update_kit(kit_id: int, kit: KitCreate):
             conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
                          (kit.name, kit.note, kit_id))
         conn.execute("UPDATE items SET name=?, brand=?, code=?, updated_at=? WHERE id=?",
-                     (kit.name, kit.brand, kit.code, datetime.datetime.now().isoformat(), row["item_id"]))
+                     (kit.name, kit.brand.strip(), kit.code.strip(), datetime.datetime.now().isoformat(), row["item_id"]))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
         seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):
@@ -158,7 +165,13 @@ def update_kit(kit_id: int, kit: KitCreate):
             conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
                          (kit_id, cid, canonical_qty(comp.get("qty", 1))))
         conn.commit()
-        return {"ok": True, "id": kit_id, "name": kit.name}
+        saved = conn.execute("""
+            SELECT k.id, i.name, i.brand, i.code
+            FROM kits k JOIN items i ON i.id = k.item_id
+            WHERE k.id = ?
+        """, (kit_id,)).fetchone()
+        return {"ok": True, "id": saved["id"], "name": saved["name"],
+                "brand": saved["brand"] or "", "code": saved["code"] or ""}
     except Exception:
         conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
         raise

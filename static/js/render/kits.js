@@ -1,18 +1,22 @@
 // 庫存管理系統 - 整組頁渲染（v8 拆分）
 
 // ========== 整組（套件）頁籤 ==========
+var kitRenderRequestSeq = 0;
 
 async function renderKits() {
+  var renderRequestId = ++kitRenderRequestSeq;
+  var siteAtRequest = currentSite;
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入整組清單…</div></div>';
   const isViewer = !hasPerm('kit-mgmt');
 
   try {
-    const res = await fetch(`/api/kits?site=${currentSite}`);
+    const res = await fetch(`/api/kits?site=${siteAtRequest}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const kits = await res.json();
+    if (renderRequestId !== kitRenderRequestSeq || currentTab !== 'kit' || siteAtRequest !== currentSite) return;
     currentKitItems = filterBySearch(kits, function(k) {
-      return [k.name, k.note, (k.components || []).map(function(c) {
+      return [k.name, k.brand, k.code, k.note, (k.components || []).map(function(c) {
         return c.brand + ' ' + c.name + ' ' + (c.code || '');
       }).join(' ')].join(' ');
     });
@@ -36,6 +40,7 @@ async function renderKits() {
     }
     content.innerHTML = html;
   } catch (e) {
+    if (renderRequestId !== kitRenderRequestSeq || currentTab !== 'kit' || siteAtRequest !== currentSite) return;
     content.innerHTML = `<div class="kit-empty-state"><div class="kit-empty-icon" aria-hidden="true">⚠️</div><h2>載入整組庫存失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="kit-action" onclick="renderKits()">重新載入</button></div>`;
   }
 }
@@ -118,9 +123,9 @@ function renderKitStatusBadge(status) {
 
 function renderKitActionButtons(k, isViewer, isM, status) {
   if (isViewer) return '';
-  if (isM) return `<div class="kit-mobile-actions"><button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(k.name)}')">📤 待領出</button><button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button><button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
+  if (isM) return `<div class="kit-mobile-actions"><button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button><button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button><button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
   return `<div class="kit-assembly-actions">
-    <button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(k.name)}')">📤 待領出</button>
+    <button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button>
     <button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>
     <button class="kit-action is-edit" onclick="editKit(${k.id})">✏️ 編輯</button>
     <button class="kit-action is-delete" onclick="deleteKit(${k.id})">🗑 刪除</button>
@@ -153,7 +158,7 @@ function renderKitCard(k, isViewer, isM) {
   const stockQty = Number(k.stock_qty || 0);
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
-      <div class="kit-assembly-title"><div class="kit-assembly-name">🔧 ${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta"><span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
+      <div class="kit-assembly-title"><div class="kit-assembly-name">🔧 ${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta">${k.code ? `<span class="kit-assembly-model">型號 ${esc(k.code)}</span>` : ''}<span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
       ${renderKitActionButtons(k, isViewer, isM, status)}
     </header>
     <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>${components.map(renderKitComponentRow).join('')}</tbody></table></div>
@@ -375,8 +380,6 @@ async function assembleKit(kitId) {
 
     await loadData();
 
-    renderKits();
-
   } catch (e) {
 
     toast('⚠️ ' + e.message, 'error');
@@ -424,8 +427,6 @@ async function disassembleKit(kitId) {
     toast(`✅ 已拆解 ${n} 組（材料已加回）`, 'success');
 
     await loadData();
-
-    renderKits();
 
   } catch (e) {
 
@@ -502,8 +503,6 @@ async function deleteKit(kitId) {
     toast('✅ 已刪除整組', 'success');
 
     await loadData();
-
-    renderKits();
 
   } catch (e) {
 
@@ -586,7 +585,7 @@ function showKitStatusList(type) {
     emptyIntro: '目前整組庫存均符合條件。',
     searchPlaceholder: '搜尋整組名稱、材料或型號…',
     getSearchText: function(kit) {
-      return [kit.name, kit.note, (kit.components || []).map(function(c) {
+      return [kit.name, kit.brand, kit.code, kit.note, (kit.components || []).map(function(c) {
         return [c.brand, c.name, c.code].join(' ');
       }).join(' ')].join(' ');
     },

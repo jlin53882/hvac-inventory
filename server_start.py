@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
-"""本機開發用啟動腳本：uvicorn 伺服器（避免 lifecycle guard 誤判）"""
-import uvicorn
+"""相容入口：統一交給 single-instance launcher，避免 --reload 留下孤兒 worker。"""
+from pathlib import Path
+import subprocess
+import sys
+
 
 if __name__ == "__main__":
-    # --reload：開發模式改檔自動重載（2026-08-12 家豪定案），正式部署用 start.bat
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    launcher = Path(__file__).resolve().parent / "scripts" / "start-server.ps1"
+    raise SystemExit(subprocess.call([
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", str(launcher), *sys.argv[1:],
+    ]))

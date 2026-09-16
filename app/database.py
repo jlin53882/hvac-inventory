@@ -493,14 +493,20 @@ def _exec_init(conn):
     conn.execute("UPDATE units SET qty_type='fraction' WHERE name IN ('瓶','桶','捲') AND qty_type='integer'")
     conn.execute("UPDATE units SET qty_type='decimal' WHERE name='米' AND qty_type='integer'")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_site_active ON items(site, is_deleted, brand)")
-    # M5：items 唯一約束（併發重複防線）——有重複資料則跳過建索引並警告（不自動刪資料）
-    dup_row = conn.execute(
-        "SELECT COUNT(*) AS c FROM (SELECT 1 FROM items GROUP BY brand, COALESCE(code,''), name, unit, site HAVING COUNT(*) > 1)"
+    # M5：items 唯一約束只限制現存品項；soft-delete 舊資料不可阻塞重新建立。
+    unique_idx = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_items_unique'"
     ).fetchone()
-    if dup_row and dup_row["c"] == 0:
-        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_items_unique ON items(brand, COALESCE(code,''), name, unit, site)")
-    elif dup_row:
-        logger.warning(f"[migrate] 警告：items 有 {dup_row['c']} 組重複品項，跳過唯一索引（請人工清理後重啟）")
+    if unique_idx and "WHERE is_deleted = 0" not in (unique_idx["sql"] or ""):
+        conn.execute("DROP INDEX idx_items_unique")
+        unique_idx = None
+    dup_row = conn.execute(
+        "SELECT COUNT(*) AS c FROM (SELECT 1 FROM items WHERE is_deleted=0 GROUP BY brand, COALESCE(code,''), name, unit, site HAVING COUNT(*) > 1)"
+    ).fetchone()
+    if not unique_idx and dup_row and dup_row["c"] == 0:
+        conn.execute("CREATE UNIQUE INDEX idx_items_unique ON items(brand, COALESCE(code,''), name, unit, site) WHERE is_deleted = 0")
+    elif dup_row and dup_row["c"] > 0:
+        logger.warning(f"[migrate] 警告：現存 items 有 {dup_row['c']} 組重複品項，跳過唯一索引（請人工清理後重啟）")
     mov_cols = [r[1] for r in conn.execute("PRAGMA table_info(movements)").fetchall()]
     if "destination" not in mov_cols:
         conn.execute("ALTER TABLE movements ADD COLUMN destination TEXT DEFAULT ''")

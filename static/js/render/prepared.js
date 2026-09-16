@@ -108,15 +108,20 @@ function renderPreparedDesktopRow(item, isViewer) {
 }
 
 // ========== 待領出頁籤 ==========
+var preparedRenderRequestSeq = 0;
+
 async function renderPrepared() {
+  const renderRequestId = ++preparedRenderRequestSeq;
+  const siteAtRequest = currentSite;
   const content = document.getElementById('content');
   const isViewer = !hasPerm('stockout');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入待領出清單…</div></div>';
 
   try {
-    const res = await fetch(`/api/prepared?site=${currentSite}`);
+    const res = await fetch(`/api/prepared?site=${siteAtRequest}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     let items = await res.json();
+    if (renderRequestId !== preparedRenderRequestSeq || currentTab !== 'prepared' || siteAtRequest !== currentSite) return;
     preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
     items = filterBySearch(items, function(i) {
@@ -170,6 +175,7 @@ async function renderPrepared() {
     content.innerHTML = html;
     updatePreparedBadge(items.length);
   } catch (e) {
+    if (renderRequestId !== preparedRenderRequestSeq || currentTab !== 'prepared' || siteAtRequest !== currentSite) return;
     content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn-cancel" onclick="renderPrepared()">重新載入</button></div>`;
   }
 }
@@ -216,8 +222,6 @@ async function clearPrepared(itemId, qty) {
     toast('✅ 已刪除待領出', 'success');
 
     await loadData();
-
-    renderPrepared();
 
   } catch (e) {
 

@@ -229,15 +229,23 @@ var _TABS = ['inventory', 'prepared', 'stockout', 'stocktake', 'kit', 'calendar'
 var _SITES = ['office', 'warehouse'];
 
 var _focusReloadTimer = null;
+var _lastVisibilityReloadAt = 0;
 function autoReloadOnFocus() {
   if (hasPending()) return;
   if (document.querySelector('.modal-overlay.show')) return;
   if (document.visibilityState !== 'visible') return;
+  // 只在 hidden → visible 時觸發；避免 window focus、手機輸入框/原生視窗反覆重畫。
+  var now = Date.now();
+  if (now - _lastVisibilityReloadAt < 1500) return;
   if (_focusReloadTimer) return;
-  _focusReloadTimer = setTimeout(function() { _focusReloadTimer = null; loadData(); }, 300);
+  _focusReloadTimer = setTimeout(function() {
+    _focusReloadTimer = null;
+    if (document.visibilityState !== 'visible' || hasPending() || document.querySelector('.modal-overlay.show')) return;
+    _lastVisibilityReloadAt = Date.now();
+    loadData();
+  }, 300);
 }
 document.addEventListener('visibilitychange', autoReloadOnFocus);
-window.addEventListener('focus', autoReloadOnFocus);
 
 function syncViewUrl() {
   var p = new URLSearchParams();
