@@ -16,7 +16,14 @@ def test_start_launcher_exists_and_owns_single_instance():
     assert "System.Threading.Mutex" in source
     assert "Get-NetTCPConnection" in source
     assert "[switch]$Restart" in source
-    assert "--port $Port" in source
+    assert "--port" in source and "Port" in source
+    assert "Start-Process" in source
+    assert "-PassThru" in source
+    assert "function Wait-ServerReady" in source
+
+    release = source.index("ReleaseMutex")
+    wait_process = source.index("Wait-Process")
+    assert release < wait_process
 
 
 def test_manual_start_uses_guarded_launcher_instead_of_raw_uvicorn():

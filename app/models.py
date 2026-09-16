@@ -116,6 +116,17 @@ class PrepareRequest(BaseModel):
     location: str = ""  # v10：可指定位置（空白=不限）
 
 
+class PreparedItemUpdate(BaseModel):
+    """待領出單一交易編輯 contract：數量、準備說明與必要 metadata。"""
+    prepared_qty: Optional[float] = Field(None, ge=0)
+    destination: Optional[str] = Field(None, max_length=200)
+    name: Optional[str] = Field(None, max_length=200)
+    brand: Optional[str] = Field(None, max_length=100)
+    code: Optional[str] = Field(None, max_length=100)
+    unit: Optional[str] = Field(None, max_length=20)
+    updated_at: Optional[str] = Field(None, max_length=64)
+
+
 # ---------- 整組（套件） ----------
 class KitCreate(BaseModel):
     name: str

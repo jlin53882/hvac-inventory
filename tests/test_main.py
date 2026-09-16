@@ -1306,6 +1306,28 @@ class TestKits:
         kit_item = [i for i in items if i["id"] == kit["item_id"]][0]
         assert kit_item["name"] == "新名"
 
+    def test_update_kit_duplicate_returns_conflict_and_rolls_back(self, client):
+        """整組編輯撞唯一鍵不可回 500，且 metadata/BOM 保留原值。"""
+        component = _add_item(client, name="共用材料", qty=10)
+        first = client.post("/api/kits", json={
+            "name": "整組A", "brand": "品牌A", "code": "CODE-A",
+            "items": [{"item_id": component["id"], "qty": 1}],
+        }).json()
+        second = client.post("/api/kits", json={
+            "name": "整組B", "brand": "品牌B", "code": "CODE-B",
+            "items": [{"item_id": component["id"], "qty": 2}],
+        }).json()
+        r = client.put(f"/api/kits/{second['id']}", json={
+            "name": "整組A", "brand": "品牌A", "code": "CODE-A",
+            "items": [{"item_id": component["id"], "qty": 9}],
+        })
+        assert r.status_code in (400, 409), r.text
+        kits = {kit["id"]: kit for kit in client.get("/api/kits").json()}
+        assert kits[first["id"]]["brand"] == "品牌A"
+        assert kits[second["id"]]["brand"] == "品牌B"
+        assert kits[second["id"]]["code"] == "CODE-B"
+        assert kits[second["id"]]["components"][0]["need_qty"] == 2
+
     def test_update_kit_not_found(self, client):
         """驗證更新不存在的整組回傳 404"""
         r = client.put("/api/kits/999", json={"name": "X", "items": [{"item_id": 1, "qty": 1}]})

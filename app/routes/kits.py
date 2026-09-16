@@ -152,8 +152,13 @@ def update_kit(kit_id: int, kit: KitCreate):
         else:
             conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
                          (kit.name, kit.note, kit_id))
-        conn.execute("UPDATE items SET name=?, brand=?, code=?, updated_at=? WHERE id=?",
-                     (kit.name, kit.brand.strip(), kit.code.strip(), datetime.datetime.now().isoformat(), row["item_id"]))
+        try:
+            conn.execute("UPDATE items SET name=?, brand=?, code=?, updated_at=? WHERE id=?",
+                         (kit.name, kit.brand.strip(), kit.code.strip(), datetime.datetime.now().isoformat(), row["item_id"]))
+        except sqlite3.IntegrityError as exc:
+            if "idx_items_unique" in str(exc) or "UNIQUE constraint failed" in str(exc):
+                raise HTTPException(400, "相同的整組已存在，請調整品牌、型號或名稱") from exc
+            raise
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
         seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):

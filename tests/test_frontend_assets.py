@@ -4264,12 +4264,17 @@ def test_prepared_edit_modal_has_destination():
     assert "pe-qty" in html
 
 
-def test_prepared_edit_saves_destination():
-    """submitPreparedEdit 呼叫 PUT /api/prepared/{id}/destination"""
+def test_prepared_edit_uses_unified_patch_contract():
+    """待領出編輯一次 PATCH 同步數量、metadata、destination。"""
     js = read(STOCKOUT_MODAL_JS)
     assert "submitPreparedEdit" in js
-    assert "/api/prepared/" in js
-    assert "destination" in js
+    assert "method: 'PATCH'" in js
+    assert "prepared_qty" in js
+    assert "updated_at" in js
+    assert "qtyInputOrToast('pe-qty', unit)" in js
+    assert "api/prepared/${editItemId}/destination" not in js
+    html = read(INDEX)
+    assert 'id="pe-note"' not in html
 
 
 def test_prepared_edit_populates_destination():

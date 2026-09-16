@@ -491,50 +491,60 @@ function openPreparedEditModal(id) {
   if (!item) return;
   _preparedEditContext = true;
   editItemId = id;  // 復用 editItemId 供共用流程
+  const canEditMaster = Boolean(item.is_deleted) || hasPerm('item-mgmt');
+  ['pe-name', 'pe-brand', 'pe-code', 'pe-unit'].forEach(function(fieldId) {
+    const field = document.getElementById(fieldId);
+    if (field) field.disabled = !canEditMaster;
+  });
   document.getElementById('pe-name').value = item.name || '';
   document.getElementById('pe-brand').value = item.brand || '';
   document.getElementById('pe-code').value = item.code || '';
   fillUnitSelect(document.getElementById('pe-unit'), item.unit || '個');
   document.getElementById('pe-qty').value = item.prepared_qty || 0;
-  document.getElementById('pe-note').value = item.note || '';
   document.getElementById('pe-dest').value = item.destination || '';
   openModal('prepared-edit-modal');
 }
 
 async function submitPreparedEdit() {
-  const name = document.getElementById('pe-name').value.trim();
-  const brand = document.getElementById('pe-brand').value.trim();
-  const code = document.getElementById('pe-code').value.trim();
+  const item = (typeof preparedItems !== 'undefined' && preparedItems)
+    ? preparedItems.find(i => i.id === editItemId)
+    : null;
+  if (!item) { toast('找不到待領出品項', 'error'); return; }
+  const canEditMaster = Boolean(item.is_deleted) || hasPerm('item-mgmt');
   const unit = document.getElementById('pe-unit').value;
-  const qty = parseFloat(document.getElementById('pe-qty').value) || 0;
-  const note = document.getElementById('pe-note').value.trim();
-  if (!name) { toast('品項名稱為必填', 'error'); return; }
-  if (qty < 0) { toast('數量不可為負數', 'error'); return; }
+  const qty = qtyInputOrToast('pe-qty', unit);
+  if (!Number.isFinite(qty) || qty < 0) return;
+  const payload = {
+    prepared_qty: qty,
+    destination: document.getElementById('pe-dest').value.trim(),
+    updated_at: item.updated_at || null,
+  };
+  if (canEditMaster) {
+    const name = document.getElementById('pe-name').value.trim();
+    if (!name) { toast('品項名稱為必填', 'error'); return; }
+    payload.name = name;
+    payload.brand = document.getElementById('pe-brand').value.trim();
+    payload.code = document.getElementById('pe-code').value.trim();
+    payload.unit = unit;
+  }
+  const btn = document.querySelector('#prepared-edit-modal .btn-confirm');
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   try {
-    const res = await fetch(`/api/items/${editItemId}`, {
+    const res = await fetch(`/api/prepared/${editItemId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, brand, code, unit, note })
+      body: JSON.stringify(payload)
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || '更新失敗');
-    }
-    // 更新準備說明（movements.destination）
-    const dest = document.getElementById('pe-dest').value.trim();
-    const curDest = (preparedItems.find(i => i.id === editItemId) || {}).destination || '';
-    if (dest !== curDest) {
-      await fetch(`/api/prepared/${editItemId}/destination`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destination: dest })
-      });
-    }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || '待領出修改失敗');
     closeModalForce('prepared-edit-modal');
-    toast('✅ 已儲存修改', 'success');
+    toast('✅ 已儲存待領出修改', 'success');
     await renderPrepared();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.setAttribute('aria-busy', 'false'); }
   }
 }
 

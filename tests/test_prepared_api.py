@@ -4,7 +4,7 @@
 覆蓋：
 1. prepare_item 存 movements.destination（req.location or req.note）
 2. list_prepared 回傳 destination 欄位
-3. PUT /api/prepared/{item_id}/destination 更新 movements.destination
+3. PATCH /api/prepared/{item_id} 原子更新數量、metadata 與 movements.destination
 4. _item_payload kit items 回傳 components（JOIN kits）
 """
 import os
@@ -145,54 +145,82 @@ class TestListPreparedDestination:
         assert found[0]["destination"] == ""
 
 
-# ========== PUT /api/prepared/{item_id}/destination ==========
+# ========== unified PATCH /api/prepared/{item_id} tests ==========
 
-class TestUpdatePreparedDestination:
-    def test_update_destination(self, client):
-        """PUT /api/prepared/{id}/destination 更新 movements.destination"""
-        item = _add_item(client, name="F品", qty=5)
-        client.post(f"/api/items/{item['id']}/prepare",
-                    json={"qty": 1, "location": "舊地點"})
-        r = client.put(f"/api/prepared/{item['id']}/destination",
-                       json={"destination": "新地點"})
-        assert r.status_code == 200
-        assert r.json()["destination"] == "新地點"
-        # 確認 DB 更新
+class TestPreparedEditContract:
+    def test_active_prepared_edit_persists_qty_metadata_and_destination(self, client):
+        item = _add_item(client, name="編輯品", qty=10)
+        prepared = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 2, "location": "舊案場"}).json()
+        r = client.patch(f"/api/prepared/{item['id']}", json={
+            "prepared_qty": 4, "destination": "新案場", "name": "編輯後品項",
+            "brand": "新品牌", "code": "NEW-4", "unit": "個", "updated_at": prepared["updated_at"],
+        })
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert (body["prepared_qty"], body["name"], body["brand"], body["code"], body["destination"]) == (4, "編輯後品項", "新品牌", "NEW-4", "新案場")
+
+    def test_prepared_qty_cannot_exceed_total_and_rolls_back(self, client):
+        item = _add_item(client, name="數量上限", qty=5)
+        prepared = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 2, "location": "原地點"}).json()
+        r = client.patch(f"/api/prepared/{item['id']}", json={"prepared_qty": 6, "destination": "不應保存", "updated_at": prepared["updated_at"]})
+        assert r.status_code == 400
+        found = next(x for x in client.get("/api/prepared?site=").json() if x["id"] == item["id"])
+        assert (found["prepared_qty"], found["destination"]) == (2, "原地點")
+
+    def test_destination_failure_rolls_back_prepared_qty(self, client):
+        item = _add_item(client, name="原子性", qty=5)
+        prepared = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 2}).json()
         import app.database as db
         conn = db.get_db()
-        mv = conn.execute(
-            "SELECT destination FROM movements WHERE item_id=? AND reason='領出準備' ORDER BY id DESC LIMIT 1",
-            (item["id"],)
-        ).fetchone()
+        conn.execute("DELETE FROM movements WHERE item_id=? AND reason='領出準備'", (item["id"],))
+        conn.commit()
         conn.close()
-        assert mv["destination"] == "新地點"
-
-    def test_update_destination_clear(self, client):
-        """PUT 清空 destination"""
-        item = _add_item(client, name="G品", qty=5)
-        client.post(f"/api/items/{item['id']}/prepare",
-                    json={"qty": 1, "location": "有備註"})
-        r = client.put(f"/api/prepared/{item['id']}/destination",
-                       json={"destination": ""})
-        assert r.status_code == 200
-        assert r.json()["destination"] == ""
-
-    def test_update_destination_no_movement_404(self, client):
-        """沒有 prepare 紀錄的品項回傳 404"""
-        item = _add_item(client, name="H品", qty=5)
-        r = client.put(f"/api/prepared/{item['id']}/destination",
-                       json={"destination": "test"})
+        r = client.patch(f"/api/prepared/{item['id']}", json={"prepared_qty": 4, "destination": "沒有 movement", "updated_at": prepared["updated_at"]})
         assert r.status_code == 404
+        conn = db.get_db()
+        row = conn.execute("SELECT prepared_qty FROM items WHERE id=?", (item["id"],)).fetchone()
+        conn.close()
+        assert row["prepared_qty"] == 2
 
-    def test_update_destination_truncates_long(self, client):
-        """超長 destination 截斷到 200 字元"""
-        item = _add_item(client, name="I品", qty=5)
-        client.post(f"/api/items/{item['id']}/prepare", json={"qty": 1})
-        long_text = "A" * 300
-        r = client.put(f"/api/prepared/{item['id']}/destination",
-                       json={"destination": long_text})
-        assert r.status_code == 200
-        assert len(r.json()["destination"]) == 200
+    def test_nonstock_prepared_edit_is_supported(self, client):
+        created = client.post("/api/prepare/nonstock", json={"name": "臨時品", "code": "TMP-1", "unit": "個", "qty": 2, "destination": "A 工地"})
+        assert created.status_code == 200, created.text
+        item_id = created.json()["id"]
+        prepared = next(x for x in client.get("/api/prepared?site=office").json() if x["id"] == item_id)
+        r = client.patch(f"/api/prepared/{item_id}", json={"prepared_qty": 3, "destination": "B 工地", "name": "臨時品B", "code": "TMP-2", "unit": "組", "updated_at": prepared["updated_at"]})
+        assert r.status_code == 200, r.text
+        assert (r.json()["prepared_qty"], r.json()["name"], r.json()["destination"]) == (3, "臨時品B", "B 工地")
+
+    def test_stale_prepared_edit_returns_409(self, client):
+        item = _add_item(client, name="鎖定品", qty=5)
+        prepared = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 1}).json()
+        first = client.patch(f"/api/prepared/{item['id']}", json={"prepared_qty": 2, "updated_at": prepared["updated_at"]})
+        assert first.status_code == 200
+        second = client.patch(f"/api/prepared/{item['id']}", json={"prepared_qty": 3, "updated_at": prepared["updated_at"]})
+        assert second.status_code == 409
+
+    def test_active_metadata_requires_item_management_but_qty_does_not(self, client):
+        item = _add_item(client, name="權限品", qty=5)
+        prepared = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 1}).json()
+        import app.database as db
+        conn = db.get_db()
+        conn.execute("INSERT INTO users (username, password_hash, display_name, role, is_active) VALUES ('admin2', 'x', 'admin2', 'admin', 1)")
+        conn.execute("DELETE FROM role_permissions WHERE role_id=(SELECT id FROM roles WHERE name='admin') AND permission_id=(SELECT id FROM permissions WHERE key='item-mgmt')")
+        conn.commit()
+        conn.close()
+        denied = client.patch(f"/api/prepared/{item['id']}", json={"name": "不應修改", "updated_at": prepared["updated_at"]})
+        assert denied.status_code == 403
+        allowed = client.patch(f"/api/prepared/{item['id']}", json={"prepared_qty": 2, "destination": "可修改", "updated_at": prepared["updated_at"]})
+        assert allowed.status_code == 200, allowed.text
+
+    def test_soft_deleted_without_prepared_qty_is_not_editable(self, client):
+        import app.database as db
+        conn = db.get_db()
+        conn.execute("INSERT INTO items (name, unit, site, is_deleted, prepared_qty) VALUES ('刪除品','個','',1,0)")
+        item_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.commit()
+        conn.close()
+        assert client.patch(f"/api/prepared/{item_id}", json={"prepared_qty": 1}).status_code == 404
 
 
 # ========== _item_payload kit components ==========

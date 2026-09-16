@@ -8,6 +8,7 @@
 - POST  /api/items/{id}/prepared-out       確認已領出（扣庫存）
 - POST  /api/items/{id}/prepared-return    退回（清 prepared_qty）
 - GET   /api/prepared                      待領出清單
+- PATCH /api/prepared/{id}                  原子編輯待領出數量/metadata/準備說明
 
 v10 數量語意：
   總庫存 = SUM(item_stocks.qty)
@@ -20,7 +21,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
-from app.models import NonStockOutRequest, PrepareRequest, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
+from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.routes.photos import has_photo
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory
@@ -464,7 +465,6 @@ def update_stockout_return(movement_id: int, upd: StockoutReturnUpdate):
         created_at = upd.created_at if upd.created_at is not None else row["created_at"]
         if upd.created_at is not None:
             _validate_date(upd.created_at, "退回日期")
-        after_total = _canonical_qty(_total_qty(conn, row["item_id"]))
         conn.execute(
             "UPDATE movements SET delta=?, before_qty=?, after_qty=?, destination=?, created_at=?, return_stock_id=?, return_site=?, return_location=? WHERE id=?",
             (new_qty, movement_before, _canonical_qty(movement_before + new_qty), destination, created_at, new_stock_id,
@@ -681,7 +681,6 @@ def prepared_out(item_id: int, req: PrepareRequest):
         dest = req.note  # note 欄位當去向用（相容前端）
         if row["is_deleted"]:
             # 非庫存品項：無庫存可扣，直接寫出庫流水（before/after=0）+ 清 prepared_qty
-            new_prepared = _canonical_qty(row["prepared_qty"] - qty)
             cur = conn.execute("UPDATE items SET prepared_qty = ROUND(prepared_qty - ?, 3), updated_at = ? WHERE id = ? AND prepared_qty >= ?",
                                (qty, datetime.datetime.now().isoformat(), item_id, qty))
             if cur.rowcount == 0:
@@ -694,8 +693,6 @@ def prepared_out(item_id: int, req: PrepareRequest):
             updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
             payload = _item_payload(conn, updated)
             return payload
-
-        new_prepared = _canonical_qty(row["prepared_qty"] - qty)
 
         # P0-C：projected final state 驗證（stock -qty 且 prepared -qty 同步降，3>=3 合法不過擋）
         assert_projected_inventory(conn, item_id, stock_delta=-qty, prepared_delta=-qty)
@@ -776,20 +773,93 @@ def list_prepared(site: Optional[str] = None):
     conn.close()
     return payloads
 
-@router.put("/api/prepared/{item_id}/destination", dependencies=[Depends(require_perm("stockout"))])
-def update_prepared_destination(item_id: int, body: dict):
-    """更新待領出品項的準備說明（movements.destination）"""
-    dest = (body.get("destination") or "").strip()[:200]
+@router.patch("/api/prepared/{item_id}")
+def update_prepared_item(
+    item_id: int,
+    upd: PreparedItemUpdate,
+    user: dict = Depends(require_perm("stockout")),
+):
+    """單一交易更新待領出數量、準備說明與 metadata。"""
     conn = get_db()
     try:
-        mv = conn.execute(
-            "SELECT id FROM movements WHERE item_id=? AND reason='領出準備' ORDER BY id DESC LIMIT 1",
-            (item_id,)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM items WHERE id=? AND prepared_qty > 0 AND (is_deleted=0 OR site='')",
+            (item_id,),
         ).fetchone()
-        if not mv:
-            raise HTTPException(404, "該品項沒有領出準備紀錄")
-        conn.execute("UPDATE movements SET destination=? WHERE id=?", (dest, mv["id"]))
+        if not row:
+            raise HTTPException(404, "待領出品項不存在")
+
+        if upd.updated_at and row["updated_at"] and upd.updated_at != row["updated_at"]:
+            raise HTTPException(409, "該品項已被其他人修改，請重新整理後再編輯")
+
+        is_nonstock = bool(row["is_deleted"])
+        metadata_fields = {
+            "name": upd.name,
+            "brand": upd.brand,
+            "code": upd.code,
+            "unit": upd.unit,
+        }
+        has_metadata = any(value is not None for value in metadata_fields.values())
+        if has_metadata and not is_nonstock and not user.get("permissions", {}).get("item-mgmt"):
+            raise HTTPException(403, "修改庫存品項主檔需要品項管理權限")
+
+        old_prepared = _canonical_qty(row["prepared_qty"] or 0)
+        new_prepared = old_prepared
+        if upd.prepared_qty is not None:
+            new_prepared = _canonical_qty(upd.prepared_qty)
+            if not is_nonstock:
+                assert_projected_inventory(
+                    conn,
+                    item_id,
+                    prepared_delta=_canonical_qty(new_prepared - old_prepared),
+                )
+
+        fields = {}
+        if has_metadata:
+            for key, value in metadata_fields.items():
+                if value is None:
+                    continue
+                normalized = value.strip()
+                if key in ("name", "unit") and not normalized:
+                    raise HTTPException(400, f"{key}不可空白")
+                fields[key] = normalized
+        if upd.prepared_qty is not None:
+            fields["prepared_qty"] = new_prepared
+
+        movement = None
+        if upd.destination is not None:
+            movement = conn.execute(
+                "SELECT id FROM movements WHERE item_id=? AND reason='領出準備' ORDER BY id DESC LIMIT 1",
+                (item_id,),
+            ).fetchone()
+            if not movement:
+                raise HTTPException(404, "該品項沒有領出準備紀錄")
+
+        if fields or upd.destination is not None:
+            fields["updated_at"] = datetime.datetime.now().isoformat()
+            sets = ", ".join(f"{key}=?" for key in fields)
+            conn.execute(
+                f"UPDATE items SET {sets} WHERE id=?",
+                (*fields.values(), item_id),
+            )
+        if movement is not None:
+            conn.execute(
+                "UPDATE movements SET destination=? WHERE id=?",
+                ((upd.destination or "").strip(), movement["id"]),
+            )
+
         conn.commit()
-        return {"ok": True, "destination": dest}
+        fresh = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        payload = _item_payload(conn, fresh)
+        latest = conn.execute(
+            "SELECT destination FROM movements WHERE item_id=? AND reason='領出準備' ORDER BY id DESC LIMIT 1",
+            (item_id,),
+        ).fetchone()
+        payload["destination"] = latest["destination"] if latest else ""
+        return payload
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
