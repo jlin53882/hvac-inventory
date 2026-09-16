@@ -1354,3 +1354,9 @@ button.inventory-kpi-card:focus-visible,
 /* ========== 待領出準備說明 ========== */
 .prepared-item-dest { font-size: 11px; color: #0369a1; margin-top: 2px; }
 .prepared-card-dest { font-size: 11px; color: #0369a1; margin-top: 2px; }
+
+/* ========== 手機版整組子品項 ========== */
+.kit-subitems-mobile-wrap { padding: 0 12px 8px; }
+.kit-subitems-mobile-wrap .kit-subitems-toggle { cursor: pointer; font-size: 12px; color: #7c3aed; padding: 4px 0; }
+.kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+.kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem:last-child { border-bottom: none; }

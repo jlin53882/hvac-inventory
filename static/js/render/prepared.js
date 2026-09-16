@@ -40,6 +40,28 @@ function renderKitSubItems(item) {
   return html;
 }
 
+// 手機版整組子品項展開（card 格式）
+function renderKitSubItemsMobile(item) {
+  if (!item.is_kit || !item.components || !item.components.length) return '';
+  let html = '<div class="kit-subitems-mobile-wrap">';
+  html += '<div class="kit-subitems-toggle" onclick="toggleKitSubItems(this)">';
+  html += '<span class="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
+  html += '</div><div class="kit-subitems-list" style="display:none">';
+  item.components.forEach(c => {
+    const photo = c.has_photo
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover" loading="lazy">'
+      : '<div style="width:28px;height:28px;border-radius:4px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">📷</div>';
+    html += '<div class="kit-subitem">';
+    html += photo;
+    html += '<span class="kit-subitem-name">' + esc(c.brand || '') + ' ' + esc(c.name) + '</span>';
+    html += '<span class="kit-subitem-code">' + (c.code ? esc(c.code) : '') + '</span>';
+    html += '<span class="kit-subitem-qty">×' + c.need_qty + ' ' + esc(c.unit || '個') + '</span>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
 function toggleKitSubItems(el) {
   const list = el.nextElementSibling;
   const arrow = el.querySelector('.kit-subitems-arrow');
@@ -125,6 +147,7 @@ async function renderPrepared() {
           qtyHTML: buildQtyNum(item.prepared_qty, item.unit, 'qty-violet'),
           actionsHTML: ''
         });
+        html += renderKitSubItemsMobile(item);
       });
       html += '</div>';
     } else {
