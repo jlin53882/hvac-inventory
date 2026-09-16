@@ -680,12 +680,18 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
                             svc.events().patch(calendarId=cal_id, eventId=gid, body=event).execute()
                         else:
                             stable_id = stable_event_id(appt_id, key_id)
+                            # 2026-09-16 fix：events().insert() 的 Python client 不接受
+                            # eventId keyword argument（會抛 TypeError）。
+                            # 正確做法是把 stable_id 放入 Event body 的 id 欄位，
+                            # REST API 會以該 id 建立 event（官方文件明確支援）。
+                            # 多 process 同時 C 時，先成功者已建立相同 ID → 409 → 改 patch 收斂。
+                            event_with_id = dict(event)
+                            event_with_id["id"] = stable_id
                             try:
                                 created = svc.events().insert(
-                                    calendarId=cal_id, eventId=stable_id, body=event
+                                    calendarId=cal_id, body=event_with_id
                                 ).execute()
                             except Exception as insert_error:
-                                # 多 process 同時 C 時，先成功者已建立相同 ID；改 patch 收斂內容。
                                 if _http_status(insert_error) != 409:
                                     raise
                                 svc.events().patch(

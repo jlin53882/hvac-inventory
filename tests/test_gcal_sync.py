@@ -2146,10 +2146,69 @@ def test_insert_conflict_uses_stable_event_id_and_patch(client, monkeypatch):
         "google_event_id":"","last_modified_at":version,
     }])
     assert (ok,fail)==(1,0)
+    # 2026-09-16 fix：insert() 不接受 eventId keyword argument（TypeError）。
+    # stable_id 必須放在 body 的 id 欄位（REST API 支援）。
     insert_kwargs=service.events().insert.call_args.kwargs
-    assert insert_kwargs["eventId"] == gcal_sync.stable_event_id(appt_id,key_id)
+    assert "eventId" not in insert_kwargs, "insert() 不接受 eventId keyword arg"
+    insert_body=insert_kwargs["body"]
+    assert insert_body["id"] == gcal_sync.stable_event_id(appt_id,key_id)
     patch_kwargs=service.events().patch.call_args.kwargs
-    assert patch_kwargs["eventId"] == insert_kwargs["eventId"]
+    assert patch_kwargs["eventId"] == insert_body["id"]
+
+
+def test_insert_body_contains_stable_id_not_keyword_arg(client, monkeypatch):
+    """2026-09-16 fix：insert() 不接受 eventId keyword argument。
+    stable_id 必須放在 body 的 id 欄位（REST API 支援）。
+    此測試驗證正常 insert（無409衝突）時 body 含 id。"""
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    sync_scheduler.stop()
+    conn = get_db()
+    try:
+        key_id = conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id) "
+            "VALUES('body-id-key','x.json','bodyid@cal')"
+        ).lastrowid
+        appt_id = conn.execute(
+            "INSERT INTO appointments(client_name,date,start_time,end_time) "
+            "VALUES(?,?,?,?)",
+            ("body-id-test", "2026-09-16", "09:00", "10:00"),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO appointment_sync_queue"
+            "(appointment_id,key_id,op_type,google_event_id,last_modified_at) "
+            "VALUES(?,?, 'C', '', ?)",
+            (appt_id, key_id, gcal_sync.sync_version_now()),
+        )
+        conn.commit()
+        version = conn.execute(
+            "SELECT last_modified_at FROM appointment_sync_queue "
+            "WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()["last_modified_at"]
+    finally:
+        conn.close()
+
+    service = MagicMock()
+    service.events().insert.return_value.execute.return_value = {"id": "returned-id"}
+    monkeypatch.setattr(gcal_sync, "get_service_for_key", lambda row: service)
+
+    ok, fail, _ = gcal_sync.sync_pending([{
+        "appointment_id": appt_id, "key_id": key_id, "op_type": "C",
+        "google_event_id": "", "last_modified_at": version,
+    }])
+    assert (ok, fail) == (1, 0)
+
+    insert_kwargs = service.events().insert.call_args.kwargs
+    # 核心驗證：insert() 不得有 eventId keyword argument（會 TypeError）
+    assert "eventId" not in insert_kwargs, "insert() 不接受 eventId keyword arg"
+    # stable_id 必須在 body 的 id 欄位
+    insert_body = insert_kwargs["body"]
+    expected_id = gcal_sync.stable_event_id(appt_id, key_id)
+    assert insert_body["id"] == expected_id, f"body.id 應為 stable_id，實際為 {insert_body.get('id')}"
 
 
 class _FakeConn:
