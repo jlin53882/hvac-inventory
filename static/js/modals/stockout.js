@@ -163,7 +163,7 @@ async function submitPrepare() {
     const res = await fetch(`/api/items/${prepareItemId}/prepare`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: qty, location: note })
+      body: JSON.stringify({ qty: qty, note: note, location: note })
     });
     if (!res.ok) {
       const err = await res.json();
@@ -572,7 +572,7 @@ async function submitKitPrepare(kitItemId) {
     const res = await fetch(`/api/items/${kitItemId}/prepare`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: 1, location: note })
+      body: JSON.stringify({ qty: 1, note: note, location: note })
     });
     if (!res.ok) {
       const err = await res.json();

@@ -76,11 +76,13 @@ def _item_payload(conn, row) -> dict:
         comps = conn.execute(
             """SELECT ki.qty AS need_qty, i.id AS item_id, i.brand, i.name, i.code, i.unit,
                       (SELECT COALESCE(SUM(qty),0) FROM item_stocks WHERE item_id=i.id) AS stock,
-                      EXISTS(SELECT 1 FROM photos WHERE item_id=i.id) AS has_photo
+                      0 AS has_photo
                FROM kit_items ki JOIN items i ON i.id=ki.item_id WHERE ki.kit_id=?""",
             (d["id"],)
         ).fetchall()
         d["components"] = [dict(c) for c in comps]
+        for comp in d["components"]:
+            comp["has_photo"] = has_photo(comp["item_id"])
     return d
 
 
@@ -619,7 +621,7 @@ def prepare_nonstock(req: NonStockOutRequest):
         item_id = cur.lastrowid
         conn.execute(
             "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,?,?,?)",
-            (item_id, 0, qty, "領出準備", note),
+            (item_id, 0, qty, "領出準備", note or ""),
         )
         conn.commit()
         return {"id": item_id, "name": name}
