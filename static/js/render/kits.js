@@ -153,7 +153,7 @@ function renderKitCard(k, isViewer, isM) {
   const stockQty = Number(k.stock_qty || 0);
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
-      <div class="kit-assembly-title"><div class="kit-assembly-name">🔧 ${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta"><span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
+      <div class="kit-assembly-title"><div class="kit-assembly-name">🔧 ${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta"><span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
       ${renderKitActionButtons(k, isViewer, isM, status)}
     </header>
     <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>${components.map(renderKitComponentRow).join('')}</tbody></table></div>
@@ -463,6 +463,7 @@ async function editKit(kitId) {
 
   document.getElementById('k-note').value = kit.note || '';
   document.getElementById('k-brand').value = kit.brand || '';
+  document.getElementById('k-code').value = kit.code || '';
 
   document.querySelector('#kit-modal h3').textContent = '🔧 編輯整組';
 

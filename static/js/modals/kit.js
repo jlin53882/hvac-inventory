@@ -6,6 +6,7 @@ function openKitModal() {
   document.getElementById('k-name').value = '';
   document.getElementById('k-note').value = '';
   document.getElementById('k-brand').value = '';
+  document.getElementById('k-code').value = '';
   document.querySelector('#kit-modal h3').textContent = '🔧 新增整組';
   const btn = document.querySelector('#kit-modal .btn-confirm');
   btn.textContent = '✅ 建立整組';
@@ -38,7 +39,7 @@ async function submitKit() {
     const res = await fetch('/api/kits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: document.getElementById('k-brand').value.trim(), items: items, note: document.getElementById('k-note').value.trim() })
+      body: JSON.stringify({ name: name, brand: document.getElementById('k-brand').value.trim(), code: document.getElementById('k-code').value.trim(), items: items, note: document.getElementById('k-note').value.trim() })
     });
     if (!res.ok) throw new Error();
     closeModalForce('kit-modal');
@@ -63,7 +64,7 @@ async function submitKitEdit() {
     const res = await fetch(`/api/kits/${editingKitId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: document.getElementById('k-brand').value.trim(), items: items, note: document.getElementById('k-note').value.trim(),
+      body: JSON.stringify({ name: name, brand: document.getElementById('k-brand').value.trim(), code: document.getElementById('k-code').value.trim(), items: items, note: document.getElementById('k-note').value.trim(),
                              updated_at: kitUpdatedAt })
     });
     if (!res.ok) {

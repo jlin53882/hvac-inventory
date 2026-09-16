@@ -42,7 +42,7 @@ def list_kits(site: Optional[str] = None):
         where = " WHERE i.site = ?"
         params = (site,)
     kits = conn.execute(
-        f"SELECT k.*, i.unit, i.brand, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} AND i.is_deleted = 0 ORDER BY k.name",
+        f"SELECT k.*, i.unit, i.brand, i.code, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} AND i.is_deleted = 0 ORDER BY k.name",
         params).fetchall()
     result = []
     for k in kits:
@@ -145,8 +145,8 @@ def update_kit(kit_id: int, kit: KitCreate):
         else:
             conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
                          (kit.name, kit.note, kit_id))
-        conn.execute("UPDATE items SET name=?, brand=?, updated_at=? WHERE id=?",
-                     (kit.name, kit.brand, datetime.datetime.now().isoformat(), row["item_id"]))
+        conn.execute("UPDATE items SET name=?, brand=?, code=?, updated_at=? WHERE id=?",
+                     (kit.name, kit.brand, kit.code, datetime.datetime.now().isoformat(), row["item_id"]))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
         seen_items: set = set()
         for i, comp in enumerate(kit.items, 1):
