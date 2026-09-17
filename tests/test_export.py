@@ -337,3 +337,20 @@ def test_export_custom_range_uses_left_closed_right_open_boundaries(client):
     book = export_book(client, start_date="2026-09-01", end_date="2026-09-30")
     rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
     assert [row[0] for row in rows] == ["2026-09-01 00:00:00"]
+
+
+def test_export_movement_site_prefers_return_site_over_source_site(client):
+    item = add_item(client, name="退回來源品", code="RETURN-SITE")
+    conn = app_db.get_db()
+    try:
+        conn.execute(
+            "INSERT INTO movements(item_id, delta, before_qty, after_qty, reason, destination, "
+            "created_at, source_site, return_site) VALUES(?,?,?,?,?,?,?,?,?)",
+            (item["id"], 1, 0, 1, "退回已領出", "倉庫", "2026-09-15 12:00:00", "office", "warehouse"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    book = export_book(client, month="2026-09", sites="warehouse")
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    assert rows and rows[0][6] == "倉庫"

@@ -327,7 +327,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     try:
         items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
         positions = conn.execute("SELECT i.id, i.site, i.category, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
-        movement_site = "COALESCE(NULLIF(m.source_site,''), NULLIF(m.return_site,''), NULLIF(i.site,''), '')"
+        movement_site = "COALESCE(NULLIF(m.return_site,''), NULLIF(m.source_site,''), NULLIF(i.site,''), '')"
         site_placeholders = ",".join("?" * len(selected_sites))
         movement_sql = (
             "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
