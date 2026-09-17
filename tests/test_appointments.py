@@ -625,6 +625,10 @@ class TestB2OrphanBoundKeys:
     def test_no_orphan_when_all_unbound_uses_fallback(self, client, monkeypatch):
         """B2 防回歸：全沒綁 key（fallback）→ 不刪 orphan（guard 命中）"""
         from app.database import get_db
+        from app.services import sync_scheduler
+        sync_scheduler.stop()
+        monkeypatch.setattr(sync_scheduler, "start", lambda: None)
+        monkeypatch.setattr(sync_scheduler, "wake", lambda: None)
 
         # 建 key + 使用者（admin 不綁 key）
         conn = get_db()
@@ -641,7 +645,7 @@ class TestB2OrphanBoundKeys:
         r = client.post("/api/appointments", json={
             "client_name": "B2_fb", "date": "2026-08-28",
             "start_time": "09:00", "end_time": "11:00",
-            "user_ids": [1], "note": ""
+            "user_ids": [], "note": ""
         })
         appt_id = r.json()["id"]
         conn = get_db()
@@ -657,7 +661,7 @@ class TestB2OrphanBoundKeys:
         client.put(f"/api/appointments/{appt_id}", json={
             "client_name": "B2_fb", "date": "2026-08-28",
             "start_time": "09:00", "end_time": "11:00",
-            "user_ids": [1], "note": "edited"
+            "user_ids": [], "note": "edited"
         })
 
         # B2：fallback 時不刪 orphan → queue 中不應有 D op
@@ -1391,9 +1395,13 @@ def test_migration_pending_team_member_is_not_retryable(client, monkeypatch):
     assert item["team_sync"]["can_retry_all"] is False
 
 
-def test_mixed_normal_and_migration_targets_only_normal_is_retryable(client):
+def test_mixed_normal_and_migration_targets_only_normal_is_retryable(client, monkeypatch):
     """同一 team 中 normal failed 可 retry，migration pending failed 不可 retry。"""
     from app.database import get_db
+    from app.services import sync_scheduler
+    sync_scheduler.stop()
+    monkeypatch.setattr(sync_scheduler, "start", lambda: None)
+    monkeypatch.setattr(sync_scheduler, "wake", lambda: None)
 
     user = _create_user(client, "migration-mixed", "user")
     conn = get_db()
@@ -1664,3 +1672,102 @@ def test_team_sync_force_permission_allows_retry_all(client):
         assert viewer.put(f'/api/gcal-sync-queue/reset-scope?appt_id={appt_id}&scope=all').status_code == 200
     finally:
         viewer.close()
+
+
+def _seed_calendar_user_key(client, username, key_name):
+    from app.database import get_db
+    user = _create_user(client, username, "user")
+    conn = get_db()
+    try:
+        key_id = conn.execute(
+            "INSERT INTO gcal_keys(name,credentials_path,calendar_id,is_active) VALUES(?,?,?,?)",
+            (key_name, "x.json", key_name + "@cal", 1),
+        ).lastrowid
+        conn.execute("UPDATE users SET gcal_key=?, is_active=1 WHERE id=?", (key_name, user["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    return user["id"], key_id
+
+
+def test_f10_mixed_inactive_assignee_preserves_map_and_skips_d(client, monkeypatch):
+    from app.database import get_db
+    from app.services import sync_scheduler
+    sync_scheduler.stop()
+    monkeypatch.setattr(sync_scheduler, "start", lambda: None)
+    monkeypatch.setattr(sync_scheduler, "wake", lambda: None)
+    inactive_id, key_b = _seed_calendar_user_key(client, "f10-inactive", "f10-key-b")
+    conn = get_db()
+    try:
+        conn.execute("UPDATE users SET gcal_key='f10-key-a' WHERE id=1")
+        key_a = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('f10-key-a','a.json','a@cal')").lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    appt = client.post("/api/appointments", json={"client_name":"F10 mixed","date":"2026-09-20","start_time":"09:00","end_time":"10:00","user_ids":[1,inactive_id]}).json()
+    appt_id = appt["id"]
+    conn = get_db()
+    conn.execute("UPDATE users SET is_active=0 WHERE id=?", (inactive_id,))
+    conn.commit()
+    conn.close()
+    conn = get_db()
+    try:
+        for key_id in (key_a, key_b):
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)", (appt_id,key_id,"event-"+str(key_id),"old"))
+        conn.execute("DELETE FROM appointment_sync_queue WHERE appointment_id=?", (appt_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    assert client.put(f"/api/appointments/{appt_id}", json={"client_name":"F10 mixed edited","date":"2026-09-20","start_time":"10:00","end_time":"11:00","user_ids":[1,inactive_id]}).status_code == 200
+    conn = get_db()
+    try:
+        assert conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?", (appt_id,key_b)).fetchone() is not None
+        assert conn.execute("SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=? AND op_type='D'", (appt_id,key_b)).fetchone() is None
+    finally:
+        conn.close()
+
+
+def test_f10_explicit_unassign_still_enqueues_d_and_no_assignee_keeps_maps(client, monkeypatch):
+    from app.database import get_db
+    from app.services import sync_scheduler
+    sync_scheduler.stop()
+    monkeypatch.setattr(sync_scheduler, "start", lambda: None)
+    monkeypatch.setattr(sync_scheduler, "wake", lambda: None)
+    inactive_id, key_b = _seed_calendar_user_key(client, "f10-inactive-b", "f10-key-b2")
+    conn = get_db()
+    try:
+        key_a = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('f10-key-a2','a.json','a@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key='f10-key-a2' WHERE id=1")
+        conn.commit()
+    finally:
+        conn.close()
+    appt_id = client.post("/api/appointments", json={"client_name":"F10 unassign","date":"2026-09-21","start_time":"09:00","end_time":"10:00","user_ids":[1,inactive_id]}).json()["id"]
+    conn = get_db()
+    conn.execute("UPDATE users SET is_active=0 WHERE id=?", (inactive_id,))
+    conn.commit()
+    conn.close()
+    conn = get_db()
+    try:
+        for key_id in (key_a, key_b):
+            conn.execute("INSERT INTO appointment_gcal_map(appointment_id,key_id,google_event_id,data_hash) VALUES(?,?,?,?)", (appt_id,key_id,"f10-event-"+str(key_id),"old"))
+        conn.execute("DELETE FROM appointment_sync_queue WHERE appointment_id=?", (appt_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    body={"client_name":"F10 unassign","date":"2026-09-21","start_time":"10:00","end_time":"11:00","user_ids":[1]}
+    assert client.put(f"/api/appointments/{appt_id}", json=body).status_code == 200
+    conn = get_db()
+    try:
+        assert conn.execute("SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?", (appt_id,key_b)).fetchone()["op_type"] == "D"
+        conn.execute("DELETE FROM appointment_sync_queue WHERE appointment_id=?", (appt_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    body["user_ids"] = []
+    assert client.put(f"/api/appointments/{appt_id}", json=body).status_code == 200
+    conn = get_db()
+    try:
+        assert conn.execute("SELECT 1 FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?", (appt_id,key_b)).fetchone() is not None
+        assert conn.execute("SELECT 1 FROM appointment_sync_queue WHERE appointment_id=? AND key_id=? AND op_type='D'", (appt_id,key_b)).fetchone() is None
+    finally:
+        conn.close()

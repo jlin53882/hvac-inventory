@@ -198,6 +198,18 @@ def _reconcile_user_gcal_key(user_id: int) -> None:
             mark_sync_pending(appt_id, "D", map_rows=orphan_rows)
 
 
+def _reconcile_user_calendar_transition(
+    user_id: int, *, reenabled: bool, gcal_key_changed: bool,
+) -> None:
+    """以單一路徑處理 user 啟用／換 Key，避免兩套 reconcile 互相覆寫 queue。"""
+    if gcal_key_changed:
+        # Key change owns old relationship cleanup and new-key backfill.  This
+        # also covers re-enable + key change; do not enqueue the second pass.
+        _reconcile_user_gcal_key(user_id)
+    elif reenabled:
+        _reconcile_user_calendar_assignments(user_id)
+
+
 # ---------- API ----------
 @router.get("")
 def list_users(admin: dict = Depends(require_perm("user-mgmt"))):
@@ -306,12 +318,13 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
     finally:
         conn.close()
 
-    if was_inactive and is_active == 1:
-        _reconcile_user_calendar_assignments(user_id)
-    elif gcal_key_changed:
-        _reconcile_user_gcal_key(user_id)
+    _reconcile_user_calendar_transition(
+        user_id,
+        reenabled=was_inactive and is_active == 1,
+        gcal_key_changed=gcal_key_changed,
+    )
     # display_name 會進入 Google description；只失效此使用者被指派行程的既有 mappings。
-    elif display_name_changed:
+    if display_name_changed:
         affected_conn = get_db()
         try:
             affected_ids = [r["appointment_id"] for r in affected_conn.execute(

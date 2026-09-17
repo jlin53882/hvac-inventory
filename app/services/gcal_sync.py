@@ -283,6 +283,17 @@ def resolve_target_keys(conn, appt_id: int) -> List[int]:
     return [r["id"] for r in got]
 
 
+def resolve_assigned_key_ids(conn, appt_id: int) -> List[int]:
+    """回傳目前 assignee 綁定的 Key 關係；不套 active/migration target gate。"""
+    rows = conn.execute(
+        "SELECT DISTINCT k.id FROM appointment_assignees aa "
+        "JOIN users u ON u.id=aa.user_id JOIN gcal_keys k ON k.name=u.gcal_key "
+        "WHERE aa.appointment_id=? AND u.gcal_key<>''",
+        (appt_id,),
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
 def resolve_effective_target_keys(conn, appt_id: int) -> List[int]:
     """同步與一般 retry 共用的有效 target：active 且未進行 Calendar migration。"""
     target_ids = resolve_target_keys(conn, appt_id)

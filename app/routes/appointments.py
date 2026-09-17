@@ -124,6 +124,22 @@ def _validate_users(conn, user_ids: List[int]) -> None:
             raise HTTPException(400, f"人員 id={uid} 不存在或已停用")
 
 
+def _validate_users_for_update(conn, appt_id: int, user_ids: List[int]) -> None:
+    """編輯時允許保留既有 inactive assignee，但禁止新加入 inactive user。"""
+    for uid in user_ids:
+        row = conn.execute("SELECT id, is_active FROM users WHERE id=?", (uid,)).fetchone()
+        if row is None:
+            raise HTTPException(400, f"人員 id={uid} 不存在")
+        if row["is_active"]:
+            continue
+        assigned = conn.execute(
+            "SELECT 1 FROM appointment_assignees WHERE appointment_id=? AND user_id=?",
+            (appt_id, uid),
+        ).fetchone()
+        if assigned is None:
+            raise HTTPException(400, f"人員 id={uid} 不存在或已停用")
+
+
 def _find_conflict(conn, user_ids, date, start_time, end_time, exclude_id=0):
     """衝突檢查：任一被指派人員在同時段已有行程 → 回傳衝突訊息，否則 None。
     2026-08-14 Sarah：未指定時間（選填）無法判斷同時段 → 跳過衝突檢查"""
@@ -548,7 +564,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "行程不存在")
-        _validate_users(conn, body.user_ids)
+        _validate_users_for_update(conn, appt_id, body.user_ids)
         _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
         conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time,
                                   exclude_id=appt_id)
@@ -575,31 +591,23 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         for uid in body.user_ids:
             conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
                          (appt_id, uid))
-        # B2：orphan 判斷只看「已綁定 key」（不含 fallback 到全部 key 的情境）
-        # 避免沒綁 key 的指派人觸發 fallback → 所有 key 都在 target → 沒 orphan → 舊事件不刪
-        bound_rows = conn.execute(
-            "SELECT DISTINCT u.gcal_key FROM appointment_assignees aa "
-            "JOIN users u ON u.id=aa.user_id "
-            "WHERE aa.appointment_id=? AND u.is_active=1 AND u.gcal_key<>''", (appt_id,)).fetchall()
-        bound_key_names = [r["gcal_key"] for r in bound_rows]
-        if bound_key_names:
-            placeholders = ",".join("?" * len(bound_key_names))
-            bound_key_ids = set(r["id"] for r in conn.execute(
-                f"SELECT id FROM gcal_keys WHERE is_active=1 AND name IN ({placeholders})",
-                bound_key_names).fetchall())
-        else:
-            bound_key_ids = set()  # 全沒綁 key = 不刪 orphan（fallback 同步全部 key）
-        # 讀 map 裡所有「曾同步過」的 key
+        assignee_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM appointment_assignees WHERE appointment_id=?",
+            (appt_id,),
+        ).fetchone()["c"]
+        assigned_key_ids = set(gcal_sync.resolve_assigned_key_ids(conn, appt_id)) if assignee_count else set()
         map_rows_all = conn.execute(
-            "SELECT key_id, google_event_id FROM appointment_gcal_map "
-            "WHERE appointment_id=?", (appt_id,)).fetchall()
-        # 流失 key = map 裡有但新指派「已綁定 key」沒有的
-        # B2 guard：全沒綁 key（fallback 情境）= 不刪 orphan
+            "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
+            (appt_id,),
+        ).fetchall()
+        # D only means the current relationship was explicitly removed.  An empty
+        # assignee list is the intentional fallback-all domain, not an orphan set.
         orphan_d_rows = []
-        if bound_key_ids:  # 有至少一個綁定 key 才判斷 orphan
-            for mr in map_rows_all:
-                if mr["key_id"] not in bound_key_ids:
-                    orphan_d_rows.append((mr["key_id"], mr["google_event_id"]))
+        if assignee_count > 0:
+            orphan_d_rows = [
+                (mr["key_id"], mr["google_event_id"])
+                for mr in map_rows_all if mr["key_id"] not in assigned_key_ids
+            ]
         conn.commit()
         mark_sync_pending(appt_id, "U")
         if orphan_d_rows:
