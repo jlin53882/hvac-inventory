@@ -4899,3 +4899,39 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "appointment_note" in js
     assert "PATCH" in js and "DELETE" in js
     assert "wprGalleryMove" in js and "wprCloseGallery" in js
+
+
+def test_work_progress_frontend_identity_pagination_url_and_race_contract():
+    """工作進度前端鎖定 report identity、分頁、Object URL lifecycle 與 loader freshness。"""
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    globals_js = read(GLOBALS_JS)
+    select_block = js.split("async function wprSelectJob(id)", 1)[1].split(
+        "function wprUpdateNoteCount", 1
+    )[0]
+    assert "wprFetch('/api/work-progress/' + existing.id)" in select_block
+    assert "wprFetch('/api/work-progress/' + id)" not in select_block
+
+    assert "wprHistoryPage" in globals_js
+    assert "wprHistoryPageSize" in globals_js
+    assert "wprHistoryTotal" in globals_js
+    assert "page_size: String(wprHistoryPageSize)" in js
+    assert "wprRenderHistoryPagination" in js
+    assert "wprLoadHistory(wprHistoryPage - 1)" in js
+    assert "wprLoadHistory(wprHistoryPage + 1)" in js
+    assert "wprLoadHistory(1)" in js
+
+    add_block = js.split("function wprAddPendingFiles", 1)[1].split(
+        "function wprRenderPendingPhotos", 1
+    )[0]
+    render_block = js.split("function wprRenderPendingPhotos", 1)[1].split(
+        "async function wprSubmit", 1
+    )[0]
+    assert "URL.createObjectURL(file)" in add_block
+    assert "URL.createObjectURL(file)" not in render_block
+    assert "URL.revokeObjectURL" in js
+    assert "wprClearPendingFiles" in js
+
+    assert "wprDayRequestToken" in globals_js
+    assert "wprHistoryRequestToken" in globals_js
+    assert "wprKpiRequestToken" in globals_js
+    assert "wprDetailRequestTokens" in globals_js

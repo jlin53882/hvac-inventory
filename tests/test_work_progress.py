@@ -284,6 +284,55 @@ def test_tech_can_create_edit_delete_own_report(wpr_env):
     assert tech.delete(f"/api/work-progress/{report['id']}").status_code == 200
 
 
+def test_report_total_photo_limit_is_enforced_under_concurrent_append(wpr_env):
+    make_client, _users, _static, _uploads = wpr_env
+    client = make_client("owner")
+    appointment = _appointment(client)
+    initial_files = [
+        ("files", (f"initial-{i}.png", _png(10, 10), "image/png"))
+        for i in range(19)
+    ]
+    created = client.post(
+        "/api/work-progress",
+        data={"appointment_id": str(appointment["id"])},
+        files=initial_files,
+    )
+    assert created.status_code == 201, created.text
+    report = created.json()
+    assert len(report["photos"]) == 19
+
+    def append_once(index):
+        other_client = make_client("owner")
+        return other_client.post(
+            f"/api/work-progress/{report['id']}/photos",
+            files={"files": (f"append-{index}.png", _png(10, 10), "image/png")},
+        ).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        statuses = list(pool.map(append_once, (1, 2)))
+    assert sorted(statuses) == [200, 400]
+    detail = client.get(f"/api/work-progress/{report['id']}")
+    assert detail.status_code == 200
+    assert len(detail.json()["photos"]) == work_progress.MAX_FILES
+
+
+def test_report_and_appointment_ids_are_distinct_and_detail_uses_report_id(wpr_env):
+    make_client, _users, _static, _uploads = wpr_env
+    client = make_client("owner")
+    appointments = [_appointment(client) for _ in range(10)]
+    appointment = appointments[-1]
+    created = _create(client, appointment["id"])
+    assert created.status_code == 201, created.text
+    report = created.json()
+    assert report["id"] != appointment["id"]
+    assert report["appointment_id"] == appointment["id"]
+    detail = client.get(f"/api/work-progress/{report['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["id"] == report["id"]
+    assert detail.json()["appointment_id"] == appointment["id"]
+    assert client.get(f"/api/work-progress/{appointment['id']}").status_code == 404
+
+
 def test_duplicate_concurrent_create_has_one_success_and_one_conflict(wpr_env):
     make_client, _users, _static, _uploads = wpr_env
     setup = make_client("owner")

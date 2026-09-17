@@ -57,6 +57,9 @@
 #content.wpr-content .wpr-history-item summary small { color: #718096; margin-top: 3px; font-size: 11px; }
 #content.wpr-content .wpr-history-photo-count { color: #64748b; font-size: 11px; white-space: nowrap; }
 #content.wpr-content .wpr-history-detail { border-top: 1px solid #edf0f5; padding: 13px; }
+#content.wpr-content .wpr-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; color: #64748b; font-size: 12px; }
+#content.wpr-content .wpr-pagination button { border: 1px solid #cfd8e5; border-radius: 7px; padding: 7px 10px; background: #fff; color: #2456a6; cursor: pointer; }
+#content.wpr-content .wpr-pagination button:disabled { color: #a9b7cc; cursor: not-allowed; }
 #content.wpr-content .wpr-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; font-size: 11px; color: #718096; }
 #content.wpr-content .wpr-detail-grid b { display: block; color: #172033; font-size: 13px; margin-top: 2px; }
 #content.wpr-content .wpr-detail-note { margin-top: 13px; font-size: 13px; }

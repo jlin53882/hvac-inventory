@@ -29,7 +29,8 @@ function wprCurrentUserName() {
 async function renderWorkProgress() {
   var el = document.getElementById('content');
   if (!el) return;
-  wprSelectedFiles = [];
+  wprClearPendingFiles();
+  wprDayRequestToken++; wprHistoryRequestToken++; wprKpiRequestToken++; wprDetailRequestTokens = {};
   wprAppointments = [];
   wprReportsByAppointment = {};
   wprCurrentReport = null;
@@ -50,14 +51,18 @@ async function wprLoadDay() {
   var dateInput = document.getElementById('wpr-date');
   if (!dateInput) return;
   var dateValue = dateInput.value;
+  var token = ++wprDayRequestToken;
   try {
     var jobs = await wprFetch('/api/appointments?date=' + encodeURIComponent(dateValue));
+    if (token !== wprDayRequestToken) return;
     var reports = await wprFetch('/api/work-progress?from_date=' + encodeURIComponent(dateValue) + '&to_date=' + encodeURIComponent(dateValue) + '&page_size=100');
+    if (token !== wprDayRequestToken) return;
     wprAppointments = jobs || [];
     wprReportsByAppointment = {};
     (reports.items || []).forEach(function(report) { if (report.appointment_id !== null) wprReportsByAppointment[report.appointment_id] = report; });
     wprRenderJobs();
   } catch (error) {
+    if (token !== wprDayRequestToken) return;
     wprAppointments = [];
     var list = document.getElementById('wpr-job-list');
     if (list) list.innerHTML = '<div class="wpr-empty">⚠️ 無法載入當日工作：' + esc(error.message) + '</div>';
@@ -78,7 +83,7 @@ async function wprSelectJob(id) {
   if (!job) return;
   var existing = wprReportsByAppointment[id];
   if (existing) {
-    try { wprCurrentReport = await wprFetch('/api/work-progress/' + id); } catch (error) { toast(error.message, 'error'); return; }
+    try { wprCurrentReport = await wprFetch('/api/work-progress/' + existing.id); } catch (error) { toast(error.message, 'error'); return; }
   } else {
     wprCurrentReport = { appointment_id: id, appointment: job };
   }
@@ -96,12 +101,18 @@ async function wprSelectJob(id) {
   }
 }
 function wprUpdateNoteCount() { var note = document.getElementById('wpr-note'); var counter = document.getElementById('wpr-note-count'); if (note && counter) counter.textContent = note.value.length + ' / 1000'; }
+function wprClearPendingFiles() {
+  wprSelectedFiles.forEach(function(item) {
+    if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  });
+  wprSelectedFiles = [];
+}
 function wprAddPendingFiles(fileList) {
   Array.from(fileList || []).forEach(function(file) {
     if (!file.type.startsWith('image/')) { toast('只能選擇圖片', 'error'); return; }
     if (file.size > 20 * 1024 * 1024) { toast('單張圖片上限 20MB', 'error'); return; }
     if (wprSelectedFiles.length >= 20) return;
-    wprSelectedFiles.push(file);
+    wprSelectedFiles.push({file: file, previewUrl: URL.createObjectURL(file)});
   });
   wprRenderPendingPhotos();
   if (wprCurrentReport && wprCurrentReport.appointment_id && !wprReportsByAppointment[wprCurrentReport.appointment_id]) document.getElementById('wpr-save').disabled = !wprSelectedFiles.length;
@@ -109,42 +120,71 @@ function wprAddPendingFiles(fileList) {
 function wprRenderPendingPhotos() {
   var grid = document.getElementById('wpr-pending-photos');
   if (!grid) return;
-  grid.innerHTML = wprSelectedFiles.map(function(file, index) { return '<div class="wpr-photo-tile"><img src="' + esc(URL.createObjectURL(file)) + '" alt="待上傳照片 ' + (index + 1) + '"><button type="button" onclick="wprRemovePending(' + index + ')" aria-label="移除第 ' + (index + 1) + ' 張照片">✕</button></div>'; }).join('') + '<button type="button" class="wpr-add-tile" onclick="document.getElementById(\'wpr-album\').click()">＋新增</button>';
+  grid.innerHTML = wprSelectedFiles.map(function(item, index) { return '<div class="wpr-photo-tile"><img src="' + esc(item.previewUrl) + '" alt="待上傳照片 ' + (index + 1) + '"><button type="button" onclick="wprRemovePending(' + index + ')" aria-label="移除第 ' + (index + 1) + ' 張照片">✕</button></div>'; }).join('') + '<button type="button" class="wpr-add-tile" onclick="document.getElementById(\'wpr-album\').click()">＋新增</button>';
 }
-function wprRemovePending(index) { wprSelectedFiles.splice(index, 1); wprRenderPendingPhotos(); var save = document.getElementById('wpr-save'); if (save && (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprReportsByAppointment[wprCurrentReport.appointment_id])) save.disabled = !wprSelectedFiles.length; }
+function wprRemovePending(index) {
+  var item = wprSelectedFiles[index];
+  if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  wprSelectedFiles.splice(index, 1);
+  wprRenderPendingPhotos();
+  var save = document.getElementById('wpr-save');
+  if (save && (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprReportsByAppointment[wprCurrentReport.appointment_id])) save.disabled = !wprSelectedFiles.length;
+}
 async function wprSubmit() {
   if (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprSelectedFiles.length) return;
   var button = document.getElementById('wpr-save'); button.disabled = true;
   var form = new FormData(); form.append('appointment_id', wprCurrentReport.appointment_id); form.append('note', (document.getElementById('wpr-note').value || '').trim());
-  wprSelectedFiles.forEach(function(file) { form.append('files', file, file.name); });
-  try { await wprFetch('/api/work-progress', { method: 'POST', body: form }); toast('工作進度已儲存', 'success'); wprSelectedFiles = []; wprCurrentReport = null; wprRenderCreate(); await Promise.all([wprLoadDay(), wprLoadHistory(), wprLoadKpi()]); } catch (error) { toast(error.message, 'error'); button.disabled = false; }
+  wprSelectedFiles.forEach(function(item) { form.append('files', item.file, item.file.name); });
+  try { await wprFetch('/api/work-progress', { method: 'POST', body: form }); toast('工作進度已儲存', 'success'); wprClearPendingFiles(); wprCurrentReport = null; wprRenderCreate(); await Promise.all([wprLoadDay(), wprLoadHistory(1), wprLoadKpi()]); } catch (error) { toast(error.message, 'error'); button.disabled = false; }
 }
 
 async function wprLoadKpi() {
   var el = document.getElementById('wpr-kpi'); if (!el) return;
-  try { var data = await wprFetch('/api/work-progress/kpi?month=' + encodeURIComponent(wprMonth())); el.innerHTML = [{label:'已回報',value:data.reported},{label:'待回報',value:data.missing},{label:'回報率',value:data.rate === null ? '—' : data.rate + '%'}].map(function(item) { return '<div class="wpr-kpi"><span>' + item.label + '</span><strong>' + item.value + '</strong></div>'; }).join('') + '<div class="wpr-kpi-meta">本月目前 ' + data.total + ' 筆行事曆工作 · ' + data.photo_count + ' 張照片</div>'; } catch (error) { el.innerHTML = ''; }
+  var token = ++wprKpiRequestToken;
+  try { var data = await wprFetch('/api/work-progress/kpi?month=' + encodeURIComponent(wprMonth())); if (token !== wprKpiRequestToken) return; el.innerHTML = [{label:'已回報',value:data.reported},{label:'待回報',value:data.missing},{label:'回報率',value:data.rate === null ? '—' : data.rate + '%'}].map(function(item) { return '<div class="wpr-kpi"><span>' + item.label + '</span><strong>' + item.value + '</strong></div>'; }).join('') + '<div class="wpr-kpi-meta">本月目前 ' + data.total + ' 筆行事曆工作 · ' + data.photo_count + ' 張照片</div>'; } catch (error) { if (token === wprKpiRequestToken) el.innerHTML = ''; }
 }
 function wprQuickRange(type) {
   var today = new Date(), from = '', to = '';
   if (type === 'today') from = to = wprIsoDate(today);
   if (type === 'month') { from = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-01'; to = wprIsoDate(today); }
   if (type === 'week') { var day = today.getDay() || 7; var start = new Date(today); start.setDate(today.getDate() - day + 1); from = wprIsoDate(start); to = wprIsoDate(today); }
-  document.getElementById('wpr-from').value = from; document.getElementById('wpr-to').value = to; wprLoadHistory();
+  document.getElementById('wpr-from').value = from; document.getElementById('wpr-to').value = to; wprLoadHistory(1);
 }
-async function wprLoadHistory() {
+function wprRenderHistoryPagination() {
+  var lastPage = Math.max(1, Math.ceil(wprHistoryTotal / wprHistoryPageSize));
+  if (lastPage <= 1) return '';
+  return '<nav class="wpr-pagination" aria-label="工作進度歷史分頁"><button type="button" onclick="wprLoadHistory(wprHistoryPage - 1)"' + (wprHistoryPage <= 1 ? ' disabled' : '') + '>上一頁</button><span>第 ' + wprHistoryPage + ' / ' + lastPage + ' 頁 · 共 ' + wprHistoryTotal + ' 筆</span><button type="button" onclick="wprLoadHistory(wprHistoryPage + 1)"' + (wprHistoryPage >= lastPage ? ' disabled' : '') + '>下一頁</button></nav>';
+}
+async function wprLoadHistory(page) {
   var list = document.getElementById('wpr-history-list'); if (!list) return;
-  var p = new URLSearchParams({ page: '1', page_size: '100' }); var from = document.getElementById('wpr-from').value; var to = document.getElementById('wpr-to').value; var q = document.getElementById('wpr-query').value.trim();
+  page = Number.isInteger(page) && page > 0 ? page : 1;
+  var token = ++wprHistoryRequestToken;
+  var p = new URLSearchParams({ page: String(page), page_size: String(wprHistoryPageSize) }); var from = document.getElementById('wpr-from').value; var to = document.getElementById('wpr-to').value; var q = document.getElementById('wpr-query').value.trim();
   if (from) p.set('from_date', from); if (to) p.set('to_date', to); if (q) p.set('q', q);
-  try { var data = await wprFetch('/api/work-progress?' + p); if (!data.items.length) { list.innerHTML = '<div class="wpr-empty wpr-history-empty">📸 尚無工作進度<br><small>目前沒有符合條件的工作進度回報。</small></div>'; return; } list.innerHTML = data.items.map(wprHistoryCard).join(''); } catch (error) { list.innerHTML = '<div class="wpr-empty">⚠️ ' + esc(error.message) + '</div>'; }
+  try {
+    var data = await wprFetch('/api/work-progress?' + p);
+    if (token !== wprHistoryRequestToken) return;
+    wprHistoryTotal = Number(data.total) || 0;
+    var lastPage = Math.max(1, Math.ceil(wprHistoryTotal / wprHistoryPageSize));
+    if (page > lastPage) { wprLoadHistory(lastPage); return; }
+    wprHistoryPage = Number(data.page) || page;
+    if (!data.items.length) { list.innerHTML = '<div class="wpr-empty wpr-history-empty">📸 尚無工作進度<br><small>目前沒有符合條件的工作進度回報。</small></div>'; return; }
+    list.innerHTML = data.items.map(wprHistoryCard).join('') + wprRenderHistoryPagination();
+  } catch (error) { if (token === wprHistoryRequestToken) list.innerHTML = '<div class="wpr-empty">⚠️ ' + esc(error.message) + '</div>'; }
 }
 function wprHistoryCard(report) { return '<details class="wpr-history-item" ontoggle="if(this.open) wprOpenHistoryDetail(' + report.id + ')"><summary><span class="wpr-history-date">' + esc(report.report_date) + '</span><span><b>' + esc(report.service_name || '未指定服務') + ' · ' + esc(report.client_name) + '</b><small>' + wprTimeText(report) + ' · 回報人：' + esc(report.uploader_name) + '</small></span><span class="wpr-history-photo-count">📷 ' + report.photo_count + '</span></summary><div class="wpr-history-detail" id="wpr-detail-' + report.id + '">載入詳情中…</div></details>'; }
 async function wprOpenHistoryDetail(id) {
   var detail = document.getElementById('wpr-detail-' + id); if (!detail) return;
-  try { var report = await wprFetch('/api/work-progress/' + id); detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + report.photos.map(function(photo, index) { return '<button type="button" onclick="wprOpenGallery(' + id + ',' + index + ')"><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '"></button>'; }).join('') + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditNote(' + id + ')">✏️ 編輯備註</button><button type="button" onclick="wprAddExistingPhotos(' + id + ')">📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>'; } catch (error) { detail.textContent = error.message; }
+  var token = (wprDetailRequestTokens[id] || 0) + 1; wprDetailRequestTokens[id] = token;
+  try {
+    var report = await wprFetch('/api/work-progress/' + id);
+    if (token !== wprDetailRequestTokens[id]) return;
+    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + report.photos.map(function(photo, index) { return '<button type="button" onclick="wprOpenGallery(' + id + ',' + index + ')"><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '"></button>'; }).join('') + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditNote(' + id + ')">✏️ 編輯備註</button><button type="button" onclick="wprAddExistingPhotos(' + id + ')">📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
+  } catch (error) { if (token === wprDetailRequestTokens[id]) detail.textContent = error.message; }
 }
-async function wprEditNote(id) { var note = window.prompt('工作進度備註（最多 1000 字）'); if (note === null) return; try { await wprFetch('/api/work-progress/' + id, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note: note}) }); toast('備註已更新', 'success'); wprLoadHistory(); } catch (error) { toast(error.message, 'error'); } }
-function wprAddExistingPhotos(id) { var input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.onchange = async function() { var form = new FormData(); Array.from(input.files).forEach(function(file) { form.append('files', file, file.name); }); try { await wprFetch('/api/work-progress/' + id + '/photos', {method:'POST', body:form}); toast('照片已新增', 'success'); wprOpenHistoryDetail(id); wprLoadHistory(); } catch (error) { toast(error.message, 'error'); } }; input.click(); }
-async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
+async function wprEditNote(id) { var note = window.prompt('工作進度備註（最多 1000 字）'); if (note === null) return; try { await wprFetch('/api/work-progress/' + id, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note: note}) }); toast('備註已更新', 'success'); wprLoadHistory(1); } catch (error) { toast(error.message, 'error'); } }
+function wprAddExistingPhotos(id) { var input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.onchange = async function() { var form = new FormData(); Array.from(input.files).forEach(function(file) { form.append('files', file, file.name); }); try { await wprFetch('/api/work-progress/' + id + '/photos', {method:'POST', body:form}); toast('照片已新增', 'success'); wprOpenHistoryDetail(id); wprLoadHistory(1); } catch (error) { toast(error.message, 'error'); } }; input.click(); }
+async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
 function wprOpenGallery(id, index) { wprFetch('/api/work-progress/' + id).then(function(report) { wprGallery.report = report; wprGallery.index = index; var overlay = document.createElement('div'); overlay.className = 'wpr-gallery-overlay'; overlay.id = 'wpr-gallery-overlay'; overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="工作照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>'; document.body.appendChild(overlay); wprRenderGallery(); }).catch(function(error) { toast(error.message, 'error'); }); }
 function wprRenderGallery() { var report = wprGallery.report, photo = report.photos[wprGallery.index]; if (!photo) return; document.getElementById('wpr-gallery-count').textContent = (wprGallery.index + 1) + ' / ' + report.photos.length; document.getElementById('wpr-gallery-image').src = photo.preview_url; document.getElementById('wpr-gallery-caption').textContent = report.client_name + ' · ' + report.service_name + ' · ' + report.report_date; document.getElementById('wpr-gallery-download').href = photo.download_url; document.getElementById('wpr-gallery-download').download = photo.original_name; }
 function wprGalleryMove(delta) { if (!wprGallery.report || !wprGallery.report.photos.length) return; wprGallery.index = (wprGallery.index + delta + wprGallery.report.photos.length) % wprGallery.report.photos.length; wprRenderGallery(); }
