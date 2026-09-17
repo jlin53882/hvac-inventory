@@ -1072,7 +1072,8 @@ def test_inventory_js_viewer_mode():
     assert "cursor:default" in js  # 數量唯讀樣式
     assert "title=\"唯讀\"" in js
     assert "deleteItem" in js  # 卡片 刪除整筆材料（Sarah 需求）
-    assert r"\u522a\u9664" in js  # 刪除按鈕保留 escaped 文字（避免編碼／HTML 解析差異）
+    # Renderer uses JS Unicode escapes; browser output is still Chinese text.
+    assert r'title="\u522a\u9664\u6750\u6599">\u522a\u9664</button>' in js
 
 
 def test_kits_js_viewer_mode():
@@ -1333,8 +1334,8 @@ def test_inventory_note_empty_location_falls_back_and_escapes():
 def test_inventory_del_btn_is_text():
     """刪除按鈕用文字「刪除」而非 ✕ 圖案（Sarah 修正）"""
     js = read(INVENTORY_RENDER_JS)
-    assert r"\u522a\u9664" in js
-    assert 'title="\\u522a\\u9664\\u6750\\u6599"' in js
+    # Renderer uses JS Unicode escapes; browser output is still Chinese text.
+    assert r'title="\u522a\u9664\u6750\u6599">\u522a\u9664</button>' in js
 
 def test_kit_materials_show_model():
     """整組材料列顯示型號（Sarah 需求）"""
