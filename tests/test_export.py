@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """庫存 Excel 匯出改版回歸測試。"""
+import io
 import os
 import sys
+import zipfile
 from datetime import datetime
 
 import pytest
@@ -179,3 +181,45 @@ def test_export_display_period_does_not_show_exclusive_end_as_inclusive(client):
     single = export_book(client, start_date="2026-09-17", end_date="2026-09-17")
     assert "2026/09/17 ～ 2026/09/17" in single["01 總覽"]["A3"].value
     assert "2026/09/18" not in single["01 總覽"]["A3"].value
+
+
+def test_export_contains_no_dynamic_array_functions_or_xlfn_in_formulas_and_xml(client):
+    add_item(client, name="警示", code="F5-1", qty=0, low_stock=2)
+    book_response = client.get("/api/export")
+    assert book_response.status_code == 200
+    book = load_workbook(io.BytesIO(book_response.content), data_only=False)
+    forbidden = ("FILTER(", "SORT(", "UNIQUE(", "SORTBY(", "HSTACK(", "VSTACK(", "LET(", "SEQUENCE(", "TAKE(", "DROP(", "CHOOSECOLS(", "TOCOL(", "TOROW(", "XLOOKUP(", "_XLFN", "_XLWS")
+    formulas = [cell.value.upper() for ws in book.worksheets for row in ws.iter_rows() for cell in row if isinstance(cell.value, str) and cell.value.startswith("=")]
+    assert not [formula for formula in formulas if any(token in formula for token in forbidden)]
+    with zipfile.ZipFile(io.BytesIO(book_response.content)) as archive:
+        xml = "\n".join(archive.read(name).decode("utf-8") for name in archive.namelist() if name.startswith("xl/worksheets/"))
+    assert not any(token in xml.upper() for token in ("FILTER", "_XLFN", "_XLWS"))
+
+
+def test_export_alerts_use_traditional_index_match_formulas(client):
+    add_item(client, name="缺貨", code="F5-2", qty=0, low_stock=2)
+    book = export_book(client)
+    inventory = book["02 庫存總表"]
+    alert = book["04 庫存警示"]
+    assert inventory.column_dimensions["N"].hidden is True
+    assert inventory.cell(5, 14).value == "警示序號"
+    assert "IF(" in inventory.cell(6, 14).value and "COUNTIF(" in inventory.cell(6, 14).value
+    for column in range(1, 13):
+        formula = alert.cell(6, column).value
+        assert isinstance(formula, str) and formula.startswith("=IFERROR(INDEX(")
+        assert "MATCH(ROW()-5,tblInventory[警示序號],0)" in formula
+    assert "FILTER(" not in (alert.cell(6, 1).value or "")
+
+
+def test_export_alert_candidates_cover_multiple_and_zero_alerts_without_errors(client):
+    for index in range(5):
+        add_item(client, name=f"警示{index}", code=f"F5-A{index}", qty=0, low_stock=1)
+    for index in range(3):
+        add_item(client, name=f"正常{index}", code=f"F5-N{index}", qty=10, low_stock=1)
+    book = export_book(client)
+    alert = book["04 庫存警示"]
+    assert all(isinstance(alert.cell(row, 1).value, str) and alert.cell(row, 1).value.startswith("=IFERROR(") for row in range(6, 14))
+    assert alert.max_row == 13
+    empty_book = export_book(client, sites="van")
+    empty_alert = empty_book["04 庫存警示"]
+    assert empty_alert.cell(6, 1).value == "目前沒有資料"

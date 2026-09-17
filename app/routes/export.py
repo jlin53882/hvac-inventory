@@ -131,12 +131,12 @@ def _write_headers(ws, headers, row: int = 5):
 
 
 def _build_inventory_sheet(ws, items, position_table_available: bool, qty_types):
-    headers = ["品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存", "可用庫存", "位置數", "庫存狀態"]
+    headers = ["品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存", "可用庫存", "位置數", "庫存狀態", "警示序號"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
     total_formula = "=SUMIFS(tblPosition[位置數量],tblPosition[品項編號],[@品項編號])" if position_table_available else "=SUM(0)"
     for item in items:
-        ws.append([item["id"], _site_label(item["site"]), _safe(item["category"] or "未分類"), _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), item["low_stock"] or 0, item["prepared_qty"] or 0, total_formula, "=[@總庫存]-[@待領出]", "=COUNTIFS(tblPosition[品項編號],[@品項編號])" if position_table_available else "=0", '=IF([@可用庫存]<0,"資料異常",IF([@可用庫存]=0,"缺貨",IF(AND([@低庫存門檻]>0,[@可用庫存]<=[@低庫存門檻]),"低庫存","正常")))'])
+        ws.append([item["id"], _site_label(item["site"]), _safe(item["category"] or "未分類"), _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), item["low_stock"] or 0, item["prepared_qty"] or 0, total_formula, "=[@總庫存]-[@待領出]", "=COUNTIFS(tblPosition[品項編號],[@品項編號])" if position_table_available else "=0", '=IF([@可用庫存]<0,"資料異常",IF([@可用庫存]=0,"缺貨",IF(AND([@低庫存門檻]>0,[@可用庫存]<=[@低庫存門檻]),"低庫存","正常")))', '=IF([@庫存狀態]<>"正常",COUNTIF($M$6:M6,"<>正常"),"")'])
     if not items:
         _write_empty(ws, 6)
     else:
@@ -147,6 +147,7 @@ def _build_inventory_sheet(ws, items, position_table_available: bool, qty_types)
             fmt = _qty_format(qty_types.get(str(ws.cell(row, 7).value).lstrip("'"), "decimal"))
             for col in (8, 9, 10, 11):
                 ws.cell(row, col).number_format = fmt
+        ws.column_dimensions["N"].hidden = True
         status_range = f"M6:M{ws.max_row}"
         for status, color in STATUS_FILLS.items():
             ws.conditional_formatting.add(status_range, FormulaRule(formula=[f'$M6="{status}"'], fill=PatternFill("solid", fgColor=color)))
@@ -214,11 +215,15 @@ def _build_overview(ws, has_inventory, period):
     _set_widths(ws, [18, 14, 14, 14, 14, 14, 14])
 
 
-def _build_alert_sheet(ws, has_inventory):
+def _build_alert_sheet(ws, item_count):
     headers = ["庫存狀態", "品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "總庫存", "待領出", "可用庫存", "低庫存門檻"]
     _write_headers(ws, headers); _style_header(ws, 5)
-    if has_inventory:
-        ws["A6"] = '=FILTER(CHOOSE({1,2,3,4,5,6,7,8,9,10,11,12},tblInventory[庫存狀態],tblInventory[品項編號],tblInventory[庫存區],tblInventory[分類],tblInventory[廠牌],tblInventory[品項名稱],tblInventory[型號],tblInventory[單位],tblInventory[總庫存],tblInventory[待領出],tblInventory[可用庫存],tblInventory[低庫存門檻]),tblInventory[庫存狀態]<>"正常","目前無庫存警示")'
+    if item_count:
+        inventory_headers = ["庫存狀態", "品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "總庫存", "待領出", "可用庫存", "低庫存門檻"]
+        for row in range(6, item_count + 6):
+            match_formula = f'MATCH(ROW()-5,tblInventory[警示序號],0)'
+            for column, header in enumerate(inventory_headers, 1):
+                ws.cell(row, column).value = f'=IFERROR(INDEX(tblInventory[{header}],{match_formula}),"")'
     else:
         _write_empty(ws, 6)
     _set_widths(ws, [14, 12, 12, 16, 16, 30, 18, 10, 12, 12, 12, 14])
@@ -282,7 +287,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     overview = wb.create_sheet("01 總覽"); _build_overview(overview, bool(items), period_text)
     inventory = wb.create_sheet("02 庫存總表"); _style_title(inventory, "庫存總表（匯出當下快照）", period_text); _build_inventory_sheet(inventory, items, bool(positions), qty_types)
     position = wb.create_sheet("03 位置明細"); _style_title(position, "位置明細（每位置一列）", period_text); _build_position_sheet(position, positions, qty_types)
-    alerts = wb.create_sheet("04 庫存警示"); _style_title(alerts, "庫存警示", period_text); _build_alert_sheet(alerts, bool(items))
+    alerts = wb.create_sheet("04 庫存警示"); _style_title(alerts, "庫存警示", period_text); _build_alert_sheet(alerts, len(items))
     movement = wb.create_sheet("05 異動紀錄"); _style_title(movement, "異動紀錄", period_text); _build_movement_sheet(movement, movements)
     stats = wb.create_sheet("06 統計"); _build_stats_sheet(stats, items)
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
