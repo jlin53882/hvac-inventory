@@ -520,3 +520,33 @@ def test_page_visibility_management_is_admin_only(admin_client, viewer_client):
         json={"permissions": {"page-visibility-manage": 1}},
     )
     assert grant.status_code == 400
+
+def test_other_admin_can_change_page_visibility(admin_client):
+    other_admin_id = _make_user(admin_client, "page_other_admin", "admin")
+    updated = admin_client.put(
+        f"/api/users/{other_admin_id}/page-visibility",
+        json={"pages": {"perms": 0}},
+    )
+    assert updated.status_code == 200
+    assert "perms" not in updated.json()["visible_pages"]
+
+def test_page_visibility_seed_repairs_missing_rows(admin_client, rbac_db):
+    viewer_id = _make_user(admin_client, "page_partial_seed", "viewer")
+    conn = get_db()
+    conn.execute(
+        "DELETE FROM user_page_visibility WHERE user_id = ? AND page_key = ?",
+        (viewer_id, "settings"),
+    )
+    conn.commit()
+    conn.close()
+    init_db()
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT visible FROM user_page_visibility WHERE user_id = ? AND page_key = ?",
+            (viewer_id, "settings"),
+        ).fetchone()
+        assert row is not None
+        assert row["visible"] == 0
+    finally:
+        conn.close()

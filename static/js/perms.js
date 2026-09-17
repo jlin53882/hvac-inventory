@@ -63,11 +63,11 @@
     try {
       const meRes = await apiGet('/api/auth/me');
       me = meRes.user;
-      if (Array.isArray(me.visible_pages) && !me.visible_pages.includes('perms')) {
+      if (!me.is_admin_role || !(me.permissions || {})['user-mgmt']
+          || (Array.isArray(me.visible_pages) && !me.visible_pages.includes('perms'))) {
         location.href = '/';
         return;
       }
-      if (!me.is_admin_role) { location.href = '/'; return; }
       const users = await apiGet('/api/users');
       permUsers = users.users;
       renderUserList();
@@ -231,17 +231,31 @@
     const keys = Object.keys(permChanges);
     const pageKeys = Object.keys(pageChanges);
     if (!keys.length && !pageKeys.length) { toast('沒有變更', 'info'); return; }
+    let permissionsSaved = !keys.length;
+    let pageVisibilitySaved = !pageKeys.length;
     try {
-      if (keys.length) await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { permissions: permChanges });
-      if (pageKeys.length) await apiSend(`/api/users/${curUid}/page-visibility`, 'PUT', { pages: pageChanges });
+      if (keys.length) {
+        await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { permissions: permChanges });
+        permissionsSaved = true;
+      }
+      if (pageKeys.length) {
+        await apiSend(`/api/users/${curUid}/page-visibility`, 'PUT', { pages: pageChanges });
+        pageVisibilitySaved = true;
+      }
       permChanges = {};
       pageChanges = {};
       toast('權限與頁面顯示設定已更新（立即生效）', 'success');
       await loadUserDetail();
       renderUserList();  // 刷新來源標記無需，但保持狀態一致
     } catch (e) {
-      toast(e.message || '儲存失敗', 'error');
-      await loadUserDetail();  // 伺服器拒絕時還原開關狀態
+      const partial = keys.length > 0 && permissionsSaved && !pageVisibilitySaved;
+      permChanges = {};
+      pageChanges = {};
+      await loadUserDetail();  // 重新讀取 server state，避免顯示未儲存的本地假狀態
+      renderUserList();
+      toast(partial
+        ? '權限已儲存，但頁面顯示設定儲存失敗，已重新載入最新狀態'
+        : (e.message || '儲存失敗'), 'error');
     }
   };
 

@@ -1060,7 +1060,8 @@ def test_auth_js_has_apply_role_view():
     assert "applyRoleView" in js
     assert "btn-add" not in js  # 新增按鈕已搬移到 inventory.js，不留 dead code
     assert "btn-export" not in js  # 已搬移，不留 dead code
-    assert "nav-stocktake" in js
+    assert "canAccessPage" in js
+    assert "applyPageVisibility" in js
     assert "save-bar" in js
     assert "admin-badge\" style=\"background:#6b7280\">👀 檢視者" not in js  # viewer 不顯示 badge（2026-08-13 Sarah）
 
@@ -2603,8 +2604,10 @@ def test_stocktake_view_for_all_roles():
     """2026-08-14 家豪裁決（Sarah：藍政達/蘇昱豪手機看不到盤點）：盤點頁瀏覽掛 view 基底權限——
     所有角色看得到盤點 tab；「本次盤點」操作區僅限 stocktake 權限（admin/user）"""
     au = read(AUTH_JS)
-    assert "canViewStocktake" in au, "auth.js 缺 canViewStocktake（瀏覽權限）"
-    assert "sbNavStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
+    assert "hasPageCapability" in au, "auth.js 缺統一 RBAC page capability"
+    assert "pageKey === 'stocktake'" in au, "盤點頁 capability contract 缺失"
+    assert "canAccessPage" in au, "盤點頁未接上統一 availability contract"
+    assert "applyPageVisibility" in au, "登入後應套用 page availability"
     assert "checkReminder();" in au, "登入後應透過共用 checkReminder() 同步盤點提醒"
     assert "reminder.style.display = canStocktake ? '' : 'none'" not in au, "盤點提醒不可繞過日期與完成狀態 gate"
 
@@ -4696,10 +4699,64 @@ def test_page_visibility_frontend_contract():
         assert f'data-page-key="{key}"' in html or f"'{key}'" in auth
     assert "visible_pages" in auth
     assert "applyPageVisibility" in auth
-    assert "isPageVisible" in app
+    assert "resolveAccessiblePageTab" in app
+    assert "canAccessPage" in auth
     assert "page_visibility" in perms
     assert "permPageToggle" in perms
+    assert "permissionsSaved" in perms
+    assert "pageVisibilitySaved" in perms
+    assert "權限已儲存，但頁面顯示設定儲存失敗" in perms
     assert "visible_pages" in settings
     assert "includes('settings')" in settings
+    assert "canChangePassword" in settings
+    assert "p !== 'pw' || canChangePassword" in settings
+    assert "disabled" in perms
     assert "includes('perms')" in perms
     assert "/page-visibility`" in perms
+
+def test_page_availability_runtime_contract():
+    """Node VM：Visibility 與 RBAC 交集決定入口與 deterministic fallback。"""
+    script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const elements = {
+  stocktake: { style: {}, dataset: { pageKey: 'stocktake' } },
+  inventory: { style: {}, dataset: { pageKey: 'inventory' } },
+  calendar: { style: {}, dataset: { pageKey: 'calendar' } },
+  save: { style: {} },
+};
+const context = {
+  window: { fetch: async () => ({ status: 200 }) },
+  document: {
+    querySelectorAll() { return Object.values(elements); },
+    getElementById(id) { return id === 'sb-nav-stocktake' ? elements.stocktake : id === 'save-bar' ? elements.save : null; },
+  },
+  currentUser: null,
+  currentTab: 'stocktake',
+  renderSidebarUser() {},
+  checkReminder() {},
+};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/js/auth.js', 'utf8'), context);
+function apply(visible, permissions) {
+  context.currentUser = { visible_pages: visible, permissions };
+  context.currentTab = 'stocktake';
+  Object.values(elements).forEach((el) => { el.style.display = ''; });
+  context.applyRoleView(context.currentUser);
+}
+// F1: visibility OFF must win over view/stocktake capability.
+apply(['inventory'], { view: true, stocktake: true });
+if (elements.stocktake.style.display !== 'none') throw new Error('hidden stocktake was re-shown by RBAC');
+if (context.canAccessPage('stocktake')) throw new Error('hidden stocktake reported accessible');
+// F2/F3: visible but unauthorized stocktake must not be selected as fallback.
+apply(['stocktake', 'calendar'], { view: false, stocktake: false, 'cal-mgmt': true });
+if (context.resolveAccessiblePageTab('stocktake') !== 'calendar') throw new Error('fallback did not choose calendar');
+if (context.currentTab !== 'calendar') throw new Error('currentTab did not fallback to calendar');
+// F3: when inventory is the first accessible tab, hidden stocktake falls back there.
+apply(['stocktake', 'inventory'], { view: true, stocktake: false });
+if (context.currentTab !== 'inventory') throw new Error('fallback did not choose inventory');
+// F2: reminder is hidden when stocktake operation is unavailable, even after the date threshold.
+context.localStorage = { getItem() { return null; } };
+vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
+if (context.getStocktakeReminderState().visible) throw new Error('inaccessible stocktake reminder remained visible');
+"""

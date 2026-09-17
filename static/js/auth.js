@@ -58,7 +58,7 @@ function renderUserMenu(user) {
   renderSidebarUser(user);
 }
 
-// ---------- 頁面可見性 ----------
+// ---------- 頁面可用性（Visibility ∩ RBAC） ----------
 var PAGE_VISIBILITY_TABS = ['calendar', 'signed-reports', 'quotation', 'petty-cash', 'inventory', 'prepared', 'stockout', 'stocktake', 'kit'];
 
 function isPageVisible(pageKey) {
@@ -66,21 +66,43 @@ function isPageVisible(pageKey) {
   return currentUser.visible_pages.indexOf(pageKey) >= 0;
 }
 
-function firstVisiblePageTab() {
+function hasPageCapability(pageKey, mode) {
+  var perms = currentUser && currentUser.permissions ? currentUser.permissions : {};
+  var any = function(keys) { return keys.some(function(key) { return !!perms[key]; }); };
+  if (pageKey === 'petty-cash') return !!perms['petty-cash-view'];
+  if (pageKey === 'prepared' || pageKey === 'stockout') return !!perms.prepared;
+  if (pageKey === 'stocktake') return mode === 'operate' ? !!perms.stocktake : !!(perms.view || perms.stocktake);
+  if (pageKey === 'kit') return !!perms['kit-view'];
+  if (pageKey === 'calendar') return !!(perms.view || perms['cal-mgmt']);
+  if (pageKey === 'perms') return !!perms['user-mgmt'];
+  if (pageKey === 'settings') return any(['unit-mgmt', 'gcal-sync-manage', 'gcal-keys-manage', 'petty-cash-config', 'change-own-password']);
+  if (pageKey === 'change-password') return !!perms['change-own-password'];
+  return !!perms.view;
+}
+
+function canAccessPage(pageKey, mode) {
+  return isPageVisible(pageKey) && hasPageCapability(pageKey, mode);
+}
+
+function firstAccessiblePageTab() {
   for (var i = 0; i < PAGE_VISIBILITY_TABS.length; i += 1) {
-    if (isPageVisible(PAGE_VISIBILITY_TABS[i])) return PAGE_VISIBILITY_TABS[i];
+    if (canAccessPage(PAGE_VISIBILITY_TABS[i])) return PAGE_VISIBILITY_TABS[i];
   }
   return null;
+}
+
+function resolveAccessiblePageTab(requestedTab) {
+  return canAccessPage(requestedTab) ? requestedTab : firstAccessiblePageTab();
 }
 
 function applyPageVisibility(user) {
   var visible = Array.isArray(user.visible_pages) ? user.visible_pages : null;
   document.querySelectorAll('[data-page-key]').forEach(function(el) {
-    el.style.display = !visible || visible.indexOf(el.dataset.pageKey) >= 0 ? '' : 'none';
+    var pageKey = el.dataset.pageKey;
+    el.style.display = !visible || canAccessPage(pageKey) ? '' : 'none';
   });
-  if (typeof currentTab !== 'undefined' && !isPageVisible(currentTab)) {
-    var fallback = firstVisiblePageTab();
-    if (fallback) currentTab = fallback;
+  if (typeof currentTab !== 'undefined' && !canAccessPage(currentTab)) {
+    currentTab = firstAccessiblePageTab() || '';
   }
 }
 
@@ -89,17 +111,9 @@ function applyRoleView(user) {
   if (!user) return;
   applyPageVisibility(user);
   var perms = user.permissions || {};
-  var canStocktake = !!perms['stocktake'];
-  var canViewStocktake = canStocktake || !!perms['view'];
   var canAdjust = !!perms['stock-mgmt'];
-  var sbNavStocktake = document.getElementById('sb-nav-stocktake');
   var saveBar = document.getElementById('save-bar');
 
-
-  if (sbNavStocktake) sbNavStocktake.style.display = canViewStocktake ? '' : 'none';
   if (typeof checkReminder === 'function') checkReminder();
   if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';
-  if (!canViewStocktake && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
-    switchTab('inventory');
-  }
 }

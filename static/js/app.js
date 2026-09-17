@@ -112,10 +112,19 @@ function updateBreadcrumb(tab) {
   if (el) el.innerHTML = (_TAB_ICON[tab]||'📦') + ' <b>' + (_TAB_LABEL[tab]||tab) + '</b>';
 }
 
+function renderNoAccessiblePage() {
+  currentTab = '';
+  var content = document.getElementById('content');
+  if (content) content.innerHTML = '<div class="empty">目前沒有可用的頁面</div>';
+
+  updateBreadcrumb('');
+  syncViewUrl();
+}
+
 function switchTab(tab) {
-  if (typeof isPageVisible === 'function' && !isPageVisible(tab)) {
-    tab = typeof firstVisiblePageTab === 'function' ? firstVisiblePageTab() : tab;
-    if (!tab) return;
+  if (typeof resolveAccessiblePageTab === 'function') {
+    tab = resolveAccessiblePageTab(tab);
+    if (!tab) { renderNoAccessiblePage(); return; }
   }
   if (typeof closeInventoryStatusModal === 'function') closeInventoryStatusModal();
   currentTab = tab;
@@ -194,6 +203,10 @@ function switchTab(tab) {
 function checkReminder() {
   var el = document.getElementById('reminder');
   if (!el) return;
+  if (typeof canAccessPage === 'function' && !canAccessPage('stocktake', 'operate')) {
+    el.style.display = 'none';
+    return;
+  }
   var state = typeof getStocktakeReminderState === 'function'
     ? getStocktakeReminderState()
     : { visible: false, todayLabel: '' };
@@ -270,6 +283,7 @@ function syncViewUrl() {
     renderUserMenu(user);
     renderSidebarUser(user);
     applyRoleView(user);
+    if (!currentTab) { renderNoAccessiblePage(); return; }
     if (user.password_expired) openExpiryModal();
     await loadUnits();
     updateBreadcrumb(currentTab);
