@@ -104,6 +104,70 @@ def _audit(conn, operator_id: int, target_id: int, action: str, detail: str = ""
     )
 
 
+def _reconcile_user_calendar_assignments(user_id: int) -> int:
+    """重新啟用使用者時，只補目前指派且缺失或落後的同步。"""
+    conn = get_db()
+    queued = 0
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        user = conn.execute("SELECT * FROM users WHERE id=? AND is_active=1", (user_id,)).fetchone()
+        if user is None or not user["gcal_key"]:
+            conn.rollback()
+            return 0
+        key = conn.execute(
+            "SELECT * FROM gcal_keys WHERE name=? AND is_active=1", (user["gcal_key"],)
+        ).fetchone()
+        if key is None or gcal_sync.calendar_migration_pending(key):
+            conn.rollback()
+            return 0
+        key_data = dict(key)
+        version = gcal_sync.sync_version_now()
+        appt_ids = [r["appointment_id"] for r in conn.execute(
+            "SELECT appointment_id FROM appointment_assignees WHERE user_id=?", (user_id,)
+        ).fetchall()]
+        for appt_id in appt_ids:
+            if key["id"] not in gcal_sync.resolve_target_keys(conn, appt_id):
+                continue
+            queued_row = conn.execute(
+                "SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+                (appt_id, key["id"]),
+            ).fetchone()
+            if queued_row and queued_row["op_type"] == "D":
+                continue
+            mapping = conn.execute(
+                "SELECT google_event_id, data_hash FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                (appt_id, key["id"]),
+            ).fetchone()
+            op_type = "C"
+            google_event_id = ""
+            if mapping and mapping["google_event_id"]:
+                _, payload_hash = gcal_sync.load_event_payload(conn, appt_id, key_data)
+                if mapping["data_hash"] == payload_hash:
+                    continue
+                op_type = "U"
+                google_event_id = mapping["google_event_id"]
+            conn.execute(
+                "INSERT INTO appointment_sync_queue "
+                "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                "VALUES(?,?,?,?,?,0,'') ON CONFLICT(appointment_id,key_id) DO UPDATE SET "
+                "op_type=excluded.op_type, google_event_id=excluded.google_event_id, "
+                "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+                (appt_id, key["id"], op_type, google_event_id, version),
+            )
+            queued += 1
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    if queued:
+        from app.services import sync_scheduler
+        sync_scheduler.start()
+        sync_scheduler.wake()
+    return queued
+
+
 def _reconcile_user_gcal_key(user_id: int) -> None:
     """使用者換綁定 Key 後，為既有行程建立新 target 並刪除舊 target。"""
     conn = get_db()
@@ -132,6 +196,18 @@ def _reconcile_user_gcal_key(user_id: int) -> None:
         mark_sync_pending(appt_id, "U")
         if orphan_rows:
             mark_sync_pending(appt_id, "D", map_rows=orphan_rows)
+
+
+def _reconcile_user_calendar_transition(
+    user_id: int, *, reenabled: bool, gcal_key_changed: bool,
+) -> None:
+    """以單一路徑處理 user 啟用／換 Key，避免兩套 reconcile 互相覆寫 queue。"""
+    if gcal_key_changed:
+        # Key change owns old relationship cleanup and new-key backfill.  This
+        # also covers re-enable + key change; do not enqueue the second pass.
+        _reconcile_user_gcal_key(user_id)
+    elif reenabled:
+        _reconcile_user_calendar_assignments(user_id)
 
 
 # ---------- API ----------
@@ -194,6 +270,7 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
 
         display_name = row["display_name"] if body.display_name is None else body.display_name.strip()
         role = row["role"] if body.role is None else body.role
+        was_inactive = not bool(row["is_active"])
         is_active = row["is_active"] if body.is_active is None else body.is_active
         color = row["color"] if body.color is None else body.color.strip()
 
@@ -241,10 +318,13 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
     finally:
         conn.close()
 
-    if gcal_key_changed:
-        _reconcile_user_gcal_key(user_id)
+    _reconcile_user_calendar_transition(
+        user_id,
+        reenabled=was_inactive and is_active == 1,
+        gcal_key_changed=gcal_key_changed,
+    )
     # display_name 會進入 Google description；只失效此使用者被指派行程的既有 mappings。
-    elif display_name_changed:
+    if display_name_changed:
         affected_conn = get_db()
         try:
             affected_ids = [r["appointment_id"] for r in affected_conn.execute(

@@ -260,22 +260,67 @@ def build_event(appt_row: dict, assignees: List[dict], settings: dict = None) ->
 
 
 def resolve_target_keys(conn, appt_id: int) -> List[int]:
-    """Multi-Key：行程指派人員綁定的 gcal_key 集合 → 目標 key_id 清單。
-    找不到綁 key 的指派人時，fallback 到所有啟用 key（家豪：全部同步）。"""
+    """依指派人員解析同步 targets；只有完全無指派才 fallback 全部 active keys。"""
+    assignees = conn.execute(
+        "SELECT u.is_active, u.gcal_key FROM appointment_assignees aa "
+        "JOIN users u ON u.id=aa.user_id WHERE aa.appointment_id=?",
+        (appt_id,),
+    ).fetchall()
+    if not assignees:
+        all_keys = conn.execute("SELECT id FROM gcal_keys WHERE is_active=1").fetchall()
+        return [r["id"] for r in all_keys]
+    keys = sorted({
+        row["gcal_key"] for row in assignees
+        if row["is_active"] and row["gcal_key"]
+    })
+    if not keys:
+        return []
+    placeholders = ",".join("?" * len(keys))
+    got = conn.execute(
+        f"SELECT id FROM gcal_keys WHERE is_active=1 AND name IN ({placeholders})",
+        keys,
+    ).fetchall()
+    return [r["id"] for r in got]
+
+
+def resolve_assigned_key_ids(conn, appt_id: int) -> List[int]:
+    """回傳目前 assignee 綁定的 Key 關係；不套 active/migration target gate。"""
     rows = conn.execute(
-        "SELECT DISTINCT u.gcal_key FROM appointment_assignees aa "
-        "JOIN users u ON u.id=aa.user_id "
-        "WHERE aa.appointment_id=? AND u.gcal_key<>''", (appt_id,)).fetchall()
-    keys = [r["gcal_key"] for r in rows]
-    if keys:
-        placeholders = ",".join("?" * len(keys))
-        got = conn.execute(
-            f"SELECT id FROM gcal_keys WHERE is_active=1 AND name IN ({placeholders})",
-            keys).fetchall()
-        return [r["id"] for r in got]
-    # fallback：所有啟用 key 都同步
-    all_keys = conn.execute("SELECT id FROM gcal_keys WHERE is_active=1").fetchall()
-    return [r["id"] for r in all_keys]
+        "SELECT DISTINCT k.id FROM appointment_assignees aa "
+        "JOIN users u ON u.id=aa.user_id JOIN gcal_keys k ON k.name=u.gcal_key "
+        "WHERE aa.appointment_id=? AND u.gcal_key<>''",
+        (appt_id,),
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def resolve_effective_target_keys(conn, appt_id: int) -> List[int]:
+    """同步與一般 retry 共用的有效 target：active 且未進行 Calendar migration。"""
+    target_ids = resolve_target_keys(conn, appt_id)
+    if not target_ids:
+        return []
+    placeholders = ",".join("?" * len(target_ids))
+    rows = conn.execute(
+        "SELECT id FROM gcal_keys WHERE is_active=1 "
+        "AND COALESCE(pending_calendar_id,'')='' "
+        f"AND id IN ({placeholders})",
+        target_ids,
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def existing_queue_key_ids(conn, appt_id: int, candidate_key_ids) -> list[int]:
+    """回傳 appointment 上實際存在的 queue key，供 status 與 reset 共用。"""
+    ids = sorted({int(key_id) for key_id in candidate_key_ids})
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    rows = conn.execute(
+        "SELECT DISTINCT key_id FROM appointment_sync_queue "
+        "WHERE appointment_id=? AND key_id IN (" + placeholders + ")",
+        [appt_id, *ids],
+    ).fetchall()
+    return sorted({row["key_id"] for row in rows})
 
 
 def get_service_for_key(key_row):

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from app.config import BASE_DIR
 from app.database import get_db
 from app.models import GcalKeyIn, GcalKeyUpdate
-from app.services.auth import require_perm
+from app.services.auth import require_login, require_perm
 from app.services import gcal_sync
 from app.services.gcal_sync import parse_popup_reminders
 
@@ -771,6 +771,90 @@ def force_sync_now():
     from app.services import sync_scheduler
     sync_scheduler.reset_now()
     return {"ok": True, "message": "立即同步已排入處理（已耗盡項目需先按重新嘗試）"}
+
+
+# ========== 個人／團隊重試 API ==========
+
+def _resolve_assigned_user_key_ids(conn, appt_id: int, user_id: int) -> list[int]:
+    """只解析指定有效指派人的 active、非 migration-pending Key。"""
+    rows = conn.execute(
+        "SELECT DISTINCT k.id "
+        "FROM appointment_assignees aa "
+        "JOIN users u ON u.id=aa.user_id AND u.is_active=1 "
+        "JOIN gcal_keys k ON k.name=u.gcal_key AND k.is_active=1 "
+        "AND COALESCE(k.pending_calendar_id,'')='' "
+        "WHERE aa.appointment_id=? AND u.id=?",
+        (appt_id, user_id),
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def _resolve_retry_all_key_ids(conn, appt_id: int) -> list[int]:
+    """重用同步 authoritative resolver，再套用 mark_sync_pending 的 migration gate。"""
+    return gcal_sync.resolve_effective_target_keys(conn, appt_id)
+
+
+def _reset_sync_queue_for_keys(appt_id: int, key_ids: list[int]) -> int:
+    if appt_id < 0:
+        raise HTTPException(400, "appointment_id 不可為負數")
+    key_ids = sorted(set(int(key_id) for key_id in key_ids))
+    if not key_ids:
+        raise HTTPException(404, "沒有可重試的同步目標")
+    conn = get_db()
+    try:
+        actual_ids = gcal_sync.existing_queue_key_ids(conn, appt_id, key_ids)
+        if not actual_ids:
+            raise HTTPException(404, "找不到可重試的同步 Queue")
+        placeholders = ",".join("?" * len(actual_ids))
+        conn.execute(
+            "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
+            "WHERE appointment_id=? AND key_id IN (" + placeholders + ")",
+            [gcal_sync.sync_version_now(), appt_id, *actual_ids],
+        )
+        conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    _wake_scheduler()
+    return len(actual_ids)
+
+
+@router.put("/api/gcal-sync-queue/reset-mine")
+def reset_my_sync_queue(appt_id: int, user: dict = Depends(require_login)):
+    """只重試目前登入者在該行程的同步 Queue。"""
+    conn = get_db()
+    try:
+        key_ids = _resolve_assigned_user_key_ids(conn, appt_id, user["id"])
+    finally:
+        conn.close()
+    if not key_ids:
+        raise HTTPException(404, "你不是此行程的有效同步人員")
+    count = _reset_sync_queue_for_keys(appt_id, key_ids)
+    return {"ok": True, "scope": "mine", "reset": count}
+
+
+@router.put("/api/gcal-sync-queue/reset-scope", dependencies=[Depends(require_perm("gcal-sync-force"))])
+def reset_sync_queue_scope(appt_id: int, scope: str = "all", target_user_id: int = 0):
+    """Admin 重試指定人員或該行程全部有效同步目標。"""
+    if scope not in {"all", "user"}:
+        raise HTTPException(400, "scope 只能是 all 或 user")
+    conn = get_db()
+    try:
+        if scope == "all":
+            key_ids = _resolve_retry_all_key_ids(conn, appt_id)
+        else:
+            if target_user_id <= 0:
+                raise HTTPException(400, "指定人員時需要有效 target_user_id")
+            key_ids = _resolve_assigned_user_key_ids(conn, appt_id, target_user_id)
+    finally:
+        conn.close()
+    count = _reset_sync_queue_for_keys(appt_id, key_ids)
+    return {"ok": True, "scope": scope, "reset": count}
 
 
 # ========== 同步隊列管理 API（A6） ==========

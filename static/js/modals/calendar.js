@@ -64,6 +64,17 @@ function calModalHtml(isAdmin) {
         <button class="btn-cancel" onclick="closeModal('cal-sync-error-modal')">關閉</button>
       </div>
     </div>
+  </div>
+  <div class="modal-overlay" id="cal-team-sync-modal" onclick="if(event.target===this) closeModal('cal-team-sync-modal')">
+    <div class="modal">
+      <h3>👥 全員同步細節</h3>
+      <div id="cal-team-sync-summary"></div>
+      <div class="cal-sync-team-actions"><button id="cal-team-sync-retry-all" type="button" class="btn-sm btn-primary" onclick="calRetryTeamSync()">重試全體</button></div>
+      <div id="cal-team-sync-details" class="cal-sync-team-details"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('cal-team-sync-modal')">關閉</button>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -188,24 +199,107 @@ function closeCalModal() {
 function calShowSyncError(apptId) {
   const e = (typeof calEvents !== 'undefined' ? calEvents : []).find(x => x.id === apptId);
   if (!e) return;
+  const personal = calPersonalSync(e);
   document.getElementById('cal-sync-err-client').textContent = e.client_name || '';
   document.getElementById('cal-sync-err-date').textContent = e.date || '';
-  const statusMap = { failed: '❌ 同步失敗', partial_failed: '⚠️ 部分同步失敗', partial_retrying: '🔄 部分同步重試中', retrying: '🔄 同步重試中', pending: '⏳ 等待同步' };
-  document.getElementById('cal-sync-err-status').textContent = statusMap[e.sync_status] || e.sync_status;
-  document.getElementById('cal-sync-err-key').textContent = e.sync_error_key || '（未知 Key）';
-  document.getElementById('cal-sync-err-cal').textContent = e.sync_error_cal || '（未知日曆）';
-  document.getElementById('cal-sync-err-msg').textContent = e.sync_error || '（無錯誤訊息）';
+  document.getElementById('cal-sync-err-status').textContent = `${calSyncStatusLabel(personal.status)}${personal.migration_pending ? '（行事曆切換中）' : ''}`;
+  document.getElementById('cal-sync-err-key').textContent = personal.key_name || '（未知 Key）';
+  document.getElementById('cal-sync-err-cal').textContent = personal.cal_id || '（未知日曆）';
+  document.getElementById('cal-sync-err-msg').textContent = personal.error || '（無錯誤訊息）';
   // 建議
   let suggestion = '';
-  if (e.sync_error && e.sync_error.includes('invalid_grant')) {
+  if (personal.error && personal.error.includes('invalid_grant')) {
     suggestion = '🔑 Service Account 金鑰已失效。請到 Google Cloud Console 重新產生 JSON 金鑰，再從系統設定 → Google 行事曆 Key 上傳新金鑰。';
-  } else if (e.sync_error && e.sync_error.includes('404')) {
+  } else if (personal.error && personal.error.includes('404')) {
     suggestion = '📅 Calendar ID 可能不正確，或 Service Account 沒有該日曆的存取權限。請確認日曆已分享給 Service Account email。';
-  } else if (e.sync_error && e.sync_error.includes('network')) {
+  } else if (personal.error && personal.error.includes('network')) {
     suggestion = '🌐 網路連線問題。請確認伺服器可連線到 Google API。';
   } else {
     suggestion = '請檢查 gcal_sync.log 取得完整錯誤資訊。';
   }
+  if (personal.migration_pending) {
+    suggestion = `📅 行事曆切換處理中，普通同步重試暫停。${suggestion ? ` ${suggestion}` : ''}`;
+  }
   document.getElementById('cal-sync-err-suggestion').textContent = suggestion;
   openModal('cal-sync-error-modal');
+}
+
+let calTeamSyncApptId = null;
+function calShowTeamSyncDetails(apptId) {
+  calTeamSyncApptId = apptId;
+  const e = (typeof calEvents !== 'undefined' ? calEvents : []).find(x => x.id === apptId);
+  const team = e && e.team_sync;
+  if (!team) return;
+  const summary = document.getElementById('cal-team-sync-summary');
+  const details = document.getElementById('cal-team-sync-details');
+  const retryAll = document.getElementById('cal-team-sync-retry-all');
+  if (!summary || !details) return;
+  summary.textContent = team.fallback_target_count && !team.eligible_people
+    ? `目前沒有有效同步人員；系統 fallback：${team.fallback_target_count} 個有效同步 Key`
+    : team.eligible_people
+      ? `有效同步人員：${team.synced_people}/${team.eligible_people} 已同步`
+      : '目前沒有有效同步人員';
+  if (retryAll) retryAll.hidden = !hasPerm('gcal-sync-force') || !calTeamHasRetryableTarget(team);
+  details.innerHTML = (team.details || []).map(person => {
+    const status = `${calSyncStatusLabel(person.status)}${person.migration_pending ? '（行事曆切換中）' : ''}`;
+    const error = person.error ? `：${person.error}` : '';
+    const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)
+      ? `<button type="button" class="btn-sm" onclick="calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button>` : '';
+    return `<div class="cal-sync-team-row"><strong>${esc(person.display_name)}</strong><span>${esc(status)}${esc(error)}</span>${retry}</div>`;
+  }).join('') || '<div class="cal-sync-team-row">目前沒有有效同步人員</div>';
+  const excluded = [];
+  if (team.unbound_people) excluded.push(`未綁定 ${team.unbound_people} 人`);
+  if (team.paused_people) excluded.push(`Key 已停用 ${team.paused_people} 人`);
+  if (team.inactive_people) excluded.push(`帳號已停用 ${team.inactive_people} 人`);
+  if (team.unknown_status_people) excluded.push(`未知狀態 ${team.unknown_status_people} 人`);
+  if (excluded.length) {
+    const extra = document.createElement('div');
+    extra.className = 'cal-sync-team-extra';
+    extra.textContent = `${excluded.join('・')}（不計入比例）`;
+    details.appendChild(extra);
+  }
+  openModal('cal-team-sync-modal');
+}
+
+async function calReloadAfterSyncAction() {
+  const applied = await calLoadData();
+  if (applied === null || calLoadError) return;
+  calRenderMonth();
+  calRenderDay();
+}
+
+async function calRetryMySync(apptId) {
+  const res = await fetch(`/api/gcal-sync-queue/reset-mine?appt_id=${encodeURIComponent(apptId)}`, { method: 'PUT' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    toast('❌ ' + (data.detail || '重試我的同步失敗'));
+    return;
+  }
+  toast('🔄 已重設你的同步 Queue');
+  await calReloadAfterSyncAction();
+}
+
+async function calRetryTeamMember(apptId, userId) {
+  const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(apptId)}&scope=user&target_user_id=${encodeURIComponent(userId)}`, { method: 'PUT' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    toast('❌ ' + (data.detail || '重試指定人員失敗'));
+    return;
+  }
+  toast('🔄 已重設指定人員的同步 Queue');
+  closeModal('cal-team-sync-modal');
+  await calReloadAfterSyncAction();
+}
+
+async function calRetryTeamSync() {
+  if (!calTeamSyncApptId || !confirm('確定重試這筆行程的全部有效同步目標嗎？')) return;
+  const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(calTeamSyncApptId)}&scope=all`, { method: 'PUT' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    toast('❌ ' + (data.detail || '重試全體同步失敗'));
+    return;
+  }
+  toast('🔄 已重設這筆行程全部有效同步 Queue');
+  closeModal('cal-team-sync-modal');
+  await calReloadAfterSyncAction();
 }

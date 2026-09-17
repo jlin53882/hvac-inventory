@@ -4138,6 +4138,34 @@ def test_calendar_sync_status_labels_distinguish_retry_and_exhausted():
     assert "status === 'retrying' ? '🔄'" in js
 
 
+def test_calendar_sync_status_uses_personal_and_admin_team_contract():
+    """卡片狀態使用登入者視角，Admin 團隊 Badge 使用人員統計。"""
+    js = read_calendar_js_all()
+    modal = read(Path(STATIC) / "js" / "modals" / "calendar.js")
+    assert "my_sync_status" in js
+    assert "team_sync" in js
+    assert "未指派給你" in js
+    assert "calShowTeamSyncDetails" in js
+    assert "重試我的" in js
+    assert "重試全體" in modal
+    assert "/api/gcal-sync-queue/reset-mine" in modal
+    assert "scope=user" in modal
+    assert "scope=all" in modal
+    assert "function calCanRetryPersonal" in js
+    assert "function calCanRetryTeamPerson" in js
+    assert "can_retry_all" in js
+    assert "fallback_target_count" in js
+    assert "migration_pending" in js
+    assert "personal.can_retry === true" in js
+    assert "person.can_retry === true" in js
+    assert "function calTeamHasRetryableTarget(team)" in js
+    assert "calTeamHasRetryableTarget(team)" in modal
+    assert "isAssigned && calCanRetryPersonal(personal)" in js
+    assert "const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)" in modal
+    assert "retryAll.hidden = !hasPerm('gcal-sync-force') || !calTeamHasRetryableTarget(team)" in modal
+    assert "fallback_target_count" in modal
+
+
 def test_gcal_sync_interval_explains_debounce_semantics():
     js = read(SETTINGS_JS)
     assert "掃描待同步隊列" in js

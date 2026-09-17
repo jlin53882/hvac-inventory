@@ -358,5 +358,13 @@
 .cal-sync-retrying, .cal-sync-partial_retrying { background: #fffbeb; color: #b45309; }
 .cal-sync-partial_failed { background: #fff7ed; color: #c2410c; }
 .cal-sync-failed { background: #fff1f2; color: #b91c1c; }
+.cal-sync-not-assigned, .cal-sync-not_targeted { background: #f3f4f6; color: #6b7280; }
+.cal-sync-paused, .cal-sync-not_bound { background: #fef3c7; color: #92400e; }
+.cal-sync-team { background: #fef2f2; color: #b91c1c; }
+.cal-sync-retry-btn { border: 1px solid #fcd34d; border-radius: 999px; background: #fffbeb; color: #92400e; font-size: 11px; padding: 2px 7px; cursor: pointer; }
+.cal-sync-team-actions { margin-top: 10px; }
+.cal-sync-team-details { display: grid; gap: 8px; margin-top: 12px; }
+.cal-sync-team-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; background: #f8fafc; }
+.cal-sync-team-extra { margin-top: 10px; color: #6b7280; font-size: 12px; }
 .cal-sync-clickable.cal-sync-retrying, .cal-sync-clickable.cal-sync-partial_retrying { border-color: #fcd34d; }
 .cal-sync-clickable.cal-sync-failed, .cal-sync-clickable.cal-sync-partial_failed { border-color: #fecaca; }
