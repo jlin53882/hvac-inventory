@@ -134,9 +134,14 @@ def _build_inventory_sheet(ws, items, position_table_available: bool, qty_types)
     headers = ["品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存", "可用庫存", "位置數", "庫存狀態", "警示序號"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
-    total_formula = "=SUMIFS(tblPosition[位置數量],tblPosition[品項編號],[@品項編號])" if position_table_available else "=SUM(0)"
     for item in items:
-        ws.append([item["id"], _site_label(item["site"]), _safe(item["category"] or "未分類"), _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), item["low_stock"] or 0, item["prepared_qty"] or 0, total_formula, "=[@總庫存]-[@待領出]", "=COUNTIFS(tblPosition[品項編號],[@品項編號])" if position_table_available else "=0", '=IF([@可用庫存]<0,"資料異常",IF([@可用庫存]=0,"缺貨",IF(AND([@低庫存門檻]>0,[@可用庫存]<=[@低庫存門檻]),"低庫存","正常")))', '=IF([@庫存狀態]<>"正常",COUNTIF($M$6:M6,"<>正常"),"")'])
+        row_idx = ws.max_row + 1
+        total_formula = f"=SUMIFS(tblPosition[位置數量],tblPosition[品項編號],A{row_idx})" if position_table_available else "=SUM(0)"
+        available_formula = f"=J{row_idx}-I{row_idx}"
+        position_count_formula = f"=COUNTIFS(tblPosition[品項編號],A{row_idx})" if position_table_available else "=0"
+        status_formula = f'=IF(K{row_idx}<0,"資料異常",IF(K{row_idx}=0,"缺貨",IF(AND(H{row_idx}>0,K{row_idx}<=H{row_idx}),"低庫存","正常")))'
+        warning_index_formula = f'=IF(M{row_idx}<>"正常",COUNTIF($M$6:M{row_idx},"<>正常"),"")'
+        ws.append([item["id"], _site_label(item["site"]), _safe(item["category"] or "未分類"), _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), item["low_stock"] or 0, item["prepared_qty"] or 0, total_formula, available_formula, position_count_formula, status_formula, warning_index_formula])
     if not items:
         _write_empty(ws, 6)
     else:
