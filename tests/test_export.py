@@ -15,6 +15,7 @@ sys.path.insert(0, BASE_DIR)
 
 import app.database as app_db  # noqa: E402
 import main as app_main  # noqa: E402
+from app.routes.export import _movement_type  # noqa: E402
 
 
 @pytest.fixture()
@@ -242,3 +243,97 @@ def test_export_movement_integer_and_decimal_number_formats(client):
     assert isinstance(decimal_row[7].value, (int, float))
     assert decimal_row[7].value == pytest.approx(0.333)
     assert decimal_row[7].number_format == "#,##0.###"
+
+
+def test_export_includes_assembled_kit_inventory(client):
+    material = add_item(client, name="組裝材料", code="KIT-MAT", qty=10)
+    kit_response = client.post("/api/kits", json={
+        "name": "測試整組", "brand": "測試牌", "code": "KIT-001",
+        "site": "office", "items": [{"item_id": material["id"], "qty": 2}],
+    })
+    assert kit_response.status_code == 201, kit_response.text
+    kit = kit_response.json()
+    assembled = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 2})
+    assert assembled.status_code == 200, assembled.text
+
+    book = export_book(client)
+    inventory_rows = [r for r in book["02 庫存總表"].iter_rows(min_row=6, values_only=True) if r[0]]
+    position_rows = [r for r in book["03 位置明細"].iter_rows(min_row=6, values_only=True) if r[0]]
+    assert any(row[0] == kit["item_id"] for row in inventory_rows)
+    kit_positions = [row for row in position_rows if row[0] == kit["item_id"]]
+    assert kit_positions and kit_positions[0][8] == 2
+    kit_inventory = next(row for row in inventory_rows if row[0] == kit["item_id"])
+    assert isinstance(kit_inventory[9], str) and "tblPosition" in kit_inventory[9]
+
+
+def test_export_kit_assemble_disassemble_movements_are_preserved(client):
+    material = add_item(client, name="拆解材料", code="KIT-MAT-2", qty=10)
+    kit_response = client.post("/api/kits", json={
+        "name": "組拆整組", "brand": "測試牌", "code": "KIT-002",
+        "site": "office", "items": [{"item_id": material["id"], "qty": 1}],
+    })
+    assert kit_response.status_code == 201, kit_response.text
+    kit = kit_response.json()
+    assert client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 1}).status_code == 200
+    assert client.post(f"/api/kits/{kit['id']}/disassemble", json={"qty": 1}).status_code == 200
+
+    book = export_book(client)
+    reasons = [row[11] for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    assert any(str(reason).startswith("組裝套件:") for reason in reasons)
+    assert any(str(reason).startswith("組裝完成:") for reason in reasons)
+    assert any(str(reason).startswith("拆解:") for reason in reasons)
+    assert any(str(reason).startswith("拆解套件:") for reason in reasons)
+
+
+def test_export_movements_preserve_soft_deleted_item_history(client):
+    item = add_item(client, name="歷史刪除品", code="DEL-HISTORY", qty=3)
+    deleted = client.delete(f"/api/items/{item['id']}")
+    assert deleted.status_code == 200, deleted.text
+
+    book = export_book(client)
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    deleted_rows = [row for row in rows if row[2] == item["id"]]
+    assert deleted_rows
+    assert any(row[11] == "品項刪除清零" and row[1] == "刪除清零" for row in deleted_rows)
+    assert not any(row[0] == item["id"] for row in book["02 庫存總表"].iter_rows(min_row=6, values_only=True))
+
+
+def test_export_movements_include_nonstock_stockout(client):
+    response = client.post("/api/stockout/nonstock", json={
+        "name": "非庫存歷史品", "code": "NONSTOCK-1", "unit": "個",
+        "qty": 2, "destination": "測試案場",
+    })
+    assert response.status_code == 200, response.text
+    item_id = response.json()["id"]
+
+    book = export_book(client)
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    nonstock_rows = [row for row in rows if row[2] == item_id]
+    assert nonstock_rows and nonstock_rows[0][11] == "出庫"
+
+
+@pytest.mark.parametrize("reason, expected", [
+    ("領出準備", "待領出"), ("出庫", "出庫"), ("出庫 - 案場", "出庫"),
+    ("退回已領出", "退回"), ("盤點調整", "盤點"), ("庫存調撥", "調撥"),
+    ("組裝套件:測試整組", "整組組裝"), ("組裝完成:測試整組", "整組組裝"),
+    ("拆解:測試整組", "整組拆解"), ("拆解套件:測試整組", "整組拆解"),
+    ("品項刪除清零", "刪除清零"), ("已領出編輯調整", "庫存調整"),
+])
+def test_movement_type_matches_production_reason_contract(reason, expected):
+    assert _movement_type(reason, -1) == expected
+
+
+def test_export_custom_range_accepts_exactly_366_days_and_rejects_367(client):
+    accepted = client.get("/api/export", params={"start_date": "2024-01-01", "end_date": "2024-12-31"})
+    rejected = client.get("/api/export", params={"start_date": "2024-01-01", "end_date": "2025-01-01"})
+    assert accepted.status_code == 200, accepted.text
+    assert rejected.status_code == 400
+
+
+def test_export_custom_range_uses_left_closed_right_open_boundaries(client):
+    item = add_item(client, name="邊界品", code="DATE-BOUNDARY")
+    insert_movement(item["id"], "2026-09-01 00:00:00", reason="庫存調整")
+    insert_movement(item["id"], "2026-10-01 00:00:00", delta=2, reason="庫存調整")
+    book = export_book(client, start_date="2026-09-01", end_date="2026-09-30")
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    assert [row[0] for row in rows] == ["2026-09-01 00:00:00"]

@@ -38,7 +38,8 @@ def _parse_export_range(month: str | None, start_date: str | None, end_date: str
             end_day = dt.date.fromisoformat(end_date)
         except ValueError:
             raise HTTPException(400, "日期格式必須為 YYYY-MM-DD")
-        if start_day > end_day or (end_day - start_day).days > MAX_RANGE_DAYS:
+        inclusive_days = (end_day - start_day).days + 1
+        if start_day > end_day or inclusive_days > MAX_RANGE_DAYS:
             raise HTTPException(400, "日期範圍無效或超過 366 天")
         start = dt.datetime.combine(start_day, dt.time.min)
         end = dt.datetime.combine(end_day + dt.timedelta(days=1), dt.time.min)
@@ -196,20 +197,7 @@ def _build_movement_sheet(ws, movements):
     _style_header(ws, 5)
     for row in movements:
         reason = row["reason"] or ""
-        if "解除" in reason:
-            movement_type = "解除待領出"
-        elif "待領出" in reason:
-            movement_type = "待領出"
-        elif "調撥" in reason:
-            movement_type = "調撥"
-        elif "盤點" in reason or "調整" in reason:
-            movement_type = "庫存調整"
-        elif "退回" in reason:
-            movement_type = "退回"
-        elif row["delta"] < 0:
-            movement_type = "出庫"
-        else:
-            movement_type = "其他"
+        movement_type = _movement_type(reason, row["delta"])
         ws.append([_safe(row["created_at"]), movement_type, row["item_id"], _safe(row["brand"] or "未設定廠牌"), _safe(row["name"]), _safe(row["code"]), _site_label(row["site"]), row["delta"], row["before_qty"], row["after_qty"], _safe(row["destination"]), _safe(reason)])
     if movements:
         _add_table(ws, "tblMovement", 5)
@@ -222,6 +210,38 @@ def _build_movement_sheet(ws, movements):
     else:
         _write_empty(ws, 6, "選定期間沒有異動紀錄")
     _set_widths(ws, [21, 14, 10, 16, 28, 18, 12, 12, 12, 12, 20, 30])
+
+
+def _movement_type(reason: str, delta: float) -> str:
+    """依 production movement reason contract 分類異動類型。
+
+    先處理明確 reason，再以 delta 作為最後 fallback；避免「組裝套件」等
+    負向整組異動被誤標成一般出庫。
+    """
+    reason = reason or ""
+    if reason == "領出準備":
+        return "待領出"
+    if reason.startswith("解除"):
+        return "解除待領出"
+    if reason.startswith("出庫"):
+        return "出庫"
+    if reason == "退回已領出":
+        return "退回"
+    if reason == "庫存調撥":
+        return "調撥"
+    if reason.startswith("盤點"):
+        return "盤點"
+    if reason.startswith("組裝"):
+        return "整組組裝"
+    if reason.startswith("拆解"):
+        return "整組拆解"
+    if reason == "品項刪除清零":
+        return "刪除清零"
+    if "調整" in reason:
+        return "庫存調整"
+    if delta < 0:
+        return "出庫"
+    return "其他"
 
 
 def _build_overview(ws, has_inventory, period):
@@ -305,9 +325,23 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         raise HTTPException(400, "sites 含有不合法的庫存區")
     conn = get_db()
     try:
-        items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND is_kit=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
-        positions = conn.execute("SELECT i.id, i.site, i.category, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.is_kit=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
-        movements = conn.execute("SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, m.destination, m.reason, i.site, i.brand, i.name, i.code FROM movements m JOIN items i ON i.id=m.item_id WHERE i.is_deleted=0 AND i.is_kit=0 AND i.site IN (%s) AND m.created_at >= ? AND m.created_at < ? ORDER BY m.created_at DESC, m.id DESC" % ",".join("?" * len(selected_sites)), [*selected_sites, start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")]).fetchall()
+        items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
+        positions = conn.execute("SELECT i.id, i.site, i.category, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
+        movement_site = "COALESCE(NULLIF(m.source_site,''), NULLIF(m.return_site,''), NULLIF(i.site,''), '')"
+        site_placeholders = ",".join("?" * len(selected_sites))
+        movement_sql = (
+            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
+            "m.destination, m.reason, " + movement_site + " AS site, "
+            "i.brand, i.name, i.code "
+            "FROM movements m JOIN items i ON i.id=m.item_id "
+            "WHERE (" + movement_site + f" IN ({site_placeholders}) OR "
+            + movement_site + " = '') AND m.created_at >= ? AND m.created_at < ? "
+            "ORDER BY m.created_at DESC, m.id DESC"
+        )
+        movements = conn.execute(
+            movement_sql,
+            [*selected_sites, start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")],
+        ).fetchall()
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
     finally:
         conn.close()
