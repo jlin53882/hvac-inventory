@@ -69,7 +69,7 @@ REVIEWED_SAFE_BODIES = {
     # 報價單內部分頁（2026-09-09）：active 只由固定模式傳入，輸出皆為固定 class/文字。
     "active === 'quotation' ? 'active' : ''", "active === 'upload' ? 'active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
     # inventory card note context: formatter returns escaped display HTML; label uses it plus fixed text.
-    "formatLocationDisplay(s.location)", "label",
+    "formatLocationDisplay(s.location)", "buildStockNoteLabelHTML(s, showLocationContext)",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
     "a.icon", "icon", "a.label", "items",
     # 數字欄位（qty/id/統計）

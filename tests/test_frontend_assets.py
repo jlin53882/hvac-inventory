@@ -1260,6 +1260,8 @@ const stocks = [
   {location: '櫃子 | 位置 A', note: 'Note A'},
   {location: '倉庫 B', note: 'Note B'},
   {location: '', note: '<img src=x onerror=alert(1)>'},
+  {location: '<img src=x onerror=alert(1)>', note: 'safe note'},
+  {location: '<b>A</b> | <script>alert(1)</script>', note: 'pipe note'},
 ];
 process.stdout.write(JSON.stringify(buildNoteHTML(stocks)));
 """
@@ -1267,16 +1269,22 @@ process.stdout.write(JSON.stringify(buildNoteHTML(stocks)));
         ["node", "-e", probe, CARD_JS],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     )
     output = json.loads(result.stdout)
     blocks = re.findall(r'<div class="item-note">(.*?)</div>', output)
-    assert len(blocks) == 3
+    assert len(blocks) == 5
     assert "櫃子 / 位置 A" in blocks[0] and "Note A" in blocks[0]
     assert "倉庫 B" in blocks[1] and "Note B" in blocks[1]
     assert "未標示" in blocks[2]
     assert "&lt;img src=x onerror=alert(1)&gt;" in blocks[2]
     assert "<img src=x onerror=alert(1)>" not in blocks[2]
+    assert "&lt;img src=x onerror=alert(1)&gt;" in blocks[3]
+    assert "<img src=x onerror=alert(1)>" not in blocks[3]
+    assert "&lt;b&gt;A&lt;/b&gt; / &lt;script&gt;alert(1)&lt;/script&gt;" in blocks[4]
+    assert "<b>A</b>" not in blocks[4]
+    assert "<script>alert(1)</script>" not in blocks[4]
     assert output.index("櫃子 / 位置 A") < output.index("Note A")
     assert output.index("倉庫 B") < output.index("Note B")
 
@@ -1287,9 +1295,12 @@ def test_inventory_note_empty_location_falls_back_and_escapes():
     assert "formatLocationDisplay" in card_js
     formatter_start = card_js.index("function formatLocationDisplay")
     formatter_source = card_js[formatter_start:card_js.index("function buildLocHTML", formatter_start)]
+    label_start = card_js.index("function buildStockNoteLabelHTML")
+    label_source = card_js[label_start:card_js.index("function buildNoteHTML", label_start)]
     note_start = card_js.index("function buildNoteHTML")
     note_source = card_js[note_start:card_js.index("// 數量控制", note_start)]
-    assert "s.location" in note_source
+    assert "stock.location" in label_source
+    assert "buildStockNoteLabelHTML(s, showLocationContext)" in note_source
     assert "未標示" in formatter_source
     assert "esc(s.note)" in note_source
 
