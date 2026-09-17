@@ -267,7 +267,10 @@ def resolve_target_keys(conn, appt_id: int) -> List[int]:
         (appt_id,),
     ).fetchall()
     if not assignees:
-        all_keys = conn.execute("SELECT id FROM gcal_keys WHERE is_active=1").fetchall()
+        all_keys = conn.execute(
+            "SELECT id FROM gcal_keys WHERE is_active=1 "
+            "AND COALESCE(pending_calendar_id,'')=''"
+        ).fetchall()
         return [r["id"] for r in all_keys]
     keys = sorted({
         row["gcal_key"] for row in assignees
