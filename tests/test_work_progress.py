@@ -304,6 +304,34 @@ def test_duplicate_concurrent_create_has_one_success_and_one_conflict(wpr_env):
         conn.close()
 
 
+def test_work_progress_view_revocation_is_immediate_for_existing_session(wpr_env):
+    make_client, users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+    asset_id = report["photos"][0]["asset_id"]
+
+    conn = app_db.get_db()
+    try:
+        perm_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='work-progress-view'"
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO user_permissions(user_id, permission_id, value) VALUES(?,?,0)",
+            (users["owner"], perm_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Same cookie/session must not retain the permission from authentication time.
+    assert owner.get("/api/work-progress").status_code == 403
+    assert owner.get(f"/api/work-progress/{report['id']}").status_code == 403
+    assert owner.get(
+        f"/api/work-progress/{report['id']}/photos/{asset_id}/thumbnail"
+    ).status_code == 403
+
+
 def test_generic_media_endpoint_enforces_work_progress_view(wpr_env, monkeypatch):
     make_client, _users, _static, _uploads = wpr_env
     owner = make_client("owner")

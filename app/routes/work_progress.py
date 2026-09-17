@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from app.config import STATIC_DIR
 from app.database import get_db
 from app.models import WorkProgressNoteUpdate
-from app.services.auth import get_user_permissions, require_perm
+from app.services.auth import get_user_permissions, require_db_perm
 from app.services.file_storage import (
     asset_media_type,
     asset_variant_path,
@@ -222,7 +222,7 @@ def list_work_progress(
     q: str = Query("", max_length=200),
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(20, ge=1, le=100),
-    user: dict = Depends(require_perm("work-progress-view")),
+    user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     if from_date:
         from_date = _validate_date(from_date, "起始日期")
@@ -274,7 +274,7 @@ def list_work_progress(
 @router.get("/kpi")
 def work_progress_kpi(
     month: str = Query(""),
-    user: dict = Depends(require_perm("work-progress-view")),
+    user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     if not month:
         now = datetime.date.today()
@@ -310,7 +310,7 @@ def work_progress_kpi(
 
 
 @router.get("/{report_id}")
-def get_work_progress(report_id: int, user: dict = Depends(require_perm("work-progress-view"))):
+def get_work_progress(report_id: int, user: dict = Depends(require_db_perm("work-progress-view"))):
     conn = get_db()
     try:
         row = _get_report(conn, report_id)
@@ -324,7 +324,7 @@ def create_work_progress(
     appointment_id: int = Form(...),
     note: str = Form(""),
     files: list[UploadFile] | None = File(None),
-    user: dict = Depends(require_perm("work-progress-create")),
+    user: dict = Depends(require_db_perm("work-progress-create")),
 ):
     note = _validate_note(note)
     uploads = _read_image_uploads(files)
@@ -391,7 +391,7 @@ def create_work_progress(
 async def update_work_progress(
     report_id: int,
     request: Request,
-    user: dict = Depends(require_perm("work-progress-view")),
+    user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     try:
         body = WorkProgressNoteUpdate.model_validate(await request.json())
@@ -422,7 +422,7 @@ async def update_work_progress(
 def add_work_progress_photos(
     report_id: int,
     files: list[UploadFile] | None = File(None),
-    user: dict = Depends(require_perm("work-progress-view")),
+    user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     uploads = _read_image_uploads(files)
     conn = get_db()
@@ -466,7 +466,7 @@ def add_work_progress_photos(
 def delete_work_progress_photo(
     report_id: int,
     asset_id: str,
-    user: dict = Depends(require_perm("work-progress-view")),
+    user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     if not ASSET_ID_RE.fullmatch(asset_id):
         raise HTTPException(404, "照片不存在")
@@ -502,7 +502,7 @@ def delete_work_progress_photo(
 @router.delete("/{report_id}")
 def delete_work_progress(
     report_id: int,
-    user: dict = Depends(require_perm("work-progress-view")),
+    user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     conn = get_db()
     assets = []
@@ -536,7 +536,7 @@ def read_work_progress_photo(
     report_id: int,
     asset_id: str,
     variant: str,
-    user: dict = Depends(require_perm("work-progress-view")),
+    user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     if not ASSET_ID_RE.fullmatch(asset_id) or variant not in {"thumbnail", "preview", "download"}:
         raise HTTPException(404, "照片不存在")
