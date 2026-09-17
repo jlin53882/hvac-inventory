@@ -4387,7 +4387,7 @@ def test_stocktake_frontend_sends_current_site():
 def test_submit_kit_sends_current_site():
     js = read(KIT_MODAL_JS)
     assert "site: currentSite" in js
-    assert "JSON.stringify({ name: name, site: currentSite" in js
+    assert "JSON.stringify({ name: name, brand: brand, code: code, site: currentSite" in js
 
 
 def test_url_restore_uses_all_inventory_sites():

@@ -127,7 +127,7 @@ class TestListPreparedDestination:
         item = _add_item(client, name="D品", qty=5)
         client.post(f"/api/items/{item['id']}/prepare",
                     json={"qty": 2, "location": "測試地點"})
-        r = client.get("/api/prepared?site=")
+        r = client.get("/api/prepared?site=office")
         assert r.status_code == 200
         items = r.json()
         found = [i for i in items if i["id"] == item["id"]]
@@ -138,7 +138,7 @@ class TestListPreparedDestination:
         """沒有備註時 destination 為空字串"""
         item = _add_item(client, name="E品", qty=5)
         client.post(f"/api/items/{item['id']}/prepare", json={"qty": 1})
-        r = client.get("/api/prepared?site=")
+        r = client.get("/api/prepared?site=office")
         assert r.status_code == 200
         found = [i for i in r.json() if i["id"] == item["id"]]
         assert len(found) == 1
@@ -164,7 +164,7 @@ class TestPreparedEditContract:
         prepared = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 2, "location": "原地點"}).json()
         r = client.patch(f"/api/prepared/{item['id']}", json={"prepared_qty": 6, "destination": "不應保存", "updated_at": prepared["updated_at"]})
         assert r.status_code == 400
-        found = next(x for x in client.get("/api/prepared?site=").json() if x["id"] == item["id"])
+        found = next(x for x in client.get("/api/prepared?site=office").json() if x["id"] == item["id"])
         assert (found["prepared_qty"], found["destination"]) == (2, "原地點")
 
     def test_destination_failure_rolls_back_prepared_qty(self, client):
@@ -296,7 +296,7 @@ class TestKitComponentsInPayload:
         # 準備整組
         client.post(f"/api/items/{kit_item_id}/prepare", json={"qty": 1})
         # 查 prepared
-        r = client.get("/api/prepared?site=")
+        r = client.get("/api/prepared?site=office")
         assert r.status_code == 200
         found = [i for i in r.json() if i["id"] == kit_item_id]
         assert len(found) == 1
