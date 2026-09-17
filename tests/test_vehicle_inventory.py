@@ -52,7 +52,7 @@ def add_item(client, *, site="office", code="R410A", name="冷媒 R410A", qty=10
     return response.json()
 
 
-def test_export_contains_four_inventory_site_sheets(client):
+def test_export_contains_all_sites_in_shared_inventory_sheet(client):
     for site in ("office", "warehouse", "van", "truck"):
         add_item(client, site=site, code=f"EXPORT-{site}", qty=1, location="車內" if site in ("van", "truck") else "櫃位")
     response = client.get("/api/export?days=30")
@@ -60,7 +60,9 @@ def test_export_contains_four_inventory_site_sheets(client):
     from io import BytesIO
     from openpyxl import load_workbook
     workbook = load_workbook(BytesIO(response.content), read_only=True)
-    assert {"辦公室", "倉庫", "廂型車", "貨車"} <= set(workbook.sheetnames)
+    assert workbook.sheetnames == ["01 總覽", "02 庫存總表", "03 位置明細", "04 庫存警示", "05 異動紀錄", "06 統計"]
+    rows = list(workbook["02 庫存總表"].iter_rows(min_row=6, values_only=True))
+    assert {row[1] for row in rows if row[0]} == {"辦公室", "倉庫", "廂型車", "貨車"}
 
 
 def test_vehicle_sites_accept_duplicate_item_identity_per_site(client):

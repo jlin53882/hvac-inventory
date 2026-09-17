@@ -1,5 +1,5 @@
 // 庫存管理系統 - API 呼叫層（v8 拆分）
-// loadData / updateSubInfo / loadDestinations / saveAll / exportExcel
+// loadData / updateSubInfo / loadDestinations / saveAll
 async function loadData(options) {
   const full = Boolean(options && options.full);
   const requestId = ++dataRequestSeq;
@@ -250,23 +250,4 @@ async function saveAll() {
     savingAll = false;
     if (btn) btn.disabled = false;
   }
-}
-
-// 向 /api/export 索取 Excel 報表並觸發瀏覽器下載，成功/失敗各顯示 toast
-function exportExcel() {
-  toast('⏳ 產生報表中…');
-  fetch('/api/export').then(r => {
-    if (!r.ok) throw new Error();
-    return r.blob();
-  }).then(blob => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const ts = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    a.download = `庫存報表_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('✅ 報表已下載', 'success');
-  }).catch(() => toast('匯出失敗', 'error'));
 }

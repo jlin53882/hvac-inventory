@@ -1,123 +1,290 @@
 # -*- coding: utf-8 -*-
-"""
-匯出路由：Excel 報表（記憶體回傳版）
-================================
-- GET /api/export?days=30  匯出 6 個 Sheet（四庫存區明細 / 異動紀錄 / 廠牌統計）
-- 改版重點：BytesIO 記憶體回傳，不寫磁碟 → exports/ 零檔案累積、無撞名
-- 安全：公式注入防護（= + - @ 開頭的字串加撇號）
-"""
-import datetime
-import io
+"""庫存 Excel 匯出：固定六張可篩選、可追公式的報表。"""
+from __future__ import annotations
 
-from fastapi import Depends, APIRouter, HTTPException
+import datetime as dt
+import io
+import re
+from typing import Iterable
+
+from fastapi import APIRouter, Depends, HTTPException
+from openpyxl import Workbook
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.utils import get_column_letter
 
 from app.database import get_db
 from app.services.auth import require_perm
 from app.services.safety import excel_safe, xlsx_download
 
-# 匯出 API 路由
 router = APIRouter()
-# Excel 表頭底色（品牌藍）
+SITES = {"office": "辦公室", "warehouse": "倉庫", "van": "廂型車", "truck": "貨車"}
+SITE_ORDER = tuple(SITES)
+MAX_RANGE_DAYS = 366
 HEADER_FILL = "2E5C8A"
-# 匯出天數上限
-MAX_DAYS = 366
+TITLE_FILL = "163B63"
+STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"}
 
 
-def _style_header(ws):
-    """設定工作表表頭樣式：粗體白字 + 品牌色底 + 置中 + 凍結首列"""
-    from openpyxl.styles import Alignment, Font, PatternFill
+def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str]:
+    now = now or dt.datetime.now()
+    if start_date is not None or end_date is not None:
+        if not start_date or not end_date:
+            raise HTTPException(400, "start_date 與 end_date 必須同時提供")
+        try:
+            start_day = dt.date.fromisoformat(start_date)
+            end_day = dt.date.fromisoformat(end_date)
+        except ValueError:
+            raise HTTPException(400, "日期格式必須為 YYYY-MM-DD")
+        if start_day > end_day or (end_day - start_day).days > MAX_RANGE_DAYS:
+            raise HTTPException(400, "日期範圍無效或超過 366 天")
+        start = dt.datetime.combine(start_day, dt.time.min)
+        end = dt.datetime.combine(end_day + dt.timedelta(days=1), dt.time.min)
+        label = f"{start_day.isoformat()} ～ {end_day.isoformat()}"
+        return start, end, label
+    if month is not None:
+        if not re.fullmatch(r"\d{4}-\d{2}", month):
+            raise HTTPException(400, "month 格式必須為 YYYY-MM")
+        try:
+            year, mon = map(int, month.split("-"))
+            start_day = dt.date(year, mon, 1)
+        except ValueError:
+            raise HTTPException(400, "month 不是合法月份")
+        next_month = dt.date(year + (mon == 12), 1 if mon == 12 else mon + 1, 1)
+        start = dt.datetime.combine(start_day, dt.time.min)
+        end = dt.datetime.combine(next_month, dt.time.min)
+        if start_day.year == now.year and start_day.month == now.month:
+            end = now
+        return start, end, f"{year} 年 {mon:02d} 月"
+    return _parse_export_range(now.strftime("%Y-%m"), None, None, now)
 
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
-        cell.alignment = Alignment(horizontal="center")
-    ws.freeze_panes = "A2"
+
+def _safe(value):
+    return excel_safe("" if value is None else value)
+
+
+def _site_label(site: str) -> str:
+    return SITES.get(site, site)
+
+
+def _period_text(start: dt.datetime, end: dt.datetime, label: str) -> str:
+    end_text = end.strftime("%Y/%m/%d %H:%M")
+    return f"報表期間：{label}　異動統計：{start.strftime('%Y/%m/%d %H:%M')} ～ {end_text}"
+
+
+def _style_title(ws, title: str, period: str):
+    ws["A1"] = title
+    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
+    ws["A1"].fill = PatternFill("solid", fgColor=TITLE_FILL)
+    ws["A1"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 30
+    ws["A2"] = "庫存快照：" + dt.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    ws["A3"] = period
+    for row in (2, 3):
+        ws.cell(row, 1).font = Font(color="475569", italic=True, size=10)
+
+
+def _style_header(ws, row: int):
+    for cell in ws[row]:
+        if cell.value is not None:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.freeze_panes = f"A{row + 1}"
+
+
+def _style_data(ws, header_row: int, qty_columns: Iterable[int] = (), note_columns: Iterable[int] = ()):
+    for row in ws.iter_rows(min_row=header_row + 1):
+        for cell in row:
+            cell.alignment = Alignment(horizontal="right" if cell.column in qty_columns else "left", vertical="top", wrap_text=cell.column in note_columns)
+        for col in qty_columns:
+            row[col - 1].number_format = "#,##0.###"
 
 
 def _set_widths(ws, widths):
-    """依 widths 清單依序設定各欄寬度（A、B、C…）"""
-    import openpyxl.utils
+    for i, width in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = width
 
-    for i, w in enumerate(widths, 1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+
+def _add_table(ws, name: str, header_row: int, style: str = "TableStyleMedium2"):
+    if ws.max_row <= header_row:
+        return False
+    table = Table(displayName=name, ref=f"A{header_row}:{get_column_letter(ws.max_column)}{ws.max_row}")
+    table.tableStyleInfo = TableStyleInfo(name=style, showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+    ws.add_table(table)
+    return True
+
+
+def _qty_format(qty_type: str) -> str:
+    return {"integer": "#,##0", "fraction": "# ??/??", "decimal": "#,##0.###"}.get(qty_type, "#,##0.###")
+
+
+def _write_empty(ws, row: int, text: str = "目前沒有資料"):
+    ws.cell(row, 1).value = text
+    ws.cell(row, 1).font = Font(color="64748B", italic=True)
+
+
+def _write_headers(ws, headers, row: int = 5):
+    for column, value in enumerate(headers, 1):
+        ws.cell(row, column).value = value
+
+
+def _build_inventory_sheet(ws, items, position_table_available: bool, qty_types):
+    headers = ["品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存", "可用庫存", "位置數", "庫存狀態"]
+    _write_headers(ws, headers)
+    _style_header(ws, 5)
+    total_formula = "=SUMIFS(tblPosition[位置數量],tblPosition[品項編號],[@品項編號])" if position_table_available else "=SUM(0)"
+    for item in items:
+        ws.append([item["id"], _site_label(item["site"]), _safe(item["category"] or "未分類"), _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), item["low_stock"] or 0, item["prepared_qty"] or 0, total_formula, "=[@總庫存]-[@待領出]", "=COUNTIFS(tblPosition[品項編號],[@品項編號])" if position_table_available else "=0", '=IF([@可用庫存]<0,"資料異常",IF([@可用庫存]=0,"缺貨",IF(AND([@低庫存門檻]>0,[@可用庫存]<=[@低庫存門檻]),"低庫存","正常")))'])
+    if not items:
+        _write_empty(ws, 6)
+    else:
+        _add_table(ws, "tblInventory", 5)
+        _style_data(ws, 5, qty_columns=(8, 9, 10, 11, 12))
+        for row in range(6, ws.max_row + 1):
+            ws.cell(row, 1).alignment = Alignment(horizontal="center")
+            fmt = _qty_format(qty_types.get(str(ws.cell(row, 7).value).lstrip("'"), "decimal"))
+            for col in (8, 9, 10, 11):
+                ws.cell(row, col).number_format = fmt
+        status_range = f"M6:M{ws.max_row}"
+        for status, color in STATUS_FILLS.items():
+            ws.conditional_formatting.add(status_range, FormulaRule(formula=[f'$M6="{status}"'], fill=PatternFill("solid", fgColor=color)))
+    _set_widths(ws, [10, 12, 16, 16, 30, 18, 10, 14, 12, 12, 12, 10, 14])
+
+
+def _build_position_sheet(ws, positions, qty_types):
+    headers = ["品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註"]
+    _write_headers(ws, headers)
+    _style_header(ws, 5)
+    for row in positions:
+        ws.append([row["id"], _site_label(row["site"]), _safe(row["category"] or "未分類"), _safe(row["brand"] or "未設定廠牌"), _safe(row["name"]), _safe(row["code"]), _safe(row["unit"]), _safe(row["location"]), row["qty"], _safe(row["note"])])
+    if positions:
+        _add_table(ws, "tblPosition", 5)
+        _style_data(ws, 5, qty_columns=(9,), note_columns=(10,))
+        for row in range(6, ws.max_row + 1):
+            ws.cell(row, 9).number_format = _qty_format(qty_types.get(str(ws.cell(row, 7).value).lstrip("'"), "decimal"))
+    else:
+        _write_empty(ws, 6)
+    _set_widths(ws, [10, 12, 16, 16, 30, 18, 10, 24, 14, 30])
+
+
+def _build_movement_sheet(ws, movements):
+    headers = ["時間", "異動類型", "品項編號", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
+    _write_headers(ws, headers)
+    _style_header(ws, 5)
+    for row in movements:
+        reason = row["reason"] or ""
+        if "解除" in reason:
+            movement_type = "解除待領出"
+        elif "待領出" in reason:
+            movement_type = "待領出"
+        elif "調撥" in reason:
+            movement_type = "調撥"
+        elif "盤點" in reason or "調整" in reason:
+            movement_type = "庫存調整"
+        elif "退回" in reason:
+            movement_type = "退回"
+        elif row["delta"] < 0:
+            movement_type = "出庫"
+        else:
+            movement_type = "其他"
+        ws.append([_safe(row["created_at"]), movement_type, row["item_id"], _safe(row["brand"] or "未設定廠牌"), _safe(row["name"]), _safe(row["code"]), _site_label(row["site"]), row["delta"], row["before_qty"], row["after_qty"], _safe(row["destination"]), _safe(reason)])
+    if movements:
+        _add_table(ws, "tblMovement", 5)
+        _style_data(ws, 5, qty_columns=(8, 9, 10), note_columns=(11, 12))
+    else:
+        _write_empty(ws, 6, "選定期間沒有異動紀錄")
+    _set_widths(ws, [21, 14, 10, 16, 28, 18, 12, 12, 12, 12, 20, 30])
+
+
+def _build_overview(ws, has_inventory, period):
+    _style_title(ws, "庫存管理報表", period)
+    ws["A5"] = "指標"; ws["B5"] = "數值"
+    _style_header(ws, 5)
+    kpis = [("品項數", '=ROWS(tblInventory[品項編號])' if has_inventory else "=0"), ("總庫存", '=SUM(tblInventory[總庫存])' if has_inventory else "=SUM(0)"), ("待領出", '=SUM(tblInventory[待領出])' if has_inventory else "=SUM(0)"), ("可用庫存", '=SUM(tblInventory[可用庫存])' if has_inventory else "=SUM(0)"), ("低庫存", '=COUNTIF(tblInventory[庫存狀態],"低庫存")' if has_inventory else "=0"), ("缺貨", '=COUNTIF(tblInventory[庫存狀態],"缺貨")' if has_inventory else "=0")]
+    for name, formula in kpis:
+        ws.append([name, formula])
+    ws["A14"] = "各庫存區摘要"; ws["A14"].font = Font(bold=True, size=13, color=TITLE_FILL)
+    headers = ["庫存區", "品項數", "總庫存", "待領出", "可用", "低庫存", "缺貨"]
+    for col, value in enumerate(headers, 1): ws.cell(15, col).value = value
+    _style_header(ws, 15)
+    for site in SITE_ORDER:
+        ws.append([SITES[site], f'=COUNTIF(tblInventory[庫存區],A{ws.max_row + 1})' if has_inventory else "=0", f'=SUMIF(tblInventory[庫存區],A{ws.max_row + 1},tblInventory[總庫存])' if has_inventory else "=SUM(0)", f'=SUMIF(tblInventory[庫存區],A{ws.max_row + 1},tblInventory[待領出])' if has_inventory else "=SUM(0)", f'=SUMIF(tblInventory[庫存區],A{ws.max_row + 1},tblInventory[可用庫存])' if has_inventory else "=SUM(0)", f'=COUNTIFS(tblInventory[庫存區],A{ws.max_row + 1},tblInventory[庫存狀態],"低庫存")' if has_inventory else "=0", f'=COUNTIFS(tblInventory[庫存區],A{ws.max_row + 1},tblInventory[庫存狀態],"缺貨")' if has_inventory else "=0"])
+    _set_widths(ws, [18, 14, 14, 14, 14, 14, 14])
+
+
+def _build_alert_sheet(ws, has_inventory):
+    headers = ["庫存狀態", "品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "總庫存", "待領出", "可用庫存", "低庫存門檻"]
+    _write_headers(ws, headers); _style_header(ws, 5)
+    if has_inventory:
+        ws["A6"] = '=FILTER(CHOOSE({1,2,3,4,5,6,7,8,9,10,11,12},tblInventory[庫存狀態],tblInventory[品項編號],tblInventory[庫存區],tblInventory[分類],tblInventory[廠牌],tblInventory[品項名稱],tblInventory[型號],tblInventory[單位],tblInventory[總庫存],tblInventory[待領出],tblInventory[可用庫存],tblInventory[低庫存門檻]),tblInventory[庫存狀態]<>"正常","目前無庫存警示")'
+    else:
+        _write_empty(ws, 6)
+    _set_widths(ws, [14, 12, 12, 16, 16, 30, 18, 10, 12, 12, 12, 14])
+
+
+def _build_stats_sheet(ws, has_inventory):
+    _style_title(ws, "庫存統計", "數字欄位皆由 Excel 公式依 tblInventory 推導")
+    ws["A4"] = "庫存區統計"; ws["J4"] = "分類統計"; ws["O4"] = "廠牌統計"
+    for cell in (ws["A4"], ws["J4"], ws["O4"]): cell.font = Font(bold=True, size=13, color=TITLE_FILL)
+    site_headers = ["庫存區", "品項數", "總庫存", "待領出", "可用庫存", "低庫存", "缺貨"]
+    cat_headers = ["分類", "品項數", "總庫存", "可用庫存"]
+    brand_headers = ["廠牌", "品項數", "總庫存", "可用庫存"]
+    for col, val in enumerate(site_headers, 1): ws.cell(5, col).value = val
+    for col, val in enumerate(cat_headers, 10): ws.cell(5, col).value = val
+    for col, val in enumerate(brand_headers, 15): ws.cell(5, col).value = val
+    _style_header(ws, 5)
+    for site in SITE_ORDER:
+        r = ws.max_row + 1; ws.cell(r, 1).value = SITES[site]
+        if has_inventory:
+            ws.cell(r, 2).value = f'=COUNTIF(tblInventory[庫存區],A{r})'; ws.cell(r, 3).value = f'=SUMIF(tblInventory[庫存區],A{r},tblInventory[總庫存])'; ws.cell(r, 4).value = f'=SUMIF(tblInventory[庫存區],A{r},tblInventory[待領出])'; ws.cell(r, 5).value = f'=SUMIF(tblInventory[庫存區],A{r},tblInventory[可用庫存])'; ws.cell(r, 6).value = f'=COUNTIFS(tblInventory[庫存區],A{r},tblInventory[庫存狀態],"低庫存")'; ws.cell(r, 7).value = f'=COUNTIFS(tblInventory[庫存區],A{r},tblInventory[庫存狀態],"缺貨")'
+    ws["J6"] = '=SORT(UNIQUE(tblInventory[分類]))' if has_inventory else "目前無資料"
+    ws["O6"] = '=SORT(UNIQUE(tblInventory[廠牌]))' if has_inventory else "目前無資料"
+    for r in range(6, 30):
+        ws.cell(r, 11).value = f'=IF(J{r}="","",COUNTIF(tblInventory[分類],J{r}))' if has_inventory else ""
+        ws.cell(r, 12).value = f'=IF(J{r}="","",SUMIF(tblInventory[分類],J{r},tblInventory[總庫存]))' if has_inventory else ""
+        ws.cell(r, 13).value = f'=IF(J{r}="","",SUMIF(tblInventory[分類],J{r},tblInventory[可用庫存]))' if has_inventory else ""
+        ws.cell(r, 16).value = f'=IF(O{r}="","",COUNTIF(tblInventory[廠牌],O{r}))' if has_inventory else ""
+        ws.cell(r, 17).value = f'=IF(O{r}="","",SUMIF(tblInventory[廠牌],O{r},tblInventory[總庫存]))' if has_inventory else ""
+        ws.cell(r, 18).value = f'=IF(O{r}="","",SUMIF(tblInventory[廠牌],O{r},tblInventory[可用庫存]))' if has_inventory else ""
+    _set_widths(ws, [14, 12, 14, 14, 14, 12, 12, 3, 3, 18, 12, 14, 14, 3, 18, 12, 14, 14])
 
 
 @router.get("/api/export", dependencies=[Depends(require_perm("export"))])
-def export_excel(days: int = 30):
-    """匯出完整庫存 Excel（記憶體回傳，伺服器不留檔案）"""
-    try:
-        import openpyxl
-    except ImportError:
-        raise HTTPException(500, "缺少 openpyxl，請先安裝")
-
-    # clamp 防呆：負數 / 過大會讓 SQLite datetime() 解析異常（空 sheet 甚至 500）
-    days = max(0, min(days, MAX_DAYS))
-
-    wb = openpyxl.Workbook()
+def export_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sites: str | None = None, sections: str | None = None):
+    del sections  # 六張工作表固定輸出；保留參數以相容既有/未來前端。
+    if days is not None and month is None and start_date is None and end_date is None:
+        if days < 0 or days > MAX_RANGE_DAYS:
+            raise HTTPException(400, "days 必須介於 0 到 366")
+        now = dt.datetime.now(); start = now - dt.timedelta(days=days); end = now; period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"
+    else:
+        start, end, period = _parse_export_range(month, start_date, end_date)
+    selected_sites = list(SITE_ORDER) if not sites else [s for s in sites.split(",") if s]
+    if not selected_sites or any(s not in SITES for s in selected_sites):
+        raise HTTPException(400, "sites 含有不合法的庫存區")
     conn = get_db()
-    def _fill_stock_sheet(ws, site):
-        """庫存明細頁（每列 = 主檔 × 每位置一行；2026-08-13 家豪：辦公室/倉庫分頁）"""
-        ws.append(["編號", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "總數量"])
-        _style_header(ws)
-        rows = conn.execute("""
-            SELECT i.id, i.brand, i.name, i.code, i.unit,
-                   s.location, s.qty, s.note,
-                   COALESCE(SUM(s.qty) OVER (PARTITION BY i.id), 0) AS total
-            FROM items i
-            LEFT JOIN item_stocks s ON s.item_id = i.id
-            WHERE i.is_deleted = 0 AND i.site = ?
-            ORDER BY i.brand COLLATE NOCASE, i.name, s.id
-        """, (site,)).fetchall()
-        for r in rows:
-            ws.append([r["id"], excel_safe(r["brand"]), excel_safe(r["name"]), excel_safe(r["code"]),
-                       excel_safe(r["unit"]), excel_safe(r["location"]), r["qty"], excel_safe(r["note"]), r["total"]])
-        _set_widths(ws, [8, 14, 40, 16, 8, 30, 10, 24, 10])
-
     try:
-        # Sheet 1-4：四個獨立庫存區明細（單一 JOIN 消除 N+1）
-        ws = wb.active
-        for sheet, site in (("辦公室", "office"), ("倉庫", "warehouse"),
-                            ("廂型車", "van"), ("貨車", "truck")):
-            if ws.title != "Sheet":
-                ws = wb.create_sheet(sheet)
-            else:
-                ws.title = sheet
-            _fill_stock_sheet(ws, site)
-
-        # Sheet 3: 異動紀錄（days 控制範圍，取代寫死的 LIMIT 500）
-        ws3 = wb.create_sheet("異動紀錄")
-        ws3.append(["時間", "品項", "變動", "原本", "現在", "去向", "原因"])
-        _style_header(ws3)
-        movs = conn.execute("""
-            SELECT m.created_at, i.name, m.delta, m.before_qty, m.after_qty,
-                   m.destination, m.reason
-            FROM movements m JOIN items i ON i.id = m.item_id
-            WHERE m.created_at >= datetime('now', ?)
-            ORDER BY m.id DESC
-        """, (f"-{days} days",)).fetchall()
-        for m in movs:
-            ws3.append([excel_safe(x) for x in m])
-        _set_widths(ws3, [20, 30, 10, 10, 10, 16, 30])
-
-        # Sheet 4: 廠牌統計
-        ws4 = wb.create_sheet("廠牌統計")
-        ws4.append(["廠牌", "品項數", "總庫存"])
-        _style_header(ws4)
-        stats = conn.execute("""
-            SELECT i.brand, COUNT(DISTINCT i.id), COALESCE(SUM(s.qty), 0)
-            FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id
-            GROUP BY i.brand ORDER BY COUNT(DISTINCT i.id) DESC
-        """).fetchall()
-        for s in stats:
-            ws4.append([excel_safe(x) for x in s])
-        _set_widths(ws4, [14, 10, 10])
+        items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND is_kit=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
+        positions = conn.execute("SELECT i.id, i.site, i.category, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.is_kit=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
+        movements = conn.execute("SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, m.destination, m.reason, i.site, i.brand, i.name, i.code FROM movements m JOIN items i ON i.id=m.item_id WHERE i.is_deleted=0 AND i.is_kit=0 AND i.site IN (%s) AND m.created_at >= ? AND m.created_at < ? ORDER BY m.created_at DESC, m.id DESC" % ",".join("?" * len(selected_sites)), [*selected_sites, start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")]).fetchall()
+        qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
     finally:
         conn.close()
-
-    # 記憶體回傳：不寫磁碟、伺服器不留檔案（中文檔名走 RFC 5987，見 safety.xlsx_download）
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"庫存報表_{ts}.xlsx"
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
+    wb = Workbook(); wb.remove(wb.active); wb.calculation.fullCalcOnLoad = True; wb.calculation.forceFullCalc = True; wb.calculation.calcMode = "auto"
+    period_text = _period_text(start, end, period)
+    overview = wb.create_sheet("01 總覽"); _build_overview(overview, bool(items), period_text)
+    inventory = wb.create_sheet("02 庫存總表"); _style_title(inventory, "庫存總表（匯出當下快照）", period_text); _build_inventory_sheet(inventory, items, bool(positions), qty_types)
+    position = wb.create_sheet("03 位置明細"); _style_title(position, "位置明細（每位置一列）", period_text); _build_position_sheet(position, positions, qty_types)
+    alerts = wb.create_sheet("04 庫存警示"); _style_title(alerts, "庫存警示", period_text); _build_alert_sheet(alerts, bool(items))
+    movement = wb.create_sheet("05 異動紀錄"); _style_title(movement, "異動紀錄", period_text); _build_movement_sheet(movement, movements)
+    stats = wb.create_sheet("06 統計"); _build_stats_sheet(stats, bool(items))
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    now = dt.datetime.now(); stamp = now.strftime("%Y%m%d_%H%M%S")
+    if month and not start_date and not end_date:
+        filename = f"庫存報表_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
+    elif start_date and end_date:
+        filename = f"庫存報表_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
+    else:
+        filename = f"庫存報表_{stamp}.xlsx"
     return xlsx_download(buf.getvalue(), filename)

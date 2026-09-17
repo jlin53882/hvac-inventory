@@ -2066,27 +2066,11 @@ class TestV10CompatAndCascade:
         import io as _io
         from openpyxl import load_workbook
         wb = load_workbook(_io.BytesIO(r.content))
-        # 2026-08-13 家豪：庫存明細拆「辦公室」「倉庫」兩頁
-        assert wb.sheetnames == ["辦公室", "倉庫", "廂型車", "貨車", "異動紀錄", "廠牌統計"]
-
-        ws = wb["辦公室"]
-        assert [c.value for c in ws[1]] == \
-            ["編號", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "總數量"]
-        # 每列 = 主檔 × 每位置一行：找到冷媒管列，位置/數量/總量正確（_add_item 預設 office）
-        row = next(rr for rr in ws.iter_rows(min_row=2, values_only=True) if rr[2] == "冷媒管")
-        assert row[5] == "A倉" and row[6] == 5 and row[8] == 5
-
-        # 倉庫頁目前 0 筆：只有表頭
-        ws_wh = wb["倉庫"]
-        assert [c.value for c in ws_wh[1]] == \
-            ["編號", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "總數量"]
-        assert ws_wh.max_row == 1, "倉庫頁無資料時應只有表頭"
-
-        ws2 = wb["異動紀錄"]
-        assert [c.value for c in ws2[1]] == ["時間", "品項", "變動", "原本", "現在", "去向", "原因"]
-
-        ws3 = wb["廠牌統計"]
-        assert [c.value for c in ws3[1]] == ["廠牌", "品項數", "總庫存"]
+        assert wb.sheetnames == ["01 總覽", "02 庫存總表", "03 位置明細", "04 庫存警示", "05 異動紀錄", "06 統計"]
+        assert wb["02 庫存總表"].tables["tblInventory"]
+        assert wb["03 位置明細"].tables["tblPosition"]
+        assert wb["02 庫存總表"].cell(6, 10).value.startswith("=")
+        assert wb["03 位置明細"].cell(6, 9).value == 5
 
     def test_export_formula_injection_safe(self, client):
         """公式注入防護：= 開頭的字串以 ' 前綴儲存，開啟 Excel 不會被當公式執行（含 unit / 廠牌統計）"""
@@ -2097,23 +2081,24 @@ class TestV10CompatAndCascade:
         import io as _io
         from openpyxl import load_workbook
         wb = load_workbook(_io.BytesIO(r.content))
-        ws = wb["辦公室"]
-        values = [v for row in ws.iter_rows(min_row=2, values_only=True) for v in row]
+        ws = wb["03 位置明細"]
+        values = [v for row in ws.iter_rows(min_row=6, values_only=True) for v in row]
         assert "'=1+1" in values        # 防護：撇號前綴
         assert "'=HYPERLINK(1)" in values
         assert "'=2+2" in values        # unit 欄位也有防護
         assert "=1+1" not in values     # 沒有裸公式
         assert "=2+2" not in values
-        ws3 = wb["廠牌統計"]
-        stats_values = [v for row in ws3.iter_rows(min_row=2, values_only=True) for v in row]
-        assert "'=1+1" in stats_values  # 廠牌統計 brand 也有防護
-        assert "=1+1" not in stats_values
+        inventory_values = [v for row in wb["02 庫存總表"].iter_rows(min_row=6, values_only=True) for v in row]
+        assert "'=1+1" in inventory_values  # 庫存總表 brand 仍有防護
+        assert "=1+1" not in inventory_values
 
     def test_export_days_clamped(self, client):
-        """days 負數 / 超界不會 500：clamp 到 0~366"""
-        for days in (-5, 99999, 0, 30, 366):
+        """legacy days 維持相容，但非法範圍明確回 400。"""
+        for days in (0, 30, 366):
             r = client.get("/api/export", params={"days": days})
             assert r.status_code == 200, f"days={days} 失敗"
+        assert client.get("/api/export", params={"days": -5}).status_code == 400
+        assert client.get("/api/export", params={"days": 367}).status_code == 400
 
     def test_export_writes_no_file(self, client):
         """記憶體回傳：匯出後 exports/ 不新增任何檔案（零留檔）"""
