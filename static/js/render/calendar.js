@@ -108,7 +108,7 @@ function calTeamHasRetryableTarget(team) {
 function calTeamSyncLabel(team) {
   if (!calHasTeamSyncInfo(team)) return '';
   if (team.fallback_target_count && !team.eligible_people) {
-    return `同步目標：${team.fallback_target_count} 個 fallback Key${team.can_retry_all ? ' ⏳' : ''}`;
+    return `未指派，同步至所有帳號（${team.fallback_target_count} 個）${team.can_retry_all ? ' ⏳' : ''}`;
   }
   if (!team.eligible_people) return '團隊：目前無有效同步人員';
   const icon = team.failed_people ? ' ⚠️' : team.pending_people || team.retrying_people ? ' ⏳' : '';
