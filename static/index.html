@@ -36,18 +36,18 @@
   </div>
   <div class="sidebar-nav">
     <div class="nav-section">主要功能</div>
-    <a class="sb-nav-link active" id="sb-nav-calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
-    <a class="sb-nav-link" id="sb-nav-signed-reports" onclick="switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
-    <a class="sb-nav-link" id="sb-nav-quotation" onclick="switchTab('quotation')"><span class="ic">🧾</span>報價單</a>
-    <a class="sb-nav-link" id="sb-nav-petty-cash" onclick="switchTab('petty-cash')"><span class="ic">🪙</span>零用金月報</a>
-    <a class="sb-nav-link" id="sb-nav-inventory" onclick="switchTab('inventory')"><span class="ic">📦</span>單一庫存</a>
-    <a class="sb-nav-link" id="sb-nav-prepared" onclick="switchTab('prepared')"><span class="ic">📤</span>待領出<span class="badge" id="sb-prepared-badge" style="display:none">0</span></a>
-    <a class="sb-nav-link" id="sb-nav-stockout" onclick="switchTab('stockout')"><span class="ic">🚚</span>已領出</a>
-    <a class="sb-nav-link" id="sb-nav-stocktake" onclick="switchTab('stocktake')"><span class="ic">📋</span>盤點</a>
-    <a class="sb-nav-link" id="sb-nav-kit" onclick="switchTab('kit')"><span class="ic">🔧</span>整組庫存</a>
+    <a class="sb-nav-link active" id="sb-nav-calendar" data-page-key="calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
+    <a class="sb-nav-link" id="sb-nav-signed-reports" data-page-key="signed-reports" onclick="switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
+    <a class="sb-nav-link" id="sb-nav-quotation" data-page-key="quotation" onclick="switchTab('quotation')"><span class="ic">🧾</span>報價單</a>
+    <a class="sb-nav-link" id="sb-nav-petty-cash" data-page-key="petty-cash" onclick="switchTab('petty-cash')"><span class="ic">🪙</span>零用金月報</a>
+    <a class="sb-nav-link" id="sb-nav-inventory" data-page-key="inventory" onclick="switchTab('inventory')"><span class="ic">📦</span>單一庫存</a>
+    <a class="sb-nav-link" id="sb-nav-prepared" data-page-key="prepared" onclick="switchTab('prepared')"><span class="ic">📤</span>待領出<span class="badge" id="sb-prepared-badge" style="display:none">0</span></a>
+    <a class="sb-nav-link" id="sb-nav-stockout" data-page-key="stockout" onclick="switchTab('stockout')"><span class="ic">🚚</span>已領出</a>
+    <a class="sb-nav-link" id="sb-nav-stocktake" data-page-key="stocktake" onclick="switchTab('stocktake')"><span class="ic">📋</span>盤點</a>
+    <a class="sb-nav-link" id="sb-nav-kit" data-page-key="kit" onclick="switchTab('kit')"><span class="ic">🔧</span>整組庫存</a>
     <div class="nav-section">管理</div>
-    <a class="sb-nav-link" id="sb-nav-perms" href="/permissions.html"><span class="ic">👥</span>帳號與權限</a>
-    <a class="sb-nav-link" id="sb-nav-settings" href="/settings.html"><span class="ic">⚙️</span>系統設定</a>
+    <a class="sb-nav-link" id="sb-nav-perms" data-page-key="perms" href="/permissions.html"><span class="ic">👥</span>帳號與權限</a>
+    <a class="sb-nav-link" id="sb-nav-settings" data-page-key="settings" href="/settings.html"><span class="ic">⚙️</span>系統設定</a>
   </div>
   <div class="sidebar-footer">
     <div class="sidebar-user" id="sb-user" style="display:none">
@@ -79,9 +79,9 @@
         <div class="h-av" id="h-av" onclick="toggleAvatarMenu()">—</div>
         <div class="avatar-menu" id="avatarMenu">
           <div class="avatar-menu-header" id="avatarMenuHeader">👤 —</div>
-          <a class="avatar-menu-item" href="/permissions.html">👥 帳號與權限</a>
-          <a class="avatar-menu-item" href="/settings.html">⚙️ 設定</a>
-          <a class="avatar-menu-item" onclick="openChangePwModal()">🔑 修改密碼</a>
+          <a class="avatar-menu-item" data-page-key="perms" href="/permissions.html">👥 帳號與權限</a>
+          <a class="avatar-menu-item" data-page-key="settings" href="/settings.html">⚙️ 設定</a>
+          <a class="avatar-menu-item" data-page-key="change-password" onclick="openChangePwModal()">🔑 修改密碼</a>
           <div class="avatar-menu-divider"></div>
           <a class="avatar-menu-item" onclick="logout()">🚪 登出</a>
         </div>

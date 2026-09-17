@@ -799,6 +799,10 @@ async function bindGcalUser(userId, keyName) {
 (async function initSettings() {
   const user = await checkAuth();
   if (!user) return;
+  if (Array.isArray(user.visible_pages) && !user.visible_pages.includes('settings')) {
+    location.href = '/';
+    return;
+  }
   const canUnits = hasPerm('unit-mgmt');
   const canPettyOptions = hasPerm('petty-cash-config');
   if (!canUnits) {

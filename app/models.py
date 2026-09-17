@@ -12,6 +12,21 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 INVENTORY_SITES = ("office", "warehouse", "van", "truck")
+
+# 頁面可見性：初始化時依角色給預設值，之後只讀取 user_page_visibility 個人設定。
+PAGE_KEYS = (
+    "calendar", "signed-reports", "quotation", "petty-cash",
+    "inventory", "prepared", "stockout", "stocktake", "kit",
+    "perms", "settings", "change-password",
+)
+DEFAULT_VISIBLE_PAGE_KEYS = frozenset({"calendar", "signed-reports", "inventory", "kit"})
+
+
+def initial_visible_page_keys(role: str) -> set[str]:
+    """Return the one-time initial page defaults for a new or migrated user."""
+    return set(PAGE_KEYS) if role in {"admin", "user", "tech"} else set(DEFAULT_VISIBLE_PAGE_KEYS)
+
+
 InventorySite = Literal["office", "warehouse", "van", "truck"]
 InventorySiteQuery = Literal["all", "office", "warehouse", "van", "truck"]
 
@@ -211,6 +226,9 @@ class UserBatch(BaseModel):
 class UserPermissionsUpdate(BaseModel):
     permissions: Optional[dict] = None   # {key: 0|1}（部分更新）
     reset_all: bool = False              # True = 清空全部覆蓋回角色預設
+
+class PageVisibilityUpdate(BaseModel):
+    pages: dict[str, int]
 
 
 # ---------- 認證（2026-08-16 從 auth.py 收攏） ----------

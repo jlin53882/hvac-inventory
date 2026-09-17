@@ -20,8 +20,17 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.database import get_db
-from app.models import UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate
-from app.services.auth import _check_pw, get_user_permissions, hash_password, require_perm
+from app.models import PageVisibilityUpdate, UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate
+from app.services.auth import (
+    ALL_PAGE_KEYS,
+    _check_pw,
+    ensure_user_page_visibility,
+    get_user_page_visibility,
+    get_user_permissions,
+    hash_password,
+    require_perm,
+    set_user_page_visibility,
+)
 from app.services import gcal_sync
 
 # 使用者管理 API 路由
@@ -86,6 +95,7 @@ def _create_user_single(conn, body: UserCreate, operator_id: int = None) -> dict
         "INSERT INTO users (username, password_hash, display_name, role, password_updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
         (username, hash_password(body.password), body.display_name.strip(), body.role),
     )
+    ensure_user_page_visibility(conn, cur.lastrowid, body.role)
     if operator_id is not None:
         conn.execute(
             "INSERT INTO user_audit_log (operator_id, target_id, action, detail) VALUES (?, ?, 'create', ?)",
@@ -433,6 +443,8 @@ def get_user_permissions_detail(user_id: int, admin: dict = Depends(require_perm
                 source = "locked"
             elif key == "change-own-password" and target_role == "admin":
                 source = "locked"
+            elif key == "page-visibility-manage" and target_role != "admin":
+                source = "locked"
             elif key == "svc-type-mgmt" and target_role != "admin":
                 source = "locked"
             elif key == "unit-mgmt" and target_role != "admin":
@@ -445,7 +457,15 @@ def get_user_permissions_detail(user_id: int, admin: dict = Depends(require_perm
                 "key": key, "label": p["label"], "module": p["module"],
                 "allowed": perms[key], "source": source,
             })
-        return {"user_id": user_id, "role": target_role, "permissions": detail}
+        return {
+            "user_id": user_id,
+            "role": target_role,
+            "permissions": detail,
+            "page_visibility": {
+                "all_pages": list(ALL_PAGE_KEYS),
+                "visible_pages": get_user_page_visibility(conn, user_id),
+            },
+        }
     finally:
         conn.close()
 
@@ -482,6 +502,8 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
                     raise HTTPException(status_code=400, detail="庫存瀏覽為基底權限，不可關閉")
                 if key == "user-mgmt":
                     raise HTTPException(status_code=400, detail="使用者管理權限僅管理員角色可持有且不可關閉")
+                if key == "page-visibility-manage" and target_role != "admin":
+                    raise HTTPException(status_code=400, detail="頁面可見性管理僅管理員角色可持有")
                 if key == "change-own-password" and target_role == "admin" and value == 0:
                     raise HTTPException(status_code=400, detail="管理員的自行改密碼權限不可關閉")
                 if key == "svc-type-mgmt" and target_role != "admin" and value == 1:
@@ -504,6 +526,51 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
     finally:
         conn.close()
 
+
+
+# ---------- Page visibility ----------
+
+@router.get("/{user_id}/page-visibility")
+def get_page_visibility(user_id: int, admin: dict = Depends(require_perm("page-visibility-manage"))):
+    """Get the target user's page visibility settings."""
+    conn = get_db()
+    try:
+        row = _get_user_or_404(conn, user_id)
+        return {
+            "user_id": row["id"],
+            "visible_pages": get_user_page_visibility(conn, user_id),
+            "all_pages": list(ALL_PAGE_KEYS),
+        }
+    finally:
+        conn.close()
+
+
+@router.put("/{user_id}/page-visibility")
+def update_page_visibility(
+    user_id: int,
+    body: PageVisibilityUpdate,
+    admin: dict = Depends(require_perm("page-visibility-manage")),
+):
+    """Update individual page visibility settings."""
+    conn = get_db()
+    try:
+        _get_user_or_404(conn, user_id)
+        unknown = sorted(set(body.pages) - set(ALL_PAGE_KEYS))
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"未知頁面: {', '.join(unknown)}")
+        invalid = [key for key, value in body.pages.items() if value not in (0, 1)]
+        if invalid:
+            raise HTTPException(status_code=400, detail=f"頁面值只能是 0/1: {', '.join(invalid)}")
+        set_user_page_visibility(conn, user_id, body.pages)
+        return {
+            "user_id": user_id,
+            "visible_pages": get_user_page_visibility(conn, user_id),
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 @router.get("/audit")
 def list_audit(target_id: Optional[int] = None, limit: int = Query(100, ge=1, le=500),

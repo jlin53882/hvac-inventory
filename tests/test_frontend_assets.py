@@ -4355,7 +4355,7 @@ def test_calendar_sync_status_uses_personal_and_admin_team_contract():
     modal = read(Path(STATIC) / "js" / "modals" / "calendar.js")
     assert "my_sync_status" in js
     assert "team_sync" in js
-    assert "未指派給你" in js
+    assert "未指派給你" not in js  # 2026-09-17: 已移除「未指派給你」顯示
     assert "calShowTeamSyncDetails" in js
     assert "重試我的" in js
     assert "重試全體" in modal
@@ -4649,6 +4649,7 @@ def test_mobile_site_tab_2x2_layout():
     assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
 
 
+
 def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
@@ -4679,3 +4680,26 @@ def test_inventory_export_dialog_runtime():
     script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
     result = subprocess.run(["node", script], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"
+
+def test_page_visibility_frontend_contract():
+    html = read(Path(STATIC) / "index.html")
+    auth = read(Path(STATIC) / "js" / "auth.js")
+    app = read(Path(STATIC) / "js" / "app.js")
+    perms = read(Path(STATIC) / "js" / "perms.js")
+    settings = read(Path(STATIC) / "js" / "settings.js")
+    page_keys = (
+        "calendar", "signed-reports", "quotation", "petty-cash", "inventory",
+        "prepared", "stockout", "stocktake", "kit", "perms", "settings",
+        "change-password",
+    )
+    for key in page_keys:
+        assert f'data-page-key="{key}"' in html or f"'{key}'" in auth
+    assert "visible_pages" in auth
+    assert "applyPageVisibility" in auth
+    assert "isPageVisible" in app
+    assert "page_visibility" in perms
+    assert "permPageToggle" in perms
+    assert "visible_pages" in settings
+    assert "includes('settings')" in settings
+    assert "includes('perms')" in perms
+    assert "/page-visibility`" in perms

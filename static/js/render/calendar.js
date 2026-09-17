@@ -53,7 +53,7 @@ function calSyncStatusLabel(status) {
     : status === 'retrying' ? '同步重試中'
     : status === 'pending' ? '等待同步'
     : status === 'failed' ? '同步失敗'
-    : status === 'not_assigned' ? '未指派給你'
+    : status === 'not_assigned' ? ''
     : status === 'not_bound' ? '未綁定同步 Key'
     : status === 'paused' ? '同步 Key 已停用'
     : status === 'not_targeted' ? '尚未同步至你的日曆'
@@ -108,7 +108,7 @@ function calTeamHasRetryableTarget(team) {
 function calTeamSyncLabel(team) {
   if (!calHasTeamSyncInfo(team)) return '';
   if (team.fallback_target_count && !team.eligible_people) {
-    return `未指派，同步至所有帳號（${team.fallback_target_count} 個）${team.can_retry_all ? ' ⏳' : ''}`;
+    return `同步至所有帳號（${team.fallback_target_count} 個）${team.can_retry_all ? ' ⏳' : ''}`;
   }
   if (!team.eligible_people) return '團隊：目前無有效同步人員';
   const icon = team.failed_people ? ' ⚠️' : team.pending_people || team.retrying_people ? ' ⏳' : '';
@@ -472,7 +472,7 @@ function calRenderDay() {
       ? (hasSyncErr
         ? `<button type="button" class="cal-sync-status cal-sync-${esc(personal.status)} cal-sync-clickable" onclick="calShowSyncError(${e.id})" title="點擊查看我的同步錯誤">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(personalLabel)}</span></button>`
         : `<span class="cal-sync-status cal-sync-${esc(personal.status)}" title="${esc(personalLabel)}">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(personalLabel)}</span></span>`)
-      : (isAssigned ? '' : '<span class="cal-sync-status cal-sync-not-assigned">未指派給你</span>');
+      : (isAssigned ? '' : '');
     const myRetry = isAssigned && calCanRetryPersonal(personal)
       ? `<button type="button" class="cal-sync-retry-btn" onclick="calRetryMySync(${e.id})">重試我的</button>` : '';
     const canViewTeamSync = hasPerm('gcal-sync-team-view');

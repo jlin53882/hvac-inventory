@@ -113,6 +113,10 @@ function updateBreadcrumb(tab) {
 }
 
 function switchTab(tab) {
+  if (typeof isPageVisible === 'function' && !isPageVisible(tab)) {
+    tab = typeof firstVisiblePageTab === 'function' ? firstVisiblePageTab() : tab;
+    if (!tab) return;
+  }
   if (typeof closeInventoryStatusModal === 'function') closeInventoryStatusModal();
   currentTab = tab;
   syncViewUrl();

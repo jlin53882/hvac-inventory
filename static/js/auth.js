@@ -58,9 +58,36 @@ function renderUserMenu(user) {
   renderSidebarUser(user);
 }
 
+// ---------- 頁面可見性 ----------
+var PAGE_VISIBILITY_TABS = ['calendar', 'signed-reports', 'quotation', 'petty-cash', 'inventory', 'prepared', 'stockout', 'stocktake', 'kit'];
+
+function isPageVisible(pageKey) {
+  if (!currentUser || !Array.isArray(currentUser.visible_pages)) return true;
+  return currentUser.visible_pages.indexOf(pageKey) >= 0;
+}
+
+function firstVisiblePageTab() {
+  for (var i = 0; i < PAGE_VISIBILITY_TABS.length; i += 1) {
+    if (isPageVisible(PAGE_VISIBILITY_TABS[i])) return PAGE_VISIBILITY_TABS[i];
+  }
+  return null;
+}
+
+function applyPageVisibility(user) {
+  var visible = Array.isArray(user.visible_pages) ? user.visible_pages : null;
+  document.querySelectorAll('[data-page-key]').forEach(function(el) {
+    el.style.display = !visible || visible.indexOf(el.dataset.pageKey) >= 0 ? '' : 'none';
+  });
+  if (typeof currentTab !== 'undefined' && !isPageVisible(currentTab)) {
+    var fallback = firstVisiblePageTab();
+    if (fallback) currentTab = fallback;
+  }
+}
+
 // ---------- 角色 UI 控制（RBAC 2026-08-13） ----------
 function applyRoleView(user) {
   if (!user) return;
+  applyPageVisibility(user);
   var perms = user.permissions || {};
   var canStocktake = !!perms['stocktake'];
   var canViewStocktake = canStocktake || !!perms['view'];

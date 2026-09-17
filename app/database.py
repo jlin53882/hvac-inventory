@@ -12,6 +12,7 @@ from app.services.app_log import get_logger
 logger = get_logger(__name__)
 
 from app.config import DB_PATH
+from app.models import PAGE_KEYS, initial_visible_page_keys
 
 
 def get_db():
@@ -248,6 +249,14 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_appt_date_start ON appointments(date, start_time);
     CREATE INDEX IF NOT EXISTS idx_appt_svc ON appointments(service_type_id);
     CREATE INDEX IF NOT EXISTS idx_assignees_appt ON appointment_assignees(appointment_id);
+
+    -- Page visibility (2026-09-17)
+    CREATE TABLE IF NOT EXISTS user_page_visibility (
+        user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        page_key TEXT NOT NULL,
+        visible  INTEGER NOT NULL DEFAULT 1 CHECK (visible IN (0, 1)),
+        PRIMARY KEY (user_id, page_key)
+    );
     CREATE INDEX IF NOT EXISTS idx_assignees_user_appt ON appointment_assignees(user_id, appointment_id);
     -- 每日簽名報表（2026-09-06 簽名報表模組）
     CREATE TABLE IF NOT EXISTS daily_signed_reports (
@@ -603,7 +612,8 @@ def _exec_init(conn):
         ('petty-cash-create', '零用金月報 新增', 'calendar'),
         ('petty-cash-edit', '零用金月報 編輯', 'calendar'),
         ('petty-cash-delete', '零用金月報 刪除本人', 'calendar'),
-        ('petty-cash-config', '零用金下拉選單管理', 'calendar');
+        ('petty-cash-config', '零用金下拉選單管理', 'calendar'),
+        ('page-visibility-manage', '頁面可見性管理', 'system');
     """)
     # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
     _RBAC_DEFAULT = {
@@ -636,6 +646,7 @@ def _exec_init(conn):
         'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'page-visibility-manage': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     }
     _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
     _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}
@@ -654,4 +665,11 @@ def _exec_init(conn):
     }
     for _k, _v in _GCAL_DEFAULTS.items():
         conn.execute("INSERT OR IGNORE INTO gcal_sync_settings(key, value) VALUES(?, ?)", (_k, _v))
+    # Seed only missing rows: page controls are per-user and survive later role changes.
+    for _user in conn.execute("SELECT id, role FROM users").fetchall():
+        _visible = initial_visible_page_keys(_user["role"])
+        conn.executemany(
+            "INSERT OR IGNORE INTO user_page_visibility (user_id, page_key, visible) VALUES (?, ?, ?)",
+            [(_user["id"], _key, 1 if _key in _visible else 0) for _key in PAGE_KEYS],
+        )
     conn.commit()
