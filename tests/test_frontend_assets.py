@@ -4161,8 +4161,8 @@ def test_calendar_sync_status_uses_personal_and_admin_team_contract():
     assert "function calTeamHasRetryableTarget(team)" in js
     assert "calTeamHasRetryableTarget(team)" in modal
     assert "isAssigned && calCanRetryPersonal(personal)" in js
-    assert "const retry = calCanRetryTeamPerson(person)" in modal
-    assert "retryAll.hidden = !calTeamHasRetryableTarget(team)" in modal
+    assert "const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)" in modal
+    assert "retryAll.hidden = !hasPerm('gcal-sync-force') || !calTeamHasRetryableTarget(team)" in modal
     assert "fallback_target_count" in modal
 
 

@@ -1608,3 +1608,59 @@ def test_stale_update_queue_cannot_resurrect_after_delete(client, monkeypatch):
         assert (queue["op_type"], queue["google_event_id"]) == ("D", "stale-remote-event")
     finally:
         conn.close()
+
+
+def _grant_user_permissions(conn, user_id, keys):
+    for key in keys:
+        permission_id = conn.execute('SELECT id FROM permissions WHERE key=?',(key,)).fetchone()['id']
+        conn.execute("INSERT OR REPLACE INTO user_permissions(user_id,permission_id,value,updated_at) VALUES(?,?,1,datetime('now'))",(user_id,permission_id))
+    conn.commit()
+
+
+def test_team_sync_view_permission_for_non_admin_does_not_grant_retry(client):
+    from app.database import get_db
+    teammate = _create_user(client, 'team-view-user', 'user')
+    conn = get_db()
+    try:
+        _grant_user_permissions(conn, teammate['id'], ['gcal-sync-team-view'])
+    finally:
+        conn.close()
+    appt_id = client.post('/api/appointments', json={'client_name':'team permission view','date':'2026-09-04','start_time':'09:00','end_time':'10:00','user_ids':[1]}).json()['id']
+    viewer = _login(None, 'team-view-user', 'Passw0rd!')
+    try:
+        item = next(x for x in viewer.get('/api/appointments?date=2026-09-04').json() if x['id']==appt_id)
+        assert item['team_sync'] is not None
+        assert viewer.put(f'/api/gcal-sync-queue/reset-scope?appt_id={appt_id}&scope=all').status_code == 403
+    finally:
+        viewer.close()
+
+
+def test_team_sync_view_without_permission_is_private(client):
+    teammate = _create_user(client, 'team-hidden-user', 'user')
+    appt_id = client.post('/api/appointments', json={'client_name':'team permission hidden','date':'2026-09-04','start_time':'11:00','end_time':'12:00','user_ids':[1]}).json()['id']
+    viewer = _login(None, 'team-hidden-user', 'Passw0rd!')
+    try:
+        item = next(x for x in viewer.get('/api/appointments?date=2026-09-04').json() if x['id']==appt_id)
+        assert item['team_sync'] is None
+    finally:
+        viewer.close()
+
+
+def test_team_sync_force_permission_allows_retry_all(client):
+    from app.database import get_db
+    teammate = _create_user(client, 'team-force-user', 'user')
+    conn = get_db()
+    try:
+        key_id = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('team-force-key','x.json','force@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key='team-force-key' WHERE id=1")
+        _grant_user_permissions(conn, teammate['id'], ['gcal-sync-team-view','gcal-sync-force'])
+    finally:
+        conn.close()
+    appt_id = client.post('/api/appointments', json={'client_name':'team permission force','date':'2026-09-04','start_time':'13:00','end_time':'14:00','user_ids':[1]}).json()['id']
+    viewer = _login(None, 'team-force-user', 'Passw0rd!')
+    try:
+        item = next(x for x in viewer.get('/api/appointments?date=2026-09-04').json() if x['id']==appt_id)
+        assert item['team_sync'] is not None
+        assert viewer.put(f'/api/gcal-sync-queue/reset-scope?appt_id={appt_id}&scope=all').status_code == 200
+    finally:
+        viewer.close()

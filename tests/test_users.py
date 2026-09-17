@@ -661,3 +661,50 @@ def test_password_ack_resets_180(admin_client):
     assert admin_client.get("/api/auth/me").json()["user"]["password_expired"] is False
 
 
+
+
+def test_f9_reenable_user_backfills_only_missing_assigned_appointment(admin_client, monkeypatch):
+    from app.database import get_db
+    from app.services import sync_scheduler
+    sync_scheduler.stop(); monkeypatch.setattr(sync_scheduler,'start',lambda:None); monkeypatch.setattr(sync_scheduler,'wake',lambda:None)
+    user = admin_client.post('/api/users',json={'username':'f9-reenable','password':'Pass1234','display_name':'F9','role':'user'}).json()
+    conn=get_db()
+    try:
+        key_id=conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('f9-reenable-key','x.json','f9-reenable@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key=?,is_active=0 WHERE id=?",('f9-reenable-key',user['id']))
+        conn.commit()
+    finally: conn.close()
+    appt=admin_client.post('/api/appointments',json={'client_name':'f9 reenable','date':'2026-09-06','start_time':'09:00','end_time':'10:00','user_ids':[]}).json()['id']
+    conn=get_db()
+    try:
+        conn.execute('INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,?)',(appt,user['id']))
+        conn.execute('DELETE FROM appointment_sync_queue')
+        conn.commit()
+    finally: conn.close()
+    assert admin_client.put(f'/api/users/{user["id"]}',json={'is_active':1}).status_code==200
+    conn=get_db()
+    try: assert conn.execute('SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?',(appt,key_id)).fetchone()['op_type']=='C'
+    finally: conn.close()
+
+
+def test_f9_reenable_user_skips_pending_migration(admin_client, monkeypatch):
+    from app.database import get_db
+    from app.services import sync_scheduler
+    sync_scheduler.stop(); monkeypatch.setattr(sync_scheduler,'start',lambda:None); monkeypatch.setattr(sync_scheduler,'wake',lambda:None)
+    user=admin_client.post('/api/users',json={'username':'f9-pending','password':'Pass1234','display_name':'F9 pending','role':'user'}).json()
+    conn=get_db()
+    try:
+        key_id=conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id,pending_calendar_id) VALUES('f9-pending-key','x.json','old@cal','new@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key=?,is_active=0 WHERE id=?",('f9-pending-key',user['id']))
+        conn.commit()
+    finally: conn.close()
+    appt=admin_client.post('/api/appointments',json={'client_name':'f9 pending','date':'2026-09-06','start_time':'11:00','end_time':'12:00','user_ids':[]}).json()['id']
+    conn=get_db()
+    try:
+        conn.execute('INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,?)',(appt,user['id']))
+        conn.execute('DELETE FROM appointment_sync_queue'); conn.commit()
+    finally: conn.close()
+    assert admin_client.put(f'/api/users/{user["id"]}',json={'is_active':1}).status_code==200
+    conn=get_db()
+    try: assert conn.execute('SELECT 1 FROM appointment_sync_queue WHERE key_id=?',(key_id,)).fetchone() is None
+    finally: conn.close()

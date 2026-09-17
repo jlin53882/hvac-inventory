@@ -1087,7 +1087,7 @@ class TestBackfillOnKeyCreation:
         client.post("/api/appointments", json={
             "client_name": "backfill測試", "date": "2026-08-28",
             "start_time": "09:00", "end_time": "11:00",
-            "user_ids": [1], "note": ""
+            "user_ids": [], "note": ""
         })
 
         # 清空 sync_queue（排除建行程時觸發的）
@@ -1138,7 +1138,7 @@ class TestBackfillOnKeyReenable:
         client.post("/api/appointments", json={
             "client_name": "reenable測試", "date": "2026-08-28",
             "start_time": "09:00", "end_time": "11:00",
-            "user_ids": [1], "note": ""
+            "user_ids": [], "note": ""
         })
 
         # 清空 sync_queue
@@ -2724,3 +2724,38 @@ def test_scheduler_finalize_rechecks_pending_target_after_key_lock(client, monke
         assert row["pending_calendar_id"] is None
     finally:
         conn.close()
+
+
+def test_f9_inactive_only_assignee_has_no_target_or_fallback(client):
+    from app.database import get_db
+    from app.services.gcal_sync import resolve_effective_target_keys, resolve_target_keys
+    user = client.post('/api/users', json={'username':'f9-inactive','password':'Pass1234','display_name':'F9 inactive','role':'user'}).json()
+    conn = get_db()
+    try:
+        key_id = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('f9-inactive-key','x.json','f9@cal')").lastrowid
+        conn.execute("UPDATE users SET gcal_key='f9-inactive-key', is_active=0 WHERE id=?",(user['id'],))
+        conn.commit()
+    finally: conn.close()
+    appt = client.post('/api/appointments', json={'client_name':'f9 inactive','date':'2026-09-05','start_time':'09:00','end_time':'10:00','user_ids':[]}).json()['id']
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO appointment_assignees(appointment_id,user_id) VALUES(?,?)',(appt,user['id']))
+        conn.commit()
+        assert resolve_target_keys(conn,appt) == []
+        assert resolve_effective_target_keys(conn,appt) == []
+        assert key_id not in resolve_target_keys(conn,appt)
+    finally: conn.close()
+
+
+def test_f9_no_assignee_keeps_active_key_fallback(client):
+    from app.database import get_db
+    from app.services.gcal_sync import resolve_target_keys
+    conn = get_db()
+    try:
+        key_id = conn.execute("INSERT INTO gcal_keys(name,credentials_path,calendar_id) VALUES('f9-fallback-key','x.json','f9-fallback@cal')").lastrowid
+        conn.commit()
+    finally: conn.close()
+    appt = client.post('/api/appointments', json={'client_name':'f9 fallback','date':'2026-09-05','start_time':'11:00','end_time':'12:00','user_ids':[]}).json()['id']
+    conn = get_db()
+    try: assert key_id in resolve_target_keys(conn,appt)
+    finally: conn.close()

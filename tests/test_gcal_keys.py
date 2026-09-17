@@ -439,7 +439,7 @@ def test_backfill_all_appointments_returns_count(client):
     for name, st, en in appts:
         r = client.post("/api/appointments", json={
             "client_name": name, "address": "台北市", "date": "2026-08-28",
-            "start_time": st, "end_time": en, "note": "", "user_ids": [1],
+            "start_time": st, "end_time": en, "note": "", "user_ids": [],
         })
         assert r.status_code == 200, r.text
 
@@ -659,7 +659,7 @@ def test_scheduler_thread_survives_first_key_added_after_startup(client, monkeyp
     assert sync_scheduler._thread is not None and sync_scheduler._thread.is_alive()
     appointment = client.post("/api/appointments", json={
         "client_name": "startup-no-key", "date": "2026-08-28",
-        "start_time": "09:00", "end_time": "10:00", "user_ids": [1],
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
     }).json()
     created = client.post("/api/gcal-keys", json={
         "name": "first-after-start", "credentials_path": "fake.json", "calendar_id": "first@cal",
@@ -764,7 +764,7 @@ def test_reenable_key_uses_hash_mismatch_to_enqueue_update(client):
     assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
     appt_id = client.post("/api/appointments", json={
         "client_name": "停用期間修改", "date": "2026-08-28",
-        "start_time": "09:00", "end_time": "10:00", "user_ids": [1],
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
     }).json()["id"]
     conn = get_db()
     try:
@@ -795,7 +795,7 @@ def test_reenable_key_skips_mapping_with_same_canonical_hash(client):
     assert client.put(f"/api/gcal-keys/{key_id}", json={"is_active": False}).status_code == 200
     appt_id = client.post("/api/appointments", json={
         "client_name": "內容未變", "date": "2026-08-28",
-        "start_time": "09:00", "end_time": "10:00", "user_ids": [1],
+        "start_time": "09:00", "end_time": "10:00", "user_ids": [],
     }).json()["id"]
     conn = get_db()
     try:

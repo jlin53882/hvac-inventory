@@ -838,7 +838,7 @@ def reset_my_sync_queue(appt_id: int, user: dict = Depends(require_login)):
     return {"ok": True, "scope": "mine", "reset": count}
 
 
-@router.put("/api/gcal-sync-queue/reset-scope", dependencies=[Depends(require_perm("gcal-sync-manage"))])
+@router.put("/api/gcal-sync-queue/reset-scope", dependencies=[Depends(require_perm("gcal-sync-force"))])
 def reset_sync_queue_scope(appt_id: int, scope: str = "all", target_user_id: int = 0):
     """Admin 重試指定人員或該行程全部有效同步目標。"""
     if scope not in {"all", "user"}:

@@ -475,8 +475,8 @@ function calRenderDay() {
       : (isAssigned ? '' : '<span class="cal-sync-status cal-sync-not-assigned">未指派給你</span>');
     const myRetry = isAssigned && calCanRetryPersonal(personal)
       ? `<button type="button" class="cal-sync-retry-btn" onclick="calRetryMySync(${e.id})">重試我的</button>` : '';
-    const isAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'admin';
-    const teamLabel = isAdmin ? calTeamSyncLabel(e.team_sync) : '';
+    const canViewTeamSync = hasPerm('gcal-sync-team-view');
+    const teamLabel = canViewTeamSync ? calTeamSyncLabel(e.team_sync) : '';
     const teamSync = teamLabel
       ? `<button type="button" class="cal-sync-status cal-sync-team cal-sync-clickable" onclick="calShowTeamSyncDetails(${e.id})" title="查看全員同步細節">${esc(teamLabel)}</button>` : '';
     const sync = personalSync || myRetry || teamSync ? `${personalSync}${myRetry}${teamSync}` : '';

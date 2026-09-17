@@ -239,11 +239,11 @@ function calShowTeamSyncDetails(apptId) {
     : team.eligible_people
       ? `有效同步人員：${team.synced_people}/${team.eligible_people} 已同步`
       : '目前沒有有效同步人員';
-  if (retryAll) retryAll.hidden = !calTeamHasRetryableTarget(team);
+  if (retryAll) retryAll.hidden = !hasPerm('gcal-sync-force') || !calTeamHasRetryableTarget(team);
   details.innerHTML = (team.details || []).map(person => {
     const status = `${calSyncStatusLabel(person.status)}${person.migration_pending ? '（行事曆切換中）' : ''}`;
     const error = person.error ? `：${person.error}` : '';
-    const retry = calCanRetryTeamPerson(person)
+    const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)
       ? `<button type="button" class="btn-sm" onclick="calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button>` : '';
     return `<div class="cal-sync-team-row"><strong>${esc(person.display_name)}</strong><span>${esc(status)}${esc(error)}</span>${retry}</div>`;
   }).join('') || '<div class="cal-sync-team-row">目前沒有有效同步人員</div>';

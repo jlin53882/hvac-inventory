@@ -192,6 +192,15 @@ def _single_sync_info(mapped: bool, entries) -> dict:
     }
 
 
+def _retryable_effective_queue_key_ids(conn, appt_id: int, effective_targets, mapped, queue) -> list[int]:
+    """依 Retry All 的 effective targets、實際 queue 與 status 計算可重試 Key。"""
+    queue_ids = gcal_sync.existing_queue_key_ids(conn, appt_id, effective_targets)
+    return [
+        key_id for key_id in queue_ids
+        if _single_sync_info((appt_id, key_id) in mapped, queue.get((appt_id, key_id), []))["status"] in _RETRYABLE_SYNC_STATUSES
+    ]
+
+
 def _sync_statuses(conn, appt_ids, viewer_user=None):
     """批次回傳登入者個人狀態；Admin 另附指派團隊人員摘要。"""
     ids = list(appt_ids)
@@ -200,10 +209,12 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
     if viewer_user is None:
         # 保留內部相容性；API 路由一律傳入登入者，避免一般請求暴露全體狀態。
         viewer_user_id = None
-        is_admin = False
+        can_view_team_sync = False
     else:
         viewer_user_id = viewer_user["id"]
-        is_admin = viewer_user.get("role") == "admin"
+        can_view_team_sync = bool(
+            viewer_user and viewer_user.get("permissions", {}).get("gcal-sync-team-view")
+        )
 
     map_rows = []
     queue_rows = []
@@ -268,7 +279,7 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
             )
 
         team = None
-        if is_admin:
+        if can_view_team_sync:
             team_people = []
             excluded = {"not_bound": 0, "paused": 0, "inactive": 0}
             effective_targets = gcal_sync.resolve_effective_target_keys(conn, appt_id)
@@ -309,10 +320,12 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                 counts[bucket] += 1
                 if status not in _TEAM_STATUS_BUCKET:
                     unknown_people += 1
+            retryable_all_targets = _retryable_effective_queue_key_ids(
+                conn, appt_id, effective_targets, mapped, queue,
+            )
+            retryable_all_target_set = set(retryable_all_targets)
             fallback_retryable_count = sum(
-                1 for key_id in fallback_targets
-                if queue.get((appt_id, key_id), [])
-                and _single_sync_info((appt_id, key_id) in mapped, queue[(appt_id, key_id)])["status"] in _RETRYABLE_SYNC_STATUSES
+                1 for key_id in fallback_targets if key_id in retryable_all_target_set
             )
             team = {
                 "eligible_people": len(team_people),
@@ -326,7 +339,7 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                 "inactive_people": excluded["inactive"],
                 "fallback_target_count": len(fallback_targets),
                 "fallback_retryable_count": fallback_retryable_count,
-                "can_retry_all": any(person["can_retry"] for person in team_people) or fallback_retryable_count > 0,
+                "can_retry_all": bool(retryable_all_targets),
                 "details": team_people,
             }
         if viewer_user is None:
@@ -567,7 +580,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         bound_rows = conn.execute(
             "SELECT DISTINCT u.gcal_key FROM appointment_assignees aa "
             "JOIN users u ON u.id=aa.user_id "
-            "WHERE aa.appointment_id=? AND u.gcal_key<>''", (appt_id,)).fetchall()
+            "WHERE aa.appointment_id=? AND u.is_active=1 AND u.gcal_key<>''", (appt_id,)).fetchall()
         bound_key_names = [r["gcal_key"] for r in bound_rows]
         if bound_key_names:
             placeholders = ",".join("?" * len(bound_key_names))
