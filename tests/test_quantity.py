@@ -55,7 +55,7 @@ def client(tmp_path, monkeypatch):
 
 def test_qty_js_suite():
     """前端 Qty 純函式矩陣（parser/arithmetic/formatter/kitSets）全綠。"""
-    r = subprocess.run(["node", QTY_TEST_JS], capture_output=True, text=True, timeout=120)
+    r = subprocess.run(["node", QTY_TEST_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, f"qty.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 

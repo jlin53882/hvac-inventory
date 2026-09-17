@@ -24,9 +24,10 @@ function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
 
 // Contract: return an escaped display string; callers must not escape it again.
 function formatLocationDisplay(location) {
-  const loc = location || '未標示';
-  const parts = String(loc).split('|').map(x => x.trim()).filter(Boolean);
-  return parts.length >= 2 ? parts.map(part => esc(part)).join(' / ') : esc(String(loc));
+  const raw = String(location ?? '').trim();
+  if (!raw) return '未標示';
+  const parts = raw.split('|').map(x => x.trim()).filter(Boolean);
+  return parts.length ? parts.map(part => esc(part)).join(' / ') : '未標示';
 }
 
 function buildLocHTML(locs) {

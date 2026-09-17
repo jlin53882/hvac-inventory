@@ -69,7 +69,7 @@ function renderStockoutMobileCard(o, isViewer) {
     nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? `<small class="stockout-item-meta">型號 ${esc(o.code)}</small>` : ''}${returned}`,
     subHTML: esc(String(o.created_at || '').slice(5,10)),
     extraHTML: `${o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : ''}${isReturn && o.return_location ? `<div><span class="loc-tag">📍 ${esc(o.return_site || '')}${esc(o.return_site ? '／' : '')}${esc(o.return_location)}</span></div>` : ''}`,
-    noteHTML: o.note ? `<div class="item-note"><span class="item-note-label">📝 註解</span><span class="item-note-text">${esc(o.note)}</span></div>` : '',
+    noteHTML: o.note ? `<div class="item-note"><span class="item-note-label">📝 註解: </span><span class="item-note-text">${esc(o.note)}</span></div>` : '',
     qtyHTML: buildQtyNum((isReturn ? '+' : '-') + absNum(o.delta), o.unit, returnReverted ? 'is-revoked' : (isReturn ? 'qty-pos' : 'qty-neg')),
     actionsHTML: '',
   });

@@ -863,7 +863,7 @@
   background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.07);
   margin-bottom: 10px; overflow: hidden; border: 1px solid #f0f2f5; position: relative;
 }
-.m-card .card-main { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 10px; padding: 10px 12px; align-items: start; }
+.m-card .card-main { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 0; padding: 10px 12px; align-items: start; }
 .m-card .thumb { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
 .m-card .info { grid-column: 2; grid-row: 1; }
 .m-card .qty-col { grid-column: 3; grid-row: 1; }

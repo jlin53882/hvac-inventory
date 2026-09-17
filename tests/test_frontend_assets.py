@@ -374,7 +374,7 @@ def test_quotation_history_pagination_runtime():
     （2026-09-15：舊版只抓第一頁，25 筆只渲染 20 列；字串斷言抓不到，
     必須執行驗。舊版跑此測試必紅，已用 b6b5796 版驗證 6 項 FAIL。）
     """
-    r = subprocess.run(["node", QUOTATION_HISTORY_PAGINATION_JS], capture_output=True, text=True, timeout=120)
+    r = subprocess.run(["node", QUOTATION_HISTORY_PAGINATION_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, f"quotation_history_pagination.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
@@ -384,7 +384,7 @@ def test_pdf_preview_button_runtime():
     （2026-09-14：inline onclick 引號轉義曾讓 previewUrl 變字面文字、按鈕點了沒反應；
     node --check 只查語法抓不到，字串斷言也全綠，必須執行驗。舊版跑此測試必紅。）
     """
-    r = subprocess.run(["node", PDF_PREVIEW_BUTTON_JS], capture_output=True, text=True, timeout=120)
+    r = subprocess.run(["node", PDF_PREVIEW_BUTTON_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, f"pdf_preview_button.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
@@ -1119,7 +1119,7 @@ def test_qty_parser_accepts_prepared_fractions():
         "if(!a.ok || a.value !== 0.75 || !b.ok || b.value !== 1.5) process.exit(1);"
     )
     result = subprocess.run(
-        ['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True
+        ['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8"
     )
     assert result.returncode == 0, result.stderr
 
@@ -1266,6 +1266,94 @@ def test_desktop_card_actions_and_quantity_use_distinct_rows():
     assert "grid-row: 1;" in admin
     assert "grid-row: 2;" in qty
     assert "grid-row: 1 / span 2;" in css
+
+
+def test_format_location_display_normalizes_edge_cases():
+    """Regression: whitespace and partial-pipe locations must normalize safely."""
+    card_js = read(CARD_JS)
+    probe = r"""
+const fs = require('fs');
+function esc(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\"/g, '&quot;').replace(/'/g, '&#39;'); }
+eval(fs.readFileSync(process.argv[1], 'utf8'));
+const cases = ['', '   ', 'A', 'A | B', 'A|B', 'A | ', ' | A', 'A || B', ' A | B ', '<script>alert(1)</script>', '<b>A</b> | <img src=x onerror=alert(1)>'];
+process.stdout.write(JSON.stringify(cases.map(formatLocationDisplay)));
+"""
+    result = subprocess.run(
+        ["node", "-e", probe, CARD_JS],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    output = json.loads(result.stdout)
+    assert output == [
+        "未標示", "未標示", "A", "A / B", "A / B", "A", "A", "A / B", "A / B",
+        "&lt;script&gt;alert(1)&lt;/script&gt;",
+        "&lt;b&gt;A&lt;/b&gt; / &lt;img src=x onerror=alert(1)&gt;",
+    ]
+
+
+def test_mobile_card_shell_has_no_empty_note_row_gap():
+    """Regression: cards without notes must not retain a grid row gap."""
+    css = read_css_all()
+    assert ".m-card .card-main {" in css
+    assert "column-gap: 10px; row-gap: 0;" in css
+
+
+def test_mobile_card_shell_runtime_keeps_note_and_quantity_slots():
+    """Regression: note is optional without removing the quantity slot or card structure."""
+    card_js = read(CARD_JS)
+    probe = r"""
+const fs = require('fs');
+eval(fs.readFileSync(process.argv[1], 'utf8'));
+function render(noteHTML) { return mobileCardShell({thumb: 'PHOTO', nameHTML: 'NAME', subHTML: 'MODEL', extraHTML: 'LOC', qtyHTML: 'QTY', noteHTML, actionsHTML: 'ACTIONS'}); }
+const withoutNote = render('');
+const withNote = render('<div class=\"item-note\">NOTE</div>');
+if (!withoutNote.includes('class=\"qty-col\"') || withoutNote.includes('NOTE')) process.exit(1);
+if (!withNote.includes('class=\"note-slot\"') || !withNote.includes('NOTE')) process.exit(2);
+process.stdout.write(JSON.stringify({withoutNote, withNote}));
+"""
+    result = subprocess.run(
+        ["node", "-e", probe, CARD_JS],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert "withoutNote" in result.stdout and "withNote" in result.stdout
+
+
+def test_stockout_mobile_note_uses_inline_label():
+    """Regression: stockout record notes must use the shared inline label format."""
+    stockout_js = read(os.path.join(BASE_DIR, "static", "js", "render", "stockout.js"))
+    assert '<span class="item-note-label">📝 註解: </span>' in stockout_js
+
+
+def test_node_runtime_subprocesses_declare_utf8_encoding():
+    """Regression: text Node probes must not fall back to Windows cp1252."""
+    paths = [
+        os.path.join(BASE_DIR, "tests", "test_frontend_assets.py"),
+        os.path.join(BASE_DIR, "tests", "test_notifications.py"),
+        os.path.join(BASE_DIR, "tests", "test_quantity.py"),
+        os.path.join(BASE_DIR, "tests", "test_v101.py"),
+        os.path.join(BASE_DIR, "tests", "test_petty_cash_frontend_races.py"),
+    ]
+    for path in paths:
+        source = read(path)
+        for match in re.finditer(r"subprocess\.run\((?P<body>.*?)(?:\n\s*\)|\))", source, re.DOTALL):
+            body = match.group("body")
+            if "node" in body and "text=True" in body:
+                assert "encoding=\"utf-8\"" in body, f"Node subprocess missing UTF-8: {path}"
+
+
+def test_all_mobile_card_callers_cover_no_note_contract():
+    """Regression: Inventory/Prepared/Stockout all use the shared optional note contract."""
+    inventory = read(INVENTORY_RENDER_JS)
+    prepared = read(PREPARED_RENDER_JS)
+    stockout = read(os.path.join(BASE_DIR, "static", "js", "render", "stockout.js"))
+    assert "noteHTML: noteStr" in inventory
+    assert "mobileCardShell({" in prepared and "noteHTML:" not in prepared[prepared.index("mobileCardShell({"):prepared.index("});", prepared.index("mobileCardShell({"))]
+    assert "noteHTML:" in stockout
 
 
 def test_shared_mobile_note_slot_used_by_stockout():
@@ -1528,7 +1616,7 @@ def test_js_syntax(js_path):
     try:
         r = subprocess.run(
             ["node", "--check", js_path],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, encoding="utf-8", timeout=20,
         )
     except FileNotFoundError:
         pytest.skip("node 不在 PATH，跳過語法檢查")
@@ -2807,7 +2895,7 @@ def test_all_js_syntax_valid():
     for f in js_files:
         result = subprocess.run(
             ["node", "--check", f],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, encoding="utf-8", timeout=30
         )
         assert result.returncode == 0, f"{os.path.basename(f)} 語法錯誤: {result.stderr[:200]}"
 
@@ -3457,7 +3545,7 @@ if (noPermission.includes('📤 待領出') || noPermission.includes('🚚 已�
   throw new Error('user without stockout permission received write actions');
 }
 """
-    result = subprocess.run(['node', '-e', script], capture_output=True, text=True, cwd=BASE_DIR)
+    result = subprocess.run(['node', '-e', script], capture_output=True, text=True, encoding="utf-8", cwd=BASE_DIR)
     assert result.returncode == 0, result.stderr
 
 
@@ -3555,7 +3643,7 @@ const viewer = context.renderInventoryTable([item], true, true);
 if (viewer.includes('編輯品項') || viewer.includes('刪除品項')) throw new Error('viewer saw item actions');
 '''
     import subprocess
-    result = subprocess.run(['node', '-e', script], cwd=os.path.dirname(STATIC), capture_output=True, text=True)
+    result = subprocess.run(['node', '-e', script], cwd=os.path.dirname(STATIC), capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -3628,7 +3716,7 @@ const html = context.renderInventoryDashboard([low, zero, normal]);
 if (!html.includes('inventory-kpi-number ui-kpi-value">11</div>')) throw new Error('pending-aware total missing');
 if (!html.includes("showInventoryStatusList('low')") || !html.includes("showInventoryStatusList('out')")) throw new Error('KPI handlers missing');
 """
-    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -3757,7 +3845,7 @@ await context.showInventoryStatusList('out');
 if (!statusModalBody.innerHTML.includes('無法載入完整清單')) throw new Error('lazy alert failure state missing');
 })().catch(function(error) { console.error(error); process.exitCode = 1; });
 """
-    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -3823,7 +3911,7 @@ if (stats.shortageCount !== 1 || stats.insufficientCount !== 1) throw new Error(
 if (context.getKitStatus(kits[0]).status !== 'shortage') throw new Error('shortage priority mismatch');
 if (context.getKitStatus(kits[1]).status !== 'insufficient') throw new Error('insufficient status mismatch');
 """
-    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
