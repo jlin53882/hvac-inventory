@@ -416,3 +416,37 @@ def test_stockout_user_entered_created_at_is_normalized_and_validated(client):
     assert updated.json()["created_at"] == "2026-10-01 08:30:00"
     invalid = client.patch(f"/api/stockouts/{movement_id}", json={"created_at": "2026-02-31"})
     assert invalid.status_code == 400
+
+
+def test_transfer_uses_single_timestamp_for_both_movements(client, monkeypatch):
+    item = add_item(client, name="跨午夜調撥", code="TRANSFER-TIME", site="office", qty=10)
+    timestamps = iter([
+        "2026-09-30 23:59:59",
+        "2026-10-01 00:00:00",
+        "2026-10-01 00:00:01",
+    ])
+    original_now_sql = movement_time.now_sql
+    monkeypatch.setattr(movement_time, "now_sql", lambda: next(timestamps))
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": item["id"], "qty": 2, "target_site": "warehouse",
+        "source_location": "A櫃", "target_location": "B櫃",
+    })
+    assert response.status_code == 201, response.text
+    conn = app_db.get_db()
+    try:
+        rows = conn.execute(
+            "SELECT item_id, delta, reason, created_at FROM movements "
+            "WHERE reason='庫存調撥' ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert len(rows) == 2
+    assert {row["created_at"] for row in rows} == {"2026-09-30 23:59:59"}
+    monkeypatch.setattr(movement_time, "now_sql", original_now_sql)
+
+    september = export_book(client, start_date="2026-09-30", end_date="2026-09-30")
+    october = export_book(client, start_date="2026-10-01", end_date="2026-10-01")
+    sep_rows = [row for row in september["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    oct_rows = [row for row in october["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    assert len([row for row in sep_rows if row[11] == "庫存調撥"]) == 2
+    assert not [row for row in oct_rows if row[11] == "庫存調撥"]

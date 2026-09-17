@@ -387,6 +387,7 @@ def update_item(item_id: int, upd: ItemUpdate):
         # DB stock 不在 payload → 刪除（qty=0 才允許）
         # M1/M2/M3：stocks 全量同步——stock id = identity（無 location fallback）
         if data.get("stocks") is not None:
+            movement_ts = movement_time.now_sql()
             existing = {
                 row["id"]: row
                 for row in conn.execute(
@@ -478,7 +479,7 @@ def update_item(item_id: int, upd: ItemUpdate):
                 if delta != 0:
                     conn.execute(
                         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-                        (item_id, delta, old["qty"], new_qty, "編輯品項調整", new_location, movement_time.now_sql()))
+                        (item_id, delta, old["qty"], new_qty, "編輯品項調整", new_location, movement_ts))
 
             # insert new
             for stock in payload_new:
@@ -491,7 +492,7 @@ def update_item(item_id: int, upd: ItemUpdate):
                 if new_qty > 0:
                     conn.execute(
                         "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-                        (item_id, new_qty, 0, new_qty, "編輯品項調整", new_location, movement_time.now_sql()))
+                        (item_id, new_qty, 0, new_qty, "編輯品項調整", new_location, movement_ts))
         conn.commit()
         row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         full = _item_full(conn, row)
@@ -510,6 +511,7 @@ def delete_item(item_id: int):
     photo_assets = []
     try:
         conn.execute("BEGIN IMMEDIATE")
+        movement_ts = movement_time.now_sql()
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
@@ -526,7 +528,7 @@ def delete_item(item_id: int):
                 # 寫入「品項刪除清零」流水，保留稽核軌跡
                 conn.execute(
                     "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_time.now_sql()))
+                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
         if stocks:
             # P0-B：movement 說 qty → 0，persisted stock 必須真歸零（同一 transaction）
             conn.execute("UPDATE item_stocks SET qty=0, updated_at=? WHERE item_id=?",

@@ -35,6 +35,7 @@ def submit_stocktake(req: StocktakeSubmit):
     conn = get_db()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        movement_ts = movement_time.now_sql()
         take_date = req.take_date or datetime.date.today().isoformat()
         results = []
 
@@ -81,7 +82,7 @@ def submit_stocktake(req: StocktakeSubmit):
                 raise HTTPException(409, f"品項 {item['name']} 的庫存已被其他操作異動，請重新整理後再盤點")
             conn.execute(
                 "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-                (it["item_id"], diff, system_qty, canonical_qty(system_qty + diff), "盤點調整", location, movement_time.now_sql()),
+                (it["item_id"], diff, system_qty, canonical_qty(system_qty + diff), "盤點調整", location, movement_ts),
             )
             conn.execute(
                 "INSERT INTO stocktakes (take_date, item_id, location, system_qty, actual_qty, diff, note) VALUES (?,?,?,?,?,?,?)",
