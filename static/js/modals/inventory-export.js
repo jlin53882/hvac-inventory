@@ -16,11 +16,13 @@ function openInventoryExportDialog() {
       const option = document.createElement('option'); option.value = exportPad(month); option.textContent = `${exportPad(month)} 月`; monthSelect.appendChild(option);
     }
   }
+  document.getElementById('inventory-export-year').value = now.getFullYear();
   monthSelect.value = exportPad(now.getMonth() + 1);
   document.getElementById('inventory-export-start').value = `${now.getFullYear()}-${exportPad(now.getMonth() + 1)}-01`;
   document.getElementById('inventory-export-end').value = `${now.getFullYear()}-${exportPad(now.getMonth() + 1)}-${exportPad(now.getDate())}`;
   document.getElementById('inventory-export-month-mode').checked = true;
   document.getElementById('inventory-export-custom-mode').checked = false;
+  syncInventoryExportPeriodMode();
   document.getElementById('inventory-export-all-sites').checked = true;
   document.querySelectorAll('#inventory-export-sites input[data-site]').forEach(input => { input.checked = true; });
   modal.classList.add('show');
@@ -33,6 +35,15 @@ function closeInventoryExportDialog() {
   modal.classList.remove('show');
   modal.setAttribute('aria-hidden', 'true');
 }
+
+function syncInventoryExportPeriodMode() {
+  const custom = document.getElementById('inventory-export-custom-mode').checked;
+  document.getElementById('inventory-export-month-fields').hidden = custom;
+  document.getElementById('inventory-export-custom-fields').hidden = !custom;
+}
+
+document.getElementById('inventory-export-month-mode').addEventListener('change', syncInventoryExportPeriodMode);
+document.getElementById('inventory-export-custom-mode').addEventListener('change', syncInventoryExportPeriodMode);
 
 function toggleInventoryExportSites(source) {
   document.querySelectorAll('#inventory-export-sites input[data-site]').forEach(input => { input.checked = source.checked; });

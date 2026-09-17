@@ -27,7 +27,7 @@ TITLE_FILL = "163B63"
 STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"}
 
 
-def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str]:
+def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str, str]:
     now = now or dt.datetime.now()
     if start_date is not None or end_date is not None:
         if not start_date or not end_date:
@@ -42,7 +42,7 @@ def _parse_export_range(month: str | None, start_date: str | None, end_date: str
         start = dt.datetime.combine(start_day, dt.time.min)
         end = dt.datetime.combine(end_day + dt.timedelta(days=1), dt.time.min)
         label = f"{start_day.isoformat()} ～ {end_day.isoformat()}"
-        return start, end, label
+        return start, end, label, f"{start_day.strftime('%Y/%m/%d')} ～ {end_day.strftime('%Y/%m/%d')}"
     if month is not None:
         if not re.fullmatch(r"\d{4}-\d{2}", month):
             raise HTTPException(400, "month 格式必須為 YYYY-MM")
@@ -56,7 +56,8 @@ def _parse_export_range(month: str | None, start_date: str | None, end_date: str
         end = dt.datetime.combine(next_month, dt.time.min)
         if start_day.year == now.year and start_day.month == now.month:
             end = now
-        return start, end, f"{year} 年 {mon:02d} 月"
+        display_end = now.strftime("%Y/%m/%d %H:%M") if start_day.year == now.year and start_day.month == now.month else (next_month - dt.timedelta(days=1)).strftime("%Y/%m/%d")
+        return start, end, f"{year} 年 {mon:02d} 月", f"{start_day.strftime('%Y/%m/%d')} ～ {display_end}"
     return _parse_export_range(now.strftime("%Y-%m"), None, None, now)
 
 
@@ -68,9 +69,8 @@ def _site_label(site: str) -> str:
     return SITES.get(site, site)
 
 
-def _period_text(start: dt.datetime, end: dt.datetime, label: str) -> str:
-    end_text = end.strftime("%Y/%m/%d %H:%M")
-    return f"報表期間：{label}　異動統計：{start.strftime('%Y/%m/%d %H:%M')} ～ {end_text}"
+def _period_text(label: str, display_period: str) -> str:
+    return f"報表期間：{label}　異動統計：{display_period}"
 
 
 def _style_title(ws, title: str, period: str):
@@ -224,7 +224,8 @@ def _build_alert_sheet(ws, has_inventory):
     _set_widths(ws, [14, 12, 12, 16, 16, 30, 18, 10, 12, 12, 12, 14])
 
 
-def _build_stats_sheet(ws, has_inventory):
+def _build_stats_sheet(ws, items):
+    has_inventory = bool(items)
     _style_title(ws, "庫存統計", "數字欄位皆由 Excel 公式依 tblInventory 推導")
     ws["A4"] = "庫存區統計"; ws["J4"] = "分類統計"; ws["O4"] = "廠牌統計"
     for cell in (ws["A4"], ws["J4"], ws["O4"]): cell.font = Font(bold=True, size=13, color=TITLE_FILL)
@@ -239,15 +240,20 @@ def _build_stats_sheet(ws, has_inventory):
         r = ws.max_row + 1; ws.cell(r, 1).value = SITES[site]
         if has_inventory:
             ws.cell(r, 2).value = f'=COUNTIF(tblInventory[庫存區],A{r})'; ws.cell(r, 3).value = f'=SUMIF(tblInventory[庫存區],A{r},tblInventory[總庫存])'; ws.cell(r, 4).value = f'=SUMIF(tblInventory[庫存區],A{r},tblInventory[待領出])'; ws.cell(r, 5).value = f'=SUMIF(tblInventory[庫存區],A{r},tblInventory[可用庫存])'; ws.cell(r, 6).value = f'=COUNTIFS(tblInventory[庫存區],A{r},tblInventory[庫存狀態],"低庫存")'; ws.cell(r, 7).value = f'=COUNTIFS(tblInventory[庫存區],A{r},tblInventory[庫存狀態],"缺貨")'
-    ws["J6"] = '=SORT(UNIQUE(tblInventory[分類]))' if has_inventory else "目前無資料"
-    ws["O6"] = '=SORT(UNIQUE(tblInventory[廠牌]))' if has_inventory else "目前無資料"
-    for r in range(6, 30):
-        ws.cell(r, 11).value = f'=IF(J{r}="","",COUNTIF(tblInventory[分類],J{r}))' if has_inventory else ""
-        ws.cell(r, 12).value = f'=IF(J{r}="","",SUMIF(tblInventory[分類],J{r},tblInventory[總庫存]))' if has_inventory else ""
-        ws.cell(r, 13).value = f'=IF(J{r}="","",SUMIF(tblInventory[分類],J{r},tblInventory[可用庫存]))' if has_inventory else ""
-        ws.cell(r, 16).value = f'=IF(O{r}="","",COUNTIF(tblInventory[廠牌],O{r}))' if has_inventory else ""
-        ws.cell(r, 17).value = f'=IF(O{r}="","",SUMIF(tblInventory[廠牌],O{r},tblInventory[總庫存]))' if has_inventory else ""
-        ws.cell(r, 18).value = f'=IF(O{r}="","",SUMIF(tblInventory[廠牌],O{r},tblInventory[可用庫存]))' if has_inventory else ""
+    categories = sorted({item["category"] or "未分類" for item in items})
+    brands = sorted({item["brand"] or "未設定廠牌" for item in items})
+    if not has_inventory:
+        ws["J6"] = "目前無資料"; ws["O6"] = "目前無資料"
+    for r, category in enumerate(categories, 6):
+        ws.cell(r, 10).value = _safe(category)
+        ws.cell(r, 11).value = f'=COUNTIF(tblInventory[分類],J{r})'
+        ws.cell(r, 12).value = f'=SUMIF(tblInventory[分類],J{r},tblInventory[總庫存])'
+        ws.cell(r, 13).value = f'=SUMIF(tblInventory[分類],J{r},tblInventory[可用庫存])'
+    for r, brand in enumerate(brands, 6):
+        ws.cell(r, 15).value = _safe(brand)
+        ws.cell(r, 16).value = f'=COUNTIF(tblInventory[廠牌],O{r})'
+        ws.cell(r, 17).value = f'=SUMIF(tblInventory[廠牌],O{r},tblInventory[總庫存])'
+        ws.cell(r, 18).value = f'=SUMIF(tblInventory[廠牌],O{r},tblInventory[可用庫存])'
     _set_widths(ws, [14, 12, 14, 14, 14, 12, 12, 3, 3, 18, 12, 14, 14, 3, 18, 12, 14, 14])
 
 
@@ -257,9 +263,9 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     if days is not None and month is None and start_date is None and end_date is None:
         if days < 0 or days > MAX_RANGE_DAYS:
             raise HTTPException(400, "days 必須介於 0 到 366")
-        now = dt.datetime.now(); start = now - dt.timedelta(days=days); end = now; period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"
+        now = dt.datetime.now(); start = now - dt.timedelta(days=days); end = now; period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"; display_period = period
     else:
-        start, end, period = _parse_export_range(month, start_date, end_date)
+        start, end, period, display_period = _parse_export_range(month, start_date, end_date)
     selected_sites = list(SITE_ORDER) if not sites else [s for s in sites.split(",") if s]
     if not selected_sites or any(s not in SITES for s in selected_sites):
         raise HTTPException(400, "sites 含有不合法的庫存區")
@@ -272,13 +278,13 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     finally:
         conn.close()
     wb = Workbook(); wb.remove(wb.active); wb.calculation.fullCalcOnLoad = True; wb.calculation.forceFullCalc = True; wb.calculation.calcMode = "auto"
-    period_text = _period_text(start, end, period)
+    period_text = _period_text(period, display_period)
     overview = wb.create_sheet("01 總覽"); _build_overview(overview, bool(items), period_text)
     inventory = wb.create_sheet("02 庫存總表"); _style_title(inventory, "庫存總表（匯出當下快照）", period_text); _build_inventory_sheet(inventory, items, bool(positions), qty_types)
     position = wb.create_sheet("03 位置明細"); _style_title(position, "位置明細（每位置一列）", period_text); _build_position_sheet(position, positions, qty_types)
     alerts = wb.create_sheet("04 庫存警示"); _style_title(alerts, "庫存警示", period_text); _build_alert_sheet(alerts, bool(items))
     movement = wb.create_sheet("05 異動紀錄"); _style_title(movement, "異動紀錄", period_text); _build_movement_sheet(movement, movements)
-    stats = wb.create_sheet("06 統計"); _build_stats_sheet(stats, bool(items))
+    stats = wb.create_sheet("06 統計"); _build_stats_sheet(stats, items)
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
     now = dt.datetime.now(); stamp = now.strftime("%Y%m%d_%H%M%S")
     if month and not start_date and not end_date:

@@ -153,3 +153,29 @@ def test_export_custom_date_range_and_filename(client):
     book = load_workbook(filename=__import__("io").BytesIO(response.content), data_only=False)
     rows = [r for r in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if r[0]]
     assert len(rows) == 1
+
+
+def test_export_stats_have_no_24_row_ceiling_for_brands_and_categories(client):
+    for index in range(30):
+        add_item(client, name=f"統計品項{index}", brand=f"品牌{index:02d}", code=f"STAT-{index}", category=f"分類{index:02d}", qty=index + 1)
+    book = export_book(client)
+    stats = book["06 統計"]
+    brand_rows = [stats.cell(row, 15).value for row in range(6, 36)]
+    category_rows = [stats.cell(row, 10).value for row in range(6, 36)]
+    assert len([value for value in brand_rows if value]) == 30
+    assert len([value for value in category_rows if value]) == 30
+    for row in range(30, 36):
+        assert stats.cell(row, 16).value.startswith("=COUNTIF(tblInventory[廠牌]")
+        assert stats.cell(row, 17).value.startswith("=SUMIF(tblInventory[廠牌]")
+        assert stats.cell(row, 18).value.startswith("=SUMIF(tblInventory[廠牌]")
+        assert stats.cell(row, 11).value.startswith("=COUNTIF(tblInventory[分類]")
+        assert stats.cell(row, 12).value.startswith("=SUMIF(tblInventory[分類]")
+        assert stats.cell(row, 13).value.startswith("=SUMIF(tblInventory[分類]")
+
+
+def test_export_display_period_does_not_show_exclusive_end_as_inclusive(client):
+    past = export_book(client, month="2026-08")
+    assert "2026/08/01 ～ 2026/08/31" in past["01 總覽"]["A3"].value
+    single = export_book(client, start_date="2026-09-17", end_date="2026-09-17")
+    assert "2026/09/17 ～ 2026/09/17" in single["01 總覽"]["A3"].value
+    assert "2026/09/18" not in single["01 總覽"]["A3"].value

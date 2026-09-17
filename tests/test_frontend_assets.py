@@ -4459,12 +4459,24 @@ def test_inventory_export_dialog_contract():
     assert "submitInventoryExport" in js
     assert "closeInventoryExportDialog" in js
     assert "var exportInFlight = false" in js
+    assert "document.getElementById('inventory-export-year').value = now.getFullYear()" in js
+    assert "syncInventoryExportPeriodMode();" in js
+    assert "function syncInventoryExportPeriodMode()" in js
     assert "params.set('month'" in js
     assert "start_date" in js and "end_date" in js
     assert "sections" in js and "sites" in js
     assert "Content-Disposition" in js
     assert 'id="inventory-export-dialog"' in index
+    assert 'src="/static/js/modals/inventory-export.js"' in index
+    assert ".inventory-export-dialog" in css
     assert "@media (max-width: 767px)" in css
     inventory = read(INVENTORY_RENDER_JS)
     assert "openInventoryExportDialog();closeMoreActions()" in inventory
     assert "onclick=\"openInventoryExportDialog()\"" in inventory
+
+
+def test_inventory_export_dialog_runtime():
+    """實際執行 Dialog：首次開啟與 custom→close→reopen 狀態皆一致。"""
+    script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
+    result = subprocess.run(["node", script], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"
