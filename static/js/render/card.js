@@ -19,7 +19,7 @@ function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
   const fallback = '<span class="product-thumbnail-placeholder' + (hasPhoto ? ' hidden' : '') + '">' + esc(placeholder || '📦') + '</span>';
   if (!hasPhoto) return fallback;
   const src = thumbnailUrl || photoSrc(id, 'thumbnail');
-  return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(' + id + ')" title="點擊看大圖" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
+  return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(' + id + ')" title="點擊看大圖" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
 }
 
 // 位置逐行 HTML（解析「櫃子 | 位置」格式，分開顯示）

@@ -2476,6 +2476,16 @@ def test_card_js_core_functions():
         assert fn in js, f"card.js 缺 {fn}"
 
 
+def test_buildThumb_has_onload_and_onerror():
+    """buildThumb 同時帶 onload（收 fallback）與 onerror（顯示 fallback），
+    防止圖片後來載入成功時 📦 殘留。"""
+    js = read(CARD_JS)
+    assert 'onload="this.nextElementSibling.hidden=true"' in js, \
+        "buildThumb 缺少 onload handler（fallback 殘留 bug）"
+    assert 'onerror="this.hidden=true;this.nextElementSibling.hidden=false"' in js, \
+        "buildThumb 缺少 onerror handler" 
+
+
 # ---------- 樂觀鎖快照（2026-08-14 Phase 2：編輯 modal 帶 updated_at） ----------
 
 def test_edit_js_optimistic_lock_snapshot():
@@ -4430,3 +4440,9 @@ def test_transfer_uses_shared_qty_contract():
     assert "Qty.validFor" in js
     assert "Qty.inputTypeOf" in js
     assert "Number(document.getElementById('transfer-qty').value)" not in js
+
+
+def test_mobile_site_tab_2x2_layout():
+    """手機版 .h-site 使用 flex-wrap:wrap 讓 4 個 tab 排成 2×2。"""
+    css = read(CSS_CORE)
+    assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"

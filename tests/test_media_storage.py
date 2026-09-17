@@ -903,6 +903,31 @@ def test_unpaged_items_chunks_photo_metadata_ids(media_env, monkeypatch):
 
 
 
+def test_list_items_thumbnail_url_from_photo_map(media_env):
+    """list_items 上傳照片後 thumbnail_url 正確回傳（非 None）。"""
+    client, _static_dir, _upload_dir = media_env
+    item = client.post(
+        "/api/items",
+        json={
+            "brand": "縮圖測", "code": "THUMB-1", "name": "縮圖品項",
+            "unit": "個", "low_stock": 0, "site": "office",
+            "stocks": [{"location": "X", "qty": 1, "note": ""}],
+        },
+    ).json()
+    source = _png(200, 200)
+    resp = client.post(
+        f"/api/items/{item['id']}/photo",
+        files={"file": ("photo.png", source, "image/png")},
+    )
+    assert resp.status_code == 200
+
+    items = client.get("/api/items").json()
+    found = next(x for x in items if x["id"] == item["id"])
+    assert found["has_photo"] is True
+    assert found["thumbnail_url"] is not None, "thumbnail_url 不應為 None（photo_map int key lookup）"
+    assert "/thumbnail" in found["thumbnail_url"]
+
+
 def test_items_rejects_combined_csv_filters_over_bind_budget(media_env, monkeypatch):
     conn = app_db.get_db()
     conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 500)
