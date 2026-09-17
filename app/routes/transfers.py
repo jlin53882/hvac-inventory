@@ -5,6 +5,7 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_db
+from app.services import movement_time
 from app.models import TransferRequest
 from app.services.auth import require_perm
 from app.services.quantity import canonical_qty
@@ -130,9 +131,9 @@ def _deduct_source(conn, source_item_id: int, qty: float, source_location: str |
     after = _total(conn, source_item_id)
     conn.execute(
         """INSERT INTO movements
-           (item_id, delta, before_qty, after_qty, reason, destination)
-           VALUES (?,?,?,?,?,?)""",
-        (source_item_id, -qty, before, after, "庫存調撥", "跨庫存區"),
+           (item_id, delta, before_qty, after_qty, reason, destination, created_at)
+           VALUES (?,?,?,?,?,?,?)""",
+        (source_item_id, -qty, before, after, "庫存調撥", "跨庫存區", movement_time.now_sql()),
     )
 
 
@@ -156,9 +157,9 @@ def _add_target(conn, target_item_id: int, qty: float, location: str, source_sit
     after = _total(conn, target_item_id)
     conn.execute(
         """INSERT INTO movements
-           (item_id, delta, before_qty, after_qty, reason, destination)
-           VALUES (?,?,?,?,?,?)""",
-        (target_item_id, qty, before, after, "庫存調撥", f"來源:{source_site}"),
+           (item_id, delta, before_qty, after_qty, reason, destination, created_at)
+           VALUES (?,?,?,?,?,?,?)""",
+        (target_item_id, qty, before, after, "庫存調撥", f"來源:{source_site}", movement_time.now_sql()),
     )
 
 

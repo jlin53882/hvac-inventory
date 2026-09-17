@@ -19,6 +19,7 @@ from fastapi import Depends, APIRouter, HTTPException
 from app.database import get_db
 from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
 from app.routes.photos import has_photo
+from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, current_state
 from app.services.quantity import canonical_qty
@@ -221,8 +222,8 @@ def delete_kit(kit_id: int):
         for s in kit_stocks:
             if s["qty"] > 0:
                 conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or ""))
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_time.now_sql()))
         if kit_stocks:
             conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
@@ -273,8 +274,8 @@ def _deduct_total(conn, item_id, need, reason):
     after = canonical_qty(sum(s["qty"] for s in conn.execute(
         "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
     conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, -need, before, after, reason, ""),
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+        (item_id, -need, before, after, reason, "", movement_time.now_sql()),
     )
 
 
@@ -297,8 +298,8 @@ def _add_total(conn, item_id, add, reason):
     after = canonical_qty(sum(s["qty"] for s in conn.execute(
         "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
     conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, add, before, after, reason, ""),
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+        (item_id, add, before, after, reason, "", movement_time.now_sql()),
     )
 
 

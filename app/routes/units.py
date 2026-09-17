@@ -3,6 +3,7 @@ import datetime
 import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
+from app.services import movement_time
 from app.models import UnitIn, UnitUpdate, UnitConsolidate, UnitConsolidateItem, QTY_TYPES
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory
@@ -233,8 +234,8 @@ def consolidate_item(req: UnitConsolidateItem):
             delta = canonical_qty(new_qty - before)
             if delta != 0:
                 conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason) VALUES (?,?,?,?,?)",
-                    (req.item_id, delta, before, new_qty, "歷史單位轉換"))
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, created_at) VALUES (?,?,?,?,?,?)",
+                    (req.item_id, delta, before, new_qty, "歷史單位轉換", movement_time.now_sql()))
         conn.commit()
         resp = {"ok": True, "item_id": req.item_id, "to_unit": to}
         if new_qty is not None:

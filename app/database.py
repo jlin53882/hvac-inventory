@@ -79,6 +79,7 @@ def _exec_init(conn):
         reason      TEXT DEFAULT '',
         destination TEXT DEFAULT '',
         reverted_at TIMESTAMP,
+        -- Legacy fallback; production movement writers explicitly set Taipei business time.
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS stocktakes (

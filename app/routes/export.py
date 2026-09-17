@@ -15,6 +15,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 
 from app.database import get_db
+from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.safety import excel_safe, xlsx_download
 
@@ -29,7 +30,7 @@ STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7
 
 def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str, str]:
     """解析月份或自訂日期範圍，回傳 SQL 邊界與 Excel 顯示期間。"""
-    now = now or dt.datetime.now()
+    now = now or dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
     if start_date is not None or end_date is not None:
         if not start_date or not end_date:
             raise HTTPException(400, "start_date 與 end_date 必須同時提供")
@@ -57,7 +58,7 @@ def _parse_export_range(month: str | None, start_date: str | None, end_date: str
         start = dt.datetime.combine(start_day, dt.time.min)
         end = dt.datetime.combine(next_month, dt.time.min)
         if start_day.year == now.year and start_day.month == now.month:
-            end = now
+            end = now + dt.timedelta(seconds=1)
         display_end = now.strftime("%Y/%m/%d %H:%M") if start_day.year == now.year and start_day.month == now.month else (next_month - dt.timedelta(days=1)).strftime("%Y/%m/%d")
         return start, end, f"{year} 年 {mon:02d} 月", f"{start_day.strftime('%Y/%m/%d')} ～ {display_end}"
     return _parse_export_range(now.strftime("%Y-%m"), None, None, now)
@@ -85,7 +86,7 @@ def _style_title(ws, title: str, period: str):
     ws["A1"].fill = PatternFill("solid", fgColor=TITLE_FILL)
     ws["A1"].alignment = Alignment(vertical="center")
     ws.row_dimensions[1].height = 30
-    ws["A2"] = "庫存快照：" + dt.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    ws["A2"] = "庫存快照：" + movement_time.now_sql().replace("-", "/")
     ws["A3"] = period
     for row in (2, 3):
         ws.cell(row, 1).font = Font(color="475569", italic=True, size=10)
@@ -317,7 +318,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     if days is not None and month is None and start_date is None and end_date is None:
         if days < 0 or days > MAX_RANGE_DAYS:
             raise HTTPException(400, "days 必須介於 0 到 366")
-        now = dt.datetime.now(); start = now - dt.timedelta(days=days); end = now; period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"; display_period = period
+        now = dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT); start = now - dt.timedelta(days=days); end = now; period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"; display_period = period
     else:
         start, end, period, display_period = _parse_export_range(month, start_date, end_date)
     selected_sites = list(SITE_ORDER) if not sites else [s for s in sites.split(",") if s]
@@ -340,7 +341,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         )
         movements = conn.execute(
             movement_sql,
-            [*selected_sites, start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")],
+            [*selected_sites, movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)],
         ).fetchall()
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
     finally:
@@ -354,7 +355,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     movement = wb.create_sheet("05 異動紀錄"); _style_title(movement, "異動紀錄", period_text); _build_movement_sheet(movement, movements)
     stats = wb.create_sheet("06 統計"); _build_stats_sheet(stats, items)
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
-    now = dt.datetime.now(); stamp = now.strftime("%Y%m%d_%H%M%S")
+    stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
     if month and not start_date and not end_date:
         filename = f"庫存報表_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
     elif start_date and end_date:

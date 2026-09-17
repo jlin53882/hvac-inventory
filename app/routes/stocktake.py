@@ -14,6 +14,7 @@ import datetime
 from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import get_db
+from app.services import movement_time
 from app.models import InventorySiteQuery, StocktakeSubmit
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory
@@ -79,8 +80,8 @@ def submit_stocktake(req: StocktakeSubmit):
             if cur.rowcount == 0:
                 raise HTTPException(409, f"品項 {item['name']} 的庫存已被其他操作異動，請重新整理後再盤點")
             conn.execute(
-                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                (it["item_id"], diff, system_qty, canonical_qty(system_qty + diff), "盤點調整", location),
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                (it["item_id"], diff, system_qty, canonical_qty(system_qty + diff), "盤點調整", location, movement_time.now_sql()),
             )
             conn.execute(
                 "INSERT INTO stocktakes (take_date, item_id, location, system_qty, actual_qty, diff, note) VALUES (?,?,?,?,?,?,?)",

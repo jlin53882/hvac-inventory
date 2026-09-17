@@ -25,6 +25,7 @@ from app.database import get_db
 from app.models import InventorySiteQuery
 from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.routes.photos import has_photo
+from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory
 from app.services.quantity import canonical_qty
@@ -191,9 +192,9 @@ def stock_out(req: StockOutRequest):
         before, after, source_stock_id = _deduct(conn, req.item_id, qty, req.location)
         source = _stock_payload(conn, source_stock_id, req.item_id)
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location) VALUES (?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (req.item_id, -qty, before, after, reason, req.destination, source_stock_id,
-             source["site"] if source else row["site"], source["location"] if source else req.location),
+             source["site"] if source else row["site"], source["location"] if source else req.location, movement_time.now_sql()),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
@@ -228,8 +229,8 @@ def stock_out_nonstock(req: NonStockOutRequest):
         item_id = cur.lastrowid
         reason = "出庫" if not note else f"出庫 - {note}"
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,?,?)",
-            (item_id, -qty, reason, dest),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,0,0,?,?,?)",
+            (item_id, -qty, reason, dest, movement_time.now_sql()),
         )
         conn.commit()
         return {"id": item_id, "name": name}
@@ -321,9 +322,10 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
         dest = ((req.destination.strip() if req and req.destination else None) or "公司")
         if len(dest) > 200:
             raise HTTPException(400, "退回去向不可超過 200 字")
-        now = (req.created_at if req and req.created_at else None) or datetime.datetime.now().isoformat()
-        if req and req.created_at:
-            _validate_date(req.created_at, "退回日期")
+        try:
+            now = (movement_time.normalize_user_datetime(req.created_at) if req and req.created_at else None) or movement_time.now_sql()
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
         current = _canonical_qty(_total_qty(conn, m["item_id"]))
         _add_back_to_stock(conn, m["item_id"], return_qty, return_stock_id)
@@ -392,16 +394,19 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
                 # 2026-08-14 審查修（P4-1）：編輯調整流水的 before_qty 用「編輯前總量」= 原記錄 after_qty（B0-old_qty）
                 # → 鏈：(B0-old_qty) + (old_qty-new_qty) = B0-new_qty 恆成立
                 conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                    (m["item_id"], -diff, m["after_qty"], new_after, "已領出編輯調整", m["destination"]),
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (m["item_id"], -diff, m["after_qty"], new_after, "已領出編輯調整", m["destination"], movement_time.now_sql()),
                 )
         if upd.destination is not None:
             conn.execute("UPDATE movements SET destination=? WHERE id=?",
                          (upd.destination, movement_id))
         if upd.created_at is not None:
-            _validate_date(upd.created_at, "出庫日期")
+            try:
+                normalized_created_at = movement_time.normalize_user_datetime(upd.created_at)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
             conn.execute("UPDATE movements SET created_at=? WHERE id=?",
-                         (upd.created_at, movement_id))
+                         (normalized_created_at, movement_id))
         conn.commit()
         row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         return dict(row)
@@ -464,9 +469,13 @@ def update_stockout_return(movement_id: int, upd: StockoutReturnUpdate):
         destination = upd.destination.strip() if upd.destination is not None else row["destination"]
         if len(destination or "") > 200:
             raise HTTPException(400, "退回去向不可超過 200 字")
-        created_at = upd.created_at if upd.created_at is not None else row["created_at"]
         if upd.created_at is not None:
-            _validate_date(upd.created_at, "退回日期")
+            try:
+                created_at = movement_time.normalize_user_datetime(upd.created_at)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+        else:
+            created_at = row["created_at"]
         conn.execute(
             "UPDATE movements SET delta=?, before_qty=?, after_qty=?, destination=?, created_at=?, return_stock_id=?, return_site=?, return_location=? WHERE id=?",
             (new_qty, movement_before, _canonical_qty(movement_before + new_qty), destination, created_at, new_stock_id,
@@ -625,8 +634,8 @@ def prepare_nonstock(req: NonStockOutRequest):
         )
         item_id = cur.lastrowid
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,?,?,?)",
-            (item_id, 0, qty, "領出準備", note or ""),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,0,?,?,?,?)",
+            (item_id, 0, qty, "領出準備", note or "", movement_time.now_sql()),
         )
         conn.commit()
         return {"id": item_id, "name": name}
@@ -655,8 +664,8 @@ def prepare_item(item_id: int, req: PrepareRequest):
             raise HTTPException(400, f"可領出數量不足！可用 {available} {row['unit']}")
         new_prepared = _canonical_qty(row["prepared_qty"] + qty)
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (item_id, 0, _canonical_qty(row["prepared_qty"]), new_prepared, "領出準備", req.location or req.note),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+            (item_id, 0, _canonical_qty(row["prepared_qty"]), new_prepared, "領出準備", req.location or req.note, movement_time.now_sql()),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
@@ -688,8 +697,8 @@ def prepared_out(item_id: int, req: PrepareRequest):
             if cur.rowcount == 0:
                 raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
             conn.execute(
-                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,0,0,'出庫',?)",
-                (item_id, -qty, dest),
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,0,0,'出庫',?,?)",
+                (item_id, -qty, dest, movement_time.now_sql()),
             )
             conn.commit()
             updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
@@ -707,9 +716,9 @@ def prepared_out(item_id: int, req: PrepareRequest):
             raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
         source = _stock_payload(conn, source_stock_id, item_id)
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location) VALUES (?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (item_id, -qty, before, after, "出庫", dest, source_stock_id,
-             source["site"] if source else row["site"], source["location"] if source else req.location),
+             source["site"] if source else row["site"], source["location"] if source else req.location, movement_time.now_sql()),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
@@ -739,8 +748,8 @@ def prepared_return(item_id: int, req: PrepareRequest):
         if cur.rowcount == 0:  # H6：併發已消耗準備量 → 保守拒絕
             raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (item_id, 0, _canonical_qty(row["prepared_qty"]), new_prepared, "退回準備", ""),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+            (item_id, 0, _canonical_qty(row["prepared_qty"]), new_prepared, "退回準備", "", movement_time.now_sql()),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()

@@ -15,6 +15,7 @@ sys.path.insert(0, BASE_DIR)
 
 import app.database as app_db  # noqa: E402
 import main as app_main  # noqa: E402
+from app.services import movement_time  # noqa: E402
 from app.routes.export import _movement_type  # noqa: E402
 
 
@@ -354,3 +355,64 @@ def test_export_movement_site_prefers_return_site_over_source_site(client):
     book = export_book(client, month="2026-09", sites="warehouse")
     rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
     assert rows and rows[0][6] == "倉庫"
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("2026-10-01", "2026-10-01 00:00:00"),
+    ("2026-10-01 08:30", "2026-10-01 08:30:00"),
+    ("2026-10-01 08:30:45", "2026-10-01 08:30:45"),
+    ("2026-10-01T08:30:45", "2026-10-01 08:30:45"),
+])
+def test_normalize_user_datetime(raw, expected):
+    assert movement_time.normalize_user_datetime(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["2026-02-31", "2026-10-01 25:00", "2026-10-01T08:30:00+08:00", "garbage"])
+def test_normalize_user_datetime_rejects_invalid_or_timezone(raw):
+    with pytest.raises(ValueError):
+        movement_time.normalize_user_datetime(raw)
+
+
+def test_stockout_created_at_uses_taipei_business_time_and_export_boundary(client, monkeypatch):
+    monkeypatch.setattr(movement_time, "now_sql", lambda: "2026-10-01 00:30:00")
+    item = add_item(client, name="跨月出庫", code="TZ-001", qty=10)
+    response = client.post("/api/stockout", json={
+        "item_id": item["id"], "qty": 1, "destination": "測試案場", "location": "A櫃",
+    })
+    assert response.status_code == 200, response.text
+    conn = app_db.get_db()
+    try:
+        movement = conn.execute(
+            "SELECT created_at FROM movements WHERE item_id=? AND reason LIKE '出庫%' ORDER BY id DESC LIMIT 1",
+            (item["id"],),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert movement["created_at"] == "2026-10-01 00:30:00"
+    october = export_book(client, start_date="2026-10-01", end_date="2026-10-01")
+    september = export_book(client, start_date="2026-09-01", end_date="2026-09-01")
+    oct_rows = [r for r in october["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if r[0]]
+    sep_rows = [r for r in september["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if r[0]]
+    assert any(r[2] == item["id"] and r[0] == "2026-10-01 00:30:00" for r in oct_rows)
+    assert not any(r[2] == item["id"] and r[0] == "2026-10-01 00:30:00" for r in sep_rows)
+
+
+def test_stockout_user_entered_created_at_is_normalized_and_validated(client):
+    item = add_item(client, name="日期編輯品", code="TZ-EDIT", qty=2)
+    response = client.post("/api/stockout", json={
+        "item_id": item["id"], "qty": 1, "destination": "測試案場", "location": "A櫃",
+    })
+    assert response.status_code == 200, response.text
+    conn = app_db.get_db()
+    try:
+        movement_id = conn.execute(
+            "SELECT id FROM movements WHERE item_id=? AND reason LIKE '出庫%' ORDER BY id DESC LIMIT 1",
+            (item["id"],),
+        ).fetchone()["id"]
+    finally:
+        conn.close()
+    updated = client.patch(f"/api/stockouts/{movement_id}", json={"created_at": "2026-10-01T08:30"})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["created_at"] == "2026-10-01 08:30:00"
+    invalid = client.patch(f"/api/stockouts/{movement_id}", json={"created_at": "2026-02-31"})
+    assert invalid.status_code == 400
