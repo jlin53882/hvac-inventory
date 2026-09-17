@@ -14,6 +14,7 @@
 #   work_progress test_work_progress                    每日工作進度 API/媒體/RBAC/競態
 #
 # ⚠️ 改到以下檔 = 跑 all（所有測試的 fixture 底層）：
+#    app/database.py、app/services/auth.py、main.py、app/models.py、app/config.py
 set -e
 cd "$(dirname "$0")/.." || exit 1
 if [ -x ".venv/Scripts/python.exe" ]; then
