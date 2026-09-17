@@ -161,8 +161,6 @@ function switchTab(tab) {
     if (bc) bc.disabled = true;
     var bb = document.getElementById('batch-bar');
     if (bb) bb.classList.remove('show');
-    var site = document.getElementById('batch-site');
-    if (site) site.value = '';
     var cab = document.getElementById('batch-cabinet');
     if (cab) cab.value = '';
     var sub = document.getElementById('batch-sub');
@@ -227,7 +225,6 @@ window.addEventListener('load', function() {
 
 // 多使用者即時性與畫面狀態持久化
 var _TABS = ['inventory', 'prepared', 'stockout', 'stocktake', 'kit', 'calendar', 'signed-reports', 'quotation', 'petty-cash'];
-var _SITES = ['office', 'warehouse'];
 
 var _focusReloadTimer = null;
 var _lastVisibilityReloadAt = 0;
@@ -265,7 +262,7 @@ function syncViewUrl() {
     var _t = _p.get('tab');
     var _s = _p.get('site');
     if (_TABS.indexOf(_t) >= 0) currentTab = _t;
-    if (_SITES.indexOf(_s) >= 0) currentSite = _s;
+    if (INVENTORY_SITES.indexOf(_s) >= 0) currentSite = _s;
     renderUserMenu(user);
     renderSidebarUser(user);
     applyRoleView(user);

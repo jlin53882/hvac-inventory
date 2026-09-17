@@ -18,18 +18,17 @@ function openTransferModal(itemId) {
   });
   const source = document.getElementById('transfer-source-location');
   source.replaceChildren();
+  const allOption = document.createElement('option');
+  allOption.value = '__ALL__';
+  allOption.textContent = '全部位置';
+  source.appendChild(allOption);
   (item.stocks || []).forEach(stock => {
     const option = document.createElement('option');
     option.value = stock.location || '';
     option.textContent = `${stock.location || '未標示'}（可用 ${stock.qty || 0}）`;
     source.appendChild(option);
   });
-  if (!source.options.length) {
-    const option = document.createElement('option');
-    option.value = '';
-    option.textContent = '全部位置';
-    source.appendChild(option);
-  }
+  source.value = item.stocks && item.stocks.length ? (item.stocks[0].location || '') : '__ALL__';
   document.getElementById('transfer-qty').value = '';
   document.getElementById('transfer-target-location').value = '';
   document.getElementById('transfer-error').textContent = '';
@@ -54,7 +53,10 @@ async function submitTransfer() {
     item_id: transferItemId,
     target_site: document.getElementById('transfer-target-site').value,
     qty,
-    source_location: document.getElementById('transfer-source-location').value || null,
+    source_location: (function() {
+      const sourceLocationValue = document.getElementById('transfer-source-location').value;
+      return sourceLocationValue === '__ALL__' ? null : sourceLocationValue;
+    })(),
     target_location: document.getElementById('transfer-target-location').value.trim(),
   };
   try {

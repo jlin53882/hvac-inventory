@@ -1845,34 +1845,32 @@ class TestSiteSharding:
         assert any(o["item_id"] == office_item["id"] for o in office_outs)
         assert all(o["item_id"] != office_item["id"] for o in wh_outs)
 
-    def test_update_item_site(self, client):
-        """編輯品項可以搬移分片"""
+    def test_update_item_site_rejected(self, client):
+        """既有品項不可用 PATCH 直接搬移分片，必須使用正式調撥。"""
         item = _add_item(client, name="品項", site="office")
         r = client.patch(f"/api/items/{item['id']}", json={"site": "warehouse"})
-        assert r.status_code == 200
-        assert r.json()["site"] == "warehouse"
+        assert r.status_code == 400
+        assert client.get("/api/items", params={"site": "office"}).json()[0]["id"] == item["id"]
 
-    def test_batch_location_can_move_between_sites(self, client):
-        """批次改位置可同時將品項從辦公室搬到倉庫，再搬回辦公室。"""
-        item = _add_item(client, name="可搬移品項", site="office", location="辦公室櫃A")
+    def test_batch_location_does_not_move_between_sites(self, client):
+        """批次改位置只改 location，跨 site 需改走正式調撥。"""
+        item = _add_item(client, name="不可直接搬移品項", site="office", location="辦公室櫃A")
         stock_id = item["stocks"][0]["id"]
 
-        moved = client.post("/api/stocks/batch-location", json={
+        rejected = client.post("/api/stocks/batch-location", json={
             "stock_ids": [stock_id],
             "new_location": "倉庫櫃B | 第二層",
             "new_site": "warehouse",
         })
-        assert moved.status_code == 200, moved.text
-        warehouse = client.get("/api/items", params={"site": "warehouse"}).json()
-        assert warehouse[0]["site"] == "warehouse"
-        assert warehouse[0]["stocks"][0]["location"] == "倉庫櫃B | 第二層"
+        assert rejected.status_code == 400, rejected.text
+        office = client.get("/api/items", params={"site": "office"}).json()
+        assert office[0]["site"] == "office"
+        assert office[0]["stocks"][0]["location"] == "辦公室櫃A"
 
-        moved_back = client.post("/api/stocks/batch-location", json={
-            "stock_ids": [stock_id],
-            "new_location": "辦公室櫃C",
-            "new_site": "office",
+        moved = client.post("/api/stocks/batch-location", json={
+            "stock_ids": [stock_id], "new_location": "辦公室櫃C",
         })
-        assert moved_back.status_code == 200, moved_back.text
+        assert moved.status_code == 200, moved.text
         office = client.get("/api/items", params={"site": "office"}).json()
         assert office[0]["site"] == "office"
         assert office[0]["stocks"][0]["location"] == "辦公室櫃C"
