@@ -48,14 +48,7 @@ def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
                 if c.execute("SELECT 1 FROM appointments WHERE id=?", (appt_id,)).fetchone() is None:
                     c.rollback()
                     return
-                keys = gcal_sync.resolve_target_keys(c, appt_id)
-                if keys:
-                    placeholders = ",".join("?" * len(keys))
-                    keys = [row["id"] for row in c.execute(
-                        "SELECT id FROM gcal_keys WHERE is_active=1 "
-                        "AND COALESCE(pending_calendar_id,'')='' "
-                        f"AND id IN ({placeholders})", keys,
-                    ).fetchall()]
+                keys = gcal_sync.resolve_effective_target_keys(c, appt_id)
             else:  # D
                 keys = [r[0] for r in map_rows] if map_rows else []
             version = gcal_sync.sync_version_now()
@@ -172,6 +165,8 @@ _TEAM_STATUS_BUCKET = {
     "partial_failed": "failed",
 }
 
+_RETRYABLE_SYNC_STATUSES = {"pending", "retrying", "partial_retrying", "failed", "partial_failed"}
+
 
 def _team_status_bucket(status: str) -> str:
     """把個人／歷史 partial 狀態收斂成團隊統計 bucket。"""
@@ -227,7 +222,8 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
         ).fetchall())
         assignee_rows.extend(conn.execute(
             "SELECT aa.appointment_id, u.id AS user_id, u.display_name, u.is_active AS user_active, "
-            "u.gcal_key, k.id AS key_id, k.name AS key_name, k.calendar_id, k.is_active AS key_active "
+            "u.gcal_key, k.id AS key_id, k.name AS key_name, k.calendar_id, "
+            "k.pending_calendar_id, k.is_active AS key_active "
             "FROM appointment_assignees aa JOIN users u ON u.id=aa.user_id "
             "LEFT JOIN gcal_keys k ON k.name=u.gcal_key "
             "WHERE aa.appointment_id IN (" + placeholders + ") ORDER BY aa.id", chunk,
@@ -251,11 +247,11 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                 [row for (aid, _), rows_for_key in queue.items() if aid == appt_id for row in rows_for_key],
             )
         elif me is None:
-            info = {"status": "not_assigned", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": ""}
+            info = {"status": "not_assigned", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": "", "migration_pending": False, "can_retry": False}
         elif not me["gcal_key"]:
-            info = {"status": "not_bound", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": ""}
+            info = {"status": "not_bound", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": "", "migration_pending": False, "can_retry": False}
         elif not me["key_id"] or not me["key_active"]:
-            info = {"status": "paused", "error": "", "key_name": me["gcal_key"], "cal_id": "", "attempts": 0, "op_type": ""}
+            info = {"status": "paused", "error": "", "key_name": me["gcal_key"], "cal_id": "", "attempts": 0, "op_type": "", "migration_pending": False, "can_retry": False}
         else:
             key_id = me["key_id"]
             entries = queue.get((appt_id, key_id), [])
@@ -264,11 +260,20 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                 info["status"] = "not_targeted"
             info["key_name"] = me["key_name"] or ""
             info["cal_id"] = me["calendar_id"] or ""
+            info["migration_pending"] = bool(me["pending_calendar_id"])
+            info["can_retry"] = (
+                not info["migration_pending"]
+                and info["status"] in _RETRYABLE_SYNC_STATUSES
+                and bool(entries)
+            )
 
         team = None
         if is_admin:
             team_people = []
             excluded = {"not_bound": 0, "paused": 0, "inactive": 0}
+            effective_targets = gcal_sync.resolve_effective_target_keys(conn, appt_id)
+            has_bound_assignee_key = any(person["gcal_key"] for person in assigned)
+            fallback_targets = effective_targets if not has_bound_assignee_key else []
             for person in assigned:
                 if not person["user_active"]:
                     excluded["inactive"] += 1
@@ -285,6 +290,12 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                 )
                 if not queue.get((appt_id, person["key_id"]), []) and (appt_id, person["key_id"]) not in mapped:
                     person_info["status"] = "not_targeted"
+                person_info["migration_pending"] = bool(person["pending_calendar_id"])
+                person_info["can_retry"] = (
+                    not person_info["migration_pending"]
+                    and person_info["status"] in _RETRYABLE_SYNC_STATUSES
+                    and bool(queue.get((appt_id, person["key_id"]), []))
+                )
                 team_people.append({
                     "user_id": person["user_id"],
                     "display_name": person["display_name"] or "",
@@ -298,6 +309,11 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                 counts[bucket] += 1
                 if status not in _TEAM_STATUS_BUCKET:
                     unknown_people += 1
+            fallback_retryable_count = sum(
+                1 for key_id in fallback_targets
+                if queue.get((appt_id, key_id), [])
+                and _single_sync_info((appt_id, key_id) in mapped, queue[(appt_id, key_id)])["status"] in _RETRYABLE_SYNC_STATUSES
+            )
             team = {
                 "eligible_people": len(team_people),
                 "synced_people": counts["synced"],
@@ -308,6 +324,9 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
                 "unbound_people": excluded["not_bound"],
                 "paused_people": excluded["paused"],
                 "inactive_people": excluded["inactive"],
+                "fallback_target_count": len(fallback_targets),
+                "fallback_retryable_count": fallback_retryable_count,
+                "can_retry_all": any(person["can_retry"] for person in team_people) or fallback_retryable_count > 0,
                 "details": team_people,
             }
         if viewer_user is None:
@@ -383,6 +402,8 @@ def _appt_rows(conn, appt_ids, viewer_user=None) -> list[dict]:
                 "error": sync_info.get("error") or "",
                 "attempts": sync_info.get("attempts", 0),
                 "op_type": sync_info.get("op_type") or "",
+                "migration_pending": bool(sync_info.get("migration_pending")),
+                "can_retry": bool(sync_info.get("can_retry")),
             },
             "team_sync": sync_info.get("team"),
             "is_assigned_to_me": sync_info["status"] != "not_assigned",

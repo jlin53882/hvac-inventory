@@ -202,7 +202,7 @@ function calShowSyncError(apptId) {
   const personal = calPersonalSync(e);
   document.getElementById('cal-sync-err-client').textContent = e.client_name || '';
   document.getElementById('cal-sync-err-date').textContent = e.date || '';
-  document.getElementById('cal-sync-err-status').textContent = calSyncStatusLabel(personal.status);
+  document.getElementById('cal-sync-err-status').textContent = `${calSyncStatusLabel(personal.status)}${personal.migration_pending ? '（行事曆切換中）' : ''}`;
   document.getElementById('cal-sync-err-key').textContent = personal.key_name || '（未知 Key）';
   document.getElementById('cal-sync-err-cal').textContent = personal.cal_id || '（未知日曆）';
   document.getElementById('cal-sync-err-msg').textContent = personal.error || '（無錯誤訊息）';
@@ -216,6 +216,9 @@ function calShowSyncError(apptId) {
     suggestion = '🌐 網路連線問題。請確認伺服器可連線到 Google API。';
   } else {
     suggestion = '請檢查 gcal_sync.log 取得完整錯誤資訊。';
+  }
+  if (personal.migration_pending) {
+    suggestion = `📅 行事曆切換處理中，普通同步重試暫停。${suggestion ? ` ${suggestion}` : ''}`;
   }
   document.getElementById('cal-sync-err-suggestion').textContent = suggestion;
   openModal('cal-sync-error-modal');
@@ -231,14 +234,16 @@ function calShowTeamSyncDetails(apptId) {
   const details = document.getElementById('cal-team-sync-details');
   const retryAll = document.getElementById('cal-team-sync-retry-all');
   if (!summary || !details) return;
-  summary.textContent = team.eligible_people
-    ? `有效同步人員：${team.synced_people}/${team.eligible_people} 已同步`
-    : '目前沒有有效同步人員';
+  summary.textContent = team.fallback_target_count && !team.eligible_people
+    ? `目前沒有有效同步人員；系統 fallback：${team.fallback_target_count} 個有效同步 Key`
+    : team.eligible_people
+      ? `有效同步人員：${team.synced_people}/${team.eligible_people} 已同步`
+      : '目前沒有有效同步人員';
   if (retryAll) retryAll.hidden = !calTeamHasRetryableTarget(team);
   details.innerHTML = (team.details || []).map(person => {
-    const status = calSyncStatusLabel(person.status);
+    const status = `${calSyncStatusLabel(person.status)}${person.migration_pending ? '（行事曆切換中）' : ''}`;
     const error = person.error ? `：${person.error}` : '';
-    const retry = calCanRetrySyncStatus(person.status)
+    const retry = calCanRetryTeamPerson(person)
       ? `<button type="button" class="btn-sm" onclick="calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button>` : '';
     return `<div class="cal-sync-team-row"><strong>${esc(person.display_name)}</strong><span>${esc(status)}${esc(error)}</span>${retry}</div>`;
   }).join('') || '<div class="cal-sync-team-row">目前沒有有效同步人員</div>';

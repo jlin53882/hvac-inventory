@@ -278,6 +278,35 @@ def resolve_target_keys(conn, appt_id: int) -> List[int]:
     return [r["id"] for r in all_keys]
 
 
+def resolve_effective_target_keys(conn, appt_id: int) -> List[int]:
+    """同步與一般 retry 共用的有效 target：active 且未進行 Calendar migration。"""
+    target_ids = resolve_target_keys(conn, appt_id)
+    if not target_ids:
+        return []
+    placeholders = ",".join("?" * len(target_ids))
+    rows = conn.execute(
+        "SELECT id FROM gcal_keys WHERE is_active=1 "
+        "AND COALESCE(pending_calendar_id,'')='' "
+        f"AND id IN ({placeholders})",
+        target_ids,
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def existing_queue_key_ids(conn, appt_id: int, candidate_key_ids) -> list[int]:
+    """回傳 appointment 上實際存在的 queue key，供 status 與 reset 共用。"""
+    ids = sorted({int(key_id) for key_id in candidate_key_ids})
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    rows = conn.execute(
+        "SELECT DISTINCT key_id FROM appointment_sync_queue "
+        "WHERE appointment_id=? AND key_id IN (" + placeholders + ")",
+        [appt_id, *ids],
+    ).fetchall()
+    return sorted({row["key_id"] for row in rows})
+
+
 def get_service_for_key(key_row):
     """對單一 key 建 google service。key_row 含 credentials_path / calendar_id。"""
     from google.oauth2 import service_account

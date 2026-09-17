@@ -791,17 +791,7 @@ def _resolve_assigned_user_key_ids(conn, appt_id: int, user_id: int) -> list[int
 
 def _resolve_retry_all_key_ids(conn, appt_id: int) -> list[int]:
     """重用同步 authoritative resolver，再套用 mark_sync_pending 的 migration gate。"""
-    target_ids = gcal_sync.resolve_target_keys(conn, appt_id)
-    if not target_ids:
-        return []
-    placeholders = ",".join("?" * len(target_ids))
-    rows = conn.execute(
-        "SELECT id FROM gcal_keys WHERE is_active=1 "
-        "AND COALESCE(pending_calendar_id,'')='' "
-        f"AND id IN ({placeholders})",
-        target_ids,
-    ).fetchall()
-    return [row["id"] for row in rows]
+    return gcal_sync.resolve_effective_target_keys(conn, appt_id)
 
 
 def _reset_sync_queue_for_keys(appt_id: int, key_ids: list[int]) -> int:
@@ -812,15 +802,9 @@ def _reset_sync_queue_for_keys(appt_id: int, key_ids: list[int]) -> int:
         raise HTTPException(404, "沒有可重試的同步目標")
     conn = get_db()
     try:
-        placeholders = ",".join("?" * len(key_ids))
-        rows = conn.execute(
-            "SELECT key_id FROM appointment_sync_queue WHERE appointment_id=? "
-            "AND key_id IN (" + placeholders + ")",
-            [appt_id, *key_ids],
-        ).fetchall()
-        if not rows:
+        actual_ids = gcal_sync.existing_queue_key_ids(conn, appt_id, key_ids)
+        if not actual_ids:
             raise HTTPException(404, "找不到可重試的同步 Queue")
-        actual_ids = sorted({row["key_id"] for row in rows})
         placeholders = ",".join("?" * len(actual_ids))
         conn.execute(
             "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
