@@ -13,6 +13,7 @@ pytest 後端測試測不到。此檔用「靜態資產檢查」當單元測試�
 執行：
     env -u PYTHONPATH .venv\\Scripts\\python.exe -m pytest tests/test_frontend_assets.py -v
 """
+import json
 import os
 import re
 import subprocess
@@ -1226,6 +1227,7 @@ def test_inventory_loc_and_note_are_separate():
     """庫存卡位置與備註分層；長備註由獨立卡片區塊承載，避免擠壓主資訊。"""
     js = read(INVENTORY_RENDER_JS)
     card_js = read(CARD_JS)
+    css = read_css_all()
     assert "位置：" in card_js or "未標示" in card_js
     assert "item-loc" in card_js and "buildLocHTML" in js
     assert "buildNoteHTML" in card_js
@@ -1233,10 +1235,10 @@ def test_inventory_loc_and_note_are_separate():
     assert "buildNoteHTML(stocks)" in js
     assert "h += noteHtml;" in js
     assert "</div>\n    ${p.noteHTML || ''}\n    ${p.actionsHTML || ''}" in card_js
-    assert "item-loc" in card_js and "item-note" in card_js
-    assert "｜${esc(s.note)}" not in card_js
-    assert "×${s.qty}" not in js
-    assert "loc-qty" not in js
+    assert ".item-card .item-note" in css
+    assert "min-width: 0; overflow-wrap: anywhere; word-break: break-word;" in css
+    assert ".m-card .item-note {\n  display: flex; flex-direction: column;" in css
+    assert ".item-card .item-note {" in css
 
 
 def test_shared_mobile_note_slot_used_by_stockout():
@@ -1245,6 +1247,51 @@ def test_shared_mobile_note_slot_used_by_stockout():
     assert "noteHTML:" in stockout_js
     assert "class=\"item-note\"" in stockout_js
     assert "${o.note ? `<div class=\"stockout-note\">📝 ${esc(o.note)}</div>`}" not in stockout_js
+
+
+def test_inventory_note_preserves_multi_location_context():
+    """Regression: each stock-level note must retain its own location context."""
+    card_js = read(CARD_JS)
+    probe = r"""
+const fs = require('fs');
+function esc(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\"/g, '&quot;').replace(/'/g, '&#39;'); }
+eval(fs.readFileSync(process.argv[1], 'utf8'));
+const stocks = [
+  {location: '櫃子 | 位置 A', note: 'Note A'},
+  {location: '倉庫 B', note: 'Note B'},
+  {location: '', note: '<img src=x onerror=alert(1)>'},
+];
+process.stdout.write(JSON.stringify(buildNoteHTML(stocks)));
+"""
+    result = subprocess.run(
+        ["node", "-e", probe, CARD_JS],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    output = json.loads(result.stdout)
+    blocks = re.findall(r'<div class="item-note">(.*?)</div>', output)
+    assert len(blocks) == 3
+    assert "櫃子 / 位置 A" in blocks[0] and "Note A" in blocks[0]
+    assert "倉庫 B" in blocks[1] and "Note B" in blocks[1]
+    assert "未標示" in blocks[2]
+    assert "&lt;img src=x onerror=alert(1)&gt;" in blocks[2]
+    assert "<img src=x onerror=alert(1)>" not in blocks[2]
+    assert output.index("櫃子 / 位置 A") < output.index("Note A")
+    assert output.index("倉庫 B") < output.index("Note B")
+
+
+def test_inventory_note_empty_location_falls_back_and_escapes():
+    """Regression: multi-location empty context is explicit and escaped."""
+    card_js = read(CARD_JS)
+    assert "formatLocationDisplay" in card_js
+    formatter_start = card_js.index("function formatLocationDisplay")
+    formatter_source = card_js[formatter_start:card_js.index("function buildLocHTML", formatter_start)]
+    note_start = card_js.index("function buildNoteHTML")
+    note_source = card_js[note_start:card_js.index("// 數量控制", note_start)]
+    assert "s.location" in note_source
+    assert "未標示" in formatter_source
+    assert "esc(s.note)" in note_source
 
 
 def test_inventory_del_btn_is_text():
@@ -2898,10 +2945,10 @@ def test_edit_js_composes_cabinet_sub_location():
 
 
 def test_card_buildlochtml_parses_pipe():
-    """防回歸：buildLocHTML 解析 location 字串中的 ' | ' 分隔。"""
+    """防回歸：共用 formatter 解析 location 字串中的 | 分隔。"""
     js = read(CARD_JS)
-    assert "indexOf(' | ')" in js or 'indexOf(" | ")' in js, \
-        "buildLocHTML 需用 indexOf(' | ') 解析 location"
+    assert "split('|')" in js, "location formatter 需用 | 解析 location"
+    assert "formatLocationDisplay" in js, "共用 location formatter 需存在"
     assert "buildLocHTML" in js, "buildLocHTML 函式需存在"
 
 

@@ -22,27 +22,29 @@ function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
   return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(' + id + ')" title="點擊看大圖" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
 }
 
-// 位置與註解分層 HTML：主資訊保留位置，長註解由卡片獨立區塊承載。
+// Contract: return an escaped display string; callers must not escape it again.
+function formatLocationDisplay(location) {
+  const loc = location || '未標示';
+  const parts = String(loc).split('|').map(x => x.trim()).filter(Boolean);
+  return parts.length >= 2 ? parts.map(part => esc(part)).join(' / ') : esc(String(loc));
+}
+
 function buildLocHTML(locs) {
   const list = (locs && locs.length) ? locs : [{location: '', note: ''}];
-  return list.map(s => {
-    const loc = s.location || '未標示';
-    const pipeIdx = loc.indexOf(' | ');
-    let display;
-    if (pipeIdx >= 0) {
-      const cab = loc.substring(0, pipeIdx);
-      const sub = loc.substring(pipeIdx + 3);
-      display = `<b>${esc(cab)}</b>｜${esc(sub)}`;
-    } else {
-      display = esc(loc);
-    }
-    return `<div class="item-loc"><span class="item-loc-label">位置：</span>${display}</div>`;
-  }).join('');
+  return list.map(s => `
+    <div class="item-loc"><span class="item-loc-label">位置：</span>${formatLocationDisplay(s.location)}</div>
+  `).join('');
 }
 
 function buildNoteHTML(locs) {
-  const notes = (locs || []).filter(s => s && s.note);
-  return notes.map(s => `<div class="item-note"><span class="item-note-label">📝 註解</span><span class="item-note-text">${esc(s.note)}</span></div>`).join('');
+  const list = locs || [];
+  const notes = list.filter(s => s && s.note);
+  const showLocationContext = list.length > 1;
+  return notes.map(s => {
+    const location = formatLocationDisplay(s.location);
+    const label = showLocationContext ? `📝 註解 · ${location}` : '📝 註解';
+    return `<div class="item-note"><span class="item-note-label">${label}</span><span class="item-note-text">${esc(s.note)}</span></div>`;
+  }).join('');
 }
 
 // 數量控制（庫存卡）：viewer 唯讀數字 / 一般 −[數量]＋（對齊電腦版）
