@@ -50,7 +50,7 @@ async function submitKit() {
     const res = await fetch('/api/kits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, items: items, note: document.getElementById('k-note').value.trim() })
+      body: JSON.stringify({ name: name, brand: brand, code: code, site: currentSite, items: items, note: document.getElementById('k-note').value.trim() })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || '新增失敗');

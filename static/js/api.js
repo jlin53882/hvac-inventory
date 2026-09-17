@@ -149,10 +149,16 @@ function renderSubInfo() {
     `單一材料 ${current.single_items} 項 · 整組 ${current.kit_items} 組 · ${current.brands} 種廠牌 · 缺貨 ${current.zero_stock} 項`;
   const officeStats = ALERTS_BY_SITE.office;
   const warehouseStats = ALERTS_BY_SITE.warehouse;
+  const vanStats = ALERTS_BY_SITE.van;
+  const truckStats = ALERTS_BY_SITE.truck;
   document.getElementById('site-office-sub').textContent =
     `${officeStats.total_items} 項 · ${officeStats.total_qty}`;
   document.getElementById('site-warehouse-sub').textContent =
     `${warehouseStats.total_items} 項 · ${warehouseStats.total_qty}`;
+  document.getElementById('site-van-sub').textContent =
+    `${vanStats.total_items} 項 · ${vanStats.total_qty}`;
+  document.getElementById('site-truck-sub').textContent =
+    `${truckStats.total_items} 項 · ${truckStats.total_qty}`;
 }
 
 // 更新頂部統計資訊（單一材料/整組/廠牌/缺貨數 + 分片按鈕數字）
@@ -171,6 +177,8 @@ async function updateSubInfo() {
       all: summary.all || {},
       office: summary.office || {},
       warehouse: summary.warehouse || {},
+      van: summary.van || {},
+      truck: summary.truck || {},
     };
     renderSubInfo();
     updateNotifications();

@@ -123,7 +123,8 @@ function renderKitStatusBadge(status) {
 
 function renderKitActionButtons(k, isViewer, isM, status) {
   if (isViewer) return '';
-  if (isM) return `<div class="kit-mobile-actions"><button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button><button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button><button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
+  const transfer = hasPerm('stock-mgmt') ? `<button class="kit-action" onclick="openTransferModal(${k.item_id})">🔄 調撥</button>` : '';
+  if (isM) return `<div class="kit-mobile-actions"><button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button><button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>${transfer}<button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
   return `<div class="kit-assembly-actions">
     <button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button>
     <button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>
@@ -131,7 +132,7 @@ function renderKitActionButtons(k, isViewer, isM, status) {
     <button class="kit-action is-delete" onclick="deleteKit(${k.id})">🗑 刪除</button>
     <button class="kit-action is-assemble" onclick="assembleKit(${k.id})" ${esc(status.canAssemble ? '' : 'disabled title="材料不足"')}>🛠️ 組裝</button>
     <button class="kit-action is-disassemble" onclick="disassembleKit(${k.id})" ${Number(k.stock_qty || 0) > 0 ? '' : 'disabled title="整組庫存為 0"'}>✂️ 拆解</button>
-  </div>`;
+  </div>` + transfer;
 }
 
 function renderKitComponentRow(c) {

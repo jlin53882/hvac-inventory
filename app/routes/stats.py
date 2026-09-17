@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter
 
 from app.database import get_db
+from app.models import InventorySiteQuery
 from app.services.auth import require_perm
 
 router = APIRouter()
@@ -62,20 +63,19 @@ def _stats_for_site(conn, site: Optional[str] = None) -> dict:
 
 @router.get("/api/stats/summary", dependencies=[Depends(require_perm("stats"))])
 def stats_summary():
-    """首頁統計一次回傳 all/office/warehouse，減少重複連線與 HTTP request。"""
+    """首頁統計一次回傳五個分片，減少重複連線與 HTTP request。"""
     conn = get_db()
     try:
         return {
-            "all": _stats_for_site(conn, "all"),
-            "office": _stats_for_site(conn, "office"),
-            "warehouse": _stats_for_site(conn, "warehouse"),
+            site: _stats_for_site(conn, site)
+            for site in ("all", "office", "warehouse", "van", "truck")
         }
     finally:
         conn.close()
 
 
 @router.get("/api/stats", dependencies=[Depends(require_perm("stats"))])
-def stats(site: Optional[str] = None):
+def stats(site: Optional[InventorySiteQuery] = None):
     """統計總品項數/總庫存/低庫存/缺貨/品牌數（支援 site 分片篩選）。"""
     conn = get_db()
     try:

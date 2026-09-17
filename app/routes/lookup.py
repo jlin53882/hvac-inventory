@@ -17,6 +17,7 @@ import re
 from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
+from app.models import InventorySiteQuery
 
 # 查詢 API 路由
 router = APIRouter()
@@ -59,7 +60,7 @@ def _item_summary(conn, row) -> dict:
 
 
 @router.get("/api/items/similar")
-def find_similar(name: str = "", code: str = "", site: str = "all", exclude_id: int = 0):
+def find_similar(name: str = "", code: str = "", site: InventorySiteQuery = "all", exclude_id: int = 0):
     """找與輸入相近的既有品項（新增防呆用）。回傳 [] 表示無疑似重複"""
     if not name.strip() and not code.strip():
         raise HTTPException(400, "至少提供 name 或 code 其一")
@@ -113,7 +114,7 @@ def find_similar(name: str = "", code: str = "", site: str = "all", exclude_id: 
 
 
 @router.get("/api/locations")
-def list_locations(site: str = "all"):
+def list_locations(site: InventorySiteQuery = "all"):
     """回傳既有位置名稱清單（新增品項時位置欄自動補全用）"""
     conn = get_db()
     sql = ("SELECT DISTINCT s.location FROM item_stocks s"
