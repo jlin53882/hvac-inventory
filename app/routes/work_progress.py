@@ -434,6 +434,13 @@ def add_work_progress_photos(
         can_edit, _ = _flags(conn, row, user)
         if not can_edit:
             raise HTTPException(403, "沒有新增照片的權限")
+        existing_count = conn.execute(
+            """SELECT COUNT(*) FROM file_assets
+               WHERE category=? AND owner_type=? AND owner_id=?""",
+            (CATEGORY, OWNER_TYPE, str(report_id)),
+        ).fetchone()[0]
+        if existing_count + len(uploads) > MAX_FILES:
+            raise HTTPException(400, "每份工作進度最多保留 20 張照片")
         assets = _store_batch(conn, report_id, row["report_date"], uploads)
         conn.execute(
             "UPDATE daily_work_progress_reports SET updated_at=datetime('now','localtime') WHERE id=?",
