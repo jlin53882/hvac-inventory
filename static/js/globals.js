@@ -66,6 +66,11 @@ var editingKitId = null;  // 編輯整組時記錄 kit id（2026-08-11 Sarah）
 var _calM = new URLSearchParams(location.search).get('month');   // 原 calendar.js：?month=YYYY-MM（F5 保留月份）
 var calMonth = _calM && /^\d{4}-\d{2}$/.test(_calM) && Number(_calM.slice(5,7)) >= 1 && Number(_calM.slice(5,7)) <= 12 ? new Date(parseInt(_calM.slice(0,4)), parseInt(_calM.slice(5,7))-1, 1) : new Date();
 var calSelected = new Date();    // 選取的日期
+var wprSelectedFiles = [];       // 工作進度待上傳照片（多選/相機皆 append）
+var wprAppointments = [];
+var wprReportsByAppointment = {};
+var wprCurrentReport = null;
+// 工作進度（render/work-progress.js）
 var calEvents = [];              // 當月/當日行程
 var calTodayEvents = [];          // 今日派工（KPI 用，沿用既有 date API）
 var calLoadError = '';             // 行事曆資料載入錯誤

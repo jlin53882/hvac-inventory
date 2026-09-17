@@ -209,10 +209,13 @@ def store_asset(
     legacy_original_path: str | None = None,
     legacy_preview_path: str | None = None,
     upload_dir: str | Path | None = None,
+    base_relative_dir: str | Path | None = None,
 ) -> Asset:
     """原子保存一個 asset 並在同一個 DB transaction 建立 metadata。
 
     `legacy_*_path` 僅供既有 URL/資料夾相容；新呼叫端不應依賴它。
+    `base_relative_dir` 供需要自訂資料夾層級的新功能使用，會再加上
+    server-generated asset id；未傳入時維持既有 assets/category/month/id 版型。
     呼叫端應在 commit 失敗時呼叫 :func:`cleanup_asset_paths`。
     """
     category = _validate_category(category)
@@ -225,7 +228,13 @@ def store_asset(
     safe_mime = _mime_for_name(original_name)
     _validate_file_signature(ext, data)
     _validate_image_signature(ext, data)
-    base = Path("assets") / category / year_month / asset_id
+    if base_relative_dir is None:
+        base = Path("assets") / category / year_month / asset_id
+    else:
+        custom_base = Path(base_relative_dir)
+        if custom_base.is_absolute() or ".." in custom_base.parts:
+            raise ValueError("不合法的媒體儲存目錄")
+        base = custom_base / asset_id
     original_rel = legacy_original_path or str(base / f"original{ext}").replace("\\", "/")
     preview_rel = legacy_preview_path
     thumbnail_rel = str(base / "thumbnail.jpg").replace("\\", "/")

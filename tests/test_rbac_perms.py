@@ -22,7 +22,9 @@ EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt',
                  'signed-report-delete', 'signed-report-delete-all',
                  'quotation-upload-manage', 'quotation-upload-manage-all',
                  'petty-cash-delete-all', 'petty-cash-view', 'petty-cash-create', 'petty-cash-edit',
-                 'petty-cash-delete', 'petty-cash-config', 'page-visibility-manage')
+                 'petty-cash-delete', 'petty-cash-config', 'page-visibility-manage',
+                 'work-progress-view', 'work-progress-create', 'work-progress-edit', 'work-progress-edit-all',
+                 'work-progress-delete', 'work-progress-delete-all')
 
 
 @pytest.fixture()
