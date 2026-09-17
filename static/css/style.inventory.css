@@ -362,6 +362,61 @@ button.inventory-kpi-card:focus-visible,
   border-radius: 0;
   box-shadow: none;
 }
+@media (min-width: 768px) {
+  .inventory-content .loc-group .item-card {
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+  .inventory-content .loc-group .item-card > .item-info {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .inventory-content .loc-group .item-card > .item-photo,
+  .inventory-content .loc-group .item-card > .item-photo-empty {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .inventory-content .loc-group .item-card > .qty-control {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: center;
+    margin-top: 12px;
+  }
+  .inventory-content .loc-group .item-card > .inventory-stockout-actions {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    margin-top: 12px;
+  }
+  .inventory-content .loc-group .item-card > .item-card-admin-actions {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 0;
+    white-space: nowrap;
+  }
+  .inventory-content .loc-group .item-card > .item-card-admin-actions .edit-btn,
+  .inventory-content .loc-group .item-card > .item-card-admin-actions .del-btn {
+    position: static;
+    inset: auto;
+    z-index: auto;
+    min-height: 34px;
+    margin: 0;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .inventory-content .loc-group .item-card > .item-card-admin-actions .edit-btn {
+    order: 2;
+  }
+  .inventory-content .loc-group .item-card > .item-card-admin-actions .del-btn {
+    order: 1;
+  }
+}
 .inventory-content .loc-group .item-card:last-child {
   border-bottom: 0;
 }

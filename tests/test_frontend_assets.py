@@ -1072,7 +1072,7 @@ def test_inventory_js_viewer_mode():
     assert "cursor:default" in js  # 數量唯讀樣式
     assert "title=\"唯讀\"" in js
     assert "deleteItem" in js  # 卡片 刪除整筆材料（Sarah 需求）
-    assert ">刪除</button>" in js  # 刪除按鈕用文字、不用圖案（Sarah 2026-08-11 修正）
+    assert r"\u522a\u9664" in js  # 刪除按鈕保留 escaped 文字（避免編碼／HTML 解析差異）
 
 
 def test_kits_js_viewer_mode():
@@ -1234,11 +1234,36 @@ def test_inventory_loc_and_note_are_separate():
     assert "noteHTML: noteStr" in js
     assert "buildNoteHTML(stocks)" in js
     assert "h += noteHtml;" in js
-    assert "</div>\n    ${p.noteHTML || ''}\n    ${p.actionsHTML || ''}" in card_js
+    assert "<div class=\"note-slot\">${p.noteHTML || ''}</div>" in card_js
     assert ".item-card .item-note" in css
     assert "min-width: 0; overflow-wrap: anywhere; word-break: break-word;" in css
-    assert ".m-card .item-note {\n  display: flex; flex-direction: column;" in css
+    assert ".m-card .item-note {\n  display: flex; flex-direction: row;" in css
     assert ".item-card .item-note {" in css
+
+
+def test_note_label_and_value_are_inline():
+    """Regression: note label and value must render as `註解: value`, not stacked."""
+    card_js = read(CARD_JS)
+    assert "${buildStockNoteLabelHTML(s, showLocationContext)}: </span>" in card_js
+    assert "<span class=\"item-note-text\">${esc(s.note)}</span>" in card_js
+
+
+def test_mobile_note_slot_is_second_row_of_card_main():
+    """Regression: mobile note follows location without squeezing the quantity column."""
+    card_js = read(CARD_JS)
+    css = read_css_all()
+    assert card_js.index("<div class=\"qty-col\">") < card_js.index("<div class=\"note-slot\">")
+    assert ".m-card .note-slot { grid-column: 2 / -1; grid-row: 2;" in css
+
+
+def test_desktop_card_actions_and_quantity_use_distinct_rows():
+    """Regression: admin actions and quantity controls must not overlap in one grid cell."""
+    css = read(CSS_INVENTORY)
+    admin = css[css.index(".item-card-admin-actions {"):css.index("  }", css.index(".item-card-admin-actions {"))]
+    qty = css[css.index(".item-card > .qty-control {"):css.index("  }", css.index(".item-card > .qty-control {"))]
+    assert "grid-row: 1;" in admin
+    assert "grid-row: 2;" in qty
+    assert "grid-row: 1 / span 2;" in css
 
 
 def test_shared_mobile_note_slot_used_by_stockout():
@@ -1308,8 +1333,8 @@ def test_inventory_note_empty_location_falls_back_and_escapes():
 def test_inventory_del_btn_is_text():
     """刪除按鈕用文字「刪除」而非 ✕ 圖案（Sarah 修正）"""
     js = read(INVENTORY_RENDER_JS)
-    assert ">刪除</button>" in js
-    assert "title=\"刪除材料\"" in js
+    assert r"\u522a\u9664" in js
+    assert 'title="\\u522a\\u9664\\u6750\\u6599"' in js
 
 def test_kit_materials_show_model():
     """整組材料列顯示型號（Sarah 需求）"""

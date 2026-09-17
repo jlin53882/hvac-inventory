@@ -54,7 +54,7 @@ $watcher = Start-Job -ScriptBlock {
 Write-Host '🌐 建立 Cloudflare 隧道中...' -ForegroundColor Cyan
 
 # 前景執行 cloudflared：Ctrl+C 或關閉此視窗 = 外網關閉
-& $CF tunnel --url http://localhost:8000 --no-autoupdate 2>&1 | Tee-Object -FilePath $LOG
+& $CF tunnel --url http://localhost:8001 --no-autoupdate 2>&1 | Tee-Object -FilePath $LOG
 
 Stop-Job $watcher -ErrorAction SilentlyContinue
 Remove-Job $watcher -ErrorAction SilentlyContinue

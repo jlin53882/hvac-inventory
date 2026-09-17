@@ -45,7 +45,7 @@ function buildNoteHTML(locs) {
   const list = locs || [];
   const notes = list.filter(s => s && s.note);
   const showLocationContext = list.length > 1;
-  return notes.map(s => `<div class="item-note"><span class="item-note-label">${buildStockNoteLabelHTML(s, showLocationContext)}</span><span class="item-note-text">${esc(s.note)}</span></div>`).join('');
+  return notes.map(s => `<div class="item-note"><span class="item-note-label">${buildStockNoteLabelHTML(s, showLocationContext)}: </span><span class="item-note-text">${esc(s.note)}</span></div>`).join('');
 }
 
 // 數量控制（庫存卡）：viewer 唯讀數字 / 一般 −[數量]＋（對齊電腦版）
@@ -83,8 +83,8 @@ function mobileCardShell(p) {
         ${p.extraHTML || ''}
       </div>
       <div class="qty-col">${p.qtyHTML}</div>
+      <div class="note-slot">${p.noteHTML || ''}</div>
     </div>
-    ${p.noteHTML || ''}
     ${p.actionsHTML || ''}
   </div>`;
 }

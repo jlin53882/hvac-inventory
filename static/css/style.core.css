@@ -863,7 +863,11 @@
   background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.07);
   margin-bottom: 10px; overflow: hidden; border: 1px solid #f0f2f5; position: relative;
 }
-.m-card .card-main { display: flex; gap: 10px; padding: 10px 12px; align-items: center; }
+.m-card .card-main { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 10px; padding: 10px 12px; align-items: start; }
+.m-card .thumb { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+.m-card .info { grid-column: 2; grid-row: 1; }
+.m-card .qty-col { grid-column: 3; grid-row: 1; }
+.m-card .note-slot { grid-column: 2 / -1; grid-row: 2; min-width: 0; }
 .m-card .thumb {
   width: 58px; height: 58px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
   background: #eef2f7; display: flex; align-items: center; justify-content: center;
@@ -913,17 +917,18 @@
 
 /* 長註解獨立於主資訊列，避免推擠照片、數量與操作區。 */
 .m-card .item-note {
-  display: flex; flex-direction: column; gap: 2px; margin: 0 12px 10px; padding: 7px 9px;
+  display: flex; flex-direction: row; gap: 2px; margin: 0 12px 10px; padding: 7px 9px;
   border: 1px solid #e5e7eb; border-radius: 7px; background: #f8fafc;
   color: #475569; font-size: 11px; line-height: 1.45;
   min-width: 0; overflow-wrap: anywhere; word-break: break-word;
 }
 .m-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
 .m-card .item-note-text { min-width: 0; }
+.m-card .note-slot .item-note { margin: 6px 0 0; }
 
 /* 表格／桌面卡片使用同一組位置與註解語意；桌面不截斷內容。 */
 .item-card .item-note {
-  display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding: 5px 7px;
+  display: flex; flex-direction: row; gap: 2px; margin-top: 6px; padding: 5px 7px;
   border: 1px solid #e5e7eb; border-radius: 6px; background: #f8fafc;
   color: #475569; font-size: 11px; line-height: 1.4;
   min-width: 0; overflow-wrap: anywhere; word-break: break-word;
