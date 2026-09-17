@@ -4649,6 +4649,7 @@ def test_mobile_site_tab_2x2_layout():
     assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
 
 
+
 def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
@@ -4679,3 +4680,40 @@ def test_inventory_export_dialog_runtime():
     script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
     result = subprocess.run(["node", script], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"
+
+def test_work_progress_frontend_is_independent_and_mounted():
+    """工作進度頁使用獨立資產與命名空間，不耦合 signed reports。"""
+    index = read(INDEX)
+    app = read(APP_JS)
+    api = read(API_JS)
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    assert 'id="sb-nav-work-progress"' in index
+    assert "switchTab('work-progress')" in index
+    assert 'src="/static/js/render/work-progress.js"' in index
+    assert 'href="/static/css/style.work-progress.css"' in index
+    assert "'work-progress':'每日工作進度回報'" in app
+    assert "renderWorkProgress" in app
+    assert "content.classList.toggle('wpr-content', tab === 'work-progress')" in app
+    assert "'work-progress'" in api
+    assert "/api/work-progress" in js
+    assert "wprSelectedFiles = []" in js
+    assert "wpr-album" in js and 'type="file"' in js
+    assert "wpr-camera" in js and 'type="file"' in js
+    assert "multiple" in js and "capture" in js and "environment" in js
+    assert "esc(" in js
+    assert "thumbnail_url" in js and "preview_url" in js and "download_url" in js
+    assert ".wpr-" in css and ".card" not in css
+
+
+def test_work_progress_frontend_permission_and_workflow_contract():
+    """工作進度 UI 以 view/edit/delete flags 與 appointment 狀態驅動。"""
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    auth = read(os.path.join(STATIC, "js", "auth.js"))
+    assert "perms['work-progress-view']" in auth
+    assert "can_edit" in js and "can_delete" in js
+    assert "已回報" in js and "查看工作進度" in js
+    assert "/api/appointments?date=" in js
+    assert "appointment_note" in js
+    assert "PATCH" in js and "DELETE" in js
+    assert "wprGalleryMove" in js and "wprCloseGallery" in js

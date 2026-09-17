@@ -14,7 +14,7 @@ async function loadData(options) {
   dataAbortController = controller;
   const siteAtRequest = currentSite;
   try {
-    const skipItems = !full && ['calendar', 'signed-reports', 'quotation', 'petty-cash'].indexOf(currentTab) >= 0;
+    const skipItems = !full && ['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash'].indexOf(currentTab) >= 0;
     if (skipItems) {
       if (requestId !== dataRequestSeq || siteAtRequest !== currentSite) return;
       ALL_ITEMS = [];

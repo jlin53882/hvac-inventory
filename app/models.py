@@ -24,6 +24,11 @@ class SignedReportUpdate(BaseModel):
     note: Optional[str] = Field(None, max_length=500)
 
 
+class WorkProgressNoteUpdate(BaseModel):
+    """工作進度只能修改自己的進度備註。"""
+    note: str = Field("", max_length=1000)
+
+
 class StockItem(BaseModel):
     id: Optional[int] = None          # F2/F3：existing stock identity（None = new location）
     location: str = ""

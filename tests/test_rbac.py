@@ -48,6 +48,12 @@ EXPECTED_MATRIX = {
     'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'work-progress-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'work-progress-create': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'work-progress-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'work-progress-edit-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'work-progress-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'work-progress-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
 }
 EXPECTED_ROLES = ('admin', 'user', 'tech', 'viewer')
 EXPECTED_KEYS = tuple(EXPECTED_MATRIX.keys())
@@ -61,7 +67,7 @@ def test_seed_roles_permissions(rbac_db):
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 29
+        assert len(perms) == 35
     finally:
         conn.close()
 
@@ -117,6 +123,12 @@ def test_seed_labels_and_modules(rbac_db):
         'petty-cash-edit': ('零用金月報 編輯', 'calendar'),
         'petty-cash-delete': ('零用金月報 刪除本人', 'calendar'),
         'petty-cash-config': ('零用金下拉選單管理', 'calendar'),
+        'work-progress-view': ('工作進度回報 檢視', 'calendar'),
+        'work-progress-create': ('工作進度回報 新增', 'calendar'),
+        'work-progress-edit': ('工作進度回報 編輯本人', 'calendar'),
+        'work-progress-edit-all': ('工作進度回報 全域編輯', 'calendar'),
+        'work-progress-delete': ('工作進度回報 刪除本人', 'calendar'),
+        'work-progress-delete-all': ('工作進度回報 全域刪除', 'calendar'),
     }
     conn = get_db()
     try:
@@ -165,7 +177,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 29
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 35
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:
