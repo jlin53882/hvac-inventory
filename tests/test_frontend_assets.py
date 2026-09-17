@@ -1222,17 +1222,30 @@ def test_kit_comp_left_align():
 
 # ---------- 2026-08-11 Sarah 需求：卡片顯示格式（位置/備註/刪除/照片/型號/標題） ----------
 
-def test_inventory_loc_pill_no_qty_and_note_merged():
-    """庫存卡位置標：只顯示位置、不顯示 ×數量；備註併入同一框（｜分隔）、無獨立 .item-note"""
+def test_inventory_loc_and_note_are_separate():
+    """庫存卡位置與備註分層；長備註由獨立卡片區塊承載，避免擠壓主資訊。"""
     js = read(INVENTORY_RENDER_JS)
-    # 位置渲染已移至 card.js buildLocHTML（2026-09-06 兩段式位置）
     card_js = read(CARD_JS)
-    assert "位置：" in card_js or "未標示" in card_js              # 位置標在 card.js
-    assert "item-loc" in js or "buildLocHTML" in js               # inventory 呼叫 buildLocHTML
-    assert "×${s.qty}" not in js                                 # 不得再有 ×數量
-    assert "loc-qty" not in js                                   # 相關 CSS class 已移除
-    assert ".item-note" not in js                                # 備註不再單獨一行
-    assert "｜" in card_js or "'｜'" in card_js                  # 備註以｜併入位置框
+    assert "位置：" in card_js or "未標示" in card_js
+    assert "item-loc" in card_js and "buildLocHTML" in js
+    assert "buildNoteHTML" in card_js
+    assert "noteHTML: noteStr" in js
+    assert "buildNoteHTML(stocks)" in js
+    assert "h += noteHtml;" in js
+    assert "</div>\n    ${p.noteHTML || ''}\n    ${p.actionsHTML || ''}" in card_js
+    assert "item-loc" in card_js and "item-note" in card_js
+    assert "｜${esc(s.note)}" not in card_js
+    assert "×${s.qty}" not in js
+    assert "loc-qty" not in js
+
+
+def test_shared_mobile_note_slot_used_by_stockout():
+    """已領出手機卡片的長註解也移出主資訊列，維持共用卡片格式。"""
+    stockout_js = read(os.path.join(BASE_DIR, "static", "js", "render", "stockout.js"))
+    assert "noteHTML:" in stockout_js
+    assert "class=\"item-note\"" in stockout_js
+    assert "${o.note ? `<div class=\"stockout-note\">📝 ${esc(o.note)}</div>`}" not in stockout_js
+
 
 def test_inventory_del_btn_is_text():
     """刪除按鈕用文字「刪除」而非 ✕ 圖案（Sarah 修正）"""

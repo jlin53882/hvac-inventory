@@ -911,6 +911,26 @@
   border-radius: 9px;
 }
 
+/* 長註解獨立於主資訊列，避免推擠照片、數量與操作區。 */
+.m-card .item-note {
+  display: flex; gap: 6px; margin: 0 12px 10px; padding: 7px 9px;
+  border: 1px solid #e5e7eb; border-radius: 7px; background: #f8fafc;
+  color: #475569; font-size: 11px; line-height: 1.45;
+  min-width: 0; overflow-wrap: anywhere; word-break: break-word;
+}
+.m-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
+.m-card .item-note-text { min-width: 0; }
+
+/* 表格／桌面卡片使用同一組位置與註解語意；桌面不截斷內容。 */
+.item-card .item-note {
+  display: flex; gap: 6px; margin-top: 6px; padding: 5px 7px;
+  border: 1px solid #e5e7eb; border-radius: 6px; background: #f8fafc;
+  color: #475569; font-size: 11px; line-height: 1.4;
+  min-width: 0; overflow-wrap: anywhere; word-break: break-word;
+}
+.item-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
+.item-card .item-note-text { min-width: 0; }
+
 /* 表格模式也保留完整文字入口；手機橫向表格捲動後不會只剩不明圖示。 */
 .inventory-stockout-actions { display: flex; flex-direction: column; gap: 4px; min-width: 82px; }
 .inventory-stockout-actions .btn-prepare, .inventory-stockout-actions .btn-out {

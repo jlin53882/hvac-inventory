@@ -22,7 +22,7 @@ function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
   return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(' + id + ')" title="點擊看大圖" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
 }
 
-// 位置逐行 HTML（解析「櫃子 | 位置」格式，分開顯示）
+// 位置與註解分層 HTML：主資訊保留位置，長註解由卡片獨立區塊承載。
 function buildLocHTML(locs) {
   const list = (locs && locs.length) ? locs : [{location: '', note: ''}];
   return list.map(s => {
@@ -36,8 +36,13 @@ function buildLocHTML(locs) {
     } else {
       display = esc(loc);
     }
-    return `<div class="item-loc">位置：${display}${s.note ? `｜${esc(s.note)}` : ''}</div>`;
+    return `<div class="item-loc"><span class="item-loc-label">位置：</span>${display}</div>`;
   }).join('');
+}
+
+function buildNoteHTML(locs) {
+  const notes = (locs || []).filter(s => s && s.note);
+  return notes.map(s => `<div class="item-note"><span class="item-note-label">📝 註解</span><span class="item-note-text">${esc(s.note)}</span></div>`).join('');
 }
 
 // 數量控制（庫存卡）：viewer 唯讀數字 / 一般 −[數量]＋（對齊電腦版）
@@ -62,7 +67,7 @@ function buildQtyNum(display, unit, cls) {
 }
 
 // 手機卡片外框：共用 thumb/info/qty-col 結構（各頁填內容）
-// p: { reverted, moreBtnHTML, thumb, nameHTML, subHTML, extraHTML, qtyHTML, actionsHTML, checkboxHTML }
+// p: { reverted, moreBtnHTML, thumb, nameHTML, subHTML, extraHTML, noteHTML, qtyHTML, actionsHTML, checkboxHTML }
 function mobileCardShell(p) {
   return `<div class="m-card${p.reverted ? ' reverted' : ''}${p.cardClass ? ' ' + p.cardClass : ''}">
     ${p.moreBtnHTML || ''}
@@ -76,6 +81,7 @@ function mobileCardShell(p) {
       </div>
       <div class="qty-col">${p.qtyHTML}</div>
     </div>
+    ${p.noteHTML || ''}
     ${p.actionsHTML || ''}
   </div>`;
 }
