@@ -95,10 +95,10 @@ def test_export_formula_contract_and_tables(client):
     assert set(book["05 異動紀錄"].tables) == {"tblMovement"}
     headers = [c.value for c in inventory[5]]
     cells = {name: inventory.cell(6, headers.index(name) + 1).value for name in headers}
-    assert cells["總庫存"].startswith("=SUMIFS(tblPosition[")
-    assert cells["可用庫存"] == "=[@總庫存]-[@待領出]"
-    assert cells["位置數"].startswith("=COUNTIFS(tblPosition[")
-    assert cells["庫存狀態"].startswith("=IF([@可用庫存]<0")
+    assert cells["總庫存"] == "=SUMIFS(tblPosition[位置數量],tblPosition[品項編號],A6)"
+    assert cells["可用庫存"] == "=J6-I6"
+    assert cells["位置數"] == "=COUNTIFS(tblPosition[品項編號],A6)"
+    assert cells["庫存狀態"].startswith("=IF(K6<0")
     overview = book["01 總覽"]
     assert any(isinstance(cell.value, str) and "tblInventory" in cell.value for row in overview.iter_rows() for cell in row)
 
@@ -223,3 +223,22 @@ def test_export_alert_candidates_cover_multiple_and_zero_alerts_without_errors(c
     empty_book = export_book(client, sites="van")
     empty_alert = empty_book["04 庫存警示"]
     assert empty_alert.cell(6, 1).value == "目前沒有資料"
+
+
+def test_export_movement_integer_and_decimal_number_formats(client):
+    integer_item = add_item(client, name="整數異動", code="MOVE-INT", qty=1)
+    decimal_item = add_item(client, name="小數異動", code="MOVE-DEC", unit="米", qty=1.333)
+    insert_movement(integer_item["id"], "2026-09-17 10:00:00", delta=-1, reason="出庫")
+    insert_movement(decimal_item["id"], "2026-09-17 09:00:00", delta=0.333, reason="庫存調整")
+
+    book = export_book(client, month="2026-09")
+    movement = book["05 異動紀錄"]
+    rows = [row for row in movement.iter_rows(min_row=6) if row[0].value]
+    integer_row = next(row for row in rows if row[2].value == integer_item["id"])
+    decimal_row = next(row for row in rows if row[2].value == decimal_item["id"])
+
+    assert [integer_row[col - 1].value for col in (8, 9, 10)] == [-1, 0, -1]
+    assert all(integer_row[col - 1].number_format == "#,##0" for col in (8, 9, 10))
+    assert isinstance(decimal_row[7].value, (int, float))
+    assert decimal_row[7].value == pytest.approx(0.333)
+    assert decimal_row[7].number_format == "#,##0.###"

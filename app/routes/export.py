@@ -28,6 +28,7 @@ STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7
 
 
 def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str, str]:
+    """解析月份或自訂日期範圍，回傳 SQL 邊界與 Excel 顯示期間。"""
     now = now or dt.datetime.now()
     if start_date is not None or end_date is not None:
         if not start_date or not end_date:
@@ -62,18 +63,22 @@ def _parse_export_range(month: str | None, start_date: str | None, end_date: str
 
 
 def _safe(value):
+    """將資料庫文字交給既有 Excel 公式注入防護 helper。"""
     return excel_safe("" if value is None else value)
 
 
 def _site_label(site: str) -> str:
+    """將內部庫存區代碼轉成報表顯示名稱。"""
     return SITES.get(site, site)
 
 
 def _period_text(label: str, display_period: str) -> str:
+    """組合報表期間與異動統計期間的標題文字。"""
     return f"報表期間：{label}　異動統計：{display_period}"
 
 
 def _style_title(ws, title: str, period: str):
+    """套用工作表標題、快照時間與期間資訊。"""
     ws["A1"] = title
     ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
     ws["A1"].fill = PatternFill("solid", fgColor=TITLE_FILL)
@@ -86,6 +91,7 @@ def _style_title(ws, title: str, period: str):
 
 
 def _style_header(ws, row: int):
+    """套用資料表表頭樣式並設定凍結窗格。"""
     for cell in ws[row]:
         if cell.value is not None:
             cell.font = Font(bold=True, color="FFFFFF")
@@ -95,6 +101,7 @@ def _style_header(ws, row: int):
 
 
 def _style_data(ws, header_row: int, qty_columns: Iterable[int] = (), note_columns: Iterable[int] = ()):
+    """套用資料列對齊、備註換行與基礎數量格式。"""
     for row in ws.iter_rows(min_row=header_row + 1):
         for cell in row:
             cell.alignment = Alignment(horizontal="right" if cell.column in qty_columns else "left", vertical="top", wrap_text=cell.column in note_columns)
@@ -103,11 +110,13 @@ def _style_data(ws, header_row: int, qty_columns: Iterable[int] = (), note_colum
 
 
 def _set_widths(ws, widths):
+    """依序設定工作表各欄寬。"""
     for i, width in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
 
 def _add_table(ws, name: str, header_row: int, style: str = "TableStyleMedium2"):
+    """在資料列存在時建立原生 Excel Table，並回傳是否建立成功。"""
     if ws.max_row <= header_row:
         return False
     table = Table(displayName=name, ref=f"A{header_row}:{get_column_letter(ws.max_column)}{ws.max_row}")
@@ -117,20 +126,24 @@ def _add_table(ws, name: str, header_row: int, style: str = "TableStyleMedium2")
 
 
 def _qty_format(qty_type: str) -> str:
+    """依單位數量類型回傳 Excel number format。"""
     return {"integer": "#,##0", "fraction": "# ??/??", "decimal": "#,##0.###"}.get(qty_type, "#,##0.###")
 
 
 def _write_empty(ws, row: int, text: str = "目前沒有資料"):
+    """在空資料工作表寫入使用者可理解的空狀態訊息。"""
     ws.cell(row, 1).value = text
     ws.cell(row, 1).font = Font(color="64748B", italic=True)
 
 
 def _write_headers(ws, headers, row: int = 5):
+    """將欄位標題寫入指定表頭列。"""
     for column, value in enumerate(headers, 1):
         ws.cell(row, column).value = value
 
 
 def _build_inventory_sheet(ws, items, position_table_available: bool, qty_types):
+    """建立一品項一列的庫存總表與 Excel 衍生公式。"""
     headers = ["品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存", "可用庫存", "位置數", "庫存狀態", "警示序號"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
@@ -160,6 +173,7 @@ def _build_inventory_sheet(ws, items, position_table_available: bool, qty_types)
 
 
 def _build_position_sheet(ws, positions, qty_types):
+    """建立一位置一列的位置明細表。"""
     headers = ["品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
@@ -176,6 +190,7 @@ def _build_position_sheet(ws, positions, qty_types):
 
 
 def _build_movement_sheet(ws, movements):
+    """建立期間異動紀錄，保留原始數量並依值套用顯示格式。"""
     headers = ["時間", "異動類型", "品項編號", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
@@ -199,12 +214,18 @@ def _build_movement_sheet(ws, movements):
     if movements:
         _add_table(ws, "tblMovement", 5)
         _style_data(ws, 5, qty_columns=(8, 9, 10), note_columns=(11, 12))
+        for row in range(6, ws.max_row + 1):
+            for col in (8, 9, 10):
+                value = ws.cell(row, col).value
+                if isinstance(value, (int, float)) and float(value).is_integer():
+                    ws.cell(row, col).number_format = "#,##0"
     else:
         _write_empty(ws, 6, "選定期間沒有異動紀錄")
     _set_widths(ws, [21, 14, 10, 16, 28, 18, 12, 12, 12, 12, 20, 30])
 
 
 def _build_overview(ws, has_inventory, period):
+    """建立快照資訊、KPI 公式與庫存區摘要。"""
     _style_title(ws, "庫存管理報表", period)
     ws["A5"] = "指標"; ws["B5"] = "數值"
     _style_header(ws, 5)
@@ -221,6 +242,7 @@ def _build_overview(ws, has_inventory, period):
 
 
 def _build_alert_sheet(ws, item_count):
+    """建立以 tblInventory 為單一來源的傳統公式警示列。"""
     headers = ["庫存狀態", "品項編號", "庫存區", "分類", "廠牌", "品項名稱", "型號", "單位", "總庫存", "待領出", "可用庫存", "低庫存門檻"]
     _write_headers(ws, headers); _style_header(ws, 5)
     if item_count:
@@ -235,6 +257,7 @@ def _build_alert_sheet(ws, item_count):
 
 
 def _build_stats_sheet(ws, items):
+    """建立庫存區、分類與廠牌的公式統計區塊。"""
     has_inventory = bool(items)
     _style_title(ws, "庫存統計", "數字欄位皆由 Excel 公式依 tblInventory 推導")
     ws["A4"] = "庫存區統計"; ws["J4"] = "分類統計"; ws["O4"] = "廠牌統計"
@@ -269,6 +292,7 @@ def _build_stats_sheet(ws, items):
 
 @router.get("/api/export", dependencies=[Depends(require_perm("export"))])
 def export_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sites: str | None = None, sections: str | None = None):
+    """驗證匯出參數、查詢資料並產生固定六張 Sheet 的 XLSX 回應。"""
     del sections  # 六張工作表固定輸出；保留參數以相容既有/未來前端。
     if days is not None and month is None and start_date is None and end_date is None:
         if days < 0 or days > MAX_RANGE_DAYS:
