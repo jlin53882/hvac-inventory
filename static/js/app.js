@@ -275,7 +275,10 @@ function syncViewUrl() {
     if (siteEl) siteEl.classList.add('on');
     // sidebar active 同步
     var sbNav = document.getElementById('sb-nav-' + currentTab);
+    document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
     if (sbNav) sbNav.classList.add('active');
+    var content = document.getElementById('content');
+    if (content) content.classList.toggle('inventory-content', currentTab === 'inventory');
     loadData();
     // loadData 不重繪 DSR；F5 直接以 ?tab=signed-reports 開啟時在此建立頁面。
     if (currentTab === 'signed-reports' || currentTab === 'quotation' || currentTab === 'petty-cash') switchTab(currentTab);

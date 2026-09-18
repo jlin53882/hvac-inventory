@@ -1866,6 +1866,18 @@ def test_default_tab_is_calendar():
     assert "switchTab(currentTab);" in ap
 
 
+def test_app_boot_clears_default_calendar_active_before_selected_tab():
+    """Regression: F5 on ?tab=inventory must not leave default calendar active in sidebar."""
+    js = read(os.path.join(STATIC, "js", "app.js"))
+    boot_start = js.index("var _p = new URLSearchParams(location.search);")
+    boot_end = js.index("loadData();", boot_start) + len("loadData();")
+    boot = js[boot_start:boot_end]
+    assert "querySelectorAll('.sb-nav-link').forEach" in boot
+    assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('active')")
+    assert "content.classList.toggle('inventory-content', currentTab === 'inventory')" in boot
+    assert boot.index("content.classList.toggle('inventory-content', currentTab === 'inventory')") < boot.index("loadData();")
+
+
 def test_index_loads_calendar_js():
     """index.html 載入 render/calendar.js + modals/calendar.js + modals/calendar-settings.js（2026-08-16 拆檔）"""
     assert '/static/js/render/calendar.js' in read(INDEX)
