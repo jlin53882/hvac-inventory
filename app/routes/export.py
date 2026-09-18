@@ -81,10 +81,11 @@ def _period_text(label: str, display_period: str) -> str:
 
 def _style_title(ws, title: str, period: str):
     """套用工作表標題、快照時間與期間資訊。"""
+    ws.merge_cells("A1:D1")
     ws["A1"] = title
     ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
     ws["A1"].fill = PatternFill("solid", fgColor=TITLE_FILL)
-    ws["A1"].alignment = Alignment(vertical="center")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 30
     ws["A2"] = "庫存快照：" + movement_time.now_sql().replace("-", "/")
     ws["A3"] = period

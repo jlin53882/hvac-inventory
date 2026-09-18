@@ -68,6 +68,10 @@ def export_book(client, **params):
 def test_export_has_expected_sheets_in_order(client):
     book = export_book(client)
     assert book.sheetnames == ["01 總覽", "02 庫存總表", "03 位置明細", "04 庫存警示", "05 異動紀錄", "06 統計"]
+    for worksheet in book.worksheets:
+        assert "A1:D1" in {str(merged_range) for merged_range in worksheet.merged_cells.ranges}
+        assert worksheet["A1"].value
+        assert worksheet["A1"].alignment.horizontal == "center"
 
 
 def test_export_month_filters_movements_and_past_month_excludes_next_month(client):
