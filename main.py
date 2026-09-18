@@ -27,7 +27,7 @@ from app.config import STATIC_DIR
 from app.middleware import BinarySafeGZipMiddleware, cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
 from app.database import get_db, init_db
 from app.routes import appointments, auth, export, items, gcal_keys, kits, lookup, movements, petty_cash, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, transfers, users, units, work_progress
-from app.services.auth import cleanup_expired, get_user_permissions, init_admin_if_missing, require_login
+from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 from app.services.file_storage import asset_media_type, asset_variant_path, get_asset
 from app.services import sync_scheduler
 from app.services.app_log import get_logger, setup_logging
@@ -184,8 +184,9 @@ def read_media(asset_id: str, variant: str, user: dict = Depends(require_login))
         row = get_asset(conn, asset_id)
         if row is None:
             raise HTTPException(status_code=404, detail="找不到媒體")
-        if row["category"] == "work_progress" and not get_user_permissions(conn, user["id"]).get("work-progress-view"):
-            raise HTTPException(status_code=403, detail="無此權限")
+        if row["category"] == "work_progress":
+            # Work-progress photos must use the report-scoped endpoint, which validates owner_type/owner_id.
+            raise HTTPException(status_code=404, detail="找不到媒體")
         try:
             path = asset_variant_path(row, variant)
         except (ValueError, FileNotFoundError):

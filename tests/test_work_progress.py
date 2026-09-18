@@ -381,18 +381,15 @@ def test_work_progress_view_revocation_is_immediate_for_existing_session(wpr_env
     ).status_code == 403
 
 
-def test_generic_media_endpoint_enforces_work_progress_view(wpr_env, monkeypatch):
+def test_generic_media_endpoint_cannot_bypass_work_progress_owner_scope(wpr_env):
     make_client, _users, _static, _uploads = wpr_env
     owner = make_client("owner")
+    viewer = make_client("viewer")
     appointment = _appointment(owner)
     report = _create(owner, appointment["id"]).json()
     asset_id = report["photos"][0]["asset_id"]
-    conn = app_db.get_db()
-    try:
-        perm_id = conn.execute("SELECT id FROM permissions WHERE key='work-progress-view'").fetchone()["id"]
-        user_id = conn.execute("SELECT id FROM users WHERE username='owner'").fetchone()["id"]
-        conn.execute("INSERT INTO user_permissions(user_id, permission_id, value) VALUES(?,?,0)", (user_id, perm_id))
-        conn.commit()
-    finally:
-        conn.close()
-    assert owner.get(f"/media/{asset_id}/thumbnail").status_code == 403
+
+    # Even a viewer with work-progress-view cannot use the generic asset route;
+    # only the report-scoped endpoint may validate work-progress ownership.
+    assert viewer.get(f"/media/{asset_id}/thumbnail").status_code == 404
+    assert owner.get(f"/api/work-progress/{report['id']}/photos/{asset_id}/thumbnail").status_code == 200
