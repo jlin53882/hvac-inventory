@@ -4938,6 +4938,12 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "wprSelectRequestToken" in globals_js
     assert "++wprSelectRequestToken" in js
     assert "token !== wprSelectRequestToken" in js
+    assert "var report =" in select_block
+    assert "wprCurrentReport = report;" in select_block
+    assert "wprCurrentReport = await wprFetch('/api/work-progress/' + existing.id)" not in select_block
+    guard_pos = select_block.index("if (token !== wprSelectRequestToken) return;")
+    assignment_pos = select_block.index("wprCurrentReport = report;")
+    assert guard_pos < assignment_pos
 
     app_js = read(APP_JS)
     switch_block = app_js.split("function switchTab(tab)", 1)[1].split(

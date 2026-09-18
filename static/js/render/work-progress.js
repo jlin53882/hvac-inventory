@@ -85,8 +85,9 @@ async function wprSelectJob(id) {
   var existing = wprReportsByAppointment[id];
   if (existing) {
     try {
-      wprCurrentReport = await wprFetch('/api/work-progress/' + existing.id);
+      var report = await wprFetch('/api/work-progress/' + existing.id);
       if (token !== wprSelectRequestToken) return;
+      wprCurrentReport = report;
     } catch (error) {
       if (token !== wprSelectRequestToken) return;
       toast(error.message, 'error');
