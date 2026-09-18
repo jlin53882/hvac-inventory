@@ -40,7 +40,7 @@ EXPECTED_MATRIX = {
     'gcal-keys-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-    'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'change-own-password':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
     'signed-report-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},

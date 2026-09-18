@@ -291,7 +291,7 @@ def test_ack_password_expiry_admin_only(admin_client):
         "username": "ackuser", "password": "Test1234", "display_name": "AU", "role": "user"})
     with TestClient(fastapi_app) as c:
         assert c.post("/api/auth/login", json={"username": "ackuser", "password": "Test1234"}).status_code == 200
-        assert c.post("/api/auth/password-ack").status_code == 403
+        assert c.post("/api/auth/password-ack").status_code == 200
     # admin 可 ack
     assert admin_client.post("/api/auth/password-ack").status_code == 200
 
@@ -570,13 +570,11 @@ def test_client_ip_trust_boundary():
 # ========== Phase 2b（2026-08-11）：個人改密碼 + 6 個月過期提示 ==========
 # 2026-08-13 Sarah：user 角色不可自行改密碼（403）——流程邏輯改用 admin 驗證（admin 仍可改）
 
-def test_user_cannot_change_password_403(user_client):
-    """user 角色改密碼 → 403（2026-08-13 Sarah：藍政達/蘇昱豪/吳佩霖等一般使用者由 admin 重設）
-    RBAC：seed 僅 admin 有 change-own-password → user 無此權限（require_perm 403）"""
+def test_user_can_change_own_password(user_client):
+    """user 角色現在有 change-own-password → 可改自己密碼"""
     r = user_client.put("/api/auth/password",
                         json={"old_password": "Test1234", "new_password": "NewPass123"})
-    assert r.status_code == 403
-    assert "無此權限" in r.json()["detail"]
+    assert r.status_code == 200
 
 
 def test_change_password_kills_other_sessions_keeps_current(admin_client):
@@ -623,14 +621,14 @@ def test_change_own_password_success(admin_client):
         assert c.post("/api/auth/login", json={"username": "admin", "password": "FinalPass456"}).status_code == 200
 
 
-def test_viewer_cannot_change_own_password(admin_client):
-    """2026-08-13 Sarah：viewer 也不能改自己的密碼（只有 admin 可）"""
+def test_viewer_can_change_own_password(admin_client):
+    """viewer 角色現在有 change-own-password → 可改自己密碼"""
     admin_client.post("/api/users", json={
-        "username": "viewer2", "password": "View1234", "display_name": "檢視者", "role": "viewer"})
+        "username": "viewer_pw2", "password": "View1234", "display_name": "檢視者", "role": "viewer"})
     with TestClient(fastapi_app) as c:
-        assert c.post("/api/auth/login", json={"username": "viewer2", "password": "View1234"}).status_code == 200
+        assert c.post("/api/auth/login", json={"username": "viewer_pw2", "password": "View1234"}).status_code == 200
         r = c.put("/api/auth/password", json={"old_password": "View1234", "new_password": "NewView123"})
-        assert r.status_code == 403
+        assert r.status_code == 200
 
 
 def test_me_password_expired_flag(admin_client):

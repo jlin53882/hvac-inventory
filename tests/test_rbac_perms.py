@@ -142,7 +142,7 @@ def test_me_permissions_match_role_defaults(user_client):
     r = user_client.get("/api/auth/me")
     perms = r.json()["user"]["permissions"]
     assert perms["view"] and perms["item-mgmt"] and perms["cal-mgmt"]
-    assert not perms["user-mgmt"] and not perms["change-own-password"] and not perms["svc-type-mgmt"]
+    assert not perms["user-mgmt"] and perms["change-own-password"] and not perms["svc-type-mgmt"]
     assert user_client.get("/api/auth/me").json()["user"]["is_admin_role"] is False
 
 
@@ -364,7 +364,11 @@ def _call(client, method, url):
 
 @pytest.mark.parametrize("method,url,key", WRITE_ENDPOINTS, ids=[f"{m}{u}" for m, u, k in WRITE_ENDPOINTS])
 def test_viewer_write_endpoints_all_403(matrix_viewer, method, url, key):
-    """viewer 對 38 寫入端點全數 403（權限矩陣，稽核 A3 全量）"""
+    """viewer 對寫入端點全數 403，除了自己有權限的端點"""
+    if key == "change-own-password":
+        resp = _call(matrix_viewer, method, url)
+        assert resp.status_code != 403, f"viewer {method} {url} 應非 403（已有權限），實際 {resp.status_code}"
+        return
     resp = _call(matrix_viewer, method, url)
     assert resp.status_code == 403, f"viewer {method} {url} 應 403，實際 {resp.status_code}"
     assert "無此權限" in resp.json()["detail"]
@@ -372,9 +376,9 @@ def test_viewer_write_endpoints_all_403(matrix_viewer, method, url, key):
 
 @pytest.mark.parametrize("method,url,key", WRITE_ENDPOINTS, ids=[f"{m}{u}" for m, u, k in WRITE_ENDPOINTS])
 def test_tech_write_endpoints_only_calendar(matrix_tech, method, url, key):
-    """tech 僅 cal-mgmt 端點非 403，其餘全 403（現況白名單 1:1）"""
+    """tech 僅 cal-mgmt 與 change-own-password 端點非 403，其餘全 403"""
     resp = _call(matrix_tech, method, url)
-    if key == "cal-mgmt":
+    if key in ("cal-mgmt", "change-own-password"):
         assert resp.status_code != 403, f"tech {method} {url} 應可達業務層，實際 403"
     else:
         assert resp.status_code == 403, f"tech {method} {url} 應 403，實際 {resp.status_code}"
@@ -655,3 +659,69 @@ def test_page_visibility_existing_rows_not_overwritten_on_startup(admin_client, 
     r = admin_client.get(f"/api/users/{viewer_id}/page-visibility")
     # quotation should still be ON (seed uses INSERT OR IGNORE)
     assert "quotation" in r.json()["visible_pages"]
+
+
+def test_change_own_password_role_defaults():
+    """change-own-password must be ON for all 4 roles (seed check)."""
+    from app.database import get_db, init_db
+    import tempfile, os, sqlite3
+    # Quick isolated DB check
+    test_db = os.path.join(tempfile.mkdtemp(), 'test_cop.db')
+    import app.database as dbmod
+    old = dbmod.DB_PATH
+    dbmod.DB_PATH = test_db
+    try:
+        init_db()
+        conn = get_db()
+        try:
+            rows = {r['key']: r['id'] for r in conn.execute('SELECT key, id FROM permissions').fetchall()}
+            cop_id = rows['change-own-password']
+            roles = {r['name']: r['id'] for r in conn.execute('SELECT name, id FROM roles').fetchall()}
+            for role_name in ('admin', 'user', 'tech', 'viewer'):
+                cnt = conn.execute(
+                    'SELECT COUNT(*) FROM role_permissions WHERE role_id = ? AND permission_id = ?',
+                    (roles[role_name], cop_id)
+                ).fetchone()[0]
+                assert cnt == 1, f'{role_name} should have change-own-password=ON'
+        finally:
+            conn.close()
+    finally:
+        dbmod.DB_PATH = old
+
+
+def test_change_password_access_user(admin_client):
+    """User has change-own-password capability, so canAccessPage('change-password') should be true."""
+    user_id = _make_user(admin_client, 'cop_user', 'user')
+    with TestClient(fastapi_app) as c:
+        c.post('/api/auth/login', json={'username': 'cop_user', 'password': 'Test1234'})
+        me = c.get('/api/auth/me').json()['user']
+        assert me['permissions']['change-own-password'] is True
+
+
+def test_change_password_access_tech(admin_client):
+    """Tech has change-own-password capability."""
+    tech_id = _make_user(admin_client, 'cop_tech', 'tech')
+    with TestClient(fastapi_app) as c:
+        c.post('/api/auth/login', json={'username': 'cop_tech', 'password': 'Test1234'})
+        me = c.get('/api/auth/me').json()['user']
+        assert me['permissions']['change-own-password'] is True
+
+
+def test_change_password_access_viewer(admin_client):
+    """Viewer has change-own-password RBAC capability, but default page visibility is OFF."""
+    viewer_id = _make_user(admin_client, 'cop_viewer', 'viewer')
+    with TestClient(fastapi_app) as c:
+        c.post('/api/auth/login', json={'username': 'cop_viewer', 'password': 'Test1234'})
+        me = c.get('/api/auth/me').json()['user']
+        # RBAC capability is ON
+        assert me['permissions']['change-own-password'] is True
+        # But page visibility is OFF (viewer defaults don't include change-password)
+        assert 'change-password' not in me['visible_pages']
+
+
+def test_viewer_page_visibility_still_only_four_pages(admin_client):
+    """Viewer default visible_pages must remain exactly 4 pages after change-own-password RBAC change."""
+    viewer_id = _make_user(admin_client, 'cop_viewer_check', 'viewer')
+    r = admin_client.get(f'/api/users/{viewer_id}/page-visibility')
+    assert r.status_code == 200
+    assert set(r.json()['visible_pages']) == {'calendar', 'signed-reports', 'inventory', 'kit'}

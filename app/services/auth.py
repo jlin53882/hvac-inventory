@@ -239,7 +239,6 @@ def get_user_permissions(conn: sqlite3.Connection, user_id: int) -> dict:
     perms["view"] = True
     if role == "admin":
         perms["user-mgmt"] = True
-        perms["change-own-password"] = True
     else:
         perms["user-mgmt"] = False
         perms["page-visibility-manage"] = False
