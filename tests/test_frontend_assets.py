@@ -4665,5 +4665,5 @@ def test_inventory_export_dialog_contract():
 def test_inventory_export_dialog_runtime():
     """實際執行 Dialog：首次開啟與 custom→close→reopen 狀態皆一致。"""
     script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
-    result = subprocess.run(["node", script], capture_output=True, text=True, timeout=120)
+    result = subprocess.run(["node", script], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"
