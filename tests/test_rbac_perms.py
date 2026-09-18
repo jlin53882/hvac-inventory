@@ -20,7 +20,8 @@ EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt',
                  'svc-type-mgmt', 'gcal-sync-manage', 'gcal-sync-force', 'gcal-sync-team-view', 'gcal-keys-manage',
                  'unit-mgmt', 'user-mgmt', 'change-own-password', 'signed-report-delete-all',
                  'petty-cash-delete-all', 'petty-cash-view', 'petty-cash-create', 'petty-cash-edit',
-                 'petty-cash-delete', 'petty-cash-config')
+                 'petty-cash-delete', 'petty-cash-config', 'work-progress-view', 'work-progress-create',
+        'work-progress-edit', 'work-progress-edit-all', 'work-progress-delete', 'work-progress-delete-all')
 
 
 @pytest.fixture()
@@ -208,7 +209,7 @@ def test_list_permissions_endpoint(admin_client):
     r = admin_client.get("/api/users/permissions")
     assert r.status_code == 200
     data = r.json()
-    assert len(data["permissions"]) == 29
+    assert len(data["permissions"]) == 35
     assert set(data["role_defaults"].keys()) == set(EXPECTED_ROLES)
     assert "cal-mgmt" in data["role_defaults"]["tech"]
 

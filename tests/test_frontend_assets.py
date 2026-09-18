@@ -4375,6 +4375,10 @@ def test_calendar_sync_status_uses_personal_and_admin_team_contract():
     assert "const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)" in modal
     assert "retryAll.hidden = !hasPerm('gcal-sync-force') || !calTeamHasRetryableTarget(team)" in modal
     assert "fallback_target_count" in modal
+    assert "同步至全部有效 Google 行事曆" in js
+    assert "目前沒有可用的 Google 行事曆，請先新增或啟用 Calendar Key" in js
+    assert "目前沒有有效同步人員" not in js
+    assert "目前沒有有效同步人員" not in modal
 
 
 def test_gcal_sync_interval_explains_debounce_semantics():
@@ -4649,6 +4653,7 @@ def test_mobile_site_tab_2x2_layout():
     assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
 
 
+
 def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
@@ -4679,3 +4684,116 @@ def test_inventory_export_dialog_runtime():
     script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
     result = subprocess.run(["node", script], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"
+
+def test_work_progress_frontend_is_independent_and_mounted():
+    """工作進度頁使用獨立資產與命名空間，不耦合 signed reports。"""
+    index = read(INDEX)
+    app = read(APP_JS)
+    api = read(API_JS)
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    assert 'id="sb-nav-work-progress"' in index
+    assert "switchTab('work-progress')" in index
+    assert 'src="/static/js/render/work-progress.js"' in index
+    assert 'href="/static/css/style.work-progress.css"' in index
+    assert "'work-progress':'每日工作進度回報'" in app
+    assert "renderWorkProgress" in app
+    assert "content.classList.toggle('wpr-content', tab === 'work-progress')" in app
+    assert "'work-progress'" in api
+    assert "/api/work-progress" in js
+    assert "wprSelectedFiles = []" in js
+    assert "wpr-album" in js and 'type="file"' in js
+    assert "wpr-camera" in js and 'type="file"' in js
+    assert "multiple" in js and "capture" in js and "environment" in js
+    assert "esc(" in js
+    assert "thumbnail_url" in js and "preview_url" in js and "download_url" in js
+    assert ".wpr-" in css and ".card" not in css
+    assert "#content.wpr-content" in css
+    assert "max-width: none" in css
+    assert "grid-column: 1 / -1" in css
+
+
+def test_work_progress_frontend_permission_and_workflow_contract():
+    """工作進度 UI 以 view/edit/delete flags 與 appointment 狀態驅動。"""
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    auth = read(os.path.join(STATIC, "js", "auth.js"))
+    assert "perms['work-progress-view']" in auth
+    assert "can_edit" in js and "can_delete" in js
+    assert "已回報" in js and "查看工作進度" in js
+    assert "/api/appointments?date=" in js
+    assert "appointment_note" in js
+    assert "PATCH" in js and "DELETE" in js
+    assert "wprGalleryMove" in js and "wprCloseGallery" in js
+    assert "使用流程" in js
+    assert "wpr-info" in js
+    assert "wpr-drop" in js and "dataTransfer.files" in js
+    assert "wprResetFilter" in js
+    assert "wpr-result-count" in js
+    assert "wpr-chip active" in js
+    assert "wprDeletePhoto" in js
+    assert "/photos/" in js and "method:'DELETE'" in js
+    assert "確定刪除此照片" in js
+    assert "await wprLoadHistory(wprHistoryPage)" in js
+    assert "await wprLoadHistory(1); wprOpenHistoryDetail(id)" in js
+    assert "wprEditReport" in js
+    assert "uploader_name" in js
+    assert "wprTogglePhotoManage" in js
+    assert "wpr-photo-manage-tile" in js
+    assert "wpr-edit-overlay" in js
+    assert "wpr-gallery-grid" in css and "minmax(96px, 112px)" in css
+
+
+def test_work_progress_frontend_identity_pagination_url_and_race_contract():
+    """工作進度前端鎖定 report identity、分頁、Object URL lifecycle 與 loader freshness。"""
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    globals_js = read(GLOBALS_JS)
+    select_block = js.split("async function wprSelectJob(id)", 1)[1].split(
+        "function wprUpdateNoteCount", 1
+    )[0]
+    assert "wprFetch('/api/work-progress/' + existing.id)" in select_block
+    assert "wprFetch('/api/work-progress/' + id)" not in select_block
+
+    assert "wprHistoryPage" in globals_js
+    assert "wprHistoryPageSize" in globals_js
+    assert "wprHistoryTotal" in globals_js
+    assert "page_size: String(wprHistoryPageSize)" in js
+    assert "wprRenderHistoryPagination" in js
+    assert "wprLoadHistory(wprHistoryPage - 1)" in js
+    assert "wprLoadHistory(wprHistoryPage + 1)" in js
+    assert "wprLoadHistory(1)" in js
+
+    add_block = js.split("function wprAddPendingFiles", 1)[1].split(
+        "function wprRenderPendingPhotos", 1
+    )[0]
+    render_block = js.split("function wprRenderPendingPhotos", 1)[1].split(
+        "async function wprSubmit", 1
+    )[0]
+    assert "URL.createObjectURL(file)" in add_block
+    assert "URL.createObjectURL(file)" not in render_block
+    assert "URL.revokeObjectURL" in js
+    assert "wprClearPendingFiles" in js
+
+    assert "wprDayRequestToken" in globals_js
+    assert "wprHistoryRequestToken" in globals_js
+    assert "wprKpiRequestToken" in globals_js
+    assert "wprDetailRequestTokens" in globals_js
+    assert "wprSelectRequestToken" in globals_js
+    assert "++wprSelectRequestToken" in js
+    assert "token !== wprSelectRequestToken" in js
+    assert "var report =" in select_block
+    assert "wprCurrentReport = report;" in select_block
+    assert "wprCurrentReport = await wprFetch('/api/work-progress/' + existing.id)" not in select_block
+    guard_pos = select_block.index("if (token !== wprSelectRequestToken) return;")
+    assignment_pos = select_block.index("wprCurrentReport = report;")
+    assert guard_pos < assignment_pos
+
+    app_js = read(APP_JS)
+    switch_block = app_js.split("function switchTab(tab)", 1)[1].split(
+        "function checkReminder", 1
+    )[0]
+    assert "var previousTab = currentTab;" in switch_block
+    assert "previousTab === 'work-progress'" in switch_block
+    assert "tab !== 'work-progress'" in switch_block
+    assert "wprClearPendingFiles" in switch_block
+    assert switch_block.index("wprClearPendingFiles") < switch_block.index("currentTab = tab")

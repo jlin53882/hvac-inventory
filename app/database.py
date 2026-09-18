@@ -266,6 +266,30 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_dsr_date ON daily_signed_reports(report_date);
     CREATE INDEX IF NOT EXISTS idx_dsr_upload_time ON daily_signed_reports(upload_time);
     CREATE INDEX IF NOT EXISTS idx_dsr_uploader ON daily_signed_reports(uploader_user_id);
+    -- 每日工作進度回報（獨立歷史紀錄；appointment 刪除時保留 snapshot）
+    CREATE TABLE IF NOT EXISTS daily_work_progress_reports (
+        id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+        appointment_id            INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+        report_date               TEXT NOT NULL,
+        uploader_user_id          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        uploader_name             TEXT NOT NULL DEFAULT '',
+        note                      TEXT NOT NULL DEFAULT '',
+        client_name_snapshot      TEXT NOT NULL DEFAULT '',
+        address_snapshot          TEXT NOT NULL DEFAULT '',
+        service_name_snapshot     TEXT NOT NULL DEFAULT '',
+        start_time_snapshot       TEXT NOT NULL DEFAULT '',
+        end_time_snapshot         TEXT NOT NULL DEFAULT '',
+        appointment_note_snapshot TEXT NOT NULL DEFAULT '',
+        created_at                TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        updated_at                TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_work_progress_appointment_unique
+        ON daily_work_progress_reports(appointment_id)
+        WHERE appointment_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_work_progress_date
+        ON daily_work_progress_reports(report_date, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_work_progress_uploader
+        ON daily_work_progress_reports(uploader_user_id);
     -- 報價單上傳（沿用每日簽名日報表邏輯，獨立儲存）
     CREATE TABLE IF NOT EXISTS quotation_uploads (
         id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -603,7 +627,13 @@ def _exec_init(conn):
         ('petty-cash-create', '零用金月報 新增', 'calendar'),
         ('petty-cash-edit', '零用金月報 編輯', 'calendar'),
         ('petty-cash-delete', '零用金月報 刪除本人', 'calendar'),
-        ('petty-cash-config', '零用金下拉選單管理', 'calendar');
+        ('petty-cash-config', '零用金下拉選單管理', 'calendar'),
+        ('work-progress-view', '工作進度回報 檢視', 'calendar'),
+        ('work-progress-create', '工作進度回報 新增', 'calendar'),
+        ('work-progress-edit', '工作進度回報 編輯本人', 'calendar'),
+        ('work-progress-edit-all', '工作進度回報 全域編輯', 'calendar'),
+        ('work-progress-delete', '工作進度回報 刪除本人', 'calendar'),
+        ('work-progress-delete-all', '工作進度回報 全域刪除', 'calendar');
     """)
     # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
     _RBAC_DEFAULT = {
@@ -636,6 +666,12 @@ def _exec_init(conn):
         'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'work-progress-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'work-progress-create': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+        'work-progress-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+        'work-progress-edit-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'work-progress-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+        'work-progress-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     }
     _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
     _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}

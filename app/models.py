@@ -24,6 +24,12 @@ class SignedReportUpdate(BaseModel):
     note: Optional[str] = Field(None, max_length=500)
 
 
+class WorkProgressNoteUpdate(BaseModel):
+    """工作進度可修改回報人顯示名稱與進度備註；owner user id 不變。"""
+    uploader_name: Optional[str] = Field(None, max_length=50)
+    note: Optional[str] = Field(None, max_length=1000)
+
+
 class StockItem(BaseModel):
     id: Optional[int] = None          # F2/F3：existing stock identity（None = new location）
     location: str = ""

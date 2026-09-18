@@ -235,10 +235,10 @@ function calShowTeamSyncDetails(apptId) {
   const retryAll = document.getElementById('cal-team-sync-retry-all');
   if (!summary || !details) return;
   summary.textContent = team.fallback_target_count && !team.eligible_people
-    ? `未指派，同步至所有帳號（${team.fallback_target_count} 個）`
+    ? `同步至全部有效 Google 行事曆（${team.fallback_target_count} 個）`
     : team.eligible_people
       ? `有效同步人員：${team.synced_people}/${team.eligible_people} 已同步`
-      : '目前沒有有效同步人員';
+      : '目前沒有可用的 Google 行事曆，請先新增或啟用 Calendar Key';
   if (retryAll) retryAll.hidden = !hasPerm('gcal-sync-force') || !calTeamHasRetryableTarget(team);
   details.innerHTML = (team.details || []).map(person => {
     const status = `${calSyncStatusLabel(person.status)}${person.migration_pending ? '（行事曆切換中）' : ''}`;
@@ -246,7 +246,7 @@ function calShowTeamSyncDetails(apptId) {
     const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)
       ? `<button type="button" class="btn-sm" onclick="calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button>` : '';
     return `<div class="cal-sync-team-row"><strong>${esc(person.display_name)}</strong><span>${esc(status)}${esc(error)}</span>${retry}</div>`;
-  }).join('') || '<div class="cal-sync-team-row">目前沒有有效同步人員</div>';
+  }).join('') || '<div class="cal-sync-team-row">目前沒有可用的 Google 行事曆，請先新增或啟用 Calendar Key</div>';
   const excluded = [];
   if (team.unbound_people) excluded.push(`未綁定 ${team.unbound_people} 人`);
   if (team.paused_people) excluded.push(`Key 已停用 ${team.paused_people} 人`);

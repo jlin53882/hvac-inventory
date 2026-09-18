@@ -18,6 +18,7 @@
 | 📋 每月盤點 | 25 日提醒 + 逐項輸入實際數量 + 自動算盤盈/盤虧 |
 | 🔧 整組套件 | 定義套件組成材料，一鍵組裝（扣材料）/拆解（還原） |
 | 📅 行事曆派工 | 月行事曆 + 當日派工時間軸 + 防衝突 + 服務項目/人員顏色 + 匯出工程日報表 |
+| 📸 每日工作進度回報 | 依行事曆工作建立歷史 snapshot、工作備註與多張施工照片，支援 Gallery/KPI/RBAC |
 | 📷 品項照片 | 上傳照片自動壓縮，卡片與商品/庫存異常清單優先顯示 thumbnail，圖片失敗自動回 neutral placeholder |
 | 🧾 異常清單 | 缺貨/低庫存/缺料共用 Desktop compact list + Mobile compact product row，支援搜尋、位置 filter 與既有編輯入口 |
 | 🔑 帳號登入 | 登入/登出、四種角色（管理員/使用者/工程師/檢視者）+ RBAC 權限控管 |
@@ -83,9 +84,9 @@
 ```
 hvac-inventory/
 ├── main.py              ← 後端入口（FastAPI + SQLite）
-├── app/                 ← 後端套件（routes 19 個 + middleware + services + models）
+├── app/                 ← 後端套件（routes 20 個 + middleware + services + models）
 ├── static/              ← 前端（index.html + login.html + js/ + css/）
-├── tests/               ← pytest（1492 條，33 檔；本輪 collect-only 實測）
+├── tests/               ← pytest（1542 條，34 檔；本輪 collect-only 實測）
 ├── docs/                ← 維護文件（庫存/媒體/安全性/測試/權限/行事曆/Google同步）
 ├── scripts/             ← 啟動/外網/監控腳本
 ├── inventory.db         ← 資料庫（.gitignore）
@@ -113,6 +114,12 @@ hvac-inventory/
 | GET | `/api/export` | 匯出 Excel |
 | GET | `/api/appointments?date=` | 行事曆派工 |
 | GET | `/api/appointments/export?date=` | 匯出工程日報表 |
+| GET | `/api/work-progress` | 工作進度歷史（日期/關鍵字/分頁） |
+| GET | `/api/work-progress/{id}` | 工作進度 snapshot、備註與照片 |
+| POST | `/api/work-progress` | 依 appointment 建立工作進度（每份回報最多 20 張圖片，含追加） |
+| PATCH/DELETE | `/api/work-progress/{id}` | 修改備註／刪除整筆 |
+| POST/DELETE | `/api/work-progress/{id}/photos*` | 新增／刪除單張施工照片 |
+| GET | `/api/work-progress/kpi?month=` | 依目前 appointments 計算回報 KPI |
 
 | GET | `/api/gcal-keys` | Google 行事曆同步 Key 列表（admin） |
 | POST | `/api/gcal-keys` | 新增 Key（admin） |

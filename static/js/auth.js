@@ -66,12 +66,17 @@ function applyRoleView(user) {
   var canViewStocktake = canStocktake || !!perms['view'];
   var canAdjust = !!perms['stock-mgmt'];
   var sbNavStocktake = document.getElementById('sb-nav-stocktake');
+  var sbNavWorkProgress = document.getElementById('sb-nav-work-progress');
   var saveBar = document.getElementById('save-bar');
 
 
   if (sbNavStocktake) sbNavStocktake.style.display = canViewStocktake ? '' : 'none';
+  if (sbNavWorkProgress) sbNavWorkProgress.style.display = perms['work-progress-view'] ? '' : 'none';
   if (typeof checkReminder === 'function') checkReminder();
   if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';
+  if (!perms['work-progress-view'] && typeof currentTab !== 'undefined' && currentTab === 'work-progress') {
+    switchTab('calendar');
+  }
   if (!canViewStocktake && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
     switchTab('inventory');
   }
