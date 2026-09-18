@@ -4467,6 +4467,10 @@ def test_calendar_sync_status_uses_personal_and_admin_team_contract():
     assert "const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)" in modal
     assert "retryAll.hidden = !hasPerm('gcal-sync-force') || !calTeamHasRetryableTarget(team)" in modal
     assert "fallback_target_count" in modal
+    assert "同步至全部有效 Google 行事曆" in js
+    assert "目前沒有可用的 Google 行事曆，請先新增或啟用 Calendar Key" in js
+    assert "目前沒有有效同步人員" not in js
+    assert "目前沒有有效同步人員" not in modal
 
 
 def test_gcal_sync_interval_explains_debounce_semantics():

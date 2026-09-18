@@ -106,11 +106,14 @@ function calTeamHasRetryableTarget(team) {
 }
 
 function calTeamSyncLabel(team) {
-  if (!calHasTeamSyncInfo(team)) return '';
+  if (!team) return '';
   if (team.fallback_target_count && !team.eligible_people) {
-    return `同步至所有帳號（${team.fallback_target_count} 個）${team.can_retry_all ? ' ⏳' : ''}`;
+    return `同步至全部有效 Google 行事曆（${team.fallback_target_count} 個）${team.can_retry_all ? ' ⏳' : ''}`;
   }
-  if (!team.eligible_people) return '團隊：目前無有效同步人員';
+  if (!team.eligible_people && !team.fallback_target_count) {
+    return '目前沒有可用的 Google 行事曆，請先新增或啟用 Calendar Key';
+  }
+  if (!calHasTeamSyncInfo(team)) return '';
   const icon = team.failed_people ? ' ⚠️' : team.pending_people || team.retrying_people ? ' ⏳' : '';
   return `團隊：${team.synced_people}/${team.eligible_people} 同步${icon}`;
 }
