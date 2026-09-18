@@ -113,6 +113,10 @@ function updateBreadcrumb(tab) {
 }
 
 function switchTab(tab) {
+  var previousTab = currentTab;
+  if (previousTab === 'work-progress' && tab !== 'work-progress' && typeof wprClearPendingFiles === 'function') {
+    wprClearPendingFiles();
+  }
   if (typeof closeInventoryStatusModal === 'function') closeInventoryStatusModal();
   currentTab = tab;
   syncViewUrl();

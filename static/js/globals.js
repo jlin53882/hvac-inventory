@@ -77,6 +77,7 @@ var wprDayRequestToken = 0;
 var wprHistoryRequestToken = 0;
 var wprKpiRequestToken = 0;
 var wprDetailRequestTokens = {};
+var wprSelectRequestToken = 0;
 // 工作進度（render/work-progress.js）
 var calEvents = [];              // 當月/當日行程
 var calTodayEvents = [];          // 今日派工（KPI 用，沿用既有 date API）
