@@ -4708,6 +4708,9 @@ def test_work_progress_frontend_is_independent_and_mounted():
     assert "esc(" in js
     assert "thumbnail_url" in js and "preview_url" in js and "download_url" in js
     assert ".wpr-" in css and ".card" not in css
+    assert "#content.wpr-content" in css
+    assert "max-width: none" in css
+    assert "grid-column: 1 / -1" in css
 
 
 def test_work_progress_frontend_permission_and_workflow_contract():
@@ -4721,6 +4724,17 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "appointment_note" in js
     assert "PATCH" in js and "DELETE" in js
     assert "wprGalleryMove" in js and "wprCloseGallery" in js
+    assert "使用流程" in js
+    assert "wpr-info" in js
+    assert "wpr-drop" in js and "dataTransfer.files" in js
+    assert "wprResetFilter" in js
+    assert "wpr-result-count" in js
+    assert "wpr-chip active" in js
+    assert "wprDeletePhoto" in js
+    assert "/photos/" in js and "method:'DELETE'" in js
+    assert "確定刪除此照片" in js
+    assert "await wprLoadHistory(wprHistoryPage)" in js
+    assert "await wprLoadHistory(1); wprOpenHistoryDetail(id)" in js
 
 
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():
