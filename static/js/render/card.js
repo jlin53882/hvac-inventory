@@ -22,22 +22,31 @@ function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
   return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" onclick="openPhotoLightbox(' + id + ')" title="點擊看大圖" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
 }
 
-// 位置逐行 HTML（解析「櫃子 | 位置」格式，分開顯示）
+// Contract: return an escaped display string; callers must not escape it again.
+function formatLocationDisplay(location) {
+  const raw = String(location ?? '').trim();
+  if (!raw) return '未標示';
+  const parts = raw.split('|').map(x => x.trim()).filter(Boolean);
+  return parts.length ? parts.map(part => esc(part)).join(' / ') : '未標示';
+}
+
 function buildLocHTML(locs) {
   const list = (locs && locs.length) ? locs : [{location: '', note: ''}];
-  return list.map(s => {
-    const loc = s.location || '未標示';
-    const pipeIdx = loc.indexOf(' | ');
-    let display;
-    if (pipeIdx >= 0) {
-      const cab = loc.substring(0, pipeIdx);
-      const sub = loc.substring(pipeIdx + 3);
-      display = `<b>${esc(cab)}</b>｜${esc(sub)}`;
-    } else {
-      display = esc(loc);
-    }
-    return `<div class="item-loc">位置：${display}${s.note ? `｜${esc(s.note)}` : ''}</div>`;
-  }).join('');
+  return list.map(s => `
+    <div class="item-loc"><span class="item-loc-label">位置：</span>${formatLocationDisplay(s.location)}</div>
+  `).join('');
+}
+
+function buildStockNoteLabelHTML(stock, showLocationContext) {
+  if (!showLocationContext) return '📝 註解';
+  return `📝 註解 · ${formatLocationDisplay(stock.location)}`;
+}
+
+function buildNoteHTML(locs) {
+  const list = locs || [];
+  const notes = list.filter(s => s && s.note);
+  const showLocationContext = list.length > 1;
+  return notes.map(s => `<div class="item-note"><span class="item-note-label">${buildStockNoteLabelHTML(s, showLocationContext)}: </span><span class="item-note-text">${esc(s.note)}</span></div>`).join('');
 }
 
 // 數量控制（庫存卡）：viewer 唯讀數字 / 一般 −[數量]＋（對齊電腦版）
@@ -62,7 +71,7 @@ function buildQtyNum(display, unit, cls) {
 }
 
 // 手機卡片外框：共用 thumb/info/qty-col 結構（各頁填內容）
-// p: { reverted, moreBtnHTML, thumb, nameHTML, subHTML, extraHTML, qtyHTML, actionsHTML, checkboxHTML }
+// p: { reverted, moreBtnHTML, thumb, nameHTML, subHTML, extraHTML, noteHTML, qtyHTML, actionsHTML, checkboxHTML }
 function mobileCardShell(p) {
   return `<div class="m-card${p.reverted ? ' reverted' : ''}${p.cardClass ? ' ' + p.cardClass : ''}">
     ${p.moreBtnHTML || ''}
@@ -75,6 +84,7 @@ function mobileCardShell(p) {
         ${p.extraHTML || ''}
       </div>
       <div class="qty-col">${p.qtyHTML}</div>
+      <div class="note-slot">${p.noteHTML || ''}</div>
     </div>
     ${p.actionsHTML || ''}
   </div>`;

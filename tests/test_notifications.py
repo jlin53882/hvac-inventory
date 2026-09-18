@@ -106,7 +106,7 @@ context.updateNotifications();
 if (!elements.notifList.innerHTML.includes('目前沒有庫存異常')) throw new Error('normal empty state missing');
 if (elements.notifBadge.style.display !== 'none') throw new Error('zero badge should be hidden');
 """
-    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -135,7 +135,7 @@ context.currentTab = 'kit'; context.openNotificationDetail('shortage');
 context.openNotificationDetail('reminder');
 if (calls.join('|') !== 'close|inventory:out|close|stocktake:low|close|kit:shortage|close|tab:stocktake') throw new Error(calls.join('|'));
 """
-    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -180,7 +180,7 @@ if (fmt(0.5) !== '0.5') throw new Error('decimal: ' + fmt(0.5));
 if (fmt(null) !== '0') throw new Error('null: ' + fmt(null));
 if (fmt(undefined) !== '0') throw new Error('undefined: ' + fmt(undefined));
 """
-    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -203,7 +203,7 @@ if (JSON.stringify(r2) !== '["未標示"]') throw new Error('empty fallback: ' +
 const r3 = locs({ stocks: [{ location: 'C' }] });
 if (r3.length !== 1 || r3[0] !== 'C') throw new Error('single: ' + JSON.stringify(r3));
 """
-    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -253,7 +253,7 @@ const state = context.getStocktakeReminderState();
 if (state.visible !== false) throw new Error('no perm should be invisible');
 if (state.count !== 0) throw new Error('no perm count should be 0');
 """
-    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
 
 
@@ -281,5 +281,5 @@ if (summary.categories.length !== 0) throw new Error('calendar tab should have n
 if (summary.total !== 0) throw new Error('calendar tab total should be 0');
 if (summary.relevantScope !== false) throw new Error('calendar tab relevantScope should be false');
 """
-    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True)
+    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout

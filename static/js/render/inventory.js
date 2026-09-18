@@ -502,6 +502,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
       if (isM) {
         const locs = (i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}]);
         const locStr = buildLocHTML(locs);
+        const noteStr = buildNoteHTML(locs);
         h += mobileCardShell({
           reverted: false,
           // 手機外框不可再掛 desktop .item-card：該 class 是 flex row，會把底部 actions 擠到右側。
@@ -512,25 +513,28 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名') + (i.site === 'warehouse' ? ' 🏭' : ''),
           subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
           extraHTML: locStr,
+          noteHTML: noteStr,
           qtyHTML: buildQtyControl({id: i.id, display: displayStr, unit: i.unit, isZero, delta, viewer: isViewer}),
           actionsHTML: buildInventoryStockoutActions(i, canStockout, true)
         });
       } else {
         const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
         const locHtml = buildLocHTML(stocks);
+        const noteHtml = buildNoteHTML(stocks);
         h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' style="padding-left:32px"' : '') + '>';
         if (batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">';
         if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
         else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
-        if (!isViewer) h += '<button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="編輯品項">編輯</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="刪除材料">刪除</button>';
         h += '<div class="item-info"' + (isViewer ? '' : ' onclick="openEditModal(' + i.id + ')"') + '>';
         h += '<div class="item-name">' + esc(i.brand || '無廠牌') + ' ' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + statusBadge + '</div>';
         h += '<div class="item-code">' + (i.code ? '型號： ' + esc(i.code) : '') + '</div>';
         h += locHtml;
+        h += noteHtml;
         if (i.is_kit) h += '<div class="kit-tag">🔧 整組</div>';
         if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + ((typeof Qty !== 'undefined') ? Qty.format(prepared, Qty.unitTypeOf(i.unit)) : prepared) + ' ' + esc(i.unit) + '</div>';
-        h += buildInventoryStockoutActions(i, canStockout, false);
         h += '</div>';
+        h += buildInventoryStockoutActions(i, canStockout, false);
+        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
         if (isViewer) {
           h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
         } else {

@@ -68,6 +68,8 @@ def client(tmp_path, monkeypatch):
 REVIEWED_SAFE_BODIES = {
     # 報價單內部分頁（2026-09-09）：active 只由固定模式傳入，輸出皆為固定 class/文字。
     "active === 'quotation' ? 'active' : ''", "active === 'upload' ? 'active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
+    # inventory card note context: formatter returns escaped display HTML; label uses it plus fixed text.
+    "formatLocationDisplay(s.location)", "buildStockNoteLabelHTML(s, showLocationContext)",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
     "a.icon", "icon", "a.label", "items",
     # 數字欄位（qty/id/統計）
@@ -145,7 +147,7 @@ REVIEWED_SAFE_BODIES = {
     "x.status === 'ok' ? 'ok' : 'err'", "x.status === 'ok' ? '✔' : '✘'",
     # card.js 共用元件參數（呼叫端傳入已消毒 HTML）
     "p.moreBtnHTML || ''", "p.nameHTML", "p.thumb", "p.actionsHTML || ''",
-    "p.extraHTML || ''", "p.qtyHTML",
+    "p.extraHTML || ''", "p.noteHTML || ''", "p.qtyHTML",
     # 工程／一般零用金：helper 內部對使用者資料已 esc，回傳固定 HTML 結構
     "engOptionSelect('category', c.name)", "engOptionSelect('group', g.name)", "pcGeneralCategoryOptions(src.category || '')",
     "seq", "receiptCells", "totalReceipts",
