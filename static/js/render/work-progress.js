@@ -2,6 +2,7 @@
 // 依賴：globals.js、utils.js（esc/toast/hasPerm）
 
 var wprGallery = { report: null, index: 0 };
+var wprPhotoManageReports = {};
 // Gallery dynamically creates id="wpr-gallery-overlay" before lookup.
 
 function wprIsoDate(date) {
@@ -30,7 +31,7 @@ async function renderWorkProgress() {
   var el = document.getElementById('content');
   if (!el) return;
   wprClearPendingFiles();
-  wprDayRequestToken++; wprHistoryRequestToken++; wprKpiRequestToken++; wprDetailRequestTokens = {}; wprSelectRequestToken++;
+  wprDayRequestToken++; wprHistoryRequestToken++; wprKpiRequestToken++; wprDetailRequestTokens = {}; wprPhotoManageReports = {}; wprSelectRequestToken++;
   wprAppointments = [];
   wprReportsByAppointment = {};
   wprCurrentReport = null;
@@ -283,7 +284,7 @@ async function wprLoadHistory(page) {
 function wprHistoryCard(report) { return '<details class="wpr-history-item" ontoggle="if(this.open) wprOpenHistoryDetail(' + report.id + ')"><summary><span class="wpr-history-date">' + esc(report.report_date) + '</span><span><b>' + esc(report.service_name || '未指定服務') + ' · ' + esc(report.client_name) + '</b><small>' + wprTimeText(report) + ' · 回報人：' + esc(report.uploader_name) + '</small></span><span class="wpr-history-photo-count">📷 ' + report.photo_count + '</span></summary><div class="wpr-history-detail" id="wpr-detail-' + report.id + '">載入詳情中…</div></details>'; }
 function wprPhotoGalleryHtml(report, id) {
   return (report.photos || []).map(function(photo, index) {
-    var deleteButton = report.can_edit
+    var deleteButton = report.can_edit && wprPhotoManageReports[id]
       ? '<button type="button" class="wpr-photo-delete" onclick="event.stopPropagation();wprDeletePhoto(' + id + ',\'' + esc(jsStr(photo.asset_id)) + '\')" aria-label="刪除第 ' + (index + 1) + ' 張照片">✕</button>'
       : '';
     return '<div class="wpr-photo-manage-tile"><button type="button" onclick="wprOpenGallery(' + id + ',' + index + ')"><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '"></button>' + deleteButton + '</div>';
@@ -295,10 +296,51 @@ async function wprOpenHistoryDetail(id) {
   try {
     var report = await wprFetch('/api/work-progress/' + id);
     if (token !== wprDetailRequestTokens[id]) return;
-    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditNote(' + id + ')">✏️ 編輯備註</button><button type="button" onclick="wprAddExistingPhotos(' + id + ')">📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
+    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditReport(' + id + ')">✏️ 編輯回報</button><button type="button" onclick="wprTogglePhotoManage(' + id + ')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><button type="button" onclick="wprAddExistingPhotos(' + id + ')">📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
   } catch (error) { if (token === wprDetailRequestTokens[id]) detail.textContent = error.message; }
 }
-async function wprEditNote(id) { var note = window.prompt('工作進度備註（最多 1000 字）'); if (note === null) return; try { await wprFetch('/api/work-progress/' + id, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note: note}) }); toast('備註已更新', 'success'); wprLoadHistory(1); } catch (error) { toast(error.message, 'error'); } }
+function wprTogglePhotoManage(id) {
+  wprPhotoManageReports[id] = !wprPhotoManageReports[id];
+  wprOpenHistoryDetail(id);
+}
+async function wprEditReport(id) {
+  try {
+    var report = await wprFetch('/api/work-progress/' + id);
+    var overlay = document.createElement('div');
+    overlay.className = 'wpr-edit-overlay';
+    overlay.innerHTML = `
+      <div class="wpr-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-edit-title">
+        <div class="wpr-edit-header"><h3 id="wpr-edit-title">✏️ 編輯工作進度回報</h3><button type="button" class="wpr-edit-close" data-wpr-edit-close aria-label="關閉">✕</button></div>
+        <div class="wpr-edit-body">
+          <label for="wpr-edit-uploader">回報人顯示名稱</label>
+          <input id="wpr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}">
+          <label for="wpr-edit-note">工作進度備註</label>
+          <textarea id="wpr-edit-note" maxlength="1000" rows="6">${esc(report.note || '')}</textarea>
+          <div class="wpr-edit-hint">只修改歷史顯示內容，不會變更原始建立者與 ownership。</div>
+        </div>
+        <div class="wpr-edit-footer"><button type="button" class="wpr-edit-secondary" data-wpr-edit-close>取消</button><button type="button" class="wpr-edit-primary" data-wpr-edit-save>儲存</button></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    var close = function() { overlay.remove(); };
+    overlay.querySelectorAll('[data-wpr-edit-close]').forEach(function(button) { button.addEventListener('click', close); });
+    overlay.addEventListener('click', function(event) { if (event.target === overlay) close(); });
+    overlay.querySelector('[data-wpr-edit-save]').addEventListener('click', async function() {
+      var uploader = overlay.querySelector('#wpr-edit-uploader').value.trim();
+      var note = overlay.querySelector('#wpr-edit-note').value.trim();
+      if (!uploader) { toast('請填寫回報人'); return; }
+      if (uploader.length > 50) { toast('回報人最多 50 字'); return; }
+      if (note.length > 1000) { toast('工作進度備註最多 1000 字'); return; }
+      var save = overlay.querySelector('[data-wpr-edit-save]'); save.disabled = true;
+      try {
+        await wprFetch('/api/work-progress/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({uploader_name:uploader, note:note})});
+        close();
+        await wprLoadHistory(wprHistoryPage);
+        wprOpenHistoryDetail(id);
+        toast('工作進度已更新', 'success');
+      } catch (error) { toast(error.message, 'error'); save.disabled = false; }
+    });
+  } catch (error) { toast(error.message, 'error'); }
+}
 async function wprDeletePhoto(reportId, assetId) {
   if (!window.confirm('確定刪除此照片？\n此動作無法復原。')) return;
   try {

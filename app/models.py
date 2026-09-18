@@ -61,8 +61,9 @@ class PageVisibilityUpdate(BaseModel):
 
 
 class WorkProgressNoteUpdate(BaseModel):
-    """工作進度只能修改自己的進度備註。"""
-    note: str = Field("", max_length=1000)
+    """工作進度可修改回報人顯示名稱與進度備註；owner user id 不變。"""
+    uploader_name: Optional[str] = Field(None, max_length=50)
+    note: Optional[str] = Field(None, max_length=1000)
 
 
 class StockItem(BaseModel):
