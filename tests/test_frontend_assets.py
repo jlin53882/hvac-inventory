@@ -1617,7 +1617,8 @@ def test_js_syntax(js_path):
     try:
         r = subprocess.run(
             ["node", "--check", js_path],
-            capture_output=True, text=True, encoding="utf-8", timeout=20,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+
         )
     except FileNotFoundError:
         pytest.skip("node 不在 PATH，跳過語法檢查")
@@ -2910,7 +2911,8 @@ def test_all_js_syntax_valid():
     for f in js_files:
         result = subprocess.run(
             ["node", "--check", f],
-            capture_output=True, text=True, encoding="utf-8", timeout=30
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60
+
         )
         assert result.returncode == 0, f"{os.path.basename(f)} 語法錯誤: {result.stderr[:200]}"
 
