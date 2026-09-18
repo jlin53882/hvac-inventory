@@ -30,6 +30,7 @@ from app.models import (
     StockUpdate,
 )
 from app.routes.photos import has_photo, list_photo_ids
+from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.file_storage import delete_asset_files
 from app.services.inventory_stock import assert_projected_inventory
@@ -386,6 +387,7 @@ def update_item(item_id: int, upd: ItemUpdate):
         # DB stock 不在 payload → 刪除（qty=0 才允許）
         # M1/M2/M3：stocks 全量同步——stock id = identity（無 location fallback）
         if data.get("stocks") is not None:
+            movement_ts = movement_time.now_sql()
             existing = {
                 row["id"]: row
                 for row in conn.execute(
@@ -476,8 +478,8 @@ def update_item(item_id: int, upd: ItemUpdate):
                 delta = canonical_qty(new_qty - old["qty"])
                 if delta != 0:
                     conn.execute(
-                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                        (item_id, delta, old["qty"], new_qty, "編輯品項調整", new_location))
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                        (item_id, delta, old["qty"], new_qty, "編輯品項調整", new_location, movement_ts))
 
             # insert new
             for stock in payload_new:
@@ -489,8 +491,8 @@ def update_item(item_id: int, upd: ItemUpdate):
                     (item_id, new_location, new_qty, new_note, now))
                 if new_qty > 0:
                     conn.execute(
-                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                        (item_id, new_qty, 0, new_qty, "編輯品項調整", new_location))
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                        (item_id, new_qty, 0, new_qty, "編輯品項調整", new_location, movement_ts))
         conn.commit()
         row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         full = _item_full(conn, row)
@@ -509,6 +511,7 @@ def delete_item(item_id: int):
     photo_assets = []
     try:
         conn.execute("BEGIN IMMEDIATE")
+        movement_ts = movement_time.now_sql()
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
@@ -524,8 +527,8 @@ def delete_item(item_id: int):
             if s["qty"] > 0:
                 # 寫入「品項刪除清零」流水，保留稽核軌跡
                 conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or ""))
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
         if stocks:
             # P0-B：movement 說 qty → 0，persisted stock 必須真歸零（同一 transaction）
             conn.execute("UPDATE item_stocks SET qty=0, updated_at=? WHERE item_id=?",
@@ -586,8 +589,8 @@ def add_stock(item_id: int, st: StockUpdate):
         if qty > 0:
             # P1-A：新位置 qty > 0 不可憑空出現，補 audit 流水
             conn.execute(
-                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                (item_id, qty, 0, qty, "編輯品項調整", location),
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                (item_id, qty, 0, qty, "編輯品項調整", location, movement_time.now_sql()),
             )
         conn.commit()
         row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
@@ -634,8 +637,8 @@ def update_stock(stock_id: int, st: StockUpdate):
                     (diff, now, stock_id),
                 )
                 conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                    (row["item_id"], diff, row["qty"], canonical_qty(row["qty"] + diff), "編輯位置調整", ""),
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (row["item_id"], diff, row["qty"], canonical_qty(row["qty"] + diff), "編輯位置調整", "", movement_time.now_sql()),
                 )
         if fields:
             fields["updated_at"] = datetime.datetime.now().isoformat()
@@ -711,8 +714,8 @@ def adjust_qty(item_id: int, req: AdjustRequest):
         total_after = canonical_qty(sum(r2["qty"] for r2 in conn.execute(
             "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-            (item_id, delta, total_before, total_after, req.reason, req.destination),
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+            (item_id, delta, total_before, total_after, req.reason, req.destination, movement_time.now_sql()),
         )
         conn.commit()
         return {"ok": True, "before": total_before, "after": total_after}

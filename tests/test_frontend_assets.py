@@ -1650,7 +1650,7 @@ def test_index_has_no_topbar_export():
     assert 'id="btn-add"' not in idx  # 新增按鈕也移出 topbar
     inv = read(INVENTORY_RENDER_JS)
     assert "loc-export-bar" in inv
-    assert "onclick=\"exportExcel()\"" in inv
+    assert "onclick=\"openInventoryExportDialog()\"" in inv
     assert "onclick=\"openAddModal()\"" in inv  # 庫存清單頂部新增按鈕
     css = read_css_all()
     assert "justify-content: flex-end" in css  # 匯出列靠右（2026-08-13 Sarah 選項）
@@ -2150,10 +2150,12 @@ def test_all_js_loaded_by_index():
 
 
 def test_api_js_core_functions():
-    """api.js 核心：載入 / 待領出 badge / 儲存 / 匯出"""
+    """api.js 核心載入/儲存；匯出已拆至 inventory-export modal。"""
     js = read(API_JS)
-    for fn in ("loadData", "loadPreparedBadge", "saveAll", "exportExcel"):
+    for fn in ("loadData", "loadPreparedBadge", "saveAll"):
         assert fn in js, f"api.js 缺 {fn}"
+    export_js = read(os.path.join(STATIC, "js", "modals", "inventory-export.js"))
+    assert "exportExcel" in export_js
 
 
 def test_app_js_core_functions():
@@ -4446,3 +4448,35 @@ def test_mobile_site_tab_2x2_layout():
     """手機版 .h-site 使用 flex-wrap:wrap 讓 4 個 tab 排成 2×2。"""
     css = read(CSS_CORE)
     assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
+
+
+def test_inventory_export_dialog_contract():
+    """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
+    index = read(INDEX)
+    js = read(os.path.join(STATIC, "js", "modals", "inventory-export.js"))
+    css = read(os.path.join(STATIC, "css", "style.inventory.css"))
+    assert "openInventoryExportDialog" in js
+    assert "submitInventoryExport" in js
+    assert "closeInventoryExportDialog" in js
+    assert "var exportInFlight = false" in js
+    assert "document.getElementById('inventory-export-year').value = now.getFullYear()" in js
+    assert "syncInventoryExportPeriodMode();" in js
+    assert "function syncInventoryExportPeriodMode()" in js
+    assert "params.set('month'" in js
+    assert "start_date" in js and "end_date" in js
+    assert "sections" in js and "sites" in js
+    assert "Content-Disposition" in js
+    assert 'id="inventory-export-dialog"' in index
+    assert 'src="/static/js/modals/inventory-export.js"' in index
+    assert ".inventory-export-dialog" in css
+    assert "@media (max-width: 767px)" in css
+    inventory = read(INVENTORY_RENDER_JS)
+    assert "openInventoryExportDialog();closeMoreActions()" in inventory
+    assert "onclick=\"openInventoryExportDialog()\"" in inventory
+
+
+def test_inventory_export_dialog_runtime():
+    """實際執行 Dialog：首次開啟與 custom→close→reopen 狀態皆一致。"""
+    script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
+    result = subprocess.run(["node", script], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"

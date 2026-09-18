@@ -19,6 +19,7 @@ from fastapi import Depends, APIRouter, HTTPException
 from app.database import get_db
 from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
 from app.routes.photos import has_photo
+from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, current_state
 from app.services.quantity import canonical_qty
@@ -218,11 +219,12 @@ def delete_kit(kit_id: int):
         kit_stocks = conn.execute(
             "SELECT location, qty FROM item_stocks WHERE item_id=? AND qty != 0",
             (item_id,)).fetchall()
+        movement_ts = movement_time.now_sql() if kit_stocks else None
         for s in kit_stocks:
             if s["qty"] > 0:
                 conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or ""))
+                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
         if kit_stocks:
             conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
@@ -248,7 +250,7 @@ def delete_kit(kit_id: int):
     return {"ok": True, "deleted": kit_id}
 
 
-def _deduct_total(conn, item_id, need, reason):
+def _deduct_total(conn, item_id, need, reason, movement_ts: str):
     """從位置庫存由後往前扣 need，記錄 movements。不足則拋錯。
     （2026-09-14：need 與每次扣除均先 canonicalize 到 3dp，避免 binary float remainder。）"""
     stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
@@ -273,12 +275,12 @@ def _deduct_total(conn, item_id, need, reason):
     after = canonical_qty(sum(s["qty"] for s in conn.execute(
         "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
     conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, -need, before, after, reason, ""),
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+        (item_id, -need, before, after, reason, "", movement_ts),
     )
 
 
-def _add_total(conn, item_id, add, reason):
+def _add_total(conn, item_id, add, reason, movement_ts: str):
     """加入第一筆位置庫存，記錄 movements。"""
     add = canonical_qty(add)
     if add <= 0:
@@ -297,8 +299,8 @@ def _add_total(conn, item_id, add, reason):
     after = canonical_qty(sum(s["qty"] for s in conn.execute(
         "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
     conn.execute(
-        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination) VALUES (?,?,?,?,?,?)",
-        (item_id, add, before, after, reason, ""),
+        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+        (item_id, add, before, after, reason, "", movement_ts),
     )
 
 
@@ -314,6 +316,7 @@ def assemble_kit(kit_id: int, req: KitAssemble):
     conn = get_db()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        movement_ts = movement_time.now_sql()
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not kit:
             raise HTTPException(404, "套件不存在")
@@ -344,9 +347,9 @@ def assemble_kit(kit_id: int, req: KitAssemble):
 
         # 扣材料（使用 aggregate cumulative need）
         for cid, need in required_by_item.items():
-            _deduct_total(conn, cid, need, f"組裝套件:{kit['name']}")
+            _deduct_total(conn, cid, need, f"組裝套件:{kit['name']}", movement_ts)
         # 加整組庫存
-        _add_total(conn, kit["item_id"], qty, f"組裝完成:{kit['name']}")
+        _add_total(conn, kit["item_id"], qty, f"組裝完成:{kit['name']}", movement_ts)
         conn.commit()
         return {"ok": True, "kit": kit["name"], "qty": qty}
     except Exception:
@@ -368,6 +371,7 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
     conn = get_db()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        movement_ts = movement_time.now_sql()
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not kit:
             raise HTTPException(404, "套件不存在")
@@ -378,12 +382,12 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         assert_projected_inventory(conn, kit["item_id"], stock_delta=-qty)
 
         # 扣整組
-        _deduct_total(conn, kit["item_id"], qty, f"拆解:{kit['name']}")
+        _deduct_total(conn, kit["item_id"], qty, f"拆解:{kit['name']}", movement_ts)
         # 加回材料
         comps = conn.execute("SELECT * FROM kit_items WHERE kit_id=?", (kit_id,)).fetchall()
         for c in comps:
             add = canonical_qty(c["qty"] * qty)
-            _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}")
+            _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}", movement_ts)
         conn.commit()
         return {"ok": True, "kit": kit["name"], "qty": qty}
     except Exception:

@@ -411,11 +411,11 @@ function renderInventoryToolbar(list, isViewer) {
     h += '<div class="more-actions-wrap"><button class="btn-sm btn-more-actions" onclick="toggleMoreActions()">⋮</button>';
     h += '<div class="more-actions-dropdown" id="moreActionsDropdown">';
     if (hasPerm('batch-loc-mgmt')) h += '<button onclick="toggleBatchMode();closeMoreActions()">📦 批次改位置</button>';
-    h += '<button onclick="exportExcel();closeMoreActions()">⬇️ 匯出庫存</button>';
+    h += '<button onclick="openInventoryExportDialog();closeMoreActions()">⬇️ 匯出庫存</button>';
     h += '</div></div>';
   } else {
     if (hasPerm('batch-loc-mgmt')) h += '<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
-    h += '<button class="btn-sm btn-export" onclick="exportExcel()">⬇️ 匯出庫存</button>';
+    h += '<button class="btn-sm btn-export" onclick="openInventoryExportDialog()">⬇️ 匯出庫存</button>';
   }
   h += '</div>';
   return h;

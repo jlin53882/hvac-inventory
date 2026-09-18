@@ -777,6 +777,23 @@
   </div>
 </div>
 
+<!-- 庫存 Excel 匯出 Dialog -->
+<div class="modal-overlay inventory-export-dialog" id="inventory-export-dialog" aria-hidden="true" onclick="if(event.target===this) closeInventoryExportDialog()">
+  <div class="modal inventory-export-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="inventory-export-title">
+    <div class="inventory-export-dialog__header"><h3 id="inventory-export-title">📊 匯出庫存報表</h3><button type="button" class="inventory-export-dialog__close" onclick="closeInventoryExportDialog()" aria-label="關閉">✕</button></div>
+    <div class="inventory-export-section"><strong>報表期間</strong>
+      <label class="inventory-export-period-choice"><input type="radio" id="inventory-export-month-mode" name="inventory-export-period" onchange="document.getElementById('inventory-export-month-fields').hidden=false;document.getElementById('inventory-export-custom-fields').hidden=true">月份</label>
+      <div class="inventory-export-period-fields" id="inventory-export-month-fields"><input id="inventory-export-year" type="number" min="2000" max="2100" aria-label="年份"> 年 <select id="inventory-export-month" aria-label="月份"></select> 月</div>
+      <label class="inventory-export-period-choice"><input type="radio" id="inventory-export-custom-mode" name="inventory-export-period" onchange="document.getElementById('inventory-export-month-fields').hidden=true;document.getElementById('inventory-export-custom-fields').hidden=false">自訂日期</label>
+      <div class="inventory-export-period-fields" id="inventory-export-custom-fields" hidden><input id="inventory-export-start" type="date" aria-label="開始日期"> ～ <input id="inventory-export-end" type="date" aria-label="結束日期"></div>
+    </div>
+    <div class="inventory-export-section"><strong>庫存區</strong><label class="inventory-export-check"><input type="checkbox" id="inventory-export-all-sites" checked onchange="toggleInventoryExportSites(this)">全部</label><div class="inventory-export-sites" id="inventory-export-sites">
+      <label><input type="checkbox" data-site="office" checked onchange="syncInventoryExportAllSites()">辦公室</label><label><input type="checkbox" data-site="warehouse" checked onchange="syncInventoryExportAllSites()">倉庫</label><label><input type="checkbox" data-site="van" checked onchange="syncInventoryExportAllSites()">廂型車</label><label><input type="checkbox" data-site="truck" checked onchange="syncInventoryExportAllSites()">貨車</label>
+    </div></div>
+    <div class="inventory-export-section"><strong>匯出內容</strong><div class="inventory-export-content-list"><label><input type="checkbox" checked disabled>總覽</label><label><input type="checkbox" checked disabled>庫存總表</label><label><input type="checkbox" checked disabled>位置明細</label><label><input type="checkbox" checked disabled>庫存警示</label><label><input type="checkbox" checked disabled>異動紀錄</label><label><input type="checkbox" checked disabled>統計</label></div><p class="inventory-export-note">ℹ️ 衍生數值會保留為 Excel 公式，可在 Excel 中檢視與重新計算。</p></div>
+    <div class="modal-actions inventory-export-dialog__footer"><button class="btn-cancel" onclick="closeInventoryExportDialog()">取消</button><button class="btn-confirm" id="inventory-export-submit" onclick="submitInventoryExport()">匯出報表</button></div>
+  </div>
+</div>
 <datalist id="brand-list"></datalist>
 <datalist id="location-list"></datalist>
 <datalist id="dest-list"></datalist>
@@ -786,6 +803,7 @@
 <script src="/static/js/utils.js" defer></script>
 <script src="/static/js/qty.js" defer></script>
 <script src="/static/js/api.js" defer></script>
+<script src="/static/js/modals/inventory-export.js" defer></script>
 <script src="/static/js/units.js" defer></script>
 <script src="/static/js/render/card.js" defer></script>
 <script src="/static/js/render/status-list.js" defer></script>

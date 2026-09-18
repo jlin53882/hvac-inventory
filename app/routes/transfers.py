@@ -5,6 +5,7 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_db
+from app.services import movement_time
 from app.models import TransferRequest
 from app.services.auth import require_perm
 from app.services.quantity import canonical_qty
@@ -94,7 +95,7 @@ def _create_target_item(conn, source, target_site: str) -> int:
     return item_id
 
 
-def _deduct_source(conn, source_item_id: int, qty: float, source_location: str | None) -> None:
+def _deduct_source(conn, source_item_id: int, qty: float, source_location: str | None, movement_ts: str) -> None:
     """在 transaction 內依位置扣除來源庫存，並寫入負向流水。"""
     if source_location is None:
         stocks = conn.execute(
@@ -130,13 +131,13 @@ def _deduct_source(conn, source_item_id: int, qty: float, source_location: str |
     after = _total(conn, source_item_id)
     conn.execute(
         """INSERT INTO movements
-           (item_id, delta, before_qty, after_qty, reason, destination)
-           VALUES (?,?,?,?,?,?)""",
-        (source_item_id, -qty, before, after, "庫存調撥", "跨庫存區"),
+           (item_id, delta, before_qty, after_qty, reason, destination, created_at)
+           VALUES (?,?,?,?,?,?,?)""",
+        (source_item_id, -qty, before, after, "庫存調撥", "跨庫存區", movement_ts),
     )
 
 
-def _add_target(conn, target_item_id: int, qty: float, location: str, source_site: str) -> None:
+def _add_target(conn, target_item_id: int, qty: float, location: str, source_site: str, movement_ts: str) -> None:
     before = _total(conn, target_item_id)
     stock = conn.execute(
         "SELECT id FROM item_stocks WHERE item_id=? AND location=? ORDER BY id LIMIT 1",
@@ -156,9 +157,9 @@ def _add_target(conn, target_item_id: int, qty: float, location: str, source_sit
     after = _total(conn, target_item_id)
     conn.execute(
         """INSERT INTO movements
-           (item_id, delta, before_qty, after_qty, reason, destination)
-           VALUES (?,?,?,?,?,?)""",
-        (target_item_id, qty, before, after, "庫存調撥", f"來源:{source_site}"),
+           (item_id, delta, before_qty, after_qty, reason, destination, created_at)
+           VALUES (?,?,?,?,?,?,?)""",
+        (target_item_id, qty, before, after, "庫存調撥", f"來源:{source_site}", movement_ts),
     )
 
 
@@ -176,6 +177,7 @@ def transfer_inventory(req: TransferRequest):
     try:
         # 必須在任何 correctness read 前鎖住 writer，避免 stale snapshot 調撥。
         conn.execute("BEGIN IMMEDIATE")
+        movement_ts = movement_time.now_sql()
         source = conn.execute(
             "SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)
         ).fetchone()
@@ -186,9 +188,9 @@ def transfer_inventory(req: TransferRequest):
         target_location = req.target_location or (
             "車內" if req.target_site in ("van", "truck") else ""
         )
-        _deduct_source(conn, source["id"], qty, req.source_location)
+        _deduct_source(conn, source["id"], qty, req.source_location, movement_ts)
         target_id = _create_target_item(conn, source, req.target_site)
-        _add_target(conn, target_id, qty, target_location, source["site"])
+        _add_target(conn, target_id, qty, target_location, source["site"], movement_ts)
         conn.commit()
         return {
             "ok": True,
