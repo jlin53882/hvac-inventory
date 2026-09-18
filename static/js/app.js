@@ -126,6 +126,10 @@ function switchTab(tab) {
     tab = resolveAccessiblePageTab(tab);
     if (!tab) { renderNoAccessiblePage(); return; }
   }
+  var previousTab = currentTab;
+  if (previousTab === 'work-progress' && tab !== 'work-progress' && typeof wprClearPendingFiles === 'function') {
+    wprClearPendingFiles();
+  }
   if (typeof closeInventoryStatusModal === 'function') closeInventoryStatusModal();
   currentTab = tab;
   syncViewUrl();

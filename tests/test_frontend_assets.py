@@ -4935,3 +4935,16 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "wprHistoryRequestToken" in globals_js
     assert "wprKpiRequestToken" in globals_js
     assert "wprDetailRequestTokens" in globals_js
+    assert "wprSelectRequestToken" in globals_js
+    assert "++wprSelectRequestToken" in js
+    assert "token !== wprSelectRequestToken" in js
+
+    app_js = read(APP_JS)
+    switch_block = app_js.split("function switchTab(tab)", 1)[1].split(
+        "function checkReminder", 1
+    )[0]
+    assert "var previousTab = currentTab;" in switch_block
+    assert "previousTab === 'work-progress'" in switch_block
+    assert "tab !== 'work-progress'" in switch_block
+    assert "wprClearPendingFiles" in switch_block
+    assert switch_block.index("wprClearPendingFiles") < switch_block.index("currentTab = tab")

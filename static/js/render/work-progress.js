@@ -30,7 +30,7 @@ async function renderWorkProgress() {
   var el = document.getElementById('content');
   if (!el) return;
   wprClearPendingFiles();
-  wprDayRequestToken++; wprHistoryRequestToken++; wprKpiRequestToken++; wprDetailRequestTokens = {};
+  wprDayRequestToken++; wprHistoryRequestToken++; wprKpiRequestToken++; wprDetailRequestTokens = {}; wprSelectRequestToken++;
   wprAppointments = [];
   wprReportsByAppointment = {};
   wprCurrentReport = null;
@@ -79,11 +79,19 @@ function wprRenderJobs() {
   }).join('');
 }
 async function wprSelectJob(id) {
+  var token = ++wprSelectRequestToken;
   var job = wprAppointments.find(function(item) { return item.id === id; });
   if (!job) return;
   var existing = wprReportsByAppointment[id];
   if (existing) {
-    try { wprCurrentReport = await wprFetch('/api/work-progress/' + existing.id); } catch (error) { toast(error.message, 'error'); return; }
+    try {
+      wprCurrentReport = await wprFetch('/api/work-progress/' + existing.id);
+      if (token !== wprSelectRequestToken) return;
+    } catch (error) {
+      if (token !== wprSelectRequestToken) return;
+      toast(error.message, 'error');
+      return;
+    }
   } else {
     wprCurrentReport = { appointment_id: id, appointment: job };
   }
