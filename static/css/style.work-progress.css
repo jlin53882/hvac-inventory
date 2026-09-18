@@ -60,7 +60,8 @@
 #content.wpr-content .wpr-photo-button { background: #eaf2ff; color: #1d4ed8; }
 #content.wpr-content .wpr-save-button { width: 100%; margin-top: 20px; background: #2563eb; color: #fff; }
 #content.wpr-content .wpr-save-button:disabled { background: #a9b7cc; cursor: not-allowed; }
-#content.wpr-content .wpr-photo-grid, #content.wpr-content .wpr-gallery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
+#content.wpr-content .wpr-photo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
+#content.wpr-content .wpr-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 112px)); justify-content: start; gap: 8px; margin-top: 11px; }
 #content.wpr-content .wpr-photo-tile, #content.wpr-content .wpr-gallery-grid button { position: relative; min-width: 0; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: #eef2f7; }
 #content.wpr-content .wpr-photo-manage-tile { position: relative; min-width: 0; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: #eef2f7; }
 #content.wpr-content .wpr-photo-manage-tile > button:first-child { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; cursor: pointer; }
@@ -109,6 +110,20 @@
 .wpr-gallery-caption { padding: 9px; font-size: 13px; }
 .wpr-gallery-nav { display: flex; justify-content: center; align-items: center; gap: 12px; }
 .wpr-gallery-nav button, .wpr-gallery-download { border: 1px solid rgba(255,255,255,.45); border-radius: 7px; padding: 8px 11px; background: rgba(255,255,255,.1); color: #fff; cursor: pointer; text-decoration: none; font-size: 12px; }
+.wpr-edit-overlay { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 14px; background: rgba(15,23,42,.55); }
+.wpr-edit-dialog { display: flex; flex-direction: column; width: min(560px, 100%); max-height: 90vh; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.wpr-edit-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; background: #1e3a5f; color: #fff; }
+.wpr-edit-header h3 { margin: 0; font-size: 15px; }
+.wpr-edit-close { border: 1px solid rgba(255,255,255,.55); border-radius: 7px; background: transparent; color: #fff; padding: 5px 9px; cursor: pointer; }
+.wpr-edit-body { display: grid; gap: 7px; overflow: auto; padding: 16px; }
+.wpr-edit-body label { color: #334155; font-size: 13px; font-weight: 700; }
+.wpr-edit-body input, .wpr-edit-body textarea { box-sizing: border-box; width: 100%; border: 1px solid #cfd8e5; border-radius: 8px; padding: 10px 11px; color: #172033; font: inherit; }
+.wpr-edit-body textarea { min-height: 120px; resize: vertical; }
+.wpr-edit-hint { color: #94a3b8; font-size: 11.5px; line-height: 1.5; }
+.wpr-edit-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid #e5eaf2; }
+.wpr-edit-footer button { border: 1px solid #cfd8e5; border-radius: 8px; padding: 8px 13px; cursor: pointer; font-size: 13px; font-weight: 700; }
+.wpr-edit-secondary { background: #fff; color: #475569; }
+.wpr-edit-primary { border-color: #2563eb !important; background: #2563eb; color: #fff; }
 @media (max-width: 768px) {
   #content.wpr-content .wpr-wrap { padding: 18px 12px 80px; }
   #content.wpr-content .wpr-page-header { display: block; }
@@ -118,7 +133,8 @@
   #content.wpr-content .wpr-side { margin-top: 14px; }
   #content.wpr-content .wpr-history-card { margin-top: 14px; }
   #content.wpr-content .wpr-card { padding: 15px; border-radius: 12px; }
-  #content.wpr-content .wpr-photo-grid, #content.wpr-content .wpr-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #content.wpr-content .wpr-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #content.wpr-content .wpr-gallery-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #content.wpr-content .wpr-job-card { min-height: 66px; }
   #content.wpr-content .wpr-job-status { font-size: 10px; }
   #content.wpr-content .wpr-history-item summary { grid-template-columns: auto minmax(0, 1fr); }

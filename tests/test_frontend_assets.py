@@ -4716,6 +4716,7 @@ def test_work_progress_frontend_is_independent_and_mounted():
 def test_work_progress_frontend_permission_and_workflow_contract():
     """工作進度 UI 以 view/edit/delete flags 與 appointment 狀態驅動。"""
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
     auth = read(os.path.join(STATIC, "js", "auth.js"))
     assert "perms['work-progress-view']" in auth
     assert "can_edit" in js and "can_delete" in js
@@ -4735,6 +4736,12 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "確定刪除此照片" in js
     assert "await wprLoadHistory(wprHistoryPage)" in js
     assert "await wprLoadHistory(1); wprOpenHistoryDetail(id)" in js
+    assert "wprEditReport" in js
+    assert "uploader_name" in js
+    assert "wprTogglePhotoManage" in js
+    assert "wpr-photo-manage-tile" in js
+    assert "wpr-edit-overlay" in js
+    assert "wpr-gallery-grid" in css and "minmax(96px, 112px)" in css
 
 
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():

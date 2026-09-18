@@ -71,6 +71,15 @@ def _validate_note(note: str) -> str:
     return note
 
 
+def _validate_uploader_name(uploader_name: str) -> str:
+    if not isinstance(uploader_name, str):
+        raise HTTPException(400, "回報人格式錯誤")
+    uploader_name = uploader_name.strip()
+    if not 1 <= len(uploader_name) <= 50:
+        raise HTTPException(400, "回報人需 1-50 字")
+    return uploader_name
+
+
 def _read_image_uploads(files: Iterable[UploadFile] | None) -> list[tuple[bytes, str, str]]:
     uploads = list(files or [])
     if not uploads:
@@ -396,8 +405,9 @@ async def update_work_progress(
     try:
         body = WorkProgressNoteUpdate.model_validate(await request.json())
     except Exception as exc:
-        raise HTTPException(400, "工作進度備註格式錯誤") from exc
-    note = _validate_note(body.note)
+        raise HTTPException(400, "工作進度編輯資料格式錯誤") from exc
+    if body.note is None and body.uploader_name is None:
+        raise HTTPException(400, "至少提供回報人或工作進度備註")
     conn = get_db()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -405,9 +415,11 @@ async def update_work_progress(
         can_edit, _ = _flags(conn, row, user)
         if not can_edit:
             raise HTTPException(403, "沒有編輯此工作進度的權限")
+        uploader_name = row["uploader_name"] if body.uploader_name is None else _validate_uploader_name(body.uploader_name)
+        note = row["note"] if body.note is None else _validate_note(body.note)
         conn.execute(
-            "UPDATE daily_work_progress_reports SET note=?, updated_at=datetime('now','localtime') WHERE id=?",
-            (note, report_id),
+            "UPDATE daily_work_progress_reports SET uploader_name=?, note=?, updated_at=datetime('now','localtime') WHERE id=?",
+            (uploader_name, note, report_id),
         )
         conn.commit()
         return _report_out(conn, _get_report(conn, report_id), user, include_photos=True)

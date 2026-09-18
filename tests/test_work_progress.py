@@ -204,7 +204,12 @@ def test_owner_edit_and_photo_lifecycle_non_owner_forbidden(wpr_env):
     rid = report["id"]
     asset_id = report["photos"][0]["asset_id"]
     assert other.patch(f"/api/work-progress/{rid}", json={"note": "冒充"}).status_code == 403
-    assert owner.patch(f"/api/work-progress/{rid}", json={"note": "已更新"}).status_code == 200
+    updated = owner.patch(f"/api/work-progress/{rid}", json={"uploader_name": "現場家豪", "note": "已更新"})
+    assert updated.status_code == 200
+    assert updated.json()["uploader_name"] == "現場家豪"
+    assert updated.json()["uploader_user_id"] == report["uploader_user_id"]
+    assert updated.json()["note"] == "已更新"
+    assert owner.patch(f"/api/work-progress/{rid}", json={"uploader_name": "   "}).status_code == 400
     assert owner.post(f"/api/work-progress/{rid}/photos", files={"files": ("extra.png", _png(10, 10), "image/png")}).status_code == 200
     assert other.delete(f"/api/work-progress/{rid}/photos/{asset_id}").status_code == 403
     assert owner.delete(f"/api/work-progress/{rid}/photos/{asset_id}").status_code == 200
