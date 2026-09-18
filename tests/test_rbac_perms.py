@@ -455,6 +455,16 @@ PAGE_KEYS = (
     "perms", "settings", "change-password",
 )
 VIEWER_PAGE_KEYS = {"calendar", "signed-reports", "inventory", "kit"}
+USER_PAGE_KEYS = {
+    "calendar", "signed-reports", "quotation", "petty-cash",
+    "inventory", "prepared", "stockout", "stocktake", "kit",
+    "change-password",
+}
+TECH_PAGE_KEYS = {
+    "calendar", "signed-reports", "petty-cash",
+    "inventory", "prepared", "stockout",
+    "kit", "change-password",
+}
 
 
 def test_page_visibility_defaults_are_independent_of_role_changes(admin_client):
@@ -467,7 +477,7 @@ def test_page_visibility_defaults_are_independent_of_role_changes(admin_client):
 
     user = admin_client.get(f"/api/users/{user_id}/page-visibility")
     assert user.status_code == 200
-    assert set(user.json()["visible_pages"]) == set(PAGE_KEYS)
+    assert set(user.json()["visible_pages"]) == USER_PAGE_KEYS
 
     changed = admin_client.put(
         f"/api/users/{viewer_id}/page-visibility",
@@ -550,3 +560,98 @@ def test_page_visibility_seed_repairs_missing_rows(admin_client, rbac_db):
         assert row["visible"] == 0
     finally:
         conn.close()
+
+
+def test_page_visibility_role_defaults_admin_is_all(admin_client):
+    admin_me = admin_client.get("/api/auth/me").json()["user"]
+    assert set(admin_me["visible_pages"]) == set(PAGE_KEYS)
+
+
+def test_page_visibility_role_defaults_user(admin_client):
+    user_id = _make_user(admin_client, "pv_default_user", "user")
+    r = admin_client.get(f"/api/users/{user_id}/page-visibility")
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == USER_PAGE_KEYS
+
+
+def test_page_visibility_role_defaults_tech(admin_client):
+    tech_id = _make_user(admin_client, "pv_default_tech", "tech")
+    r = admin_client.get(f"/api/users/{tech_id}/page-visibility")
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == TECH_PAGE_KEYS
+
+
+def test_page_visibility_role_defaults_viewer(admin_client):
+    viewer_id = _make_user(admin_client, "pv_default_viewer", "viewer")
+    r = admin_client.get(f"/api/users/{viewer_id}/page-visibility")
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == VIEWER_PAGE_KEYS
+
+
+def test_page_visibility_change_does_not_reset(admin_client):
+    viewer_id = _make_user(admin_client, "pv_no_reset", "viewer")
+    # Manual edit
+    admin_client.put(f"/api/users/{viewer_id}/page-visibility", json={"pages": {"inventory": 0, "quotation": 1}})
+    # Role change
+    admin_client.put(f"/api/users/{viewer_id}", json={"role": "user"})
+    r = admin_client.get(f"/api/users/{viewer_id}/page-visibility")
+    # inventory should still be OFF, quotation ON
+    assert "inventory" not in r.json()["visible_pages"]
+    assert "quotation" in r.json()["visible_pages"]
+
+
+def test_page_visibility_reset_viewer(admin_client):
+    viewer_id = _make_user(admin_client, "pv_reset_viewer", "viewer")
+    # Manually open many pages
+    admin_client.put(f"/api/users/{viewer_id}/page-visibility", json={"pages": {
+        "quotation": 1, "petty-cash": 1, "prepared": 1, "stockout": 1, "stocktake": 1, "settings": 1
+    }})
+    # Reset via page-visibility API
+    r = admin_client.put(f"/api/users/{viewer_id}/page-visibility", json={"reset_all": True})
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == VIEWER_PAGE_KEYS
+
+
+def test_page_visibility_reset_user(admin_client):
+    user_id = _make_user(admin_client, "pv_reset_user", "user")
+    admin_client.put(f"/api/users/{user_id}/page-visibility", json={"pages": {"perms": 1, "settings": 1}})
+    r = admin_client.put(f"/api/users/{user_id}/page-visibility", json={"reset_all": True})
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == USER_PAGE_KEYS
+
+
+def test_page_visibility_reset_tech(admin_client):
+    tech_id = _make_user(admin_client, "pv_reset_tech", "tech")
+    admin_client.put(f"/api/users/{tech_id}/page-visibility", json={"pages": {"quotation": 1, "stocktake": 1, "perms": 1}})
+    r = admin_client.put(f"/api/users/{tech_id}/page-visibility", json={"reset_all": True})
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == TECH_PAGE_KEYS
+
+
+def test_page_visibility_reset_admin(admin_client):
+    # Admin uses the same reset endpoint
+    other_admin_id = _make_user(admin_client, "pv_reset_admin2", "admin")
+    admin_client.put(f"/api/users/{other_admin_id}/page-visibility", json={"pages": {"perms": 0}})
+    r = admin_client.put(f"/api/users/{other_admin_id}/page-visibility", json={"reset_all": True})
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == set(PAGE_KEYS)
+
+
+def test_page_visibility_reset_uses_current_role(admin_client):
+    # Viewer -> User -> reset should use User defaults
+    vid = _make_user(admin_client, "pv_role_reset", "viewer")
+    admin_client.put(f"/api/users/{vid}/page-visibility", json={"pages": {"quotation": 1}})
+    admin_client.put(f"/api/users/{vid}", json={"role": "user"})
+    r = admin_client.put(f"/api/users/{vid}/page-visibility", json={"reset_all": True})
+    assert r.status_code == 200
+    assert set(r.json()["visible_pages"]) == USER_PAGE_KEYS
+
+
+def test_page_visibility_existing_rows_not_overwritten_on_startup(admin_client, rbac_db):
+    viewer_id = _make_user(admin_client, "pv_seed_no_overwrite", "viewer")
+    admin_client.put(f"/api/users/{viewer_id}/page-visibility", json={"pages": {"quotation": 1}})
+    # Re-init (seed)
+    init_db()
+    r = admin_client.get(f"/api/users/{viewer_id}/page-visibility")
+    # quotation should still be ON (seed uses INSERT OR IGNORE)
+    assert "quotation" in r.json()["visible_pages"]

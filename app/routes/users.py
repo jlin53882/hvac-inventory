@@ -20,7 +20,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.database import get_db
-from app.models import PageVisibilityUpdate, UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate
+from app.models import PageVisibilityUpdate, UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate, initial_visible_page_keys
 from app.services.auth import (
     ALL_PAGE_KEYS,
     _check_pw,
@@ -551,10 +551,23 @@ def update_page_visibility(
     body: PageVisibilityUpdate,
     admin: dict = Depends(require_perm("page-visibility-manage")),
 ):
-    """Update individual page visibility settings."""
+    """Update individual page visibility settings, or reset to current-role defaults."""
     conn = get_db()
     try:
         _get_user_or_404(conn, user_id)
+        if body.reset_all:
+            user = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not user:
+                raise HTTPException(status_code=404)
+            role_defaults = initial_visible_page_keys(user["role"])
+            pages = {key: 1 if key in role_defaults else 0 for key in ALL_PAGE_KEYS}
+            set_user_page_visibility(conn, user_id, pages)
+            return {
+                "user_id": user_id,
+                "visible_pages": get_user_page_visibility(conn, user_id),
+            }
+        if not body.pages:
+            raise HTTPException(status_code=400, detail="至少提供 pages 或 reset_all")
         unknown = sorted(set(body.pages) - set(ALL_PAGE_KEYS))
         if unknown:
             raise HTTPException(status_code=400, detail=f"未知頁面: {', '.join(unknown)}")

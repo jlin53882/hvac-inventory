@@ -21,10 +21,27 @@ PAGE_KEYS = (
 )
 DEFAULT_VISIBLE_PAGE_KEYS = frozenset({"calendar", "signed-reports", "inventory", "kit"})
 
+ROLE_DEFAULT_VISIBLE_PAGE_KEYS = {
+    "admin": frozenset(PAGE_KEYS),
+    "user": frozenset({
+        "calendar", "signed-reports", "quotation", "petty-cash",
+        "inventory", "prepared", "stockout", "stocktake", "kit",
+        "change-password",
+    }),
+    "tech": frozenset({
+        "calendar", "signed-reports", "petty-cash",
+        "inventory", "prepared", "stockout",
+        "kit", "change-password",
+    }),
+    "viewer": frozenset({
+        "calendar", "signed-reports", "inventory", "kit",
+    }),
+}
+
 
 def initial_visible_page_keys(role: str) -> set[str]:
-    """Return the one-time initial page defaults for a new or migrated user."""
-    return set(PAGE_KEYS) if role in {"admin", "user", "tech"} else set(DEFAULT_VISIBLE_PAGE_KEYS)
+    """Return the role-default page visibility set (single source of truth for defaults/reset)."""
+    return set(ROLE_DEFAULT_VISIBLE_PAGE_KEYS.get(role, ROLE_DEFAULT_VISIBLE_PAGE_KEYS["viewer"]))
 
 
 InventorySite = Literal["office", "warehouse", "van", "truck"]
@@ -228,7 +245,8 @@ class UserPermissionsUpdate(BaseModel):
     reset_all: bool = False              # True = 清空全部覆蓋回角色預設
 
 class PageVisibilityUpdate(BaseModel):
-    pages: dict[str, int]
+    pages: dict[str, int] | None = None
+    reset_all: bool = False
 
 
 # ---------- 認證（2026-08-16 從 auth.py 收攏） ----------

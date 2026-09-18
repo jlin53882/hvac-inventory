@@ -277,7 +277,16 @@
     try {
       await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { reset_all: true });
       permChanges = {};
-      toast('已重設為角色預設', 'success');
+      try {
+        await apiSend(`/api/users/${curUid}/page-visibility`, 'PUT', { reset_all: true });
+        pageChanges = {};
+      } catch (pvErr) {
+        await loadUserDetail();
+        renderUserList();
+        toast('權限已重設，但頁面顯示重設失敗，已重新載入最新狀態', 'error');
+        return;
+      }
+      toast('已重設為角色預設（權限 + 頁面顯示）', 'success');
       await loadUserDetail();
     } catch (e) {
       toast(e.message || '重設失敗', 'error');
