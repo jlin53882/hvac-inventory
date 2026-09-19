@@ -799,8 +799,17 @@ async function bindGcalUser(userId, keyName) {
 (async function initSettings() {
   const user = await checkAuth();
   if (!user) return;
+  if (typeof canAccessPage === 'function'
+      ? !canAccessPage('settings')
+      : (Array.isArray(user.visible_pages) && !user.visible_pages.includes('settings'))) {
+    location.href = '/';
+    return;
+  }
   const canUnits = hasPerm('unit-mgmt');
   const canPettyOptions = hasPerm('petty-cash-config');
+  const canChangePassword = typeof canAccessPage === 'function'
+    ? canAccessPage('change-password')
+    : hasPerm('change-own-password');
   if (!canUnits) {
     const item = document.querySelector('#settingsSideList .side-item[data-panel="units"]');
     if (item) item.style.display = 'none';
@@ -816,12 +825,12 @@ async function bindGcalUser(userId, keyName) {
       ['gcal', '📅 行事曆同步'],
       ['petty-cash', '🪙 零用金選單'],
       ['pw', '🔑 修改密碼']
-    ].filter(([p]) => (p !== 'units' || canUnits) && (p !== 'petty-cash' || canPettyOptions))
+    ].filter(([p]) => (p !== 'units' || canUnits) && (p !== 'petty-cash' || canPettyOptions) && (p !== 'pw' || canChangePassword))
      .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
   await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings(), loadGcalSyncStatus(), loadGcalQueue(), loadPettyOptions()]);
   // 預選第一個 key
   if (gcalKeys.length && !selectedKeyId) selectedKeyId = gcalKeys[0].id;
-  settingsSwitch(canUnits ? 'units' : canPettyOptions ? 'petty-cash' : 'pw');
+  settingsSwitch(canUnits ? 'units' : canPettyOptions ? 'petty-cash' : canChangePassword ? 'pw' : 'gcal');
 })();

@@ -7,7 +7,10 @@ var NOTIFICATION_OPEN = false;
 function getStocktakeReminderState() {
   const user = typeof currentUser !== 'undefined' ? currentUser : null;
   const permissions = user && user.permissions ? user.permissions : {};
-  if (!permissions.stocktake) return { visible: false, count: 0 };
+  const canOperate = typeof canAccessPage === 'function'
+    ? canAccessPage('stocktake', 'operate')
+    : !!permissions.stocktake;
+  if (!canOperate) return { visible: false, count: 0 };
   const now = new Date();
   const month = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   const lastMonth = localStorage.getItem('lastStocktakeMonth');

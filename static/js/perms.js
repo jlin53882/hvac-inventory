@@ -11,11 +11,26 @@
     calendar: '📅 行事曆與派工',
     system: '⚙️ 系統設定',
   };
+  const PAGE_LABELS = {
+    calendar: '📅 行事曆',
+    'signed-reports': '🗂 每日簽名日報表',
+    quotation: '🧾 報價單',
+    'petty-cash': '🪙 零用金月報',
+    inventory: '📦 單一庫存',
+    prepared: '📤 待領出',
+    stockout: '🚚 已領出',
+    stocktake: '📋 盤點',
+    kit: '🔧 整組庫存',
+    perms: '👥 帳號與權限',
+    settings: '⚙️ 系統設定',
+    'change-password': '🔑 修改密碼',
+  };
 
   let permUsers = [];       // 全部帳號
   let me = null;            // 當前登入者
   let curUid = null;        // 選中帳號 id
   let permChanges = {};     // 未儲存開關變更 {key: 0|1}
+  let pageChanges = {};     // 未儲存頁面顯示變更 {page_key: 0|1}
   let addMode = 'single';
 
   // ---------- fetch 封裝 ----------
@@ -48,7 +63,11 @@
     try {
       const meRes = await apiGet('/api/auth/me');
       me = meRes.user;
-      if (!me.is_admin_role) { location.href = '/'; return; }
+      if (!me.is_admin_role || !(me.permissions || {})['user-mgmt']
+          || (Array.isArray(me.visible_pages) && !me.visible_pages.includes('perms'))) {
+        location.href = '/';
+        return;
+      }
       const users = await apiGet('/api/users');
       permUsers = users.users;
       renderUserList();
@@ -92,6 +111,7 @@
     if (uid === curUid) return;
     curUid = uid;
     permChanges = {};
+    pageChanges = {};
     renderUserList();
     renderChips();
     renderPanelHead();
@@ -152,9 +172,26 @@
       }
       html += `</div></div>`;
     }
+    const pageInfo = detail.page_visibility || { all_pages: [], visible_pages: [] };
+    const visiblePages = pageInfo.visible_pages || [];
+    html += `<div class="perm-group page-visibility-group">
+      <div class="perm-group-title">🖥 頁面顯示（每頁獨立設定）</div>
+      <div class="perm-grid">`;
+    for (const key of pageInfo.all_pages || []) {
+      const checked = visiblePages.includes(key) ? 'checked' : '';
+      html += `<div class="perm-row">
+        <div class="perm-label">${esc(PAGE_LABELS[key] || key)}<small>${esc(key)}</small></div>
+        <label class="switch">
+          <input type="checkbox" data-page-key="${esc(key)}" ${checked} ${isMe ? 'disabled' : ''} onchange="window.permPageToggle('${esc(key)}', this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>`;
+    }
+    html += `</div></div>`;
+    const pendingCount = Object.keys(permChanges).length + Object.keys(pageChanges).length;
     html += `<div class="save-bar">
       <div class="save-bar-inner">
-        <span class="save-hint ${Object.keys(permChanges).length ? 'changed' : ''}" id="saveHint">${Object.keys(permChanges).length ? `有 ${Object.keys(permChanges).length} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
+        <span class="save-hint" id="saveHint">${pendingCount ? `有 ${pendingCount} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
         <div class="save-btns">
           <button class="btn-ghost" onclick="window.openResetPermModal()" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
           <button class="btn-primary" onclick="window.permSave()" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
@@ -162,6 +199,7 @@
       </div>
     </div>`;
     el.innerHTML = html;
+    if (pendingCount) document.getElementById('saveHint')?.classList.add('changed');
   }
 
   window.permToggle = function permToggle(key, checked) {
@@ -173,7 +211,17 @@
     if (src) { src.textContent = '✏️ 自訂'; src.className = 'perm-src override'; }
     const hint = document.getElementById('saveHint');
     if (hint) {
-      const n = Object.keys(permChanges).length;
+      const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
+      hint.className = 'save-hint changed';
+      hint.textContent = `有 ${n} 項未儲存變更`;
+    }
+  };
+
+  window.permPageToggle = function permPageToggle(key, checked) {
+    pageChanges[key] = checked ? 1 : 0;
+    const hint = document.getElementById('saveHint');
+    if (hint) {
+      const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
       hint.className = 'save-hint changed';
       hint.textContent = `有 ${n} 項未儲存變更`;
     }
@@ -181,16 +229,33 @@
 
   window.permSave = async function permSave() {
     const keys = Object.keys(permChanges);
-    if (!keys.length) { toast('沒有變更', 'info'); return; }
+    const pageKeys = Object.keys(pageChanges);
+    if (!keys.length && !pageKeys.length) { toast('沒有變更', 'info'); return; }
+    let permissionsSaved = !keys.length;
+    let pageVisibilitySaved = !pageKeys.length;
     try {
-      await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { permissions: permChanges });
+      if (keys.length) {
+        await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { permissions: permChanges });
+        permissionsSaved = true;
+      }
+      if (pageKeys.length) {
+        await apiSend(`/api/users/${curUid}/page-visibility`, 'PUT', { pages: pageChanges });
+        pageVisibilitySaved = true;
+      }
       permChanges = {};
-      toast('權限已更新（立即生效）', 'success');
+      pageChanges = {};
+      toast('權限與頁面顯示設定已更新（立即生效）', 'success');
       await loadUserDetail();
       renderUserList();  // 刷新來源標記無需，但保持狀態一致
     } catch (e) {
-      toast(e.message || '儲存失敗', 'error');
-      await loadUserDetail();  // 伺服器拒絕時還原開關狀態
+      const partial = keys.length > 0 && permissionsSaved && !pageVisibilitySaved;
+      permChanges = {};
+      pageChanges = {};
+      await loadUserDetail();  // 重新讀取 server state，避免顯示未儲存的本地假狀態
+      renderUserList();
+      toast(partial
+        ? '權限已儲存，但頁面顯示設定儲存失敗，已重新載入最新狀態'
+        : (e.message || '儲存失敗'), 'error');
     }
   };
 
@@ -212,7 +277,16 @@
     try {
       await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { reset_all: true });
       permChanges = {};
-      toast('已重設為角色預設', 'success');
+      try {
+        await apiSend(`/api/users/${curUid}/page-visibility`, 'PUT', { reset_all: true });
+        pageChanges = {};
+      } catch (pvErr) {
+        await loadUserDetail();
+        renderUserList();
+        toast('權限已重設，但頁面顯示重設失敗，已重新載入最新狀態', 'error');
+        return;
+      }
+      toast('已重設為角色預設（權限 + 頁面顯示）', 'success');
       await loadUserDetail();
     } catch (e) {
       toast(e.message || '重設失敗', 'error');

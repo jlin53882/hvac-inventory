@@ -12,6 +12,37 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 INVENTORY_SITES = ("office", "warehouse", "van", "truck")
+
+# 頁面可見性：初始化憂依角色給預設值，之後只讀取 user_page_visibility 個人設定。
+PAGE_KEYS = (
+    "calendar", "signed-reports", "quotation", "petty-cash",
+    "inventory", "prepared", "stockout", "stocktake", "kit",
+    "perms", "settings", "change-password",
+)
+DEFAULT_VISIBLE_PAGE_KEYS = frozenset({"calendar", "signed-reports", "inventory", "kit"})
+
+ROLE_DEFAULT_VISIBLE_PAGE_KEYS = {
+    "admin": frozenset(PAGE_KEYS),
+    "user": frozenset({
+        "calendar", "signed-reports", "quotation", "petty-cash",
+        "inventory", "prepared", "stockout", "stocktake", "kit",
+        "change-password",
+    }),
+    "tech": frozenset({
+        "calendar", "signed-reports", "petty-cash",
+        "inventory", "prepared", "stockout",
+        "kit", "change-password",
+    }),
+    "viewer": frozenset({
+        "calendar", "signed-reports", "inventory", "kit",
+    }),
+}
+
+
+def initial_visible_page_keys(role: str) -> set[str]:
+    """Return the role-default page visibility set (single source of truth for defaults/reset)."""
+    return set(ROLE_DEFAULT_VISIBLE_PAGE_KEYS.get(role, ROLE_DEFAULT_VISIBLE_PAGE_KEYS["viewer"]))
+
 InventorySite = Literal["office", "warehouse", "van", "truck"]
 InventorySiteQuery = Literal["all", "office", "warehouse", "van", "truck"]
 
@@ -22,6 +53,11 @@ class SignedReportUpdate(BaseModel):
     report_date: Optional[str] = Field(None, max_length=10)
     uploader_name: Optional[str] = Field(None, min_length=1, max_length=50)
     note: Optional[str] = Field(None, max_length=500)
+
+
+class PageVisibilityUpdate(BaseModel):
+    pages: dict[str, int] | None = None
+    reset_all: bool = False
 
 
 class StockItem(BaseModel):

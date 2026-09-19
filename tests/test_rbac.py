@@ -40,7 +40,7 @@ EXPECTED_MATRIX = {
     'gcal-keys-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-    'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'change-own-password':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
     'signed-report-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
@@ -48,20 +48,21 @@ EXPECTED_MATRIX = {
     'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
     'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'page-visibility-manage': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
 }
 EXPECTED_ROLES = ('admin', 'user', 'tech', 'viewer')
 EXPECTED_KEYS = tuple(EXPECTED_MATRIX.keys())
 
 
 def test_seed_roles_permissions(rbac_db):
-    """角色 4 個、權限 28 個、權限點清單與設計一致"""
+    """角色 4 個、權限 30 個、權限點清單與設計一致"""
     conn = get_db()
     try:
         roles = [r["name"] for r in conn.execute("SELECT name FROM roles ORDER BY id").fetchall()]
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 29
+        assert len(perms) == 30
     finally:
         conn.close()
 
@@ -69,7 +70,7 @@ def test_seed_roles_permissions(rbac_db):
 @pytest.mark.parametrize("perm_key", EXPECTED_KEYS)
 @pytest.mark.parametrize("role_name", EXPECTED_ROLES)
 def test_seed_role_permission_matrix(rbac_db, perm_key, role_name):
-    """role_permissions 內容 = 設計 §5 矩陣（參數化 4×28 全比對）"""
+    """role_permissions 內容 = 設計 §5 矩陣（參數化 4×30 全比對）"""
     conn = get_db()
     try:
         on = conn.execute(
@@ -117,6 +118,7 @@ def test_seed_labels_and_modules(rbac_db):
         'petty-cash-edit': ('零用金月報 編輯', 'calendar'),
         'petty-cash-delete': ('零用金月報 刪除本人', 'calendar'),
         'petty-cash-config': ('零用金下拉選單管理', 'calendar'),
+        'page-visibility-manage': ('頁面可見性管理', 'system'),
     }
     conn = get_db()
     try:
@@ -165,7 +167,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 29
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 30
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:

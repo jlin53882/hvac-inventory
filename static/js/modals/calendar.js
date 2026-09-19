@@ -235,7 +235,7 @@ function calShowTeamSyncDetails(apptId) {
   const retryAll = document.getElementById('cal-team-sync-retry-all');
   if (!summary || !details) return;
   summary.textContent = team.fallback_target_count && !team.eligible_people
-    ? `未指派，同步至所有帳號（${team.fallback_target_count} 個）`
+    ? `同步至所有帳號（${team.fallback_target_count} 個）`
     : team.eligible_people
       ? `有效同步人員：${team.synced_people}/${team.eligible_people} 已同步`
       : '目前沒有有效同步人員';
