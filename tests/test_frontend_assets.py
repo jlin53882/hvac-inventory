@@ -4928,6 +4928,21 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wpr-gallery-grid" in css and "minmax(96px, 112px)" in css
 
 
+def test_work_progress_frontend_create_permission_gates_form_but_preserves_view():
+    """view 可用但 create 不可用時只顯示檢視提示，history/KPI 流程仍保留。"""
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
+    submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
+    assert "work-progress-create" in js
+    assert "function wprCanCreate()" in js
+    assert "if (!wprCanCreate())" in render_block
+    assert "wpr-readonly-permission" in render_block
+    assert "目前只有檢視權限" in render_block
+    assert "wprLoadHistory" in js and "wprLoadKpi" in js
+    assert "toast('沒有新增工作進度回報的權限', 'error')" in submit_block
+    assert "wprFetch('/api/work-progress'" not in render_block
+
+
 def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
     assert "async function wprReloadAndReopenDetail(id, page)" in js

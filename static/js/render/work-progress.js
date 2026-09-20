@@ -91,9 +91,25 @@ async function renderWorkProgress() {
   await Promise.all([wprLoadDay(), wprLoadHistory(), wprLoadKpi()]);
 }
 
+function wprCanCreate() {
+  return typeof hasPerm === 'function' ? hasPerm('work-progress-create') : !!(
+    typeof currentUser !== 'undefined' && currentUser &&
+    currentUser.permissions && currentUser.permissions['work-progress-create']
+  );
+}
+
 function wprRenderCreate() {
   var create = document.getElementById('wpr-create');
   if (!create) return;
+  if (!wprCanCreate()) {
+    create.innerHTML = `
+      <div class="wpr-readonly-permission">
+        <div class="wpr-readonly-permission-icon">🔒</div>
+        <h2>目前只有檢視權限</h2>
+        <p>你可以查看歷史工作進度與照片，但沒有新增工作進度回報的權限。</p>
+      </div>`;
+    return;
+  }
   create.innerHTML = `
     <div class="wpr-section-heading"><div><h2>建立工作進度</h2><p>選擇行事曆工作後填寫現場回報。</p></div></div>
     <div class="wpr-field"><label>回報人</label><div class="wpr-readonly" id="wpr-current-user-name"></div></div>
@@ -221,6 +237,7 @@ function wprRemovePending(index) {
   if (save && (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprReportsByAppointment[wprCurrentReport.appointment_id])) save.disabled = !wprSelectedFiles.length;
 }
 async function wprSubmit() {
+  if (!wprCanCreate()) { toast('沒有新增工作進度回報的權限', 'error'); return; }
   if (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprSelectedFiles.length) return;
   var button = document.getElementById('wpr-save'); button.disabled = true;
   var form = new FormData(); form.append('appointment_id', wprCurrentReport.appointment_id); form.append('note', (document.getElementById('wpr-note').value || '').trim());
