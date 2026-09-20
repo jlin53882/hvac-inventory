@@ -9,14 +9,36 @@
     view: '📋 瀏覽與匯出',
     stock: '📦 庫存管理',
     calendar: '📅 行事曆與派工',
+    reports: '📑 報表與零用金',
     system: '⚙️ 系統設定',
+  };
+  const PAGE_LABELS = {
+    calendar: '📅 行事曆',
+    'signed-reports': '🗂 每日簽名日報表',
+    quotation: '🧾 報價單',
+    'petty-cash': '🪙 零用金月報',
+    inventory: '📦 單一庫存',
+    prepared: '📤 待領出',
+    stockout: '🚚 已領出',
+    stocktake: '📋 盤點',
+    kit: '🔧 整組庫存',
+    perms: '👥 帳號與權限',
+    settings: '⚙️ 系統設定',
+    'change-password': '🔑 修改密碼',
   };
 
   let permUsers = [];       // 全部帳號
   let me = null;            // 當前登入者
   let curUid = null;        // 選中帳號 id
   let permChanges = {};     // 未儲存開關變更 {key: 0|1}
+  let pageChanges = {};     // 未儲存頁面顯示變更 {page_key: 0|1}
   let addMode = 'single';
+  let permissionDetail = null;
+  let permissionView = 'features';
+  let permissionPage = 1;
+  let permissionSearch = '';
+  let permissionModule = 'all';
+  const PERMISSIONS_PAGE_SIZE = 10;
 
   // ---------- fetch 封裝 ----------
   async function apiGet(url) {
@@ -48,7 +70,11 @@
     try {
       const meRes = await apiGet('/api/auth/me');
       me = meRes.user;
-      if (!me.is_admin_role) { location.href = '/'; return; }
+      if (!me.is_admin_role || !(me.permissions || {})['user-mgmt']
+          || (Array.isArray(me.visible_pages) && !me.visible_pages.includes('perms'))) {
+        location.href = '/';
+        return;
+      }
       const users = await apiGet('/api/users');
       permUsers = users.users;
       renderUserList();
@@ -92,6 +118,7 @@
     if (uid === curUid) return;
     curUid = uid;
     permChanges = {};
+    pageChanges = {};
     renderUserList();
     renderChips();
     renderPanelHead();
@@ -122,39 +149,32 @@
 
   // ---------- 權限設定 tab ----------
   function renderPerms(detail) {
+    permissionDetail = detail;
+    permissionPage = 1;
+    permissionSearch = '';
+    permissionModule = 'all';
+    permissionView = 'features';
+    renderPermissionShell();
+  }
+
+  function renderPermissionShell() {
+    const detail = permissionDetail;
+    if (!detail) return;
     const el = document.getElementById('tab-perms');
     const isMe = me.id === curUid;
-    const byModule = {};
-    for (const p of detail.permissions) {
-      (byModule[p.module] = byModule[p.module] || []).push(p);
-    }
-    let html = '';
-    if (isMe) {
-      html += `<div class="warn-box">⚠️ 不能修改自己的權限（系統保護）——你的權限由另一位管理員管理。</div>`;
-    }
-    for (const mod of Object.keys(byModule)) {
-      html += `<div class="perm-group">
-        <div class="perm-group-title">${GROUP_LABELS[mod] || mod}</div>
-        <div class="perm-grid">`;
-      for (const p of byModule[mod]) {
-        const locked = p.source === 'locked';
-        const srcLabel = locked ? '🔒 鎖定' : (p.source === 'override' ? '✏️ 自訂' : '✓ 跟隨角色');
-        const srcCls = p.source;
-        const disabled = locked || isMe;
-        const checked = p.allowed ? 'checked' : '';
-        html += `<div class="perm-row ${locked ? 'locked' : ''}">
-          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${srcCls}">${srcLabel}</span></small></div>
-          <label class="switch">
-            <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} onchange="window.permToggle('${esc(p.key)}', this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>`;
-      }
-      html += `</div></div>`;
-    }
+    const featureActive = permissionView === 'features' ? 'active' : '';
+    const pageActive = permissionView === 'pages' ? 'active' : '';
+    let html = isMe
+      ? '<div class="warn-box">⚠️ 不能修改自己的權限（系統保護）——你的權限由另一位管理員管理。</div>'
+      : '';
+    html += `<div class="perm-subtabs" role="tablist">
+      <button class="perm-subtab ${esc(featureActive)}" onclick="window.permSubTab('features')">🔐 功能權限</button>
+      <button class="perm-subtab ${esc(pageActive)}" onclick="window.permSubTab('pages')">🖥 頁面顯示</button>
+    </div><div id="permission-view"><div id="permission-toolbar"></div><div id="permission-results"></div></div>`;
+    const pendingCount = Object.keys(permChanges).length + Object.keys(pageChanges).length;
     html += `<div class="save-bar">
       <div class="save-bar-inner">
-        <span class="save-hint ${Object.keys(permChanges).length ? 'changed' : ''}" id="saveHint">${Object.keys(permChanges).length ? `有 ${Object.keys(permChanges).length} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
+        <span class="save-hint" id="saveHint">${pendingCount ? `有 ${pendingCount} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
         <div class="save-btns">
           <button class="btn-ghost" onclick="window.openResetPermModal()" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
           <button class="btn-primary" onclick="window.permSave()" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
@@ -162,7 +182,135 @@
       </div>
     </div>`;
     el.innerHTML = html;
+    renderPermissionToolbar();
+    renderPermissionView();
+    if (pendingCount) document.getElementById('saveHint')?.classList.add('changed');
   }
+
+  function renderPermissionToolbar() {
+    const toolbar = document.getElementById('permission-toolbar');
+    if (!toolbar || !permissionDetail || permissionView !== 'features') return;
+    const permissions = permissionDetail.permissions || [];
+    const modules = [...new Set(permissions.map(p => p.module))];
+    let html = `<label class="perm-search-label" for="permission-search">搜尋權限名稱或 key</label>
+      <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" oninput="window.permSearch(this.value)">
+      <div class="perm-module-filter" role="group" aria-label="權限分類">
+        <button class="perm-filter ${esc(permissionModule === 'all' ? 'active' : '')}" data-module="all" onclick="window.permFilter('all')">全部</button>
+        ${modules.map(mod => `<button class="perm-filter ${esc(permissionModule === mod ? 'active' : '')}" data-module="${esc(mod)}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
+      </div>`;
+    toolbar.innerHTML = html;
+  }
+
+  function updatePermissionFilterState() {
+    document.querySelectorAll?.('#permission-toolbar .perm-filter').forEach(button => {
+      button.classList.toggle('active', button.dataset.module === permissionModule);
+    });
+  }
+
+  function renderPermissionView() {
+    const viewHost = document.getElementById('permission-view');
+    if (!viewHost || !permissionDetail) return;
+    if (permissionView === 'pages') {
+      renderPageVisibilityView(viewHost);
+      return;
+    }
+    const host = document.getElementById('permission-results');
+    if (!host) return;
+    const permissions = permissionDetail.permissions || [];
+    const isMe = me.id === curUid;
+    const query = permissionSearch.trim().toLowerCase();
+    const filtered = permissions.filter(p => {
+      const matchesModule = permissionModule === 'all' || p.module === permissionModule;
+      const haystack = `${p.label} ${p.key}`.toLowerCase();
+      return matchesModule && (!query || haystack.includes(query));
+    });
+    const pageCount = Math.max(1, Math.ceil(filtered.length / PERMISSIONS_PAGE_SIZE));
+    permissionPage = Math.min(Math.max(1, permissionPage), pageCount);
+    const start = (permissionPage - 1) * PERMISSIONS_PAGE_SIZE;
+    const visible = filtered.slice(start, start + PERMISSIONS_PAGE_SIZE);
+    let html = '';
+    if (!visible.length) {
+      html += '<div class="perm-empty">沒有符合條件的權限</div>';
+    } else {
+      html += '<div class="perm-list">';
+      for (const p of visible) {
+        const locked = p.source === 'locked';
+        const hasPending = Object.prototype.hasOwnProperty.call(permChanges, p.key);
+        let srcLabel;
+        let srcCls;
+        if (locked) {
+          srcLabel = '🔒 鎖定';
+          srcCls = 'locked';
+        } else if (hasPending) {
+          srcLabel = '✏️ 自訂';
+          srcCls = 'override';
+        } else if (p.source === 'override') {
+          srcLabel = '✏️ 自訂';
+          srcCls = 'override';
+        } else {
+          srcLabel = '✓ 跟隨角色';
+          srcCls = p.source;
+        }
+        const checkedValue = hasPending ? permChanges[p.key] : p.allowed;
+        const checked = checkedValue ? 'checked' : '';
+        const disabled = locked || isMe;
+        html += `<div class="perm-row ${locked ? 'locked' : ''}">
+          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${esc(srcCls)}">${srcLabel}</span></small></div>
+          <label class="switch">
+            <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} onchange="window.permToggle('${jsStr(p.key)}', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>`;
+      }
+      html += '</div>';
+    }
+    const from = filtered.length ? start + 1 : 0;
+    const to = Math.min(start + PERMISSIONS_PAGE_SIZE, filtered.length);
+    html += `<div class="perm-pagination">
+      <span>顯示 ${esc(from)}–${esc(to)} / 共 ${esc(filtered.length)} 項</span>
+      <div class="perm-page-buttons">
+        <button class="perm-page-btn" onclick="window.permPage(-1)" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
+        <span>第 ${esc(permissionPage)} / ${esc(pageCount)} 頁</span>
+        <button class="perm-page-btn" onclick="window.permPage(1)" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
+      </div>
+    </div>`;
+    host.innerHTML = html;
+    updatePermissionFilterState();
+  }
+
+  function renderPageVisibilityView(host) {
+    const pageInfo = permissionDetail.page_visibility || { all_pages: [], visible_pages: [] };
+    const visiblePages = pageInfo.visible_pages || [];
+    const isMe = me.id === curUid;
+    let html = '<div class="perm-group page-visibility-group"><div class="perm-group-title">🖥 頁面顯示（每頁獨立設定）</div><div class="perm-grid">';
+    for (const key of pageInfo.all_pages || []) {
+      const checkedValue = Object.prototype.hasOwnProperty.call(pageChanges, key) ? pageChanges[key] : visiblePages.includes(key);
+      html += `<div class="perm-row">
+        <div class="perm-label">${esc(PAGE_LABELS[key] || key)}<small>${esc(key)}</small></div>
+        <label class="switch"><input type="checkbox" data-page-key="${esc(key)}" ${esc(checkedValue ? 'checked' : '')} ${isMe ? 'disabled' : ''} onchange="window.permPageToggle('${jsStr(key)}', this.checked)"><span class="slider"></span></label>
+      </div>`;
+    }
+    host.innerHTML = html + '</div></div>';
+  }
+
+  window.permSubTab = function permSubTab(view) {
+    permissionView = view === 'pages' ? 'pages' : 'features';
+    renderPermissionShell();
+  };
+  window.permSearch = function permSearch(value) {
+    permissionSearch = value;
+    permissionPage = 1;
+    renderPermissionView();
+  };
+  window.permFilter = function permFilter(module) {
+    permissionModule = module;
+    permissionPage = 1;
+    renderPermissionView();
+  };
+  window.permPage = function permPage(delta) {
+    permissionPage += delta;
+    renderPermissionView();
+  };
 
   window.permToggle = function permToggle(key, checked) {
     permChanges[key] = checked ? 1 : 0;
@@ -173,7 +321,17 @@
     if (src) { src.textContent = '✏️ 自訂'; src.className = 'perm-src override'; }
     const hint = document.getElementById('saveHint');
     if (hint) {
-      const n = Object.keys(permChanges).length;
+      const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
+      hint.className = 'save-hint changed';
+      hint.textContent = `有 ${n} 項未儲存變更`;
+    }
+  };
+
+  window.permPageToggle = function permPageToggle(key, checked) {
+    pageChanges[key] = checked ? 1 : 0;
+    const hint = document.getElementById('saveHint');
+    if (hint) {
+      const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
       hint.className = 'save-hint changed';
       hint.textContent = `有 ${n} 項未儲存變更`;
     }
@@ -181,16 +339,33 @@
 
   window.permSave = async function permSave() {
     const keys = Object.keys(permChanges);
-    if (!keys.length) { toast('沒有變更', 'info'); return; }
+    const pageKeys = Object.keys(pageChanges);
+    if (!keys.length && !pageKeys.length) { toast('沒有變更', 'info'); return; }
+    let permissionsSaved = !keys.length;
+    let pageVisibilitySaved = !pageKeys.length;
     try {
-      await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { permissions: permChanges });
+      if (keys.length) {
+        await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { permissions: permChanges });
+        permissionsSaved = true;
+      }
+      if (pageKeys.length) {
+        await apiSend(`/api/users/${curUid}/page-visibility`, 'PUT', { pages: pageChanges });
+        pageVisibilitySaved = true;
+      }
       permChanges = {};
-      toast('權限已更新（立即生效）', 'success');
+      pageChanges = {};
+      toast('權限與頁面顯示設定已更新（立即生效）', 'success');
       await loadUserDetail();
       renderUserList();  // 刷新來源標記無需，但保持狀態一致
     } catch (e) {
-      toast(e.message || '儲存失敗', 'error');
-      await loadUserDetail();  // 伺服器拒絕時還原開關狀態
+      const partial = keys.length > 0 && permissionsSaved && !pageVisibilitySaved;
+      permChanges = {};
+      pageChanges = {};
+      await loadUserDetail();  // 重新讀取 server state，避免顯示未儲存的本地假狀態
+      renderUserList();
+      toast(partial
+        ? '權限已儲存，但頁面顯示設定儲存失敗，已重新載入最新狀態'
+        : (e.message || '儲存失敗'), 'error');
     }
   };
 
@@ -212,7 +387,16 @@
     try {
       await apiSend(`/api/users/${curUid}/permissions`, 'PUT', { reset_all: true });
       permChanges = {};
-      toast('已重設為角色預設', 'success');
+      try {
+        await apiSend(`/api/users/${curUid}/page-visibility`, 'PUT', { reset_all: true });
+        pageChanges = {};
+      } catch (pvErr) {
+        await loadUserDetail();
+        renderUserList();
+        toast('權限已重設，但頁面顯示重設失敗，已重新載入最新狀態', 'error');
+        return;
+      }
+      toast('已重設為角色預設（權限 + 頁面顯示）', 'success');
       await loadUserDetail();
     } catch (e) {
       toast(e.message || '重設失敗', 'error');

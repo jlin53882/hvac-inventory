@@ -298,7 +298,7 @@ function pcReportActionEntries(r, engineering) {
     { label: '⬇️ 匯出', action: `pcExport(${r.id})` },
   ];
   if (r.can_edit) actions.splice(1, 0, { label: '✏️ 編輯', action: edit });
-  if (r.can_edit) actions.push({ label: '🗑 刪除', action: `pcDelete(${r.id}${engineering ? ', true' : ''})`, danger: true });
+  if (r.can_delete) actions.push({ label: '🗑 刪除', action: `pcDelete(${r.id}${engineering ? ', true' : ''})`, danger: true });
   return actions;
 }
 
@@ -489,6 +489,7 @@ async function pcOpenDetail(id) {
 // 共用 detail page header；general／engineering 只注入不同的標籤與操作差異。
 function pcDetailHeaderHtml(r, engineering) {
   const canEdit = !!r.can_edit;
+  const canDelete = !!r.can_delete;
   const titleBadge = engineering
     ? '<span class="pc-status pc-status--engineering">工程零用金</span>'
     : pcStatusBadge(r.status);
@@ -498,7 +499,7 @@ function pcDetailHeaderHtml(r, engineering) {
   const ownerMeta = `報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}`;
   const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
   const remove = `pcDelete(${r.id}, true)`;
-  return `<div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${esc(_pcPeriodText(r))} ${titleBadge}</h1>${engineering ? `<p>${ownerMeta}</p><p class="eng-file-label">${esc(fileLabel)}</p>` : `<p>${esc(fileLabel)} · ${ownerMeta}</p>`}</div><div class="pc-page-actions"><button class="pc-btn pc-btn--ghost" onclick="renderPettyCash()">← 返回列表</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="${esc(edit)}">✏️ 編輯</button>` : ''}<button class="pc-btn pc-btn--primary" onclick="pcExport(${esc(r.id)})">⬇️ ${engineering ? '匯出' : '匯出 Excel'}</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="${esc(remove)}">🗑 刪除</button>` : ''}</div></div>`;
+  return `<div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${esc(_pcPeriodText(r))} ${titleBadge}</h1>${engineering ? `<p>${ownerMeta}</p><p class="eng-file-label">${esc(fileLabel)}</p>` : `<p>${esc(fileLabel)} · ${ownerMeta}</p>`}</div><div class="pc-page-actions"><button class="pc-btn pc-btn--ghost" onclick="renderPettyCash()">← 返回列表</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="${esc(edit)}">✏️ 編輯</button>` : ''}<button class="pc-btn pc-btn--primary" onclick="pcExport(${esc(r.id)})">⬇️ ${engineering ? '匯出' : '匯出 Excel'}</button>${canDelete ? `<button class="pc-btn pc-btn--ghost" onclick="${esc(remove)}">🗑 刪除</button>` : ''}</div></div>`;
 }
 function pcDetailKpiCardHtml(card) {
   const icon = card.icon ? `<span class="ui-kpi-icon ${esc(card.iconClass || '')}">${esc(card.icon)}</span>` : '';

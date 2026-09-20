@@ -59,6 +59,85 @@ def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b
     )
 
 
+def _set_user_permission(username, permission_key, value):
+    conn = app_db.get_db()
+    try:
+        user_id = conn.execute(
+            "SELECT id FROM users WHERE username=?", (username,)
+        ).fetchone()["id"]
+        permission_id = conn.execute(
+            "SELECT id FROM permissions WHERE key=?", (permission_key,)
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id, permission_id) DO UPDATE SET value=excluded.value",
+            (user_id, permission_id, value),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _rewind_signed_report_split_migration():
+    """Recreate the pre-split permission state for upgrade regression tests."""
+    conn = app_db.get_db()
+    try:
+        permission_ids = [
+            row["id"] for row in conn.execute(
+                "SELECT id FROM permissions WHERE key IN ('signed-report-edit', 'signed-report-delete')"
+            ).fetchall()
+        ]
+        if permission_ids:
+            placeholders = ",".join("?" for _ in permission_ids)
+            conn.execute(f"DELETE FROM user_permissions WHERE permission_id IN ({placeholders})", permission_ids)
+            conn.execute(f"DELETE FROM role_permissions WHERE permission_id IN ({placeholders})", permission_ids)
+            conn.execute(f"DELETE FROM permissions WHERE id IN ({placeholders})", permission_ids)
+        conn.execute("DELETE FROM rbac_migrations WHERE key=?", ("signed_report_action_capabilities_v1",))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("role", ["admin", "user", "tech"])
+def test_upload_allowed_for_default_upload_roles(signed_env, role):
+    """signed-report-upload defaults allow admin/user/tech to upload."""
+    make_client, _ = signed_env
+    client = make_client(f"{role}-uploader", role) if role != "admin" else make_client()
+    response = _upload(client)
+    assert response.status_code == 200, response.text
+
+
+def test_viewer_can_view_but_cannot_upload(signed_env):
+    """Viewer keeps report viewing access but upload is denied by backend RBAC."""
+    make_client, _ = signed_env
+    viewer = make_client("viewer-uploader", "viewer")
+    assert viewer.get("/api/signed-reports").status_code == 200
+    response = _upload(viewer)
+    assert response.status_code == 403
+
+
+def test_signed_report_upload_override_is_effective(signed_env):
+    """Individual signed-report-upload overrides affect the upload endpoint."""
+    make_client, _ = signed_env
+    viewer = make_client("viewer-override", "viewer")
+    conn = app_db.get_db()
+    try:
+        permission_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='signed-report-upload'"
+        ).fetchone()["id"]
+        user_id = conn.execute(
+            "SELECT id FROM users WHERE username='viewer-override'"
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, 1)",
+            (user_id, permission_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert _upload(viewer).status_code == 200
+
+
 def test_upload_list_preview_and_safe_storage(signed_env):
     """上傳後可查詢/預覽，原始檔名不會成為實際路徑控制字元。"""
     make_client, static_dir = signed_env
@@ -129,6 +208,131 @@ def test_upload_rejects_invalid_date_empty_file_and_overlong_note(signed_env):
     assert long_note.status_code == 400
     assert long_note.json()["detail"] == "備註最多 500 字"
     assert not (static_dir / "uploads").exists()
+
+
+def test_legacy_owner_capability_survives_split_migration(signed_env):
+    """An existing viewer owner keeps the former owner edit/delete behavior."""
+    make_client, _ = signed_env
+    admin = make_client()
+    viewer = make_client("legacy-viewer", "viewer")
+    report = _upload(admin).json()
+    conn = app_db.get_db()
+    try:
+        viewer_id = conn.execute(
+            "SELECT id FROM users WHERE username='legacy-viewer'"
+        ).fetchone()["id"]
+        conn.execute(
+            "UPDATE daily_signed_reports SET uploader_user_id=? WHERE id=?",
+            (viewer_id, report["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _rewind_signed_report_split_migration()
+    app_db.init_db()
+
+    item = viewer.get("/api/signed-reports").json()["items"][0]
+    assert item["can_edit"] is True
+    assert item["can_delete"] is True
+    assert viewer.patch(f"/api/signed-reports/{report['id']}", data={"note": "legacy owner"}).status_code == 200
+    assert viewer.delete(f"/api/signed-reports/{report['id']}").status_code == 200
+
+
+def test_legacy_global_override_maps_to_both_actions(signed_env):
+    """An existing delete-all=1 override keeps cross-owner edit and delete."""
+    make_client, _ = signed_env
+    owner = make_client("report-owner", "user")
+    legacy_manager = make_client("legacy-manager", "viewer")
+    report = _upload(owner).json()
+    _set_user_permission("legacy-manager", "signed-report-delete-all", 1)
+
+    _rewind_signed_report_split_migration()
+    app_db.init_db()
+
+    item = legacy_manager.get("/api/signed-reports").json()["items"][0]
+    assert item["can_edit"] is True
+    assert item["can_delete"] is True
+    assert legacy_manager.patch(
+        f"/api/signed-reports/{report['id']}", data={"note": "legacy global"}
+    ).status_code == 200
+    assert legacy_manager.delete(f"/api/signed-reports/{report['id']}").status_code == 200
+
+
+def test_owner_action_capabilities_are_independent(signed_env):
+    """Owner edit/delete permissions independently gate list and mutations."""
+    make_client, _ = signed_env
+    edit_off_owner = make_client("edit-off-owner", "user")
+    delete_off_owner = make_client("delete-off-owner", "user")
+    first = _upload(edit_off_owner).json()
+    second = _upload(delete_off_owner, filename="second.pdf").json()
+    _set_user_permission("edit-off-owner", "signed-report-edit", 0)
+    _set_user_permission("delete-off-owner", "signed-report-delete", 0)
+
+    first_item = next(
+        item for item in edit_off_owner.get("/api/signed-reports").json()["items"]
+        if item["id"] == first["id"]
+    )
+    assert first_item["can_edit"] is False
+    assert first_item["can_delete"] is True
+    assert edit_off_owner.patch(f"/api/signed-reports/{first['id']}", data={"note": "blocked"}).status_code == 403
+    assert edit_off_owner.delete(f"/api/signed-reports/{first['id']}").status_code == 200
+
+    second_item = next(
+        item for item in delete_off_owner.get("/api/signed-reports").json()["items"]
+        if item["id"] == second["id"]
+    )
+    assert second_item["can_edit"] is True
+    assert second_item["can_delete"] is False
+    assert delete_off_owner.patch(f"/api/signed-reports/{second['id']}", data={"note": "allowed"}).status_code == 200
+    assert delete_off_owner.delete(f"/api/signed-reports/{second['id']}").status_code == 403
+
+
+def test_signed_report_capabilities_require_action_permission_and_scope(signed_env):
+    """List/detail and direct mutations require capability AND owner/global scope."""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    report = _upload(owner).json()
+
+    listed = other.get("/api/signed-reports").json()["items"][0]
+    assert listed["can_edit"] is False
+    assert listed["can_delete"] is False
+    assert other.patch(f"/api/signed-reports/{report['id']}", data={"note": "blocked"}).status_code == 403
+    assert other.delete(f"/api/signed-reports/{report['id']}").status_code == 403
+
+    _set_user_permission("other", "signed-report-edit", 1)
+    _set_user_permission("other", "signed-report-delete", 1)
+    listed = other.get("/api/signed-reports").json()["items"][0]
+    assert listed["can_edit"] is False
+    assert listed["can_delete"] is False
+    assert other.patch(f"/api/signed-reports/{report['id']}", data={"note": "still blocked"}).status_code == 403
+    assert other.delete(f"/api/signed-reports/{report['id']}").status_code == 403
+
+    _set_user_permission("other", "signed-report-delete-all", 1)
+    listed = other.get("/api/signed-reports").json()["items"][0]
+    assert listed["can_edit"] is True
+    assert listed["can_delete"] is True
+    updated = other.patch(f"/api/signed-reports/{report['id']}", data={"note": "global edit"})
+    assert updated.status_code == 200
+    assert other.delete(f"/api/signed-reports/{report['id']}").status_code == 200
+
+
+def test_signed_report_global_scope_cannot_replace_missing_action_permission(signed_env):
+    """The compatibility global scope does not grant edit/delete by itself."""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    report = _upload(owner).json()
+    _set_user_permission("other", "signed-report-delete-all", 1)
+    _set_user_permission("other", "signed-report-edit", 0)
+    _set_user_permission("other", "signed-report-delete", 0)
+
+    item = other.get("/api/signed-reports").json()["items"][0]
+    assert item["can_edit"] is False
+    assert item["can_delete"] is False
+    assert other.patch(f"/api/signed-reports/{report['id']}", data={"note": "blocked"}).status_code == 403
+    assert other.delete(f"/api/signed-reports/{report['id']}").status_code == 403
 
 
 def test_delete_is_limited_to_owner_or_global_permission(signed_env):

@@ -61,6 +61,7 @@ function mockDom() {
   global.window = { scrollTo() {} };
   global.esc = (s) => String(s);
   global.quoteMoney = (v) => String(v);
+  global.quoteCanManage = () => true;
   global.toast = () => {};
   return els;
 }

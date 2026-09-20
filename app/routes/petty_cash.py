@@ -11,7 +11,15 @@
 - DELETE /api/petty-cash-reports/{id}             刪除（CASCADE；本人或 petty-cash-delete-all）
 - GET    /api/petty-cash-reports/{id}/export.xlsx 範本填值匯出（不輸出上傳人；更新 last_exported_at）
 
-權限沿用每日簽名日報表模式：登入可查/建；編輯/刪除限本人或全域刪除權限者。
+權限 contract：
+- petty-cash-view：查看報表、KPI 與相關查詢。
+- petty-cash-create：建立報表。
+- petty-cash-edit：編輯能力。
+- petty-cash-delete：刪除能力。
+- petty-cash-delete-all：目前暫作跨 owner 的 temporary compatibility global scope grant。
+- petty-cash-config：管理零用金選單與設定。
+
+編輯／刪除最終允許條件為：對應 capability permission AND (owner OR current global scope)。
 上傳人（upload_person）是報表主體，可與登入者不同，不綁死。
 """
 import datetime
@@ -71,6 +79,18 @@ def _entry_dict(entry_row, items: list) -> dict:
         "amount_warning": warning,
         "detail_total": item_total,
         "difference": round(item_total - amount, 2) if item_total is not None else None,
+    }
+
+
+def _report_capabilities(conn, row, user) -> dict:
+    is_owner = row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
+    # Temporary compatibility: delete-all remains the existing global scope grant
+    # for both capability checks until scope permissions are separated.
+    has_global_scope = has_perm(conn, user, "petty-cash-delete-all")
+    in_scope = has_global_scope or is_owner
+    return {
+        "can_edit": bool(has_perm(conn, user, "petty-cash-edit") and in_scope),
+        "can_delete": bool(has_perm(conn, user, "petty-cash-delete") and in_scope),
     }
 
 
@@ -489,16 +509,13 @@ def list_petty_cash_reports(
                 ORDER BY start_date DESC, id DESC LIMIT ? OFFSET ?""",
             (*params, page_size, (page - 1) * page_size),
         ).fetchall()
-        can_all = has_perm(conn, user, "petty-cash-delete-all")
         engineering_totals = engineering_summary_totals(
             conn, [r["id"] for r in rows if r["report_type"] == "engineering"]
         )
         items = []
         for r in rows:
             summary = _summary_dict(conn, r, engineering_totals)
-            summary["can_edit"] = bool(
-                can_all or r["uploader_user_id"] == user["id"] or r["created_by"] == user["id"]
-            )
+            summary.update(_report_capabilities(conn, r, user))
             items.append(summary)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     finally:
@@ -546,10 +563,7 @@ def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
             "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
             (report_id,),
         ).fetchone()
-        can_all = has_perm(conn, user, "petty-cash-delete-all")
-        data["can_edit"] = bool(
-            can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
-        )
+        data.update(_report_capabilities(conn, row, user))
         return data
     finally:
         conn.close()

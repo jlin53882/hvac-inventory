@@ -27,6 +27,7 @@ from app.services.auth import (
     hash_token,
     # session cookie 名稱
     get_session_user,
+    get_user_page_visibility,
     get_user_by_username,
     is_locked,
     record_ip_fail,
@@ -163,7 +164,8 @@ def me(request: Request):
         expired = False
         if pw and pw["password_updated_at"]:
             expired = str(pw["password_updated_at"]) < (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S")
-        return {"user": {**user, "password_expired": expired, "is_admin_role": user["role"] == "admin"}}
+        visible_pages = get_user_page_visibility(conn, user["id"])
+        return {"user": {**user, "password_expired": expired, "is_admin_role": user["role"] == "admin", "visible_pages": visible_pages}}
     finally:
         conn.close()
 

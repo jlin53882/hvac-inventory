@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, Request
 
 from app.database import get_db
+from app.models import PAGE_KEYS, initial_visible_page_keys
 from app.services.app_log import get_logger
 
 logger = get_logger(__name__)
@@ -119,10 +120,11 @@ def init_admin_if_missing(conn: sqlite3.Connection) -> None:
     row = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()
     if row["c"] > 0:
         return
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO users (username, password_hash, display_name, role, password_updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
         ("admin", hash_password("admin123"), "管理員", "admin"),
     )
+    ensure_user_page_visibility(conn, cur.lastrowid, "admin")
     conn.commit()
     logger.info("[auth] 已建立初始帳號 admin（密碼 admin123，請登入後修改）")
 
@@ -218,7 +220,7 @@ def get_user_permissions(conn: sqlite3.Connection, user_id: int) -> dict:
         ).fetchone()["c"]
         if admin_cnt == 1:
             return {p["key"]: True for p in conn.execute("SELECT key FROM permissions").fetchall()}
-    # 16 權限點全 false 起底（以 permissions 表為權威清單）
+    # 所有 permission key 全 false 起底（以 permissions 表為權威清單）
     perms = {p["key"]: False for p in conn.execute("SELECT key FROM permissions").fetchall()}
     # 角色預設（role_permissions）
     for p in conn.execute(
@@ -237,12 +239,53 @@ def get_user_permissions(conn: sqlite3.Connection, user_id: int) -> dict:
     perms["view"] = True
     if role == "admin":
         perms["user-mgmt"] = True
-        perms["change-own-password"] = True
     else:
         perms["user-mgmt"] = False
+        perms["page-visibility-manage"] = False
         perms["svc-type-mgmt"] = False
         perms["unit-mgmt"] = False
     return perms
+
+
+# ---------- Page visibility ----------
+
+ALL_PAGE_KEYS = PAGE_KEYS
+
+
+def ensure_user_page_visibility(conn: sqlite3.Connection, user_id: int, role: str) -> None:
+    """Seed one-time defaults; later role changes do not rewrite existing rows."""
+    visible = initial_visible_page_keys(role)
+    for key in ALL_PAGE_KEYS:
+        conn.execute(
+            "INSERT OR IGNORE INTO user_page_visibility (user_id, page_key, visible) VALUES (?, ?, ?)",
+            (user_id, key, 1 if key in visible else 0),
+        )
+
+
+def get_user_page_visibility(conn: sqlite3.Connection, user_id: int) -> list:
+    """Return the user's persisted page visibility settings."""
+    row = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if row is None:
+        return list(ALL_PAGE_KEYS)
+    rows = conn.execute(
+        "SELECT page_key, visible FROM user_page_visibility WHERE user_id = ?", (user_id,)
+    ).fetchall()
+    if not rows:
+        return [key for key in ALL_PAGE_KEYS if key in initial_visible_page_keys(row["role"])]
+    values = {item["page_key"]: bool(item["visible"]) for item in rows}
+    return [key for key in ALL_PAGE_KEYS if values.get(key, False)]
+
+
+def set_user_page_visibility(conn: sqlite3.Connection, user_id: int, pages: dict) -> None:
+    """Persist page visibility changes; validation is performed by the route."""
+    for key, value in pages.items():
+        conn.execute(
+            """INSERT INTO user_page_visibility (user_id, page_key, visible)
+               VALUES (?, ?, ?)
+               ON CONFLICT(user_id, page_key) DO UPDATE SET visible = excluded.visible""",
+            (user_id, key, value),
+        )
+    conn.commit()
 
 
 # ---------- FastAPI dependency ----------

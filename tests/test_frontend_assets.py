@@ -79,9 +79,13 @@ QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
 # 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
 QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation.js")
 QUOTATION_HISTORY_PAGINATION_JS = os.path.join(BASE_DIR, "tests", "quotation_history_pagination.test.js")
+QUOTATION_PERMISSION_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_permission_runtime.test.js")
 PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
 # 待測：零用金月報（2026-09-12）
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
+PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
+SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
+QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
 PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "style.petty-cash-reports.css")
@@ -289,6 +293,8 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "prompt('編輯備註" not in js
     assert "report_date" in js and "uploader_name" in js
     assert "✏️ 編輯" in js
+    assert "${r.can_edit ? `<button class=\"dsr-action-btn\" onclick=\"dsrEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"dsr-action-btn dsr-action-btn--danger\" onclick=\"dsrDelete(${r.id})\">" in js
     assert "function _dsrDateOnly" in js
     assert "_dsrDateOnly(r.upload_time)" in js
     assert "esc(r.upload_time)" not in js
@@ -333,6 +339,8 @@ def test_quotation_upload_actions_and_edit_modal_contract():
     assert "prompt('編輯備註" not in js
     assert "qupEditNote" not in js
     assert "✏️ 編輯" in js
+    assert "${r.can_edit ? `<button class=\"qup-action-btn\" onclick=\"qupEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"qup-action-btn qup-action-btn--danger\" onclick=\"qupDelete(${r.id})\">" in js
     assert "function qupKeepUploaderOnly" in js
     assert "qupKeepUploaderOnly();" in js
     assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
@@ -378,6 +386,19 @@ def test_quotation_history_pagination_runtime():
     assert r.returncode == 0, f"quotation_history_pagination.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
+def test_quotation_mutations_gate_by_item_permission():
+    js = read(QUOTATION_RENDER_JS)
+    assert "function quoteCanManage()" in js
+    assert "hasPerm('item-mgmt')" in js
+    assert "var canManage = quoteCanManage();" in js
+    assert "quoteCanManage() ?" in js
+
+
+def test_quotation_mutation_permission_runtime():
+    r = subprocess.run(["node", QUOTATION_PERMISSION_RUNTIME_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, f"quotation_permission_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
 def test_pdf_preview_button_runtime():
     """PDF 手機預覽按鈕 runtime 回歸：node 實際執行兩支 showPreview，斷言 URL 真代入且點擊開對網址。
 
@@ -386,6 +407,18 @@ def test_pdf_preview_button_runtime():
     """
     r = subprocess.run(["node", PDF_PREVIEW_BUTTON_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, f"pdf_preview_button.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
+def test_signed_report_capability_runtime():
+    """Signed Report Edit/Delete buttons follow backend capabilities at runtime."""
+    r = subprocess.run(
+        ["node", SIGNED_REPORT_CAPABILITY_RUNTIME_JS],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert r.returncode == 0, f"signed_report_capability_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
 def test_stocktake_calcDiff_has_st_diff_element():
@@ -409,6 +442,11 @@ def test_signed_reports_accept_no_docx():
     assert '.docx' not in js
     assert '.xlsx' not in js
     assert 'PDF / PNG / JPG' in js or 'PDF' in js
+
+
+def test_petty_cash_capability_runtime():
+    r = subprocess.run(["node", PETTY_CASH_CAPABILITY_RUNTIME_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, f"petty_cash_capability_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
 def test_petty_cash_frontend_contract():
@@ -439,6 +477,8 @@ def test_petty_cash_frontend_contract():
     assert 'ui-kpi-card' in js and 'ui-kpi-value' in js
     assert 'pcOpenDetail(${r.id})' in js
     assert 'function pcMobileOpsHtml' in js
+    assert 'function pcReportActionEntries' in js
+    assert 'if (r.can_edit)' in js and 'if (r.can_delete)' in js
     assert 'function pcReportCardHtml' in js
     assert 'pc-report-type--general' in js
     assert '本期餘額' in js
@@ -941,6 +981,53 @@ def test_permissions_html_loads_perms_js():
     assert "perms.js?v=" not in html  # 版本號由後端自動注入
 
 
+def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
+    """Permission inventory is DB-driven, paginated, searchable, and page visibility is separate."""
+    js = read(PERMS_JS)
+    html = read(PERMISSIONS_HTML)
+    assert 'permissionDetail.permissions' in js
+    assert 'PERMISSIONS_PAGE_SIZE = 10' in js
+    assert 'permSearch' in js and 'permFilter' in js and 'permPage' in js
+    assert 'permSubTab' in js and 'page-visibility-group' in js
+    assert 'perm-pagination' in js and 'perm-page-btn' in html
+
+
+def test_permissions_ui_keeps_search_toolbar_and_pending_source_contract():
+    """搜尋 toolbar 不隨結果重建，pending permission 來源標籤跨頁保持自訂。"""
+    js = read(PERMS_JS)
+    runtime = os.path.join(BASE_DIR, "tests", "permissions_pagination_runtime.test.js")
+    assert 'renderPermissionToolbar' in js
+    assert 'id="permission-toolbar"' in js
+    assert "document.getElementById('permission-results')" in js
+    assert 'const hasPending = Object.prototype.hasOwnProperty.call(permChanges, p.key);' in js
+    assert "srcCls = 'override'" in js
+    assert os.path.exists(runtime)
+
+
+def test_permissions_pagination_runtime():
+    """真正執行 permissions pagination/search Node VM runtime regression。"""
+    script = os.path.join(BASE_DIR, "tests", "permissions_pagination_runtime.test.js")
+    result = subprocess.run(
+        ["node", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"permissions pagination runtime failed:\n"
+        f"{result.stdout}\n{result.stderr}"
+    )
+
+
+def test_signed_report_upload_is_permission_gated():
+    """Signed report page hides upload surface without changing report viewing."""
+    js = read(SIGNED_REPORTS_RENDER_JS)
+    assert "signed-report-upload" in js
+    assert "data-signed-upload" in js
+    assert "node.hidden = !canUpload" in js
+
+
 def test_perms_js_has_roles_and_groups():
     """權限頁：四角色 label + 權限分組常數"""
     js = read(PERMS_JS)
@@ -1060,7 +1147,8 @@ def test_auth_js_has_apply_role_view():
     assert "applyRoleView" in js
     assert "btn-add" not in js  # 新增按鈕已搬移到 inventory.js，不留 dead code
     assert "btn-export" not in js  # 已搬移，不留 dead code
-    assert "nav-stocktake" in js
+    assert "canAccessPage" in js
+    assert "applyPageVisibility" in js
     assert "save-bar" in js
     assert "admin-badge\" style=\"background:#6b7280\">👀 檢視者" not in js  # viewer 不顯示 badge（2026-08-13 Sarah）
 
@@ -1616,7 +1704,8 @@ def test_js_syntax(js_path):
     try:
         r = subprocess.run(
             ["node", "--check", js_path],
-            capture_output=True, text=True, encoding="utf-8", timeout=20,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+
         )
     except FileNotFoundError:
         pytest.skip("node 不在 PATH，跳過語法檢查")
@@ -2603,8 +2692,10 @@ def test_stocktake_view_for_all_roles():
     """2026-08-14 家豪裁決（Sarah：藍政達/蘇昱豪手機看不到盤點）：盤點頁瀏覽掛 view 基底權限——
     所有角色看得到盤點 tab；「本次盤點」操作區僅限 stocktake 權限（admin/user）"""
     au = read(AUTH_JS)
-    assert "canViewStocktake" in au, "auth.js 缺 canViewStocktake（瀏覽權限）"
-    assert "sbNavStocktake.style.display = canViewStocktake ? '' : 'none'" in au,         "盤點 tab 應依 canViewStocktake（stocktake OR view）顯示"
+    assert "hasPageCapability" in au, "auth.js 缺統一 RBAC page capability"
+    assert "pageKey === 'stocktake'" in au, "盤點頁 capability contract 缺失"
+    assert "canAccessPage" in au, "盤點頁未接上統一 availability contract"
+    assert "applyPageVisibility" in au, "登入後應套用 page availability"
     assert "checkReminder();" in au, "登入後應透過共用 checkReminder() 同步盤點提醒"
     assert "reminder.style.display = canStocktake ? '' : 'none'" not in au, "盤點提醒不可繞過日期與完成狀態 gate"
 
@@ -2907,7 +2998,8 @@ def test_all_js_syntax_valid():
     for f in js_files:
         result = subprocess.run(
             ["node", "--check", f],
-            capture_output=True, text=True, encoding="utf-8", timeout=30
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60
+
         )
         assert result.returncode == 0, f"{os.path.basename(f)} 語法錯誤: {result.stderr[:200]}"
 
@@ -4355,7 +4447,7 @@ def test_calendar_sync_status_uses_personal_and_admin_team_contract():
     modal = read(Path(STATIC) / "js" / "modals" / "calendar.js")
     assert "my_sync_status" in js
     assert "team_sync" in js
-    assert "未指派給你" in js
+    assert "未指派給你" not in js  # 2026-09-17: 已移除「未指派給你」顯示
     assert "calShowTeamSyncDetails" in js
     assert "重試我的" in js
     assert "重試全體" in modal
@@ -4649,6 +4741,7 @@ def test_mobile_site_tab_2x2_layout():
     assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
 
 
+
 def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
@@ -4679,3 +4772,91 @@ def test_inventory_export_dialog_runtime():
     script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
     result = subprocess.run(["node", script], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"
+
+def test_quotation_upload_capability_runtime():
+    """實際執行報價單 production renderer，驗證 edit/delete capability gating。"""
+    result = subprocess.run(
+        ["node", QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"quotation upload capability runtime 失敗：\n{result.stdout}\n{result.stderr}"
+    )
+
+
+def test_page_visibility_frontend_contract():
+    html = read(Path(STATIC) / "index.html")
+    auth = read(Path(STATIC) / "js" / "auth.js")
+    app = read(Path(STATIC) / "js" / "app.js")
+    perms = read(Path(STATIC) / "js" / "perms.js")
+    settings = read(Path(STATIC) / "js" / "settings.js")
+    page_keys = (
+        "calendar", "signed-reports", "quotation", "petty-cash", "inventory",
+        "prepared", "stockout", "stocktake", "kit", "perms", "settings",
+        "change-password",
+    )
+    for key in page_keys:
+        assert f'data-page-key="{key}"' in html or f"'{key}'" in auth
+    assert "visible_pages" in auth
+    assert "applyPageVisibility" in auth
+    assert "resolveAccessiblePageTab" in app
+    assert "canAccessPage" in auth
+    assert "page_visibility" in perms
+    assert "permPageToggle" in perms
+    assert "permissionsSaved" in perms
+    assert "pageVisibilitySaved" in perms
+    assert "權限已儲存，但頁面顯示設定儲存失敗" in perms
+    assert "visible_pages" in settings
+    assert "includes('settings')" in settings
+    assert "canChangePassword" in settings
+    assert "p !== 'pw' || canChangePassword" in settings
+    assert "disabled" in perms
+    assert "includes('perms')" in perms
+    assert "/page-visibility`" in perms
+
+def test_page_availability_runtime_contract():
+    """Node VM：Visibility 與 RBAC 交集決定入口與 deterministic fallback。"""
+    script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const elements = {
+  stocktake: { style: {}, dataset: { pageKey: 'stocktake' } },
+  inventory: { style: {}, dataset: { pageKey: 'inventory' } },
+  calendar: { style: {}, dataset: { pageKey: 'calendar' } },
+  save: { style: {} },
+};
+const context = {
+  window: { fetch: async () => ({ status: 200 }) },
+  document: {
+    querySelectorAll() { return Object.values(elements); },
+    getElementById(id) { return id === 'sb-nav-stocktake' ? elements.stocktake : id === 'save-bar' ? elements.save : null; },
+  },
+  currentUser: null,
+  currentTab: 'stocktake',
+  renderSidebarUser() {},
+  checkReminder() {},
+};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/js/auth.js', 'utf8'), context);
+function apply(visible, permissions) {
+  context.currentUser = { visible_pages: visible, permissions };
+  context.currentTab = 'stocktake';
+  Object.values(elements).forEach((el) => { el.style.display = ''; });
+  context.applyRoleView(context.currentUser);
+}
+// F1: visibility OFF must win over view/stocktake capability.
+apply(['inventory'], { view: true, stocktake: true });
+if (elements.stocktake.style.display !== 'none') throw new Error('hidden stocktake was re-shown by RBAC');
+if (context.canAccessPage('stocktake')) throw new Error('hidden stocktake reported accessible');
+// F2/F3: visible but unauthorized stocktake must not be selected as fallback.
+apply(['stocktake', 'calendar'], { view: false, stocktake: false, 'cal-mgmt': true });
+if (context.resolveAccessiblePageTab('stocktake') !== 'calendar') throw new Error('fallback did not choose calendar');
+if (context.currentTab !== 'calendar') throw new Error('currentTab did not fallback to calendar');
+// F3: when inventory is the first accessible tab, hidden stocktake falls back there.
+apply(['stocktake', 'inventory'], { view: true, stocktake: false });
+if (context.currentTab !== 'inventory') throw new Error('fallback did not choose inventory');
+// F2: reminder is hidden when stocktake operation is unavailable, even after the date threshold.
+context.localStorage = { getItem() { return null; } };
+vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
+if (context.getStocktakeReminderState().visible) throw new Error('inaccessible stocktake reminder remained visible');
+"""

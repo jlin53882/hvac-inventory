@@ -67,6 +67,24 @@ def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b
         files={"file": (filename, content, "application/pdf")},
     )
 
+def _set_user_permission(username, permission_key, value):
+    conn = app_db.get_db()
+    try:
+        user_id = conn.execute(
+            "SELECT id FROM users WHERE username=?", (username,)
+        ).fetchone()["id"]
+        permission_id = conn.execute(
+            "SELECT id FROM permissions WHERE key=?", (permission_key,)
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id, permission_id) DO UPDATE SET value=excluded.value",
+            (user_id, permission_id, value),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def test_api_requires_login():
     """列表與 KPI API 均需登入，不能因全域 router 掛載遺漏而公開。"""
@@ -154,6 +172,89 @@ def test_upload_rejects_invalid_date_empty_file_and_overlong_note(signed_env):
     assert long_note.status_code == 400
     assert long_note.json()["detail"] == "備註最多 500 字"
     assert not (static_dir / "uploads").exists()
+
+
+def test_quotation_upload_capability_requires_own_permission_and_scope(signed_env):
+    """Owner capability and global scope are independent from Signed Report permissions."""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    report = _upload(owner).json()
+
+    item = other.get("/api/quotation-uploads").json()["items"][0]
+    assert item["can_edit"] is False
+    assert item["can_delete"] is False
+    assert other.patch(f"/api/quotation-uploads/{report['id']}", json={"note": "blocked"}).status_code == 403
+    assert other.delete(f"/api/quotation-uploads/{report['id']}").status_code == 403
+
+    _set_user_permission("other", "quotation-upload-manage-all", 1)
+    item = other.get("/api/quotation-uploads").json()["items"][0]
+    assert item["can_edit"] is True
+    assert item["can_delete"] is True
+    assert other.patch(f"/api/quotation-uploads/{report['id']}", json={"note": "allowed"}).status_code == 200
+    assert other.delete(f"/api/quotation-uploads/{report['id']}").status_code == 200
+
+
+def test_quotation_upload_scope_cannot_replace_manage_capability(signed_env):
+    """Global scope without manage capability cannot mutate another owner's upload."""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    report = _upload(owner).json()
+    _set_user_permission("other", "quotation-upload-manage", 0)
+    _set_user_permission("other", "quotation-upload-manage-all", 1)
+
+    item = other.get("/api/quotation-uploads").json()["items"][0]
+    assert item["can_edit"] is False
+    assert item["can_delete"] is False
+    assert other.patch(f"/api/quotation-uploads/{report['id']}", json={"note": "blocked"}).status_code == 403
+    assert other.delete(f"/api/quotation-uploads/{report['id']}").status_code == 403
+
+
+def test_quotation_upload_manage_and_scope_allow_cross_owner_mutations(signed_env):
+    """Both capability and global scope are required for cross-owner mutations."""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    report = _upload(owner).json()
+    _set_user_permission("other", "quotation-upload-manage", 1)
+    _set_user_permission("other", "quotation-upload-manage-all", 1)
+
+    item = other.get("/api/quotation-uploads").json()["items"][0]
+    assert item["can_edit"] is True
+    assert item["can_delete"] is True
+    assert other.patch(f"/api/quotation-uploads/{report['id']}", json={"note": "allowed"}).status_code == 200
+    assert other.delete(f"/api/quotation-uploads/{report['id']}").status_code == 200
+
+
+def test_quotation_upload_owner_without_manage_capability_is_denied(signed_env):
+    """Ownership supplies scope only; it cannot replace the manage capability."""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    _set_user_permission("owner", "quotation-upload-manage", 0)
+    _set_user_permission("owner", "quotation-upload-manage-all", 0)
+
+    item = owner.get("/api/quotation-uploads").json()["items"][0]
+    assert item["can_edit"] is False
+    assert item["can_delete"] is False
+    assert owner.patch(f"/api/quotation-uploads/{report['id']}", json={"note": "blocked"}).status_code == 403
+    assert owner.delete(f"/api/quotation-uploads/{report['id']}").status_code == 403
+
+
+def test_quotation_upload_global_scope_does_not_use_signed_report_permission(signed_env):
+    """Signed Report global permission alone cannot manage quotation uploads."""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    report = _upload(owner).json()
+    _set_user_permission("other", "signed-report-delete-all", 1)
+
+    item = other.get("/api/quotation-uploads").json()["items"][0]
+    assert item["can_edit"] is False
+    assert item["can_delete"] is False
+    assert other.patch(f"/api/quotation-uploads/{report['id']}", json={"note": "blocked"}).status_code == 403
+    assert other.delete(f"/api/quotation-uploads/{report['id']}").status_code == 403
 
 
 def test_delete_is_limited_to_owner_or_global_permission(signed_env):

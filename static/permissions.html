@@ -104,6 +104,23 @@
 .save-btns .btn-ghost:hover { background: #f5f7fa; }
 .save-btns .btn-ghost:disabled { opacity: .55; cursor: not-allowed; }
 
+/* Permission feature sub-tabs, filters, and pagination */
+.perm-subtabs { display:flex; gap:6px; margin:14px 0 12px; border-bottom:1px solid #eee; }
+.perm-subtab { padding:8px 14px; border:0; background:none; color:#666; cursor:pointer; border-bottom:2px solid transparent; font-size:13px; }
+.perm-subtab.active { color:#1890ff; border-bottom-color:#1890ff; font-weight:600; }
+.perm-toolbar { display:grid; gap:10px; margin-bottom:10px; }
+.perm-search-label { font-size:12px; color:#666; }
+.perm-search { width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid #d9d9d9; border-radius:7px; font-size:14px; }
+.perm-module-filter { display:flex; flex-wrap:wrap; gap:6px; }
+.perm-filter { border:1px solid #d9d9d9; background:#fff; color:#666; border-radius:16px; padding:6px 11px; font-size:12px; cursor:pointer; }
+.perm-filter.active { color:#1890ff; border-color:#1890ff; background:#e6f4ff; }
+.perm-list { display:grid; gap:8px; }
+.perm-empty { padding:24px 12px; text-align:center; color:#999; border:1px dashed #d9d9d9; border-radius:8px; }
+.perm-pagination { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:12px; color:#777; font-size:12px; }
+.perm-page-buttons { display:flex; align-items:center; gap:8px; }
+.perm-page-btn { border:1px solid #d9d9d9; background:#fff; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:12px; }
+.perm-page-btn:disabled { opacity:.45; cursor:not-allowed; }
+
 /* 帳號設定 tab */
 .account-card { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 14px; }
 .account-field { padding: 10px 12px; border: 1px solid #f0f0f0; border-radius: 8px; background: #fafafa; }
@@ -140,6 +157,10 @@
   .chip-bar { display: flex; }
   .perm-main { padding: 0 12px 12px; }
   .perm-grid { grid-template-columns: 1fr; }
+  .perm-pagination { align-items:stretch; flex-direction:column; }
+  .perm-page-buttons { justify-content:space-between; }
+  .perm-page-btn { min-height:36px; }
+  .perm-subtab { flex:1; padding-inline:6px; }
   /* 2026-08-15 變體 B：手機 topbar 只留「← + 帳號與權限」，麵包屑「庫存 ›」隱藏；內容區大標題隱藏（topbar 已顯示，避免重複） */
   .topbar { padding: 10px 14px; }
   .vb-crumb { margin-left: 10px; font-size: 15px; }

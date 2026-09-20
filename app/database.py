@@ -12,6 +12,7 @@ from app.services.app_log import get_logger
 logger = get_logger(__name__)
 
 from app.config import DB_PATH
+from app.models import PAGE_KEYS, initial_visible_page_keys
 
 
 def get_db():
@@ -226,6 +227,10 @@ def _exec_init(conn):
         updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, permission_id)
     );
+    CREATE TABLE IF NOT EXISTS rbac_migrations (
+        key         TEXT PRIMARY KEY,
+        applied_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     -- 稽核軌跡：operator/target 用 SET NULL——刪帳號不滅證（稽核 A1）
     CREATE TABLE IF NOT EXISTS user_audit_log (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -248,6 +253,14 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_appt_date_start ON appointments(date, start_time);
     CREATE INDEX IF NOT EXISTS idx_appt_svc ON appointments(service_type_id);
     CREATE INDEX IF NOT EXISTS idx_assignees_appt ON appointment_assignees(appointment_id);
+
+    -- Page visibility (2026-09-17)
+    CREATE TABLE IF NOT EXISTS user_page_visibility (
+        user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        page_key TEXT NOT NULL,
+        visible  INTEGER NOT NULL DEFAULT 1 CHECK (visible IN (0, 1)),
+        PRIMARY KEY (user_id, page_key)
+    );
     CREATE INDEX IF NOT EXISTS idx_assignees_user_appt ON appointment_assignees(user_id, appointment_id);
     -- 每日簽名報表（2026-09-06 簽名報表模組）
     CREATE TABLE IF NOT EXISTS daily_signed_reports (
@@ -580,7 +593,7 @@ def _exec_init(conn):
         ('kit-view',             '整組清單瀏覽',         'view'),
         ('prepared',             '待領出/已領出瀏覽',    'view'),
         ('export',               '匯出 Excel',           'view'),
-        ('item-mgmt',            '品項 新增/編輯/刪除',  'stock'),
+        ('item-mgmt',            '品項／報價單 CRUD + 單位快速新增',  'stock'),
         ('stock-mgmt',           '庫存位置/數量調整',    'stock'),
         ('batch-loc-mgmt',       '批量修改位置',         'stock'),
         ('import',               '匯入 JSON',            'stock'),
@@ -597,14 +610,29 @@ def _exec_init(conn):
         ('unit-mgmt',            '單位整理（停用/排序/收編）', 'stock'),
         ('user-mgmt',            '使用者管理',           'system'),
         ('change-own-password',  '自行改密碼',           'system'),
-        ('signed-report-delete-all', '簽名報表 全域刪除', 'calendar'),
-        ('petty-cash-delete-all', '零用金月報 全域刪除', 'calendar'),
-        ('petty-cash-view', '零用金月報 檢視', 'calendar'),
-        ('petty-cash-create', '零用金月報 新增', 'calendar'),
-        ('petty-cash-edit', '零用金月報 編輯', 'calendar'),
-        ('petty-cash-delete', '零用金月報 刪除本人', 'calendar'),
-        ('petty-cash-config', '零用金下拉選單管理', 'calendar');
+        ('signed-report-upload', '每日簽名日報表 上傳', 'reports'),
+        ('signed-report-edit', '簽名報表 編輯本人', 'reports'),
+        ('signed-report-delete', '簽名報表 刪除本人', 'reports'),
+        ('signed-report-delete-all', '簽名報表 全域管理範圍', 'reports'),
+        ('quotation-upload-manage', '報價單上傳 管理本人', 'reports'),
+        ('quotation-upload-manage-all', '報價單上傳 全域管理範圍', 'reports'),
+        ('petty-cash-delete-all', '零用金月報 全域刪除', 'reports'),
+        ('petty-cash-view', '零用金月報 檢視', 'reports'),
+        ('petty-cash-create', '零用金月報 新增', 'reports'),
+        ('petty-cash-edit', '零用金月報 編輯', 'reports'),
+        ('petty-cash-delete', '零用金月報 刪除本人', 'reports'),
+        ('petty-cash-config', '零用金下拉選單管理', 'reports'),
+        ('page-visibility-manage', '頁面可見性管理', 'system');
     """)
+    # Metadata taxonomy normalization is idempotent and preserves permission overrides.
+    conn.execute(
+        "UPDATE permissions SET module='reports' WHERE key IN ("
+        "'signed-report-upload', 'signed-report-edit', 'signed-report-delete', "
+        "'signed-report-delete-all', 'quotation-upload-manage', "
+        "'quotation-upload-manage-all', 'petty-cash-delete-all', 'petty-cash-view', "
+        "'petty-cash-create', 'petty-cash-edit', 'petty-cash-delete', 'petty-cash-config'"
+        ")"
+    )
     # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
     _RBAC_DEFAULT = {
         'view':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
@@ -628,14 +656,22 @@ def _exec_init(conn):
         'gcal-keys-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'change-own-password':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'change-own-password':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'signed-report-upload': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+        # Preserve the former owner edit/delete behavior for upload-capable roles.
+        'signed-report-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+        'signed-report-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
         'signed-report-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        # Quotation upload remains login-gated for upload; these keys cover owner/global mutations.
+        'quotation-upload-manage': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'quotation-upload-manage-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'petty-cash-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
         'petty-cash-create': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
         'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        'page-visibility-manage': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     }
     _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
     _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}
@@ -645,6 +681,51 @@ def _exec_init(conn):
             if _on:
                 _rows.append((_role_ids[_role], _perm_ids[_key]))
     conn.executemany("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)", _rows)
+
+    # One-time compatibility migration for accounts that existed before the split.
+    # New accounts created after this marker rely only on the role defaults above.
+    _migration_key = "signed_report_action_capabilities_v1"
+    _already_migrated = conn.execute(
+        "SELECT 1 FROM rbac_migrations WHERE key=?", (_migration_key,)
+    ).fetchone()
+    if _already_migrated is None:
+        _action_ids = {
+            _key: _perm_ids[_key]
+            for _key in ("signed-report-edit", "signed-report-delete")
+        }
+        for _user in conn.execute("SELECT id FROM users").fetchall():
+            # INSERT OR IGNORE preserves an already explicit new override (0 or 1).
+            conn.executemany(
+                "INSERT OR IGNORE INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, 1)",
+                [(_user["id"], _permission_id) for _permission_id in _action_ids.values()],
+            )
+        conn.execute(
+            "INSERT INTO rbac_migrations (key) VALUES (?)", (_migration_key,)
+        )
+
+    # One-time Quotation Upload decoupling: copy only explicit legacy global overrides.
+    _quotation_migration_key = "quotation_upload_permission_decoupling_v1"
+    _quotation_migrated = conn.execute(
+        "SELECT 1 FROM rbac_migrations WHERE key=?", (_quotation_migration_key,)
+    ).fetchone()
+    if _quotation_migrated is None:
+        _legacy_global_id = _perm_ids["signed-report-delete-all"]
+        _quotation_global_id = _perm_ids["quotation-upload-manage-all"]
+        for _user in conn.execute("SELECT id FROM users").fetchall():
+            _legacy_override = conn.execute(
+                "SELECT value FROM user_permissions WHERE user_id=? AND permission_id=?",
+                (_user["id"], _legacy_global_id),
+            ).fetchone()
+            if _legacy_override is not None:
+                # Preserve explicit legacy 0/1, but never overwrite a new override.
+                conn.execute(
+                    "INSERT OR IGNORE INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, ?)",
+                    (_user["id"], _quotation_global_id, _legacy_override["value"]),
+                )
+        conn.execute(
+            "INSERT INTO rbac_migrations (key) VALUES (?)", (_quotation_migration_key,)
+        )
+
     # ---------- GCal 同步設定預設值（2026-08-27）----------
     _GCAL_DEFAULTS = {
         "gcal_default_duration_min": "60",
@@ -654,4 +735,11 @@ def _exec_init(conn):
     }
     for _k, _v in _GCAL_DEFAULTS.items():
         conn.execute("INSERT OR IGNORE INTO gcal_sync_settings(key, value) VALUES(?, ?)", (_k, _v))
+    # Seed only missing rows: page controls are per-user and survive later role changes.
+    for _user in conn.execute("SELECT id, role FROM users").fetchall():
+        _visible = initial_visible_page_keys(_user["role"])
+        conn.executemany(
+            "INSERT OR IGNORE INTO user_page_visibility (user_id, page_key, visible) VALUES (?, ?, ?)",
+            [(_user["id"], _key, 1 if _key in _visible else 0) for _key in PAGE_KEYS],
+        )
     conn.commit()
