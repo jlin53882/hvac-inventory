@@ -490,7 +490,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 35
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 41
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:
