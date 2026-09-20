@@ -79,9 +79,11 @@ QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
 # 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
 QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation.js")
 QUOTATION_HISTORY_PAGINATION_JS = os.path.join(BASE_DIR, "tests", "quotation_history_pagination.test.js")
+QUOTATION_PERMISSION_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_permission_runtime.test.js")
 PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
 # 待測：零用金月報（2026-09-12）
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
+PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
 PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "style.petty-cash-reports.css")
@@ -378,6 +380,19 @@ def test_quotation_history_pagination_runtime():
     assert r.returncode == 0, f"quotation_history_pagination.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
+def test_quotation_mutations_gate_by_item_permission():
+    js = read(QUOTATION_RENDER_JS)
+    assert "function quoteCanManage()" in js
+    assert "hasPerm('item-mgmt')" in js
+    assert "var canManage = quoteCanManage();" in js
+    assert "quoteCanManage() ?" in js
+
+
+def test_quotation_mutation_permission_runtime():
+    r = subprocess.run(["node", QUOTATION_PERMISSION_RUNTIME_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, f"quotation_permission_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
 def test_pdf_preview_button_runtime():
     """PDF 手機預覽按鈕 runtime 回歸：node 實際執行兩支 showPreview，斷言 URL 真代入且點擊開對網址。
 
@@ -411,6 +426,11 @@ def test_signed_reports_accept_no_docx():
     assert 'PDF / PNG / JPG' in js or 'PDF' in js
 
 
+def test_petty_cash_capability_runtime():
+    r = subprocess.run(["node", PETTY_CASH_CAPABILITY_RUNTIME_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, f"petty_cash_capability_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
 def test_petty_cash_frontend_contract():
     """零用金月報前端掛載 contract（2026-09-12）：sidebar/腳本/分派/篩選/匯出齊全，
     與簽名日報表獨立（不可殘留呼叫 signed-reports API）。"""
@@ -439,6 +459,8 @@ def test_petty_cash_frontend_contract():
     assert 'ui-kpi-card' in js and 'ui-kpi-value' in js
     assert 'pcOpenDetail(${r.id})' in js
     assert 'function pcMobileOpsHtml' in js
+    assert 'function pcReportActionEntries' in js
+    assert 'if (r.can_edit)' in js and 'if (r.can_delete)' in js
     assert 'function pcReportCardHtml' in js
     assert 'pc-report-type--general' in js
     assert '本期餘額' in js

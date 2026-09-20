@@ -98,6 +98,21 @@ def _create(client, body):
     return r.json()
 
 
+def _remove_role_permissions(username, keys):
+    conn = app_db.get_db()
+    try:
+        user = conn.execute("SELECT role FROM users WHERE username=?", (username,)).fetchone()
+        placeholders = ",".join("?" for _ in keys)
+        conn.execute(
+            f"DELETE FROM role_permissions WHERE role_id=(SELECT id FROM roles WHERE name=?) "
+            f"AND permission_id IN (SELECT id FROM permissions WHERE key IN ({placeholders}))",
+            (user["role"], *keys),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # ---------- 建立 / 計算 ----------
 
 def test_create_computes_totals(pc_env):
@@ -503,3 +518,29 @@ def test_daily_signed_reports_still_work(pc_env, tmp_path, monkeypatch):
     )
     assert r.status_code == 200, r.text
     assert c.get("/api/signed-reports").json()["total"] == 1
+
+
+def test_capabilities_match_permissions_and_scope(pc_env):
+    client = pc_env("user")
+    report = _create(client, _scenario_a())
+    report_id = report["id"]
+
+    listed = client.get("/api/petty-cash-reports").json()["items"]
+    summary = next(item for item in listed if item["id"] == report_id)
+    assert summary["can_edit"] is True
+    assert summary["can_delete"] is True
+    detail = client.get(f"/api/petty-cash-reports/{report_id}").json()
+    assert detail["can_edit"] is True
+    assert detail["can_delete"] is True
+
+    _remove_role_permissions("user", ["petty-cash-edit"])
+    after_edit_off = client.get(f"/api/petty-cash-reports/{report_id}").json()
+    assert after_edit_off["can_edit"] is False
+    assert after_edit_off["can_delete"] is True
+    assert client.put(f"/api/petty-cash-reports/{report_id}", json=_scenario_a()).status_code == 403
+
+    _remove_role_permissions("user", ["petty-cash-delete", "petty-cash-delete-all"])
+    after_delete_off = client.get(f"/api/petty-cash-reports/{report_id}").json()
+    assert after_delete_off["can_edit"] is False
+    assert after_delete_off["can_delete"] is False
+    assert client.delete(f"/api/petty-cash-reports/{report_id}").status_code == 403
