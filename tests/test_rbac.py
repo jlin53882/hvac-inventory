@@ -41,6 +41,7 @@ EXPECTED_MATRIX = {
     'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'change-own-password':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'signed-report-upload': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
     'signed-report-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
@@ -62,7 +63,7 @@ def test_seed_roles_permissions(rbac_db):
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 30
+        assert len(perms) == 31
     finally:
         conn.close()
 
@@ -111,6 +112,7 @@ def test_seed_labels_and_modules(rbac_db):
         'unit-mgmt': ('單位整理（停用/排序/收編）', 'stock'),
         'user-mgmt': ('使用者管理', 'system'),
         'change-own-password': ('自行改密碼', 'system'),
+        'signed-report-upload': ('每日簽名日報表 上傳', 'calendar'),
         'signed-report-delete-all': ('簽名報表 全域刪除', 'calendar'),
         'petty-cash-delete-all': ('零用金月報 全域刪除', 'calendar'),
         'petty-cash-view': ('零用金月報 檢視', 'calendar'),
@@ -167,7 +169,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 30
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 31
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:

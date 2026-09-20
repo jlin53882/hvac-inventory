@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
 from app.database import get_db
-from app.services.auth import require_login
+from app.services.auth import require_login, require_perm
 from app.services.safety import has_perm, safe_download_name
 from app.services.file_storage import asset_variant_path, cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, safe_upload_path, store_asset
 from app.models import SignedReportUpdate
@@ -76,7 +76,7 @@ def upload_signed_report(
     uploader_name: str = Form(...),
     note: str = Form(""),
     file: UploadFile = File(...),
-    user: dict = Depends(require_login),  # 實際由 main.py require_login 注入，此處僅取 user
+    user: dict = Depends(require_perm("signed-report-upload")),
 ):
     """上傳每日簽名報表（multipart），支援任意格式，單檔上限 20MB。"""
     if user is None:

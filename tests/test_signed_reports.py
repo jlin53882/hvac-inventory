@@ -59,6 +59,46 @@ def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b
     )
 
 
+@pytest.mark.parametrize("role", ["admin", "user", "tech"])
+def test_upload_allowed_for_default_upload_roles(signed_env, role):
+    """signed-report-upload defaults allow admin/user/tech to upload."""
+    make_client, _ = signed_env
+    client = make_client(f"{role}-uploader", role) if role != "admin" else make_client()
+    response = _upload(client)
+    assert response.status_code == 200, response.text
+
+
+def test_viewer_can_view_but_cannot_upload(signed_env):
+    """Viewer keeps report viewing access but upload is denied by backend RBAC."""
+    make_client, _ = signed_env
+    viewer = make_client("viewer-uploader", "viewer")
+    assert viewer.get("/api/signed-reports").status_code == 200
+    response = _upload(viewer)
+    assert response.status_code == 403
+
+
+def test_signed_report_upload_override_is_effective(signed_env):
+    """Individual signed-report-upload overrides affect the upload endpoint."""
+    make_client, _ = signed_env
+    viewer = make_client("viewer-override", "viewer")
+    conn = app_db.get_db()
+    try:
+        permission_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='signed-report-upload'"
+        ).fetchone()["id"]
+        user_id = conn.execute(
+            "SELECT id FROM users WHERE username='viewer-override'"
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, 1)",
+            (user_id, permission_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert _upload(viewer).status_code == 200
+
+
 def test_upload_list_preview_and_safe_storage(signed_env):
     """上傳後可查詢/預覽，原始檔名不會成為實際路徑控制字元。"""
     make_client, static_dir = signed_env

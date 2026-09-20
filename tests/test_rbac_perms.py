@@ -18,7 +18,7 @@ EXPECTED_ROLES = ('admin', 'user', 'tech', 'viewer')
 EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt', 'stock-mgmt', 'batch-loc-mgmt',
                  'import', 'stockout', 'stocktake', 'kit-mgmt', 'photo', 'cal-mgmt',
                  'svc-type-mgmt', 'gcal-sync-manage', 'gcal-sync-force', 'gcal-sync-team-view', 'gcal-keys-manage',
-                 'unit-mgmt', 'user-mgmt', 'change-own-password', 'signed-report-delete-all',
+                 'unit-mgmt', 'user-mgmt', 'change-own-password', 'signed-report-upload', 'signed-report-delete-all',
                  'petty-cash-delete-all', 'petty-cash-view', 'petty-cash-create', 'petty-cash-edit',
                  'petty-cash-delete', 'petty-cash-config', 'page-visibility-manage')
 
@@ -208,7 +208,7 @@ def test_list_permissions_endpoint(admin_client):
     r = admin_client.get("/api/users/permissions")
     assert r.status_code == 200
     data = r.json()
-    assert len(data["permissions"]) == 30
+    assert len(data["permissions"]) == 31
     assert set(data["role_defaults"].keys()) == set(EXPECTED_ROLES)
     assert "cal-mgmt" in data["role_defaults"]["tech"]
 
