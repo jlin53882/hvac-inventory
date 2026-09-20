@@ -941,6 +941,25 @@ def test_permissions_html_loads_perms_js():
     assert "perms.js?v=" not in html  # 版本號由後端自動注入
 
 
+def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
+    """Permission inventory is DB-driven, paginated, searchable, and page visibility is separate."""
+    js = read(PERMS_JS)
+    html = read(PERMISSIONS_HTML)
+    assert 'permissionDetail.permissions' in js
+    assert 'PERMISSIONS_PAGE_SIZE = 10' in js
+    assert 'permSearch' in js and 'permFilter' in js and 'permPage' in js
+    assert 'permSubTab' in js and 'page-visibility-group' in js
+    assert 'perm-pagination' in js and 'perm-page-btn' in html
+
+
+def test_signed_report_upload_is_permission_gated():
+    """Signed report page hides upload surface without changing report viewing."""
+    js = read(SIGNED_REPORTS_RENDER_JS)
+    assert "signed-report-upload" in js
+    assert "data-signed-upload" in js
+    assert "node.hidden = !canUpload" in js
+
+
 def test_perms_js_has_roles_and_groups():
     """權限頁：四角色 label + 權限分組常數"""
     js = read(PERMS_JS)

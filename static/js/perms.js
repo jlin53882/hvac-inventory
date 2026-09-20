@@ -32,6 +32,12 @@
   let permChanges = {};     // 未儲存開關變更 {key: 0|1}
   let pageChanges = {};     // 未儲存頁面顯示變更 {page_key: 0|1}
   let addMode = 'single';
+  let permissionDetail = null;
+  let permissionView = 'features';
+  let permissionPage = 1;
+  let permissionSearch = '';
+  let permissionModule = 'all';
+  const PERMISSIONS_PAGE_SIZE = 10;
 
   // ---------- fetch 封裝 ----------
   async function apiGet(url) {
@@ -142,52 +148,28 @@
 
   // ---------- 權限設定 tab ----------
   function renderPerms(detail) {
+    permissionDetail = detail;
+    permissionPage = 1;
+    permissionSearch = '';
+    permissionModule = 'all';
+    permissionView = 'features';
+    renderPermissionShell();
+  }
+
+  function renderPermissionShell() {
+    const detail = permissionDetail;
+    if (!detail) return;
     const el = document.getElementById('tab-perms');
     const isMe = me.id === curUid;
-    const byModule = {};
-    for (const p of detail.permissions) {
-      (byModule[p.module] = byModule[p.module] || []).push(p);
-    }
-    let html = '';
-    if (isMe) {
-      html += `<div class="warn-box">⚠️ 不能修改自己的權限（系統保護）——你的權限由另一位管理員管理。</div>`;
-    }
-    for (const mod of Object.keys(byModule)) {
-      html += `<div class="perm-group">
-        <div class="perm-group-title">${GROUP_LABELS[mod] || mod}</div>
-        <div class="perm-grid">`;
-      for (const p of byModule[mod]) {
-        const locked = p.source === 'locked';
-        const srcLabel = locked ? '🔒 鎖定' : (p.source === 'override' ? '✏️ 自訂' : '✓ 跟隨角色');
-        const srcCls = p.source;
-        const disabled = locked || isMe;
-        const checked = p.allowed ? 'checked' : '';
-        html += `<div class="perm-row ${locked ? 'locked' : ''}">
-          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${srcCls}">${srcLabel}</span></small></div>
-          <label class="switch">
-            <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} onchange="window.permToggle('${esc(p.key)}', this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>`;
-      }
-      html += `</div></div>`;
-    }
-    const pageInfo = detail.page_visibility || { all_pages: [], visible_pages: [] };
-    const visiblePages = pageInfo.visible_pages || [];
-    html += `<div class="perm-group page-visibility-group">
-      <div class="perm-group-title">🖥 頁面顯示（每頁獨立設定）</div>
-      <div class="perm-grid">`;
-    for (const key of pageInfo.all_pages || []) {
-      const checked = visiblePages.includes(key) ? 'checked' : '';
-      html += `<div class="perm-row">
-        <div class="perm-label">${esc(PAGE_LABELS[key] || key)}<small>${esc(key)}</small></div>
-        <label class="switch">
-          <input type="checkbox" data-page-key="${esc(key)}" ${checked} ${isMe ? 'disabled' : ''} onchange="window.permPageToggle('${esc(key)}', this.checked)">
-          <span class="slider"></span>
-        </label>
-      </div>`;
-    }
-    html += `</div></div>`;
+    const featureActive = permissionView === 'features' ? 'active' : '';
+    const pageActive = permissionView === 'pages' ? 'active' : '';
+    let html = isMe
+      ? '<div class="warn-box">⚠️ 不能修改自己的權限（系統保護）——你的權限由另一位管理員管理。</div>'
+      : '';
+    html += `<div class="perm-subtabs" role="tablist">
+      <button class="perm-subtab ${esc(featureActive)}" onclick="window.permSubTab('features')">🔐 功能權限</button>
+      <button class="perm-subtab ${esc(pageActive)}" onclick="window.permSubTab('pages')">🖥 頁面顯示</button>
+    </div><div id="permission-view"></div>`;
     const pendingCount = Object.keys(permChanges).length + Object.keys(pageChanges).length;
     html += `<div class="save-bar">
       <div class="save-bar-inner">
@@ -199,8 +181,103 @@
       </div>
     </div>`;
     el.innerHTML = html;
+    renderPermissionView();
     if (pendingCount) document.getElementById('saveHint')?.classList.add('changed');
   }
+
+  function renderPermissionView() {
+    const host = document.getElementById('permission-view');
+    if (!host || !permissionDetail) return;
+    if (permissionView === 'pages') {
+      renderPageVisibilityView(host);
+      return;
+    }
+    const permissions = permissionDetail.permissions || [];
+    const modules = [...new Set(permissions.map(p => p.module))];
+    const query = permissionSearch.trim().toLowerCase();
+    const filtered = permissions.filter(p => {
+      const matchesModule = permissionModule === 'all' || p.module === permissionModule;
+      const haystack = `${p.label} ${p.key}`.toLowerCase();
+      return matchesModule && (!query || haystack.includes(query));
+    });
+    const pageCount = Math.max(1, Math.ceil(filtered.length / PERMISSIONS_PAGE_SIZE));
+    permissionPage = Math.min(Math.max(1, permissionPage), pageCount);
+    const start = (permissionPage - 1) * PERMISSIONS_PAGE_SIZE;
+    const visible = filtered.slice(start, start + PERMISSIONS_PAGE_SIZE);
+    let html = `<div class="perm-toolbar">
+      <label class="perm-search-label" for="permission-search">搜尋權限名稱或 key</label>
+      <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" oninput="window.permSearch(this.value)">
+      <div class="perm-module-filter" role="group" aria-label="權限分類">
+        <button class="perm-filter ${esc(permissionModule === 'all' ? 'active' : '')}" onclick="window.permFilter('all')">全部</button>
+        ${modules.map(mod => `<button class="perm-filter ${esc(permissionModule === mod ? 'active' : '')}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
+      </div>
+    </div>`;
+    if (!visible.length) {
+      html += '<div class="perm-empty">沒有符合條件的權限</div>';
+    } else {
+      html += '<div class="perm-list">';
+      for (const p of visible) {
+        const locked = p.source === 'locked';
+        const srcLabel = locked ? '🔒 鎖定' : (p.source === 'override' ? '✏️ 自訂' : '✓ 跟隨角色');
+        const checkedValue = Object.prototype.hasOwnProperty.call(permChanges, p.key) ? permChanges[p.key] : p.allowed;
+        const checked = checkedValue ? 'checked' : '';
+        const disabled = locked || isMe;
+        html += `<div class="perm-row ${locked ? 'locked' : ''}">
+          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${esc(p.source)}">${srcLabel}</span></small></div>
+          <label class="switch">
+            <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} onchange="window.permToggle('${jsStr(p.key)}', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>`;
+      }
+      html += '</div>';
+    }
+    const from = filtered.length ? start + 1 : 0;
+    const to = Math.min(start + PERMISSIONS_PAGE_SIZE, filtered.length);
+    html += `<div class="perm-pagination">
+      <span>顯示 ${esc(from)}–${esc(to)} / 共 ${esc(filtered.length)} 項</span>
+      <div class="perm-page-buttons">
+        <button class="perm-page-btn" onclick="window.permPage(-1)" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
+        <span>第 ${esc(permissionPage)} / ${esc(pageCount)} 頁</span>
+        <button class="perm-page-btn" onclick="window.permPage(1)" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
+      </div>
+    </div>`;
+    host.innerHTML = html;
+  }
+
+  function renderPageVisibilityView(host) {
+    const pageInfo = permissionDetail.page_visibility || { all_pages: [], visible_pages: [] };
+    const visiblePages = pageInfo.visible_pages || [];
+    const isMe = me.id === curUid;
+    let html = '<div class="perm-group page-visibility-group"><div class="perm-group-title">🖥 頁面顯示（每頁獨立設定）</div><div class="perm-grid">';
+    for (const key of pageInfo.all_pages || []) {
+      const checkedValue = Object.prototype.hasOwnProperty.call(pageChanges, key) ? pageChanges[key] : visiblePages.includes(key);
+      html += `<div class="perm-row">
+        <div class="perm-label">${esc(PAGE_LABELS[key] || key)}<small>${esc(key)}</small></div>
+        <label class="switch"><input type="checkbox" data-page-key="${esc(key)}" ${esc(checkedValue ? 'checked' : '')} ${isMe ? 'disabled' : ''} onchange="window.permPageToggle('${jsStr(key)}', this.checked)"><span class="slider"></span></label>
+      </div>`;
+    }
+    host.innerHTML = html + '</div></div>';
+  }
+
+  window.permSubTab = function permSubTab(view) {
+    permissionView = view === 'pages' ? 'pages' : 'features';
+    renderPermissionShell();
+  };
+  window.permSearch = function permSearch(value) {
+    permissionSearch = value;
+    permissionPage = 1;
+    renderPermissionView();
+  };
+  window.permFilter = function permFilter(module) {
+    permissionModule = module;
+    permissionPage = 1;
+    renderPermissionView();
+  };
+  window.permPage = function permPage(delta) {
+    permissionPage += delta;
+    renderPermissionView();
+  };
 
   window.permToggle = function permToggle(key, checked) {
     permChanges[key] = checked ? 1 : 0;

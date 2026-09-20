@@ -31,13 +31,13 @@ async function renderSignedReports() {
         </div>
         <div class="dsr-page-actions">
           <button class="dsr-btn dsr-btn--ghost" onclick="document.getElementById('dsr-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
-          <button class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳每日簽名日報表</button>
+          <button hidden data-signed-upload class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳每日簽名日報表</button>
         </div>
       </div>
 
       <div class="dsr-layout">
         <!-- 左：上傳區 -->
-        <section class="dsr-card" aria-labelledby="dsr-upload-title">
+        <section hidden data-signed-upload class="dsr-card" aria-labelledby="dsr-upload-title">
           <div class="dsr-card__hd">
             <h2 id="dsr-upload-title">⬆️ 上傳每日簽名日報表</h2>
             <p>支援 PDF / 圖片格式 · 單檔 ≤ 20MB · 自動記錄上傳時間</p>
@@ -184,7 +184,9 @@ async function renderSignedReports() {
   // 帶入登入者姓名
   try {
     const me = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);
-    if (me && me.user && me.user.display_name) document.getElementById('dsr-uploader').value = me.user.display_name;
+    const canUpload = !!(me && me.user && me.user.permissions && me.user.permissions['signed-report-upload']);
+    document.querySelectorAll('[data-signed-upload]').forEach(node => { node.hidden = !canUpload; });
+    if (canUpload && me.user.display_name) document.getElementById('dsr-uploader').value = me.user.display_name;
   } catch(e) {}
 
   // 預設日期範圍 = 本月
