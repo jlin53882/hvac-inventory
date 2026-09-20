@@ -327,11 +327,27 @@ async function wprEditReport(id) {
       <div class="wpr-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-edit-title">
         <div class="wpr-edit-header"><h3 id="wpr-edit-title">✏️ 編輯工作進度回報</h3><button type="button" class="wpr-edit-close" data-wpr-edit-close aria-label="關閉">✕</button></div>
         <div class="wpr-edit-body">
-          <label for="wpr-edit-uploader">回報人顯示名稱</label>
-          <input id="wpr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}">
-          <label for="wpr-edit-note">工作進度備註</label>
-          <textarea id="wpr-edit-note" maxlength="1000" rows="6">${esc(report.note || '')}</textarea>
-          <div class="wpr-edit-hint">只修改歷史顯示內容，不會變更原始建立帳號與 ownership。</div>
+          <section class="wpr-edit-readonly-section" aria-labelledby="wpr-edit-calendar-title">
+            <h4 id="wpr-edit-calendar-title">行事曆資料</h4>
+            <div class="wpr-edit-readonly-grid">
+              <div class="wpr-edit-readonly-row"><span>工作日期</span><strong>${esc(report.report_date || '—')}</strong></div>
+              <div class="wpr-edit-readonly-row"><span>時間</span><strong>${esc(wprTimeText(report))}</strong></div>
+              <div class="wpr-edit-readonly-row"><span>客戶 / 案場</span><strong>${esc(report.client_name || '—')}</strong></div>
+              <div class="wpr-edit-readonly-row"><span>地址</span><strong>${esc(report.address || '—')}</strong></div>
+              <div class="wpr-edit-readonly-row"><span>指定服務</span><strong>${esc(report.service_name || '未指定服務')}</strong></div>
+              <div class="wpr-edit-readonly-row"><span>行事曆原始備註</span><strong>${esc(report.appointment_note || '無備註')}</strong></div>
+            </div>
+            <p class="wpr-edit-source-hint">以上內容來源自行事曆，如需修改請至行事曆調整；更新後會自動同步至工作進度回報。</p>
+          </section>
+          <section class="wpr-edit-form-section" aria-labelledby="wpr-edit-progress-title">
+            <h4 id="wpr-edit-progress-title">工作進度資料</h4>
+            <label for="wpr-edit-uploader">回報人顯示名稱</label>
+            <input id="wpr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}">
+            <div class="wpr-edit-creator">建立帳號：${esc(wprCreatedByText(report))}</div>
+            <div class="wpr-edit-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div>
+            <label for="wpr-edit-note">工作進度備註</label>
+            <textarea id="wpr-edit-note" maxlength="1000" rows="6">${esc(report.note || '')}</textarea>
+          </section>
         </div>
         <div class="wpr-edit-footer"><button type="button" class="wpr-edit-secondary" data-wpr-edit-close>取消</button><button type="button" class="wpr-edit-primary" data-wpr-edit-save>儲存</button></div>
       </div>`;

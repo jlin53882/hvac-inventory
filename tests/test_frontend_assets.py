@@ -4959,6 +4959,32 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
     assert "不會變更原始建立帳號與 ownership" in js
 
 
+def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    edit_block = js.split("async function wprEditReport(id)", 1)[1].split(
+        "async function wprDeletePhoto", 1
+    )[0]
+    assert "wpr-edit-readonly-section" in edit_block
+    for label in ("工作日期", "時間", "客戶 / 案場", "地址", "指定服務", "行事曆原始備註"):
+        assert label in edit_block
+    assert "來源自行事曆，如需修改請至行事曆調整" in edit_block
+    assert "report.report_date" in edit_block
+    assert "report.client_name" in edit_block
+    assert "report.address" in edit_block
+    assert "report.service_name" in edit_block
+    assert "report.appointment_note" in edit_block
+    assert edit_block.count('id="wpr-edit-uploader"') == 1
+    assert edit_block.count('id="wpr-edit-note"') == 1
+    assert "uploader_user_id" not in edit_block
+    assert "created_by_username" not in edit_block
+    assert "created_by_display_name" not in edit_block
+    assert ".wpr-edit-readonly-section" in css
+    assert ".wpr-edit-source-hint" in css
+    assert "max-height: calc(100vh - 20px)" in css
+    assert "min-height: 0" in css
+
+
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     """工作進度前端鎖定 report identity、分頁、Object URL lifecycle 與 loader freshness。"""
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))

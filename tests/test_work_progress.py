@@ -222,6 +222,41 @@ def test_report_attribution_includes_created_by_for_list_and_detail(wpr_env):
     assert updated.json()["created_by_display_name"] == "Owner"
 
 
+def test_patch_ignores_calendar_and_owner_fields(wpr_env):
+    make_client, users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner, date="2026-09-20", note="原始行事曆備註")
+    report = _create(owner, appointment["id"], note="原始進度").json()
+
+    response = owner.patch(
+        f"/api/work-progress/{report['id']}",
+        json={
+            "uploader_name": "現場王先生",
+            "note": "已完成配管",
+            "report_date": "2030-01-01",
+            "start_time": "00:00",
+            "end_time": "23:59",
+            "client_name": "假客戶",
+            "address": "假地址",
+            "service_name": "假服務",
+            "appointment_note": "假備註",
+            "uploader_user_id": 999999,
+        },
+    )
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["report_date"] == "2026-09-20"
+    assert updated["start_time"] == report["start_time"]
+    assert updated["end_time"] == report["end_time"]
+    assert updated["client_name"] == report["client_name"]
+    assert updated["address"] == report["address"]
+    assert updated["service_name"] == report["service_name"]
+    assert updated["appointment_note"] == "原始行事曆備註"
+    assert updated["uploader_user_id"] == users["owner"]
+    assert updated["uploader_name"] == "現場王先生"
+    assert updated["note"] == "已完成配管"
+
+
 def test_owner_edit_and_photo_lifecycle_non_owner_forbidden(wpr_env):
     make_client, _users, _static, uploads = wpr_env
     owner = make_client("owner")
