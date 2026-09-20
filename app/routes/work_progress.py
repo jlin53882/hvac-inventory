@@ -356,11 +356,17 @@ def get_work_progress(report_id: int, user: dict = Depends(require_db_perm("work
 @router.post("", status_code=201)
 def create_work_progress(
     appointment_id: int = Form(...),
+    uploader_name: str | None = Form(None),
     note: str = Form(""),
     files: list[UploadFile] | None = File(None),
     user: dict = Depends(require_db_perm("work-progress-create")),
 ):
     """Create one appointment-bound report and atomically stage its required photos."""
+    uploader_name = _validate_uploader_name(
+        user.get("display_name") or user.get("username") or ""
+        if uploader_name is None
+        else uploader_name
+    )
     note = _validate_note(note)
     uploads = _read_image_uploads(files)
     conn = get_db()
@@ -385,8 +391,7 @@ def create_work_progress(
                     start_time_snapshot, end_time_snapshot, appointment_note_snapshot)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    appointment_id, report_date, user["id"],
-                    user.get("display_name") or user.get("username") or "",
+                    appointment_id, report_date, user["id"], uploader_name,
                     note, appointment["client_name"], appointment["address"] or "",
                     appointment["service_name"] or "", appointment["start_time"] or "",
                     appointment["end_time"] or "", appointment["note"] or "",

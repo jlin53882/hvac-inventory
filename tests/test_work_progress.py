@@ -73,10 +73,13 @@ def _appointment(client, *, date="2026-09-18", note="行事曆原備註", assign
     return response.json()
 
 
-def _create(client, appointment_id, *, filename="site.png", data=None, note="完成室內機"):
+def _create(client, appointment_id, *, filename="site.png", data=None, note="完成室內機", uploader_name=None):
+    form_data = {"appointment_id": str(appointment_id), "note": note}
+    if uploader_name is not None:
+        form_data["uploader_name"] = uploader_name
     return client.post(
         "/api/work-progress",
-        data={"appointment_id": str(appointment_id), "note": note},
+        data=form_data,
         files={"files": (filename, data if data is not None else _png(), "image/png")},
     )
 
@@ -220,6 +223,40 @@ def test_report_attribution_includes_created_by_for_list_and_detail(wpr_env):
     assert updated.json()["uploader_user_id"] == users["owner"]
     assert updated.json()["created_by_username"] == "owner"
     assert updated.json()["created_by_display_name"] == "Owner"
+
+
+def test_create_uploader_name_contract_and_ownership_protection(wpr_env):
+    make_client, users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner)
+
+    custom = _create(owner, appointment["id"], uploader_name="現場王先生").json()
+    assert custom["uploader_name"] == "現場王先生"
+    assert custom["uploader_user_id"] == users["owner"]
+    assert custom["created_by_username"] == "owner"
+
+    second_appointment = _appointment(owner, date="2026-09-19")
+    fallback = _create(owner, second_appointment["id"])
+    assert fallback.status_code == 201
+    assert fallback.json()["uploader_name"] == "Owner"
+
+    third_appointment = _appointment(owner, date="2026-09-20")
+    assert _create(owner, third_appointment["id"], uploader_name="   ").status_code == 400
+    fourth_appointment = _appointment(owner, date="2026-09-21")
+    assert _create(owner, fourth_appointment["id"], uploader_name="x" * 51).status_code == 400
+
+    fifth_appointment = _appointment(owner, date="2026-09-22")
+    spoofed = owner.post(
+        "/api/work-progress",
+        data={
+            "appointment_id": str(fifth_appointment["id"]),
+            "uploader_name": "現場王先生",
+            "uploader_user_id": "999999",
+        },
+        files={"files": ("spoofed.png", _png(), "image/png")},
+    )
+    assert spoofed.status_code == 201
+    assert spoofed.json()["uploader_user_id"] == users["owner"]
 
 
 def test_patch_ignores_calendar_and_owner_fields(wpr_env):

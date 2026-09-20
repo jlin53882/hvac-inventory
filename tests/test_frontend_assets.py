@@ -5023,6 +5023,28 @@ def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
     assert "min-height: 0" in css
 
 
+def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_readonly_contract():
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
+    submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
+    select_block = js.split("async function wprSelectJob(id)", 1)[1].split("function wprUpdateNoteCount", 1)[0]
+    assert 'id="wpr-uploader"' in render_block
+    assert 'type="text"' in render_block
+    assert 'maxlength="50"' in render_block
+    assert 'id="wpr-current-user-name"' not in render_block
+    assert "wprCurrentUserName()" in render_block
+    assert "建立帳號：" in render_block
+    assert "uploaderName = uploader ? uploader.value.trim()" in submit_block
+    assert "form.append('uploader_name', uploaderName)" in submit_block
+    assert "wprCalendarReadonlyHtml" in select_block
+    assert "工作日期" in js and "時間" in js and "客戶 / 案場" in js
+    assert "地址" in js and "指定服務" in js and "行事曆原始備註" in js
+    assert "來源自行事曆，如需修改請至行事曆調整" in js
+    assert ".wpr-create-calendar-grid" in css
+    assert ".wpr-create-progress-section" in css
+
+
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     """工作進度前端鎖定 report identity、分頁、Object URL lifecycle 與 loader freshness。"""
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))

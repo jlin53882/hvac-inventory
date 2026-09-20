@@ -154,7 +154,10 @@ function wprRenderCreate() {
   }
   create.innerHTML = `
     <div class="wpr-section-heading"><div><h2>建立工作進度</h2><p>選擇行事曆工作後填寫現場回報。</p></div></div>
-    <div class="wpr-field"><label>回報人</label><div class="wpr-readonly" id="wpr-current-user-name"></div></div>
+    <section class="wpr-create-progress-section" aria-labelledby="wpr-create-progress-title">
+      <h3 id="wpr-create-progress-title">工作進度資料</h3>
+      <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱 <b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
+    </section>
     <div class="wpr-field"><label for="wpr-date">工作日期 <b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" onchange="wprLoadDay()"></div>
     <div class="wpr-field"><label>選擇工作內容 <b>*</b></label><div id="wpr-job-list" class="wpr-job-list"></div></div>
     <div id="wpr-selected-area" hidden></div>
@@ -168,8 +171,11 @@ function wprRenderCreate() {
       <div id="wpr-pending-photos" class="wpr-photo-grid"></div>
     </div>
     <button id="wpr-save" type="button" class="wpr-save-button" disabled onclick="wprSubmit()">儲存工作進度回報</button>`;
-  var currentUserName = document.getElementById('wpr-current-user-name');
-  if (currentUserName) currentUserName.textContent = wprCurrentUserName();
+  var uploaderInput = document.getElementById('wpr-uploader');
+  var creatorIdentity = document.getElementById('wpr-create-creator');
+  var currentUserName = wprCurrentUserName();
+  if (uploaderInput) uploaderInput.value = currentUserName;
+  if (creatorIdentity) creatorIdentity.textContent = '建立帳號：' + currentUserName;
   wprBindDropZone();
   wprUpdateNoteCount();
   wprRenderPendingPhotos();
@@ -215,6 +221,16 @@ function wprRenderJobs() {
   }).join('');
 }
 /**
+ * Render the appointment-owned fields as a read-only create summary.
+ * @param {Object} job - Selected calendar appointment.
+ * @param {string} dateValue - Selected work date.
+ * @returns {string} Escaped read-only calendar markup.
+ */
+function wprCalendarReadonlyHtml(job, dateValue) {
+  return '<section class="wpr-create-calendar-section" aria-labelledby="wpr-create-calendar-title"><h3 id="wpr-create-calendar-title">行事曆資料</h3><div class="wpr-create-calendar-grid"><div><span>工作日期</span><strong>' + esc(dateValue || '—') + '</strong></div><div><span>時間</span><strong>' + wprTimeText(job) + '</strong></div><div><span>客戶 / 案場</span><strong>' + esc(job.client_name || '—') + '</strong></div><div><span>地址</span><strong>' + esc(job.address || '—') + '</strong></div><div><span>指定服務</span><strong>' + esc(job.service_name || '未指定服務') + '</strong></div><div><span>行事曆原始備註</span><strong>' + esc(job.note || '無備註') + '</strong></div></div><p class="wpr-create-source-hint">以上內容來源自行事曆，如需修改請至行事曆調整。</p></section>';
+}
+
+/**
  * Select an appointment and render its snapshot or existing report summary.
  * @param {number} id - Function input.
  * @returns {void} Function result.
@@ -242,11 +258,11 @@ async function wprSelectJob(id) {
   var save = document.getElementById('wpr-save');
   if (existing) {
     area.hidden = false;
-    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong><span>' + esc(existing.note || '尚未填寫備註') + '</span><button type="button" onclick="wprOpenHistoryDetail(' + existing.id + ')">查看工作進度</button></div><div class="wpr-calendar-note"><label>行事曆備註（只讀）</label><div>' + esc(job.note || '無備註') + '</div></div>';
+    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong><span>' + esc(existing.note || '尚未填寫備註') + '</span><button type="button" onclick="wprOpenHistoryDetail(' + existing.id + ')">查看工作進度</button></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
     save.disabled = true;
   } else {
     area.hidden = false;
-    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 已選工作</strong><b>' + esc(job.service_name || '未指定服務') + ' · ' + esc(job.client_name || '') + '</b><span>' + esc(document.getElementById('wpr-date').value) + ' · ' + wprTimeText(job) + '</span>' + (job.address ? '<span>📍 ' + esc(job.address) + '</span>' : '') + '</div><div class="wpr-calendar-note"><label>行事曆備註（只讀）</label><div>' + esc(job.note || '無備註') + '</div></div>';
+    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 已選工作</strong></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
     save.disabled = wprSelectedFiles.length === 0;
   }
 }
@@ -324,8 +340,12 @@ function wprRemovePending(index) {
 async function wprSubmit() {
   if (!wprCanCreate()) { toast('沒有新增工作進度回報的權限', 'error'); return; }
   if (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprSelectedFiles.length) return;
+  var uploader = document.getElementById('wpr-uploader');
+  var uploaderName = uploader ? uploader.value.trim() : '';
+  if (!uploaderName) { toast('請填寫回報人顯示名稱', 'error'); return; }
+  if (uploaderName.length > 50) { toast('回報人顯示名稱最多 50 字', 'error'); return; }
   var button = document.getElementById('wpr-save'); button.disabled = true;
-  var form = new FormData(); form.append('appointment_id', wprCurrentReport.appointment_id); form.append('note', (document.getElementById('wpr-note').value || '').trim());
+  var form = new FormData(); form.append('appointment_id', wprCurrentReport.appointment_id); form.append('uploader_name', uploaderName); form.append('note', (document.getElementById('wpr-note').value || '').trim());
   wprSelectedFiles.forEach(function(item) { form.append('files', item.file, item.file.name); });
   try { await wprFetch('/api/work-progress', { method: 'POST', body: form }); toast('工作進度已儲存', 'success'); wprClearPendingFiles(); wprCurrentReport = null; wprRenderCreate(); await Promise.all([wprLoadDay(), wprLoadHistory(1), wprLoadKpi()]); } catch (error) { toast(error.message, 'error'); button.disabled = false; }
 }

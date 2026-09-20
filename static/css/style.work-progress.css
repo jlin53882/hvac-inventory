@@ -34,8 +34,17 @@
 #content.wpr-content .wpr-field { margin-top: 15px; }
 #content.wpr-content .wpr-field > label, #content.wpr-content .wpr-calendar-note label, #content.wpr-content .wpr-detail-note label { display: block; color: #4a5568; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
 #content.wpr-content .wpr-field b { color: #dc2626; }
-#content.wpr-content .wpr-field input[type="date"], #content.wpr-content .wpr-field textarea, #content.wpr-content .wpr-history-filters input { box-sizing: border-box; width: 100%; border: 1px solid #cfd8e5; border-radius: 8px; background: #fff; padding: 10px 11px; color: #172033; font: inherit; }
+#content.wpr-content .wpr-field input[type="date"], #content.wpr-content .wpr-field input[type="text"], #content.wpr-content .wpr-field textarea, #content.wpr-content .wpr-history-filters input { box-sizing: border-box; width: 100%; border: 1px solid #cfd8e5; border-radius: 8px; background: #fff; padding: 10px 11px; color: #172033; font: inherit; }
 #content.wpr-content .wpr-field textarea { resize: vertical; min-height: 108px; }
+#content.wpr-content .wpr-create-progress-section, #content.wpr-content .wpr-create-calendar-section { display: grid; gap: 7px; padding: 12px; border: 1px solid #dbe5f0; border-radius: 10px; background: #f8fafc; }
+#content.wpr-content .wpr-create-progress-section h3, #content.wpr-content .wpr-create-calendar-section h3 { margin: 0; color: #1e3a5f; font-size: 14px; }
+#content.wpr-content .wpr-create-creator, #content.wpr-content .wpr-create-source-hint { color: #64748b; font-size: 11.5px; line-height: 1.5; }
+#content.wpr-content .wpr-create-creator { color: #475569; font-weight: 600; }
+#content.wpr-content .wpr-create-calendar-grid { display: grid; gap: 7px; }
+#content.wpr-content .wpr-create-calendar-grid > div { display: grid; grid-template-columns: minmax(105px, 0.7fr) minmax(0, 1.3fr); gap: 10px; padding-bottom: 6px; border-bottom: 1px solid #e7edf5; font-size: 13px; }
+#content.wpr-content .wpr-create-calendar-grid > div:last-child { padding-bottom: 0; border-bottom: 0; }
+#content.wpr-content .wpr-create-calendar-grid span { color: #64748b; }
+#content.wpr-content .wpr-create-calendar-grid strong { min-width: 0; color: #172033; font-weight: 600; overflow-wrap: anywhere; }
 #content.wpr-content .wpr-readonly { padding: 10px 11px; background: #f7f9fc; border: 1px solid #edf0f5; border-radius: 8px; color: #334155; }
 #content.wpr-content .wpr-counter { text-align: right; color: #8a96a8; font-size: 11px; margin-top: 4px; }
 #content.wpr-content .wpr-job-list { display: grid; gap: 8px; }
