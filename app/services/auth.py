@@ -323,3 +323,21 @@ def require_perm(perm_key: str):
             raise HTTPException(status_code=403, detail="無此權限")
         return user
     return dep
+
+
+def require_db_perm(perm_key: str):
+    """DB-backed 權限守衛：避免依賴可能已快取的 user permissions。
+
+    用於需要撤權立即生效的敏感資源；權限在 dependency 執行時重新從
+    users/roles/user_permissions 合成，不能由 session payload 或前端 flags 決定。
+    """
+    def dep(user: dict = Depends(require_login)):
+        conn = get_db()
+        try:
+            allowed = bool(get_user_permissions(conn, user["id"]).get(perm_key))
+        finally:
+            conn.close()
+        if not allowed:
+            raise HTTPException(status_code=403, detail="無此權限")
+        return user
+    return dep

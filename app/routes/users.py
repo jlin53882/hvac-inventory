@@ -470,6 +470,44 @@ def get_user_permissions_detail(user_id: int, admin: dict = Depends(require_perm
         conn.close()
 
 
+WORK_PROGRESS_VIEW_KEY = "work-progress-view"
+WORK_PROGRESS_DEPENDENT_KEYS = (
+    "work-progress-create",
+    "work-progress-edit",
+    "work-progress-edit-all",
+    "work-progress-delete",
+    "work-progress-delete-all",
+)
+
+
+def _normalize_work_progress_permissions(current: dict, requested: dict) -> dict:
+    """Normalize work-progress overrides so dependents never remain without view."""
+    candidate = dict(current)
+    candidate.update({key: bool(value) for key, value in requested.items()})
+    touched = bool(set(requested) & {WORK_PROGRESS_VIEW_KEY, *WORK_PROGRESS_DEPENDENT_KEYS})
+    explicit_view_off = requested.get(WORK_PROGRESS_VIEW_KEY) == 0
+    dependent_requested_on = any(requested.get(key) == 1 for key in WORK_PROGRESS_DEPENDENT_KEYS)
+    existing_invalid = not candidate[WORK_PROGRESS_VIEW_KEY] and any(
+        candidate[key] for key in WORK_PROGRESS_DEPENDENT_KEYS
+    )
+
+    if explicit_view_off:
+        candidate[WORK_PROGRESS_VIEW_KEY] = False
+        for key in WORK_PROGRESS_DEPENDENT_KEYS:
+            candidate[key] = False
+    elif not candidate[WORK_PROGRESS_VIEW_KEY] and dependent_requested_on:
+        candidate[WORK_PROGRESS_VIEW_KEY] = True
+    elif not candidate[WORK_PROGRESS_VIEW_KEY] and (touched or existing_invalid):
+        for key in WORK_PROGRESS_DEPENDENT_KEYS:
+            candidate[key] = False
+
+    normalized = dict(requested)
+    for key in (WORK_PROGRESS_VIEW_KEY, *WORK_PROGRESS_DEPENDENT_KEYS):
+        if candidate[key] != current[key]:
+            normalized[key] = 1 if candidate[key] else 0
+    return normalized
+
+
 @router.put("/{user_id}/permissions")
 def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: dict = Depends(require_perm("user-mgmt"))):
     """設定個人權限覆蓋（開關）——RBAC §6.2/§7 保護規則"""
@@ -491,6 +529,7 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
         if body.reset_all:
             conn.execute("DELETE FROM user_permissions WHERE user_id = ?", (user_id,))
             changes["reset_all"] = True
+        requested = {}
         if body.permissions:
             for key, value in body.permissions.items():
                 if key not in perm_ids:
@@ -510,10 +549,15 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
                     raise HTTPException(status_code=400, detail="服務項目管理權限僅管理員角色可持有")
                 if key == "unit-mgmt" and target_role != "admin" and value == 1:
                     raise HTTPException(status_code=400, detail="單位整理權限僅管理員角色可持有")
-                conn.execute(
-                    "INSERT OR REPLACE INTO user_permissions (user_id, permission_id, value, updated_at) VALUES (?, ?, ?, datetime('now'))",
-                    (user_id, perm_ids[key], value))
-                changes[key] = value
+                requested[key] = value
+
+        current = get_user_permissions(conn, user_id)
+        normalized = _normalize_work_progress_permissions(current, requested)
+        for key, value in normalized.items():
+            conn.execute(
+                "INSERT OR REPLACE INTO user_permissions (user_id, permission_id, value, updated_at) VALUES (?, ?, ?, datetime('now'))",
+                (user_id, perm_ids[key], value))
+            changes[key] = value
         if not changes:
             return {"ok": True, "permissions": get_user_permissions(conn, user_id)}
         _audit(conn, admin["id"], user_id, "permission_update",

@@ -939,3 +939,31 @@ def test_items_rejects_combined_csv_filters_over_bind_budget(media_env, monkeypa
     with pytest.raises(HTTPException) as error:
         item_routes.list_items(site="office", brands=brands, categories=categories)
     assert error.value.status_code == 400
+
+
+def test_store_asset_custom_base_relative_dir_isolated_layout(media_env):
+    """新功能可指定 base dir；未指定時的 assets layout 由既有測試守護。"""
+    _client, _static_dir, upload_dir = media_env
+    from app.services.file_storage import store_asset
+
+    conn = app_db.get_db()
+    try:
+        asset = store_asset(
+            conn,
+            category="work_progress",
+            owner_type="work_progress_report",
+            owner_id=41,
+            data=_png(100, 50),
+            original_name="現場.png",
+            mime_type="image/png",
+            year_month="2026-09",
+            base_relative_dir="work_progress/2026-09/41",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert asset.original_path.startswith("work_progress/2026-09/41/")
+    assert (upload_dir / asset.original_path).exists()
+    assert (upload_dir / asset.preview_path).exists()
+    assert (upload_dir / asset.thumbnail_path).exists()

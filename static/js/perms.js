@@ -14,6 +14,7 @@
   };
   const PAGE_LABELS = {
     calendar: '📅 行事曆',
+    'work-progress': '📸 每日工作進度回報',
     'signed-reports': '🗂 每日簽名日報表',
     quotation: '🧾 報價單',
     'petty-cash': '🪙 零用金月報',
@@ -39,6 +40,11 @@
   let permissionSearch = '';
   let permissionModule = 'all';
   const PERMISSIONS_PAGE_SIZE = 10;
+  const WORK_PROGRESS_VIEW_KEY = 'work-progress-view';
+  const WORK_PROGRESS_DEPENDENT_KEYS = [
+    'work-progress-create', 'work-progress-edit', 'work-progress-edit-all',
+    'work-progress-delete', 'work-progress-delete-all',
+  ];
 
   // ---------- fetch 封裝 ----------
   async function apiGet(url) {
@@ -312,19 +318,40 @@
     renderPermissionView();
   };
 
-  window.permToggle = function permToggle(key, checked) {
-    permChanges[key] = checked ? 1 : 0;
-    // 2026-08-14：切換即時把該列來源標籤改「✏️ 自訂」（跟隨角色→自訂），
-    // 避免開關動了但標籤沒變的「狀態殘影」感
+  /** Mark a permission row as a local override after a user edit. */
+  function markPermOverride(key) {
     const row = document.querySelector(`input[data-key="${key}"]`)?.closest('.perm-row');
     const src = row && row.querySelector('.perm-src');
     if (src) { src.textContent = '✏️ 自訂'; src.className = 'perm-src override'; }
+  }
+
+  /** Synchronize a permission checkbox and its pending change record. */
+  function setPermCheckbox(key, allowed) {
+    const input = document.querySelector(`input[data-key="${key}"]`);
+    if (input) input.checked = !!allowed;
+    permChanges[key] = allowed ? 1 : 0;
+    markPermOverride(key);
+  }
+
+  /** Refresh the unsaved-permission count shown to the administrator. */
+  function refreshPermissionSaveHint() {
     const hint = document.getElementById('saveHint');
-    if (hint) {
-      const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
-      hint.className = 'save-hint changed';
-      hint.textContent = `有 ${n} 項未儲存變更`;
+    if (!hint) return;
+    const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
+    hint.className = n ? 'save-hint changed' : 'save-hint';
+    hint.textContent = n ? `有 ${n} 項未儲存變更` : '變更立即生效，不需重新登入';
+  }
+
+  window.permToggle = function permToggle(key, checked) {
+    permChanges[key] = checked ? 1 : 0;
+    markPermOverride(key);
+    if (key === WORK_PROGRESS_VIEW_KEY && !checked) {
+      WORK_PROGRESS_DEPENDENT_KEYS.forEach(function(dep) { setPermCheckbox(dep, false); });
+    } else if (WORK_PROGRESS_DEPENDENT_KEYS.includes(key) && checked) {
+      const viewInput = document.querySelector(`input[data-key="${WORK_PROGRESS_VIEW_KEY}"]`);
+      if (viewInput && !viewInput.checked) setPermCheckbox(WORK_PROGRESS_VIEW_KEY, true);
     }
+    refreshPermissionSaveHint();
   };
 
   window.permPageToggle = function permPageToggle(key, checked) {

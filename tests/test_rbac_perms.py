@@ -22,7 +22,9 @@ EXPECTED_KEYS = ('view', 'stats', 'kit-view', 'prepared', 'export', 'item-mgmt',
                  'signed-report-delete', 'signed-report-delete-all',
                  'quotation-upload-manage', 'quotation-upload-manage-all',
                  'petty-cash-delete-all', 'petty-cash-view', 'petty-cash-create', 'petty-cash-edit',
-                 'petty-cash-delete', 'petty-cash-config', 'page-visibility-manage')
+                 'petty-cash-delete', 'petty-cash-config', 'page-visibility-manage',
+                 'work-progress-view', 'work-progress-create', 'work-progress-edit', 'work-progress-edit-all',
+                 'work-progress-delete', 'work-progress-delete-all')
 
 
 @pytest.fixture()
@@ -181,6 +183,43 @@ def test_override_open_import_for_viewer(viewer_client, admin_client):
     assert r.json()["permissions"]["item-mgmt"] is True
 
 
+def test_work_progress_permission_dependency_normalizes_invalid_state(admin_client):
+    """直接 API 關閉 view 時，五個 work-progress dependent 不得留下 true。"""
+    uid = _make_user(admin_client, "wpdep", "user")
+    result = admin_client.put(
+        f"/api/users/{uid}/permissions",
+        json={
+            "permissions": {
+                "work-progress-view": 0,
+                "work-progress-create": 1,
+                "work-progress-edit": 1,
+                "work-progress-delete": 1,
+            }
+        },
+    )
+    assert result.status_code == 200
+    permissions = result.json()["permissions"]
+    assert permissions["work-progress-view"] is False
+    for key in (
+        "work-progress-create", "work-progress-edit", "work-progress-edit-all",
+        "work-progress-delete", "work-progress-delete-all",
+    ):
+        assert permissions[key] is False
+
+
+def test_work_progress_permission_dependency_opens_view_for_dependent(admin_client):
+    """直接 API 開啟任一 dependent 時，view 會一併開啟。"""
+    uid = _make_user(admin_client, "wpdepviewer", "viewer")
+    result = admin_client.put(
+        f"/api/users/{uid}/permissions",
+        json={"permissions": {"work-progress-delete-all": 1}},
+    )
+    assert result.status_code == 200
+    permissions = result.json()["permissions"]
+    assert permissions["work-progress-view"] is True
+    assert permissions["work-progress-delete-all"] is True
+
+
 def test_reset_all_returns_to_role_defaults(admin_client):
     """reset_all 清空覆蓋 → 回到角色預設"""
     uid = _make_user(admin_client, "u2", "user")
@@ -210,7 +249,7 @@ def test_list_permissions_endpoint(admin_client):
     r = admin_client.get("/api/users/permissions")
     assert r.status_code == 200
     data = r.json()
-    assert len(data["permissions"]) == 35
+    assert len(data["permissions"]) == 41
     assert set(data["role_defaults"].keys()) == set(EXPECTED_ROLES)
     assert "cal-mgmt" in data["role_defaults"]["tech"]
 
@@ -469,18 +508,18 @@ def test_last_admin_protection(admin_client):
     assert all(admin_client.get("/api/auth/me").json()["user"]["permissions"].values())
 
 PAGE_KEYS = (
-    "calendar", "signed-reports", "quotation", "petty-cash",
+    "calendar", "work-progress", "signed-reports", "quotation", "petty-cash",
     "inventory", "prepared", "stockout", "stocktake", "kit",
     "perms", "settings", "change-password",
 )
-VIEWER_PAGE_KEYS = {"calendar", "signed-reports", "inventory", "kit"}
+VIEWER_PAGE_KEYS = {"calendar", "work-progress", "signed-reports", "inventory", "kit"}
 USER_PAGE_KEYS = {
-    "calendar", "signed-reports", "quotation", "petty-cash",
+    "calendar", "work-progress", "signed-reports", "quotation", "petty-cash",
     "inventory", "prepared", "stockout", "stocktake", "kit",
     "change-password",
 }
 TECH_PAGE_KEYS = {
-    "calendar", "signed-reports", "petty-cash",
+    "calendar", "work-progress", "signed-reports", "petty-cash",
     "inventory", "prepared", "stockout",
     "kit", "change-password",
 }
@@ -579,6 +618,88 @@ def test_page_visibility_seed_repairs_missing_rows(admin_client, rbac_db):
         assert row["visible"] == 0
     finally:
         conn.close()
+
+
+def test_page_visibility_seed_backfills_work_progress_without_overwriting_custom_rows(admin_client, rbac_db):
+    """新增頁面只補 missing row，不能覆蓋既有個人可見性設定。"""
+    viewer_id = _make_user(admin_client, "page_work_progress_backfill", "viewer")
+    changed = admin_client.put(
+        f"/api/users/{viewer_id}/page-visibility",
+        json={"pages": {"calendar": 0, "quotation": 1}},
+    )
+    assert changed.status_code == 200
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "DELETE FROM user_page_visibility WHERE user_id = ? AND page_key = ?",
+            (viewer_id, "work-progress"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    init_db()
+    visibility = admin_client.get(f"/api/users/{viewer_id}/page-visibility")
+    assert visibility.status_code == 200
+    visible = set(visibility.json()["visible_pages"])
+    assert "work-progress" in visible
+    assert "calendar" not in visible
+    assert "quotation" in visible
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT visible FROM user_page_visibility WHERE user_id = ? AND page_key = ?",
+            (viewer_id, "work-progress"),
+        ).fetchone()
+        assert row is not None
+        assert row["visible"] == 1
+    finally:
+        conn.close()
+
+
+def test_page_visibility_api_registry_contains_work_progress(admin_client):
+    """Page Visibility API 的 registry 與 toggle/reset contract 包含 work-progress。"""
+    viewer_id = _make_user(admin_client, "page_work_progress_registry", "viewer")
+    current = admin_client.get(f"/api/users/{viewer_id}/page-visibility")
+    assert current.status_code == 200
+    assert "work-progress" in current.json()["all_pages"]
+    assert "work-progress" in current.json()["visible_pages"]
+
+    detail = admin_client.get(f"/api/users/{viewer_id}/permissions")
+    assert detail.status_code == 200
+    assert "work-progress" in detail.json()["page_visibility"]["all_pages"]
+
+    hidden = admin_client.put(
+        f"/api/users/{viewer_id}/page-visibility",
+        json={"pages": {"work-progress": 0}},
+    )
+    assert hidden.status_code == 200
+    assert "work-progress" not in hidden.json()["visible_pages"]
+
+    reset = admin_client.put(
+        f"/api/users/{viewer_id}/page-visibility",
+        json={"reset_all": True},
+    )
+    assert reset.status_code == 200
+    assert "work-progress" in reset.json()["visible_pages"]
+
+
+def test_new_user_page_visibility_seeds_work_progress_row_for_every_role(admin_client):
+    """新帳號建立時四角色都直接取得 work-progress visibility row。"""
+    for role in ("admin", "user", "tech", "viewer"):
+        user_id = _make_user(admin_client, f"page_work_progress_{role}", role)
+        conn = get_db()
+        try:
+            row = conn.execute(
+                "SELECT visible FROM user_page_visibility WHERE user_id = ? AND page_key = ?",
+                (user_id, "work-progress"),
+            ).fetchone()
+            assert row is not None
+            assert row["visible"] == 1
+        finally:
+            conn.close()
 
 
 def test_page_visibility_role_defaults_admin_is_all(admin_client):
@@ -734,9 +855,9 @@ def test_change_password_access_viewer(admin_client):
         assert 'change-password' not in me['visible_pages']
 
 
-def test_viewer_page_visibility_still_only_four_pages(admin_client):
-    """Viewer default visible_pages must remain exactly 4 pages after change-own-password RBAC change."""
+def test_viewer_page_visibility_includes_work_progress_page(admin_client):
+    """Viewer default visibility includes Work Progress while preserving restricted pages."""
     viewer_id = _make_user(admin_client, 'cop_viewer_check', 'viewer')
     r = admin_client.get(f'/api/users/{viewer_id}/page-visibility')
     assert r.status_code == 200
-    assert set(r.json()['visible_pages']) == {'calendar', 'signed-reports', 'inventory', 'kit'}
+    assert set(r.json()['visible_pages']) == VIEWER_PAGE_KEYS

@@ -22,6 +22,7 @@ from app.database import get_db
 from app.models import AppointmentIn
 from app.services.auth import require_login, require_perm
 from app.services.report import build_daily_report
+from app.services.work_progress import sync_work_progress_snapshot_for_appointment
 from app.services.safety import xlsx_download
 from app.services import gcal_sync
 
@@ -591,6 +592,7 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
         for uid in body.user_ids:
             conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
                          (appt_id, uid))
+        sync_work_progress_snapshot_for_appointment(conn, appt_id)
         assignee_count = conn.execute(
             "SELECT COUNT(*) AS c FROM appointment_assignees WHERE appointment_id=?",
             (appt_id,),

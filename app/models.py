@@ -15,7 +15,7 @@ INVENTORY_SITES = ("office", "warehouse", "van", "truck")
 
 # 頁面可見性：初始化憂依角色給預設值，之後只讀取 user_page_visibility 個人設定。
 PAGE_KEYS = (
-    "calendar", "signed-reports", "quotation", "petty-cash",
+    "calendar", "work-progress", "signed-reports", "quotation", "petty-cash",
     "inventory", "prepared", "stockout", "stocktake", "kit",
     "perms", "settings", "change-password",
 )
@@ -24,17 +24,17 @@ DEFAULT_VISIBLE_PAGE_KEYS = frozenset({"calendar", "signed-reports", "inventory"
 ROLE_DEFAULT_VISIBLE_PAGE_KEYS = {
     "admin": frozenset(PAGE_KEYS),
     "user": frozenset({
-        "calendar", "signed-reports", "quotation", "petty-cash",
+        "calendar", "work-progress", "signed-reports", "quotation", "petty-cash",
         "inventory", "prepared", "stockout", "stocktake", "kit",
         "change-password",
     }),
     "tech": frozenset({
-        "calendar", "signed-reports", "petty-cash",
+        "calendar", "work-progress", "signed-reports", "petty-cash",
         "inventory", "prepared", "stockout",
         "kit", "change-password",
     }),
     "viewer": frozenset({
-        "calendar", "signed-reports", "inventory", "kit",
+        "calendar", "work-progress", "signed-reports", "inventory", "kit",
     }),
 }
 
@@ -58,6 +58,12 @@ class SignedReportUpdate(BaseModel):
 class PageVisibilityUpdate(BaseModel):
     pages: dict[str, int] | None = None
     reset_all: bool = False
+
+
+class WorkProgressNoteUpdate(BaseModel):
+    """工作進度可修改回報人顯示名稱與進度備註；owner user id 不變。"""
+    uploader_name: Optional[str] = Field(None, max_length=50)
+    note: Optional[str] = Field(None, max_length=1000)
 
 
 class StockItem(BaseModel):
