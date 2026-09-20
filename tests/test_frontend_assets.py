@@ -952,6 +952,18 @@ def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
     assert 'perm-pagination' in js and 'perm-page-btn' in html
 
 
+def test_permissions_ui_keeps_search_toolbar_and_pending_source_contract():
+    """搜尋 toolbar 不隨結果重建，pending permission 來源標籤跨頁保持自訂。"""
+    js = read(PERMS_JS)
+    runtime = os.path.join(BASE_DIR, "tests", "permissions_pagination_runtime.test.js")
+    assert 'renderPermissionToolbar' in js
+    assert 'id="permission-toolbar"' in js
+    assert "document.getElementById('permission-results')" in js
+    assert 'const hasPending = Object.prototype.hasOwnProperty.call(permChanges, p.key);' in js
+    assert "srcCls = 'override'" in js
+    assert os.path.exists(runtime)
+
+
 def test_signed_report_upload_is_permission_gated():
     """Signed report page hides upload surface without changing report viewing."""
     js = read(SIGNED_REPORTS_RENDER_JS)

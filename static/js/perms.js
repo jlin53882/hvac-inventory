@@ -169,7 +169,7 @@
     html += `<div class="perm-subtabs" role="tablist">
       <button class="perm-subtab ${esc(featureActive)}" onclick="window.permSubTab('features')">🔐 功能權限</button>
       <button class="perm-subtab ${esc(pageActive)}" onclick="window.permSubTab('pages')">🖥 頁面顯示</button>
-    </div><div id="permission-view"></div>`;
+    </div><div id="permission-view"><div id="permission-toolbar"></div><div id="permission-results"></div></div>`;
     const pendingCount = Object.keys(permChanges).length + Object.keys(pageChanges).length;
     html += `<div class="save-bar">
       <div class="save-bar-inner">
@@ -181,19 +181,42 @@
       </div>
     </div>`;
     el.innerHTML = html;
+    renderPermissionToolbar();
     renderPermissionView();
     if (pendingCount) document.getElementById('saveHint')?.classList.add('changed');
   }
 
-  function renderPermissionView() {
-    const host = document.getElementById('permission-view');
-    if (!host || !permissionDetail) return;
-    if (permissionView === 'pages') {
-      renderPageVisibilityView(host);
-      return;
-    }
+  function renderPermissionToolbar() {
+    const toolbar = document.getElementById('permission-toolbar');
+    if (!toolbar || !permissionDetail || permissionView !== 'features') return;
     const permissions = permissionDetail.permissions || [];
     const modules = [...new Set(permissions.map(p => p.module))];
+    let html = `<label class="perm-search-label" for="permission-search">搜尋權限名稱或 key</label>
+      <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" oninput="window.permSearch(this.value)">
+      <div class="perm-module-filter" role="group" aria-label="權限分類">
+        <button class="perm-filter ${esc(permissionModule === 'all' ? 'active' : '')}" data-module="all" onclick="window.permFilter('all')">全部</button>
+        ${modules.map(mod => `<button class="perm-filter ${esc(permissionModule === mod ? 'active' : '')}" data-module="${esc(mod)}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
+      </div>`;
+    toolbar.innerHTML = html;
+  }
+
+  function updatePermissionFilterState() {
+    document.querySelectorAll?.('#permission-toolbar .perm-filter').forEach(button => {
+      button.classList.toggle('active', button.dataset.module === permissionModule);
+    });
+  }
+
+  function renderPermissionView() {
+    const viewHost = document.getElementById('permission-view');
+    if (!viewHost || !permissionDetail) return;
+    if (permissionView === 'pages') {
+      renderPageVisibilityView(viewHost);
+      return;
+    }
+    const host = document.getElementById('permission-results');
+    if (!host) return;
+    const permissions = permissionDetail.permissions || [];
+    const isMe = me.id === curUid;
     const query = permissionSearch.trim().toLowerCase();
     const filtered = permissions.filter(p => {
       const matchesModule = permissionModule === 'all' || p.module === permissionModule;
@@ -204,26 +227,34 @@
     permissionPage = Math.min(Math.max(1, permissionPage), pageCount);
     const start = (permissionPage - 1) * PERMISSIONS_PAGE_SIZE;
     const visible = filtered.slice(start, start + PERMISSIONS_PAGE_SIZE);
-    let html = `<div class="perm-toolbar">
-      <label class="perm-search-label" for="permission-search">搜尋權限名稱或 key</label>
-      <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" oninput="window.permSearch(this.value)">
-      <div class="perm-module-filter" role="group" aria-label="權限分類">
-        <button class="perm-filter ${esc(permissionModule === 'all' ? 'active' : '')}" onclick="window.permFilter('all')">全部</button>
-        ${modules.map(mod => `<button class="perm-filter ${esc(permissionModule === mod ? 'active' : '')}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
-      </div>
-    </div>`;
+    let html = '';
     if (!visible.length) {
       html += '<div class="perm-empty">沒有符合條件的權限</div>';
     } else {
       html += '<div class="perm-list">';
       for (const p of visible) {
         const locked = p.source === 'locked';
-        const srcLabel = locked ? '🔒 鎖定' : (p.source === 'override' ? '✏️ 自訂' : '✓ 跟隨角色');
-        const checkedValue = Object.prototype.hasOwnProperty.call(permChanges, p.key) ? permChanges[p.key] : p.allowed;
+        const hasPending = Object.prototype.hasOwnProperty.call(permChanges, p.key);
+        let srcLabel;
+        let srcCls;
+        if (locked) {
+          srcLabel = '🔒 鎖定';
+          srcCls = 'locked';
+        } else if (hasPending) {
+          srcLabel = '✏️ 自訂';
+          srcCls = 'override';
+        } else if (p.source === 'override') {
+          srcLabel = '✏️ 自訂';
+          srcCls = 'override';
+        } else {
+          srcLabel = '✓ 跟隨角色';
+          srcCls = p.source;
+        }
+        const checkedValue = hasPending ? permChanges[p.key] : p.allowed;
         const checked = checkedValue ? 'checked' : '';
         const disabled = locked || isMe;
         html += `<div class="perm-row ${locked ? 'locked' : ''}">
-          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${esc(p.source)}">${srcLabel}</span></small></div>
+          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${esc(srcCls)}">${srcLabel}</span></small></div>
           <label class="switch">
             <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} onchange="window.permToggle('${jsStr(p.key)}', this.checked)">
             <span class="slider"></span>
@@ -243,6 +274,7 @@
       </div>
     </div>`;
     host.innerHTML = html;
+    updatePermissionFilterState();
   }
 
   function renderPageVisibilityView(host) {
