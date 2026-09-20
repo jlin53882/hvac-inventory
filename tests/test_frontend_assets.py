@@ -84,6 +84,7 @@ PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test
 # 待測：零用金月報（2026-09-12）
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
+SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
 PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "style.petty-cash-reports.css")
@@ -403,6 +404,18 @@ def test_pdf_preview_button_runtime():
     """
     r = subprocess.run(["node", PDF_PREVIEW_BUTTON_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, f"pdf_preview_button.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
+def test_signed_report_capability_runtime():
+    """Signed Report Edit/Delete buttons follow backend capabilities at runtime."""
+    r = subprocess.run(
+        ["node", SIGNED_REPORT_CAPABILITY_RUNTIME_JS],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert r.returncode == 0, f"signed_report_capability_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
 def test_stocktake_calcDiff_has_st_diff_element():

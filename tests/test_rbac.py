@@ -90,11 +90,11 @@ def test_seed_role_permission_matrix(rbac_db, perm_key, role_name):
 
 
 def test_seed_preserves_existing_signed_report_override(rbac_db):
-    """Adding split action permissions must not overwrite an existing user override."""
+    """Legacy owner grants are added once without overwriting old global overrides."""
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'user')",
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'viewer')",
             ("override-user", "Override User"),
         )
         user_id = conn.execute(
@@ -107,6 +107,7 @@ def test_seed_preserves_existing_signed_report_override(rbac_db):
             "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, 0)",
             (user_id, permission_id),
         )
+        conn.execute("DELETE FROM rbac_migrations WHERE key=?", ("signed_report_action_capabilities_v1",))
         conn.commit()
     finally:
         conn.close()
@@ -114,19 +115,75 @@ def test_seed_preserves_existing_signed_report_override(rbac_db):
     init_db()
     conn = get_db()
     try:
-        override = conn.execute(
-            """SELECT up.value FROM user_permissions up
+        rows = conn.execute(
+            """SELECT p.key, up.value FROM user_permissions up
                JOIN users u ON u.id = up.user_id
                JOIN permissions p ON p.id = up.permission_id
-               WHERE u.username='override-user' AND p.key='signed-report-delete-all'"""
-        ).fetchone()
-        assert override["value"] == 0
+               WHERE u.username='override-user'
+                 AND p.key IN ('signed-report-edit', 'signed-report-delete', 'signed-report-delete-all')
+               ORDER BY p.key"""
+        ).fetchall()
+        assert [(row["key"], row["value"]) for row in rows] == [
+            ("signed-report-delete", 1),
+            ("signed-report-delete-all", 0),
+            ("signed-report-edit", 1),
+        ]
+        before = conn.execute(
+            "SELECT COUNT(*) AS c FROM user_permissions WHERE user_id=?", (user_id,)
+        ).fetchone()["c"]
+        action_ids = {
+            key: conn.execute(
+                "SELECT id FROM permissions WHERE key=?", (key,)
+            ).fetchone()["id"]
+            for key in ("signed-report-edit", "signed-report-delete")
+        }
+        conn.executemany(
+            "UPDATE user_permissions SET value=? WHERE user_id=? AND permission_id=?",
+            [(0, user_id, action_ids["signed-report-edit"]), (1, user_id, action_ids["signed-report-delete"])],
+        )
+        conn.execute("DELETE FROM rbac_migrations WHERE key=?", ("signed_report_action_capabilities_v1",))
+        conn.commit()
+    finally:
+        conn.close()
+
+    init_db()
+    conn = get_db()
+    try:
+        preserved = conn.execute(
+            """SELECT p.key, up.value FROM user_permissions up
+               JOIN users u ON u.id = up.user_id
+               JOIN permissions p ON p.id = up.permission_id
+               WHERE u.username='override-user'
+                 AND p.key IN ('signed-report-edit', 'signed-report-delete')
+               ORDER BY p.key"""
+        ).fetchall()
+        assert [(row["key"], row["value"]) for row in preserved] == [
+            ("signed-report-delete", 1), ("signed-report-edit", 0)
+        ]
+        after = conn.execute(
+            "SELECT COUNT(*) AS c FROM user_permissions WHERE user_id=?", (user_id,)
+        ).fetchone()["c"]
+        assert after == before
+        conn.execute(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'viewer')",
+            ("new-viewer", "New Viewer"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    init_db()
+    conn = get_db()
+    try:
+        new_user_id = conn.execute(
+            "SELECT id FROM users WHERE username='new-viewer'"
+        ).fetchone()["id"]
         assert conn.execute(
-            "SELECT 1 FROM permissions WHERE key='signed-report-edit'"
-        ).fetchone() is not None
-        assert conn.execute(
-            "SELECT 1 FROM permissions WHERE key='signed-report-delete'"
-        ).fetchone() is not None
+            """SELECT COUNT(*) AS c FROM user_permissions up
+               JOIN permissions p ON p.id = up.permission_id
+               WHERE up.user_id=? AND p.key IN ('signed-report-edit', 'signed-report-delete')""",
+            (new_user_id,),
+        ).fetchone()["c"] == 0
     finally:
         conn.close()
 

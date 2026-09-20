@@ -227,6 +227,10 @@ def _exec_init(conn):
         updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, permission_id)
     );
+    CREATE TABLE IF NOT EXISTS rbac_migrations (
+        key         TEXT PRIMARY KEY,
+        applied_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     -- 稽核軌跡：operator/target 用 SET NULL——刪帳號不滅證（稽核 A1）
     CREATE TABLE IF NOT EXISTS user_audit_log (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -663,6 +667,28 @@ def _exec_init(conn):
             if _on:
                 _rows.append((_role_ids[_role], _perm_ids[_key]))
     conn.executemany("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)", _rows)
+
+    # One-time compatibility migration for accounts that existed before the split.
+    # New accounts created after this marker rely only on the role defaults above.
+    _migration_key = "signed_report_action_capabilities_v1"
+    _already_migrated = conn.execute(
+        "SELECT 1 FROM rbac_migrations WHERE key=?", (_migration_key,)
+    ).fetchone()
+    if _already_migrated is None:
+        _action_ids = {
+            _key: _perm_ids[_key]
+            for _key in ("signed-report-edit", "signed-report-delete")
+        }
+        for _user in conn.execute("SELECT id FROM users").fetchall():
+            # INSERT OR IGNORE preserves an already explicit new override (0 or 1).
+            conn.executemany(
+                "INSERT OR IGNORE INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, 1)",
+                [(_user["id"], _permission_id) for _permission_id in _action_ids.values()],
+            )
+        conn.execute(
+            "INSERT INTO rbac_migrations (key) VALUES (?)", (_migration_key,)
+        )
+
     # ---------- GCal 同步設定預設值（2026-08-27）----------
     _GCAL_DEFAULTS = {
         "gcal_default_duration_min": "60",
