@@ -5045,6 +5045,33 @@ def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_reado
     assert ".wpr-create-progress-section" in css
 
 
+def test_work_progress_frontend_create_section_order_and_field_grouping():
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
+    positions = {
+        "date": render_block.index('id="wpr-date"'),
+        "job": render_block.index('id="wpr-job-list"'),
+        "selected": render_block.index('id="wpr-selected-area"'),
+        "progress": render_block.index("wpr-create-progress-section"),
+        "note": render_block.index('id="wpr-note"'),
+        "photo": render_block.index('id="wpr-drop"'),
+        "pending": render_block.index('id="wpr-pending-photos"'),
+        "save": render_block.index('id="wpr-save"'),
+    }
+    assert positions["date"] < positions["job"] < positions["selected"] < positions["progress"]
+    assert positions["progress"] < positions["note"] < positions["photo"] < positions["pending"] < positions["save"]
+
+    progress_block = render_block.split("wpr-create-progress-section", 1)[1].split("</section>", 1)[0]
+    for marker in ('id="wpr-uploader"', 'id="wpr-create-creator"', 'id="wpr-note"', 'id="wpr-drop"', 'id="wpr-pending-photos"'):
+        assert marker in progress_block
+
+    helper_block = js.split("function wprCalendarReadonlyHtml", 1)[1].split("async function wprSelectJob", 1)[0]
+    for label in ("工作日期", "時間", "客戶 / 案場", "地址", "指定服務", "行事曆原始備註"):
+        assert label in helper_block
+    assert not any(tag in helper_block for tag in ("<input", "<textarea", "<select"))
+
+
+
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     """工作進度前端鎖定 report identity、分頁、Object URL lifecycle 與 loader freshness。"""
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))

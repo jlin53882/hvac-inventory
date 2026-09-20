@@ -154,22 +154,22 @@ function wprRenderCreate() {
   }
   create.innerHTML = `
     <div class="wpr-section-heading"><div><h2>建立工作進度</h2><p>選擇行事曆工作後填寫現場回報。</p></div></div>
-    <section class="wpr-create-progress-section" aria-labelledby="wpr-create-progress-title">
-      <h3 id="wpr-create-progress-title">工作進度資料</h3>
-      <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱 <b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
-    </section>
     <div class="wpr-field"><label for="wpr-date">工作日期 <b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" onchange="wprLoadDay()"></div>
     <div class="wpr-field"><label>選擇工作內容 <b>*</b></label><div id="wpr-job-list" class="wpr-job-list"></div></div>
     <div id="wpr-selected-area" hidden></div>
-    <div class="wpr-field"><label for="wpr-note">工作進度備註</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
-    <div class="wpr-field"><label>工作照片 <b>*</b></label>
-      <div id="wpr-drop" class="wpr-drop">
-        <div class="wpr-drop-icon">📸</div><div class="wpr-drop-title">拖曳多張圖片到此</div><div class="wpr-drop-sub">支援 JPG、PNG、WebP；也可以使用相簿或手機相機連續新增</div>
-        <div class="wpr-photo-actions"><button type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-album').click()">🖼 從相簿選擇</button><button type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-camera').click()">📷 拍照新增</button></div>
-        <input id="wpr-album" type="file" accept="image/*" multiple hidden onchange="wprAddPendingFiles(this.files);this.value=''"><input id="wpr-camera" type="file" accept="image/*" capture="environment" hidden onchange="wprAddPendingFiles(this.files);this.value=''">
+    <section class="wpr-create-progress-section" aria-labelledby="wpr-create-progress-title">
+      <h3 id="wpr-create-progress-title">工作進度資料</h3>
+      <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱 <b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
+      <div class="wpr-field"><label for="wpr-note">工作進度備註</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
+      <div class="wpr-field"><label>工作照片 <b>*</b></label>
+        <div id="wpr-drop" class="wpr-drop">
+          <div class="wpr-drop-icon">📸</div><div class="wpr-drop-title">拖曳多張圖片到此</div><div class="wpr-drop-sub">支援 JPG、PNG、WebP；也可以使用相簿或手機相機連續新增</div>
+          <div class="wpr-photo-actions"><button type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-album').click()">🖼 從相簿選擇</button><button type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-camera').click()">📷 拍照新增</button></div>
+          <input id="wpr-album" type="file" accept="image/*" multiple hidden onchange="wprAddPendingFiles(this.files);this.value=''"><input id="wpr-camera" type="file" accept="image/*" capture="environment" hidden onchange="wprAddPendingFiles(this.files);this.value=''">
+        </div>
+        <div id="wpr-pending-photos" class="wpr-photo-grid"></div>
       </div>
-      <div id="wpr-pending-photos" class="wpr-photo-grid"></div>
-    </div>
+    </section>
     <button id="wpr-save" type="button" class="wpr-save-button" disabled onclick="wprSubmit()">儲存工作進度回報</button>`;
   var uploaderInput = document.getElementById('wpr-uploader');
   var creatorIdentity = document.getElementById('wpr-create-creator');
