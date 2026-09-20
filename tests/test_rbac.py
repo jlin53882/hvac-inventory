@@ -272,6 +272,140 @@ def test_audit_log_set_null_on_user_delete(rbac_db):
 
 
 
+def _set_quotation_legacy_override(username, value):
+    """Set a legacy global override and rewind only the quotation migration marker."""
+    conn = get_db()
+    try:
+        user_id = conn.execute(
+            "SELECT id FROM users WHERE username=?", (username,)
+        ).fetchone()["id"]
+        permission_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='signed-report-delete-all'"
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, ?)"
+            " ON CONFLICT(user_id, permission_id) DO UPDATE SET value=excluded.value",
+            (user_id, permission_id, value),
+        )
+        conn.execute(
+            "DELETE FROM rbac_migrations WHERE key=?",
+            ("quotation_upload_permission_decoupling_v1",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_quotation_upload_migration_legacy_global_on_preserves_effective_authorization(rbac_db):
+    """Legacy viewer global access remains effective after quotation migration."""
+    from app.services.auth import SESSION_COOKIE, create_session
+    from fastapi.testclient import TestClient
+    from main import app as fastapi_app
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'viewer')",
+            ("legacy-manager", "Legacy Manager"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    _set_quotation_legacy_override("legacy-manager", 1)
+    init_db()
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'viewer')",
+            ("quotation-owner", "Quotation Owner"),
+        )
+        owner_id = conn.execute(
+            "SELECT id FROM users WHERE username='quotation-owner'"
+        ).fetchone()["id"]
+        legacy_id = conn.execute(
+            "SELECT id FROM users WHERE username='legacy-manager'"
+        ).fetchone()["id"]
+        report_id = conn.execute(
+            "INSERT INTO quotation_uploads (report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size) "
+            "VALUES ('2026-09-20', ?, 'Owner', 'legacy.pdf', 'quotation_uploads/legacy.pdf', 1)",
+            (owner_id,),
+        ).lastrowid
+        conn.commit()
+        token = create_session(conn, legacy_id)
+    finally:
+        conn.close()
+
+    client = TestClient(fastapi_app)
+    client.cookies.set(SESSION_COOKIE, token)
+    listed = client.get("/api/quotation-uploads")
+    assert listed.status_code == 200
+    item = next(row for row in listed.json()["items"] if row["id"] == report_id)
+    assert item["can_edit"] is True
+    assert item["can_delete"] is True
+    assert client.patch(f"/api/quotation-uploads/{report_id}", json={"note": "migrated"}).status_code == 200
+    assert client.delete(f"/api/quotation-uploads/{report_id}").status_code == 200
+
+
+def test_quotation_upload_migration_legacy_global_off_denies_cross_owner_access(rbac_db):
+    """Legacy global OFF remains denied for non-owner mutations after migration."""
+    from app.services.auth import SESSION_COOKIE, create_session
+    from fastapi.testclient import TestClient
+    from main import app as fastapi_app
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'viewer')",
+            ("legacy-no-manager", "Legacy No Manager"),
+        )
+        conn.execute(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'viewer')",
+            ("quotation-owner", "Quotation Owner"),
+        )
+        owner_id = conn.execute(
+            "SELECT id FROM users WHERE username='quotation-owner'"
+        ).fetchone()["id"]
+        legacy_id = conn.execute(
+            "SELECT id FROM users WHERE username='legacy-no-manager'"
+        ).fetchone()["id"]
+        report_id = conn.execute(
+            "INSERT INTO quotation_uploads (report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size) "
+            "VALUES ('2026-09-20', ?, 'Owner', 'legacy-off.pdf', 'quotation_uploads/legacy-off.pdf', 1)",
+            (owner_id,),
+        ).lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    _set_quotation_legacy_override("legacy-no-manager", 0)
+    init_db()
+
+    conn = get_db()
+    try:
+        permission_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='quotation-upload-manage-all'"
+        ).fetchone()["id"]
+        value = conn.execute(
+            "SELECT value FROM user_permissions WHERE user_id=? AND permission_id=?",
+            (legacy_id, permission_id),
+        ).fetchone()["value"]
+        token = create_session(conn, legacy_id)
+    finally:
+        conn.close()
+    assert value == 0
+
+    client = TestClient(fastapi_app)
+    client.cookies.set(SESSION_COOKIE, token)
+    item = next(
+        row for row in client.get("/api/quotation-uploads").json()["items"]
+        if row["id"] == report_id
+    )
+    assert item["can_edit"] is False
+    assert item["can_delete"] is False
+    assert client.patch(f"/api/quotation-uploads/{report_id}", json={"note": "blocked"}).status_code == 403
+    assert client.delete(f"/api/quotation-uploads/{report_id}").status_code == 403
+
+
 def test_quotation_upload_migration_maps_legacy_global_override_without_overwrite(rbac_db):
     """Legacy Signed Report global overrides migrate to Quotation Upload only once."""
     conn = get_db()
