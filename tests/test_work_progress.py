@@ -8,6 +8,7 @@ from PIL import Image
 
 import app.config as app_config
 import app.database as app_db
+import app.routes.appointments as appointments_route
 import app.routes.work_progress as work_progress
 import main as app_main
 from app.services.auth import SESSION_COOKIE, create_session
@@ -291,17 +292,122 @@ def test_delete_report_cleans_db_assets_and_report_folder(wpr_env):
         conn.close()
 
 
+def test_appointment_update_syncs_calendar_snapshot_and_preserves_report_data(wpr_env):
+    make_client, users, _static, uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner, date="2026-09-20", note="原始行事曆備註")
+    report = _create(owner, appointment["id"], note="已完成安裝").json()
+    report_created_at = report["created_at"]
+    report_updated_at = report["updated_at"]
+
+    conn = app_db.get_db()
+    try:
+        service_id = conn.execute(
+            "INSERT INTO service_types(name, sort_order, is_active) VALUES(?,?,?)",
+            ("新服務 B", 99, 1),
+        ).lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    updated = owner.put(f"/api/appointments/{appointment['id']}", json={
+        "client_name": "新客戶",
+        "address": "新地址",
+        "service_type_id": service_id,
+        "date": "2026-09-21",
+        "start_time": "13:00",
+        "end_time": "15:00",
+        "note": "更新後行事曆備註",
+        "user_ids": [],
+        "updated_at": appointment["updated_at"],
+    })
+    assert updated.status_code == 200, updated.text
+
+    detail = owner.get(f"/api/work-progress/{report['id']}").json()
+    assert detail["report_date"] == "2026-09-21"
+    assert detail["client_name"] == "新客戶"
+    assert detail["address"] == "新地址"
+    assert detail["service_name"] == "新服務 B"
+    assert detail["start_time"] == "13:00"
+    assert detail["end_time"] == "15:00"
+    assert detail["appointment_note"] == "更新後行事曆備註"
+    assert detail["note"] == "已完成安裝"
+    assert detail["uploader_name"] == "Owner"
+    assert detail["uploader_user_id"] == users["owner"]
+    assert detail["created_at"] == report_created_at
+    assert detail["updated_at"] == report_updated_at
+
+    conn = app_db.get_db()
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM file_assets WHERE owner_id=?", (str(report["id"]),)
+        ).fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+def test_appointment_update_snapshot_sync_rolls_back_atomically(wpr_env, monkeypatch):
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner, date="2026-09-20", note="原始備註")
+    report = _create(owner, appointment["id"]).json()
+
+    def fail_sync(conn, appointment_id):
+        raise RuntimeError("snapshot sync failure")
+
+    monkeypatch.setattr(
+        appointments_route,
+        "sync_work_progress_snapshot_for_appointment",
+        fail_sync,
+    )
+    response = owner.put(f"/api/appointments/{appointment['id']}", json={
+        "client_name": "不應提交",
+        "address": "不應提交地址",
+        "service_type_id": 1,
+        "date": "2026-09-22",
+        "start_time": "16:00",
+        "end_time": "18:00",
+        "note": "不應提交備註",
+        "user_ids": [],
+    })
+    assert response.status_code == 500
+
+    current = owner.get(f"/api/appointments?date=2026-09-20").json()
+    assert current[0]["client_name"] == "王先生"
+    assert current[0]["address"] == "板橋區文化路 100 號"
+    detail = owner.get(f"/api/work-progress/{report['id']}").json()
+    assert detail["report_date"] == "2026-09-20"
+    assert detail["client_name"] == "王先生"
+    assert detail["appointment_note"] == "原始備註"
+    assert detail["note"] == "完成室內機"
+
+
 def test_appointment_delete_preserves_snapshot_history(wpr_env):
     make_client, _users, _static, _uploads = wpr_env
     client = make_client("owner")
     appointment = _appointment(client)
     report = _create(client, appointment["id"]).json()
+    updated = client.put(f"/api/appointments/{appointment['id']}", json={
+        "client_name": "刪除前最後客戶",
+        "address": "刪除前最後地址",
+        "service_type_id": 1,
+        "date": "2026-09-23",
+        "start_time": "11:00",
+        "end_time": "12:00",
+        "note": "刪除前最後備註",
+        "user_ids": [],
+    })
+    assert updated.status_code == 200, updated.text
     assert client.delete(f"/api/appointments/{appointment['id']}").status_code == 200
     detail = client.get(f"/api/work-progress/{report['id']}")
     assert detail.status_code == 200
     assert detail.json()["appointment_id"] is None
     assert detail.json()["appointment_deleted"] is True
-    assert detail.json()["client_name"] == "王先生"
+    assert detail.json()["client_name"] == "刪除前最後客戶"
+    assert detail.json()["address"] == "刪除前最後地址"
+    assert detail.json()["report_date"] == "2026-09-23"
+    assert detail.json()["appointment_note"] == "刪除前最後備註"
+    assert detail.json()["note"] == "完成室內機"
     assert client.get("/api/work-progress/kpi", params={"month": "2026-09"}).json()["total"] == 0
 
 
