@@ -704,6 +704,7 @@ def test_work_progress_append_partial_failure_rolls_back_files_and_rows(wpr_env)
     created = _create(client, appointment["id"]).json()
     report_dir = uploads / "work_progress" / "2026-09" / str(created["id"])
     before_assets = len(created["photos"])
+    before_paths = sorted(path.relative_to(report_dir).as_posix() for path in report_dir.rglob("*"))
     response = client.post(
         f"/api/work-progress/{created['id']}/photos",
         files=[
@@ -713,7 +714,17 @@ def test_work_progress_append_partial_failure_rolls_back_files_and_rows(wpr_env)
     )
     assert response.status_code == 400
     assert len(client.get(f"/api/work-progress/{created['id']}").json()["photos"]) == before_assets
-    assert not any(path.name == "valid.png" for path in report_dir.rglob("*"))
+    after_paths = sorted(path.relative_to(report_dir).as_posix() for path in report_dir.rglob("*"))
+    assert after_paths == before_paths
+    conn = app_db.get_db()
+    try:
+        asset_count = conn.execute(
+            "SELECT COUNT(*) FROM file_assets WHERE category='work_progress' AND owner_id=?",
+            (str(created["id"]),),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert asset_count == before_assets
 
 
 def test_work_progress_creator_display_name_is_live_but_reporter_name_is_snapshot(wpr_env):

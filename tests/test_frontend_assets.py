@@ -868,6 +868,11 @@ def test_perms_js_work_progress_dependency_contract():
     assert "WORK_PROGRESS_DEPENDENT_KEYS.forEach" in toggle
     assert "setPermCheckbox(dep, false)" in toggle
     assert "setPermCheckbox(WORK_PROGRESS_VIEW_KEY, true)" in toggle
+    assert "const viewInput = document.querySelector" in toggle
+    assert "!viewInput.checked" in toggle
+    guard_pos = toggle.index("!viewInput.checked")
+    set_pos = toggle.index("setPermCheckbox(WORK_PROGRESS_VIEW_KEY, true)")
+    assert guard_pos < set_pos
     assert "markPermOverride(key)" in toggle
     assert "有 ${n} 項未儲存變更" in hint
 
