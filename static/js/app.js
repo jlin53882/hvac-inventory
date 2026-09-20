@@ -127,6 +127,10 @@ function switchTab(tab) {
     if (!tab) { renderNoAccessiblePage(); return; }
   }
   var previousTab = currentTab;
+  if (previousTab === 'work-progress' && tab !== 'work-progress' && typeof wprHasUnsavedChanges === 'function' && wprHasUnsavedChanges()) {
+    if (typeof wprRequestLeave === 'function') wprRequestLeave(tab);
+    return;
+  }
   if (previousTab === 'work-progress' && tab !== 'work-progress' && typeof wprClearPendingFiles === 'function') {
     wprClearPendingFiles();
   }

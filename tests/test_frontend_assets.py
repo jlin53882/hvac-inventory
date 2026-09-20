@@ -5027,7 +5027,7 @@ def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_reado
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
     css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
-    submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
+    confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     select_block = js.split("async function wprSelectJob(id)", 1)[1].split("function wprUpdateNoteCount", 1)[0]
     assert 'id="wpr-uploader"' in render_block
     assert 'type="text"' in render_block
@@ -5035,8 +5035,8 @@ def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_reado
     assert 'id="wpr-current-user-name"' not in render_block
     assert "wprCurrentUserName()" in render_block
     assert "建立帳號：" in render_block
-    assert "uploaderName = uploader ? uploader.value.trim()" in submit_block
-    assert "form.append('uploader_name', uploaderName)" in submit_block
+    assert "uploaderName = uploader ? uploader.value.trim()" in js
+    assert "form.append('uploader_name', snapshot.uploaderName)" in confirm_block
     assert "wprCalendarReadonlyHtml" in select_block
     assert "工作日期" in js and "時間" in js and "客戶 / 案場" in js
     assert "地址" in js and "指定服務" in js and "行事曆原始備註" in js
@@ -5069,6 +5069,56 @@ def test_work_progress_frontend_create_section_order_and_field_grouping():
     for label in ("工作日期", "時間", "客戶 / 案場", "地址", "指定服務", "行事曆原始備註"):
         assert label in helper_block
     assert not any(tag in helper_block for tag in ("<input", "<textarea", "<select"))
+
+
+
+def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    app = read(APP_JS)
+    submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprConfirmSubmit", 1)[0]
+    confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi", 1)[0]
+    photo_block = js.split("function wprValidatePhotoBatch", 1)[1].split("function wprUpdatePendingPhotoControls", 1)[0]
+    pending_gallery_block = js.split("function wprOpenPendingGallery", 1)[1].split("function wprRequestLeave", 1)[0]
+    existing_block = js.split("function wprAddExistingPhotos", 1)[1].split("async function wprDeleteReport", 1)[0]
+    dirty_block = js.split("function wprHasUnsavedChanges", 1)[1].split("function wprInstallBeforeUnload", 1)[0]
+
+    assert "wprOpenSubmitConfirmation(snapshot)" in submit_block
+    assert "wprFetch('/api/work-progress'" not in submit_block
+    assert "form.append('uploader_name', snapshot.uploaderName)" in confirm_block
+    assert "button.disabled = true" in confirm_block
+    assert "wprPendingSubmit" in js
+    for marker in ("clientName", "serviceName", "uploaderName", "note", "files.length"):
+        assert marker in js
+    assert 'role=\"dialog\"' in js and 'aria-modal=\"true\"' in js
+
+    assert "WPR_ALLOWED_MIME_TYPES" in photo_block
+    assert "WPR_ALLOWED_EXTENSIONS" in photo_block
+    assert "files.length > remaining" in photo_block
+    assert "totalBytes > WPR_MAX_BATCH_BYTES" in photo_block
+    assert "URL.createObjectURL(file)" not in pending_gallery_block
+    assert "item.previewUrl" in pending_gallery_block
+    assert "wprPendingGalleryMove" in pending_gallery_block
+    assert "event.stopPropagation()" in js
+
+    assert "accept = 'image/jpeg,image/png,image/webp'" in existing_block
+    assert "wprValidatePhotoBatch(files" in existing_block
+    assert "report.photo_count" in existing_block
+    assert "image/*" not in js
+
+    for marker in ("wprCurrentReport && !wprCurrentReport.id && wprCurrentReport.appointment_id", "note.value.trim()", "wprInitialUploaderName", "wprSelectedFiles.length"):
+        assert marker in dirty_block
+    assert "wprHandleDateChange" in js
+    assert "wprRequestDraftReset(function() { wprSelectJob(id); })" in js
+    assert "beforeunload" in js
+    assert "wprRequestLeave(tab)" in app
+    assert "wprDiscardAndLeave" in js
+    assert "wprClosePendingGallery()" in js
+
+    assert ".wpr-photo-tile img" in css and "object-fit: contain" in css
+    assert ".wpr-gallery-grid img" in css and "object-fit: cover" in css
+    for selector in (".wpr-confirm-overlay", ".wpr-unsaved-overlay", ".wpr-pending-gallery-overlay"):
+        assert selector in css
 
 
 

@@ -4,7 +4,14 @@
 var wprGallery = { report: null, index: 0 };
 var wprPhotoManageReports = {};
 var wprSuppressHistoryToggle = {};
+var wprPendingSubmit = null;
+var wprPendingGallery = { index: -1 };
+var wprInitialUploaderName = '';
+var wprCurrentDateValue = '';
+var wprBeforeUnloadInstalled = false;
+var wprLeaveRequest = null;
 // Gallery dynamically creates id="wpr-gallery-overlay" before lookup.
+// Work Progress dialogs dynamically create id="wpr-confirm-overlay", id="wpr-unsaved-overlay", and id="wpr-pending-gallery-overlay".
 
 /**
  * Format a local Date as the date value used by the Work Progress API.
@@ -154,7 +161,7 @@ function wprRenderCreate() {
   }
   create.innerHTML = `
     <div class="wpr-section-heading"><div><h2>建立工作進度</h2><p>選擇行事曆工作後填寫現場回報。</p></div></div>
-    <div class="wpr-field"><label for="wpr-date">工作日期 <b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" onchange="wprLoadDay()"></div>
+    <div class="wpr-field"><label for="wpr-date">工作日期 <b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" onchange="wprHandleDateChange()"></div>
     <div class="wpr-field"><label>選擇工作內容 <b>*</b></label><div id="wpr-job-list" class="wpr-job-list"></div></div>
     <div id="wpr-selected-area" hidden></div>
     <section class="wpr-create-progress-section" aria-labelledby="wpr-create-progress-title">
@@ -162,11 +169,13 @@ function wprRenderCreate() {
       <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱 <b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
       <div class="wpr-field"><label for="wpr-note">工作進度備註</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
       <div class="wpr-field"><label>工作照片 <b>*</b></label>
+        <div class="wpr-photo-limit-copy">JPG、PNG、WebP · 單張最多 20MB · 每份最多 20 張</div>
         <div id="wpr-drop" class="wpr-drop">
           <div class="wpr-drop-icon">📸</div><div class="wpr-drop-title">拖曳多張圖片到此</div><div class="wpr-drop-sub">支援 JPG、PNG、WebP；也可以使用相簿或手機相機連續新增</div>
-          <div class="wpr-photo-actions"><button type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-album').click()">🖼 從相簿選擇</button><button type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-camera').click()">📷 拍照新增</button></div>
-          <input id="wpr-album" type="file" accept="image/*" multiple hidden onchange="wprAddPendingFiles(this.files);this.value=''"><input id="wpr-camera" type="file" accept="image/*" capture="environment" hidden onchange="wprAddPendingFiles(this.files);this.value=''">
+          <div class="wpr-photo-actions"><button id="wpr-album-button" type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-album').click()">🖼 從相簿選擇</button><button id="wpr-camera-button" type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-camera').click()">📷 拍照新增</button></div>
+          <input id="wpr-album" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onchange="wprAddPendingFiles(this.files);this.value=''"><input id="wpr-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onchange="wprAddPendingFiles(this.files);this.value=''">
         </div>
+        <div class="wpr-photo-counter" id="wpr-photo-counter">已選 0 / 20 張</div>
         <div id="wpr-pending-photos" class="wpr-photo-grid"></div>
       </div>
     </section>
@@ -175,7 +184,11 @@ function wprRenderCreate() {
   var creatorIdentity = document.getElementById('wpr-create-creator');
   var currentUserName = wprCurrentUserName();
   if (uploaderInput) uploaderInput.value = currentUserName;
+  wprInitialUploaderName = currentUserName;
+  var dateInput = document.getElementById('wpr-date');
+  wprCurrentDateValue = dateInput ? dateInput.value : '';
   if (creatorIdentity) creatorIdentity.textContent = '建立帳號：' + currentUserName;
+  wprInstallBeforeUnload();
   wprBindDropZone();
   wprUpdateNoteCount();
   wprRenderPendingPhotos();
@@ -196,6 +209,7 @@ async function wprLoadDay() {
     var reports = await wprFetch('/api/work-progress?from_date=' + encodeURIComponent(dateValue) + '&to_date=' + encodeURIComponent(dateValue) + '&page_size=100');
     if (token !== wprDayRequestToken) return;
     wprAppointments = jobs || [];
+    wprCurrentDateValue = dateValue;
     wprReportsByAppointment = {};
     (reports.items || []).forEach(function(report) { if (report.appointment_id !== null) wprReportsByAppointment[report.appointment_id] = report; });
     wprRenderJobs();
@@ -239,6 +253,10 @@ async function wprSelectJob(id) {
   var token = ++wprSelectRequestToken;
   var job = wprAppointments.find(function(item) { return item.id === id; });
   if (!job) return;
+  if (wprCurrentReport && wprCurrentReport.appointment_id !== id && wprHasUnsavedChanges()) {
+    wprRequestDraftReset(function() { wprSelectJob(id); });
+    return;
+  }
   var existing = wprReportsByAppointment[id];
   if (existing) {
     try {
@@ -287,67 +305,224 @@ function wprBindDropZone() {
   drop.addEventListener('drop', function(event) { wprAddPendingFiles(event.dataTransfer.files); });
 }
 /**
- * Release object URLs and clear the pending photo queue.
+ * Return whether the create form contains content that would be lost.
+ * @returns {boolean} Whether an unsaved appointment, field value, or photo exists.
+ */
+function wprHasUnsavedChanges() {
+  var uploader = document.getElementById('wpr-uploader');
+  var note = document.getElementById('wpr-note');
+  return !!(
+    (wprCurrentReport && !wprCurrentReport.id && wprCurrentReport.appointment_id) ||
+    (note && note.value.trim()) ||
+    (uploader && uploader.value.trim() !== wprInitialUploaderName) ||
+    wprSelectedFiles.length
+  );
+}
+
+/**
+ * Install the browser unload guard once for the Work Progress page.
+ * @returns {void} Function result.
+ */
+function wprInstallBeforeUnload() {
+  if (wprBeforeUnloadInstalled) return;
+  window.addEventListener('beforeunload', wprBeforeUnload);
+  wprBeforeUnloadInstalled = true;
+}
+
+/**
+ * Block browser reload/close only while the create form is dirty.
+ * @param {BeforeUnloadEvent} event - Browser unload event.
+ * @returns {void} Function result.
+ */
+function wprBeforeUnload(event) {
+  if (!wprHasUnsavedChanges()) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+/**
+ * Clear the pending create draft and release every owned object URL.
  * @returns {void} Function result.
  */
 function wprClearPendingFiles() {
+  wprClosePendingGallery();
   wprSelectedFiles.forEach(function(item) {
     if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
   });
   wprSelectedFiles = [];
+  wprRenderPendingPhotos();
 }
+
+var WPR_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+var WPR_ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+var WPR_MAX_FILES = 20;
+var WPR_MAX_FILE_BYTES = 20 * 1024 * 1024;
+var WPR_MAX_BATCH_BYTES = 100 * 1024 * 1024;
+
 /**
- * Validate and append selected image files without replacing earlier photos.
- * @param {FileList|File[]} fileList - Function input.
+ * Validate one photo batch before mutating pending state or sending an append request.
+ * @param {File[]|FileList} fileList - Candidate files.
+ * @param {number} currentCount - Existing report or pending-photo count.
+ * @returns {{ok: boolean, error?: string}} Validation result.
+ */
+function wprValidatePhotoBatch(fileList, currentCount) {
+  var files = Array.from(fileList || []);
+  var remaining = WPR_MAX_FILES - currentCount;
+  if (!files.length) return {ok: false, error: '請選擇至少 1 張照片。'};
+  if (files.length > remaining) return {ok: false, error: '目前已選 ' + currentCount + ' 張，最多還能新增 ' + Math.max(remaining, 0) + ' 張照片。請重新選擇不超過上限的照片。'};
+  var totalBytes = 0;
+  for (var i = 0; i < files.length; i += 1) {
+    var file = files[i];
+    var extension = (file.name || '').slice((file.name || '').lastIndexOf('.')).toLowerCase();
+    if (WPR_ALLOWED_EXTENSIONS.indexOf(extension) < 0 || WPR_ALLOWED_MIME_TYPES.indexOf(file.type) < 0) return {ok: false, error: '不支援此圖片格式。目前僅支援 JPG、PNG、WebP。'};
+    if (file.size > WPR_MAX_FILE_BYTES) return {ok: false, error: '單張圖片上限 20MB。'};
+    totalBytes += file.size;
+  }
+  if (totalBytes > WPR_MAX_BATCH_BYTES) return {ok: false, error: '本次選擇圖片總大小不可超過 100MB。'};
+  return {ok: true};
+}
+
+/**
+ * Update the create photo counter and disable controls at the report limit.
+ * @returns {void} Function result.
+ */
+function wprUpdatePendingPhotoControls() {
+  var count = wprSelectedFiles.length;
+  var counter = document.getElementById('wpr-photo-counter');
+  if (counter) counter.textContent = '已選 ' + count + ' / ' + WPR_MAX_FILES + ' 張' + (count >= WPR_MAX_FILES ? ' · 已達照片上限' : '');
+  ['wpr-album-button', 'wpr-camera-button'].forEach(function(id) {
+    var button = document.getElementById(id);
+    if (button) button.disabled = count >= WPR_MAX_FILES;
+  });
+}
+
+/**
+ * Validate and append a complete supported image batch without replacing earlier photos.
+ * @param {FileList|File[]} fileList - Candidate files.
  * @returns {void} Function result.
  */
 function wprAddPendingFiles(fileList) {
-  Array.from(fileList || []).forEach(function(file) {
-    if (!file.type.startsWith('image/')) { toast('只能選擇圖片', 'error'); return; }
-    if (file.size > 20 * 1024 * 1024) { toast('單張圖片上限 20MB', 'error'); return; }
-    if (wprSelectedFiles.length >= 20) return;
-    wprSelectedFiles.push({file: file, previewUrl: URL.createObjectURL(file)});
-  });
+  var files = Array.from(fileList || []);
+  var validation = wprValidatePhotoBatch(files, wprSelectedFiles.length);
+  if (!validation.ok) { toast(validation.error, 'error'); return; }
+  files.forEach(function(file) { wprSelectedFiles.push({file: file, previewUrl: URL.createObjectURL(file)}); });
   wprRenderPendingPhotos();
   if (wprCurrentReport && wprCurrentReport.appointment_id && !wprReportsByAppointment[wprCurrentReport.appointment_id]) document.getElementById('wpr-save').disabled = !wprSelectedFiles.length;
 }
+
 /**
- * Render pending photo thumbnails and per-photo removal controls.
+ * Render pending photo thumbnails with separate preview and remove actions.
  * @returns {void} Function result.
  */
 function wprRenderPendingPhotos() {
   var grid = document.getElementById('wpr-pending-photos');
   if (!grid) return;
-  grid.innerHTML = wprSelectedFiles.map(function(item, index) { return '<div class="wpr-photo-tile"><img src="' + esc(item.previewUrl) + '" alt="待上傳照片 ' + (index + 1) + '"><button type="button" onclick="wprRemovePending(' + index + ')" aria-label="移除第 ' + (index + 1) + ' 張照片">✕</button></div>'; }).join('') + '<button type="button" class="wpr-add-tile" onclick="document.getElementById(\'wpr-album\').click()">＋新增</button>';
+  var addDisabled = wprSelectedFiles.length >= WPR_MAX_FILES ? ' disabled' : '';
+  grid.innerHTML = wprSelectedFiles.map(function(item, index) { return '<div class="wpr-photo-tile"><button type="button" class="wpr-pending-preview" onclick="wprOpenPendingGallery(' + index + ')" aria-label="預覽第 ' + (index + 1) + ' 張待上傳照片"><img src="' + esc(item.previewUrl) + '" alt="待上傳照片 ' + (index + 1) + '"></button><button type="button" class="wpr-photo-remove" onclick="event.stopPropagation();wprRemovePending(' + index + ')" aria-label="移除第 ' + (index + 1) + ' 張照片">✕</button></div>'; }).join('') + '<button type="button" id="wpr-add-pending-button" class="wpr-add-tile" onclick="document.getElementById(\'wpr-album\').click()"' + addDisabled + '>＋新增</button>';
+  wprUpdatePendingPhotoControls();
 }
+
 /**
  * Remove one pending photo and release only its object URL.
- * @param {number} index - Function input.
+ * @param {number} index - Pending photo index.
  * @returns {void} Function result.
  */
 function wprRemovePending(index) {
   var item = wprSelectedFiles[index];
-  if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  if (!item) return;
+  wprClosePendingGallery();
+  if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
   wprSelectedFiles.splice(index, 1);
   wprRenderPendingPhotos();
   var save = document.getElementById('wpr-save');
   if (save && (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprReportsByAppointment[wprCurrentReport.appointment_id])) save.disabled = !wprSelectedFiles.length;
 }
+
 /**
- * Submit one appointment report with its note and photo batch.
+ * Build an immutable snapshot for the save confirmation modal.
+ * @returns {Object|null} Snapshot containing file references but not copied file bytes.
+ */
+function wprBuildSubmitSnapshot() {
+  var uploader = document.getElementById('wpr-uploader');
+  var note = document.getElementById('wpr-note');
+  var appointment = wprCurrentReport && wprCurrentReport.appointment;
+  if (!uploader || !note || !wprCurrentReport || !appointment) return null;
+  return {appointmentId: wprCurrentReport.appointment_id, uploaderName: uploader.value.trim(), note: note.value.trim(), files: wprSelectedFiles.slice(), date: document.getElementById('wpr-date').value, time: wprTimeText(appointment), clientName: appointment.client_name || '—', serviceName: appointment.service_name || '未指定服務'};
+}
+
+/**
+ * Open a Work Progress-scoped final save confirmation dialog.
+ * @param {Object} snapshot - Immutable content to display and submit.
+ * @returns {void} Function result.
+ */
+function wprOpenSubmitConfirmation(snapshot) {
+  wprPendingSubmit = snapshot;
+  var old = document.getElementById('wpr-confirm-overlay');
+  if (old) old.remove();
+  var overlay = document.createElement('div');
+  overlay.className = 'wpr-confirm-overlay';
+  overlay.id = 'wpr-confirm-overlay';
+  overlay.innerHTML = '<div class="wpr-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-confirm-title"><div class="wpr-confirm-header"><h3 id="wpr-confirm-title">確認儲存工作進度？</h3><button type="button" class="wpr-confirm-close" data-wpr-confirm-cancel aria-label="返回修改">✕</button></div><div class="wpr-confirm-body"><p>請確認以下工作進度內容無誤。</p><dl><dt>行事曆工作</dt><dd>' + esc(snapshot.date) + ' ' + snapshot.time + '<br>' + esc(snapshot.clientName) + ' · ' + esc(snapshot.serviceName) + '</dd><dt>回報人</dt><dd>' + esc(snapshot.uploaderName) + '</dd><dt>工作進度備註</dt><dd>' + esc(snapshot.note || '未填寫') + '</dd><dt>待上傳照片</dt><dd>' + snapshot.files.length + ' 張</dd></dl></div><div class="wpr-confirm-footer"><button type="button" class="wpr-confirm-secondary" data-wpr-confirm-cancel>返回修改</button><button type="button" class="wpr-confirm-primary" data-wpr-confirm-submit>確認儲存</button></div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelectorAll('[data-wpr-confirm-cancel]').forEach(function(button) { button.addEventListener('click', wprCloseSubmitConfirmation); });
+  overlay.querySelector('[data-wpr-confirm-submit]').addEventListener('click', wprConfirmSubmit);
+}
+
+/**
+ * Close the save confirmation without changing the draft.
+ * @returns {void} Function result.
+ */
+function wprCloseSubmitConfirmation() {
+  var overlay = document.getElementById('wpr-confirm-overlay');
+  if (overlay) overlay.remove();
+  wprPendingSubmit = null;
+}
+
+/**
+ * Submit the exact snapshot after the user confirms the save dialog.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function wprConfirmSubmit() {
+  var snapshot = wprPendingSubmit;
+  var button = document.querySelector('[data-wpr-confirm-submit]');
+  if (!snapshot || !button) return;
+  button.disabled = true;
+  button.textContent = '儲存中…';
+  var form = new FormData();
+  form.append('appointment_id', snapshot.appointmentId);
+  form.append('uploader_name', snapshot.uploaderName);
+  form.append('note', snapshot.note);
+  snapshot.files.forEach(function(item) { form.append('files', item.file, item.file.name); });
+  try {
+    await wprFetch('/api/work-progress', {method: 'POST', body: form});
+    wprCloseSubmitConfirmation();
+    wprClearPendingFiles();
+    wprCurrentReport = null;
+    wprRenderCreate();
+    await Promise.all([wprLoadDay(), wprLoadHistory(1), wprLoadKpi()]);
+    toast('工作進度已儲存', 'success');
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = '確認儲存';
+    toast(error.message, 'error');
+  }
+}
+
+/**
+ * Validate the draft and open confirmation instead of posting immediately.
  * @returns {void} Function result.
  */
 async function wprSubmit() {
   if (!wprCanCreate()) { toast('沒有新增工作進度回報的權限', 'error'); return; }
-  if (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprSelectedFiles.length) return;
+  if (wprPendingSubmit || !wprCurrentReport || !wprCurrentReport.appointment_id || wprReportsByAppointment[wprCurrentReport.appointment_id] || !wprSelectedFiles.length) return;
   var uploader = document.getElementById('wpr-uploader');
   var uploaderName = uploader ? uploader.value.trim() : '';
+  var note = document.getElementById('wpr-note');
   if (!uploaderName) { toast('請填寫回報人顯示名稱', 'error'); return; }
   if (uploaderName.length > 50) { toast('回報人顯示名稱最多 50 字', 'error'); return; }
-  var button = document.getElementById('wpr-save'); button.disabled = true;
-  var form = new FormData(); form.append('appointment_id', wprCurrentReport.appointment_id); form.append('uploader_name', uploaderName); form.append('note', (document.getElementById('wpr-note').value || '').trim());
-  wprSelectedFiles.forEach(function(item) { form.append('files', item.file, item.file.name); });
-  try { await wprFetch('/api/work-progress', { method: 'POST', body: form }); toast('工作進度已儲存', 'success'); wprClearPendingFiles(); wprCurrentReport = null; wprRenderCreate(); await Promise.all([wprLoadDay(), wprLoadHistory(1), wprLoadKpi()]); } catch (error) { toast(error.message, 'error'); button.disabled = false; }
+  if (note && note.value.length > 1000) { toast('工作進度備註最多 1000 字', 'error'); return; }
+  var snapshot = wprBuildSubmitSnapshot();
+  if (snapshot) wprOpenSubmitConfirmation(snapshot);
 }
 
 /**
@@ -487,7 +662,7 @@ async function wprOpenHistoryDetail(id) {
   try {
     var report = await wprFetch('/api/work-progress/' + id);
     if (token !== wprDetailRequestTokens[id]) return;
-    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditReport(' + id + ')">✏️ 編輯回報</button><button type="button" onclick="wprTogglePhotoManage(' + id + ')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><button type="button" onclick="wprAddExistingPhotos(' + id + ')">📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
+    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditReport(' + id + ')">✏️ 編輯回報</button><button type="button" onclick="wprTogglePhotoManage(' + id + ')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" onclick="wprAddExistingPhotos(' + id + ')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
   } catch (error) { if (token === wprDetailRequestTokens[id]) detail.textContent = error.message; }
 }
 /**
@@ -572,11 +747,185 @@ async function wprDeletePhoto(reportId, assetId) {
   } catch (error) { toast(error.message, 'error'); }
 }
 /**
+ * Open a full-size gallery for one pending upload without creating another object URL.
+ * @param {number} index - Pending photo index.
+ * @returns {void} Function result.
+ */
+function wprOpenPendingGallery(index) {
+  if (!wprSelectedFiles[index]) return;
+  wprPendingGallery.index = index;
+  var old = document.getElementById('wpr-pending-gallery-overlay');
+  if (old) old.remove();
+  var overlay = document.createElement('div');
+  overlay.className = 'wpr-pending-gallery-overlay';
+  overlay.id = 'wpr-pending-gallery-overlay';
+  overlay.innerHTML = '<div class="wpr-pending-gallery-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-pending-gallery-title"><button type="button" class="wpr-pending-gallery-close" onclick="wprClosePendingGallery()" aria-label="關閉待上傳照片預覽">✕</button><div id="wpr-pending-gallery-title" class="wpr-pending-gallery-count"></div><img id="wpr-pending-gallery-image" alt="待上傳照片預覽"><div id="wpr-pending-gallery-name" class="wpr-pending-gallery-name"></div><div class="wpr-pending-gallery-nav"><button type="button" onclick="wprPendingGalleryMove(-1)">← 上一張</button><button type="button" onclick="wprPendingGalleryMove(1)">下一張 →</button></div></div>';
+  document.body.appendChild(overlay);
+  wprRenderPendingGallery();
+}
+
+/**
+ * Render the current pending photo using its existing preview URL.
+ * @returns {void} Function result.
+ */
+function wprRenderPendingGallery() {
+  var item = wprSelectedFiles[wprPendingGallery.index];
+  if (!item) { wprClosePendingGallery(); return; }
+  var count = document.getElementById('wpr-pending-gallery-title');
+  var image = document.getElementById('wpr-pending-gallery-image');
+  var name = document.getElementById('wpr-pending-gallery-name');
+  if (count) count.textContent = (wprPendingGallery.index + 1) + ' / ' + wprSelectedFiles.length;
+  if (image) image.src = item.previewUrl;
+  if (name) name.textContent = item.file.name;
+}
+
+/**
+ * Move through pending photos with wraparound navigation.
+ * @param {number} delta - Relative gallery movement.
+ * @returns {void} Function result.
+ */
+function wprPendingGalleryMove(delta) {
+  if (!wprSelectedFiles.length) return;
+  wprPendingGallery.index = (wprPendingGallery.index + delta + wprSelectedFiles.length) % wprSelectedFiles.length;
+  wprRenderPendingGallery();
+}
+
+/**
+ * Close the pending gallery without revoking its still-live object URL.
+ * @returns {void} Function result.
+ */
+function wprClosePendingGallery() {
+  var overlay = document.getElementById('wpr-pending-gallery-overlay');
+  if (overlay) overlay.remove();
+  wprPendingGallery.index = -1;
+}
+
+/**
+ * Open the discard confirmation before switching away from Work Progress.
+ * @param {string} nextTab - Requested destination tab.
+ * @returns {void} Function result.
+ */
+function wprRequestLeave(nextTab) {
+  wprOpenUnsavedConfirmation({tab: nextTab, action: null});
+}
+
+/**
+ * Open the discard confirmation before replacing the current create draft.
+ * @param {Function} action - Action to run after the draft is discarded.
+ * @returns {void} Function result.
+ */
+function wprRequestDraftReset(action, restoreDate) {
+  wprOpenUnsavedConfirmation({tab: null, action: action, restoreDate: restoreDate});
+}
+
+/**
+ * Render the shared unsaved-draft confirmation for navigation or replacement.
+ * @param {{tab: (string|null), action: (Function|null)}} request - Pending action.
+ * @returns {void} Function result.
+ */
+function wprOpenUnsavedConfirmation(request) {
+  if (wprPendingSubmit) return;
+  wprLeaveRequest = request;
+  var old = document.getElementById('wpr-unsaved-overlay');
+  if (old) old.remove();
+  var overlay = document.createElement('div');
+  overlay.className = 'wpr-unsaved-overlay';
+  overlay.id = 'wpr-unsaved-overlay';
+  overlay.innerHTML = '<div class="wpr-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-unsaved-title"><h3 id="wpr-unsaved-title">尚未儲存工作進度</h3><p>目前輸入內容與待上傳照片尚未儲存。<br>離開後這些內容將會遺失。</p><div class="wpr-unsaved-actions"><button type="button" class="wpr-unsaved-secondary" onclick="wprCloseLeaveConfirmation()">繼續編輯</button><button type="button" class="wpr-unsaved-danger" onclick="wprDiscardAndLeave()">放棄並離開</button></div></div>';
+  document.body.appendChild(overlay);
+}
+
+/**
+ * Close the unsaved-draft confirmation and keep the form intact.
+ * @returns {void} Function result.
+ */
+function wprCloseLeaveConfirmation() {
+  var request = wprLeaveRequest;
+  var overlay = document.getElementById('wpr-unsaved-overlay');
+  if (overlay) overlay.remove();
+  if (request && request.restoreDate) {
+    var dateInput = document.getElementById('wpr-date');
+    if (dateInput) dateInput.value = request.restoreDate;
+  }
+  wprLeaveRequest = null;
+}
+
+/**
+ * Reset the create draft without leaving the Work Progress tab.
+ * @returns {void} Function result.
+ */
+function wprResetCreateDraft() {
+  wprClosePendingGallery();
+  wprClearPendingFiles();
+  var note = document.getElementById('wpr-note');
+  var uploader = document.getElementById('wpr-uploader');
+  if (note) { note.value = ''; wprUpdateNoteCount(); }
+  if (uploader) uploader.value = wprInitialUploaderName;
+  wprCurrentReport = null;
+  var area = document.getElementById('wpr-selected-area');
+  if (area) { area.hidden = true; area.innerHTML = ''; }
+  var save = document.getElementById('wpr-save');
+  if (save) save.disabled = true;
+}
+
+/**
+ * Discard the draft, release URLs, and continue the requested action.
+ * @returns {void} Function result.
+ */
+function wprDiscardAndLeave() {
+  var request = wprLeaveRequest;
+  wprCloseLeaveConfirmation();
+  wprCloseSubmitConfirmation();
+  wprResetCreateDraft();
+  if (request && request.action) request.action();
+  else if (request && request.tab && typeof switchTab === 'function') switchTab(request.tab);
+}
+
+/**
+ * Handle date changes without silently moving an unsaved draft.
+ * @returns {void} Function result.
+ */
+function wprHandleDateChange() {
+  var dateInput = document.getElementById('wpr-date');
+  var nextDate = dateInput ? dateInput.value : '';
+  if (wprHasUnsavedChanges()) {
+    var previousDate = wprCurrentDateValue;
+    wprRequestDraftReset(function() {
+      if (dateInput) dateInput.value = nextDate;
+      wprCurrentDateValue = nextDate;
+      wprLoadDay();
+    }, previousDate);
+    return;
+  }
+  wprCurrentDateValue = nextDate;
+  wprLoadDay();
+}
+
+/**
  * Open a multi-file picker and append photos to an existing report.
  * @param {number} id - Function input.
  * @returns {void} Function result.
  */
-function wprAddExistingPhotos(id) { var input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.onchange = async function() { var form = new FormData(); Array.from(input.files).forEach(function(file) { form.append('files', file, file.name); }); try { await wprFetch('/api/work-progress/' + id + '/photos', {method:'POST', body:form}); toast('照片已新增', 'success'); await wprReloadAndReopenDetail(id, 1); } catch (error) { toast(error.message, 'error'); } }; input.click(); }
+function wprAddExistingPhotos(id) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/jpeg,image/png,image/webp';
+  input.multiple = true;
+  input.onchange = async function() {
+    try {
+      var files = Array.from(input.files || []);
+      var report = await wprFetch('/api/work-progress/' + id);
+      var validation = wprValidatePhotoBatch(files, Number(report.photo_count) || 0);
+      if (!validation.ok) { toast(validation.error, 'error'); return; }
+      var form = new FormData();
+      files.forEach(function(file) { form.append('files', file, file.name); });
+      await wprFetch('/api/work-progress/' + id + '/photos', {method:'POST', body:form});
+      toast('照片已新增', 'success');
+      await wprReloadAndReopenDetail(id, 1);
+    } catch (error) { toast(error.message, 'error'); }
+  };
+  input.click();
+}
 /**
  * Confirm and delete a report with its managed photos.
  * @param {number} id - Function input.
@@ -606,4 +955,4 @@ function wprGalleryMove(delta) { if (!wprGallery.report || !wprGallery.report.ph
  * @returns {void} Function result.
  */
 function wprCloseGallery() { var overlay = document.getElementById('wpr-gallery-overlay'); if (overlay) overlay.remove(); wprGallery.report = null; }
-document.addEventListener('keydown', function(event) { if (!wprGallery.report) return; if (event.key === 'Escape') wprCloseGallery(); if (event.key === 'ArrowLeft') wprGalleryMove(-1); if (event.key === 'ArrowRight') wprGalleryMove(1); });
+document.addEventListener('keydown', function(event) { if (wprPendingGallery.index >= 0) { if (event.key === 'Escape') wprClosePendingGallery(); if (event.key === 'ArrowLeft') wprPendingGalleryMove(-1); if (event.key === 'ArrowRight') wprPendingGalleryMove(1); return; } if (!wprGallery.report) return; if (event.key === 'Escape') wprCloseGallery(); if (event.key === 'ArrowLeft') wprGalleryMove(-1); if (event.key === 'ArrowRight') wprGalleryMove(1); });
