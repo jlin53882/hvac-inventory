@@ -854,6 +854,24 @@ def test_perms_js_close_methods():
     assert "closeResetPwModal" in js
 
 
+def test_perms_js_work_progress_dependency_contract():
+    """權限頁關閉 view 會同步關閉 dependent，開 dependent 會同步開 view。"""
+    js = read(PERMS_JS)
+    toggle = js.split("window.permToggle = function permToggle", 1)[1].split("window.permSave", 1)[0]
+    hint = js.split("function refreshPermissionSaveHint()", 1)[1].split("window.permToggle", 1)[0]
+    for key in (
+        "work-progress-create", "work-progress-edit", "work-progress-edit-all",
+        "work-progress-delete", "work-progress-delete-all",
+    ):
+        assert key in js
+    assert "WORK_PROGRESS_VIEW_KEY" in toggle
+    assert "WORK_PROGRESS_DEPENDENT_KEYS.forEach" in toggle
+    assert "setPermCheckbox(dep, false)" in toggle
+    assert "setPermCheckbox(WORK_PROGRESS_VIEW_KEY, true)" in toggle
+    assert "markPermOverride(key)" in toggle
+    assert "有 ${n} 項未儲存變更" in hint
+
+
 def test_perms_js_reset_perm_modal():
     """2026-08-15：重設為角色預設 改自訂確認 modal（取代原生 confirm）——開/關/確定 三函式齊全"""
     js = read(PERMS_JS)

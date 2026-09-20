@@ -39,6 +39,11 @@
   let permissionSearch = '';
   let permissionModule = 'all';
   const PERMISSIONS_PAGE_SIZE = 10;
+  const WORK_PROGRESS_VIEW_KEY = 'work-progress-view';
+  const WORK_PROGRESS_DEPENDENT_KEYS = [
+    'work-progress-create', 'work-progress-edit', 'work-progress-edit-all',
+    'work-progress-delete', 'work-progress-delete-all',
+  ];
 
   // ---------- fetch 封裝 ----------
   async function apiGet(url) {
@@ -319,6 +324,17 @@
     const row = document.querySelector(`input[data-key="${key}"]`)?.closest('.perm-row');
     const src = row && row.querySelector('.perm-src');
     if (src) { src.textContent = '✏️ 自訂'; src.className = 'perm-src override'; }
+    if (key === WORK_PROGRESS_VIEW_KEY && !checked) {
+      WORK_PROGRESS_DEPENDENT_KEYS.forEach(function(dep) {
+        permChanges[dep] = 0;
+        const dependent = document.querySelector(`input[data-key="${dep}"]`);
+        if (dependent) dependent.checked = false;
+      });
+    } else if (WORK_PROGRESS_DEPENDENT_KEYS.includes(key) && checked) {
+      permChanges[WORK_PROGRESS_VIEW_KEY] = 1;
+      const viewInput = document.querySelector(`input[data-key="${WORK_PROGRESS_VIEW_KEY}"]`);
+      if (viewInput) viewInput.checked = true;
+    }
     const hint = document.getElementById('saveHint');
     if (hint) {
       const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;

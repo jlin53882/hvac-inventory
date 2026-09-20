@@ -183,6 +183,43 @@ def test_override_open_import_for_viewer(viewer_client, admin_client):
     assert r.json()["permissions"]["item-mgmt"] is True
 
 
+def test_work_progress_permission_dependency_normalizes_invalid_state(admin_client):
+    """直接 API 關閉 view 時，五個 work-progress dependent 不得留下 true。"""
+    uid = _make_user(admin_client, "wpdep", "user")
+    result = admin_client.put(
+        f"/api/users/{uid}/permissions",
+        json={
+            "permissions": {
+                "work-progress-view": 0,
+                "work-progress-create": 1,
+                "work-progress-edit": 1,
+                "work-progress-delete": 1,
+            }
+        },
+    )
+    assert result.status_code == 200
+    permissions = result.json()["permissions"]
+    assert permissions["work-progress-view"] is False
+    for key in (
+        "work-progress-create", "work-progress-edit", "work-progress-edit-all",
+        "work-progress-delete", "work-progress-delete-all",
+    ):
+        assert permissions[key] is False
+
+
+def test_work_progress_permission_dependency_opens_view_for_dependent(admin_client):
+    """直接 API 開啟任一 dependent 時，view 會一併開啟。"""
+    uid = _make_user(admin_client, "wpdepviewer", "viewer")
+    result = admin_client.put(
+        f"/api/users/{uid}/permissions",
+        json={"permissions": {"work-progress-delete-all": 1}},
+    )
+    assert result.status_code == 200
+    permissions = result.json()["permissions"]
+    assert permissions["work-progress-view"] is True
+    assert permissions["work-progress-delete-all"] is True
+
+
 def test_reset_all_returns_to_role_defaults(admin_client):
     """reset_all 清空覆蓋 → 回到角色預設"""
     uid = _make_user(admin_client, "u2", "user")

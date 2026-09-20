@@ -35,7 +35,7 @@ def wpr_env(tmp_path, monkeypatch):
     conn = app_db.get_db()
     users = {}
     try:
-        for username, role in (("owner", "user"), ("other", "user"), ("viewer", "viewer"), ("tech", "tech")):
+        for username, role in (("owner", "user"), ("other", "user"), ("viewer", "viewer"), ("tech", "tech"), ("admin", "admin")):
             cur = conn.execute(
                 "INSERT INTO users(username,password_hash,display_name,role) VALUES(?,?,?,?)",
                 (username, "x", username.title(), role),
@@ -310,6 +310,123 @@ def test_edit_all_and_delete_all_permissions(wpr_env):
     assert admin.delete(f"/api/work-progress/{report['id']}").status_code == 200
 
 
+def test_work_progress_per_user_create_override_is_immediate(wpr_env):
+    """同一 viewer session 的 create override 開關必須立即影響 POST。"""
+    make_client, users, _static, _uploads = wpr_env
+    admin = make_client("admin")
+    owner = make_client("owner")
+    viewer = make_client("viewer")
+    first = _appointment(owner, date="2026-09-18")
+    assert viewer.post(
+        "/api/work-progress", data={"appointment_id": str(first["id"])},
+        files={"files": ("viewer.png", _png(10, 10), "image/png")},
+    ).status_code == 403
+    assert admin.put(
+        f"/api/users/{users['viewer']}/permissions",
+        json={"permissions": {"work-progress-create": 1}},
+    ).status_code == 200
+    assert viewer.post(
+        "/api/work-progress", data={"appointment_id": str(first["id"])},
+        files={"files": ("viewer.png", _png(10, 10), "image/png")},
+    ).status_code == 201
+    second = _appointment(owner, date="2026-09-19")
+    assert admin.put(
+        f"/api/users/{users['viewer']}/permissions",
+        json={"permissions": {"work-progress-create": 0}},
+    ).status_code == 200
+    assert viewer.post(
+        "/api/work-progress", data={"appointment_id": str(second["id"])},
+        files={"files": ("viewer2.png", _png(10, 10), "image/png")},
+    ).status_code == 403
+
+
+def test_work_progress_edit_delete_overrides_update_flags_and_mutations(wpr_env):
+    """本人與全域 edit/delete override 同步影響 response flags 和 mutation。"""
+    make_client, users, _static, _uploads = wpr_env
+    admin = make_client("admin")
+    owner = make_client("owner")
+    other = make_client("other")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+    assert owner.get(f"/api/work-progress/{report['id']}").json()["can_edit"] is True
+    assert owner.get(f"/api/work-progress/{report['id']}").json()["can_delete"] is True
+    assert admin.put(
+        f"/api/users/{users['owner']}/permissions",
+        json={"permissions": {"work-progress-edit": 0, "work-progress-delete": 0}},
+    ).status_code == 200
+    flags = owner.get(f"/api/work-progress/{report['id']}").json()
+    assert flags["can_edit"] is False and flags["can_delete"] is False
+    assert owner.patch(f"/api/work-progress/{report['id']}", json={"note": "拒絕"}).status_code == 403
+    assert owner.delete(f"/api/work-progress/{report['id']}").status_code == 403
+    assert other.get(f"/api/work-progress/{report['id']}").json()["can_edit"] is False
+    assert admin.put(
+        f"/api/users/{users['other']}/permissions",
+        json={"permissions": {"work-progress-edit-all": 1}},
+    ).status_code == 200
+    assert other.get(f"/api/work-progress/{report['id']}").json()["can_edit"] is True
+    assert other.patch(f"/api/work-progress/{report['id']}", json={"note": "全域編輯"}).status_code == 200
+    assert admin.put(
+        f"/api/users/{users['other']}/permissions",
+        json={"permissions": {"work-progress-delete-all": 1}},
+    ).status_code == 200
+    assert other.get(f"/api/work-progress/{report['id']}").json()["can_delete"] is True
+    assert other.delete(f"/api/work-progress/{report['id']}").status_code == 200
+
+
+def test_work_progress_non_owner_photo_append_follows_edit_semantics(wpr_env):
+    """非本人不可新增照片；edit-all 可新增照片。"""
+    make_client, users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    other = make_client("other")
+    admin = make_client("admin")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+    path = f"/api/work-progress/{report['id']}/photos"
+    assert other.post(path, files={"files": ("blocked.png", _png(10, 10), "image/png")}).status_code == 403
+    assert admin.put(
+        f"/api/users/{users['other']}/permissions",
+        json={"permissions": {"work-progress-edit-all": 1}},
+    ).status_code == 200
+    assert other.post(path, files={"files": ("allowed.png", _png(10, 10), "image/png")}).status_code == 200
+
+
+def test_work_progress_calendar_sync_crosses_month_and_recomputes_kpi(wpr_env):
+    """工作日期跨月同步後，history range 與 KPI 以新月份為準。"""
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    moved = _appointment(owner, date="2026-09-30")
+    stays = _appointment(owner, date="2026-09-29")
+    report = _create(owner, moved["id"]).json()
+    assert owner.put(f"/api/appointments/{moved['id']}", json={
+        "client_name": "王先生", "address": "板橋區文化路 100 號", "service_type_id": 1,
+        "date": "2026-10-01", "start_time": "09:00", "end_time": "12:00",
+        "note": "跨月後備註", "user_ids": [], "updated_at": moved["updated_at"],
+    }).status_code == 200
+    assert owner.get("/api/work-progress", params={"from_date": "2026-09-01", "to_date": "2026-09-30"}).json()["total"] == 0
+    assert owner.get("/api/work-progress", params={"from_date": "2026-10-01", "to_date": "2026-10-31"}).json()["total"] == 1
+    september = owner.get("/api/work-progress/kpi", params={"month": "2026-09"}).json()
+    october = owner.get("/api/work-progress/kpi", params={"month": "2026-10"}).json()
+    assert september == {"month": "2026-09", "total": 1, "reported": 0, "missing": 1, "rate": 0, "photo_count": 0}
+    assert october == {"month": "2026-10", "total": 1, "reported": 1, "missing": 0, "rate": 100, "photo_count": 1}
+    assert owner.get(f"/api/work-progress/{report['id']}").json()["report_date"] == "2026-10-01"
+    assert stays["date"] == "2026-09-29"
+
+
+def test_work_progress_service_clear_removes_old_snapshot(wpr_env):
+    """行事曆清空服務後，snapshot 不保留舊服務名稱。"""
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+    updated = owner.put(f"/api/appointments/{appointment['id']}", json={
+        "client_name": "王先生", "address": "板橋區文化路 100 號", "service_type_id": None,
+        "date": appointment["date"], "start_time": "09:00", "end_time": "12:00",
+        "note": appointment["note"], "user_ids": [], "updated_at": appointment["updated_at"],
+    })
+    assert updated.status_code == 200, updated.text
+    assert owner.get(f"/api/work-progress/{report['id']}").json()["service_name"] == ""
+
+
 def test_delete_report_cleans_db_assets_and_report_folder(wpr_env):
     make_client, _users, _static, uploads = wpr_env
     client = make_client("owner")
@@ -443,6 +560,9 @@ def test_appointment_delete_preserves_snapshot_history(wpr_env):
     assert detail.json()["report_date"] == "2026-09-23"
     assert detail.json()["appointment_note"] == "刪除前最後備註"
     assert detail.json()["note"] == "完成室內機"
+    assert len(detail.json()["photos"]) == 1
+    assert detail.json()["uploader_user_id"] is not None
+    assert detail.json()["uploader_name"] == "Owner"
     assert client.get("/api/work-progress/kpi", params={"month": "2026-09"}).json()["total"] == 0
 
 
@@ -551,6 +671,66 @@ def test_work_progress_view_revocation_is_immediate_for_existing_session(wpr_env
     assert owner.get(
         f"/api/work-progress/{report['id']}/photos/{asset_id}/thumbnail"
     ).status_code == 403
+
+
+def test_work_progress_batch_append_limit_is_atomic(wpr_env):
+    """既有 19 張時一次追加 2 張必須整批拒絕且不留檔案。"""
+    make_client, _users, _static, uploads = wpr_env
+    client = make_client("owner")
+    appointment = _appointment(client)
+    created = client.post(
+        "/api/work-progress", data={"appointment_id": str(appointment["id"])},
+        files=[("files", (f"initial-{i}.png", _png(10, 10), "image/png")) for i in range(19)],
+    ).json()
+    report_dir = uploads / "work_progress" / "2026-09" / str(created["id"])
+    before = sorted(path.relative_to(report_dir).as_posix() for path in report_dir.rglob("*"))
+    response = client.post(
+        f"/api/work-progress/{created['id']}/photos",
+        files=[
+            ("files", ("extra-a.png", _png(10, 10), "image/png")),
+            ("files", ("extra-b.png", _png(10, 10), "image/png")),
+        ],
+    )
+    assert response.status_code == 400
+    assert len(client.get(f"/api/work-progress/{created['id']}").json()["photos"]) == 19
+    assert sorted(path.relative_to(report_dir).as_posix() for path in report_dir.rglob("*")) == before
+
+
+def test_work_progress_append_partial_failure_rolls_back_files_and_rows(wpr_env):
+    """既有 report 追加 batch 中有壞檔時，DB 與 filesystem 都維持原狀。"""
+    make_client, _users, _static, uploads = wpr_env
+    client = make_client("owner")
+    appointment = _appointment(client)
+    created = _create(client, appointment["id"]).json()
+    report_dir = uploads / "work_progress" / "2026-09" / str(created["id"])
+    before_assets = len(created["photos"])
+    response = client.post(
+        f"/api/work-progress/{created['id']}/photos",
+        files=[
+            ("files", ("valid.png", _png(10, 10), "image/png")),
+            ("files", ("spoof.jpg", b"not-an-image", "image/jpeg")),
+        ],
+    )
+    assert response.status_code == 400
+    assert len(client.get(f"/api/work-progress/{created['id']}").json()["photos"]) == before_assets
+    assert not any(path.name == "valid.png" for path in report_dir.rglob("*"))
+
+
+def test_work_progress_creator_display_name_is_live_but_reporter_name_is_snapshot(wpr_env):
+    """帳號顯示名稱 live 更新；工作回報人顯示名稱仍由 report 自己管理。"""
+    make_client, users, _static, _uploads = wpr_env
+    admin = make_client("admin")
+    owner = make_client("owner")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+    assert owner.patch(f"/api/work-progress/{report['id']}", json={"uploader_name": "現場王先生"}).status_code == 200
+    renamed = admin.put(f"/api/users/{users['owner']}", json={"display_name": "新家豪"})
+    assert renamed.status_code == 200, renamed.text
+    detail = owner.get(f"/api/work-progress/{report['id']}").json()
+    assert detail["created_by_display_name"] == "新家豪"
+    assert detail["created_by_username"] == "owner"
+    assert detail["uploader_user_id"] == users["owner"]
+    assert detail["uploader_name"] == "現場王先生"
 
 
 def test_generic_media_endpoint_cannot_bypass_work_progress_owner_scope(wpr_env):
