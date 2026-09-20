@@ -42,10 +42,12 @@ MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 def _upload_dir() -> Path:
+    """Return the server-controlled root used for Work Progress media files."""
     return Path(STATIC_DIR) / "uploads"
 
 
 def _validate_date(value: str, label: str) -> str:
+    """Validate an ISO calendar date and return its canonical representation."""
     try:
         return datetime.date.fromisoformat(value).isoformat()
     except (TypeError, ValueError) as exc:
@@ -53,6 +55,7 @@ def _validate_date(value: str, label: str) -> str:
 
 
 def _validate_month(value: str) -> str:
+    """Validate a ``YYYY-MM`` month and return the original canonical value."""
     if not MONTH_RE.fullmatch(value or ""):
         raise HTTPException(400, "月份格式需 YYYY-MM")
     try:
@@ -63,6 +66,7 @@ def _validate_month(value: str) -> str:
 
 
 def _validate_note(note: str) -> str:
+    """Normalize and validate the user-entered progress note length."""
     if not isinstance(note, str):
         raise HTTPException(400, "工作進度備註格式錯誤")
     note = note.strip()
@@ -72,6 +76,7 @@ def _validate_note(note: str) -> str:
 
 
 def _validate_uploader_name(uploader_name: str) -> str:
+    """Normalize and validate the display-name snapshot length."""
     if not isinstance(uploader_name, str):
         raise HTTPException(400, "回報人格式錯誤")
     uploader_name = uploader_name.strip()
@@ -81,6 +86,7 @@ def _validate_uploader_name(uploader_name: str) -> str:
 
 
 def _read_image_uploads(files: Iterable[UploadFile] | None) -> list[tuple[bytes, str, str]]:
+    """Read and validate one atomic batch of image uploads before persistence."""
     uploads = list(files or [])
     if not uploads:
         raise HTTPException(400, "至少需要 1 張照片")
@@ -111,6 +117,7 @@ def _permissions(conn, user: dict) -> dict:
 
 
 def _flags(conn, row, user: dict) -> tuple[bool, bool]:
+    """Calculate edit and delete capabilities from current permissions and immutable ownership."""
     perms = _permissions(conn, user)
     owner = row["uploader_user_id"] is not None and row["uploader_user_id"] == user["id"]
     can_edit = bool(perms.get("work-progress-edit-all")) or (
@@ -123,6 +130,7 @@ def _flags(conn, row, user: dict) -> tuple[bool, bool]:
 
 
 def _report_out(conn, row, user: dict, *, include_photos: bool = False) -> dict:
+    """Serialize a report snapshot and, optionally, its scoped photo metadata for the API."""
     can_edit, can_delete = _flags(conn, row, user)
     result = {
         "id": row["id"],
@@ -174,6 +182,7 @@ def _report_out(conn, row, user: dict, *, include_photos: bool = False) -> dict:
 
 
 def _get_report(conn, report_id: int):
+    """Load one report with creator metadata or raise a not-found API error."""
     row = conn.execute(
         """SELECT r.*, u.username AS created_by_username,
                   u.display_name AS created_by_display_name
@@ -188,6 +197,7 @@ def _get_report(conn, report_id: int):
 
 
 def _cleanup_assets(assets: Iterable) -> None:
+    """Remove staged asset files and now-empty server-owned directories after rollback."""
     root = _upload_dir().resolve()
     for asset in reversed(list(assets)):
         cleanup_asset_paths(asset, upload_dir=root)
@@ -204,6 +214,7 @@ def _cleanup_assets(assets: Iterable) -> None:
 
 
 def _store_batch(conn, report_id: int, report_date: str, uploads) -> list:
+    """Stage every upload in a report batch and clean partial output on failure."""
     assets = []
     base_dir = f"work_progress/{report_date[:7]}/{report_id}"
     try:
@@ -227,6 +238,7 @@ def _store_batch(conn, report_id: int, report_date: str, uploads) -> list:
 
 
 def _finalize(assets: Iterable) -> None:
+    """Finalize staged asset files after the database transaction commits."""
     for asset in assets:
         finalize_asset_paths(asset, upload_dir=_upload_dir())
 
@@ -240,6 +252,7 @@ def list_work_progress(
     page_size: int = Query(20, ge=1, le=100),
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
+    """List historical Work Progress reports with date, keyword, and pagination filters."""
     if from_date:
         from_date = _validate_date(from_date, "起始日期")
     if to_date:
@@ -295,6 +308,7 @@ def work_progress_kpi(
     month: str = Query(""),
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
+    """Return monthly appointment-based Work Progress completion statistics."""
     if not month:
         now = datetime.date.today()
         month = f"{now.year:04d}-{now.month:02d}"
@@ -330,6 +344,7 @@ def work_progress_kpi(
 
 @router.get("/{report_id}")
 def get_work_progress(report_id: int, user: dict = Depends(require_db_perm("work-progress-view"))):
+    """Return one complete Work Progress report with its scoped photos."""
     conn = get_db()
     try:
         row = _get_report(conn, report_id)
@@ -345,6 +360,7 @@ def create_work_progress(
     files: list[UploadFile] | None = File(None),
     user: dict = Depends(require_db_perm("work-progress-create")),
 ):
+    """Create one appointment-bound report and atomically stage its required photos."""
     note = _validate_note(note)
     uploads = _read_image_uploads(files)
     conn = get_db()
@@ -412,6 +428,7 @@ async def update_work_progress(
     request: Request,
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
+    """Update only report-owned display name and progress note fields."""
     try:
         body = WorkProgressNoteUpdate.model_validate(await request.json())
     except Exception as exc:
@@ -446,6 +463,7 @@ def add_work_progress_photos(
     files: list[UploadFile] | None = File(None),
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
+    """Append a validated photo batch to an existing report atomically."""
     uploads = _read_image_uploads(files)
     conn = get_db()
     assets = []
@@ -497,6 +515,7 @@ def delete_work_progress_photo(
     asset_id: str,
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
+    """Delete one photo only after verifying report scope and edit permission."""
     if not ASSET_ID_RE.fullmatch(asset_id):
         raise HTTPException(404, "照片不存在")
     conn = get_db()
@@ -533,6 +552,7 @@ def delete_work_progress(
     report_id: int,
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
+    """Delete a report and all of its scoped media files."""
     conn = get_db()
     assets = []
     try:
@@ -567,6 +587,7 @@ def read_work_progress_photo(
     variant: str,
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
+    """Serve one authenticated thumbnail, preview, or original download."""
     if not ASSET_ID_RE.fullmatch(asset_id) or variant not in {"thumbnail", "preview", "download"}:
         raise HTTPException(404, "照片不存在")
     actual_variant = "original" if variant == "download" else variant

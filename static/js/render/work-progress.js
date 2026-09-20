@@ -6,28 +6,62 @@ var wprPhotoManageReports = {};
 var wprSuppressHistoryToggle = {};
 // Gallery dynamically creates id="wpr-gallery-overlay" before lookup.
 
+/**
+ * Format a local Date as the date value used by the Work Progress API.
+ * @param {Date} date - Function input.
+ * @returns {void} Function result.
+ */
 function wprIsoDate(date) {
   var d = date || new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+/**
+ * Extract the YYYY-MM month used by KPI requests.
+ * @param {string} dateValue - Function input.
+ * @returns {void} Function result.
+ */
 function wprMonth(dateValue) { return (dateValue || wprIsoDate()).slice(0, 7); }
+/**
+ * Render a job time range without inventing a midnight time.
+ * @param {Object} job - Function input.
+ * @returns {void} Function result.
+ */
 function wprTimeText(job) {
   return job.start_time && job.end_time ? esc(job.start_time) + '–' + esc(job.end_time) : '未指定時間';
 }
+/**
+ * Convert a non-success API response into the shared promise error path.
+ * @param {Response} response - Function input.
+ * @returns {void} Function result.
+ */
 function wprApiError(response) {
   return response.json().catch(function() { return {}; }).then(function(body) {
     throw new Error(body.detail || ('API 錯誤：' + response.status));
   });
 }
+/**
+ * Fetch and decode a JSON Work Progress response.
+ * @param {string} url - Function input.
+ * @param {RequestInit} options - Function input.
+ * @returns {void} Function result.
+ */
 async function wprFetch(url, options) {
   var response = await fetch(url, options);
   if (!response.ok) return wprApiError(response);
   return response.json();
 }
+/**
+ * Resolve the read-only display name shown on the create form.
+ * @returns {void} Function result.
+ */
 function wprCurrentUserName() {
   return ((typeof currentUser !== 'undefined' && currentUser && (currentUser.display_name || currentUser.username)) || '目前登入者');
 }
 
+/**
+ * Mount the Work Progress page and start its initial data loads.
+ * @returns {void} Function result.
+ */
 async function renderWorkProgress() {
   var el = document.getElementById('content');
   if (!el) return;
@@ -91,6 +125,10 @@ async function renderWorkProgress() {
   await Promise.all([wprLoadDay(), wprLoadHistory(), wprLoadKpi()]);
 }
 
+/**
+ * Check the permission used to render and submit the create form.
+ * @returns {void} Function result.
+ */
 function wprCanCreate() {
   return typeof hasPerm === 'function' ? hasPerm('work-progress-create') : !!(
     typeof currentUser !== 'undefined' && currentUser &&
@@ -98,6 +136,10 @@ function wprCanCreate() {
   );
 }
 
+/**
+ * Render the create form or the view-only permission message.
+ * @returns {void} Function result.
+ */
 function wprRenderCreate() {
   var create = document.getElementById('wpr-create');
   if (!create) return;
@@ -133,6 +175,10 @@ function wprRenderCreate() {
   wprRenderPendingPhotos();
 }
 
+/**
+ * Load appointments and existing reports for the selected work date.
+ * @returns {void} Function result.
+ */
 async function wprLoadDay() {
   var dateInput = document.getElementById('wpr-date');
   if (!dateInput) return;
@@ -154,6 +200,10 @@ async function wprLoadDay() {
     if (list) list.innerHTML = '<div class="wpr-empty">⚠️ 無法載入當日工作：' + esc(error.message) + '</div>';
   }
 }
+/**
+ * Render appointment cards with their reported status.
+ * @returns {void} Function result.
+ */
 function wprRenderJobs() {
   var list = document.getElementById('wpr-job-list');
   if (!list) return;
@@ -164,6 +214,11 @@ function wprRenderJobs() {
     return '<button type="button" class="wpr-job-card ' + (selected ? 'is-selected' : '') + '" onclick="wprSelectJob(' + job.id + ')"><span class="wpr-job-radio">' + (selected ? '●' : '○') + '</span><span class="wpr-job-body"><strong>' + wprTimeText(job) + '</strong><b>' + esc(job.service_name || '未指定服務') + '</b><span>👤 ' + esc(job.client_name || '') + '</span>' + (job.address ? '<span>📍 ' + esc(job.address) + '</span>' : '') + '</span><span class="wpr-job-status">' + (existing ? '✅ 已回報' : '尚未回報') + '</span></button>';
   }).join('');
 }
+/**
+ * Select an appointment and render its snapshot or existing report summary.
+ * @param {number} id - Function input.
+ * @returns {void} Function result.
+ */
 async function wprSelectJob(id) {
   var token = ++wprSelectRequestToken;
   var job = wprAppointments.find(function(item) { return item.id === id; });
@@ -195,7 +250,15 @@ async function wprSelectJob(id) {
     save.disabled = wprSelectedFiles.length === 0;
   }
 }
+/**
+ * Synchronize the progress-note character counter.
+ * @returns {void} Function result.
+ */
 function wprUpdateNoteCount() { var note = document.getElementById('wpr-note'); var counter = document.getElementById('wpr-note-count'); if (note && counter) counter.textContent = note.value.length + ' / 1000'; }
+/**
+ * Bind drag-and-drop handlers for pending photo selection.
+ * @returns {void} Function result.
+ */
 function wprBindDropZone() {
   var drop = document.getElementById('wpr-drop');
   if (!drop) return;
@@ -207,12 +270,21 @@ function wprBindDropZone() {
   });
   drop.addEventListener('drop', function(event) { wprAddPendingFiles(event.dataTransfer.files); });
 }
+/**
+ * Release object URLs and clear the pending photo queue.
+ * @returns {void} Function result.
+ */
 function wprClearPendingFiles() {
   wprSelectedFiles.forEach(function(item) {
     if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
   });
   wprSelectedFiles = [];
 }
+/**
+ * Validate and append selected image files without replacing earlier photos.
+ * @param {FileList|File[]} fileList - Function input.
+ * @returns {void} Function result.
+ */
 function wprAddPendingFiles(fileList) {
   Array.from(fileList || []).forEach(function(file) {
     if (!file.type.startsWith('image/')) { toast('只能選擇圖片', 'error'); return; }
@@ -223,11 +295,20 @@ function wprAddPendingFiles(fileList) {
   wprRenderPendingPhotos();
   if (wprCurrentReport && wprCurrentReport.appointment_id && !wprReportsByAppointment[wprCurrentReport.appointment_id]) document.getElementById('wpr-save').disabled = !wprSelectedFiles.length;
 }
+/**
+ * Render pending photo thumbnails and per-photo removal controls.
+ * @returns {void} Function result.
+ */
 function wprRenderPendingPhotos() {
   var grid = document.getElementById('wpr-pending-photos');
   if (!grid) return;
   grid.innerHTML = wprSelectedFiles.map(function(item, index) { return '<div class="wpr-photo-tile"><img src="' + esc(item.previewUrl) + '" alt="待上傳照片 ' + (index + 1) + '"><button type="button" onclick="wprRemovePending(' + index + ')" aria-label="移除第 ' + (index + 1) + ' 張照片">✕</button></div>'; }).join('') + '<button type="button" class="wpr-add-tile" onclick="document.getElementById(\'wpr-album\').click()">＋新增</button>';
 }
+/**
+ * Remove one pending photo and release only its object URL.
+ * @param {number} index - Function input.
+ * @returns {void} Function result.
+ */
 function wprRemovePending(index) {
   var item = wprSelectedFiles[index];
   if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -236,6 +317,10 @@ function wprRemovePending(index) {
   var save = document.getElementById('wpr-save');
   if (save && (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprReportsByAppointment[wprCurrentReport.appointment_id])) save.disabled = !wprSelectedFiles.length;
 }
+/**
+ * Submit one appointment report with its note and photo batch.
+ * @returns {void} Function result.
+ */
 async function wprSubmit() {
   if (!wprCanCreate()) { toast('沒有新增工作進度回報的權限', 'error'); return; }
   if (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprSelectedFiles.length) return;
@@ -245,11 +330,19 @@ async function wprSubmit() {
   try { await wprFetch('/api/work-progress', { method: 'POST', body: form }); toast('工作進度已儲存', 'success'); wprClearPendingFiles(); wprCurrentReport = null; wprRenderCreate(); await Promise.all([wprLoadDay(), wprLoadHistory(1), wprLoadKpi()]); } catch (error) { toast(error.message, 'error'); button.disabled = false; }
 }
 
+/**
+ * Load and render the appointment-based monthly KPI summary.
+ * @returns {void} Function result.
+ */
 async function wprLoadKpi() {
   var el = document.getElementById('wpr-kpi'); if (!el) return;
   var token = ++wprKpiRequestToken;
   try { var data = await wprFetch('/api/work-progress/kpi?month=' + encodeURIComponent(wprMonth())); if (token !== wprKpiRequestToken) return; el.innerHTML = [{label:'已回報',value:data.reported},{label:'待回報',value:data.missing},{label:'回報率',value:data.rate === null ? '—' : data.rate + '%'}].map(function(item) { return '<div class="wpr-kpi"><span>' + item.label + '</span><strong>' + item.value + '</strong></div>'; }).join('') + '<div class="wpr-kpi-meta">本月目前 ' + data.total + ' 筆行事曆工作 · ' + data.photo_count + ' 張照片</div>'; } catch (error) { if (token === wprKpiRequestToken) el.innerHTML = ''; }
 }
+/**
+ * Initialize history filters to the current calendar month.
+ * @returns {void} Function result.
+ */
 function wprSetHistoryMonth() {
   var now = new Date();
   var from = document.getElementById('wpr-from');
@@ -258,12 +351,22 @@ function wprSetHistoryMonth() {
   if (to) to.value = wprIsoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   document.querySelectorAll('.wpr-chip').forEach(function(button) { button.classList.toggle('active', button.textContent.trim() === '本月'); });
 }
+/**
+ * Clear history filters and reload the default month.
+ * @returns {void} Function result.
+ */
 function wprResetFilter() {
   var query = document.getElementById('wpr-query');
   if (query) query.value = '';
   wprSetHistoryMonth();
   wprLoadHistory(1);
 }
+/**
+ * Apply a quick date range and reload history.
+ * @param {string} type - Function input.
+ * @param {HTMLElement} button - Function input.
+ * @returns {void} Function result.
+ */
 function wprQuickRange(type, button) {
   var today = new Date(), from = '', to = '';
   if (type === 'today') from = to = wprIsoDate(today);
@@ -276,11 +379,20 @@ function wprQuickRange(type, button) {
   if (toInput) toInput.value = to;
   wprLoadHistory(1);
 }
+/**
+ * Build pagination controls for the current history result set.
+ * @returns {void} Function result.
+ */
 function wprRenderHistoryPagination() {
   var lastPage = Math.max(1, Math.ceil(wprHistoryTotal / wprHistoryPageSize));
   if (lastPage <= 1) return '';
   return '<nav class="wpr-pagination" aria-label="工作進度歷史分頁"><button type="button" onclick="wprLoadHistory(wprHistoryPage - 1)"' + (wprHistoryPage <= 1 ? ' disabled' : '') + '>上一頁</button><span>第 ' + wprHistoryPage + ' / ' + lastPage + ' 頁 · 共 ' + wprHistoryTotal + ' 筆</span><button type="button" onclick="wprLoadHistory(wprHistoryPage + 1)"' + (wprHistoryPage >= lastPage ? ' disabled' : '') + '>下一頁</button></nav>';
 }
+/**
+ * Load and render a filtered, paginated history result.
+ * @param {number} page - Function input.
+ * @returns {void} Function result.
+ */
 async function wprLoadHistory(page) {
   var list = document.getElementById('wpr-history-list'); if (!list) return;
   page = Number.isInteger(page) && page > 0 ? page : 1;
@@ -299,6 +411,12 @@ async function wprLoadHistory(page) {
     list.innerHTML = data.items.map(wprHistoryCard).join('') + wprRenderHistoryPagination();
   } catch (error) { if (token === wprHistoryRequestToken) list.innerHTML = '<div class="wpr-empty">⚠️ ' + esc(error.message) + '</div>'; }
 }
+/**
+ * Reload history and reopen a detail element after a change.
+ * @param {number} id - Function input.
+ * @param {number} page - Function input.
+ * @returns {void} Function result.
+ */
 async function wprReloadAndReopenDetail(id, page) {
   await wprLoadHistory(page);
   var detail = document.getElementById('wpr-detail-' + id);
@@ -310,10 +428,26 @@ async function wprReloadAndReopenDetail(id, page) {
   }
   await wprOpenHistoryDetail(id);
 }
+/**
+ * Format the immutable creator identity shown in history.
+ * @param {Object} report - Function input.
+ * @returns {void} Function result.
+ */
 function wprCreatedByText(report) {
   return report.created_by_display_name || report.created_by_username || '未知帳號';
 }
+/**
+ * Build one expandable history card summary.
+ * @param {Object} report - Function input.
+ * @returns {void} Function result.
+ */
 function wprHistoryCard(report) { return '<details class="wpr-history-item" ontoggle="if(this.open && !wprSuppressHistoryToggle[' + report.id + ']) wprOpenHistoryDetail(' + report.id + '); wprSuppressHistoryToggle[' + report.id + ']=false"><summary><span class="wpr-history-date">' + esc(report.report_date) + '</span><span><b>' + esc(report.service_name || '未指定服務') + ' · ' + esc(report.client_name) + '</b><small>' + wprTimeText(report) + ' · 回報人：' + esc(report.uploader_name) + ' · 建立帳號：' + esc(wprCreatedByText(report)) + '</small></span><span class="wpr-history-photo-count">📷 ' + report.photo_count + '</span></summary><div class="wpr-history-detail" id="wpr-detail-' + report.id + '">載入詳情中…</div></details>'; }
+/**
+ * Build the scoped thumbnail gallery for a report.
+ * @param {Object} report - Function input.
+ * @param {number} id - Function input.
+ * @returns {void} Function result.
+ */
 function wprPhotoGalleryHtml(report, id) {
   return (report.photos || []).map(function(photo, index) {
     var deleteButton = report.can_edit && wprPhotoManageReports[id]
@@ -322,6 +456,11 @@ function wprPhotoGalleryHtml(report, id) {
     return '<div class="wpr-photo-manage-tile"><button type="button" onclick="wprOpenGallery(' + id + ',' + index + ')"><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '"></button>' + deleteButton + '</div>';
   }).join('');
 }
+/**
+ * Load and render the full detail body for one report.
+ * @param {number} id - Function input.
+ * @returns {void} Function result.
+ */
 async function wprOpenHistoryDetail(id) {
   var detail = document.getElementById('wpr-detail-' + id); if (!detail) return;
   var token = (wprDetailRequestTokens[id] || 0) + 1; wprDetailRequestTokens[id] = token;
@@ -331,10 +470,20 @@ async function wprOpenHistoryDetail(id) {
     detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditReport(' + id + ')">✏️ 編輯回報</button><button type="button" onclick="wprTogglePhotoManage(' + id + ')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><button type="button" onclick="wprAddExistingPhotos(' + id + ')">📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
   } catch (error) { if (token === wprDetailRequestTokens[id]) detail.textContent = error.message; }
 }
+/**
+ * Toggle destructive photo controls for one report.
+ * @param {number} id - Function input.
+ * @returns {void} Function result.
+ */
 function wprTogglePhotoManage(id) {
   wprPhotoManageReports[id] = !wprPhotoManageReports[id];
   wprOpenHistoryDetail(id);
 }
+/**
+ * Persist report-owned note and display-name changes.
+ * @param {number} id - Function input.
+ * @returns {void} Function result.
+ */
 async function wprEditReport(id) {
   try {
     var report = await wprFetch('/api/work-progress/' + id);
@@ -388,6 +537,12 @@ async function wprEditReport(id) {
     });
   } catch (error) { toast(error.message, 'error'); }
 }
+/**
+ * Confirm and delete one scoped report photo.
+ * @param {number} reportId - Function input.
+ * @param {string} assetId - Function input.
+ * @returns {void} Function result.
+ */
 async function wprDeletePhoto(reportId, assetId) {
   if (!window.confirm('確定刪除此照片？\n此動作無法復原。')) return;
   try {
@@ -396,10 +551,39 @@ async function wprDeletePhoto(reportId, assetId) {
     await wprReloadAndReopenDetail(reportId, wprHistoryPage);
   } catch (error) { toast(error.message, 'error'); }
 }
+/**
+ * Open a multi-file picker and append photos to an existing report.
+ * @param {number} id - Function input.
+ * @returns {void} Function result.
+ */
 function wprAddExistingPhotos(id) { var input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.onchange = async function() { var form = new FormData(); Array.from(input.files).forEach(function(file) { form.append('files', file, file.name); }); try { await wprFetch('/api/work-progress/' + id + '/photos', {method:'POST', body:form}); toast('照片已新增', 'success'); await wprReloadAndReopenDetail(id, 1); } catch (error) { toast(error.message, 'error'); } }; input.click(); }
+/**
+ * Confirm and delete a report with its managed photos.
+ * @param {number} id - Function input.
+ * @returns {void} Function result.
+ */
 async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
+/**
+ * Load a report and open its preview gallery.
+ * @param {number} id - Function input.
+ * @param {number} index - Function input.
+ * @returns {void} Function result.
+ */
 function wprOpenGallery(id, index) { wprFetch('/api/work-progress/' + id).then(function(report) { wprGallery.report = report; wprGallery.index = index; var overlay = document.createElement('div'); overlay.className = 'wpr-gallery-overlay'; overlay.id = 'wpr-gallery-overlay'; overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="工作照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>'; document.body.appendChild(overlay); wprRenderGallery(); }).catch(function(error) { toast(error.message, 'error'); }); }
+/**
+ * Render the current gallery photo and navigation controls.
+ * @returns {void} Function result.
+ */
 function wprRenderGallery() { var report = wprGallery.report, photo = report.photos[wprGallery.index]; if (!photo) return; document.getElementById('wpr-gallery-count').textContent = (wprGallery.index + 1) + ' / ' + report.photos.length; document.getElementById('wpr-gallery-image').src = photo.preview_url; document.getElementById('wpr-gallery-caption').textContent = report.client_name + ' · ' + report.service_name + ' · ' + report.report_date; document.getElementById('wpr-gallery-download').href = photo.download_url; document.getElementById('wpr-gallery-download').download = photo.original_name; }
+/**
+ * Move the gallery selection with wraparound navigation.
+ * @param {number} delta - Function input.
+ * @returns {void} Function result.
+ */
 function wprGalleryMove(delta) { if (!wprGallery.report || !wprGallery.report.photos.length) return; wprGallery.index = (wprGallery.index + delta + wprGallery.report.photos.length) % wprGallery.report.photos.length; wprRenderGallery(); }
+/**
+ * Close the gallery overlay and release its state.
+ * @returns {void} Function result.
+ */
 function wprCloseGallery() { var overlay = document.getElementById('wpr-gallery-overlay'); if (overlay) overlay.remove(); wprGallery.report = null; }
 document.addEventListener('keydown', function(event) { if (!wprGallery.report) return; if (event.key === 'Escape') wprCloseGallery(); if (event.key === 'ArrowLeft') wprGalleryMove(-1); if (event.key === 'ArrowRight') wprGalleryMove(1); });
