@@ -195,6 +195,32 @@ def test_list_filters_pagination_detail_and_empty_kpi(wpr_env):
     assert client.get("/api/work-progress/kpi", params={"month": "2026-13"}).status_code == 400
 
 
+def test_report_attribution_includes_created_by_for_list_and_detail(wpr_env):
+    make_client, users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+
+    assert report["uploader_user_id"] == users["owner"]
+    assert report["uploader_name"] == "Owner"
+    assert report["created_by_username"] == "owner"
+    assert report["created_by_display_name"] == "Owner"
+
+    listed = owner.get("/api/work-progress").json()["items"][0]
+    assert listed["created_by_username"] == "owner"
+    assert listed["created_by_display_name"] == "Owner"
+
+    updated = owner.patch(
+        f"/api/work-progress/{report['id']}",
+        json={"uploader_name": "現場王先生"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["uploader_name"] == "現場王先生"
+    assert updated.json()["uploader_user_id"] == users["owner"]
+    assert updated.json()["created_by_username"] == "owner"
+    assert updated.json()["created_by_display_name"] == "Owner"
+
+
 def test_owner_edit_and_photo_lifecycle_non_owner_forbidden(wpr_env):
     make_client, _users, _static, uploads = wpr_env
     owner = make_client("owner")

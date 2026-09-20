@@ -137,6 +137,8 @@ def _report_out(conn, row, user: dict, *, include_photos: bool = False) -> dict:
         "note": row["note"],
         "uploader_user_id": row["uploader_user_id"],
         "uploader_name": row["uploader_name"],
+        "created_by_username": row["created_by_username"] if "created_by_username" in row.keys() else None,
+        "created_by_display_name": row["created_by_display_name"] if "created_by_display_name" in row.keys() else None,
         "photo_count": row["photo_count"] if "photo_count" in row.keys() else 0,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -173,7 +175,12 @@ def _report_out(conn, row, user: dict, *, include_photos: bool = False) -> dict:
 
 def _get_report(conn, report_id: int):
     row = conn.execute(
-        "SELECT * FROM daily_work_progress_reports WHERE id=?", (report_id,)
+        """SELECT r.*, u.username AS created_by_username,
+                  u.display_name AS created_by_display_name
+           FROM daily_work_progress_reports r
+           LEFT JOIN users u ON u.id=r.uploader_user_id
+           WHERE r.id=?""",
+        (report_id,),
     ).fetchone()
     if row is None:
         raise HTTPException(404, "工作進度不存在")
@@ -261,8 +268,11 @@ def list_work_progress(
             f"SELECT COUNT(*) FROM daily_work_progress_reports r{clause}", params
         ).fetchone()[0]
         rows = conn.execute(
-            f"""SELECT r.*, COUNT(f.asset_id) AS photo_count
+            f"""SELECT r.*, u.username AS created_by_username,
+                       u.display_name AS created_by_display_name,
+                       COUNT(f.asset_id) AS photo_count
                 FROM daily_work_progress_reports r
+                LEFT JOIN users u ON u.id=r.uploader_user_id
                 LEFT JOIN file_assets f ON f.category=? AND f.owner_type=? AND f.owner_id=CAST(r.id AS TEXT)
                 {clause}
                 GROUP BY r.id

@@ -4916,14 +4916,47 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wprDeletePhoto" in js
     assert "/photos/" in js and "method:'DELETE'" in js
     assert "確定刪除此照片" in js
-    assert "await wprLoadHistory(wprHistoryPage)" in js
-    assert "await wprLoadHistory(1); wprOpenHistoryDetail(id)" in js
+    assert "async function wprReloadAndReopenDetail(id, page)" in js
+    assert "await wprReloadAndReopenDetail(id, wprHistoryPage)" in js
+    assert "await wprReloadAndReopenDetail(reportId, wprHistoryPage)" in js
+    assert "await wprReloadAndReopenDetail(id, 1)" in js
     assert "wprEditReport" in js
     assert "uploader_name" in js
     assert "wprTogglePhotoManage" in js
     assert "wpr-photo-manage-tile" in js
     assert "wpr-edit-overlay" in js
     assert "wpr-gallery-grid" in css and "minmax(96px, 112px)" in css
+
+
+def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity():
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    assert "async function wprReloadAndReopenDetail(id, page)" in js
+    helper = js.split("async function wprReloadAndReopenDetail(id, page)", 1)[1].split(
+        "function wprHistoryCard", 1
+    )[0]
+    assert "await wprLoadHistory(page)" in helper
+    assert "closest('details')" in helper
+    assert "item.open = true" in helper
+    assert "wprSuppressHistoryToggle[id] = true" in helper
+    assert "await wprOpenHistoryDetail(id)" in helper
+    assert "!wprSuppressHistoryToggle[" in js
+
+    edit_block = js.split("async function wprEditReport(id)", 1)[1].split(
+        "async function wprDeletePhoto", 1
+    )[0]
+    photo_delete_block = js.split("async function wprDeletePhoto", 1)[1].split(
+        "function wprAddExistingPhotos", 1
+    )[0]
+    add_photo_block = js.split("function wprAddExistingPhotos", 1)[1].split(
+        "async function wprDeleteReport", 1
+    )[0]
+    for block in (edit_block, photo_delete_block, add_photo_block):
+        assert "wprReloadAndReopenDetail" in block
+
+    assert "created_by_display_name" in js
+    assert "created_by_username" in js
+    assert "建立帳號" in js
+    assert "不會變更原始建立帳號與 ownership" in js
 
 
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():
