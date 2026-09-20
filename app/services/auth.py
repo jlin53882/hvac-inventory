@@ -220,7 +220,7 @@ def get_user_permissions(conn: sqlite3.Connection, user_id: int) -> dict:
         ).fetchone()["c"]
         if admin_cnt == 1:
             return {p["key"]: True for p in conn.execute("SELECT key FROM permissions").fetchall()}
-    # 16 權限點全 false 起底（以 permissions 表為權威清單）
+    # 所有 permission key 全 false 起底（以 permissions 表為權威清單）
     perms = {p["key"]: False for p in conn.execute("SELECT key FROM permissions").fetchall()}
     # 角色預設（role_permissions）
     for p in conn.execute(

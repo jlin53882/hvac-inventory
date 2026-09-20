@@ -1004,6 +1004,22 @@ def test_permissions_ui_keeps_search_toolbar_and_pending_source_contract():
     assert os.path.exists(runtime)
 
 
+def test_permissions_pagination_runtime():
+    """真正執行 permissions pagination/search Node VM runtime regression。"""
+    script = os.path.join(BASE_DIR, "tests", "permissions_pagination_runtime.test.js")
+    result = subprocess.run(
+        ["node", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"permissions pagination runtime failed:\n"
+        f"{result.stdout}\n{result.stderr}"
+    )
+
+
 def test_signed_report_upload_is_permission_gated():
     """Signed report page hides upload surface without changing report viewing."""
     js = read(SIGNED_REPORTS_RENDER_JS)
