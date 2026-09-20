@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import ServiceTypeIn
 from app.services.auth import require_perm
 from app.services import gcal_sync
+from app.services.work_progress import sync_work_progress_snapshot_for_appointment
 
 router = APIRouter()
 
@@ -51,7 +52,9 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
     if not name:
         raise HTTPException(400, "名稱不可空白")
     conn = get_db()
+    affected_ids = []
     try:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT id, name FROM service_types WHERE id=?", (svc_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "服務項目不存在")
@@ -59,10 +62,16 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
         try:
             conn.execute("UPDATE service_types SET name=?, sort_order=?, is_active=? WHERE id=?",
                          (name, body.sort_order, body.is_active, svc_id))
-            conn.commit()
         except sqlite3.IntegrityError:   # 2026-08-14 精準捕捉（B1）：只有 UNIQUE 衝突才是同名，鎖衝突不誤報
             conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
             raise HTTPException(400, "同名服務項目已存在")
+        if old_name != name:
+            affected_ids = [r["id"] for r in conn.execute(
+                "SELECT id FROM appointments WHERE service_type_id=?", (svc_id,)
+            ).fetchall()]
+            for appointment_id in affected_ids:
+                sync_work_progress_snapshot_for_appointment(conn, appointment_id)
+        conn.commit()
         result = dict(conn.execute("SELECT * FROM service_types WHERE id=?", (svc_id,)).fetchone())
     except Exception:
         conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
@@ -70,15 +79,8 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
     finally:
         conn.close()
 
-    # service_type_id 沒變也可能改變 Google summary；只失效該類別的既有 mappings。
+    # Commit DB consistency before touching scheduler/GCal state.
     if old_name != name:
-        affected_conn = get_db()
-        try:
-            affected_ids = [r["id"] for r in affected_conn.execute(
-                "SELECT id FROM appointments WHERE service_type_id=?", (svc_id,)
-            ).fetchall()]
-        finally:
-            affected_conn.close()
         if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
             from app.services import sync_scheduler
             sync_scheduler.start()

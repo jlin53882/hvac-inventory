@@ -9,6 +9,7 @@ from PIL import Image
 import app.config as app_config
 import app.database as app_db
 import app.routes.appointments as appointments_route
+import app.routes.service_types as service_types_route
 import app.routes.work_progress as work_progress
 import main as app_main
 from app.services.auth import SESSION_COOKIE, create_session
@@ -569,6 +570,87 @@ def test_appointment_update_snapshot_sync_rolls_back_atomically(wpr_env, monkeyp
     assert detail["client_name"] == "王先生"
     assert detail["appointment_note"] == "原始備註"
     assert detail["note"] == "完成室內機"
+
+
+def test_service_type_rename_syncs_existing_snapshots_and_preserves_report_fields(wpr_env):
+    """服務項目改名同步 Calendar snapshot，但不碰 Work Progress-owned 欄位。"""
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    admin = make_client("admin")
+    appointment_a = _appointment(owner, date="2026-09-24")
+    appointment_b = _appointment(owner, date="2026-09-25")
+    appointment_without_report = _appointment(owner, date="2026-09-26")
+    report_a = _create(
+        owner,
+        appointment_a["id"],
+        uploader_name="現場王先生",
+        note="已完成室內機",
+    ).json()
+    report_b = _create(owner, appointment_b["id"], note="已完成配管").json()
+    before_a = owner.get(f"/api/work-progress/{report_a['id']}").json()
+    before_b = owner.get(f"/api/work-progress/{report_b['id']}").json()
+
+    renamed = admin.put("/api/service-types/1", json={
+        "name": "冷氣保養", "sort_order": 1, "is_active": 1,
+    })
+    assert renamed.status_code == 200, renamed.text
+    assert owner.get(f"/api/appointments?date=2026-09-24").json()[0]["service_name"] == "冷氣保養"
+
+    after_a = owner.get(f"/api/work-progress/{report_a['id']}").json()
+    after_b = owner.get(f"/api/work-progress/{report_b['id']}").json()
+    for before, after in ((before_a, after_a), (before_b, after_b)):
+        assert after["service_name"] == "冷氣保養"
+        for field in ("uploader_name", "uploader_user_id", "note", "report_date", "created_at", "updated_at"):
+            assert after[field] == before[field]
+        assert [photo["asset_id"] for photo in after["photos"]] == [
+            photo["asset_id"] for photo in before["photos"]
+        ]
+    conn = app_db.get_db()
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM daily_work_progress_reports WHERE appointment_id=?",
+            (appointment_without_report["id"],),
+        ).fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_service_type_rename_rolls_back_when_snapshot_sync_fails(wpr_env, monkeypatch):
+    """服務項目改名的 snapshot 同步失敗時，整個 service rename 必須 rollback。"""
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    admin = make_client("admin")
+    appointment = _appointment(owner, date="2026-09-27")
+    report = _create(owner, appointment["id"]).json()
+
+    def fail_sync(conn, appointment_id):
+        raise RuntimeError("snapshot sync failure")
+
+    monkeypatch.setattr(service_types_route, "sync_work_progress_snapshot_for_appointment", fail_sync)
+    response = admin.put("/api/service-types/1", json={
+        "name": "不應提交", "sort_order": 1, "is_active": 1,
+    })
+    assert response.status_code == 500
+    assert admin.get("/api/service-types").json()[0]["name"] == "保養"
+    assert owner.get(f"/api/work-progress/{report['id']}").json()["service_name"] == "保養"
+
+
+def test_service_type_rename_does_not_update_detached_work_progress_snapshot(wpr_env):
+    """已刪除 appointment 的 frozen snapshot 不受服務項目改名影響。"""
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    admin = make_client("admin")
+    appointment = _appointment(owner, date="2026-09-28")
+    report = _create(owner, appointment["id"]).json()
+    assert owner.delete(f"/api/appointments/{appointment['id']}").status_code == 200
+
+    renamed = admin.put("/api/service-types/1", json={
+        "name": "冷氣保養", "sort_order": 1, "is_active": 1,
+    })
+    assert renamed.status_code == 200
+    detail = owner.get(f"/api/work-progress/{report['id']}").json()
+    assert detail["appointment_id"] is None
+    assert detail["service_name"] == "保養"
 
 
 def test_appointment_delete_preserves_snapshot_history(wpr_env):
