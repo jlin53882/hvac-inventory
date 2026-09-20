@@ -42,6 +42,8 @@ EXPECTED_MATRIX = {
     'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'change-own-password':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
     'signed-report-upload': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'signed-report-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'signed-report-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
     'signed-report-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
@@ -63,7 +65,7 @@ def test_seed_roles_permissions(rbac_db):
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 31
+        assert len(perms) == 33
     finally:
         conn.close()
 
@@ -83,6 +85,48 @@ def test_seed_role_permission_matrix(rbac_db, perm_key, role_name):
         ).fetchone()["c"]
         assert bool(on) == bool(EXPECTED_MATRIX[perm_key][role_name]), \
             f"{role_name}.{perm_key}: seed={bool(on)} 預期={bool(EXPECTED_MATRIX[perm_key][role_name])}"
+    finally:
+        conn.close()
+
+
+def test_seed_preserves_existing_signed_report_override(rbac_db):
+    """Adding split action permissions must not overwrite an existing user override."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'user')",
+            ("override-user", "Override User"),
+        )
+        user_id = conn.execute(
+            "SELECT id FROM users WHERE username='override-user'"
+        ).fetchone()["id"]
+        permission_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='signed-report-delete-all'"
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, 0)",
+            (user_id, permission_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    init_db()
+    conn = get_db()
+    try:
+        override = conn.execute(
+            """SELECT up.value FROM user_permissions up
+               JOIN users u ON u.id = up.user_id
+               JOIN permissions p ON p.id = up.permission_id
+               WHERE u.username='override-user' AND p.key='signed-report-delete-all'"""
+        ).fetchone()
+        assert override["value"] == 0
+        assert conn.execute(
+            "SELECT 1 FROM permissions WHERE key='signed-report-edit'"
+        ).fetchone() is not None
+        assert conn.execute(
+            "SELECT 1 FROM permissions WHERE key='signed-report-delete'"
+        ).fetchone() is not None
     finally:
         conn.close()
 
@@ -113,7 +157,9 @@ def test_seed_labels_and_modules(rbac_db):
         'user-mgmt': ('使用者管理', 'system'),
         'change-own-password': ('自行改密碼', 'system'),
         'signed-report-upload': ('每日簽名日報表 上傳', 'calendar'),
-        'signed-report-delete-all': ('簽名報表 全域刪除', 'calendar'),
+        'signed-report-edit': ('簽名報表 編輯本人', 'calendar'),
+        'signed-report-delete': ('簽名報表 刪除本人', 'calendar'),
+        'signed-report-delete-all': ('簽名報表 全域管理範圍', 'calendar'),
         'petty-cash-delete-all': ('零用金月報 全域刪除', 'calendar'),
         'petty-cash-view': ('零用金月報 檢視', 'calendar'),
         'petty-cash-create': ('零用金月報 新增', 'calendar'),
@@ -169,7 +215,7 @@ def test_seed_is_idempotent(rbac_db):
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 31
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 33
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:

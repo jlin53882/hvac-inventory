@@ -1,5 +1,5 @@
 // 庫存管理系統 - 每日簽名報表頁（2026-09-07 v2 對齊 demo）
-// 權限：登入可查/預覽/下載；刪除：有 signed-report-delete-all 可刪全部，其餘僅刪自己的
+// 權限：登入可查/預覽/下載；編輯/刪除直接消費 backend final capabilities
 
 var dsrEvents = [];
 var dsrFiltered = [];
@@ -342,7 +342,7 @@ function dsrRenderTable() {
           </div>
           <div class="dsr-actions-cell">
             ${!isImage ? `<button class="dsr-action-btn" onclick="dsrPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_delete ? `<button class="dsr-action-btn" onclick="dsrEdit(${r.id})">✏️ 編輯</button>` : ''}
+            ${r.can_edit ? `<button class="dsr-action-btn" onclick="dsrEdit(${r.id})">✏️ 編輯</button>` : ''}
             <button class="dsr-action-btn" onclick="dsrDownload(${r.id})">⬇️ 下載</button>
             ${r.can_delete ? `<button class="dsr-action-btn dsr-action-btn--danger" onclick="dsrDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>

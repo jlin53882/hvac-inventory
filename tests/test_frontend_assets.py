@@ -291,6 +291,8 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "prompt('編輯備註" not in js
     assert "report_date" in js and "uploader_name" in js
     assert "✏️ 編輯" in js
+    assert "${r.can_edit ? `<button class=\"dsr-action-btn\" onclick=\"dsrEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"dsr-action-btn dsr-action-btn--danger\" onclick=\"dsrDelete(${r.id})\">" in js
     assert "function _dsrDateOnly" in js
     assert "_dsrDateOnly(r.upload_time)" in js
     assert "esc(r.upload_time)" not in js
