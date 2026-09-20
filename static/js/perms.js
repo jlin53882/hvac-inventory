@@ -9,6 +9,7 @@
     view: '📋 瀏覽與匯出',
     stock: '📦 庫存管理',
     calendar: '📅 行事曆與派工',
+    reports: '📑 報表與零用金',
     system: '⚙️ 系統設定',
   };
   const PAGE_LABELS = {

@@ -215,6 +215,19 @@ def test_list_permissions_endpoint(admin_client):
     assert "cal-mgmt" in data["role_defaults"]["tech"]
 
 
+def test_permission_modules_match_taxonomy_contract(admin_client):
+    """Permission module metadata groups report domains separately from Calendar."""
+    data = admin_client.get("/api/users/permissions").json()
+    modules = {item["key"]: item["module"] for item in data["permissions"]}
+    assert modules["cal-mgmt"] == "calendar"
+    assert modules["gcal-sync-force"] == "calendar"
+    assert modules["signed-report-upload"] == "reports"
+    assert modules["quotation-upload-manage"] == "reports"
+    assert modules["petty-cash-view"] == "reports"
+    assert modules["item-mgmt"] == "stock"
+    assert set(modules.values()) == {"view", "stock", "calendar", "reports", "system"}
+
+
 # ---------- 保護規則（§7） ----------
 def test_cannot_change_own_permissions(admin_client):
     """不能修改自己的權限（§7.1）"""

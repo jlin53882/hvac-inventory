@@ -198,7 +198,7 @@ def test_seed_labels_and_modules(rbac_db):
         'kit-view': ('整組清單瀏覽', 'view'),
         'prepared': ('待領出/已領出瀏覽', 'view'),
         'export': ('匯出 Excel', 'view'),
-        'item-mgmt': ('品項 新增/編輯/刪除', 'stock'),
+        'item-mgmt': ('品項／報價單 CRUD + 單位快速新增', 'stock'),
         'stock-mgmt': ('庫存位置/數量調整', 'stock'),
         'batch-loc-mgmt': ('批量修改位置', 'stock'),
         'import': ('匯入 JSON', 'stock'),
@@ -215,18 +215,18 @@ def test_seed_labels_and_modules(rbac_db):
         'unit-mgmt': ('單位整理（停用/排序/收編）', 'stock'),
         'user-mgmt': ('使用者管理', 'system'),
         'change-own-password': ('自行改密碼', 'system'),
-        'signed-report-upload': ('每日簽名日報表 上傳', 'calendar'),
-        'signed-report-edit': ('簽名報表 編輯本人', 'calendar'),
-        'signed-report-delete': ('簽名報表 刪除本人', 'calendar'),
-        'signed-report-delete-all': ('簽名報表 全域管理範圍', 'calendar'),
-        'quotation-upload-manage': ('報價單上傳 管理本人', 'calendar'),
-        'quotation-upload-manage-all': ('報價單上傳 全域管理範圍', 'calendar'),
-        'petty-cash-delete-all': ('零用金月報 全域刪除', 'calendar'),
-        'petty-cash-view': ('零用金月報 檢視', 'calendar'),
-        'petty-cash-create': ('零用金月報 新增', 'calendar'),
-        'petty-cash-edit': ('零用金月報 編輯', 'calendar'),
-        'petty-cash-delete': ('零用金月報 刪除本人', 'calendar'),
-        'petty-cash-config': ('零用金下拉選單管理', 'calendar'),
+        'signed-report-upload': ('每日簽名日報表 上傳', 'reports'),
+        'signed-report-edit': ('簽名報表 編輯本人', 'reports'),
+        'signed-report-delete': ('簽名報表 刪除本人', 'reports'),
+        'signed-report-delete-all': ('簽名報表 全域管理範圍', 'reports'),
+        'quotation-upload-manage': ('報價單上傳 管理本人', 'reports'),
+        'quotation-upload-manage-all': ('報價單上傳 全域管理範圍', 'reports'),
+        'petty-cash-delete-all': ('零用金月報 全域刪除', 'reports'),
+        'petty-cash-view': ('零用金月報 檢視', 'reports'),
+        'petty-cash-create': ('零用金月報 新增', 'reports'),
+        'petty-cash-edit': ('零用金月報 編輯', 'reports'),
+        'petty-cash-delete': ('零用金月報 刪除本人', 'reports'),
+        'petty-cash-config': ('零用金下拉選單管理', 'reports'),
         'page-visibility-manage': ('頁面可見性管理', 'system'),
     }
     conn = get_db()
@@ -238,6 +238,19 @@ def test_seed_labels_and_modules(rbac_db):
             'admin': '🛡️ 管理員', 'user': '👤 使用者',
             'tech': '🔧 工程師', 'viewer': '👀 檢視者',
         }
+    finally:
+        conn.close()
+
+
+def test_permission_module_normalization_updates_legacy_rows(rbac_db):
+    """Existing permission rows receive taxonomy metadata updates without changing overrides."""
+    conn = get_db()
+    try:
+        conn.execute("UPDATE permissions SET module='calendar' WHERE key='petty-cash-view'")
+        conn.commit()
+        init_db()
+        row = conn.execute("SELECT module FROM permissions WHERE key='petty-cash-view'").fetchone()
+        assert row["module"] == "reports"
     finally:
         conn.close()
 
