@@ -45,6 +45,8 @@ EXPECTED_MATRIX = {
     'signed-report-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
     'signed-report-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
     'signed-report-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'quotation-upload-manage': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'quotation-upload-manage-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
     'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
     'petty-cash-create': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
@@ -65,7 +67,7 @@ def test_seed_roles_permissions(rbac_db):
         perms = [p["key"] for p in conn.execute("SELECT key FROM permissions ORDER BY id").fetchall()]
         assert roles == list(EXPECTED_ROLES)
         assert sorted(perms) == sorted(EXPECTED_KEYS)
-        assert len(perms) == 33
+        assert len(perms) == 35
     finally:
         conn.close()
 
@@ -217,6 +219,8 @@ def test_seed_labels_and_modules(rbac_db):
         'signed-report-edit': ('簽名報表 編輯本人', 'calendar'),
         'signed-report-delete': ('簽名報表 刪除本人', 'calendar'),
         'signed-report-delete-all': ('簽名報表 全域管理範圍', 'calendar'),
+        'quotation-upload-manage': ('報價單上傳 管理本人', 'calendar'),
+        'quotation-upload-manage-all': ('報價單上傳 全域管理範圍', 'calendar'),
         'petty-cash-delete-all': ('零用金月報 全域刪除', 'calendar'),
         'petty-cash-view': ('零用金月報 檢視', 'calendar'),
         'petty-cash-create': ('零用金月報 新增', 'calendar'),
@@ -266,13 +270,68 @@ def test_audit_log_set_null_on_user_delete(rbac_db):
         conn.close()
 
 
+
+
+def test_quotation_upload_migration_maps_legacy_global_override_without_overwrite(rbac_db):
+    """Legacy Signed Report global overrides migrate to Quotation Upload only once."""
+    conn = get_db()
+    try:
+        conn.executemany(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?, 'x', ?, 'viewer')",
+            [("quotation-legacy-on", "Legacy On"), ("quotation-legacy-off", "Legacy Off")],
+        )
+        signed_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='signed-report-delete-all'"
+        ).fetchone()["id"]
+        quotation_all_id = conn.execute(
+            "SELECT id FROM permissions WHERE key='quotation-upload-manage-all'"
+        ).fetchone()["id"]
+        users = {
+            row["username"]: row["id"]
+            for row in conn.execute(
+                "SELECT id, username FROM users WHERE username LIKE 'quotation-legacy-%'"
+            ).fetchall()
+        }
+        conn.executemany(
+            "INSERT INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, ?)",
+            [(users["quotation-legacy-on"], signed_id, 1),
+             (users["quotation-legacy-off"], signed_id, 0),
+             (users["quotation-legacy-off"], quotation_all_id, 0)],
+        )
+        conn.execute(
+            "DELETE FROM rbac_migrations WHERE key=?",
+            ("quotation_upload_permission_decoupling_v1",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    init_db()
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT u.username, up.value FROM user_permissions up
+               JOIN users u ON u.id = up.user_id
+               JOIN permissions p ON p.id = up.permission_id
+               WHERE p.key='quotation-upload-manage-all'
+                 AND u.username LIKE 'quotation-legacy-%'
+               ORDER BY u.username"""
+        ).fetchall()
+        assert [(row["username"], row["value"]) for row in rows] == [
+            ("quotation-legacy-off", 0),
+            ("quotation-legacy-on", 1),
+        ]
+    finally:
+        conn.close()
+
+
 def test_seed_is_idempotent(rbac_db):
     """重跑 init_db 不重複 seed（INSERT OR IGNORE 冪等）"""
     init_db()
     conn = get_db()
     try:
         assert conn.execute("SELECT COUNT(*) AS c FROM roles").fetchone()["c"] == 4
-        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 33
+        assert conn.execute("SELECT COUNT(*) AS c FROM permissions").fetchone()["c"] == 35
         assert conn.execute("SELECT COUNT(*) AS c FROM role_permissions").fetchone()["c"] == \
             sum(sum(1 for v in roles.values() if v) for roles in EXPECTED_MATRIX.values())
     finally:

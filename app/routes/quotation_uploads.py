@@ -6,8 +6,8 @@
 - GET    /api/quotation-uploads              列表（日期區間 + 關鍵字 + 分頁）
 - GET    /api/quotation-uploads/{id}/preview 線上預覽（登入保護，inline）
 - GET    /api/quotation-uploads/{id}/download 下載原檔
-- PATCH  /api/quotation-uploads/{id}         編輯日期/檔案/上傳人/備註（上傳者/全域權限）
-- DELETE /api/quotation-uploads/{id}         刪除（有 signed-report-delete-all 可刪全部，否則僅刪自己的）
+- PATCH  /api/quotation-uploads/{id}         編輯日期/檔案/上傳人/備註（能力 + owner/global scope）
+- DELETE /api/quotation-uploads/{id}         刪除（能力 + owner/global scope）
 
 儲存：static/uploads/quotation_uploads/YYYY-MM/{id}_{uuid8}_{safeName}
 安全：大小上限 20MB、檔名不可控、路徑穿越防護、登入保護讀取（仿 /uploads/{id}.jpg）
@@ -55,8 +55,19 @@ def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
         raise HTTPException(400, f"不支援的檔案格式 {ext}，僅允許 PDF/PNG/JPG/GIF/WebP")
     return data, safe, (file.content_type or "").strip()[:120]
 
-def _row_to_out(row, can_delete: bool) -> dict:
-    """將 DB row 轉為 API 回傳的 dict 格式。"""
+def _upload_capabilities(conn, row, user):
+    """Return final owner/global mutation capabilities for quotation uploads."""
+    is_owner = row["uploader_user_id"] == user["id"]
+    has_global_scope = has_perm(conn, user, "quotation-upload-manage-all")
+    in_scope = has_global_scope or is_owner
+    can_manage = has_perm(conn, user, "quotation-upload-manage") and in_scope
+    return {
+        "can_edit": bool(can_manage),
+        "can_delete": bool(can_manage),
+    }
+
+def _row_to_out(row, capabilities: dict) -> dict:
+    """將 DB row 與後端計算的 final capabilities 轉為 API 回傳格式。"""
     return {
         "id": row["id"],
         "report_date": row["report_date"],
@@ -67,7 +78,8 @@ def _row_to_out(row, can_delete: bool) -> dict:
         "file_size": row["file_size"],
         "mime_type": row["mime_type"] or "",
         "note": row["note"] or "",
-        "can_delete": can_delete,
+        "can_edit": capabilities["can_edit"],
+        "can_delete": capabilities["can_delete"],
     }
 
 @router.post("/api/quotation-uploads")
@@ -123,8 +135,7 @@ def upload_quotation_upload(
         conn.commit()
         finalize_asset_paths(asset, upload_dir=Path(STATIC_DIR) / "uploads")
         row = conn.execute("SELECT * FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
-        can_del = has_perm(conn, user, "signed-report-delete-all") or (row["uploader_user_id"] == user["id"])
-        return _row_to_out(row, can_del)
+        return _row_to_out(row, _upload_capabilities(conn, row, user))
     except HTTPException:
         conn.rollback()
         if asset:
@@ -223,11 +234,9 @@ def list_quotation_uploads(
             f"SELECT * FROM quotation_uploads {sql_where} ORDER BY report_date DESC, id DESC LIMIT ? OFFSET ?",
             (*params, page_size, (page - 1) * page_size),
         ).fetchall()
-        can_all = has_perm(conn, user, "signed-report-delete-all")
         items = []
         for r in rows:
-            can_del = can_all or (r["uploader_user_id"] == user["id"])
-            items.append(_row_to_out(r, can_del))
+            items.append(_row_to_out(r, _upload_capabilities(conn, r, user)))
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     finally:
         conn.close()
@@ -277,9 +286,9 @@ async def update_quotation_upload(
         row = conn.execute("SELECT * FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
-        can_all = has_perm(conn, user, "signed-report-delete-all")
-        if not (can_all or row["uploader_user_id"] == user["id"]):
-            raise HTTPException(403, "僅上傳者或具全域刪除權限者可編輯")
+        capabilities = _upload_capabilities(conn, row, user)
+        if not capabilities["can_edit"]:
+            raise HTTPException(403, "缺少報價單上傳管理權限或不在可編輯範圍")
         report_date = row["report_date"] if report_date is None else report_date.strip()
         uploader_name = row["uploader_name"] if uploader_name is None else uploader_name.strip()
         note = row["note"] or "" if note is None else note.strip()
@@ -330,8 +339,7 @@ async def update_quotation_upload(
             except OSError as exc:
                 logger.warning("報價單上傳舊檔清理失敗 rid=%s: %s", rid, exc)
         updated = conn.execute("SELECT * FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
-        can_delete = can_all or updated["uploader_user_id"] == user["id"]
-        return _row_to_out(updated, can_delete)
+        return _row_to_out(updated, _upload_capabilities(conn, updated, user))
     except HTTPException:
         if not committed:
             conn.rollback()
@@ -433,9 +441,9 @@ def delete_quotation_upload(rid: int, user: dict = Depends(require_login)):
         ).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
-        can_all = has_perm(conn, user, "signed-report-delete-all")
-        if not (can_all or row["uploader_user_id"] == user["id"]):
-            raise HTTPException(403, "僅上傳者或具全域刪除權限者可刪除")
+        capabilities = _upload_capabilities(conn, row, user)
+        if not capabilities["can_delete"]:
+            raise HTTPException(403, "缺少報價單上傳管理權限或不在可刪除範圍")
         asset = get_owner_asset(conn, "quotation_upload", "quotation_upload", rid)
         fallback = None
         if row["stored_path"]:

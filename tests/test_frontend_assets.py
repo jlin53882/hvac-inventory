@@ -85,6 +85,7 @@ PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
 SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
+QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
 PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "style.petty-cash-reports.css")
@@ -338,6 +339,8 @@ def test_quotation_upload_actions_and_edit_modal_contract():
     assert "prompt('編輯備註" not in js
     assert "qupEditNote" not in js
     assert "✏️ 編輯" in js
+    assert "${r.can_edit ? `<button class=\"qup-action-btn\" onclick=\"qupEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"qup-action-btn qup-action-btn--danger\" onclick=\"qupDelete(${r.id})\">" in js
     assert "function qupKeepUploaderOnly" in js
     assert "qupKeepUploaderOnly();" in js
     assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
@@ -4753,6 +4756,17 @@ def test_inventory_export_dialog_runtime():
     script = os.path.join(BASE_DIR, "tests", "inventory_export_dialog.test.js")
     result = subprocess.run(["node", script], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, f"inventory export dialog runtime 失敗：\n{result.stdout}\n{result.stderr}"
+
+def test_quotation_upload_capability_runtime():
+    """實際執行報價單 production renderer，驗證 edit/delete capability gating。"""
+    result = subprocess.run(
+        ["node", QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"quotation upload capability runtime 失敗：\n{result.stdout}\n{result.stderr}"
+    )
+
 
 def test_page_visibility_frontend_contract():
     html = read(Path(STATIC) / "index.html")

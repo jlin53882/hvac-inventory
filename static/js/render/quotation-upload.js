@@ -1,5 +1,5 @@
 // 庫存管理系統 - 報價單上傳頁（2026-09-07 v2 對齊 demo）
-// 權限：登入可查/預覽/下載；刪除：有 signed-report-delete-all 可刪全部，其餘僅刪自己的
+// 權限：登入可查/預覽/下載；編輯/刪除直接消費 backend final capabilities
 
 var qupEvents = [];
 var qupFiltered = [];
@@ -340,7 +340,7 @@ function qupRenderTable() {
           </div>
           <div class="qup-actions-cell">
             ${!isImage ? `<button class="qup-action-btn" onclick="qupPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_delete ? `<button class="qup-action-btn" onclick="qupEdit(${r.id})">✏️ 編輯</button>` : ''}
+            ${r.can_edit ? `<button class="qup-action-btn" onclick="qupEdit(${r.id})">✏️ 編輯</button>` : ''}
             <button class="qup-action-btn" onclick="qupDownload(${r.id})">⬇️ 下載</button>
             ${r.can_delete ? `<button class="qup-action-btn qup-action-btn--danger" onclick="qupDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>

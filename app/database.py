@@ -614,6 +614,8 @@ def _exec_init(conn):
         ('signed-report-edit', '簽名報表 編輯本人', 'calendar'),
         ('signed-report-delete', '簽名報表 刪除本人', 'calendar'),
         ('signed-report-delete-all', '簽名報表 全域管理範圍', 'calendar'),
+        ('quotation-upload-manage', '報價單上傳 管理本人', 'calendar'),
+        ('quotation-upload-manage-all', '報價單上傳 全域管理範圍', 'calendar'),
         ('petty-cash-delete-all', '零用金月報 全域刪除', 'calendar'),
         ('petty-cash-view', '零用金月報 檢視', 'calendar'),
         ('petty-cash-create', '零用金月報 新增', 'calendar'),
@@ -651,6 +653,9 @@ def _exec_init(conn):
         'signed-report-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
         'signed-report-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
         'signed-report-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+        # Quotation upload remains login-gated for upload; these keys cover owner/global mutations.
+        'quotation-upload-manage': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+        'quotation-upload-manage-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'petty-cash-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
         'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
         'petty-cash-create': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
@@ -687,6 +692,29 @@ def _exec_init(conn):
             )
         conn.execute(
             "INSERT INTO rbac_migrations (key) VALUES (?)", (_migration_key,)
+        )
+
+    # One-time Quotation Upload decoupling: copy only explicit legacy global overrides.
+    _quotation_migration_key = "quotation_upload_permission_decoupling_v1"
+    _quotation_migrated = conn.execute(
+        "SELECT 1 FROM rbac_migrations WHERE key=?", (_quotation_migration_key,)
+    ).fetchone()
+    if _quotation_migrated is None:
+        _legacy_global_id = _perm_ids["signed-report-delete-all"]
+        _quotation_global_id = _perm_ids["quotation-upload-manage-all"]
+        for _user in conn.execute("SELECT id FROM users").fetchall():
+            _legacy_override = conn.execute(
+                "SELECT value FROM user_permissions WHERE user_id=? AND permission_id=?",
+                (_user["id"], _legacy_global_id),
+            ).fetchone()
+            if _legacy_override is not None:
+                # Preserve explicit legacy 0/1, but never overwrite a new override.
+                conn.execute(
+                    "INSERT OR IGNORE INTO user_permissions (user_id, permission_id, value) VALUES (?, ?, ?)",
+                    (_user["id"], _quotation_global_id, _legacy_override["value"]),
+                )
+        conn.execute(
+            "INSERT INTO rbac_migrations (key) VALUES (?)", (_quotation_migration_key,)
         )
 
     # ---------- GCal 同步設定預設值（2026-08-27）----------
