@@ -14,6 +14,7 @@
   };
   const PAGE_LABELS = {
     calendar: '📅 行事曆',
+    'work-progress': '📸 每日工作進度回報',
     'signed-reports': '🗂 每日簽名日報表',
     quotation: '🧾 報價單',
     'petty-cash': '🪙 零用金月報',

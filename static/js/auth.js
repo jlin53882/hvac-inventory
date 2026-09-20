@@ -59,7 +59,7 @@ function renderUserMenu(user) {
 }
 
 // ---------- 頁面可用性（Visibility ∩ RBAC） ----------
-var PAGE_VISIBILITY_TABS = ['calendar', 'signed-reports', 'quotation', 'petty-cash', 'inventory', 'prepared', 'stockout', 'stocktake', 'kit'];
+var PAGE_VISIBILITY_TABS = ['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash', 'inventory', 'prepared', 'stockout', 'stocktake', 'kit'];
 
 function isPageVisible(pageKey) {
   if (!currentUser || !Array.isArray(currentUser.visible_pages)) return true;
@@ -74,6 +74,7 @@ function hasPageCapability(pageKey, mode) {
   if (pageKey === 'stocktake') return mode === 'operate' ? !!perms.stocktake : !!(perms.view || perms.stocktake);
   if (pageKey === 'kit') return !!perms['kit-view'];
   if (pageKey === 'calendar') return !!(perms.view || perms['cal-mgmt']);
+  if (pageKey === 'work-progress') return !!perms['work-progress-view'];
   if (pageKey === 'perms') return !!perms['user-mgmt'];
   if (pageKey === 'settings') return any(['unit-mgmt', 'gcal-sync-manage', 'gcal-keys-manage', 'petty-cash-config', 'change-own-password']);
   if (pageKey === 'change-password') return !!perms['change-own-password'];
@@ -117,10 +118,10 @@ function applyRoleView(user) {
   var saveBar = document.getElementById('save-bar');
 
   if (sbNavStocktake) sbNavStocktake.style.display = canViewStocktake ? '' : 'none';
-  if (sbNavWorkProgress) sbNavWorkProgress.style.display = perms['work-progress-view'] ? '' : 'none';
+  if (sbNavWorkProgress) sbNavWorkProgress.style.display = canAccessPage('work-progress') ? '' : 'none';
   if (typeof checkReminder === 'function') checkReminder();
   if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';
-  if (!perms['work-progress-view'] && typeof currentTab !== 'undefined' && currentTab === 'work-progress') {
+  if (!canAccessPage('work-progress') && typeof currentTab !== 'undefined' && currentTab === 'work-progress') {
     switchTab('calendar');
   }
   if (!canViewStocktake && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {

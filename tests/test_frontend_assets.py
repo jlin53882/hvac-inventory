@@ -85,6 +85,7 @@ PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
 SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
+WORK_PROGRESS_PAGE_VISIBILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "work_progress_page_visibility_runtime.test.js")
 QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
@@ -4819,7 +4820,7 @@ def test_page_visibility_frontend_contract():
     perms = read(Path(STATIC) / "js" / "perms.js")
     settings = read(Path(STATIC) / "js" / "settings.js")
     page_keys = (
-        "calendar", "signed-reports", "quotation", "petty-cash", "inventory",
+        "calendar", "work-progress", "signed-reports", "quotation", "petty-cash", "inventory",
         "prepared", "stockout", "stocktake", "kit", "perms", "settings",
         "change-password",
     )
@@ -4829,6 +4830,10 @@ def test_page_visibility_frontend_contract():
     assert "applyPageVisibility" in auth
     assert "resolveAccessiblePageTab" in app
     assert "canAccessPage" in auth
+    assert "pageKey === 'work-progress'" in auth
+    assert "perms['work-progress-view']" in auth
+    assert "canAccessPage('work-progress')" in auth
+    assert "'work-progress': '📸 每日工作進度回報'" in perms
     assert "page_visibility" in perms
     assert "permPageToggle" in perms
     assert "permissionsSaved" in perms
@@ -4888,6 +4893,17 @@ context.localStorage = { getItem() { return null; } };
 vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
 if (context.getStocktakeReminderState().visible) throw new Error('inaccessible stocktake reminder remained visible');
 """
+
+
+def test_work_progress_page_visibility_runtime_contract():
+    """Node runtime 驗證 Work Progress 入口遵守 Visibility AND RBAC。"""
+    result = subprocess.run(
+        ["node", WORK_PROGRESS_PAGE_VISIBILITY_RUNTIME_JS],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"work-progress page visibility runtime 失敗：\n{result.stdout}\n{result.stderr}"
+    )
 
 
 def test_work_progress_frontend_is_independent_and_mounted():
