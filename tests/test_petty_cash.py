@@ -98,19 +98,27 @@ def _create(client, body):
     return r.json()
 
 
-def _remove_role_permissions(username, keys):
+def _set_user_permissions(username, values):
     conn = app_db.get_db()
     try:
-        user = conn.execute("SELECT role FROM users WHERE username=?", (username,)).fetchone()
-        placeholders = ",".join("?" for _ in keys)
-        conn.execute(
-            f"DELETE FROM role_permissions WHERE role_id=(SELECT id FROM roles WHERE name=?) "
-            f"AND permission_id IN (SELECT id FROM permissions WHERE key IN ({placeholders}))",
-            (user["role"], *keys),
-        )
+        user = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        for key, value in values.items():
+            permission = conn.execute("SELECT id FROM permissions WHERE key=?", (key,)).fetchone()
+            conn.execute(
+                "INSERT OR REPLACE INTO user_permissions (user_id, permission_id, value, updated_at) "
+                "VALUES (?, ?, ?, datetime('now'))",
+                (user["id"], permission["id"], int(value)),
+            )
         conn.commit()
     finally:
         conn.close()
+
+
+def _listed_report(client, report_id):
+    return next(
+        item for item in client.get("/api/petty-cash-reports").json()["items"]
+        if item["id"] == report_id
+    )
 
 
 # ---------- 建立 / 計算 ----------
@@ -525,22 +533,65 @@ def test_capabilities_match_permissions_and_scope(pc_env):
     report = _create(client, _scenario_a())
     report_id = report["id"]
 
-    listed = client.get("/api/petty-cash-reports").json()["items"]
-    summary = next(item for item in listed if item["id"] == report_id)
+    summary = _listed_report(client, report_id)
     assert summary["can_edit"] is True
     assert summary["can_delete"] is True
     detail = client.get(f"/api/petty-cash-reports/{report_id}").json()
     assert detail["can_edit"] is True
     assert detail["can_delete"] is True
 
-    _remove_role_permissions("user", ["petty-cash-edit"])
-    after_edit_off = client.get(f"/api/petty-cash-reports/{report_id}").json()
+    _set_user_permissions("user", {"petty-cash-edit": 0})
+    after_edit_off = _listed_report(client, report_id)
     assert after_edit_off["can_edit"] is False
     assert after_edit_off["can_delete"] is True
+    after_edit_off_detail = client.get(f"/api/petty-cash-reports/{report_id}").json()
+    assert after_edit_off_detail["can_edit"] is False
+    assert after_edit_off_detail["can_delete"] is True
     assert client.put(f"/api/petty-cash-reports/{report_id}", json=_scenario_a()).status_code == 403
 
-    _remove_role_permissions("user", ["petty-cash-delete", "petty-cash-delete-all"])
-    after_delete_off = client.get(f"/api/petty-cash-reports/{report_id}").json()
+    _set_user_permissions("user", {"petty-cash-delete": 0, "petty-cash-delete-all": 0})
+    after_delete_off = _listed_report(client, report_id)
     assert after_delete_off["can_edit"] is False
     assert after_delete_off["can_delete"] is False
+    after_delete_off_detail = client.get(f"/api/petty-cash-reports/{report_id}").json()
+    assert after_delete_off_detail["can_edit"] is False
+    assert after_delete_off_detail["can_delete"] is False
     assert client.delete(f"/api/petty-cash-reports/{report_id}").status_code == 403
+
+
+def test_non_owner_edit_requires_capability_and_global_scope(pc_env):
+    owner = pc_env("owner-a")
+    non_owner = pc_env("other-b")
+    report_id = _create(owner, _scenario_a())["id"]
+
+    assert _listed_report(non_owner, report_id)["can_edit"] is False
+    assert non_owner.get(f"/api/petty-cash-reports/{report_id}").json()["can_edit"] is False
+    assert non_owner.put(f"/api/petty-cash-reports/{report_id}", json=_scenario_a()).status_code == 403
+
+    _set_user_permissions("other-b", {"petty-cash-delete-all": 1})
+    assert _listed_report(non_owner, report_id)["can_edit"] is True
+    assert non_owner.get(f"/api/petty-cash-reports/{report_id}").json()["can_edit"] is True
+    assert non_owner.put(f"/api/petty-cash-reports/{report_id}", json=_scenario_a()).status_code == 200
+
+    _set_user_permissions("other-b", {"petty-cash-edit": 0})
+    assert _listed_report(non_owner, report_id)["can_edit"] is False
+    assert non_owner.put(f"/api/petty-cash-reports/{report_id}", json=_scenario_a()).status_code == 403
+
+
+def test_non_owner_delete_requires_capability_and_global_scope(pc_env):
+    owner = pc_env("owner-a")
+    non_owner = pc_env("other-b")
+    first_report_id = _create(owner, _scenario_a())["id"]
+
+    assert _listed_report(non_owner, first_report_id)["can_delete"] is False
+    assert non_owner.delete(f"/api/petty-cash-reports/{first_report_id}").status_code == 403
+
+    _set_user_permissions("other-b", {"petty-cash-delete-all": 1})
+    assert _listed_report(non_owner, first_report_id)["can_delete"] is True
+    assert non_owner.delete(f"/api/petty-cash-reports/{first_report_id}").status_code == 200
+
+    second_report_id = _create(owner, _scenario_a())["id"]
+    _set_user_permissions("other-b", {"petty-cash-delete": 0})
+    assert _listed_report(non_owner, second_report_id)["can_delete"] is False
+    assert non_owner.get(f"/api/petty-cash-reports/{second_report_id}").json()["can_delete"] is False
+    assert non_owner.delete(f"/api/petty-cash-reports/{second_report_id}").status_code == 403

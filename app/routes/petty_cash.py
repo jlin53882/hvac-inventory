@@ -11,7 +11,15 @@
 - DELETE /api/petty-cash-reports/{id}             刪除（CASCADE；本人或 petty-cash-delete-all）
 - GET    /api/petty-cash-reports/{id}/export.xlsx 範本填值匯出（不輸出上傳人；更新 last_exported_at）
 
-權限沿用每日簽名日報表模式：登入可查/建；編輯/刪除限本人或全域刪除權限者。
+權限 contract：
+- petty-cash-view：查看報表、KPI 與相關查詢。
+- petty-cash-create：建立報表。
+- petty-cash-edit：編輯能力。
+- petty-cash-delete：刪除能力。
+- petty-cash-delete-all：目前暫作跨 owner 的 temporary compatibility global scope grant。
+- petty-cash-config：管理零用金選單與設定。
+
+編輯／刪除最終允許條件為：對應 capability permission AND (owner OR current global scope)。
 上傳人（upload_person）是報表主體，可與登入者不同，不綁死。
 """
 import datetime
