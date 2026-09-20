@@ -27,9 +27,15 @@ var inventoryStatusRequestSeq = 0;
 var inventoryStatusModalType = '';
 var INVENTORY_ALERT_ITEMS = {};  // lazy 警示清單快取，供跨頁編輯使用
 var STATUS_LIST_CONTEXT = null;   // 共用異常清單 renderer 狀態
-// 目前頁籤（inventory/prepared/stockout/stocktake/kit/calendar）
+// 目前頁籤（inventory/prepared/stockout/stocktake/kit/calendar/work-progress/signed-reports/quotation/petty-cash）
 // 2026-08-13 Sarah：登入預設顯示行事曆（原本 inventory）
 var currentTab = 'calendar';
+
+// Tab lifecycle contract：兩份名單故意分開，避免資料載入與頁面 mount 語意混用。
+// ITEMLESS_TABS：不需要載入 inventory ALL_ITEMS 的頁面。
+// DATA_REFRESH_PRESERVE_MOUNT_TABS：背景 loadData refresh 不得重新 mount 的 stateful 頁面。
+var ITEMLESS_TABS = new Set(['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash']);
+var DATA_REFRESH_PRESERVE_MOUNT_TABS = new Set(['work-progress', 'signed-reports', 'quotation', 'petty-cash']);
 var INVENTORY_SITES = ['office', 'warehouse', 'van', 'truck'];
 var currentSite = 'office';  // office=辦公室 / warehouse=倉庫 / van=廂型車 / truck=貨車
 // 正在編輯的品項 id（編輯 modal）

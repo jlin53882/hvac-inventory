@@ -1,5 +1,6 @@
 // 庫存管理系統 - API 呼叫層（v8 拆分）
 // loadData / updateSubInfo / loadDestinations / saveAll
+
 async function loadData(options) {
   const full = Boolean(options && options.full);
   const requestId = ++dataRequestSeq;
@@ -14,14 +15,14 @@ async function loadData(options) {
   dataAbortController = controller;
   const siteAtRequest = currentSite;
   try {
-    const skipItems = !full && ['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash'].indexOf(currentTab) >= 0;
+    const skipItems = !full && ITEMLESS_TABS.has(currentTab);
     if (skipItems) {
       if (requestId !== dataRequestSeq || siteAtRequest !== currentSite) return;
       ALL_ITEMS = [];
       fullItemsLoadedSite = '';
       updateNotifications();
       updateSubInfo();
-      if (currentTab !== 'signed-reports' && currentTab !== 'quotation' && currentTab !== 'petty-cash') switchTab(currentTab);
+      if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)) switchTab(currentTab);
       loadPreparedBadge();
       return;
     }

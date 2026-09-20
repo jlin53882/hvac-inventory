@@ -28,7 +28,6 @@ function createContext() {
     },
     currentUser: null,
     currentTab: 'work-progress',
-    canViewStocktake: false,
     checkReminder() {},
     switchTab(tab) { this.currentTab = tab; },
   };

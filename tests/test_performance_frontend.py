@@ -37,8 +37,10 @@ def test_inventory_page_load_and_startup_skip_full_items():
     assert "page_size" in api
     assert "/api/items/facets" in api
     assert "loadInventoryPage(1)" in app
-    assert "['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash']" in api
     globals = (ROOT / "static/js/globals.js").read_text(encoding="utf-8")
+    assert "ITEMLESS_TABS" in globals
+    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals
+    assert "'calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash'" in globals
     inventory = (ROOT / "static/js/render/inventory.js").read_text(encoding="utf-8")
     assert "destinationsLoadedSite" in globals
     assert "destinationsLoadedSite !== currentSite" in inventory

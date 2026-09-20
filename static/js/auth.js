@@ -117,14 +117,14 @@ function applyRoleView(user) {
   var sbNavWorkProgress = document.getElementById('sb-nav-work-progress');
   var saveBar = document.getElementById('save-bar');
 
-  if (sbNavStocktake) sbNavStocktake.style.display = canViewStocktake ? '' : 'none';
+  if (sbNavStocktake) sbNavStocktake.style.display = canAccessPage('stocktake') ? '' : 'none';
   if (sbNavWorkProgress) sbNavWorkProgress.style.display = canAccessPage('work-progress') ? '' : 'none';
   if (typeof checkReminder === 'function') checkReminder();
   if (saveBar) saveBar.style.display = canAdjust ? '' : 'none';
   if (!canAccessPage('work-progress') && typeof currentTab !== 'undefined' && currentTab === 'work-progress') {
     switchTab('calendar');
   }
-  if (!canViewStocktake && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
+  if (!canAccessPage('stocktake') && typeof currentTab !== 'undefined' && currentTab === 'stocktake') {
     switchTab('inventory');
   }
 }

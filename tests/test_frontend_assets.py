@@ -86,6 +86,7 @@ PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
 SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
 WORK_PROGRESS_PAGE_VISIBILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "work_progress_page_visibility_runtime.test.js")
+TAB_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_lifecycle_runtime.test.js")
 QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
@@ -469,7 +470,9 @@ def test_petty_cash_frontend_contract():
     assert "content.classList.toggle('pc-content', tab === 'petty-cash')" in app
     assert "'petty-cash'" in app  # _TABS / F5 / isCal（含搜尋框隱藏）
     api = read(API_JS)
-    assert "'petty-cash'" in api  # 切頁不載入庫存 + 不觸發 switchTab 重繪
+    globals_js = read(GLOBALS_JS)
+    assert "ITEMLESS_TABS" in globals_js and "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals_js
+    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)" in api  # 背景刷新不重新 mount
     js = read(PETTY_CASH_RENDER_JS)
     assert 'function renderPettyCash' in js
     assert '/api/petty-cash-reports' in js and '/api/petty-cash/kpi' in js
@@ -3505,10 +3508,12 @@ def test_sidebar_collapsed_css_exists():
     assert "sidebar-expanded" in css, "sidebar-expanded class 缺失"
 
 def test_toggle_sidebar_function():
-    """toggleSidebar 函式存在"""
+    """toggleSidebar 可手動切換，但 sidebar 不再持久化展開狀態。"""
     js = read(APP_JS)
     assert "function toggleSidebar" in js, "app.js 缺 toggleSidebar"
-    assert "sidebarExpanded" in js, "toggleSidebar 未使用 localStorage"
+    assert "var expanded = sb.classList.toggle('expanded');" in js, "desktop sidebar 未切換 expanded"
+    assert "mn.classList.toggle('sidebar-expanded', expanded)" in js, "main 未同步切換 sidebar-expanded"
+    assert "sidebarExpanded" not in js, "sidebar 不應再寫入或讀取 dead localStorage state"
 
 def test_hamburger_uses_toggle_sidebar():
     """hamburger 按鈕使用 toggleSidebar"""
@@ -4833,6 +4838,7 @@ def test_page_visibility_frontend_contract():
     assert "pageKey === 'work-progress'" in auth
     assert "perms['work-progress-view']" in auth
     assert "canAccessPage('work-progress')" in auth
+    assert "canViewStocktake" not in auth, "auth.js 不得依賴未宣告的 legacy canViewStocktake"
     assert "'work-progress': '📸 每日工作進度回報'" in perms
     assert "page_visibility" in perms
     assert "permPageToggle" in perms
@@ -4895,6 +4901,18 @@ if (context.getStocktakeReminderState().visible) throw new Error('inaccessible s
 """
 
 
+def test_tab_lifecycle_runtime_contract():
+    """Node runtime 驗證 itemless 與 preserve-mount lifecycle 不會混用。"""
+    result = subprocess.run(
+        ["node", TAB_LIFECYCLE_RUNTIME_JS],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"tab lifecycle runtime 失敗：\n{result.stdout}\n{result.stderr}"
+    )
+
+
+
 def test_work_progress_page_visibility_runtime_contract():
     """Node runtime 驗證 Work Progress 入口遵守 Visibility AND RBAC。"""
     result = subprocess.run(
@@ -4911,6 +4929,7 @@ def test_work_progress_frontend_is_independent_and_mounted():
     index = read(INDEX)
     app = read(APP_JS)
     api = read(API_JS)
+    globals_js = read(GLOBALS_JS)
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
     css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
     assert 'id="sb-nav-work-progress"' in index
@@ -4920,7 +4939,10 @@ def test_work_progress_frontend_is_independent_and_mounted():
     assert "'work-progress':'每日工作進度回報'" in app
     assert "renderWorkProgress" in app
     assert "content.classList.toggle('wpr-content', tab === 'work-progress')" in app
-    assert "'work-progress'" in api
+    assert "ITEMLESS_TABS" in globals_js
+    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals_js
+    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)" in api
+    assert "function mountPreservedTabAfterBootstrap()" in app and "mountPreservedTabAfterBootstrap();" in app
     assert "/api/work-progress" in js
     assert "wprSelectedFiles = []" in js
     assert "wpr-album" in js and 'type="file"' in js

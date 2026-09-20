@@ -59,21 +59,10 @@ function toggleSidebar() {
   // Desktop: toggle hidden/expanded
   var expanded = sb.classList.toggle('expanded');
   mn.classList.toggle('sidebar-expanded', expanded);
-  localStorage.setItem('sidebarExpanded', expanded ? '1' : '0');
 }
 
-// Restore sidebar state on load (desktop: remember expanded)
-(function() {
-  var isDesktop = window.innerWidth >= 768;
-  if (!isDesktop) return;
-  var expanded = localStorage.getItem('sidebarExpanded') === '1';
-  var sb = document.getElementById('sidebar');
-  var mn = document.querySelector('.main');
-  if (sb && mn) {
-    sb.classList.toggle('expanded', expanded);
-    mn.classList.toggle('sidebar-expanded', expanded);
-  }
-})();
+// Sidebar 預設關閉（不從 localStorage 恢復展開狀態）
+// 使用者可透過 ☰ 按鈕手動展開，但每次進入網頁都從關閉狀態開始
 
 // 頭像下拉選單
 function toggleAvatarMenu() {
@@ -281,6 +270,11 @@ function syncViewUrl() {
   history.replaceState(null, '', '?' + p.toString());
 }
 
+// Bootstrap only: mount a stateful itemless page once after initial data setup.
+function mountPreservedTabAfterBootstrap() {
+  if (DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)) switchTab(currentTab);
+}
+
 // ========== 啟動 ==========
 (async function() {
   var user = await checkAuth();
@@ -308,8 +302,8 @@ function syncViewUrl() {
     var content = document.getElementById('content');
     if (content) content.classList.toggle('inventory-content', currentTab === 'inventory');
     loadData();
-    // loadData 不重繪 DSR；F5 直接以 ?tab=signed-reports 開啟時在此建立頁面。
-    if (currentTab === 'signed-reports' || currentTab === 'work-progress' || currentTab === 'quotation' || currentTab === 'petty-cash') switchTab(currentTab);
+    // loadData 不重繪保留 mount 的頁面；F5 直接開啟時由 bootstrap 建立一次頁面。
+    mountPreservedTabAfterBootstrap();
   } else {
     var content = document.getElementById('content');
     if (content) content.innerHTML = '<div class="empty">⚠️ 無法連線伺服器，請重新整理頁面<br><small>若持續發生請聯絡管理員</small></div>';
