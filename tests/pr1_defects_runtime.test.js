@@ -11,21 +11,59 @@ function load(files, context) {
   }
 }
 
-function testDesktopReturnActionUsesDeleteHandler() {
-  const context = vm.createContext({ console });
-  load(['static/js/render/stockout.js'], context);
+/**
+ * Extract a handler expression from production-generated desktop markup.
+ * @param {string} html Rendered desktop action markup.
+ * @returns {string} The generated inline handler expression.
+ */
+function extractDeleteReturnHandler(html) {
+  const match = html.match(/onclick="([^"]*deleteStockoutReturn\(7\)[^"]*)"/);
+  assert(match, 'desktop markup should contain a generated delete handler');
+  return match[1];
+}
+
+/**
+ * Prove the desktop inline action executes the production delete handler.
+ * @returns {Promise<void>} Resolves after the generated handler completes.
+ */
+async function testDesktopInlineReturnDeleteExecutesHandler() {
+  const calls = [];
+  let refreshed = 0;
+  const context = vm.createContext({
+    console,
+    confirm: () => true,
+    hasPerm: () => true,
+    toast: () => {},
+    renderStockOuts: () => { refreshed += 1; },
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, json: async () => ({}) };
+    },
+  });
+  load(['static/js/modals/stockout.js', 'static/js/render/stockout.js'], context);
+  context.renderStockOuts = () => { refreshed += 1; };
 
   const html = context.renderStockoutActions({
     id: 7,
     reason: '退回已領出',
     reverted_at: null,
   }, false);
-
-  assert(html.includes('deleteStockoutReturn(7)'));
+  const handler = extractDeleteReturnHandler(html);
   assert(!html.includes('revokeStockoutReturn'));
+
+  await vm.runInContext(handler, context);
+
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].url, '/api/stockout-returns/7');
+  assert.strictEqual(calls[0].options.method, 'DELETE');
+  assert.strictEqual(refreshed, 1, 'desktop inline delete should refresh exactly once');
 }
 
-async function testReturnActionUsesDeleteEndpointAndRefreshes() {
+/**
+ * Prove the production mobile sheet action reaches the same delete handler.
+ * @returns {Promise<void>} Resolves after the generated sheet action completes.
+ */
+async function testMobileReturnDeleteExecutesHandler() {
   const calls = [];
   let refreshed = 0;
   let sheetActions = null;
@@ -46,15 +84,47 @@ async function testReturnActionUsesDeleteEndpointAndRefreshes() {
   context.renderStockOuts = () => { refreshed += 1; };
 
   context.openStockoutSheet(7);
-  const revoke = sheetActions.find(action => action.label === '撤銷退回');
-  assert(revoke, 'return record should expose 撤銷退回 action');
-  await revoke.fn();
+  const deleteAction = sheetActions.find(action => action.label === '撤銷退回');
+  assert(deleteAction, 'return record should expose 撤銷退回 action');
+  await deleteAction.fn();
 
-  assert.strictEqual(JSON.stringify(calls), JSON.stringify([{
-    url: '/api/stockout-returns/7',
-    options: { method: 'DELETE' },
-  }]));
-  assert.strictEqual(refreshed, 1, 'successful return deletion should refresh stockout records');
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].url, '/api/stockout-returns/7');
+  assert.strictEqual(calls[0].options.method, 'DELETE');
+  assert.strictEqual(refreshed, 1, 'mobile return deletion should refresh exactly once');
+}
+
+/**
+ * Prove a failed production delete emits an error without refreshing.
+ * @returns {Promise<void>} Resolves after the production error path completes.
+ */
+async function testReturnDeleteFailureDoesNotRefresh() {
+  const calls = [];
+  const toasts = [];
+  let refreshed = 0;
+  const context = vm.createContext({
+    console,
+    confirm: () => true,
+    toast: (message, type) => { toasts.push({ message, type }); },
+    renderStockOuts: () => { refreshed += 1; },
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: false,
+        json: async () => ({ detail: '刪除失敗測試' }),
+      };
+    },
+  });
+  load(['static/js/modals/stockout.js'], context);
+  context.renderStockOuts = () => { refreshed += 1; };
+
+  await context.deleteStockoutReturn(7);
+
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].url, '/api/stockout-returns/7');
+  assert.strictEqual(calls[0].options.method, 'DELETE');
+  assert.deepStrictEqual(toasts, [{ message: '⚠️ 刪除失敗測試', type: 'error' }]);
+  assert.strictEqual(refreshed, 0, 'failed return deletion must not refresh stockout records');
 }
 
 async function testPreparedOnlyItemCanSubmitPreparedOut() {
@@ -98,8 +168,9 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
 (async () => {
   const selected = process.argv[2] || 'all';
   if (selected === 'c003' || selected === 'all') {
-    testDesktopReturnActionUsesDeleteHandler();
-    await testReturnActionUsesDeleteEndpointAndRefreshes();
+    await testDesktopInlineReturnDeleteExecutesHandler();
+    await testMobileReturnDeleteExecutesHandler();
+    await testReturnDeleteFailureDoesNotRefresh();
   }
   if (selected === 'c004' || selected === 'all') await testPreparedOnlyItemCanSubmitPreparedOut();
   console.log('PR1 defect runtime regressions: PASS');
