@@ -2,6 +2,7 @@
 // 依賴：globals.js、utils.js（esc/toast/hasPerm）
 
 var wprGallery = { report: null, index: 0 };
+var wprGalleryRequestToken = 0;
 var wprPhotoManageReports = {};
 var wprSuppressHistoryToggle = {};
 var wprPendingSubmit = null;
@@ -948,7 +949,7 @@ async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作�
  * @param {number} index - Function input.
  * @returns {void} Function result.
  */
-function wprOpenGallery(id, index) { wprCloseGallery(); wprFetch('/api/work-progress/' + id).then(function(report) { wprGallery.report = report; wprGallery.index = index; var overlay = document.createElement('div'); overlay.className = 'wpr-gallery-overlay'; overlay.id = 'wpr-gallery-overlay'; overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="工作照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>'; document.body.appendChild(overlay); wprRenderGallery(); }).catch(function(error) { toast(error.message, 'error'); }); }
+function wprOpenGallery(id, index) { var token = ++wprGalleryRequestToken; wprCloseGallery(false); wprFetch('/api/work-progress/' + id).then(function(report) { if (token !== wprGalleryRequestToken) return; if (typeof currentTab !== 'undefined' && currentTab !== 'work-progress') return; wprGallery.report = report; wprGallery.index = index; var overlay = document.createElement('div'); overlay.className = 'wpr-gallery-overlay'; overlay.id = 'wpr-gallery-overlay'; overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="工作照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>'; document.body.appendChild(overlay); wprRenderGallery(); }).catch(function(error) { if (token !== wprGalleryRequestToken) return; toast(error.message, 'error'); }); }
 /**
  * Render the current gallery photo and navigation controls.
  * @returns {void} Function result.
@@ -962,7 +963,8 @@ function wprRenderGallery() { var report = wprGallery.report, photo = report.pho
 function wprGalleryMove(delta) { if (!wprGallery.report || !wprGallery.report.photos.length) return; wprGallery.index = (wprGallery.index + delta + wprGallery.report.photos.length) % wprGallery.report.photos.length; wprRenderGallery(); }
 /**
  * Close the gallery overlay and release its state.
+ * @param {boolean} [invalidateRequest=true] - Whether to invalidate pending gallery fetches.
  * @returns {void} Function result.
  */
-function wprCloseGallery() { var overlay = document.getElementById('wpr-gallery-overlay'); if (overlay) overlay.remove(); wprGallery.report = null; }
+function wprCloseGallery(invalidateRequest) { if (invalidateRequest !== false) ++wprGalleryRequestToken; var overlay = document.getElementById('wpr-gallery-overlay'); if (overlay) overlay.remove(); wprGallery.report = null; }
 document.addEventListener('keydown', function(event) { if (wprPendingGallery.index >= 0) { if (event.key === 'Escape') wprClosePendingGallery(); if (event.key === 'ArrowLeft') wprPendingGalleryMove(-1); if (event.key === 'ArrowRight') wprPendingGalleryMove(1); return; } if (!wprGallery.report) return; if (event.key === 'Escape') wprCloseGallery(); if (event.key === 'ArrowLeft') wprGalleryMove(-1); if (event.key === 'ArrowRight') wprGalleryMove(1); });

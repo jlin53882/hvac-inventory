@@ -63,7 +63,7 @@
 #content.wpr-content .wpr-calendar-note { display: grid; gap: 4px; margin-top: 10px; padding: 11px 13px; border-left: 3px solid #94a3b8; background: #f8fafc; color: #475569; font-size: 13px; white-space: pre-wrap; }
 #content.wpr-content .wpr-calendar-note span { font-weight: 700; }
 #content.wpr-content .wpr-calendar-note strong { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
-#content.wpr-content .wpr-gallery-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 14px; background: rgba(15,23,42,.72); }
+.wpr-gallery-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 14px; background: rgba(15,23,42,.72); }
 #content.wpr-content .wpr-drop { padding: 18px; border: 2px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; text-align: center; transition: .15s; }
 #content.wpr-content .wpr-drop.is-dragging { border-color: #2563eb; background: #eff6ff; }
 #content.wpr-content .wpr-drop-icon { margin-bottom: 6px; font-size: 28px; }

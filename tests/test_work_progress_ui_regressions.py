@@ -1,4 +1,6 @@
 """Regression tests for Work Progress media, notes, and report export UI contracts."""
+import re
+import subprocess
 from pathlib import Path
 
 from openpyxl.styles import Alignment
@@ -9,6 +11,7 @@ from app.services.report import build_daily_report
 ROOT = Path(__file__).resolve().parents[1]
 WORK_PROGRESS_JS = ROOT / "static/js/render/work-progress.js"
 WORK_PROGRESS_CSS = ROOT / "static/css/style.work-progress.css"
+GALLERY_LIFECYCLE_TEST = ROOT / "tests/work_progress_gallery_lifecycle.test.js"
 CALENDAR_JS = ROOT / "static/js/render/calendar.js"
 CALENDAR_CSS = ROOT / "static/css/style.calendar.css"
 APP_JS = ROOT / "static/js/app.js"
@@ -26,13 +29,26 @@ def test_work_progress_gallery_is_a_viewport_overlay_and_is_closed_on_tab_change
     css = _read(WORK_PROGRESS_CSS)
     js = _read(WORK_PROGRESS_JS)
     app = _read(APP_JS)
-    overlay = css.split(".wpr-gallery-overlay", 1)[1].split("}", 1)[0]
-    assert "position: fixed" in overlay
-    assert "inset: 0" in overlay
-    assert "z-index:" in overlay
+    overlay_rules = re.findall(r"(?m)^[ \t]*\.wpr-gallery-overlay\s*\{([^}]*)\}", css)
+    assert any("position: fixed" in rule and "inset: 0" in rule and "z-index:" in rule for rule in overlay_rules)
+    assert "#content.wpr-content .wpr-gallery-overlay" not in css
+    assert "document.body.appendChild(overlay)" in js
     assert "wprCloseGallery()" in js
     leave_block = app.split("if (previousTab === 'work-progress'", 1)[1].split("currentTab = tab", 1)[0]
     assert "wprCloseGallery()" in leave_block
+
+
+def test_gallery_async_lifecycle_runtime_contract():
+    """Regression: tab leave, stale errors, and rapid A/B opens must be safe."""
+    result = subprocess.run(
+        ["node", str(GALLERY_LIFECYCLE_TEST)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, f"gallery lifecycle runtime failed:\n{result.stdout}\n{result.stderr}"
+    assert "3 passed" in result.stdout
 
 
 def test_work_progress_and_calendar_notes_preserve_multiline_text():
