@@ -32,12 +32,18 @@ function formatStockoutDate(dateValue) {
   return weekday ? `${date}（星期${weekday}）` : date;
 }
 
+/**
+ * Build desktop actions with callbacks to the modal-layer handlers.
+ * @param {object} o Stockout record.
+ * @param {boolean} isViewer Whether mutation actions are forbidden.
+ * @returns {string} Escaped action-button HTML.
+ */
 function renderStockoutActions(o, isViewer) {
   if (isViewer) return '';
   const reverted = !!o.reverted_at;
   const isReturn = o.reason === '退回已領出';
   if (isReturn) {
-    return reverted ? '' : `<button type="button" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button><button type="button" class="danger" onclick="revokeStockoutReturn(${o.id})">撤銷退回</button>`;
+    return reverted ? '' : `<button type="button" onclick="openEditStockoutReturnModal(${o.id})">✏️ 編輯</button><button type="button" class="danger" onclick="deleteStockoutReturn(${o.id})">撤銷退回</button>`;
   }
   if (reverted) return `<button type="button" class="danger" onclick="deleteStockoutRecord(${o.id})">刪除</button>`;
   return `<button type="button" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button><button type="button" class="return" onclick="returnStockout(${o.id})">↩️ 退回</button><button type="button" class="danger" onclick="deleteStockoutRecord(${o.id})">刪除</button>`;
@@ -186,7 +192,7 @@ function openStockoutSheet(movementId) {
 
     if (isReturn && !reverted) {
       actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
-      actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => revokeStockoutReturn(movementId) });
+      actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
     } else if (!isReturn && !reverted) {
       actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutModal(movementId) });
       actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnStockout(movementId) });

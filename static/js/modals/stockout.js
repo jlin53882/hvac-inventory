@@ -189,9 +189,15 @@ function openPreparedOutModal(id) {
   openModal('prepared-out-modal');
 }
 
-// 送出「待領出轉已領出」表單（POST /api/items/{id}/prepared-out），此時才真正扣庫存
+/**
+ * Submit a prepared item, including non-stock rows that exist only in preparedItems.
+ * @returns {Promise<void>} Resolves after the mutation and data refresh finish.
+ */
 async function submitPreparedOut() {
-  const item = ALL_ITEMS.find(i => i.id === preparedOutItemId);
+  const item = ALL_ITEMS.find(i => i.id === preparedOutItemId)
+    || (typeof preparedItems !== 'undefined' && preparedItems
+      ? preparedItems.find(i => i.id === preparedOutItemId)
+      : null);
   const qty = qtyInputOrToast('po-qty', item && item.unit);
   const dest = document.getElementById('po-dest').value.trim();
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
