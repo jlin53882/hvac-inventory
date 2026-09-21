@@ -5018,6 +5018,10 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wpr-edit-overlay" in js
     assert "wpr-gallery-grid" in css and "minmax(96px, 112px)" in css
     assert ".wpr-detail-photo-title" in css
+    assert "wpr-detail-action-edit" in js and "wpr-detail-action-manage" in js
+    assert "wpr-detail-action-add" in js and "wpr-detail-action-delete" in js
+    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)" in css
+    assert ".wpr-detail-actions .wpr-photo-limit" in css
 
 
 def test_work_progress_frontend_create_permission_gates_form_but_preserves_view():

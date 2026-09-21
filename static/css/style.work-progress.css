@@ -196,6 +196,10 @@
   #content.wpr-content .wpr-card { padding: 15px; border-radius: 12px; }
   #content.wpr-content .wpr-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #content.wpr-content .wpr-gallery-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #content.wpr-content .wpr-detail-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: stretch; }
+  #content.wpr-content .wpr-detail-actions button { width: 100%; min-width: 0; min-height: 42px; }
+  #content.wpr-content .wpr-detail-actions .wpr-photo-limit { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+  #content.wpr-content .wpr-detail-actions .wpr-detail-action-add, #content.wpr-content .wpr-detail-actions .wpr-detail-action-delete { grid-column: 1 / -1; }
   #content.wpr-content .wpr-job-card { min-height: 66px; }
   #content.wpr-content .wpr-job-status { font-size: 10px; }
   #content.wpr-content .wpr-history-item summary { grid-template-columns: auto minmax(0, 1fr); }
