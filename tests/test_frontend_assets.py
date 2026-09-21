@@ -2398,7 +2398,7 @@ def test_stocktake_kit_tab_expands_components():
     js = read(STOCKTAKE_JS)
     # 載入整組資料（fetch /api/kits，site 對齊 currentSite）
     assert "fetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`)" in js
-    assert "stocktakeKits = await kitRes.json()" in js
+    assert "const kits = await kitRes.json()" in js
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
     assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
     assert 'src="${photoSrc(c.item_id, \'thumbnail\')}"' in js

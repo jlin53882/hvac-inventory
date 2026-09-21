@@ -167,6 +167,35 @@ async function testStocktakeTabLeaveAndSiteSnapshot() {
   assert.strictEqual(siteRequests.length, 1, 'stale stocktake render continued into the next site');
 }
 
+async function testStocktakeStaleKitsResponseDoesNotMutateSharedState() {
+  const requests = [];
+  const context = baseContext({
+    currentTab: 'stocktake',
+    fetch(url) {
+      const request = deferred();
+      requests.push({ url, request });
+      return request.promise;
+    },
+  });
+  vm.runInContext(stocktakeSource, context);
+
+  context.renderStocktake();
+  requests[0].request.resolve(response([]));
+  await flush();
+  assert.strictEqual(requests.length, 2, 'stocktake did not issue the kits request after dates succeeded');
+  assert(requests[1].url.includes('site=office'), 'kits request did not keep the original site snapshot');
+
+  context.stocktakeKits = [{ id: 'warehouse-current' }];
+  context.currentSite = 'warehouse';
+  requests[1].request.resolve(response([{ id: 'office-stale' }]));
+  await flush();
+
+  assert.deepStrictEqual(context.stocktakeKits, [{ id: 'warehouse-current' }],
+    'stale kits response polluted shared stocktakeKits state');
+  assert.strictEqual(context._elements.get('content').innerHTML,
+    '<div class="stocktake-loading">載入盤點資料…</div>',
+    'stale kits response rendered stocktake content');
+}
 function setupHistoryContext(source, prefix, tab, endpoint) {
   const requests = [];
   const context = baseContext({
@@ -274,9 +303,10 @@ async function testQuotationAbaAndHistoryRace() {
 (async () => {
   await testStockoutTabLeaveAndLatestWins();
   await testStocktakeTabLeaveAndSiteSnapshot();
+  await testStocktakeStaleKitsResponseDoesNotMutateSharedState();
   await testSignedReportsAbaAndHistoryRace();
   await testQuotationAbaAndHistoryRace();
-  console.log('tab async lifecycle runtime: 8 passed');
+  console.log('tab async lifecycle runtime: 9 passed');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

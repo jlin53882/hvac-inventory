@@ -31,8 +31,9 @@ async function renderStocktake() {
   try {
     const kitRes = await fetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`);
     if (!kitRes.ok) { console.error('[renderStocktake] /api/kits 失敗', kitRes.status); throw new Error('kits ' + kitRes.status); }
-    stocktakeKits = await kitRes.json();
+    const kits = await kitRes.json();
     if (!isCurrent()) return;
+    stocktakeKits = kits;
   } catch (e) {
     if (!isCurrent()) return;
     loadError = true;
