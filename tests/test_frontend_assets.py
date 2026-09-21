@@ -87,6 +87,7 @@ PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_c
 SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
 WORK_PROGRESS_PAGE_VISIBILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "work_progress_page_visibility_runtime.test.js")
 TAB_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_lifecycle_runtime.test.js")
+CALENDAR_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "calendar_runtime.test.js")
 QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
@@ -449,6 +450,20 @@ def test_signed_reports_accept_no_docx():
 def test_petty_cash_capability_runtime():
     r = subprocess.run(["node", PETTY_CASH_CAPABILITY_RUNTIME_JS], capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, f"petty_cash_capability_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
+
+
+def test_calendar_runtime():
+    """Calendar production handlers cover load, create, edit, delete, and sync error paths."""
+    result = subprocess.run(
+        ["node", CALENDAR_RUNTIME_JS],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"calendar runtime failed:\n{result.stdout}\n{result.stderr}"
+    )
 
 
 def test_petty_cash_frontend_contract():
