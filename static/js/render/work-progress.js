@@ -618,21 +618,38 @@ async function wprLoadHistory(page) {
   } catch (error) { if (token === wprHistoryRequestToken) list.innerHTML = '<div class="wpr-empty">⚠️ ' + esc(error.message) + '</div>'; }
 }
 /**
- * Reload history and reopen a detail element after a change.
- * @param {number} id - Function input.
- * @param {number} page - Function input.
- * @returns {void} Function result.
+ * Resolve the DOM id used by one report detail surface.
+ * @param {number} id - Report identifier.
+ * @param {string} [targetId] - Internal detail container id.
+ * @returns {string} Detail container id.
  */
-async function wprReloadAndReopenDetail(id, page) {
+function wprDetailTargetId(id, targetId) {
+  return targetId || ('wpr-detail-' + id);
+}
+
+/**
+ * Reload history and reopen a detail element after a change.
+ * @param {number} id - Report identifier.
+ * @param {number} page - History page to reload.
+ * @param {string} [targetId] - Internal detail container id to refresh.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function wprReloadAndReopenDetail(id, page, targetId) {
   await wprLoadHistory(page);
-  var detail = document.getElementById('wpr-detail-' + id);
+  var resolvedTargetId = wprDetailTargetId(id, targetId);
+  var selectedTarget = targetId && resolvedTargetId !== 'wpr-detail-' + id;
+  var detail = document.getElementById(resolvedTargetId);
+  if (selectedTarget) {
+    if (detail) await wprOpenHistoryDetail(id, resolvedTargetId);
+    return;
+  }
   if (!detail) return;
   var item = detail.closest('details');
   if (item) {
     wprSuppressHistoryToggle[id] = true;
     item.open = true;
   }
-  await wprOpenHistoryDetail(id);
+  await wprOpenHistoryDetail(id, resolvedTargetId);
 }
 /**
  * Format the immutable creator identity shown in history.
@@ -650,14 +667,16 @@ function wprCreatedByText(report) {
 function wprHistoryCard(report) { return '<details class="wpr-history-item" ontoggle="if(this.open && !wprSuppressHistoryToggle[' + report.id + ']) wprOpenHistoryDetail(' + report.id + '); wprSuppressHistoryToggle[' + report.id + ']=false"><summary><span class="wpr-history-date">' + esc(report.report_date) + '</span><span><b>' + esc(report.service_name || '未指定服務') + ' · ' + esc(report.client_name) + '</b><small>' + wprTimeText(report) + ' · 回報人：' + esc(report.uploader_name) + ' · 建立帳號：' + esc(wprCreatedByText(report)) + '</small></span><span class="wpr-history-photo-count">📷 ' + report.photo_count + '</span></summary><div class="wpr-history-detail" id="wpr-detail-' + report.id + '">載入詳情中…</div></details>'; }
 /**
  * Build the scoped thumbnail gallery for a report.
- * @param {Object} report - Function input.
- * @param {number} id - Function input.
- * @returns {void} Function result.
+ * @param {Object} report - Work progress report payload.
+ * @param {number} id - Report identifier.
+ * @param {string} [targetId] - Internal detail container id for action refresh.
+ * @returns {string} Gallery markup.
  */
-function wprPhotoGalleryHtml(report, id) {
+function wprPhotoGalleryHtml(report, id, targetId) {
+  var actionTargetId = wprDetailTargetId(id, targetId);
   return (report.photos || []).map(function(photo, index) {
     var deleteButton = report.can_edit && wprPhotoManageReports[id]
-      ? '<button type="button" class="wpr-photo-delete" onclick="event.stopPropagation();wprDeletePhoto(' + id + ',\'' + esc(jsStr(photo.asset_id)) + '\')" aria-label="刪除第 ' + (index + 1) + ' 張照片">✕</button>'
+      ? '<button type="button" class="wpr-photo-delete" onclick="event.stopPropagation();wprDeletePhoto(' + id + ',\'' + esc(jsStr(photo.asset_id)) + '\',\'' + esc(jsStr(actionTargetId)) + '\')" aria-label="刪除第 ' + (index + 1) + ' 張照片">✕</button>'
       : '';
     return '<div class="wpr-photo-manage-tile"><button type="button" onclick="wprOpenGallery(' + id + ',' + index + ')"><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '"></button>' + deleteButton + '</div>';
   }).join('');
@@ -666,32 +685,37 @@ function wprPhotoGalleryHtml(report, id) {
  * Load and render the full detail body for one report.
  * @param {number} id - Report identifier.
  * @param {string} [targetId] - Optional detail container id for non-history callers.
- * @returns {void} Function result.
+ * @returns {Promise<void>} Completion promise.
  */
 async function wprOpenHistoryDetail(id, targetId) {
-  var detail = document.getElementById(targetId || ('wpr-detail-' + id)); if (!detail) return;
-  var token = (wprDetailRequestTokens[id] || 0) + 1; wprDetailRequestTokens[id] = token;
+  var detailTargetId = wprDetailTargetId(id, targetId);
+  var detail = document.getElementById(detailTargetId); if (!detail) return;
+  var tokenKey = id + ':' + detailTargetId;
+  var token = (wprDetailRequestTokens[tokenKey] || 0) + 1; wprDetailRequestTokens[tokenKey] = token;
   try {
     var report = await wprFetch('/api/work-progress/' + id);
-    if (token !== wprDetailRequestTokens[id]) return;
-    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-detail-photo-section"><h4 class="wpr-detail-photo-title">施工照片</h4><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div></div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" class="wpr-detail-action-edit" onclick="wprEditReport(' + id + ')">✏️ 編輯回報</button><button type="button" class="wpr-detail-action-manage" onclick="wprTogglePhotoManage(' + id + ')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" class="wpr-detail-action-add" onclick="wprAddExistingPhotos(' + id + ')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-detail-action-delete wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
-  } catch (error) { if (token === wprDetailRequestTokens[id]) detail.textContent = error.message; }
+    if (token !== wprDetailRequestTokens[tokenKey]) return;
+    var actionTargetId = esc(jsStr(detailTargetId));
+    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-detail-photo-section"><h4 class="wpr-detail-photo-title">施工照片</h4><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id, detailTargetId) + '</div></div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" class="wpr-detail-action-edit" onclick="wprEditReport(' + id + ',\'' + actionTargetId + '\')">✏️ 編輯回報</button><button type="button" class="wpr-detail-action-manage" onclick="wprTogglePhotoManage(' + id + ',\'' + actionTargetId + '\')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" class="wpr-detail-action-add" onclick="wprAddExistingPhotos(' + id + ',\'' + actionTargetId + '\')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-detail-action-delete wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
+  } catch (error) { if (token === wprDetailRequestTokens[tokenKey]) detail.textContent = error.message; }
 }
 /**
  * Toggle destructive photo controls for one report.
- * @param {number} id - Function input.
- * @returns {void} Function result.
+ * @param {number} id - Report identifier.
+ * @param {string} [targetId] - Internal detail container id to refresh.
+ * @returns {Promise<void>} Completion promise.
  */
-function wprTogglePhotoManage(id) {
+function wprTogglePhotoManage(id, targetId) {
   wprPhotoManageReports[id] = !wprPhotoManageReports[id];
-  wprOpenHistoryDetail(id);
+  wprOpenHistoryDetail(id, targetId);
 }
 /**
  * Persist report-owned note and display-name changes.
- * @param {number} id - Function input.
- * @returns {void} Function result.
+ * @param {number} id - Report identifier.
+ * @param {string} [targetId] - Internal detail container id to refresh after save.
+ * @returns {Promise<void>} Completion promise.
  */
-async function wprEditReport(id) {
+async function wprEditReport(id, targetId) {
   try {
     var report = await wprFetch('/api/work-progress/' + id);
     var overlay = document.createElement('div');
@@ -738,7 +762,7 @@ async function wprEditReport(id) {
       try {
         await wprFetch('/api/work-progress/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({uploader_name:uploader, note:note})});
         close();
-        await wprReloadAndReopenDetail(id, wprHistoryPage);
+        await wprReloadAndReopenDetail(id, wprHistoryPage, targetId);
         toast('工作進度已更新', 'success');
       } catch (error) { toast(error.message, 'error'); save.disabled = false; }
     });
@@ -746,16 +770,17 @@ async function wprEditReport(id) {
 }
 /**
  * Confirm and delete one scoped report photo.
- * @param {number} reportId - Function input.
- * @param {string} assetId - Function input.
- * @returns {void} Function result.
+ * @param {number} reportId - Report identifier.
+ * @param {string} assetId - Asset identifier.
+ * @param {string} [targetId] - Internal detail container id to refresh.
+ * @returns {Promise<void>} Completion promise.
  */
-async function wprDeletePhoto(reportId, assetId) {
+async function wprDeletePhoto(reportId, assetId, targetId) {
   if (!window.confirm('確定刪除此照片？\n此動作無法復原。')) return;
   try {
     await wprFetch('/api/work-progress/' + reportId + '/photos/' + encodeURIComponent(assetId), {method:'DELETE'});
     toast('照片已刪除', 'success');
-    await wprReloadAndReopenDetail(reportId, wprHistoryPage);
+    await wprReloadAndReopenDetail(reportId, wprHistoryPage, targetId);
   } catch (error) { toast(error.message, 'error'); }
 }
 /**
@@ -915,10 +940,11 @@ function wprHandleDateChange() {
 
 /**
  * Open a multi-file picker and append photos to an existing report.
- * @param {number} id - Function input.
+ * @param {number} id - Report identifier.
+ * @param {string} [targetId] - Internal detail container id to refresh after upload.
  * @returns {void} Function result.
  */
-function wprAddExistingPhotos(id) {
+function wprAddExistingPhotos(id, targetId) {
   var input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/jpeg,image/png,image/webp';
@@ -933,7 +959,7 @@ function wprAddExistingPhotos(id) {
       files.forEach(function(file) { form.append('files', file, file.name); });
       await wprFetch('/api/work-progress/' + id + '/photos', {method:'POST', body:form});
       toast('照片已新增', 'success');
-      await wprReloadAndReopenDetail(id, 1);
+      await wprReloadAndReopenDetail(id, 1, targetId);
     } catch (error) { toast(error.message, 'error'); }
   };
   input.click();
