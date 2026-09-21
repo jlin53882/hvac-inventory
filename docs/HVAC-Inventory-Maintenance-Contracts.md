@@ -130,6 +130,20 @@ When inventory writer topology changes, the minimum verification is:
 4. run relevant rollback, atomicity, and concurrency regressions; and
 5. update this contract only when ownership or the protected contract changes.
 
+### 3.7 Database initialization and migration safety
+
+`app/database.py::init_db()` owns SQLite schema creation, additive migrations, and required seed/backfill writes performed during application startup. The initialization boundary is one explicit `BEGIN IMMEDIATE` transaction and one final commit after every schema, migration, seed, and backfill statement succeeds.
+
+The initialization contract is:
+
+- a failure during fresh initialization or an upgrade rolls back the complete initialization attempt; no partially committed schema, migration marker, seed set, or backfill is an acceptable terminal state;
+- the next startup may retry initialization against the same database file and must be able to complete without manual cleanup;
+- repeated successful initialization is idempotent and must preserve existing records, explicit user/role overrides, migration markers, and other protected state;
+- migration statements must be additive or explicitly data-preserving, guarded for already-upgraded databases, and executed through the owning transaction rather than an implicit-commit script boundary;
+- migration code must not silently discard legacy rows or replace explicit overrides with defaults; and
+- a migration change must be rehearsed against a fresh database, a current database, and a representative legacy or partially initialized copy.
+
+The failure boundary is part of the contract, not merely an implementation detail. A test that observes only the final happy-path schema cannot establish rollback or retry safety.
 
 ## 4. Page Membership, Visibility, Capability, and Scope
 
@@ -376,6 +390,7 @@ The map names executable owners, not historical run results:
 | Static inventory writer topology | `scripts/scan_inventory_writers.py`, `tests/test_inventory_writer_scanner.py` |
 | Inventory mutation rollback and transfer side effects | `tests/test_inventory_integrity.py`, `tests/test_vehicle_inventory.py` |
 | Inventory invariants and multi-location identity | `tests/test_inventory_integrity.py`, `tests/test_vehicle_inventory.py`, `tests/test_main.py` |
+| Database initialization rollback, retry, and idempotent seeds | `tests/test_database_migrations.py`, `tests/test_rbac.py`, `tests/test_rbac_perms.py` |
 | Quantity parsing and three-decimal write boundary | `tests/test_quantity.py`, `tests/qty.test.js` |
 | Kit shortage and KPI exclusion | `tests/test_main.py`, `tests/test_media_storage.py`, `tests/test_inventory_integrity.py` |
 | Page membership and visibility defaults/overrides | `tests/test_rbac.py`, `tests/test_rbac_perms.py`, `tests/test_frontend_assets.py` |
@@ -395,6 +410,14 @@ When a test is renamed, split, or removed, update this map only if the protected
 - Verify zero/low mutual exclusion and kit KPI exclusion.
 - Verify multi-location identity, site scope, movements, rollback, and export consumers.
 - Run the relevant domain/API/database/concurrency evidence.
+
+### Database initialization or migration change
+
+- Verify the fresh-database schema, current-database no-op path, and representative legacy/partially initialized copy.
+- Keep schema changes, migration markers, seed rows, and user backfills inside the single initialization transaction.
+- Inject a failure after an earlier schema/seed step and assert complete rollback.
+- Retry initialization after failure and assert the expected schema, seed set, preserved rows, and explicit overrides.
+- Run the migration-specific regression batch before the broader affected test groups.
 
 ### Page or permission change
 
@@ -425,6 +448,7 @@ When a test is renamed, split, or removed, update this map only if the protected
 The primary implementation owners for the contracts in this document are:
 
 - `app/models.py`
+- `app/database.py`
 - `app/routes/appointments.py`
 - `app/routes/work_progress.py`
 - `app/services/inventory_stock.py`

@@ -30,11 +30,52 @@ def get_db():
     return conn
 
 
+def _execute_script_in_transaction(conn: sqlite3.Connection, script: str) -> None:
+    """Execute a SQL script statement-by-statement without committing implicitly.
+
+    ``sqlite3.Connection.executescript`` commits an active transaction before
+    running a script. Initialization must keep schema, migrations, and seeds
+    under one rollback boundary, so statements are split with SQLite's parser
+    and executed through the existing connection instead.
+
+    Args:
+        conn: Active SQLite connection that owns the initialization transaction.
+        script: SQL script containing one or more complete statements.
+
+    Raises:
+        sqlite3.ProgrammingError: If the script contains an incomplete statement.
+    """
+    pending: list[str] = []
+    for char in script:
+        pending.append(char)
+        if char == ";":
+            statement = "".join(pending)
+            if sqlite3.complete_statement(statement):
+                if statement.strip():
+                    conn.execute(statement)
+                pending.clear()
+
+    trailing = "".join(pending).strip()
+    if trailing:
+        if not sqlite3.complete_statement(trailing + ";"):
+            raise sqlite3.ProgrammingError("incomplete SQL initialization statement")
+        conn.execute(trailing)
+
+
 def init_db():
-    """建立所有資料表與索引，並執行舊資料庫（v10 前）的欄位遷移"""
+    """Initialize the schema, migrations, and required seed data atomically.
+
+    The explicit transaction keeps schema changes, migration markers, and
+    backfills on one rollback boundary so a failed startup can be retried.
+
+    Raises:
+        sqlite3.Error: If schema creation, migration, or seed initialization fails.
+    """
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         _exec_init(conn)
+        conn.commit()
     except Exception:
         conn.rollback()   # 2026-08-14 鎖洩漏根治：init_db 中途炸（雙開 server 搶 DB 等）確保釋放 RESERVED 鎖
         raise
@@ -47,7 +88,7 @@ def _exec_init(conn):
     薄殼化（2026-08-14）：init_db 只負責 conn 生命週期，主體抽出讓 try/finally 可包住
     ——雙開 server 搶 DB 時 init 中途炸也不會漏 conn
     """
-    conn.executescript("""
+    _execute_script_in_transaction(conn, """
     CREATE TABLE IF NOT EXISTS items (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         brand       TEXT NOT NULL DEFAULT '',
@@ -586,7 +627,7 @@ def _exec_init(conn):
         logger.info("[migrate] appointment_gcal_map.data_hash 欄位已新增（同步 hash 比對）")
     # 行事曆：service_types 種子（2026-08-13 Sarah：工程項目 安裝/配管 → 施工/場勘）
     # id 1/2 = 保養/維修 active；3/4 = 安裝/配管 停用（歷史保留）；5/6 = 施工/場勘 active
-    conn.executescript("""
+    _execute_script_in_transaction(conn, """
     INSERT OR IGNORE INTO service_types (id, name, sort_order, is_active) VALUES
         (1, '保養', 1, 1),
         (2, '維修', 2, 1),
@@ -597,7 +638,7 @@ def _exec_init(conn):
     """)
     # 單位種子（2026-08-16：既有 10 種 + 常見補 5 種；破碎歷史值不種子，由收編功能處理）
     # qty_type（2026-09-12 §8）：散裝可分 罐/瓶/包/桶/捲→fraction；米→decimal；其餘 integer
-    conn.executescript("""
+    _execute_script_in_transaction(conn, """
     INSERT OR IGNORE INTO units (name, sort_order, is_active, qty_type) VALUES
         ('個', 1, 1, 'integer'), ('罐', 2, 1, 'fraction'), ('瓶', 3, 1, 'fraction'), ('包', 4, 1, 'fraction'),
         ('組', 5, 1, 'integer'), ('米', 6, 1, 'decimal'), ('條', 7, 1, 'integer'), ('捲', 8, 1, 'fraction'),
@@ -605,7 +646,7 @@ def _exec_init(conn):
         ('箱', 11, 1, 'integer'), ('台', 12, 1, 'integer'), ('支', 13, 1, 'integer'), ('顆', 14, 1, 'integer'), ('桶', 15, 1, 'fraction');
     """)
     # ---------- RBAC seed（2026-08-13，與 docs/RBAC-帳號權限系統-設計文件 §5 矩陣一致）----------
-    conn.executescript("""
+    _execute_script_in_transaction(conn, """
     INSERT OR IGNORE INTO roles (name, label, is_system) VALUES
         ('admin',  '🛡️ 管理員', 1),
         ('user',   '👤 使用者', 1),
@@ -778,4 +819,3 @@ def _exec_init(conn):
             "INSERT OR IGNORE INTO user_page_visibility (user_id, page_key, visible) VALUES (?, ?, ?)",
             [(_user["id"], _key, 1 if _key in _visible else 0) for _key in PAGE_KEYS],
         )
-    conn.commit()
