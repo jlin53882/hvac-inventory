@@ -5,34 +5,112 @@ const vm = require('vm');
 const apiSource = fs.readFileSync('static/js/api.js', 'utf8');
 const appSource = fs.readFileSync('static/js/app.js', 'utf8');
 
-function createContext(currentTab) {
-  const calls = { fetch: 0, inventoryFetch: 0, switchTab: 0, renderWorkProgress: 0 };
+/**
+ * Create the minimum DOM element surface required by the production bootstrap.
+ * @param {string} [id=''] - Element identifier used by production selectors.
+ * @returns {object} Element-like object with class and event APIs.
+ */
+function createElement(id = '') {
+  const classes = new Set();
+  return {
+    id,
+    value: '',
+    innerHTML: '',
+    textContent: '',
+    style: {},
+    addEventListener() {},
+    classList: {
+      add(...names) { names.forEach(name => classes.add(name)); },
+      remove(...names) { names.forEach(name => classes.delete(name)); },
+      toggle(name, force) {
+        const next = force === undefined ? !classes.has(name) : force;
+        if (next) classes.add(name); else classes.delete(name);
+        return next;
+      },
+      contains(name) { return classes.has(name); },
+    },
+  };
+}
+
+/**
+ * Build a VM context around production api.js and app.js bootstrap code.
+ * @param {string} tab - Itemless page to open through the production URL path.
+ * @returns {{context: object, calls: object}} Runtime context and observed calls.
+ */
+function createContext(tab) {
+  const elements = new Map();
+  const calls = {
+    checkAuth: 0,
+    loadUnits: 0,
+    renders: {},
+    inventoryFetch: 0,
+  };
+  const recordRender = name => {
+    calls.renders[name] = (calls.renders[name] || 0) + 1;
+  };
+  const document = {
+    visibilityState: 'visible',
+    getElementById(id) {
+      if (!elements.has(id)) elements.set(id, createElement(id));
+      return elements.get(id);
+    },
+    querySelectorAll() { return []; },
+    querySelector() { return createElement(); },
+    addEventListener() {},
+  };
   const context = {
     console,
     AbortController,
     URLSearchParams,
+    Date,
+    document,
+    window: { innerWidth: 1024, addEventListener() {} },
+    history: { replaceState() {} },
+    location: { search: `?tab=${tab}&site=office` },
+    setTimeout,
+    clearTimeout,
     ITEMLESS_TABS: new Set(['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash']),
     DATA_REFRESH_PRESERVE_MOUNT_TABS: new Set(['work-progress', 'signed-reports', 'quotation', 'petty-cash']),
-    currentTab,
+    INVENTORY_SITES: ['office', 'warehouse', 'van', 'truck'],
+    currentTab: 'inventory',
     currentSite: 'office',
     dataRequestSeq: 0,
     dataAbortController: null,
     statsRequestSeq: 0,
     statsAbortController: null,
-    ALERTS_BY_SITE: {},
     ALL_ITEMS: ['stale-item'],
     fullItemsLoadedSite: 'office',
+    inventoryLoadedSite: '',
+    INVENTORY_META: { page: 1, stats: null },
+    INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
+    ALERTS_BY_SITE: {},
+    pending: {},
+    checkAuth: async () => {
+      calls.checkAuth += 1;
+      return { username: 'runtime-user', display_name: 'Runtime User', role: 'viewer', password_expired: false };
+    },
+    loadUnits: async () => { calls.loadUnits += 1; },
+    renderUserMenu() {},
+    renderSidebarUser() {},
+    applyRoleView() {},
+    updateBreadcrumb() {},
+    renderNoAccessiblePage() {},
     updateNotifications() {},
     updateSubInfo() {},
     loadPreparedBadge() {},
     checkReminder() {},
-    document: {
-      getElementById() {
-        return { innerHTML: '', textContent: '' };
-      },
-    },
+    closeInventoryStatusModal() {},
+    renderWorkProgress() { recordRender('work-progress'); },
+    renderInventory() {},
+    renderPrepared() {},
+    renderStockOuts() {},
+    renderStocktake() {},
+    renderKits() {},
+    renderCalendar() { recordRender('calendar'); },
+    renderSignedReports() { recordRender('signed-reports'); },
+    renderQuotation() { recordRender('quotation'); },
+    renderPettyCash() { recordRender('petty-cash'); },
     fetch: async (url) => {
-      calls.fetch += 1;
       if (url.includes('/api/items?')) calls.inventoryFetch += 1;
       return {
         ok: true,
@@ -46,60 +124,39 @@ function createContext(currentTab) {
         },
       };
     },
-    switchTab(tab) {
-      calls.switchTab += 1;
-      this.currentTab = tab;
-      if (tab === 'work-progress') calls.renderWorkProgress += 1;
-    },
   };
   vm.createContext(context);
   vm.runInContext(apiSource, context);
   return { context, calls };
 }
 
-function loadProductionBootstrapHelper(context) {
-  const start = appSource.indexOf('function mountPreservedTabAfterBootstrap()');
-  assert(start >= 0, 'app.js bootstrap helper is missing');
-  const end = appSource.indexOf('\n}', start) + 2;
-  assert(end > start, 'app.js bootstrap helper body is incomplete');
-  vm.runInContext(appSource.slice(start, end), context);
-}
-
-async function assertRefreshContract(tab, expectedSwitchCalls) {
-  const { context, calls } = createContext(tab);
-  await context.loadData();
-  assert.strictEqual(calls.inventoryFetch, 0, `${tab}: loadData should skip inventory fetch`);
-  assert.strictEqual(calls.switchTab, expectedSwitchCalls, `${tab}: unexpected remount count`);
-}
-
 (async () => {
-  // Background refresh must not remount stateful independent pages.
-  await assertRefreshContract('work-progress', 0);
-  await assertRefreshContract('signed-reports', 0);
-  await assertRefreshContract('quotation', 0);
-  await assertRefreshContract('petty-cash', 0);
+  const cases = [
+    { tab: 'work-progress', preserveMount: true },
+    { tab: 'signed-reports', preserveMount: true },
+    { tab: 'quotation', preserveMount: true },
+    { tab: 'petty-cash', preserveMount: true },
+    { tab: 'calendar', preserveMount: false },
+  ];
 
-  // Calendar remains the existing itemless page that mounts from loadData.
-  await assertRefreshContract('calendar', 1);
+  for (const { tab, preserveMount } of cases) {
+    const { context, calls } = createContext(tab);
 
-  // F5 work-progress path: loadData does not mount; bootstrap mounts exactly once.
-  const { context, calls } = createContext('work-progress');
-  loadProductionBootstrapHelper(context);
-  await context.loadData();
-  assert.strictEqual(calls.renderWorkProgress, 0, 'loadData mounted Work Progress during boot');
-  context.mountPreservedTabAfterBootstrap();
-  assert.strictEqual(calls.renderWorkProgress, 1, 'bootstrap must mount Work Progress exactly once');
+    // Execute the complete production app.js bootstrap IIFE, not the helper in isolation.
+    vm.runInContext(appSource, context);
+    await new Promise(resolve => setTimeout(resolve, 25));
 
-  // A later background refresh must preserve the existing mount and draft state.
-  await context.loadData();
-  assert.strictEqual(calls.renderWorkProgress, 1, 'background refresh remounted Work Progress');
+    assert.strictEqual(calls.checkAuth, 1, `${tab}: production bootstrap must authenticate once`);
+    assert.strictEqual(calls.loadUnits, 1, `${tab}: production bootstrap must load units once`);
+    assert.strictEqual(context.currentTab, tab, `${tab}: URL tab must reach production bootstrap`);
+    assert.strictEqual(calls.inventoryFetch, 0, `${tab}: itemless page must skip inventory fetch`);
+    assert.strictEqual(calls.renders[tab], 1, `${tab}: bootstrap must mount production renderer once`);
 
-  assert(appSource.includes('function mountPreservedTabAfterBootstrap()'),
-    'app bootstrap helper must be defined in production app.js');
-  assert(appSource.includes('mountPreservedTabAfterBootstrap();'),
-    'app bootstrap must call the production mount helper');
-  assert(!appSource.includes("currentTab === 'work-progress' || currentTab === 'quotation'"),
-    'app bootstrap must not duplicate the independent-page registry');
+    // Background refresh must preserve stateful mounts but continue Calendar refreshes.
+    await context.loadData();
+    const expectedRenders = preserveMount ? 1 : 2;
+    assert.strictEqual(calls.renders[tab], expectedRenders, `${tab}: refresh mount contract drifted`);
+  }
 
   console.log('tab lifecycle runtime: PASS');
 })().catch((error) => {
