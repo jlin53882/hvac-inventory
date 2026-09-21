@@ -5002,16 +5002,33 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wprDeletePhoto" in js
     assert "/photos/" in js and "method:'DELETE'" in js
     assert "確定刪除此照片" in js
-    assert "async function wprReloadAndReopenDetail(id, page)" in js
-    assert "await wprReloadAndReopenDetail(id, wprHistoryPage)" in js
-    assert "await wprReloadAndReopenDetail(reportId, wprHistoryPage)" in js
-    assert "await wprReloadAndReopenDetail(id, 1)" in js
+    assert "async function wprReloadAndReopenDetail(id, page, targetId)" in js
+    assert "await wprReloadAndReopenDetail(id, wprHistoryPage, targetId)" in js
+    assert "await wprReloadAndReopenDetail(reportId, wprHistoryPage, targetId)" in js
+    assert "await wprReloadAndReopenDetail(id, 1, targetId)" in js
     assert "wprEditReport" in js
     assert "uploader_name" in js
     assert "wprTogglePhotoManage" in js
     assert "wpr-photo-manage-tile" in js
+    assert "施工照片" in js
+    assert 'label>工作照片' not in js
+    assert 'alt="工作照片"' not in js
+    assert "wpr-selected-report-detail-" in js
+    assert "targetId || ('wpr-detail-' + id)" in js
     assert "wpr-edit-overlay" in js
     assert "wpr-gallery-grid" in css and "minmax(96px, 112px)" in css
+    assert ".wpr-detail-photo-title" in css
+    assert "wprDetailTargetId(id, targetId)" in js
+    assert "wprTogglePhotoManage(id, targetId)" in js
+    assert "wprEditReport(id, targetId)" in js
+    assert "wprAddExistingPhotos(id, targetId)" in js
+    assert "wprDeletePhoto(reportId, assetId, targetId)" in js
+    assert "wprReloadAndReopenDetail(id, page, targetId)" in js
+    assert "tokenKey = id + ':' + detailTargetId" in js
+    assert "wpr-detail-action-edit" in js and "wpr-detail-action-manage" in js
+    assert "wpr-detail-action-add" in js and "wpr-detail-action-delete" in js
+    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)" in css
+    assert ".wpr-detail-actions .wpr-photo-limit" in css
 
 
 def test_work_progress_frontend_create_permission_gates_form_but_preserves_view():
@@ -5031,18 +5048,18 @@ def test_work_progress_frontend_create_permission_gates_form_but_preserves_view(
 
 def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    assert "async function wprReloadAndReopenDetail(id, page)" in js
-    helper = js.split("async function wprReloadAndReopenDetail(id, page)", 1)[1].split(
+    assert "async function wprReloadAndReopenDetail(id, page, targetId)" in js
+    helper = js.split("async function wprReloadAndReopenDetail(id, page, targetId)", 1)[1].split(
         "function wprHistoryCard", 1
     )[0]
     assert "await wprLoadHistory(page)" in helper
     assert "closest('details')" in helper
     assert "item.open = true" in helper
     assert "wprSuppressHistoryToggle[id] = true" in helper
-    assert "await wprOpenHistoryDetail(id)" in helper
+    assert "await wprOpenHistoryDetail(id, resolvedTargetId)" in helper
     assert "!wprSuppressHistoryToggle[" in js
 
-    edit_block = js.split("async function wprEditReport(id)", 1)[1].split(
+    edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
         "async function wprDeletePhoto", 1
     )[0]
     photo_delete_block = js.split("async function wprDeletePhoto", 1)[1].split(
@@ -5063,7 +5080,7 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
 def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
     css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
-    edit_block = js.split("async function wprEditReport(id)", 1)[1].split(
+    edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
         "async function wprDeletePhoto", 1
     )[0]
     assert "wpr-edit-readonly-section" in edit_block

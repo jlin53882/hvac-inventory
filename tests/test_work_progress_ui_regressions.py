@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK_PROGRESS_JS = ROOT / "static/js/render/work-progress.js"
 WORK_PROGRESS_CSS = ROOT / "static/css/style.work-progress.css"
 GALLERY_LIFECYCLE_TEST = ROOT / "tests/work_progress_gallery_lifecycle.test.js"
+DETAIL_TARGET_LIFECYCLE_TEST = ROOT / "tests/work_progress_detail_target_lifecycle.test.js"
 CALENDAR_JS = ROOT / "static/js/render/calendar.js"
 CALENDAR_CSS = ROOT / "static/css/style.calendar.css"
 APP_JS = ROOT / "static/js/app.js"
@@ -49,6 +50,19 @@ def test_gallery_async_lifecycle_runtime_contract():
     )
     assert result.returncode == 0, f"gallery lifecycle runtime failed:\n{result.stdout}\n{result.stderr}"
     assert "3 passed" in result.stdout
+
+
+def test_detail_target_lifecycle_runtime_contract():
+    """Regression: selected detail actions must preserve target and token scope."""
+    result = subprocess.run(
+        ["node", str(DETAIL_TARGET_LIFECYCLE_TEST)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, f"detail target lifecycle runtime failed:\n{result.stdout}\n{result.stderr}"
+    assert "4 passed" in result.stdout
 
 
 def test_work_progress_and_calendar_notes_preserve_multiline_text():
