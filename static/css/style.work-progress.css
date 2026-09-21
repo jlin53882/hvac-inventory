@@ -117,6 +117,8 @@
 #content.wpr-content .wpr-detail-grid b { display: block; color: #172033; font-size: 13px; margin-top: 2px; }
 #content.wpr-content .wpr-detail-note { margin-top: 13px; font-size: 13px; }
 #content.wpr-content .wpr-detail-note p { margin: 4px 0 12px; white-space: pre-wrap; color: #334155; }
+#content.wpr-content .wpr-detail-photo-title { margin: 13px 0 0; color: #334155; font-size: 13px; }
+#content.wpr-content .wpr-detail-photo-section .wpr-gallery-grid { margin-top: 7px; }
 #content.wpr-content .wpr-gallery-grid button { padding: 0; border: 0; cursor: pointer; }
 #content.wpr-content .wpr-detail-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 13px; }
 #content.wpr-content .wpr-detail-actions button { border: 1px solid #cfd8e5; border-radius: 7px; padding: 7px 9px; background: #fff; cursor: pointer; font-size: 12px; }

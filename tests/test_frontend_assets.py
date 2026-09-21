@@ -5010,8 +5010,14 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "uploader_name" in js
     assert "wprTogglePhotoManage" in js
     assert "wpr-photo-manage-tile" in js
+    assert "施工照片" in js
+    assert 'label>工作照片' not in js
+    assert 'alt="工作照片"' not in js
+    assert "wpr-selected-report-detail-" in js
+    assert "targetId || ('wpr-detail-' + id)" in js
     assert "wpr-edit-overlay" in js
     assert "wpr-gallery-grid" in css and "minmax(96px, 112px)" in css
+    assert ".wpr-detail-photo-title" in css
 
 
 def test_work_progress_frontend_create_permission_gates_form_but_preserves_view():
