@@ -19,7 +19,7 @@ REM 清除可能污染的 PYTHONPATH
 set PYTHONPATH=
 
 REM 啟動伺服器
-echo [1/1] 啟動伺服器 http://0.0.0.0:8000
+echo [1/1] 啟動伺服器 http://127.0.0.1:8000/
 echo.
 echo   在瀏覽器打開: http://127.0.0.1:8000
 echo   手機連線:      http://你的電腦IP:8000

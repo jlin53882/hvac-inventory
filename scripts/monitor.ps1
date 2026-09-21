@@ -2,7 +2,8 @@
 # 由「install-monitor.bat」啟動。直接執行亦可。
 # 行為：每 10 分鐘檢查本機 server(8000) 與 Tailscale Funnel 網址
 #   - 本機 8000 無回應 → start 開新視窗跑 start.bat 重啟 + Discord 通知
-#   - Funnel 網址無回應 → 自動 tailscale funnel --bg 8000 重建 + Discord 通知
+#   - 公網 Funnel 無回應 → 觸發高權限工作排程重啟 Tailscale 服務 + Discord 通知
+#   - 本機 Funnel 檢查只作輔助；公網探測繞過 MagicDNS，避免漏判控制平面不同步
 #   - 同一問題連續 2 次偵測才通知（防抖 + 防洗版）
 #   - 每輪寫入 heartbeat（供 Task Scheduler watchdog 檢查是否存活）
 # 參數：
@@ -30,10 +31,14 @@ if (-not $monitorMutex.WaitOne(0)) {
 $TS        = 'C:\Program Files\Tailscale\tailscale.exe'
 $PROJ      = Split-Path $PSScriptRoot -Parent
 $STARTPS1   = Join-Path $PROJ 'scripts\start-server.ps1'
+$TS_RECOVERY_TASK = 'HVAC-Tailscale-Recovery'
+$PUBLIC_HOST = 'node.tail13203e.ts.net'
+$DNS_SERVER  = '1.1.1.1'
 $HEARTBEAT = Join-Path $env:TEMP 'hvac_monitor_heartbeat.txt'
 $STATE     = Join-Path $env:TEMP 'hvac_monitor_state.json'
 $INTERVAL  = 600   # 檢查間隔秒數（10 分鐘）
 $NOTIFY_AFTER = 2  # 同一問題連續 N 次才通知
+$RECOVERY_MAX = 2 # 同一 Funnel 故障事件最多自動重啟兩次，避免官方故障時無限重啟
 
 # Discord webhook：從 .env 讀取
 $WEBHOOK = $null
@@ -62,11 +67,51 @@ function Test-Health([string]$Url) {
     return ($code -match '^[23]\d\d$')
 }
 
+function Get-PublicIPv4 {
+    try {
+        return @(Resolve-DnsName -Name $PUBLIC_HOST -Type A -Server $DNS_SERVER -ErrorAction Stop |
+            Where-Object { $_.Type -eq 'A' } |
+            Select-Object -ExpandProperty IPAddress -Unique)
+    } catch {
+        Write-Host "   ⚠️ 無法透過 $DNS_SERVER 解析公網 DNS：$($_.Exception.Message)" -ForegroundColor Yellow
+        return @()
+    }
+}
+
+function Test-PublicFunnel {
+    # 本機 MagicDNS 會把網域解析成 100.x 內部 IP；這裡強制連公網 A 記錄，
+    # 才能抓到「本機 Funnel 顯示正常、控制平面卻沒同步」的 TLS 斷線問題。
+    $ips = @(Get-PublicIPv4)
+    if ($ips.Count -eq 0) { return $false }
+    foreach ($ip in $ips) {
+        $code = & $CURL -s -k -o NUL -w "%{http_code}" --connect-timeout 10 --max-time 20 `
+            --resolve "$PUBLIC_HOST`:443`:$ip" "https://$PUBLIC_HOST/health" 2>$null
+        if ($code -match '^[23]\d\d$') { return $true }
+    }
+    return $false
+}
+
+function Request-TailscaleRecovery {
+    # recovery task 以 SYSTEM/HIGHEST 執行，避免 monitor 背景程序遇到 UAC 而卡住。
+    $result = & schtasks.exe /run /tn $TS_RECOVERY_TASK 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "   ⚠️ 無法觸發 $TS_RECOVERY_TASK：$($result.Trim())" -ForegroundColor Yellow
+        return $false
+    }
+    return $true
+}
+
 function Get-State {
     if (Test-Path $STATE) {
-        try { return (Get-Content $STATE -Raw | ConvertFrom-Json) } catch {}
+        try {
+            $s = Get-Content $STATE -Raw | ConvertFrom-Json
+            if ($null -eq $s.PSObject.Properties['funnel_recovery_attempts']) {
+                $s | Add-Member -NotePropertyName funnel_recovery_attempts -NotePropertyValue 0
+            }
+            return $s
+        } catch {}
     }
-    return [PSCustomObject]@{ local_fails = 0; funnel_fails = 0; local_notified = $false; funnel_notified = $false }
+    return [PSCustomObject]@{ local_fails = 0; funnel_fails = 0; local_notified = $false; funnel_notified = $false; funnel_recovery_attempts = 0 }
 }
 
 function Save-State($s) {
@@ -75,7 +120,7 @@ function Save-State($s) {
 
 function Reset-Counter([string]$Key, $s) {
     if ($Key -eq 'local') { $s.local_fails = 0; $s.local_notified = $false }
-    else { $s.funnel_fails = 0; $s.funnel_notified = $false }
+    else { $s.funnel_fails = 0; $s.funnel_notified = $false; $s.funnel_recovery_attempts = 0 }
 }
 
 function Test-OneRound {
@@ -108,27 +153,36 @@ function Test-OneRound {
         }
     }
 
-    # ══ 2. Funnel 網址 ══
-    if (Test-Health $FunnelUrl) {
-        if ($s.funnel_fails -gt 0) { Write-Host "✅ Funnel 網址已恢復（$FunnelUrl）" -ForegroundColor Green }
+    # ══ 2. Funnel 公網端到端 ══
+    # 不使用一般 FunnelUrl 解析，避免本機 MagicDNS 把檢查導回 100.x 內網。
+    if (Test-PublicFunnel) {
+        if ($s.funnel_fails -gt 0) { Write-Host "✅ Funnel 公網網址已恢復（$FunnelUrl）" -ForegroundColor Green }
         Reset-Counter 'funnel' $s
     } else {
         $s.funnel_fails++
-        Write-Host "⚠️ Funnel 網址無回應（第 $($s.funnel_fails) 次）：$FunnelUrl" -ForegroundColor Yellow
-        # 自動重建 Funnel
+        Write-Host "⚠️ Funnel 公網網址無回應（第 $($s.funnel_fails) 次）：$FunnelUrl" -ForegroundColor Yellow
         if (-not $DryRun) {
-            Write-Host "   🔄 執行 tailscale funnel --bg 8000 重建..." -ForegroundColor Cyan
-            & $TS funnel --bg 8000 2>$null | Out-Null
-            Start-Sleep -Seconds 8
-            $recovered = Test-Health $FunnelUrl
-            Write-Host "   ↳ 重建後檢查: $($(if($recovered){'✅ 已恢復'}else{'❌ 仍未回應'}))" -ForegroundColor $(if($recovered){'Green'}else{'Red'})
+            if ($s.funnel_recovery_attempts -lt $RECOVERY_MAX) {
+                $s.funnel_recovery_attempts++
+                Write-Host "   🔄 觸發高權限工作排程重啟 Tailscale 服務（第 $($s.funnel_recovery_attempts)/$RECOVERY_MAX 次）..." -ForegroundColor Cyan
+                $triggered = Request-TailscaleRecovery
+                if ($triggered) {
+                    Start-Sleep -Seconds 15
+                    $recovered = Test-PublicFunnel
+                    Write-Host "   ↳ Tailscale 重啟後檢查: $($(if($recovered){'✅ 已恢復'}else{'❌ 仍未回應'}))" -ForegroundColor $(if($recovered){'Green'}else{'Red'})
+                } else {
+                    $recovered = $false
+                }
+            } else {
+                Write-Host "   ⏸️ 已達本次故障自動重啟上限（$RECOVERY_MAX 次），等待外部恢復並保留通知。" -ForegroundColor Yellow
+            }
         } else {
-            Write-Host "   🔄 [DryRun] 會執行：tailscale funnel --bg 8000" -ForegroundColor Cyan
+            Write-Host "   🔄 [DryRun] 會執行：schtasks /run /tn $TS_RECOVERY_TASK" -ForegroundColor Cyan
         }
         if ($s.funnel_fails -ge $NOTIFY_AFTER -and -not $s.funnel_notified) {
             $s.funnel_notified = $true
-            $txt = "🚨 庫存系統警示（$now）`nFunnel 外網網址無回應（連續 $($s.funnel_fails) 次）：$FunnelUrl`n已自動重建 Funnel。若持續異常請檢查主機。"
-            if (-not $DryRun) { Send-Discord $txt } else { Write-Host "   📢 [DryRun] 會通知 Discord：Funnel 網址無回應" -ForegroundColor Cyan }
+            $txt = "🚨 庫存系統警示（$now）`nFunnel 公網網址無回應（連續 $($s.funnel_fails) 次）：$FunnelUrl`n已觸發高權限工作排程重啟 Tailscale 服務。若持續異常請檢查 Tailscale 官方狀態。"
+            if (-not $DryRun) { Send-Discord $txt } else { Write-Host "   📢 [DryRun] 會通知 Discord：Funnel 公網網址無回應" -ForegroundColor Cyan }
         }
     }
 

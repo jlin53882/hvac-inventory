@@ -128,7 +128,7 @@ if (-not $skipExisting) {
         '--host', '0.0.0.0',
         '--port', "$Port"
     )
-    Write-Host "啟動 hvac-inventory http://0.0.0.0:$Port"
+    Write-Host "啟動 hvac-inventory http://127.0.0.1:$Port/"
     $serverProcess = Start-Process -FilePath $Python -ArgumentList $args `
         -WorkingDirectory $ProjectRoot -PassThru -NoNewWindow
     Wait-ServerReady -Process $serverProcess

@@ -9,8 +9,8 @@ echo ============================================
 echo.
 
 REM 1. 註冊 Windows 工作排程器（每 10 分鐘檢查監控存活）
-echo [1/3] 註冊工作排程器（每 10 分鐘 watchdog）...
-schtasks /create /tn "HVAC-Monitor-Watchdog" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0watchdog-check.ps1\"" /sc minute /mo 10 /f
+echo [1/5] 註冊工作排程器（每 10 分鐘 watchdog）...
+schtasks /create /tn "HVAC-Monitor-Watchdog" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0watchdog-check.ps1\"" /sc minute /mo 10 /ru SYSTEM /rl HIGHEST /f
 if errorlevel 1 (
     echo       [錯誤] 工作排程器註冊失敗（可能需要系統管理員權限）
     echo       請以系統管理員身分執行本檔
@@ -21,21 +21,46 @@ if errorlevel 1 (
 echo       ✅ 工作排程器註冊完成（HVAC-Monitor-Watchdog）
 echo.
 
-REM 2. 啟動監控腳本（背景常駐）
-echo [2/3] 啟動監控腳本 monitor.ps1（背景）...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','\"%~dp0monitor.ps1\"' -WindowStyle Hidden"
-timeout /t 3 /nobreak >nul
-echo       ✅ 監控腳本已啟動
+REM 2. 註冊 monitor 常駐任務（開機後以 SYSTEM / HIGHEST 執行）
+echo [2/5] 註冊 monitor 常駐任務...
+schtasks /create /tn "HVAC-Monitor" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0monitor.ps1\"" /sc onstart /delay 0001:00 /ru SYSTEM /rl HIGHEST /f
+if errorlevel 1 (
+    echo       [錯誤] monitor 常駐任務註冊失敗
+    echo       請以系統管理員身分執行本檔
+    echo.
+    pause
+    exit /b 1
+)
+echo       ✅ monitor 常駐任務註冊完成
+schtasks /run /tn "HVAC-Monitor" >nul 2>&1
 echo.
 
-REM 3. 驗證
-echo [3/3] 驗證監控運作中...
+REM 3. 註冊 Tailscale 高權限復原任務（由 monitor 在公網 Funnel 失效時觸發）
+echo [3/5] 註冊 Tailscale 復原任務（SYSTEM / HIGHEST）...
+schtasks /create /tn "HVAC-Tailscale-Recovery" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0restart-tailscale-service.ps1\"" /sc ONDEMAND /ru SYSTEM /rl HIGHEST /f
+if errorlevel 1 (
+    echo       [錯誤] Tailscale 復原任務註冊失敗
+    echo       請以系統管理員身分執行本檔
+    echo.
+    pause
+    exit /b 1
+)
+echo       ✅ Tailscale 復原任務註冊完成
+echo.
+
+REM 4. monitor 已由 HVAC-Monitor（SYSTEM / HIGHEST）啟動，不再建立一般使用者背景程序
+echo [4/5] monitor 常駐任務已啟動...
+echo       ✅ monitor 由工作排程器執行
+echo.
+
+REM 5. 驗證
+echo [5/5] 驗證監控運作中...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0watchdog-check.ps1"
 echo.
 echo ============================================
 echo   ✅ 安裝完成！監控會每 10 分鐘檢查：
-echo      - 本機 server(8000) → 掛掉自動 start.bat 重啟 + Discord 通知
-echo      - Funnel 網址 → 掛掉自動重建 + Discord 通知
+echo      - 本機 server(8000) → 自動重啟 + Discord 通知
+echo      - 公網 Funnel → SYSTEM 高權限重啟 Tailscale + Discord 通知
 echo      - 監控自己掛掉 → 工作排程器自動拉起 + Discord 通知
 echo ============================================
 echo.
