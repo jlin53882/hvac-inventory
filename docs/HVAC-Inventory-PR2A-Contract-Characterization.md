@@ -14,7 +14,7 @@
 - E-001：static/runtime evidence 的覆蓋矩陣。
 - E-002：Calendar flow 的現有證據與未覆蓋缺口。
 
-本輪沒有修改 production Python/JavaScript/CSS、API、database schema、migration 或既有測試；只新增本 characterization 文件。任何 A-001 語意整併、Page Registry 新 abstraction 或 lifecycle abstraction 都必須先有 verified drift/bug 與對應 human decision。
+本輪沒有修改 production Python/JavaScript/CSS、API、database schema 或 migration；新增一個 test-only Calendar runtime harness 與其 pytest wiring，以及本 characterization 文件。任何 A-001 語意整併、Page Registry 新 abstraction 或 lifecycle abstraction 都必須先有 verified drift/bug 與對應 human decision。
 
 ## 2. Baseline evidence
 
@@ -23,9 +23,10 @@
 | Workspace | `C:/Users/admin/workspace/hvac-inventory-PR2A` |
 | Branch / base | freshly cloned `master` from GitHub |
 | HEAD / merged base | `b4bee6257f773f79ac7278d31a33665abe61d101`（PR #20 merge commit） |
-| Full collection | `1714 tests collected` |
-| PR 2A focused pytest | `804 passed, 151 warnings, 0 failed` in `87.41s` |
-| Runtime harnesses in this pass | 7 PASS：tab lifecycle、Work Progress page visibility、permissions pagination、signed report capability、quotation upload capability、quotation permission、petty cash capability |
+| Full collection | `1715 tests collected` |
+| Full pytest | `1715 passed, 923 warnings, 0 failed` in `419.85s` |
+| PR 2A focused pytest | `805 passed, 151 warnings, 0 failed` in `86.27s` |
+| Runtime harnesses in this pass | 8 PASS：tab lifecycle、Calendar load/create/edit/delete/sync error、Work Progress page visibility、permissions pagination、signed report capability、quotation upload capability、quotation permission、petty cash capability |
 | Worktree before this document | clean |
 
 The focused pytest command was:
@@ -38,6 +39,7 @@ The runtime command executed these production-backed harnesses:
 
 ```text
 node tests/tab_lifecycle_runtime.test.js
+node tests/calendar_runtime.test.js
 node tests/work_progress_page_visibility_runtime.test.js
 node tests/permissions_pagination_runtime.test.js
 node tests/signed_report_capability_runtime.test.js
@@ -135,10 +137,10 @@ node tests/petty_cash_capability_runtime.test.js
 | Permission management pagination | frontend contract tests | permissions pagination harness PASS | 未新增 behavior |
 | Itemless/preserve-mount lifecycle | frontend assets + globals/app contract | tab lifecycle harness PASS | Calendar-specific full flow 未執行 |
 | Inventory quantity/status | inventory docs、`test_main.py`、`test_inventory_integrity.py`、`test_media_storage.py` | 本 pass 未新增 inventory browser harness | 若改 semantic consumer，需補 boundary fixture + cross-consumer regression |
-| Calendar open/create/edit/delete/service-type/sync | existing source/tests only | **未建立或執行 dedicated calendar runtime harness** | E-002 remains open; next evidence task |
+| Calendar open/create/edit/delete/service-type/sync | existing source/tests + `tests/calendar_runtime.test.js` | **Calendar runtime harness PASS**：load、open/edit PUT、create POST、delete DELETE、service type/time payload、sync error modal | Full browser smoke、conflict/error/retry branches remain separate evidence if required |
 | Work Progress owner/global/photo/page flow | route/tests/frontend contracts | page visibility harness PASS | browser-level upload/sync smoke remains separate evidence |
 
-E-002 因此維持 OPEN；本文件不把已有 static assertions 說成完整 browser/runtime proof。
+E-002 目前已有 dedicated Calendar runtime evidence，涵蓋本文件列出的 production paths；本文件不把它延伸宣稱為完整 browser smoke 或所有 conflict/retry branches。
 
 ## 7. Decision and next-gate register
 
@@ -147,13 +149,14 @@ E-002 因此維持 OPEN；本文件不把已有 static assertions 說成完整 b
 | DEC-A001 | Decision required — human | confirm canonical inventory semantics/boundaries; late default is preserve current behavior |
 | Page Registry | Evidence gate not met in this pass | verified drift/bug + registry ownership design + override/deep-link regression matrix |
 | Lifecycle abstraction | Evidence gate not met in this pass | verified duplicated ownership or lifecycle bug; otherwise preserve current sets/flow |
-| E-002 | OPEN | add Calendar-specific runtime evidence or justified browser smoke |
+| E-002 | Dedicated runtime harness PASS for listed Calendar production paths | browser smoke/conflict/retry evidence only if future scope requires it; do not overclaim coverage |
 | D-001 | Partially satisfied | add narrowly scoped WHY documentation only at non-obvious boundaries; do not annotate line-by-line code |
 
 ## 8. Explicit non-actions
 
-- No production code, tests, schema, migration, permission key, route, or frontend registry was changed.
+- No production code, schema, migration, permission key, route, or frontend registry was changed.
+- One test-only runtime harness (`tests/calendar_runtime.test.js`) was added and wired into `tests/test_frontend_assets.py` to close the Calendar evidence gap; it does not alter production behavior.
 - No inventory writer centralization or transaction refactor was attempted; those belong to PR 2B-0 evidence and GO/NO-GO.
 - No permission rename was attempted; taxonomy/legacy mapping belongs to PR 3B.
-- No claim is made that Calendar runtime is covered.
+- No claim is made that the Calendar harness is a complete browser smoke suite; the listed production paths are covered by `tests/calendar_runtime.test.js`.
 - No main workspace synchronization was performed; all PR 2A work is isolated in `hvac-inventory-PR2A`.
