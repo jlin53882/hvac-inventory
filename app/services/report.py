@@ -12,6 +12,7 @@ import io
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.styles import Alignment
 from openpyxl.utils import column_index_from_string
 
 from app.services.safety import excel_safe
@@ -77,11 +78,17 @@ def build_daily_report(date_str: str, day_events: list, engineers: list = None):
         elif e.get("service_name"):
             # 非固定四類（如自訂服務）→ 地點欄附註
             ws.cell(row=r, column=3).value = excel_safe(f"{e['client_name']}（{e['service_name']}）")
-        # 備註區：第 1 列 地址（有填才顯示 + 前綴）、第 2 列 備註（不加前綴）
+        # 備註區採用合併儲存格；明確設定換行與頂端對齊，避免多行內容被範本列高裁切。
+        note_row = int(b["note"][1:])
+        for cell_ref in (b["note"], f"B{note_row + 1}"):
+            ws[cell_ref].alignment = Alignment(wrap_text=True, vertical="top")
         if e.get("address"):
             ws[b["note"]].value = excel_safe("地址：" + e["address"])
+            ws.row_dimensions[note_row].height = max(ws.row_dimensions[note_row].height or 0, 15 * (str(ws[b["note"]].value).count("\n") + 1))
         if e.get("note"):
-            ws[f"B{int(b['note'][1:]) + 1}"].value = excel_safe(e["note"])
+            note_cell = ws[f"B{note_row + 1}"]
+            note_cell.value = excel_safe(e["note"])
+            ws.row_dimensions[note_row + 1].height = max(ws.row_dimensions[note_row + 1].height or 0, 15 * (str(note_cell.value).count("\n") + 1))
 
     buf = io.BytesIO()
     wb.save(buf)

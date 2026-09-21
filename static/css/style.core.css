@@ -923,7 +923,7 @@
   min-width: 0; overflow-wrap: anywhere; word-break: break-word;
 }
 .m-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
-.m-card .item-note-text { min-width: 0; }
+.m-card .item-note-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .m-card .note-slot .item-note { margin: 6px 0 0; }
 
 /* 表格／桌面卡片使用同一組位置與註解語意；桌面不截斷內容。 */
@@ -934,7 +934,7 @@
   min-width: 0; overflow-wrap: anywhere; word-break: break-word;
 }
 .item-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
-.item-card .item-note-text { min-width: 0; }
+.item-card .item-note-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 
 /* 表格模式也保留完整文字入口；手機橫向表格捲動後不會只剩不明圖示。 */
 .inventory-stockout-actions { display: flex; flex-direction: column; gap: 4px; min-width: 82px; }

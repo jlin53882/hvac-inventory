@@ -7,6 +7,13 @@ var qupPage = 1;
 var qupPageSize = 20;
 var qupTotal = 0;
 var qupSelectedFile = null;
+var qupRenderSeq = 0;
+var qupHistoryRequestSeq = 0;
+var qupKpiRequestSeq = 0;
+
+function qupRenderIsCurrent(renderSeq) {
+  return renderSeq === qupRenderSeq && currentTab === 'quotation';
+}
 
 // 將 Date 物件轉為 YYYY-MM-DD 字串
 function _qupIso(d) {
@@ -20,7 +27,9 @@ function _qupDateOnly(value) {
 
 // 渲染報價單上傳頁面（含上傳區、KPI、歷史查詢）
 async function renderQuotationUploads() {
+  const renderSeq = ++qupRenderSeq;
   const el = document.getElementById('content');
+  if (!el) return;
   const today = _qupIso(new Date());
   el.innerHTML = `
     <div class="qup-wrap">
@@ -185,9 +194,13 @@ async function renderQuotationUploads() {
   // 帶入登入者姓名
   try {
     const me = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);
+    if (!qupRenderIsCurrent(renderSeq)) return;
     if (me && me.user && me.user.display_name) document.getElementById('qup-uploader').value = me.user.display_name;
-  } catch(e) {}
+  } catch(e) {
+    if (!qupRenderIsCurrent(renderSeq)) return;
+  }
 
+  if (!qupRenderIsCurrent(renderSeq)) return;
   // 預設日期範圍 = 本月
   const now = new Date();
   document.getElementById('qup-f-from').value = _qupIso(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -201,6 +214,7 @@ async function renderQuotationUploads() {
   document.getElementById('qup-file-input').addEventListener('change', e => { if (e.target.files[0]) qupHandleFile(e.target.files[0]); });
     document.getElementById('qup-camera-input').addEventListener('change', e => { if (e.target.files[0]) qupHandleFile(e.target.files[0]); });
 
+  if (!qupRenderIsCurrent(renderSeq)) return;
   qupLoadHistory();
 }
 
@@ -290,23 +304,31 @@ async function qupSubmitUpload() {
 
 // 載入歷史報表列表（分頁 + 篩選）
 async function qupLoadHistory(resetPage) {
+  const renderSeq = qupRenderSeq;
+  if (!qupRenderIsCurrent(renderSeq)) return;
   if (resetPage) qupPage = 1;
   const from = document.getElementById('qup-f-from').value || '';
   const to = document.getElementById('qup-f-to').value || '';
   const q = document.getElementById('qup-f-q').value.trim();
-  const p = new URLSearchParams({ from_date: from, to_date: to, q, page: qupPage, page_size: qupPageSize });
+  const pageAtRequest = qupPage;
+  const requestSeq = ++qupHistoryRequestSeq;
+  const p = new URLSearchParams({ from_date: from, to_date: to, q, page: pageAtRequest, page_size: qupPageSize });
   try {
     const res = await fetch('/api/quotation-uploads?' + p);
+    if (!qupRenderIsCurrent(renderSeq) || requestSeq !== qupHistoryRequestSeq) return;
     if (!res.ok) return;
     const data = await res.json();
+    if (!qupRenderIsCurrent(renderSeq) || requestSeq !== qupHistoryRequestSeq) return;
     qupEvents = data.items || [];
     qupFiltered = qupEvents;
     qupTotal = data.total || 0;
-    qupPage = data.page || qupPage;
+    qupPage = data.page || pageAtRequest;
     document.getElementById('qup-result-count').textContent = qupTotal + ' 筆';
     qupRenderTable();
-    qupUpdateKPI();
-  } catch(e) {}
+    qupUpdateKPI(renderSeq);
+  } catch(e) {
+    if (!qupRenderIsCurrent(renderSeq) || requestSeq !== qupHistoryRequestSeq) return;
+  }
 }
 
 // 渲染歷史報表表格
@@ -353,11 +375,16 @@ function qupRenderTable() {
 }
 
 // 從伺服器載入月級 KPI 統計
-async function qupUpdateKPI() {
+async function qupUpdateKPI(renderSeq) {
+  const requestSeq = ++qupKpiRequestSeq;
+  const mountSeq = renderSeq === undefined ? qupRenderSeq : renderSeq;
+  if (!qupRenderIsCurrent(mountSeq)) return;
   try {
     const res = await fetch('/api/quotation-uploads/kpi');
+    if (!qupRenderIsCurrent(mountSeq) || requestSeq !== qupKpiRequestSeq) return;
     if (!res.ok) return;
     const k = await res.json();
+    if (!qupRenderIsCurrent(mountSeq) || requestSeq !== qupKpiRequestSeq) return;
     document.getElementById('qup-kpi-month').textContent = k.month;
     document.getElementById('qup-kpi-total').textContent = k.archived;
     document.getElementById('qup-kpi-missing').textContent = k.missing;

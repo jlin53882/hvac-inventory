@@ -120,8 +120,9 @@ function switchTab(tab) {
     if (typeof wprRequestLeave === 'function') wprRequestLeave(tab);
     return;
   }
-  if (previousTab === 'work-progress' && tab !== 'work-progress' && typeof wprClearPendingFiles === 'function') {
-    wprClearPendingFiles();
+  if (previousTab === 'work-progress' && tab !== 'work-progress') {
+    if (typeof wprClearPendingFiles === 'function') wprClearPendingFiles();
+    if (typeof wprCloseGallery === 'function') wprCloseGallery();
   }
   if (typeof closeInventoryStatusModal === 'function') closeInventoryStatusModal();
   currentTab = tab;

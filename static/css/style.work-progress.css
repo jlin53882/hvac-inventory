@@ -58,7 +58,12 @@
 #content.wpr-content .wpr-selected-summary { display: grid; gap: 5px; margin-top: 12px; padding: 13px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; font-size: 13px; }
 #content.wpr-content .wpr-selected-summary strong { color: #166534; }
 #content.wpr-content .wpr-selected-summary button { width: fit-content; border: 0; background: transparent; color: #1d4ed8; padding: 0; cursor: pointer; text-decoration: underline; }
-#content.wpr-content .wpr-calendar-note { margin-top: 10px; padding: 11px 13px; border-left: 3px solid #94a3b8; background: #f8fafc; color: #475569; font-size: 13px; white-space: pre-wrap; }
+#content.wpr-content .wpr-selected-summary span { white-space: pre-wrap; overflow-wrap: anywhere; }
+#content.wpr-content .wpr-selected-summary strong { white-space: pre-wrap; overflow-wrap: anywhere; }
+#content.wpr-content .wpr-calendar-note { display: grid; gap: 4px; margin-top: 10px; padding: 11px 13px; border-left: 3px solid #94a3b8; background: #f8fafc; color: #475569; font-size: 13px; white-space: pre-wrap; }
+#content.wpr-content .wpr-calendar-note span { font-weight: 700; }
+#content.wpr-content .wpr-calendar-note strong { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
+.wpr-gallery-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 14px; background: rgba(15,23,42,.72); }
 #content.wpr-content .wpr-drop { padding: 18px; border: 2px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; text-align: center; transition: .15s; }
 #content.wpr-content .wpr-drop.is-dragging { border-color: #2563eb; background: #eff6ff; }
 #content.wpr-content .wpr-drop-icon { margin-bottom: 6px; font-size: 28px; }
@@ -163,7 +168,7 @@
 .wpr-edit-readonly-row { display: grid; grid-template-columns: minmax(105px, 0.7fr) minmax(0, 1.3fr); gap: 10px; padding-bottom: 6px; border-bottom: 1px solid #e7edf5; font-size: 13px; }
 .wpr-edit-readonly-row:last-child { padding-bottom: 0; border-bottom: 0; }
 .wpr-edit-readonly-row span { color: #64748b; }
-.wpr-edit-readonly-row strong { min-width: 0; color: #172033; font-weight: 600; overflow-wrap: anywhere; }
+.wpr-edit-readonly-row strong { min-width: 0; color: #172033; font-weight: 600; overflow-wrap: anywhere; white-space: pre-wrap; }
 .wpr-edit-source-hint, .wpr-edit-creator { margin: 2px 0 0; color: #64748b; font-size: 11.5px; line-height: 1.5; }
 .wpr-edit-creator { color: #475569; font-weight: 600; }
 .wpr-edit-body label { color: #334155; font-size: 13px; font-weight: 700; }

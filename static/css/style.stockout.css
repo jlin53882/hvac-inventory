@@ -50,7 +50,7 @@
 .stockout-content .stockout-photo-empty { display: grid; place-items: center; color: #94a3b8; font-size: 18px; }
 .stockout-content .stockout-item-name { color: #0f172a; font-size: 14px; font-weight: 700; }
 .stockout-content .stockout-item-meta { display: block; margin-top: 4px; color: #2563eb; font-size: 12px; font-weight: 600; }
-.stockout-content .stockout-note { display: block; margin-top: 4px; color: #64748b; font-size: 12px; }
+.stockout-content .stockout-note { display: block; margin-top: 4px; color: #64748b; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .stockout-content .stockout-qty { white-space: nowrap; font-size: 15px; font-weight: 700; }
 .stockout-content .stockout-qty.qty-neg { color: #dc2626; }
 .stockout-content .stockout-qty.qty-pos { color: #16a34a; }

@@ -1,7 +1,16 @@
 // 庫存管理系統 - 盤點頁渲染（v10：以位置庫存為單位對帳）
 // ========== 盤點頁 ==========
+var stocktakeRenderRequestSeq = 0;
+
 async function renderStocktake() {
   // 盤點頁瀏覽掛 view；實際盤點操作仍由 stocktake 權限控制
+  const requestId = ++stocktakeRenderRequestSeq;
+  const siteAtRequest = currentSite;
+  const isCurrent = function() {
+    return requestId === stocktakeRenderRequestSeq
+      && currentTab === 'stocktake'
+      && siteAtRequest === currentSite;
+  };
   const canStocktake = !!(currentUser && currentUser.permissions && currentUser.permissions['stocktake']);
   const content = document.getElementById('content');
   if (!content) return;
@@ -10,22 +19,28 @@ async function renderStocktake() {
   let takeDates = [];
   let loadError = false;
   try {
-    const res = await fetch(`/api/stocktake/dates?site=${encodeURIComponent(currentSite)}`);
+    const res = await fetch(`/api/stocktake/dates?site=${encodeURIComponent(siteAtRequest)}`);
     if (!res.ok) { console.error('[renderStocktake] /api/stocktake/dates 失敗', res.status); throw new Error('dates ' + res.status); }
     takeDates = await res.json();
+    if (!isCurrent()) return;
   } catch (e) {
+    if (!isCurrent()) return;
     loadError = true;
     console.error('[renderStocktake] 盤點日期載入失敗', e);
   }
   try {
-    const kitRes = await fetch(`/api/kits?site=${currentSite}`);
+    const kitRes = await fetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`);
     if (!kitRes.ok) { console.error('[renderStocktake] /api/kits 失敗', kitRes.status); throw new Error('kits ' + kitRes.status); }
-    stocktakeKits = await kitRes.json();
+    const kits = await kitRes.json();
+    if (!isCurrent()) return;
+    stocktakeKits = kits;
   } catch (e) {
+    if (!isCurrent()) return;
     loadError = true;
     console.error('[renderStocktake] 整組材料載入失敗', e);
     stocktakeKits = [];
   }
+  if (!isCurrent()) return;
 
   const statusOf = typeof getInventoryStatus === 'function'
     ? getInventoryStatus
@@ -66,6 +81,7 @@ async function renderStocktake() {
   html += `<section class="stocktake-current-header"><div class="stocktake-current-heading"><span>✏️ 本次盤點</span><span class="stocktake-current-date">${esc(todayStr())}</span></div><span class="stocktake-current-date">共 ${esc(String(ALL_ITEMS.length))} 項</span></section>`;
   if (!canStocktake) {
     html += `<div class="stocktake-readonly-panel">🔒 盤點作業僅限管理員 / 一般使用者操作<br><small>檢視者與工程師為唯讀，可瀏覽上方盤點歷史與統計</small></div>`;
+    if (!isCurrent()) return;
     content.innerHTML = html;
     return;
   }
@@ -84,6 +100,7 @@ async function renderStocktake() {
   html += `<div class="stk-tabs stocktake-tabs"><button class="stk-tab stocktake-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="stk-tab stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
   html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div><div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;
   html += `<button type="button" class="stocktake-submit btn-save" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>`;
+  if (!isCurrent()) return;
   content.innerHTML = html;
 }
 
