@@ -105,15 +105,25 @@ function clearStockoutFilters() {
   renderStockOuts();
 }
 
+var stockoutRenderRequestSeq = 0;
+
 async function renderStockOuts() {
+  const requestId = ++stockoutRenderRequestSeq;
+  const siteAtRequest = currentSite;
+  const isCurrent = function() {
+    return requestId === stockoutRenderRequestSeq
+      && currentTab === 'stockout'
+      && siteAtRequest === currentSite;
+  };
   const isViewer = !hasPerm('stockout');
   const content = document.getElementById('content');
   if (!content) return;
   content.innerHTML = '<div class="stockout-loading">載入已領出紀錄…</div>';
   try {
-    const res = await fetch(`/api/stockouts?limit=200&site=${currentSite}`);
+    const res = await fetch(`/api/stockouts?limit=200&site=${encodeURIComponent(siteAtRequest)}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const outs = await res.json();
+    if (!isCurrent()) return;
     stockoutRecords = outs;
     const filteredOuts = filterStockoutRecords(outs);
     const kpis = getStockoutKpis(filteredOuts);
@@ -123,6 +133,7 @@ async function renderStockOuts() {
     if (!filteredOuts.length) {
       const filtered = outs.length > 0;
       html += `<div class="stockout-empty-state"><span class="empty-icon">🚚</span><strong>${esc(filtered ? '沒有符合條件的已領出紀錄' : '目前沒有已領出的紀錄')}</strong><p>${esc(filtered ? '可以清除搜尋或日期篩選後再試一次。' : '當商品正式領出後，紀錄會顯示在這裡。')}</p>${filtered ? '<button type="button" class="stockout-filter-action" onclick="clearStockoutFilters()">清除篩選</button>' : ''}</div>`;
+      if (!isCurrent()) return;
       content.innerHTML = html;
       return;
     }
@@ -130,8 +141,10 @@ async function renderStockOuts() {
     filteredOuts.forEach(function(o) { const date = String(o.created_at || '').slice(0, 10); (byDate[date] = byDate[date] || []).push(o); });
     const isMobile = typeof isMobileView === 'function' && isMobileView();
     Object.keys(byDate).sort().reverse().forEach(function(date) { html += renderStockoutGroup(date, byDate[date], isViewer, isMobile); });
+    if (!isCurrent()) return;
     content.innerHTML = html;
   } catch (e) {
+    if (!isCurrent()) return;
     console.error('[renderStockOuts] 已領出紀錄載入失敗', e);
     content.innerHTML = `<div class="stockout-error-state"><h2>載入已領出紀錄失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button type="button" class="stockout-filter-action" onclick="renderStockOuts()">重新載入</button></div>`;
   }

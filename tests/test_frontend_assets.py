@@ -87,6 +87,7 @@ PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_c
 SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
 WORK_PROGRESS_PAGE_VISIBILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "work_progress_page_visibility_runtime.test.js")
 TAB_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_lifecycle_runtime.test.js")
+TAB_ASYNC_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_async_lifecycle.test.js")
 CALENDAR_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "calendar_runtime.test.js")
 QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
@@ -2396,7 +2397,7 @@ def test_stocktake_kit_tab_expands_components():
     fetch /api/kits 載入 stocktakeKits + 品項欄內嵌組成品項縮圖/名稱/型號/需有"""
     js = read(STOCKTAKE_JS)
     # 載入整組資料（fetch /api/kits，site 對齊 currentSite）
-    assert "fetch(`/api/kits?site=${currentSite}`)" in js
+    assert "fetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`)" in js
     assert "stocktakeKits = await kitRes.json()" in js
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
     assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
@@ -2799,7 +2800,7 @@ def test_stockout_nonstock_add_ui():
 
     rjs = read(STOCKOUT_RENDER_JS)
     assert "onclick=\"openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
-    assert "site=${currentSite}" in rjs, "已領出頁 fetch 應隨 site 過濾（倉庫 0 就不能顯示內容）"
+    assert "encodeURIComponent(siteAtRequest)" in rjs, "已領出頁 fetch 應隨 site 快照過濾（倉庫 0 就不能顯示內容）"
     assert "getStockoutKpis(filteredOuts)" in rjs, "已領出頁 KPI 必須取 filtered result"
     assert "tag-nonstock" in rjs, "非庫存標籤 class 缺失"
 
@@ -4743,7 +4744,7 @@ def test_inventory_transfer_ui_is_mounted_and_wired():
 def test_stocktake_frontend_sends_current_site():
     stocktake = read(os.path.join(STATIC, "js", "render", "stocktake.js"))
     assert "site: currentSite" in stocktake
-    assert "/api/stocktake/dates?site=${encodeURIComponent(currentSite)}" in stocktake
+    assert "/api/stocktake/dates?site=${encodeURIComponent(siteAtRequest)}" in stocktake
 def test_submit_kit_sends_current_site():
     js = read(KIT_MODAL_JS)
     assert "site: currentSite" in js
@@ -5237,3 +5238,43 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "tab !== 'work-progress'" in switch_block
     assert "wprClearPendingFiles" in switch_block
     assert switch_block.index("wprClearPendingFiles") < switch_block.index("currentTab = tab")
+
+
+def test_frontend_async_lifecycle_contracts():
+    """守護跨頁、跨案場與 out-of-order response 的 freshness contract。"""
+    stockout = read(STOCKOUT_RENDER_JS)
+    stockout_render = stockout.split("async function renderStockOuts()", 1)[1].split("// 分組：按日", 1)[0]
+    assert "var stockoutRenderRequestSeq" in stockout
+    assert "const siteAtRequest = currentSite" in stockout_render
+    assert "currentTab === 'stockout'" in stockout_render
+    assert "encodeURIComponent(siteAtRequest)" in stockout_render
+    assert stockout_render.count("if (!isCurrent()) return;") >= 3
+
+    stocktake = read(STOCKTAKE_JS)
+    stocktake_render = stocktake.split("async function renderStocktake()", 1)[1].split("// ========== 盤點輸入表", 1)[0]
+    assert "var stocktakeRenderRequestSeq" in stocktake
+    assert "const siteAtRequest = currentSite" in stocktake_render
+    assert stocktake_render.count("encodeURIComponent(siteAtRequest)") == 2
+    assert "currentSite)}`" not in stocktake_render
+    assert stocktake_render.count("if (!isCurrent()) return;") >= 6
+
+    for path, prefix, tab, endpoint in (
+        (SIGNED_REPORTS_RENDER_JS, "dsr", "signed-reports", "/api/signed-reports?"),
+        (QUOTATION_UPLOAD_RENDER_JS, "qup", "quotation", "/api/quotation-uploads?"),
+    ):
+        source = read(path)
+        assert f"var {prefix}RenderSeq" in source
+        assert f"var {prefix}HistoryRequestSeq" in source
+        assert f"function {prefix}RenderIsCurrent" in source
+        assert f"currentTab === '{tab}'" in source
+        assert f"requestSeq !== {prefix}HistoryRequestSeq" in source
+        assert endpoint in source
+        assert f"{prefix}UpdateKPI(renderSeq)" in source
+
+    result = subprocess.run(
+        ["node", TAB_ASYNC_LIFECYCLE_RUNTIME_JS],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"async lifecycle runtime 失敗：\n{result.stdout}\n{result.stderr}"
+    )

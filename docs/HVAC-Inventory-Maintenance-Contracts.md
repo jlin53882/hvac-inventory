@@ -227,6 +227,8 @@ Required behavior:
 - later background refresh does not duplicate their mount or destroy stateful UI state;
 - changing one set must not silently change the meaning of the other set.
 
+For any async renderer or loader that writes shared DOM or shared state after an `await`, validate freshness before each write boundary. Use a request generation for out-of-order responses, the active tab and site snapshot when applicable, and a mount generation when a tab can be remounted without changing its tab key.
+
 ## 7. Calendar Contracts
 
 ### 7.1 Page and data entry

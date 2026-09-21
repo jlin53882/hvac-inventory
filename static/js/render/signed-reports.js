@@ -7,6 +7,13 @@ var dsrPage = 1;
 var dsrPageSize = 20;
 var dsrTotal = 0;
 var dsrSelectedFile = null;
+var dsrRenderSeq = 0;
+var dsrHistoryRequestSeq = 0;
+var dsrKpiRequestSeq = 0;
+
+function dsrRenderIsCurrent(renderSeq) {
+  return renderSeq === dsrRenderSeq && currentTab === 'signed-reports';
+}
 
 // 將 Date 物件轉為 YYYY-MM-DD 字串
 function _dsrIso(d) {
@@ -20,7 +27,9 @@ function _dsrDateOnly(value) {
 
 // 渲染每日簽名報表頁面（含上傳區、KPI、歷史查詢）
 async function renderSignedReports() {
+  const renderSeq = ++dsrRenderSeq;
   const el = document.getElementById('content');
+  if (!el) return;
   const today = _dsrIso(new Date());
   el.innerHTML = `
     <div class="dsr-wrap">
@@ -184,11 +193,15 @@ async function renderSignedReports() {
   // 帶入登入者姓名
   try {
     const me = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);
+    if (!dsrRenderIsCurrent(renderSeq)) return;
     const canUpload = !!(me && me.user && me.user.permissions && me.user.permissions['signed-report-upload']);
     document.querySelectorAll('[data-signed-upload]').forEach(node => { node.hidden = !canUpload; });
     if (canUpload && me.user.display_name) document.getElementById('dsr-uploader').value = me.user.display_name;
-  } catch(e) {}
+  } catch(e) {
+    if (!dsrRenderIsCurrent(renderSeq)) return;
+  }
 
+  if (!dsrRenderIsCurrent(renderSeq)) return;
   // 預設日期範圍 = 本月
   const now = new Date();
   document.getElementById('dsr-f-from').value = _dsrIso(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -202,6 +215,7 @@ async function renderSignedReports() {
   document.getElementById('dsr-file-input').addEventListener('change', e => { if (e.target.files[0]) dsrHandleFile(e.target.files[0]); });
     document.getElementById('dsr-camera-input').addEventListener('change', e => { if (e.target.files[0]) dsrHandleFile(e.target.files[0]); });
 
+  if (!dsrRenderIsCurrent(renderSeq)) return;
   dsrLoadHistory();
 }
 
@@ -292,23 +306,31 @@ async function dsrSubmitUpload() {
 
 // 載入歷史報表列表（分頁 + 篩選）
 async function dsrLoadHistory(resetPage) {
+  const renderSeq = dsrRenderSeq;
+  if (!dsrRenderIsCurrent(renderSeq)) return;
   if (resetPage) dsrPage = 1;
   const from = document.getElementById('dsr-f-from').value || '';
   const to = document.getElementById('dsr-f-to').value || '';
   const q = document.getElementById('dsr-f-q').value.trim();
-  const p = new URLSearchParams({ from_date: from, to_date: to, q, page: dsrPage, page_size: dsrPageSize });
+  const pageAtRequest = dsrPage;
+  const requestSeq = ++dsrHistoryRequestSeq;
+  const p = new URLSearchParams({ from_date: from, to_date: to, q, page: pageAtRequest, page_size: dsrPageSize });
   try {
     const res = await fetch('/api/signed-reports?' + p);
+    if (!dsrRenderIsCurrent(renderSeq) || requestSeq !== dsrHistoryRequestSeq) return;
     if (!res.ok) return;
     const data = await res.json();
+    if (!dsrRenderIsCurrent(renderSeq) || requestSeq !== dsrHistoryRequestSeq) return;
     dsrEvents = data.items || [];
     dsrFiltered = dsrEvents;
     dsrTotal = data.total || 0;
-    dsrPage = data.page || dsrPage;
+    dsrPage = data.page || pageAtRequest;
     document.getElementById('dsr-result-count').textContent = dsrTotal + ' 筆';
     dsrRenderTable();
-    dsrUpdateKPI();
-  } catch(e) {}
+    dsrUpdateKPI(renderSeq);
+  } catch(e) {
+    if (!dsrRenderIsCurrent(renderSeq) || requestSeq !== dsrHistoryRequestSeq) return;
+  }
 }
 
 // 渲染歷史報表表格
@@ -355,11 +377,16 @@ function dsrRenderTable() {
 }
 
 // 從伺服器載入月級 KPI 統計
-async function dsrUpdateKPI() {
+async function dsrUpdateKPI(renderSeq) {
+  const requestSeq = ++dsrKpiRequestSeq;
+  const mountSeq = renderSeq === undefined ? dsrRenderSeq : renderSeq;
+  if (!dsrRenderIsCurrent(mountSeq)) return;
   try {
     const res = await fetch('/api/signed-reports/kpi');
+    if (!dsrRenderIsCurrent(mountSeq) || requestSeq !== dsrKpiRequestSeq) return;
     if (!res.ok) return;
     const k = await res.json();
+    if (!dsrRenderIsCurrent(mountSeq) || requestSeq !== dsrKpiRequestSeq) return;
     document.getElementById('dsr-kpi-month').textContent = k.month;
     document.getElementById('dsr-kpi-total').textContent = k.archived;
     document.getElementById('dsr-kpi-missing').textContent = k.missing;
