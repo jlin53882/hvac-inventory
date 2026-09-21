@@ -187,6 +187,16 @@ Backend enforcement may include:
 
 Frontend `canAccessPage()`, render guards, hidden actions, and submit guards must never be used as proof that an API operation is secure. Negative authorization tests should assert capability denial, explicit deny, ownership, and scope—not only a role-name label.
 
+The permission taxonomy contract is:
+
+- `permissions.key` is the canonical capability key; `module` is grouping metadata and must not become an authorization authority.
+- `role_permissions` supplies role defaults; an explicit `user_permissions.value` of either `0` or `1` overrides the role default for that user, except for documented safety locks such as the last active administrator.
+- Owner scope and global scope are separate decisions. An `*-all` key may widen record scope only when the backend also confirms the action capability.
+- Page membership and persisted page visibility are separate from capability keys. A visible page does not grant an API capability, and a capability does not force a page visible.
+- Permission migration or rename must preserve role mappings and explicit overrides through an idempotent, rollback-safe marker migration; delete-and-reinsert is not an acceptable rename strategy.
+
+Static permission-consumer scans are architecture-fitness evidence only. They must be supplemented by API/runtime tests for resolver precedence, owner/global boundaries, and sensitive mutations.
+
 ## 5. Authorization Boundaries
 
 - Page visibility cannot re-enable a page whose backend capability is absent.
