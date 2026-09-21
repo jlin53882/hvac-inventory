@@ -144,6 +144,42 @@ def test_init_db_recovers_after_injected_failure(tmp_path, monkeypatch) -> None:
     assert second_counts == first_counts
 
 
+def test_init_db_backup_restore_preserves_migrated_contract(tmp_path, monkeypatch) -> None:
+    """SQLite backup and restore must preserve migrated schema, seeds, and rows."""
+    database_path = tmp_path / "source.db"
+    backup_path = tmp_path / "backup.db"
+    restored_path = tmp_path / "restored.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(database_path))
+    app_db.init_db()
+
+    conn = app_db.get_db()
+    try:
+        conn.execute(
+            "INSERT INTO items (name, unit, site) VALUES (?, ?, ?)",
+            ("Backup rehearsal item", "個", "office"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with sqlite3.connect(database_path) as source_conn, sqlite3.connect(
+        backup_path
+    ) as backup_conn:
+        source_conn.backup(backup_conn)
+    with sqlite3.connect(backup_path) as backup_conn, sqlite3.connect(
+        restored_path
+    ) as restored_conn:
+        backup_conn.backup(restored_conn)
+
+    assert _count_rows(restored_path, "permissions") == 41
+    assert _count_rows(restored_path, "roles") == 4
+    assert _count_rows(restored_path, "items") == 1
+    with sqlite3.connect(restored_path) as conn:
+        assert conn.execute(
+            "SELECT name FROM items WHERE name=?", ("Backup rehearsal item",)
+        ).fetchone() == ("Backup rehearsal item",)
+
+
 def test_failed_current_upgrade_preserves_rows_overrides_and_markers(
     tmp_path, monkeypatch
 ) -> None:

@@ -12,7 +12,7 @@
 #   rbac      test_rbac + test_rbac_perms + test_permission_taxonomy  權限系統、app/database.py seed
 #   regression v101+appointments+gcal                  appointments.py、v1.0.1 回歸、gcal 同步引擎（gcal_sync/gcal_keys/deadvar_verify）
 #   petty_cash  test_petty_cash（零用金月報）             app/routes/petty_cash.py、services/petty_cash_report.py
-#   work_progress test_work_progress                    每日工作進度 API/媒體/RBAC/競態
+#   work_progress test_work_progress + UI regressions          每日工作進度 API/媒體/RBAC/競態/前端 lifecycle
 #
 # ⚠️ 改到以下檔 = 跑 all（所有測試的 fixture 底層）：
 #    app/database.py、app/services/auth.py、main.py、app/models.py、app/config.py
@@ -29,14 +29,14 @@ fi
 
 case "${1:-all}" in
   core)       FILES="tests/test_main.py tests/test_safety_helpers.py" ;;
-  frontend)   FILES="tests/test_frontend_assets.py tests/test_security_regression.py tests/test_structure.py tests/test_performance_frontend.py" ;;
+  frontend)   FILES="tests/test_frontend_assets.py tests/test_security_regression.py tests/test_structure.py tests/test_performance_frontend.py tests/test_work_progress_ui_regressions.py" ;;
   storage)    FILES="tests/test_media_storage.py tests/test_quotation_uploads.py tests/test_quotations.py tests/test_signed_reports.py tests/test_file_asset_scripts.py" ;;
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   database)   FILES="tests/test_database_migrations.py" ;;
   rbac)       FILES="tests/test_rbac.py tests/test_rbac_perms.py tests/test_permission_taxonomy.py" ;;
   regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py tests/test_gcal_keys.py tests/test_deadvar_verify.py" ;;
   petty_cash) FILES="tests/test_petty_cash.py tests/test_engineering_petty_cash.py tests/test_petty_cash_frontend_races.py" ;;
-  work_progress) FILES="tests/test_work_progress.py" ;;
+  work_progress) FILES="tests/test_work_progress.py tests/test_work_progress_ui_regressions.py" ;;
   all)        FILES="tests/" ;;
   *) echo "用法: $0 [core|frontend|storage|auth|database|rbac|regression|petty_cash|work_progress|all]"; exit 1 ;;
 esac
