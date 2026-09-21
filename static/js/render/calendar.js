@@ -497,7 +497,7 @@ function calRenderDay() {
         <div class="cal-client">${esc(e.client_name)}</div>
         ${who ? `<div class="cal-assignees">${who}</div>` : ''}
         ${e.address ? `<div class="cal-addr">📍 ${esc(e.address)}</div>` : ''}
-        <div class="cal-note">${esc(e.note || '無備註')}</div>
+        ${e.note ? `<div class="cal-note">${esc(e.note)}</div>` : ''}
         <div class="cal-event-footer">
           <div class="cal-created-meta"><span>建立：${esc(e.created_by_name || '系統')} · ${esc(calFmtCreatedAt(e.created_at))}</span>${updated}</div>
           ${isViewer ? '' : `<div class="cal-card-actions">

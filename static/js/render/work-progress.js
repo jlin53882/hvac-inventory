@@ -167,7 +167,7 @@ function wprRenderCreate() {
     <section class="wpr-create-progress-section" aria-labelledby="wpr-create-progress-title">
       <h3 id="wpr-create-progress-title">工作進度資料</h3>
       <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱 <b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
-      <div class="wpr-field"><label for="wpr-note">工作進度備註</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
+      <div class="wpr-field"><label for="wpr-note">工作進度</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
       <div class="wpr-field"><label>工作照片 <b>*</b></label>
         <div class="wpr-photo-limit-copy">JPG、PNG、WebP · 單張最多 20MB · 每份最多 20 張</div>
         <div id="wpr-drop" class="wpr-drop">
@@ -235,13 +235,23 @@ function wprRenderJobs() {
   }).join('');
 }
 /**
+ * Render an optional escaped note row only when the source has content.
+ * @param {string} label - Visible label for the note.
+ * @param {string} value - User-authored note text.
+ * @returns {string} Empty string or escaped note markup.
+ */
+function wprOptionalNoteHtml(label, value) {
+  return value ? '<div class="wpr-calendar-note"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>' : '';
+}
+
+/**
  * Render the appointment-owned fields as a read-only create summary.
  * @param {Object} job - Selected calendar appointment.
  * @param {string} dateValue - Selected work date.
  * @returns {string} Escaped read-only calendar markup.
  */
 function wprCalendarReadonlyHtml(job, dateValue) {
-  return '<section class="wpr-create-calendar-section" aria-labelledby="wpr-create-calendar-title"><h3 id="wpr-create-calendar-title">行事曆資料</h3><div class="wpr-create-calendar-grid"><div><span>工作日期</span><strong>' + esc(dateValue || '—') + '</strong></div><div><span>時間</span><strong>' + wprTimeText(job) + '</strong></div><div><span>客戶 / 案場</span><strong>' + esc(job.client_name || '—') + '</strong></div><div><span>地址</span><strong>' + esc(job.address || '—') + '</strong></div><div><span>指定服務</span><strong>' + esc(job.service_name || '未指定服務') + '</strong></div><div><span>行事曆原始備註</span><strong>' + esc(job.note || '無備註') + '</strong></div></div><p class="wpr-create-source-hint">以上內容來源自行事曆，如需修改請至行事曆調整。</p></section>';
+  return '<section class="wpr-create-calendar-section" aria-labelledby="wpr-create-calendar-title"><h3 id="wpr-create-calendar-title">行事曆資料</h3><div class="wpr-create-calendar-grid"><div><span>工作日期</span><strong>' + esc(dateValue || '—') + '</strong></div><div><span>時間</span><strong>' + wprTimeText(job) + '</strong></div><div><span>客戶 / 案場</span><strong>' + esc(job.client_name || '—') + '</strong></div><div><span>地址</span><strong>' + esc(job.address || '—') + '</strong></div><div><span>指定服務</span><strong>' + esc(job.service_name || '未指定服務') + '</strong></div></div>' + wprOptionalNoteHtml('行事曆備註', job.note) + '<p class="wpr-create-source-hint">以上內容來源自行事曆，如需修改請至行事曆調整。</p></section>';
 }
 
 /**
@@ -276,7 +286,7 @@ async function wprSelectJob(id) {
   var save = document.getElementById('wpr-save');
   if (existing) {
     area.hidden = false;
-    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong><span>' + esc(existing.note || '尚未填寫備註') + '</span><button type="button" onclick="wprOpenHistoryDetail(' + existing.id + ')">查看工作進度</button></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
+    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong>' + wprOptionalNoteHtml('工作進度', existing.note) + '<button type="button" onclick="wprOpenHistoryDetail(' + existing.id + ')">查看工作進度</button></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
     save.disabled = true;
   } else {
     area.hidden = false;
@@ -462,7 +472,7 @@ function wprOpenSubmitConfirmation(snapshot) {
   var overlay = document.createElement('div');
   overlay.className = 'wpr-confirm-overlay';
   overlay.id = 'wpr-confirm-overlay';
-  overlay.innerHTML = '<div class="wpr-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-confirm-title"><div class="wpr-confirm-header"><h3 id="wpr-confirm-title">確認儲存工作進度？</h3><button type="button" class="wpr-confirm-close" data-wpr-confirm-cancel aria-label="返回修改">✕</button></div><div class="wpr-confirm-body"><p>請確認以下工作進度內容無誤。</p><dl><dt>行事曆工作</dt><dd>' + esc(snapshot.date) + ' ' + snapshot.time + '<br>' + esc(snapshot.clientName) + ' · ' + esc(snapshot.serviceName) + '</dd><dt>回報人</dt><dd>' + esc(snapshot.uploaderName) + '</dd><dt>工作進度備註</dt><dd>' + esc(snapshot.note || '未填寫') + '</dd><dt>待上傳照片</dt><dd>' + snapshot.files.length + ' 張</dd></dl></div><div class="wpr-confirm-footer"><button type="button" class="wpr-confirm-secondary" data-wpr-confirm-cancel>返回修改</button><button type="button" class="wpr-confirm-primary" data-wpr-confirm-submit>確認儲存</button></div></div>';
+  overlay.innerHTML = '<div class="wpr-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-confirm-title"><div class="wpr-confirm-header"><h3 id="wpr-confirm-title">確認儲存工作進度？</h3><button type="button" class="wpr-confirm-close" data-wpr-confirm-cancel aria-label="返回修改">✕</button></div><div class="wpr-confirm-body"><p>請確認以下工作進度內容無誤。</p><dl><dt>行事曆工作</dt><dd>' + esc(snapshot.date) + ' ' + snapshot.time + '<br>' + esc(snapshot.clientName) + ' · ' + esc(snapshot.serviceName) + '</dd><dt>回報人</dt><dd>' + esc(snapshot.uploaderName) + '</dd>' + (snapshot.note ? '<dt>工作進度</dt><dd>' + esc(snapshot.note) + '</dd>' : '') + '<dt>待上傳照片</dt><dd>' + snapshot.files.length + ' 張</dd></dl></div><div class="wpr-confirm-footer"><button type="button" class="wpr-confirm-secondary" data-wpr-confirm-cancel>返回修改</button><button type="button" class="wpr-confirm-primary" data-wpr-confirm-submit>確認儲存</button></div></div>';
   document.body.appendChild(overlay);
   overlay.querySelectorAll('[data-wpr-confirm-cancel]').forEach(function(button) { button.addEventListener('click', wprCloseSubmitConfirmation); });
   overlay.querySelector('[data-wpr-confirm-submit]').addEventListener('click', wprConfirmSubmit);
@@ -520,7 +530,7 @@ async function wprSubmit() {
   var note = document.getElementById('wpr-note');
   if (!uploaderName) { toast('請填寫回報人顯示名稱', 'error'); return; }
   if (uploaderName.length > 50) { toast('回報人顯示名稱最多 50 字', 'error'); return; }
-  if (note && note.value.length > 1000) { toast('工作進度備註最多 1000 字', 'error'); return; }
+  if (note && note.value.length > 1000) { toast('工作進度最多 1000 字', 'error'); return; }
   var snapshot = wprBuildSubmitSnapshot();
   if (snapshot) wprOpenSubmitConfirmation(snapshot);
 }
@@ -662,7 +672,7 @@ async function wprOpenHistoryDetail(id) {
   try {
     var report = await wprFetch('/api/work-progress/' + id);
     if (token !== wprDetailRequestTokens[id]) return;
-    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div><div class="wpr-detail-note"><label>行事曆原備註</label><p>' + esc(report.appointment_note || '無備註') + '</p><label>工作進度備註</label><p>' + esc(report.note || '無備註') + '</p></div><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditReport(' + id + ')">✏️ 編輯回報</button><button type="button" onclick="wprTogglePhotoManage(' + id + ')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" onclick="wprAddExistingPhotos(' + id + ')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
+    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id) + '</div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" onclick="wprEditReport(' + id + ')">✏️ 編輯回報</button><button type="button" onclick="wprTogglePhotoManage(' + id + ')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" onclick="wprAddExistingPhotos(' + id + ')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
   } catch (error) { if (token === wprDetailRequestTokens[id]) detail.textContent = error.message; }
 }
 /**
@@ -696,7 +706,7 @@ async function wprEditReport(id) {
               <div class="wpr-edit-readonly-row"><span>客戶 / 案場</span><strong>${esc(report.client_name || '—')}</strong></div>
               <div class="wpr-edit-readonly-row"><span>地址</span><strong>${esc(report.address || '—')}</strong></div>
               <div class="wpr-edit-readonly-row"><span>指定服務</span><strong>${esc(report.service_name || '未指定服務')}</strong></div>
-              <div class="wpr-edit-readonly-row"><span>行事曆原始備註</span><strong>${esc(report.appointment_note || '無備註')}</strong></div>
+              ${report.appointment_note ? '<div class="wpr-edit-readonly-row"><span>行事曆備註</span><strong>' + esc(report.appointment_note) + '</strong></div>' : ''}
             </div>
             <p class="wpr-edit-source-hint">以上內容來源自行事曆，如需修改請至行事曆調整；更新後會自動同步至工作進度回報。</p>
           </section>
@@ -706,7 +716,7 @@ async function wprEditReport(id) {
             <input id="wpr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}">
             <div class="wpr-edit-creator">建立帳號：${esc(wprCreatedByText(report))}</div>
             <div class="wpr-edit-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div>
-            <label for="wpr-edit-note">工作進度備註</label>
+            <label for="wpr-edit-note">工作進度</label>
             <textarea id="wpr-edit-note" maxlength="1000" rows="6">${esc(report.note || '')}</textarea>
           </section>
         </div>
@@ -721,7 +731,7 @@ async function wprEditReport(id) {
       var note = overlay.querySelector('#wpr-edit-note').value.trim();
       if (!uploader) { toast('請填寫回報人'); return; }
       if (uploader.length > 50) { toast('回報人最多 50 字'); return; }
-      if (note.length > 1000) { toast('工作進度備註最多 1000 字'); return; }
+      if (note.length > 1000) { toast('工作進度最多 1000 字'); return; }
       var save = overlay.querySelector('[data-wpr-edit-save]'); save.disabled = true;
       try {
         await wprFetch('/api/work-progress/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({uploader_name:uploader, note:note})});
@@ -938,7 +948,7 @@ async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作�
  * @param {number} index - Function input.
  * @returns {void} Function result.
  */
-function wprOpenGallery(id, index) { wprFetch('/api/work-progress/' + id).then(function(report) { wprGallery.report = report; wprGallery.index = index; var overlay = document.createElement('div'); overlay.className = 'wpr-gallery-overlay'; overlay.id = 'wpr-gallery-overlay'; overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="工作照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>'; document.body.appendChild(overlay); wprRenderGallery(); }).catch(function(error) { toast(error.message, 'error'); }); }
+function wprOpenGallery(id, index) { wprCloseGallery(); wprFetch('/api/work-progress/' + id).then(function(report) { wprGallery.report = report; wprGallery.index = index; var overlay = document.createElement('div'); overlay.className = 'wpr-gallery-overlay'; overlay.id = 'wpr-gallery-overlay'; overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="工作照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>'; document.body.appendChild(overlay); wprRenderGallery(); }).catch(function(error) { toast(error.message, 'error'); }); }
 /**
  * Render the current gallery photo and navigation controls.
  * @returns {void} Function result.
