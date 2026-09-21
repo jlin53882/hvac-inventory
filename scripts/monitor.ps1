@@ -130,7 +130,11 @@ function Test-OneRound {
 
     # ══ 1. 本機 server 8000 ══
     if (Test-Health $LocalUrl) {
-        if ($s.local_fails -gt 0) { Write-Host "✅ 本機 server 已恢復（$LocalUrl）" -ForegroundColor Green }
+        if ($s.local_fails -gt 0) {
+            Write-Host "✅ 本機 server 已恢復（$LocalUrl）" -ForegroundColor Green
+            $txt = "✅ 庫存系統已恢復（$now）`n本機 server 已恢復：$LocalUrl`n監控已確認自動重啟後服務正常。"
+            if (-not $DryRun) { Send-Discord $txt } else { Write-Host "   📢 [DryRun] 會通知 Discord：本機 server 已恢復" -ForegroundColor Cyan }
+        }
         Reset-Counter 'local' $s
     } else {
         $s.local_fails++
@@ -156,7 +160,11 @@ function Test-OneRound {
     # ══ 2. Funnel 公網端到端 ══
     # 不使用一般 FunnelUrl 解析，避免本機 MagicDNS 把檢查導回 100.x 內網。
     if (Test-PublicFunnel) {
-        if ($s.funnel_fails -gt 0) { Write-Host "✅ Funnel 公網網址已恢復（$FunnelUrl）" -ForegroundColor Green }
+        if ($s.funnel_fails -gt 0) {
+            Write-Host "✅ Funnel 公網網址已恢復（$FunnelUrl）" -ForegroundColor Green
+            $txt = "✅ 庫存系統外網已恢復（$now）`nFunnel 公網網址已恢復：$FunnelUrl`n監控已確認 Tailscale 自動復原後公網連線正常。"
+            if (-not $DryRun) { Send-Discord $txt } else { Write-Host "   📢 [DryRun] 會通知 Discord：Funnel 公網網址已恢復" -ForegroundColor Cyan }
+        }
         Reset-Counter 'funnel' $s
     } else {
         $s.funnel_fails++

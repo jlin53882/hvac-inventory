@@ -54,6 +54,15 @@ def test_monitor_restarts_through_guarded_launcher():
     assert 'Start-Process cmd -ArgumentList "/c", "start"' not in source
 
 
+def test_monitor_notifies_recovery_for_local_and_public_paths():
+    source = MONITOR_PS1.read_text(encoding="utf-8")
+    assert '本機 server 已恢復' in source
+    assert 'Funnel 公網網址已恢復' in source
+    assert '庫存系統已恢復' in source
+    assert '庫存系統外網已恢復' in source
+    assert 'Send-Discord $txt' in source
+
+
 def test_maintenance_docs_describe_single_instance_recovery():
     server_doc = SERVER_DOC.read_text(encoding="utf-8")
     external_doc = EXTERNAL_DOC.read_text(encoding="utf-8")
