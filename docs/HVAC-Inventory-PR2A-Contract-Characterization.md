@@ -21,12 +21,12 @@
 | 項目 | 實測結果 |
 |---|---|
 | Workspace | `C:/Users/admin/workspace/hvac-inventory-PR2A` |
-| Branch / base | freshly cloned `master` from GitHub |
-| HEAD / merged base | `b4bee6257f773f79ac7278d31a33665abe61d101`（PR #20 merge commit） |
-| Full collection | `1715 tests collected` |
-| Full pytest | `1715 passed, 923 warnings, 0 failed` in `419.85s` |
-| PR 2A focused pytest | `805 passed, 151 warnings, 0 failed` in `86.27s` |
-| Runtime harnesses in this pass | 8 PASS：tab lifecycle、Calendar load/create/edit/delete/sync error、Work Progress page visibility、permissions pagination、signed report capability、quotation upload capability、quotation permission、petty cash capability |
+| Branch / base | `feature/pr2a-contract-characterization`, rebased onto current `origin/master` |
+| Base at final validation | `8088fc94519cdaeafde91c0d6e01bc83179497d2` (`origin/master`, after rebase; PR #20 merge is an ancestor) |
+| Full collection | `1716 tests collected` |
+| Full pytest | `1716 passed, 923 warnings, 0 failed` in `404.78s` |
+| PR 2A focused pytest | `805 passed, 151 warnings, 0 failed` in `91.55s` |
+| Runtime harnesses in this pass | 8 PASS：tab lifecycle、Calendar page-open/render/load/create/edit/delete/sync error、Work Progress page visibility、permissions pagination、signed report capability、quotation upload capability、quotation permission、petty cash capability |
 | Worktree before this document | clean |
 
 The focused pytest command was:
@@ -135,12 +135,29 @@ node tests/petty_cash_capability_runtime.test.js
 | Page visibility API/role defaults/overrides | `test_rbac_perms.py`, `test_frontend_assets.py` | Work Progress page visibility harness PASS | 無已知 regression；仍需保留 explicit override matrix |
 | Capability-negative authorization | RBAC/viewer/security focused suites | signed report、quotation、petty cash harnesses PASS | 不能把 frontend gate 當 backend proof |
 | Permission management pagination | frontend contract tests | permissions pagination harness PASS | 未新增 behavior |
-| Itemless/preserve-mount lifecycle | frontend assets + globals/app contract | tab lifecycle harness PASS | Calendar-specific full flow 未執行 |
+| Itemless/preserve-mount lifecycle | frontend assets + globals/app contract | tab lifecycle harness PASS；Calendar 維持 itemless、但不屬於 preserve-mount set | Calendar page-open evidence is listed separately below |
 | Inventory quantity/status | inventory docs、`test_main.py`、`test_inventory_integrity.py`、`test_media_storage.py` | 本 pass 未新增 inventory browser harness | 若改 semantic consumer，需補 boundary fixture + cross-consumer regression |
-| Calendar open/create/edit/delete/service-type/sync | existing source/tests + `tests/calendar_runtime.test.js` | **Calendar runtime harness PASS**：load、open/edit PUT、create POST、delete DELETE、service type/time payload、sync error modal | Full browser smoke、conflict/error/retry branches remain separate evidence if required |
+| Calendar open/create/edit/delete/service-type/sync | existing source/tests + `tests/calendar_runtime.test.js` | **Calendar runtime harness PASS**：load、open/edit PUT、create POST、delete DELETE、service type/time payload、sync error modal | Full browser smoke NOT EXECUTED；conflict/error/retry branches NOT FULLY COVERED |
 | Work Progress owner/global/photo/page flow | route/tests/frontend contracts | page visibility harness PASS | browser-level upload/sync smoke remains separate evidence |
 
-E-002 目前已有 dedicated Calendar runtime evidence，涵蓋本文件列出的 production paths；本文件不把它延伸宣稱為完整 browser smoke 或所有 conflict/retry branches。
+### 6.1 Calendar evidence taxonomy
+
+| Calendar flow | Evidence |
+|---|---|
+| Page open / `renderCalendar()` | **NODE/VM RUNTIME — PASS**：production `renderCalendar()` builds the page shell, invokes production `calLoadData()`, performs the three Calendar API requests, and reaches the ready state |
+| Data load / `calLoadData()` | **NODE/VM RUNTIME — PASS** |
+| Open appointment modal / `calOpenAppt()` | **NODE/VM RUNTIME — PASS** |
+| Create / POST | **NODE/VM RUNTIME — PASS** |
+| Edit / PUT | **NODE/VM RUNTIME — PASS** |
+| Delete / DELETE | **NODE/VM RUNTIME — PASS** |
+| Service type / time payload | **NODE/VM RUNTIME — PASS**：`service_type_id`, optional `start_time` / `end_time`, `user_ids`, `updated_at` |
+| Sync-error modal | **NODE/VM RUNTIME — PASS** |
+| Full browser smoke | **NOT EXECUTED** |
+| Conflict / error / retry branches | **NOT FULLY COVERED** |
+
+此處的 NODE/VM runtime 是 production-backed execution with minimal faithful DOM/dependency stubs，**不等同 browser smoke**。本文件沒有宣稱 Calendar fully covered。
+
+E-002 目前是 listed Calendar Node/VM paths 的 dedicated runtime evidence strengthened；full browser smoke 與 conflict/retry branches 仍獨立標示為未執行或未完整覆蓋。
 
 ## 7. Decision and next-gate register
 
@@ -149,7 +166,7 @@ E-002 目前已有 dedicated Calendar runtime evidence，涵蓋本文件列出�
 | DEC-A001 | Decision required — human | confirm canonical inventory semantics/boundaries; late default is preserve current behavior |
 | Page Registry | Evidence gate not met in this pass | verified drift/bug + registry ownership design + override/deep-link regression matrix |
 | Lifecycle abstraction | Evidence gate not met in this pass | verified duplicated ownership or lifecycle bug; otherwise preserve current sets/flow |
-| E-002 | Dedicated runtime harness PASS for listed Calendar production paths | browser smoke/conflict/retry evidence only if future scope requires it; do not overclaim coverage |
+| E-002 | Dedicated production-backed NODE/VM runtime evidence strengthened for listed Calendar paths | Full browser smoke NOT EXECUTED; conflict/retry branches NOT FULLY COVERED |
 | D-001 | Partially satisfied | add narrowly scoped WHY documentation only at non-obvious boundaries; do not annotate line-by-line code |
 
 ## 8. Explicit non-actions

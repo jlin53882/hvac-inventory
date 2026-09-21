@@ -118,6 +118,7 @@ function createContext() {
       calls.requests.push({ url, method, body: options.body ? JSON.parse(options.body) : null });
 
       if (url.startsWith('/api/appointments?year=')) {
+        calls.refreshes += 1;
         return { ok: true, async json() { return state.events; } };
       }
       if (url.startsWith('/api/appointments?date=')) {
@@ -153,16 +154,17 @@ function createContext() {
   vm.runInContext(calendarRenderSource, context);
   vm.runInContext(calendarModalSource, context);
 
-  // These are production render dependencies; this harness asserts the production
-  // data-loading/mutation handlers and records their required refresh calls.
+  // Page-entry dependencies outside this finding are kept minimal: the actual
+  // renderCalendar/calLoadData/page-shell path remains production code.
+  context.hasPerm = () => true;
+  context.calSettingsHtml = () => '<div id="cal-settings-stub"></div>';
+  context.calMountSearchResults = () => {};
+  context.calBindSearchViewportListener = () => {};
+
+  // The production renderers may be replaced only for non-target visual details;
+  // renderCalendar and calLoadData themselves remain untouched and executable.
   context.calRenderMonth = () => {};
   context.calRenderDay = () => {};
-  context.calLoadData = context.calLoadData.bind(context);
-  const originalLoadData = context.calLoadData;
-  context.calLoadData = async (...args) => {
-    calls.refreshes += 1;
-    return originalLoadData(...args);
-  };
   return { context, calls, dom, state };
 }
 
@@ -182,6 +184,22 @@ async function assertCalendarLoad(context, state) {
 (async () => {
   const { context, calls, dom, state } = createContext();
   const get = id => dom.elements.get(id) || dom.document.getElementById(id);
+
+  // F1: execute the production page entry instead of jumping directly to calLoadData.
+  assert.strictEqual(typeof context.renderCalendar, 'function', 'renderCalendar must be production-loaded');
+  await context.renderCalendar();
+  assert(get('content').innerHTML.includes('cal-wrap'), 'page entry must build the Calendar shell');
+  assert(get('content').innerHTML.includes('cal-grid'), 'page entry must build the Calendar grid');
+  assert(get('content').innerHTML.includes('cal-day-list'), 'page entry must build the day detail shell');
+  assert(calls.requests.some(request => request.url.startsWith('/api/appointments?year=')),
+    'page entry must load monthly appointments through the production path');
+  assert(calls.requests.some(request => request.url === '/api/service-types'),
+    'page entry must load service types through the production path');
+  assert(calls.requests.some(request => request.url === '/api/assignable-users'),
+    'page entry must load assignable users through the production path');
+  assert.strictEqual(get('cal-load-state').className, 'cal-load-state',
+    'page entry must reach the production ready state');
+  assert.strictEqual(calls.refreshes, 1, 'page entry must orchestrate exactly one Calendar data load');
 
   await assertCalendarLoad(context, state);
 
@@ -206,7 +224,7 @@ async function assertCalendarLoad(context, state) {
   assert.strictEqual(edit.body.service_type_id, 7);
   assert.deepStrictEqual(edit.body.user_ids, [9]);
   assert.strictEqual(edit.body.updated_at, '2026-09-21T00:00:00');
-  assert.strictEqual(calls.refreshes, 2, 'Calendar edit must refresh once after the initial load');
+  assert.strictEqual(calls.refreshes, 3, 'Calendar edit must refresh once after the page-open and explicit load');
 
   // Create follows the production POST path and keeps an optional time empty when
   // either time selector is left at the production "--" option.
@@ -226,14 +244,14 @@ async function assertCalendarLoad(context, state) {
   assert.strictEqual(create.body.start_time, '');
   assert.strictEqual(create.body.end_time, '');
   assert.deepStrictEqual(create.body.user_ids, []);
-  assert.strictEqual(calls.refreshes, 3, 'Calendar create must refresh once');
+  assert.strictEqual(calls.refreshes, 4, 'Calendar create must refresh once after page-open and edit');
 
   // Delete follows the production DELETE path and refreshes after success.
   await context.calDeleteAppt(2);
   const deletion = calls.requests.find(request => request.method === 'DELETE');
   assert(deletion, 'Calendar delete must issue a DELETE request');
   assert.strictEqual(deletion.url, '/api/appointments/2');
-  assert.strictEqual(calls.refreshes, 4, 'Calendar delete must refresh once');
+  assert.strictEqual(calls.refreshes, 5, 'Calendar delete must refresh once after page-open and mutations');
   assert(!state.events.some(event => event.id === 2), 'Deleted event must not remain in refreshed state');
 
   // Sync error detail uses the production status mapping and opens the real modal path.
