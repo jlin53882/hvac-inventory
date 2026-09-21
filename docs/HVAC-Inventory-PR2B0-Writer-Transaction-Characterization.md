@@ -61,13 +61,14 @@ Source-path locations containing inventory-write SQL-like literals reported by t
 - the first `app/routes/` or `app/services/` stack frame;
 - the full application-frame stack used for attribution.
 
-The test drives real authenticated API routes against an isolated temporary database:
+The test drives real authenticated API routes against an isolated temporary database. The representative runtime set now includes one operation for each static-discovered production writer module:
 
-1. create an item and initial stock;
-2. adjust stock;
-3. prepare stock;
-4. stock out stock;
-5. submit a stocktake.
+1. create an item and initial stock, then exercise item adjustment, preparation, stockout, and stocktake;
+2. assemble a kit through `POST /api/kits/{id}/assemble`;
+3. transfer stock through `POST /api/inventory/transfers`, including source and target stock/movement writes;
+4. consolidate one item's unit with a quantity conversion through `POST /api/units/consolidate-item`.
+
+The trace records route ownership separately from the immediate SQL-writing helper. For example, kit writes are emitted by `kits.py:_deduct_total` / `kits.py:_add_total` while the full stack retains `kits.py:assemble_kit` as the route owner.
 
 Command:
 
@@ -80,10 +81,10 @@ Observed local output from the isolated workspace:
 ```text
 PR2B0 runtime writer summary: {'item_stocks': 4, 'items.prepared_qty': 1, 'movements': 4}
 PR2B0 runtime writer callers: ... app/routes/items.py:create_item ... app/routes/items.py:adjust_qty ... app/routes/stockout.py:prepare_item ... app/routes/stockout.py:stock_out ... app/routes/stocktake.py:submit_stocktake ...
-4 passed, 5 warnings
+7 passed, 8 warnings
 ```
 
-The exact pass total and warning count above are recorded from that command, not inferred from repository history. The runtime assertions verify that all three protected states are reached, the trace contains `BEGIN IMMEDIATE` and `COMMIT`, each protected-state write emitted by the representative flow has a concrete route-level caller, the expected route functions (`create_item`, `adjust_qty`, `prepare_item`, `stock_out`, and `submit_stocktake`) appear in the trace, and no trace-callback errors were swallowed. The harness is diagnostic: it does not alter production connection behavior.
+The exact pass total and warning count above are recorded from that command, not inferred from repository history. The runtime assertions verify that all three protected states are reached in the original representative flow; `kits.py`, `transfers.py`, and `units.py` each have a separate real API mutation with protected-state writes; each new operation observes `BEGIN IMMEDIATE` and `COMMIT` with every protected write enclosed between those boundaries and no intermediate `COMMIT`/`ROLLBACK`; every protected-state write remains attributable to its route module and its route owner remains present in the full stack; and no trace-callback errors were swallowed. The harness is diagnostic: it does not alter production connection behavior.
 
 ## 5. Transaction ownership characterization
 
@@ -96,11 +97,28 @@ The current system has route-owned connections and mixed transaction-start behav
 | Prepare quantity + zero-delta movement | `app/routes/stockout.py:prepare_item` | `stockout.py:647-678` | Route owns commit/rollback, but does not explicitly issue `BEGIN IMMEDIATE`; the guarded `UPDATE items.prepared_qty` starts SQLite's write transaction. |
 | Direct stockout + movement | `app/routes/stockout.py:stock_out` | `stockout.py:172-207` | Explicit `BEGIN IMMEDIATE`; projected-inventory guard, stock deduction, and movement write share the route transaction. |
 | Stocktake + movement + stocktake row | `app/routes/stocktake.py:27-100` | `stocktake.py:35-100` | Explicit `BEGIN IMMEDIATE`; batch validation and all rows are committed or rolled back together. |
-| Cross-site transfer | `app/routes/transfers.py:166-211` | `transfers.py:176-211` | Explicit `BEGIN IMMEDIATE`; source deduction, target creation/update, and both movements share one transaction. |
+| Kit assembly | `app/routes/kits.py:assemble_kit` | `kits.py:307-359` | Explicit `BEGIN IMMEDIATE`; material deductions, assembled-kit stock increase, and their movements share the route transaction. SQL writes are emitted by `_deduct_total` and `_add_total`, with `assemble_kit` retained in the trace stack as route owner. |
+| Cross-site transfer | `app/routes/transfers.py:transfer_inventory` | `transfers.py:166-211` | Explicit `BEGIN IMMEDIATE`; source deduction, target creation/update, and both movements share one transaction. |
+| Unit consolidation with quantity conversion | `app/routes/units.py:consolidate_item` | `units.py:191-248` | Explicit `BEGIN IMMEDIATE`; unit update, single-stock quantity update, and the conversion movement share one transaction. The representative path writes protected stock/movement state only when `new_qty` is supplied. |
 
 This is a verified description of current ownership, not authorization to centralize it. The evidence shows heterogeneous transaction-start policy, but heterogeneity alone is not a correctness failure.
 
-## 6. Atomicity evidence
+## 6. Writer-class coverage matrix
+
+`Static writer` means the scanner found at least one SQL-like protected-state literal under the module's source path. `Runtime representative` means the named test executed a real authenticated API route and observed protected-state SQL with the listed route/module attribution. Neither column means all writer paths are covered.
+
+| Writer module | Static writer | Runtime representative | Transaction style | Protected state observed |
+|---|---|---|---|---|
+| `items.py` | Yes | Yes: adjustment, preparation, stockout, stocktake | Mixed: deferred create/prepare; explicit `BEGIN IMMEDIATE` for adjustment, stockout, stocktake | `item_stocks`, `items.prepared_qty`, `movements` |
+| `kits.py` | Yes | Yes: `assemble_kit` | Explicit `BEGIN IMMEDIATE`; route-owned, helper-emitted writes | `item_stocks`, `movements` |
+| `stockout.py` | Yes | Yes: preparation and stockout | Mixed: deferred preparation; explicit `BEGIN IMMEDIATE` for stockout | `item_stocks`, `items.prepared_qty`, `movements` |
+| `stocktake.py` | Yes | Yes: `submit_stocktake` | Explicit `BEGIN IMMEDIATE` | `item_stocks`, `movements` |
+| `transfers.py` | Yes | Yes: `transfer_inventory` | Explicit `BEGIN IMMEDIATE` | source/target `item_stocks`, source/target `movements` |
+| `units.py` | Yes | Yes: `consolidate_item` with `new_qty` | Explicit `BEGIN IMMEDIATE` | `item_stocks`, `movements` |
+
+The three added representatives are intentionally narrow: kit assembly does not characterize disassembly, transfer does not characterize every target/BOM branch, and units consolidation does not characterize every unit CRUD path. They close module-level runtime attribution evidence without claiming exhaustive endpoint coverage.
+
+## 7. Atomicity evidence
 
 The existing regression tests were executed without changing their implementation:
 
@@ -108,22 +126,24 @@ The existing regression tests were executed without changing their implementatio
 uv run pytest -q \
   tests/test_inventory_integrity.py::TestPreparedOutRollback::test_prepared_out_rollback_on_write_failure \
   tests/test_inventory_integrity.py::TestConcurrentDeduction::test_concurrent_direct_stockout_second_rejected \
-  tests/test_inventory_integrity.py::TestStocktake::test_stocktake_missing_location_rejects_whole_batch
+  tests/test_inventory_integrity.py::TestStocktake::test_stocktake_missing_location_rejects_whole_batch \
+  tests/test_vehicle_inventory.py::test_transfer_rejects_existing_kit_with_different_bom
 ```
 
 Observed result:
 
 ```text
-3 passed, 4 warnings
+4 passed, 5 warnings
 ```
 
 Protected behaviors demonstrated by these tests:
 
 - an injected failure after prepared-out stock deduction leaves stock, `prepared_qty`, and movements unchanged;
 - a stocktake batch containing a missing location rolls back earlier rows and leaves no partial stocktake;
+- an incompatible existing target kit rejects a transfer without committing the source deduction or a new movement;
 - the existing multi-table mutation boundaries do not commit a partial state on these failure paths.
 
-## 7. Concurrency evidence
+## 8. Concurrency evidence
 
 `TestConcurrentDeduction.test_concurrent_direct_stockout_second_rejected` starts two real `TestClient` requests concurrently against the same item:
 
@@ -136,14 +156,14 @@ Protected behaviors demonstrated by these tests:
 
 The route uses `BEGIN IMMEDIATE` before its correctness reads. This evidence protects the current no-oversell/invariant behavior; it does not prove that every writer has identical transaction-start semantics.
 
-## 8. Findings
+## 9. Findings
 
 ### Verified observations
 
-1. Inventory state has multiple source-path locations containing inventory-write SQL-like literals, as shown by the static scan; the representative runtime flow also reaches concrete route writers.
-2. Runtime writes can be attributed to concrete route callers for the representative item, stock, prepared, and movement paths.
+1. Inventory state has multiple source-path locations containing inventory-write SQL-like literals, as shown by the static scan; the representative runtime set now reaches each of the six static-discovered production writer modules.
+2. Runtime writes can be attributed to concrete route modules for the representative item, kit, stockout, stocktake, transfer, and unit-consolidation paths; helper-emitted writes retain the route owner in the full stack.
 3. Transaction ownership is currently route-local and transaction-start policy is mixed: some paths explicitly use `BEGIN IMMEDIATE`, while representative create/prepare paths rely on SQLite's deferred transaction start at the first write.
-4. The exercised atomicity and concurrency regressions pass; no new correctness failure was reproduced in this characterization phase.
+4. The exercised atomicity and concurrency regressions pass; no reproducible correctness failure or verified contract violation was found across the characterized production writer modules and the exercised regressions.
 
 ### Not established by this phase
 
@@ -152,7 +172,7 @@ The route uses `BEGIN IMMEDIATE` before its correctness reads. This evidence pro
 - The existence of many writers or a large route module is not, by itself, a GO condition.
 - Work Progress is not included as an inventory writer because this trace does not show writes to `item_stocks`, `items.prepared_qty`, or `movements` from that domain.
 
-## 9. Recommendation and decision gate
+## 10. Recommendation and decision gate
 
 **Recommendation: NO-GO for the full mutation-boundary refactor at this time.**
 
@@ -167,14 +187,17 @@ The human DEC-2B decision remains required. On NO-GO:
 
 If a later phase identifies a concrete defect, it must first add a fresh RED regression, apply the minimum GREEN fix, and re-run the scanner and characterization evidence before any refactor decision.
 
-## 10. Verification status
+## 11. Verification status
 
 | Gate | Status |
 |---|---|
 | Static scanner reused | PASS |
 | Runtime SQL trace and caller attribution | PASS |
+| Six-module representative writer coverage | PASS |
+| Transfer rollback regression | PASS |
 | Transaction ownership documented | PASS |
 | Atomicity regressions | PASS |
 | `BEGIN IMMEDIATE` concurrency regression | PASS |
+| Full pytest suite | PASS: 1726 passed, 930 warnings |
 | Production behavior changed | NO |
 | Full refactor GO decision | NOT AUTHORIZED; human DEC-2B required |

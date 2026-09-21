@@ -12,7 +12,7 @@ import sqlite3
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -131,18 +131,27 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
         yield test_client
 
 
-def _create_item(client: TestClient) -> dict:
-    """Create one stock item used by the representative mutation flow."""
+def _create_item(
+    client: TestClient,
+    *,
+    code: str = "TRACE-1",
+    name: str = "writer trace item",
+    unit: str = "個",
+    site: str = "office",
+    qty: float = 10,
+    location: str = "A倉",
+) -> dict:
+    """Create one stock item used by the representative mutation flows."""
     response = client.post(
         "/api/items",
         json={
             "brand": "PR2B0",
-            "code": "TRACE-1",
-            "name": "writer trace item",
-            "unit": "個",
+            "code": code,
+            "name": name,
+            "unit": unit,
             "low_stock": 0,
-            "site": "office",
-            "stocks": [{"location": "A倉", "qty": 10, "note": ""}],
+            "site": site,
+            "stocks": [{"location": location, "qty": qty, "note": ""}],
         },
     )
     assert response.status_code == 201, response.text
@@ -154,33 +163,172 @@ def _assert_ok(response: Response) -> None:
     assert response.status_code < 300, response.text
 
 
-def test_runtime_trace_attributes_representative_inventory_writers(client, monkeypatch) -> None:
-    """Trace item, stock, prepared, and movement writers through real API routes."""
+def _trace_request(
+    monkeypatch: pytest.MonkeyPatch,
+    request: Callable[[], Response],
+) -> tuple[SqlTrace, Response]:
+    """Run one API request with an isolated SQL trace for boundary assertions."""
     trace = SqlTrace()
     trace.install(monkeypatch)
+    response = request()
+    _assert_ok(response)
+    return trace, response
 
-    item = _create_item(client)
+
+def _assert_successful_route_transaction(
+    trace: SqlTrace,
+    *,
+    route_module: str,
+    route_owner: str,
+    targets: tuple[str, ...],
+    minimum_writes: dict[str, int] | None = None,
+    begin_prefixes: tuple[str, ...] = ("BEGIN IMMEDIATE",),
+    extra_events: tuple[SqlEvent, ...] = (),
+) -> None:
+    """Assert route ownership, writer attribution, and transaction statements."""
+    assert not trace.callback_errors, trace.callback_errors
+    assert any(
+        event.sql.upper().startswith(prefix) for event in trace.events for prefix in begin_prefixes
+    )
+    assert any(event.sql.upper() == "COMMIT" for event in trace.events)
+    minimum_writes = minimum_writes or {target: 1 for target in targets}
+    protected_events: list[SqlEvent] = []
+    for target in targets:
+        events = trace.writes_for(target)
+        assert len(events) >= minimum_writes[target], [event.sql for event in events]
+        assert all(event.caller.startswith(route_module) for event in events), [
+            event.caller for event in events
+        ]
+        assert all(any(frame.startswith(route_owner) for frame in event.stack) for event in events), [
+            event.stack for event in events
+        ]
+        protected_events.extend(events)
+
+    for event in extra_events:
+        assert event.caller.startswith(route_module), event.caller
+        assert any(frame.startswith(route_owner) for frame in event.stack), event.stack
+    protected_events.extend(extra_events)
+
+    protected_ids = {id(event) for event in protected_events}
+    write_indices = [
+        index for index, event in enumerate(trace.events) if id(event) in protected_ids
+    ]
+    assert write_indices
+    first_write = min(write_indices)
+    last_write = max(write_indices)
+    begin_indices = [
+        index
+        for index, event in enumerate(trace.events[:first_write])
+        if any(event.sql.upper().startswith(prefix) for prefix in begin_prefixes)
+    ]
+    commit_indices = [
+        index
+        for index, event in enumerate(trace.events[last_write + 1 :], last_write + 1)
+        if event.sql.upper() == "COMMIT"
+    ]
+    assert begin_indices, [event.sql for event in trace.events[:first_write]]
+    assert commit_indices, [event.sql for event in trace.events[last_write + 1 :]]
+    begin_index = max(begin_indices)
+    commit_index = min(commit_indices)
+    assert begin_index < first_write <= last_write < commit_index
+    assert all(begin_index < index < commit_index for index in write_indices)
+    assert not any(
+        event.sql.upper() in {"COMMIT", "ROLLBACK"}
+        for event in trace.events[begin_index + 1 : commit_index]
+    )
+
+
+def test_runtime_trace_attributes_representative_inventory_writers(client, monkeypatch) -> None:
+    """Trace representative inventory writers with one boundary per API request."""
+    create_trace, create_response = _trace_request(
+        monkeypatch,
+        lambda: client.post(
+            "/api/items",
+            json={
+                "brand": "PR2B0",
+                "code": "TRACE-1",
+                "name": "writer trace item",
+                "unit": "個",
+                "low_stock": 0,
+                "site": "office",
+                "stocks": [{"location": "A倉", "qty": 10, "note": ""}],
+            },
+        ),
+    )
+    item = create_response.json()
     item_id = item["id"]
-    _assert_ok(
-        client.post(
+    _assert_successful_route_transaction(
+        create_trace,
+        route_module="app/routes/items.py",
+        route_owner="app/routes/items.py:create_item",
+        targets=("item_stocks",),
+        begin_prefixes=("BEGIN",),
+    )
+
+    adjust_trace, _ = _trace_request(
+        monkeypatch,
+        lambda: client.post(
             f"/api/items/{item_id}/adjust",
             json={"delta": 2, "reason": "PR2B0 trace"},
-        )
+        ),
     )
-    _assert_ok(client.post(f"/api/items/{item_id}/prepare", json={"qty": 1}))
-    _assert_ok(
-        client.post(
-            "/api/stockout",
-            json={"item_id": item_id, "qty": 1, "destination": "PR2B0"},
-        )
-    )
-    _assert_ok(
-        client.post(
-            "/api/stocktake",
-            json={"items": [{"item_id": item_id, "location": "A倉", "actual_qty": 11}]},
-        )
+    _assert_successful_route_transaction(
+        adjust_trace,
+        route_module="app/routes/items.py",
+        route_owner="app/routes/items.py:adjust_qty",
+        targets=("item_stocks", "movements"),
     )
 
+    prepare_trace, _ = _trace_request(
+        monkeypatch,
+        lambda: client.post(f"/api/items/{item_id}/prepare", json={"qty": 1}),
+    )
+    _assert_successful_route_transaction(
+        prepare_trace,
+        route_module="app/routes/stockout.py",
+        route_owner="app/routes/stockout.py:prepare_item",
+        targets=("items.prepared_qty", "movements"),
+        begin_prefixes=("BEGIN",),
+    )
+
+    stockout_trace, _ = _trace_request(
+        monkeypatch,
+        lambda: client.post(
+            "/api/stockout",
+            json={"item_id": item_id, "qty": 1, "destination": "PR2B0"},
+        ),
+    )
+    _assert_successful_route_transaction(
+        stockout_trace,
+        route_module="app/routes/stockout.py",
+        route_owner="app/routes/stockout.py:stock_out",
+        targets=("item_stocks", "movements"),
+    )
+
+    stocktake_trace, _ = _trace_request(
+        monkeypatch,
+        lambda: client.post(
+            "/api/stocktake",
+            json={"items": [{"item_id": item_id, "location": "A倉", "actual_qty": 11}]},
+        ),
+    )
+    _assert_successful_route_transaction(
+        stocktake_trace,
+        route_module="app/routes/stocktake.py",
+        route_owner="app/routes/stocktake.py:submit_stocktake",
+        targets=("item_stocks", "movements"),
+    )
+
+    trace = SqlTrace()
+    for operation_trace in (
+        create_trace,
+        adjust_trace,
+        prepare_trace,
+        stockout_trace,
+        stocktake_trace,
+    ):
+        trace.events.extend(operation_trace.events)
+        trace.callback_errors.extend(operation_trace.callback_errors)
     summary = trace.summary()
     print(f"PR2B0 runtime writer summary: {summary}")
     print(f"PR2B0 runtime writer callers: {sorted({event.caller for event in trace.events})}")
@@ -207,6 +355,182 @@ def test_runtime_trace_attributes_representative_inventory_writers(client, monke
     assert inventory_writes
     assert all(event.caller.startswith("app/routes/") for event in inventory_writes)
     assert all(event.stack for event in inventory_writes)
+
+
+def test_runtime_trace_attributes_kit_assembly_writer(client, monkeypatch) -> None:
+    """Trace a real kit assembly through kits.py and its protected-state writes."""
+    material = _create_item(
+        client,
+        code="TRACE-KIT-MAT",
+        name="kit trace material",
+        qty=5,
+        location="組裝架",
+    )
+    response = client.post(
+        "/api/kits",
+        json={
+            "name": "kit trace bundle",
+            "site": "office",
+            "items": [{"item_id": material["id"], "qty": 1}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    kit = response.json()
+
+    trace = SqlTrace()
+    trace.install(monkeypatch)
+    _assert_ok(client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 1}))
+
+    _assert_successful_route_transaction(
+        trace,
+        route_module="app/routes/kits.py",
+        route_owner="app/routes/kits.py:assemble_kit",
+        targets=("item_stocks", "movements"),
+        minimum_writes={"item_stocks": 2, "movements": 2},
+    )
+
+
+def test_runtime_trace_attributes_cross_site_transfer_writers(client, monkeypatch) -> None:
+    """Trace source and target stock/movement writes through transfers.py."""
+    source = _create_item(
+        client,
+        code="TRACE-TRANSFER",
+        name="transfer trace item",
+        site="office",
+        qty=5,
+        location="來源架",
+    )
+    source_stock = app_db.get_db()
+    try:
+        source_stock_id = source_stock.execute(
+            "SELECT id FROM item_stocks WHERE item_id=? AND location=?",
+            (source["id"], "來源架"),
+        ).fetchone()["id"]
+    finally:
+        source_stock.close()
+
+    trace = SqlTrace()
+    trace.install(monkeypatch)
+    response = client.post(
+        "/api/inventory/transfers",
+        json={
+            "item_id": source["id"],
+            "target_site": "van",
+            "qty": 2,
+            "source_location": "來源架",
+            "target_location": "車內架",
+        },
+    )
+    _assert_ok(response)
+    transfer = response.json()
+    target_id = transfer["target_item_id"]
+
+    _assert_successful_route_transaction(
+        trace,
+        route_module="app/routes/transfers.py",
+        route_owner="app/routes/transfers.py:transfer_inventory",
+        targets=("item_stocks", "movements"),
+        minimum_writes={"item_stocks": 2, "movements": 2},
+    )
+
+    stock_write_sql = [event.sql for event in trace.writes_for("item_stocks")]
+    assert any(
+        re.search(rf"UPDATE\s+item_stocks.*WHERE\s+id=\s*{source_stock_id}\b", sql, re.I | re.S)
+        for sql in stock_write_sql
+    ), stock_write_sql
+    assert any(
+        re.search(rf"INSERT\s+INTO\s+item_stocks.*VALUES\s*\(\s*{target_id}\s*,", sql, re.I | re.S)
+        for sql in stock_write_sql
+    ), stock_write_sql
+    movement_write_sql = [event.sql for event in trace.writes_for("movements")]
+    assert any(
+        re.search(rf"VALUES\s*\(\s*{source['id']}\s*,\s*-2(?:\.0+)?\s*,", sql, re.I | re.S)
+        for sql in movement_write_sql
+    ), movement_write_sql
+    assert any(
+        re.search(rf"VALUES\s*\(\s*{target_id}\s*,\s*2(?:\.0+)?\s*,", sql, re.I | re.S)
+        for sql in movement_write_sql
+    ), movement_write_sql
+
+    connection = app_db.get_db()
+    try:
+        movements = connection.execute(
+            "SELECT item_id, delta FROM movements WHERE item_id IN (?, ?) "
+            "AND reason='庫存調撥' ORDER BY item_id",
+            (source["id"], target_id),
+        ).fetchall()
+        stocks = connection.execute(
+            "SELECT item_id, COALESCE(SUM(qty), 0) AS total_qty FROM item_stocks "
+            "WHERE item_id IN (?, ?) GROUP BY item_id ORDER BY item_id",
+            (source["id"], target_id),
+        ).fetchall()
+    finally:
+        connection.close()
+    assert [(row["item_id"], row["delta"]) for row in movements] == [
+        (source["id"], -2),
+        (target_id, 2),
+    ]
+    assert [(row["item_id"], row["total_qty"]) for row in stocks] == [
+        (source["id"], 3),
+        (target_id, 2),
+    ]
+
+
+def test_runtime_trace_attributes_unit_inventory_writer(client, monkeypatch) -> None:
+    """Trace unit consolidation with quantity conversion through units.py."""
+    item = _create_item(
+        client,
+        code="TRACE-UNIT",
+        name="unit trace item",
+        unit="/4罐",
+        qty=3,
+        location="單位架",
+    )
+
+    trace = SqlTrace()
+    trace.install(monkeypatch)
+    response = client.post(
+        "/api/units/consolidate-item",
+        json={"item_id": item["id"], "to_unit": "罐", "new_qty": 2.5},
+    )
+    _assert_ok(response)
+
+    unit_write_events = tuple(
+        event
+        for event in trace.events
+        if re.search(r"UPDATE\s+items\s+SET\s+unit\s*=", event.sql, re.I)
+    )
+    assert len(unit_write_events) == 1, [event.sql for event in unit_write_events]
+    _assert_successful_route_transaction(
+        trace,
+        route_module="app/routes/units.py",
+        route_owner="app/routes/units.py:consolidate_item",
+        targets=("item_stocks", "movements"),
+        extra_events=unit_write_events,
+    )
+    connection = app_db.get_db()
+    try:
+        stock = connection.execute(
+            "SELECT qty FROM item_stocks WHERE item_id=?", (item["id"],)
+        ).fetchone()
+        movement = connection.execute(
+            "SELECT delta, before_qty, after_qty, reason FROM movements "
+            "WHERE item_id=? ORDER BY id DESC LIMIT 1",
+            (item["id"],),
+        ).fetchone()
+        saved_item = connection.execute(
+            "SELECT unit FROM items WHERE id=?", (item["id"],)
+        ).fetchone()
+    finally:
+        connection.close()
+    assert stock["qty"] == 2.5
+    assert dict(movement) == {
+        "delta": -0.5,
+        "before_qty": 3,
+        "after_qty": 2.5,
+        "reason": "歷史單位轉換",
+    }
+    assert saved_item["unit"] == "罐"
 
 
 @pytest.mark.parametrize(
