@@ -3,6 +3,8 @@
 
 var wprGallery = { report: null, index: 0 };
 var wprGalleryRequestToken = 0;
+var wprGalleryPreloadImages = Object.create(null);
+var wprLastDetailReport = null;
 var wprPhotoManageReports = {};
 var wprSuppressHistoryToggle = {};
 var wprPendingSubmit = null;
@@ -692,9 +694,11 @@ async function wprOpenHistoryDetail(id, targetId) {
   var detail = document.getElementById(detailTargetId); if (!detail) return;
   var tokenKey = id + ':' + detailTargetId;
   var token = (wprDetailRequestTokens[tokenKey] || 0) + 1; wprDetailRequestTokens[tokenKey] = token;
+  if (wprLastDetailReport && wprLastDetailReport.id === id) wprLastDetailReport = null;
   try {
     var report = await wprFetch('/api/work-progress/' + id);
     if (token !== wprDetailRequestTokens[tokenKey]) return;
+    wprLastDetailReport = { id: id, report: report };
     var actionTargetId = esc(jsStr(detailTargetId));
     detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-detail-photo-section"><h4 class="wpr-detail-photo-title">施工照片</h4><div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id, detailTargetId) + '</div></div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" class="wpr-detail-action-edit" onclick="wprEditReport(' + id + ',\'' + actionTargetId + '\')">✏️ 編輯回報</button><button type="button" class="wpr-detail-action-manage" onclick="wprTogglePhotoManage(' + id + ',\'' + actionTargetId + '\')">' + (wprPhotoManageReports[id] ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" class="wpr-detail-action-add" onclick="wprAddExistingPhotos(' + id + ',\'' + actionTargetId + '\')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-detail-action-delete wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
   } catch (error) { if (token === wprDetailRequestTokens[tokenKey]) detail.textContent = error.message; }
@@ -971,27 +975,99 @@ function wprAddExistingPhotos(id, targetId) {
  */
 async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
 /**
- * Load a report and open its preview gallery.
- * @param {number} id - Function input.
- * @param {number} index - Function input.
- * @returns {void} Function result.
+ * Start one background request for a preview URL and let the browser cache own the bytes.
+ * @param {Object} photo - Gallery photo metadata.
+ * @returns {void} Nothing; failures fall back to normal image navigation.
  */
-function wprOpenGallery(id, index) { var token = ++wprGalleryRequestToken; wprCloseGallery(false); wprFetch('/api/work-progress/' + id).then(function(report) { if (token !== wprGalleryRequestToken) return; if (typeof currentTab !== 'undefined' && currentTab !== 'work-progress') return; wprGallery.report = report; wprGallery.index = index; var overlay = document.createElement('div'); overlay.className = 'wpr-gallery-overlay'; overlay.id = 'wpr-gallery-overlay'; overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="施工照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>'; document.body.appendChild(overlay); wprRenderGallery(); }).catch(function(error) { if (token !== wprGalleryRequestToken) return; toast(error.message, 'error'); }); }
+function wprPreloadGalleryPhoto(photo) {
+  var url = photo && photo.preview_url;
+  if (!url || wprGalleryPreloadImages[url] || typeof Image === 'undefined') return;
+  try {
+    var image = new Image();
+    image.decoding = 'async';
+    wprGalleryPreloadImages[url] = image;
+    image.src = url;
+    if (typeof image.decode === 'function') image.decode().catch(function() {});
+  } catch (error) {
+    delete wprGalleryPreloadImages[url];
+  }
+}
+
+/**
+ * Preload only the previous and next preview around the current selection.
+ * @param {Object} report - Work Progress report containing photos.
+ * @param {number} index - Current photo index.
+ * @returns {void} Nothing.
+ */
+function wprPreloadGalleryAdjacent(report, index) {
+  var photos = report && report.photos;
+  if (!photos || photos.length < 2) return;
+  var count = photos.length;
+  wprPreloadGalleryPhoto(photos[(index - 1 + count) % count]);
+  wprPreloadGalleryPhoto(photos[(index + 1) % count]);
+}
+
+/**
+ * Load a report and open its preview gallery.
+ * @param {number} id - Report identifier.
+ * @param {number} index - Initial photo index.
+ * @returns {void} Nothing; the gallery opens after the report is available.
+ */
+function wprOpenGallery(id, index) {
+  var token = ++wprGalleryRequestToken;
+  wprCloseGallery(false);
+  var reportPromise = wprLastDetailReport && wprLastDetailReport.id === id
+    ? Promise.resolve(wprLastDetailReport.report)
+    : wprFetch('/api/work-progress/' + id);
+  reportPromise.then(function(report) {
+    if (token !== wprGalleryRequestToken) return;
+    if (typeof currentTab !== 'undefined' && currentTab !== 'work-progress') return;
+    wprGallery.report = report;
+    wprGallery.index = index;
+    var overlay = document.createElement('div');
+    overlay.className = 'wpr-gallery-overlay';
+    overlay.id = 'wpr-gallery-overlay';
+    overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><img id="wpr-gallery-image" alt="施工照片"><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="wprGalleryMove(1)">下一張 →</button></div></div>';
+    document.body.appendChild(overlay);
+    wprRenderGallery();
+  }).catch(function(error) { if (token !== wprGalleryRequestToken) return; toast(error.message, 'error'); });
+}
 /**
  * Render the current gallery photo and navigation controls.
- * @returns {void} Function result.
+ * @returns {void} Nothing.
  */
-function wprRenderGallery() { var report = wprGallery.report, photo = report.photos[wprGallery.index]; if (!photo) return; document.getElementById('wpr-gallery-count').textContent = (wprGallery.index + 1) + ' / ' + report.photos.length; document.getElementById('wpr-gallery-image').src = photo.preview_url; document.getElementById('wpr-gallery-caption').textContent = report.client_name + ' · ' + report.service_name + ' · ' + report.report_date; document.getElementById('wpr-gallery-download').href = photo.download_url; document.getElementById('wpr-gallery-download').download = photo.original_name; }
+function wprRenderGallery() {
+  var report = wprGallery.report, photo = report && report.photos[wprGallery.index];
+  if (!photo) return;
+  document.getElementById('wpr-gallery-count').textContent = (wprGallery.index + 1) + ' / ' + report.photos.length;
+  var image = document.getElementById('wpr-gallery-image');
+  image.decoding = 'async';
+  image.src = photo.preview_url;
+  document.getElementById('wpr-gallery-caption').textContent = report.client_name + ' · ' + report.service_name + ' · ' + report.report_date;
+  document.getElementById('wpr-gallery-download').href = photo.download_url;
+  document.getElementById('wpr-gallery-download').download = photo.original_name;
+  wprPreloadGalleryAdjacent(report, wprGallery.index);
+}
 /**
  * Move the gallery selection with wraparound navigation.
- * @param {number} delta - Function input.
- * @returns {void} Function result.
+ * @param {number} delta - Relative gallery movement.
+ * @returns {void} Nothing.
  */
-function wprGalleryMove(delta) { if (!wprGallery.report || !wprGallery.report.photos.length) return; wprGallery.index = (wprGallery.index + delta + wprGallery.report.photos.length) % wprGallery.report.photos.length; wprRenderGallery(); }
+function wprGalleryMove(delta) {
+  if (!wprGallery.report || !wprGallery.report.photos.length) return;
+  wprGallery.index = (wprGallery.index + delta + wprGallery.report.photos.length) % wprGallery.report.photos.length;
+  wprRenderGallery();
+}
 /**
  * Close the gallery overlay and release its state.
  * @param {boolean} [invalidateRequest=true] - Whether to invalidate pending gallery fetches.
- * @returns {void} Function result.
+ * @returns {void} Nothing.
  */
-function wprCloseGallery(invalidateRequest) { if (invalidateRequest !== false) ++wprGalleryRequestToken; var overlay = document.getElementById('wpr-gallery-overlay'); if (overlay) overlay.remove(); wprGallery.report = null; }
+function wprCloseGallery(invalidateRequest) {
+  if (invalidateRequest !== false) ++wprGalleryRequestToken;
+  var overlay = document.getElementById('wpr-gallery-overlay');
+  if (overlay) overlay.remove();
+  wprGallery.report = null;
+  wprGalleryPreloadImages = Object.create(null);
+}
 document.addEventListener('keydown', function(event) { if (wprPendingGallery.index >= 0) { if (event.key === 'Escape') wprClosePendingGallery(); if (event.key === 'ArrowLeft') wprPendingGalleryMove(-1); if (event.key === 'ArrowRight') wprPendingGalleryMove(1); return; } if (!wprGallery.report) return; if (event.key === 'Escape') wprCloseGallery(); if (event.key === 'ArrowLeft') wprGalleryMove(-1); if (event.key === 'ArrowRight') wprGalleryMove(1); });

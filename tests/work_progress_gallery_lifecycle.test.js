@@ -17,6 +17,7 @@ function createHarness() {
   const elements = new Map();
   const errors = [];
   const requests = [];
+  const images = [];
   const document = {
     body: {
       appendChild(element) {
@@ -48,6 +49,7 @@ function createHarness() {
   const sandbox = {
     document,
     currentTab: 'work-progress',
+    wprDetailRequestTokens: {},
     toast(message) { errors.push(message); },
     esc(value) { return String(value); },
     jsStr(value) { return String(value); },
@@ -62,6 +64,12 @@ function createHarness() {
     Promise,
     setTimeout,
     clearTimeout,
+    Image: function Image() {
+      this.decoding = '';
+      this.src = '';
+      this.decode = function() { return Promise.resolve(); };
+      images.push(this);
+    },
   };
   vm.runInNewContext(source, sandbox, { filename: sourcePath });
   sandbox.wprFetch = function() {
@@ -71,7 +79,7 @@ function createHarness() {
     requests.push({ resolve, reject });
     return promise;
   };
-  return { sandbox, bodyChildren, errors, requests };
+  return { sandbox, bodyChildren, errors, requests, images };
 }
 
 /**
@@ -79,12 +87,17 @@ function createHarness() {
  * @param {string} name - Client name marker.
  * @returns {object} Minimal production-shaped report.
  */
-function report(name) {
+function report(name, photoCount = 1) {
+  const photos = Array.from({ length: photoCount }, (_, index) => ({
+    preview_url: `${name}-${index}.jpg`,
+    download_url: `${name}-${index}.download`,
+    original_name: `${name}-${index}.jpg`,
+  }));
   return {
     client_name: name,
     service_name: '保養',
     report_date: '2026-09-21',
-    photos: [{ preview_url: `${name}.jpg`, download_url: `${name}.download`, original_name: `${name}.jpg` }],
+    photos,
   };
 }
 
@@ -126,7 +139,7 @@ async function testLatestGalleryWins() {
   h.requests[1].resolve(report('latest'));
   await flush();
   assert.strictEqual(h.bodyChildren.length, 1, 'latest response must append one gallery');
-  assert.strictEqual(h.sandbox.document.getElementById('wpr-gallery-image').src, 'latest.jpg');
+  assert.strictEqual(h.sandbox.document.getElementById('wpr-gallery-image').src, 'latest-0.jpg');
 }
 
 /**
@@ -142,9 +155,42 @@ async function testStaleErrorIsIgnored() {
   assert.deepStrictEqual(h.errors, [], 'stale error must not toast');
 }
 
+/**
+ * Verify that opening a gallery preloads only the adjacent preview URLs.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testAdjacentPreloadAndDeduplication() {
+  const h = createHarness();
+  h.sandbox.wprOpenGallery(7, 1);
+  h.requests[0].resolve(report('gallery', 4));
+  await flush();
+  assert.deepStrictEqual(h.images.map((image) => image.src).sort(), ['gallery-0.jpg', 'gallery-2.jpg']);
+  h.sandbox.wprGalleryMove(1);
+  assert.deepStrictEqual(h.images.map((image) => image.src).sort(), ['gallery-0.jpg', 'gallery-1.jpg', 'gallery-2.jpg', 'gallery-3.jpg']);
+  h.sandbox.wprGalleryMove(-1);
+  assert.strictEqual(h.images.length, 4, 'the same preview URL must not create another preloader');
+}
+
+/**
+ * Verify that a report already loaded for its detail view is reused by the gallery.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testGalleryReusesLatestDetailReport() {
+  const h = createHarness();
+  h.sandbox.wprOpenHistoryDetail(8);
+  h.requests[0].resolve(report('cached', 2));
+  await flush();
+  h.sandbox.wprOpenGallery(8, 0);
+  await flush();
+  assert.strictEqual(h.requests.length, 1, 'gallery should reuse the latest detail response');
+  assert.strictEqual(h.bodyChildren.length, 1);
+}
+
 Promise.resolve()
   .then(testStaleResponseAfterTabLeave)
   .then(testLatestGalleryWins)
   .then(testStaleErrorIsIgnored)
-  .then(() => console.log('work_progress_gallery_lifecycle: 3 passed'))
+  .then(testAdjacentPreloadAndDeduplication)
+  .then(testGalleryReusesLatestDetailReport)
+  .then(() => console.log('work_progress_gallery_lifecycle: 5 passed'))
   .catch((error) => { console.error(error.stack || error); process.exitCode = 1; });

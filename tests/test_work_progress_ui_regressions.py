@@ -49,7 +49,7 @@ def test_gallery_async_lifecycle_runtime_contract():
         timeout=120,
     )
     assert result.returncode == 0, f"gallery lifecycle runtime failed:\n{result.stdout}\n{result.stderr}"
-    assert "3 passed" in result.stdout
+    assert "5 passed" in result.stdout
 
 
 def test_detail_target_lifecycle_runtime_contract():

@@ -4993,6 +4993,11 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "appointment_note" in js
     assert "PATCH" in js and "DELETE" in js
     assert "wprGalleryMove" in js and "wprCloseGallery" in js
+    assert "wprPreloadGalleryPhoto" in js
+    assert "wprPreloadGalleryAdjacent" in js
+    assert "wprGalleryPreloadImages[url]" in js
+    assert "wprLastDetailReport && wprLastDetailReport.id === id" in js
+    assert "image.decoding = 'async'" in js
     assert "使用流程" in js
     assert "wpr-info" in js
     assert "wpr-drop" in js and "dataTransfer.files" in js
