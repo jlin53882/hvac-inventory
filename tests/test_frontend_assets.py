@@ -1263,6 +1263,15 @@ def test_stockout_js_has_delete():
     assert "DELETE" in js
 
 
+def test_pr1_defect_runtime_regressions():
+    """C-003/C-004 runtime contracts execute the production renderer/modal paths."""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "pr1_defects_runtime.test.js")],
+        cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
 def test_stockout_grouping_by_day():
     """已領出分組按「日」顯示（2026-08-12 Sarah 需求：藍色標題要含幾號並分開顯示）
 
@@ -3496,7 +3505,7 @@ def test_stockout_return_tracks_source_and_return_locations():
     assert 'POST' in modal and '/return' in modal
     assert '/api/stockout-returns/' in modal
     assert 'openEditStockoutReturnModal' in render
-    assert 'revokeStockoutReturn' in render
+    assert 'deleteStockoutReturn' in render
     assert 'return_location' in render
     assert 'esc(Number(st.id))' in modal
 
@@ -4126,7 +4135,7 @@ def test_stockout_existing_actions_and_return_states_remain():
     js = read(STOCKOUT_RENDER_JS)
     for token in (
         "openEditStockoutModal", "openEditStockoutReturnModal", "returnStockout",
-        "revokeStockoutReturn", "deleteStockoutRecord", "openStockoutSheet",
+        "deleteStockoutReturn", "deleteStockoutRecord", "openStockoutSheet",
         "reverted_at", "退回已領出", "已退回",
     ):
         assert token in js
