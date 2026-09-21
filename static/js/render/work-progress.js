@@ -3,7 +3,8 @@
 
 var wprGallery = { report: null, index: 0 };
 var wprGalleryRequestToken = 0;
-var wprGalleryPreloadImages = Object.create(null);
+var wprGalleryPreloadedUrls = Object.create(null);
+var wprGalleryPreloadInflight = Object.create(null);
 var wprLastDetailReport = null;
 var wprPhotoManageReports = {};
 var wprSuppressHistoryToggle = {};
@@ -680,7 +681,7 @@ function wprPhotoGalleryHtml(report, id, targetId) {
     var deleteButton = report.can_edit && wprPhotoManageReports[id]
       ? '<button type="button" class="wpr-photo-delete" onclick="event.stopPropagation();wprDeletePhoto(' + id + ',\'' + esc(jsStr(photo.asset_id)) + '\',\'' + esc(jsStr(actionTargetId)) + '\')" aria-label="刪除第 ' + (index + 1) + ' 張照片">✕</button>'
       : '';
-    return '<div class="wpr-photo-manage-tile"><button type="button" onclick="wprOpenGallery(' + id + ',' + index + ')"><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '"></button>' + deleteButton + '</div>';
+    return '<div class="wpr-photo-manage-tile"><button type="button" onclick="wprOpenGallery(' + id + ',' + index + ')"><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '" loading="lazy" decoding="async"></button>' + deleteButton + '</div>';
   }).join('');
 }
 /**
@@ -975,21 +976,37 @@ function wprAddExistingPhotos(id, targetId) {
  */
 async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
 /**
- * Start one background request for a preview URL and let the browser cache own the bytes.
+ * Start one background request for a preview URL and release the Image after settlement.
  * @param {Object} photo - Gallery photo metadata.
  * @returns {void} Nothing; failures fall back to normal image navigation.
  */
 function wprPreloadGalleryPhoto(photo) {
   var url = photo && photo.preview_url;
-  if (!url || wprGalleryPreloadImages[url] || typeof Image === 'undefined') return;
+  if (!url || wprGalleryPreloadedUrls[url] || wprGalleryPreloadInflight[url] || typeof Image === 'undefined') return;
+  var image;
+  var settled = false;
+  var settle;
   try {
-    var image = new Image();
+    image = new Image();
+    wprGalleryPreloadInflight[url] = image;
     image.decoding = 'async';
-    wprGalleryPreloadImages[url] = image;
+    settle = function(success) {
+      if (settled) return;
+      settled = true;
+      if (success) wprGalleryPreloadedUrls[url] = true;
+      delete wprGalleryPreloadInflight[url];
+      image.onload = null;
+      image.onerror = null;
+    };
+    image.onload = function() { settle(true); };
+    image.onerror = function() { settle(false); };
     image.src = url;
-    if (typeof image.decode === 'function') image.decode().catch(function() {});
+    if (typeof image.decode === 'function') {
+      Promise.resolve(image.decode()).then(function() { settle(true); }, function() { settle(false); });
+    }
   } catch (error) {
-    delete wprGalleryPreloadImages[url];
+    if (settle) settle(false);
+    else delete wprGalleryPreloadInflight[url];
   }
 }
 
@@ -1068,6 +1085,7 @@ function wprCloseGallery(invalidateRequest) {
   var overlay = document.getElementById('wpr-gallery-overlay');
   if (overlay) overlay.remove();
   wprGallery.report = null;
-  wprGalleryPreloadImages = Object.create(null);
+  wprGalleryPreloadedUrls = Object.create(null);
+  wprGalleryPreloadInflight = Object.create(null);
 }
 document.addEventListener('keydown', function(event) { if (wprPendingGallery.index >= 0) { if (event.key === 'Escape') wprClosePendingGallery(); if (event.key === 'ArrowLeft') wprPendingGalleryMove(-1); if (event.key === 'ArrowRight') wprPendingGalleryMove(1); return; } if (!wprGallery.report) return; if (event.key === 'Escape') wprCloseGallery(); if (event.key === 'ArrowLeft') wprGalleryMove(-1); if (event.key === 'ArrowRight') wprGalleryMove(1); });

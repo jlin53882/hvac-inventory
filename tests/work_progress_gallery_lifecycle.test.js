@@ -10,7 +10,7 @@ const source = fs.readFileSync(sourcePath, 'utf8');
 
 /**
  * Build a minimal DOM/async harness around the production gallery code.
- * @returns {{sandbox: object, bodyChildren: object[], errors: string[], requests: object[]}} Harness state.
+ * @returns {{sandbox: object, bodyChildren: object[], errors: string[], requests: object[], images: object[]}} Harness state.
  */
 function createHarness() {
   const bodyChildren = [];
@@ -65,9 +65,22 @@ function createHarness() {
     setTimeout,
     clearTimeout,
     Image: function Image() {
+      let resolveDecode;
+      let rejectDecode;
       this.decoding = '';
       this.src = '';
-      this.decode = function() { return Promise.resolve(); };
+      this.onload = null;
+      this.onerror = null;
+      this.decode = function() {
+        return new Promise((resolve, reject) => {
+          resolveDecode = resolve;
+          rejectDecode = reject;
+        });
+      };
+      this.resolveDecode = function() { resolveDecode(); };
+      this.rejectDecode = function() { rejectDecode(new Error('decode failed')); };
+      this.completeLoad = function() { if (this.onload) this.onload(); };
+      this.failLoad = function() { if (this.onerror) this.onerror(new Error('load failed')); };
       images.push(this);
     },
   };
@@ -172,6 +185,63 @@ async function testAdjacentPreloadAndDeduplication() {
 }
 
 /**
+ * Verify that completed preloaders release their Image references but retain URL state.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testCompletedPreloaderReleasesImageReference() {
+  const h = createHarness();
+  h.sandbox.wprPreloadGalleryPhoto({ preview_url: 'completed.jpg' });
+  h.images[0].completeLoad();
+  h.images[0].resolveDecode();
+  await flush();
+  assert.strictEqual(h.sandbox.wprGalleryPreloadInflight['completed.jpg'], undefined);
+  assert.strictEqual(h.sandbox.wprGalleryPreloadedUrls['completed.jpg'], true);
+}
+
+/**
+ * Verify that a completed preview URL does not create a second Image instance.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testCompletedUrlIsNotPreloadedAgain() {
+  const h = createHarness();
+  h.sandbox.wprPreloadGalleryPhoto({ preview_url: 'cached.jpg' });
+  h.images[0].completeLoad();
+  await flush();
+  h.sandbox.wprPreloadGalleryPhoto({ preview_url: 'cached.jpg' });
+  assert.strictEqual(h.images.length, 1);
+}
+
+/**
+ * Verify that a failed preload releases state and can be retried.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testFailedPreloadCanRetry() {
+  const h = createHarness();
+  h.sandbox.wprPreloadGalleryPhoto({ preview_url: 'retry.jpg' });
+  h.images[0].failLoad();
+  await flush();
+  assert.strictEqual(h.sandbox.wprGalleryPreloadInflight['retry.jpg'], undefined);
+  assert.strictEqual(h.sandbox.wprGalleryPreloadedUrls['retry.jpg'], undefined);
+  h.sandbox.wprPreloadGalleryPhoto({ preview_url: 'retry.jpg' });
+  assert.strictEqual(h.images.length, 2);
+}
+
+/**
+ * Verify that closing a Gallery clears completed and inflight preload state.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testCloseClearsPreloadLifecycleState() {
+  const h = createHarness();
+  h.sandbox.wprPreloadGalleryPhoto({ preview_url: 'close-completed.jpg' });
+  h.images[0].completeLoad();
+  await flush();
+  h.sandbox.wprPreloadGalleryPhoto({ preview_url: 'close-inflight.jpg' });
+  h.sandbox.wprCloseGallery();
+  assert.deepStrictEqual(Object.keys(h.sandbox.wprGalleryPreloadedUrls), []);
+  assert.deepStrictEqual(Object.keys(h.sandbox.wprGalleryPreloadInflight), []);
+}
+
+/**
  * Verify that a report already loaded for its detail view is reused by the gallery.
  * @returns {Promise<void>} Completion promise.
  */
@@ -191,6 +261,10 @@ Promise.resolve()
   .then(testLatestGalleryWins)
   .then(testStaleErrorIsIgnored)
   .then(testAdjacentPreloadAndDeduplication)
+  .then(testCompletedPreloaderReleasesImageReference)
+  .then(testCompletedUrlIsNotPreloadedAgain)
+  .then(testFailedPreloadCanRetry)
+  .then(testCloseClearsPreloadLifecycleState)
   .then(testGalleryReusesLatestDetailReport)
-  .then(() => console.log('work_progress_gallery_lifecycle: 5 passed'))
+  .then(() => console.log('work_progress_gallery_lifecycle: 9 passed'))
   .catch((error) => { console.error(error.stack || error); process.exitCode = 1; });

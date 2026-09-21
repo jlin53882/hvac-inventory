@@ -4995,9 +4995,17 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wprGalleryMove" in js and "wprCloseGallery" in js
     assert "wprPreloadGalleryPhoto" in js
     assert "wprPreloadGalleryAdjacent" in js
-    assert "wprGalleryPreloadImages[url]" in js
+    assert "wprGalleryPreloadedUrls[url]" in js
+    assert "wprGalleryPreloadInflight[url]" in js
+    assert "delete wprGalleryPreloadInflight[url]" in js
     assert "wprLastDetailReport && wprLastDetailReport.id === id" in js
     assert "image.decoding = 'async'" in js
+    gallery_block = js.split("function wprPhotoGalleryHtml", 1)[1].split(
+        "async function wprOpenHistoryDetail", 1
+    )[0]
+    assert "thumbnail_url" in gallery_block
+    assert 'loading=\"lazy\"' in gallery_block
+    assert 'decoding=\"async\"' in gallery_block
     assert "使用流程" in js
     assert "wpr-info" in js
     assert "wpr-drop" in js and "dataTransfer.files" in js
