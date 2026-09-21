@@ -90,6 +90,47 @@ Server and frontend status consumers must use the same normalization boundary. D
 - BOM rows must be aggregated by item before kit shortage calculation and deduction; duplicate item IDs in kit input are invalid.
 - Soft-delete, multi-location, decimal normalization, prepared quantity, movement records, and exports are one connected contract surface. A change to one must inspect all relevant writers and consumers.
 
+### 3.5 Inventory writer and transaction ownership
+
+Inventory mutation ownership is distributed across these current route-level writers:
+
+| Mutation area | Current owner | Transaction characteristic | Protected state and side effects |
+|---|---|---|---|
+| Item create / quantity adjustment | `app/routes/items.py` | Create uses the connection's deferred SQLite write transaction; adjustment uses explicit `BEGIN IMMEDIATE`. | `item_stocks`; adjustment also writes `movements`. |
+| Kit inventory mutation | `app/routes/kits.py` | Assembly and disassembly use explicit `BEGIN IMMEDIATE`; helper-emitted stock writes remain inside the route-owned transaction. | Material and kit `item_stocks`; assembly/disassembly `movements`. |
+| Prepared quantity / direct stockout | `app/routes/stockout.py` | Preparation begins on its first guarded write; direct stockout uses explicit `BEGIN IMMEDIATE`. | `items.prepared_qty`, `item_stocks`, and `movements`, according to the operation. |
+| Stocktake | `app/routes/stocktake.py` | Explicit `BEGIN IMMEDIATE`; batch writes commit or roll back together. | Location `item_stocks` and adjustment `movements`. |
+| Cross-site transfer | `app/routes/transfers.py` | Explicit `BEGIN IMMEDIATE`; source deduction, target creation/update, and both movements share the route transaction. | Source/target `item_stocks` and source/target `movements`. |
+| Unit inventory conversion | `app/routes/units.py` | `consolidate_item` uses explicit `BEGIN IMMEDIATE` when changing the item unit; `new_qty` additionally changes stock and writes a conversion movement. | `items.unit`; with quantity conversion, `item_stocks` and `movements`. |
+
+These are route-owned transaction boundaries. Lower-level helpers that receive a connection must preserve the caller's boundary and must not commit independently. Transaction style is contract-specific; do not normalize every writer to `BEGIN IMMEDIATE` merely for stylistic consistency.
+
+### 3.6 Inventory mutation verification and refactor gate
+
+The protected inventory states are `item_stocks`, `items.prepared_qty`, and `movements`. Any affected mutation path must preserve the prepared quantity invariant, location/site identity, movement side effects, and all-or-nothing persistence when its operation fails. The evidence must match the side effects: database state and rollback checks for multi-table writes, plus concurrency checks where correctness reads determine whether stock may be reduced. Direct stockout currently protects those reads with `BEGIN IMMEDIATE`; this does not require every writer to use the same transaction-start syntax.
+
+Before centralizing inventory mutations or introducing a generic inventory mutation service:
+
+1. identify a concrete, verified defect or maintenance risk;
+2. provide a RED regression that reproduces it;
+3. identify every affected writer module and consumer;
+4. preserve prepared quantity, movement, location, kit, and transfer contracts;
+5. verify transaction, failure, and rollback boundaries; and
+6. re-run representative runtime writer attribution after the change.
+
+Multiple writers, duplicate SQL, large route files, or a preference for a cleaner abstraction are not sufficient reasons by themselves. A representative runtime test set documents current ownership; it is not exhaustive proof that every endpoint is correct or atomic.
+
+The static architecture-fitness tool is `scripts/scan_inventory_writers.py`. It scans SQL-like literals for the three protected states and can compare writer topology before and after a change. It does not prove executable reachability, transaction correctness, atomicity, rollback correctness, or concurrency correctness. Dynamic/helper-generated SQL may be missed, and comments, docstrings, templates, or other static SQL-like text may be counted. Runtime attribution remains owned by `tests/test_inventory_writer_transactions.py`.
+
+When inventory writer topology changes, the minimum verification is:
+
+1. run the static scanner and inspect added/removed writer candidates;
+2. trace a representative real API path;
+3. verify the transaction boundary and movement side effects;
+4. run relevant rollback, atomicity, and concurrency regressions; and
+5. update this contract only when ownership or the protected contract changes.
+
+
 ## 4. Page Membership, Visibility, Capability, and Scope
 
 These are separate concepts and must remain separate in code, tests, and documentation.
@@ -331,6 +372,9 @@ The map names executable owners, not historical run results:
 | Work Progress page visibility | `tests/work_progress_page_visibility_runtime.test.js`, `tests/test_rbac_perms.py`, `tests/test_work_progress.py` |
 | Work Progress owner/global authorization and snapshot behavior | `tests/test_work_progress.py`, `tests/test_rbac_perms.py` |
 | Stockout/prepared quantity | `tests/test_prepared_api.py`, `tests/test_quantity.py`, `tests/test_inventory_integrity.py` |
+| Inventory writer ownership and transaction boundaries | `tests/test_inventory_writer_transactions.py` |
+| Static inventory writer topology | `scripts/scan_inventory_writers.py`, `tests/test_inventory_writer_scanner.py` |
+| Inventory mutation rollback and transfer side effects | `tests/test_inventory_integrity.py`, `tests/test_vehicle_inventory.py` |
 | Inventory invariants and multi-location identity | `tests/test_inventory_integrity.py`, `tests/test_vehicle_inventory.py`, `tests/test_main.py` |
 | Quantity parsing and three-decimal write boundary | `tests/test_quantity.py`, `tests/qty.test.js` |
 | Kit shortage and KPI exclusion | `tests/test_main.py`, `tests/test_media_storage.py`, `tests/test_inventory_integrity.py` |
@@ -384,6 +428,12 @@ The primary implementation owners for the contracts in this document are:
 - `app/routes/appointments.py`
 - `app/routes/work_progress.py`
 - `app/services/inventory_stock.py`
+- `app/routes/items.py`
+- `app/routes/kits.py`
+- `app/routes/stockout.py`
+- `app/routes/stocktake.py`
+- `app/routes/transfers.py`
+- `app/routes/units.py`
 - `app/services/work_progress.py`
 - `app/services/file_storage.py`
 - `static/js/globals.js`

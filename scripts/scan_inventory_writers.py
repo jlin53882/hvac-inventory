@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Phase 0 architecture-fitness baseline for inventory SQL writers.
+"""Static architecture-fitness scanner for inventory SQL writers.
 
-This is intentionally a static scanner.  It does not import the application,
-open a database, execute SQL, or attempt runtime caller attribution.  The
-exact same script is reused at PR 2B-0 and at PR 2B completion.
+This scanner identifies SQL-like writes to protected inventory state. It does
+not import the application, execute SQL, or prove runtime reachability,
+transaction correctness, atomicity, rollback, or concurrency behavior.
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args()
     results = scan(args.root.resolve())
-    print("Phase 0 static inventory-writer baseline")
+    print("Inventory writer static scan")
     print("Scanner: scripts/scan_inventory_writers.py")
     print("Mode: static SQL literals only; no runtime SQL tracing")
     for table, rows in results.items():

@@ -1,4 +1,4 @@
-"""PR 2B-0 runtime evidence for inventory writers and transactions.
+"""Runtime evidence for inventory writers and transaction boundaries.
 
 These tests characterize the current boundary without changing production code.
 They trace representative API mutations, attribute SQL to application callers,
@@ -107,7 +107,7 @@ class SqlTrace:
 @pytest.fixture()
 def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     """Create an isolated authenticated client for runtime writer tracing."""
-    test_db = tmp_path / "pr2b0_inventory.db"
+    test_db = tmp_path / "inventory_writer_trace.db"
     test_upload = tmp_path / "uploads"
     test_upload.mkdir()
     monkeypatch.setattr(app_db, "DB_PATH", str(test_db))
@@ -145,7 +145,7 @@ def _create_item(
     response = client.post(
         "/api/items",
         json={
-            "brand": "PR2B0",
+            "brand": "inventory writer trace",
             "code": code,
             "name": name,
             "unit": unit,
@@ -245,7 +245,7 @@ def test_runtime_trace_attributes_representative_inventory_writers(client, monke
         lambda: client.post(
             "/api/items",
             json={
-                "brand": "PR2B0",
+                "brand": "inventory writer trace",
                 "code": "TRACE-1",
                 "name": "writer trace item",
                 "unit": "個",
@@ -269,7 +269,7 @@ def test_runtime_trace_attributes_representative_inventory_writers(client, monke
         monkeypatch,
         lambda: client.post(
             f"/api/items/{item_id}/adjust",
-            json={"delta": 2, "reason": "PR2B0 trace"},
+            json={"delta": 2, "reason": "inventory writer trace"},
         ),
     )
     _assert_successful_route_transaction(
@@ -295,7 +295,7 @@ def test_runtime_trace_attributes_representative_inventory_writers(client, monke
         monkeypatch,
         lambda: client.post(
             "/api/stockout",
-            json={"item_id": item_id, "qty": 1, "destination": "PR2B0"},
+            json={"item_id": item_id, "qty": 1, "destination": "inventory writer trace"},
         ),
     )
     _assert_successful_route_transaction(
@@ -330,8 +330,8 @@ def test_runtime_trace_attributes_representative_inventory_writers(client, monke
         trace.events.extend(operation_trace.events)
         trace.callback_errors.extend(operation_trace.callback_errors)
     summary = trace.summary()
-    print(f"PR2B0 runtime writer summary: {summary}")
-    print(f"PR2B0 runtime writer callers: {sorted({event.caller for event in trace.events})}")
+    print(f"inventory writer runtime summary: {summary}")
+    print(f"inventory writer runtime callers: {sorted({event.caller for event in trace.events})}")
     assert not trace.callback_errors, trace.callback_errors
     assert all(summary.values()), summary
     assert any(event.sql.upper().startswith("BEGIN IMMEDIATE") for event in trace.events)
