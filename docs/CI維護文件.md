@@ -13,7 +13,29 @@
 | `scripts/run-tests.sh` | 本機與 CI 共用的測試分組實作 |
 | `.github/workflows/ci.yml` | CI workflow 的可執行定義 |
 
-README 與 `專案架構.md` 僅保留摘要；當摘要與 workflow 不一致時，以 workflow 與本文件為準，並同步修正摘要。
+`README.md` 與 `專案架構.md` 僅保留高階摘要與導引，不重複完整 CI contract。
+
+### Executable source 與 intended contract
+
+- `.github/workflows/ci.yml` 是 CI 的 executable source of truth，代表 GitHub Actions 目前實際會如何執行。
+- `docs/CI維護文件.md` 是 CI 的 intended maintenance contract，定義 CI 預期長期遵守的 event、Gate、concurrency、runtime、dependency 與維護規則。
+- `README.md` 與 `專案架構.md` 僅保留高階摘要與導引，不重複完整 CI contract。
+
+若 workflow 與維護文件出現不一致，不得單純以其中一份覆蓋另一份或忽略差異；該差異即視為 CI contract drift。依以下順序處理：
+
+1. 確認目前 workflow 的實際行為。
+2. 確認本文件定義的 intended behavior。
+3. 判斷是 implementation drift 或 documentation drift。
+4. 修正錯誤的一方，直到 workflow、維護文件與摘要重新一致。
+5. 若修改 CI 行為，必須同步更新本文件與必要驗證。
+
+判斷原則：
+
+- workflow 錯、文件對 → 修 workflow。
+- workflow 對、文件舊 → 修文件。
+- 兩邊都不確定 → 回查 PR、requirement、tests 與 owner decision，不可自行選一邊當正確答案。
+
+不得長期保留 `workflow behavior ≠ CI maintenance contract`。
 
 ## 2. CI 基本不變量
 
