@@ -1040,8 +1040,12 @@ function wprPreloadGalleryAround(report, index, direction) {
   var photos = report && report.photos;
   if (!photos || photos.length < 2) return;
   var count = photos.length;
+  var seenIndexes = Object.create(null);
   wprGalleryPreloadOffsets(direction).forEach(function(offset) {
-    wprPreloadGalleryPhoto(photos[(index + offset + count) % count]);
+    var targetIndex = (index + offset + count) % count;
+    if (targetIndex === index || seenIndexes[targetIndex]) return;
+    seenIndexes[targetIndex] = true;
+    wprPreloadGalleryPhoto(photos[targetIndex]);
   });
 }
 

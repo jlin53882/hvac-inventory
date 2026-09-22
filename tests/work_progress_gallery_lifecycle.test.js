@@ -347,6 +347,52 @@ async function testRapidNavigationDeduplicatesPreloadImages() {
 }
 
 /**
+ * Verify a two-photo Gallery never preloads its current photo on initial render.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testTwoPhotoGalleryDoesNotPreloadCurrentPhoto() {
+  const h = createHarness();
+  h.sandbox.wprOpenGallery(15, 0);
+  h.requests[0].resolve(report('two-initial', 2));
+  await flush();
+  assert.deepStrictEqual(h.images.map((image) => image.src), ['two-initial-1.jpg']);
+}
+
+/**
+ * Verify two-photo forward and backward navigation preload only the other photo.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testTwoPhotoNavigationDoesNotPreloadCurrentPhoto() {
+  const forward = createHarness();
+  forward.sandbox.wprOpenGallery(16, 0);
+  forward.requests[0].resolve(report('two-forward', 2));
+  await flush();
+  forward.sandbox.wprGalleryMove(1);
+  assert.deepStrictEqual(forward.images.map((image) => image.src).sort(), ['two-forward-0.jpg', 'two-forward-1.jpg']);
+  assert.strictEqual(new Set(forward.images.map((image) => image.src)).size, 2);
+
+  const backward = createHarness();
+  backward.sandbox.wprOpenGallery(17, 1);
+  backward.requests[0].resolve(report('two-backward', 2));
+  await flush();
+  backward.sandbox.wprGalleryMove(-1);
+  assert.deepStrictEqual(backward.images.map((image) => image.src).sort(), ['two-backward-0.jpg', 'two-backward-1.jpg']);
+  assert.strictEqual(new Set(backward.images.map((image) => image.src)).size, 2);
+}
+
+/**
+ * Verify wrapped offsets are deduplicated by target index before creating preloaders.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testWrappedPreloadTargetsAreIndexDeduplicated() {
+  const h = createHarness();
+  h.sandbox.wprPreloadGalleryAround(report('three-wrap', 3), 1, 1);
+  const urls = h.images.map((image) => image.src);
+  assert.strictEqual(new Set(urls).size, urls.length);
+  assert.deepStrictEqual(urls.sort(), ['three-wrap-0.jpg', 'three-wrap-2.jpg']);
+}
+
+/**
  * Verify that a report already loaded for its detail view is reused by the gallery.
  * @returns {Promise<void>} Completion promise.
  */
@@ -375,6 +421,9 @@ Promise.resolve()
   .then(testBackwardNavigationLookahead)
   .then(testDirectionalLookaheadWraparound)
   .then(testRapidNavigationDeduplicatesPreloadImages)
+  .then(testTwoPhotoGalleryDoesNotPreloadCurrentPhoto)
+  .then(testTwoPhotoNavigationDoesNotPreloadCurrentPhoto)
+  .then(testWrappedPreloadTargetsAreIndexDeduplicated)
   .then(testGalleryReusesLatestDetailReport)
-  .then(() => console.log('work_progress_gallery_lifecycle: 14 passed'))
+  .then(() => console.log('work_progress_gallery_lifecycle: 17 passed'))
   .catch((error) => { console.error(error.stack || error); process.exitCode = 1; });
