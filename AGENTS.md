@@ -59,6 +59,14 @@ This project is indexed by GitNexus as **hvac-inventory** (2218 symbols, 5489 re
 - 純視覺改動（樣式/對齊）→ 收尾紀錄標記「不需測試」，不得默默 0 測試 commit。
 - commit 前 `node --check` 全量已由 `test_js_syntax` 自動覆蓋（22 檔），不需手動。
 
+## CI 維護文件
+
+修改 GitHub Actions、CI Gate 或 `scripts/run-tests.sh` 前，必須先閱讀：
+
+- `docs/CI維護文件.md`
+- `docs/CI測試群組對照.md`
+- `docs/單元測試維護文件.md`
+
 ## 安全開發守則（2026-08-12 定案：新增功能必讀）
 
 > 背景：Phase 0-6 修復後，新功能（手機 UI f3c8880 / 整組編輯 36306ea / 行事曆）仍各帶進 stored XSS、負 qty 假流水、公式注入——**測試只守功能不守安全模式**。以下 5 條為新增功能的強制守則，違反會被 `tests/test_security_regression.py` 擋下。

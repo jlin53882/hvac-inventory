@@ -75,7 +75,7 @@
 
 ### GitHub Actions CI
 
-`.github/workflows/ci.yml` 會在 Pull Request、`master` push、每週日 00:00（Asia/Taipei；UTC Saturday 16:00）排程或手動執行時啟動，使用 Windows runner。PR 使用 Python 3.12 primary full regression 與平行 frontend/security、inventory/database、RBAC、reports diagnostics；master push 另外執行 Python 3.11 compatibility full regression；排程執行 serial deep regression。手動 `profile=true` 只在 Python 3.12 primary full regression 收集 `pytest --durations=50`，不重跑 Python 3.11 compatibility；`profile=false` 才執行完整 manual verification。CI 透過 `uv.lock` 安裝固定依賴，保留 `CI / Gate` 作為穩定彙總檢查。CI 只驗證程式碼，不直接連線或部署正式機器；正式上線仍需依 Windows runtime 驗證流程處理。
+CI 使用 GitHub Actions，在 Pull Request、`master` push、每週日排程與手動執行時驗證測試；穩定彙總檢查為 `CI / Gate`。完整 event、profile、concurrency、uv 與維護 SOP 見 [`docs/CI維護文件.md`](docs/CI維護文件.md)。CI 只驗證程式碼，不直接連線或部署正式機器；正式上線仍需依 Windows runtime 驗證流程處理。
 
 ---
 
