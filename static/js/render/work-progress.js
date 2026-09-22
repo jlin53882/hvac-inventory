@@ -6,6 +6,7 @@ var wprGalleryRequestToken = 0;
 var wprGalleryPreloadState = wprCreateGalleryPreloadState();
 var wprLastDetailReport = null;
 var wprPhotoManageStates = {};
+var wprPhotoManageReports = {};
 var wprSuppressHistoryToggle = {};
 var wprPendingSubmit = null;
 var wprPendingGallery = { index: -1 };
@@ -76,7 +77,7 @@ async function renderWorkProgress() {
   var el = document.getElementById('content');
   if (!el) return;
   wprClearPendingFiles();
-  wprDayRequestToken++; wprHistoryRequestToken++; wprKpiRequestToken++; wprDetailRequestTokens = {}; wprPhotoManageStates = {}; wprSuppressHistoryToggle = {}; wprSelectRequestToken++;
+  wprDayRequestToken++; wprHistoryRequestToken++; wprKpiRequestToken++; wprDetailRequestTokens = {}; wprPhotoManageStates = {}; wprPhotoManageReports = {}; wprSuppressHistoryToggle = {}; wprSelectRequestToken++;
   wprAppointments = [];
   wprReportsByAppointment = {};
   wprCurrentReport = null;
@@ -270,6 +271,7 @@ async function wprSelectJob(id) {
     wprRequestDraftReset(function() { wprSelectJob(id); });
     return;
   }
+  wprClearPhotoManageStates(function(targetId) { return targetId.indexOf('wpr-selected-report-detail-') === 0; });
   var existing = wprReportsByAppointment[id];
   if (existing) {
     try {
@@ -597,9 +599,24 @@ function wprRenderHistoryPagination() {
   return '<nav class="wpr-pagination" aria-label="工作進度歷史分頁"><button type="button" onclick="wprLoadHistory(wprHistoryPage - 1)"' + (wprHistoryPage <= 1 ? ' disabled' : '') + '>上一頁</button><span>第 ' + wprHistoryPage + ' / ' + lastPage + ' 頁 · 共 ' + wprHistoryTotal + ' 筆</span><button type="button" onclick="wprLoadHistory(wprHistoryPage + 1)"' + (wprHistoryPage >= lastPage ? ' disabled' : '') + '>下一頁</button></nav>';
 }
 /**
- * Load and render a filtered, paginated history result.
- * @param {number} page - Function input.
+ * Drop management state for detail surfaces that no longer exist.
+ * @param {function(string): boolean} predicate - State-key matcher.
  * @returns {void} Function result.
+ */
+function wprClearPhotoManageStates(predicate) {
+  Object.keys(wprPhotoManageStates).forEach(function(key) {
+    var targetId = key.slice(key.indexOf(':') + 1);
+    if (predicate(targetId)) {
+      delete wprPhotoManageStates[key];
+      delete wprPhotoManageReports[key];
+    }
+  });
+}
+
+/**
+ * Load the paginated history list and discard replaced history detail state.
+ * @param {number} page - Requested history page.
+ * @returns {Promise<void>} Completion promise.
  */
 async function wprLoadHistory(page) {
   var list = document.getElementById('wpr-history-list'); if (!list) return;
@@ -615,6 +632,7 @@ async function wprLoadHistory(page) {
     var lastPage = Math.max(1, Math.ceil(wprHistoryTotal / wprHistoryPageSize));
     if (page > lastPage) { wprLoadHistory(lastPage); return; }
     wprHistoryPage = Number(data.page) || page;
+    wprClearPhotoManageStates(function(targetId) { return targetId.indexOf('wpr-detail-') === 0; });
     if (!data.items.length) { list.innerHTML = '<div class="wpr-empty wpr-history-empty">📸 尚無工作進度<br><small>目前沒有符合條件的工作進度回報。</small></div>'; return; }
     list.innerHTML = data.items.map(wprHistoryCard).join('') + wprRenderHistoryPagination();
   } catch (error) { if (token === wprHistoryRequestToken) list.innerHTML = '<div class="wpr-empty">⚠️ ' + esc(error.message) + '</div>'; }
@@ -728,15 +746,18 @@ function wprPhotoManagementToolbarHtml(id, targetId) {
  * @param {string} [targetId] - Optional detail container id for non-history callers.
  * @returns {Promise<void>} Completion promise.
  */
-async function wprOpenHistoryDetail(id, targetId) {
+async function wprOpenHistoryDetail(id, targetId, cachedReport) {
   var detailTargetId = wprDetailTargetId(id, targetId);
   var detail = document.getElementById(detailTargetId); if (!detail) return;
   var tokenKey = id + ':' + detailTargetId;
   var token = (wprDetailRequestTokens[tokenKey] || 0) + 1; wprDetailRequestTokens[tokenKey] = token;
-  if (wprLastDetailReport && wprLastDetailReport.id === id) wprLastDetailReport = null;
+  var cacheKey = wprPhotoManageKey(id, detailTargetId);
+  if (cachedReport) wprPhotoManageReports[cacheKey] = cachedReport;
+  if (wprLastDetailReport && wprLastDetailReport.id === id && !cachedReport) wprLastDetailReport = null;
   try {
-    var report = await wprFetch('/api/work-progress/' + id);
+    var report = cachedReport || (await wprFetch('/api/work-progress/' + id));
     if (token !== wprDetailRequestTokens[tokenKey]) return;
+    wprPhotoManageReports[cacheKey] = report;
     wprLastDetailReport = { id: id, report: report };
     var actionTargetId = esc(jsStr(detailTargetId));
     detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-detail-photo-section"><h4 class="wpr-detail-photo-title">施工照片</h4>' + (wprPhotoManageState(id, detailTargetId).manage ? wprPhotoManagementToolbarHtml(id, detailTargetId) : '') + '<div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id, detailTargetId) + '</div></div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" class="wpr-detail-action-edit" onclick="wprEditReport(' + id + ',\'' + actionTargetId + '\')">✏️ 編輯回報</button><button type="button" class="wpr-detail-action-manage" onclick="wprTogglePhotoManage(' + id + ',\'' + actionTargetId + '\')">' + (wprPhotoManageState(id, detailTargetId).manage ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" class="wpr-detail-action-add" onclick="wprAddExistingPhotos(' + id + ',\'' + actionTargetId + '\')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-detail-action-delete wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
@@ -764,12 +785,12 @@ function wprTogglePhotoManage(id, targetId) {
  */
 async function wprTogglePhotoSelection(id, index, targetId) {
   var state = wprPhotoManageState(id, targetId);
-  var report = wprLastDetailReport && wprLastDetailReport.id === id ? wprLastDetailReport.report : null;
+  var report = wprPhotoManageReports[wprPhotoManageKey(id, targetId)] || null;
   var photo = report && report.photos && report.photos[index];
   if (!state.manage || !photo) return;
   if (state.selected[photo.asset_id]) delete state.selected[photo.asset_id];
   else state.selected[photo.asset_id] = true;
-  await wprOpenHistoryDetail(id, targetId);
+  await wprOpenHistoryDetail(id, targetId, report);
 }
 
 /**
@@ -780,11 +801,11 @@ async function wprTogglePhotoSelection(id, index, targetId) {
  */
 async function wprSelectAllPhotoSelection(id, targetId) {
   var state = wprPhotoManageState(id, targetId);
-  var report = wprLastDetailReport && wprLastDetailReport.id === id ? wprLastDetailReport.report : null;
+  var report = wprPhotoManageReports[wprPhotoManageKey(id, targetId)] || null;
   if (!state.manage || !report) return;
   state.selected = Object.create(null);
   (report.photos || []).forEach(function(photo) { state.selected[photo.asset_id] = true; });
-  await wprOpenHistoryDetail(id, targetId);
+  await wprOpenHistoryDetail(id, targetId, report);
 }
 
 /**
@@ -795,8 +816,9 @@ async function wprSelectAllPhotoSelection(id, targetId) {
  */
 async function wprClearPhotoSelection(id, targetId) {
   var state = wprPhotoManageState(id, targetId);
+  var report = wprPhotoManageReports[wprPhotoManageKey(id, targetId)] || null;
   state.selected = Object.create(null);
-  await wprOpenHistoryDetail(id, targetId);
+  await wprOpenHistoryDetail(id, targetId, report);
 }
 
 /**
@@ -807,6 +829,7 @@ async function wprClearPhotoSelection(id, targetId) {
  */
 async function wprBatchDeletePhotos(id, targetId) {
   var state = wprPhotoManageState(id, targetId);
+  var report = wprPhotoManageReports[wprPhotoManageKey(id, targetId)] || null;
   var assetIds = Object.keys(state.selected);
   if (!state.manage || !assetIds.length || state.deleting) return;
   if (!window.confirm('確定刪除選取的 ' + assetIds.length + ' 張施工照片？\\n此動作無法復原。')) return;
@@ -821,7 +844,7 @@ async function wprBatchDeletePhotos(id, targetId) {
   } catch (error) {
     state.deleting = false;
     toast(error.message, 'error');
-    await wprOpenHistoryDetail(id, targetId);
+    await wprOpenHistoryDetail(id, targetId, report);
   }
 }
 /**
@@ -1069,7 +1092,7 @@ function wprAddExistingPhotos(id, targetId) {
  * @param {number} id - Function input.
  * @returns {void} Function result.
  */
-async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
+async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { wprClearPhotoManageStates(function(targetId) { return targetId === 'wpr-detail-' + id || targetId === 'wpr-selected-report-detail-' + id; }); await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
 /**
  * Create isolated preload state for one Gallery lifecycle.
  * @returns {{completed: Object, inflight: Object}} Lifecycle-owned preload state.

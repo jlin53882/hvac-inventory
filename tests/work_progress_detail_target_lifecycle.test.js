@@ -18,6 +18,11 @@ function createHarness() {
   const requests = [];
   const selectedId = 'wpr-selected-report-detail-42';
   elements.set(selectedId, { id: selectedId, innerHTML: '', textContent: '' });
+  elements.set('wpr-history-list', { id: 'wpr-history-list', innerHTML: '', textContent: '' });
+  elements.set('wpr-from', { value: '' });
+  elements.set('wpr-to', { value: '' });
+  elements.set('wpr-query', { value: '' });
+  elements.set('wpr-result-count', { textContent: '' });
   const document = {
     body: { appendChild() {} },
     createElement() {
@@ -48,6 +53,7 @@ function createHarness() {
     },
     console,
     Promise,
+    URLSearchParams,
     setTimeout,
     clearTimeout,
     fetch(url, options) {
@@ -58,6 +64,8 @@ function createHarness() {
       return promise;
     },
     wprDetailRequestTokens: {},
+    wprHistoryRequestToken: 0,
+    wprHistoryPageSize: 10,
     wprHistoryPage: 1,
   };
   vm.runInNewContext(source, sandbox, { filename: sourcePath });
@@ -188,27 +196,58 @@ async function testPhotoManagementUsesOneBatchRequest() {
   h.sandbox.wprTogglePhotoManage(42, selectedId);
   h.requests[1].resolve({ ok: true, json: async () => report('managed') });
   await flush();
+  const beforeSelectionRequests = h.requests.length;
+  h.sandbox.wprTogglePhotoSelection(42, 0, selectedId);
+  await flush();
+  assert.strictEqual(h.requests.length, beforeSelectionRequests, 'toggle selection must not fetch the report');
   h.sandbox.wprSelectAllPhotoSelection(42, selectedId);
-  h.requests[2].resolve({ ok: true, json: async () => report('selected') });
+  await flush();
+  assert.strictEqual(h.requests.length, beforeSelectionRequests, 'select all must not fetch the report');
+  h.sandbox.wprClearPhotoSelection(42, selectedId);
+  await flush();
+  assert.strictEqual(h.requests.length, beforeSelectionRequests, 'clear selection must not fetch the report');
+  h.sandbox.wprSelectAllPhotoSelection(42, selectedId);
   await flush();
   h.sandbox.window = { confirm: () => true };
   h.sandbox.wprLoadHistory = async () => {};
   h.sandbox.wprBatchDeletePhotos(42, selectedId);
-  assert.strictEqual(h.requests.length, 4, 'batch delete must issue one mutation request');
-  assert.strictEqual(h.requests[3].url, '/api/work-progress/42/photos/batch-delete');
-  assert.strictEqual(h.requests[3].options.method, 'POST');
-  const payload = JSON.parse(h.requests[3].options.body);
+  assert.strictEqual(h.requests.length, 3, 'batch delete must issue one mutation request');
+  assert.strictEqual(h.requests[2].url, '/api/work-progress/42/photos/batch-delete');
+  assert.strictEqual(h.requests[2].options.method, 'POST');
+  const payload = JSON.parse(h.requests[2].options.body);
   assert.deepStrictEqual(payload.asset_ids.sort(), ['asset-42', 'asset-43']);
-  h.requests[3].resolve({ ok: true, json: async () => ({ deleted_count: 2, remaining_count: 0 }) });
+  h.requests[2].resolve({ ok: true, json: async () => ({ deleted_count: 2, remaining_count: 0 }) });
   await flush();
-  assert.strictEqual(h.requests.length, 5, 'successful mutation must refresh the same detail target');
-  assert.strictEqual(h.requests[4].url, '/api/work-progress/42');
+  assert.strictEqual(h.requests.length, 4, 'successful mutation must refresh the same detail target');
+  assert.strictEqual(h.requests[3].url, '/api/work-progress/42');
+}
+/**
+ * History replacement clears history state but preserves selected-detail state.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testHistoryReloadCleansOnlyHistoryTargets() {
+  const h = createHarness();
+  const historyState = h.sandbox.wprPhotoManageState(42, 'wpr-detail-42');
+  historyState.manage = true;
+  historyState.selected['asset-42'] = true;
+  const selectedState = h.sandbox.wprPhotoManageState(42, 'wpr-selected-report-detail-42');
+  selectedState.manage = true;
+  selectedState.selected['asset-43'] = true;
+  h.sandbox.wprLoadHistory(1);
+  assert.strictEqual(h.requests.length, 1);
+  h.requests[0].resolve({ ok: true, json: async () => ({ page: 2, total: 1, items: [{ id: 42, report_date: '2026-09-21', service_name: '保養', client_name: '三重', uploader_name: '測試', photo_count: 2 }] }) });
+  await flush();
+  assert.strictEqual(h.sandbox.wprPhotoManageState(42, 'wpr-detail-42').manage, false);
+  assert.deepStrictEqual(Object.keys(h.sandbox.wprPhotoManageState(42, 'wpr-detail-42').selected), []);
+  assert.strictEqual(h.sandbox.wprPhotoManageState(42, 'wpr-selected-report-detail-42').manage, true);
+  assert.deepStrictEqual(Object.keys(h.sandbox.wprPhotoManageState(42, 'wpr-selected-report-detail-42').selected), ['asset-43']);
 }
 Promise.resolve()
+  .then(testHistoryReloadCleansOnlyHistoryTargets)
   .then(testSelectedDetailManageRefreshesSelectedTarget)
   .then(testPhotoManagementUsesOneBatchRequest)
   .then(testHistoryTargetFallbackRemainsAvailable)
   .then(testReloadHelperPreservesSelectedTarget)
   .then(testDetailTokensAreScopedPerTarget)
-  .then(() => console.log('work_progress_detail_target_lifecycle: 5 passed'))
+  .then(() => console.log('work_progress_detail_target_lifecycle: 6 passed'))
   .catch((error) => { console.error(error.stack || error); process.exitCode = 1; });

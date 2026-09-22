@@ -1,6 +1,7 @@
 """每日工作進度回報 API / storage / RBAC regression tests."""
 from concurrent.futures import ThreadPoolExecutor
 import io
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -408,6 +409,37 @@ def test_work_progress_batch_delete_restores_files_when_staging_fails(wpr_env, m
     assert response.status_code == 500
     assert client.get(f"/api/work-progress/{report['id']}").json()["photo_count"] == 2
     assert sorted(path.relative_to(uploads).as_posix() for path in uploads.rglob("*")) == before
+
+
+
+def test_restore_staged_deletions_attempts_all_and_preserves_failed_backup(tmp_path, monkeypatch):
+    """A restore failure must not prevent later files and must retain recovery material."""
+    source_failed = tmp_path / "failed.jpg"
+    source_later = tmp_path / "later.jpg"
+    backup_failed = tmp_path / "staging" / "failed.jpg"
+    backup_later = tmp_path / "staging" / "later.jpg"
+    backup_failed.parent.mkdir()
+    backup_failed.write_bytes(b"failed")
+    backup_later.write_bytes(b"later")
+    calls = []
+    original_replace = work_progress.os.replace
+
+    def fail_one(source, destination):
+        calls.append((Path(source), Path(destination)))
+        if Path(source) == backup_failed:
+            raise OSError("simulated restore failure")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(work_progress.os, "replace", fail_one)
+    with pytest.raises(OSError, match="failed to restore 1 staged"):
+        work_progress._restore_staged_deletions([
+            (source_failed, backup_failed),
+            (source_later, backup_later),
+        ])
+
+    assert source_later.read_bytes() == b"later"
+    assert backup_failed.read_bytes() == b"failed"
+    assert len(calls) == 2
 
 
 def test_unrelated_asset_cannot_be_read_or_deleted(wpr_env):

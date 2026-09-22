@@ -518,11 +518,18 @@ def add_work_progress_photos(
 
 
 def _restore_staged_deletions(staged: list[tuple[Path, Path]]) -> None:
-    """Restore files moved to a deletion staging directory in reverse order."""
+    """Best-effort restore every staged file and report all restore failures."""
+    errors: list[tuple[Path, Path, Exception]] = []
     for source, backup in reversed(staged):
-        source.parent.mkdir(parents=True, exist_ok=True)
-        if backup.exists():
-            os.replace(backup, source)
+        try:
+            source.parent.mkdir(parents=True, exist_ok=True)
+            if backup.exists():
+                os.replace(backup, source)
+        except Exception as exc:
+            errors.append((source, backup, exc))
+    if errors:
+        details = "; ".join(f"{source} <- {backup}: {exc}" for source, backup, exc in errors)
+        raise OSError(f"failed to restore {len(errors)} staged file(s): {details}") from errors[0][2]
 
 
 def _stage_asset_deletions(assets: Iterable) -> tuple[Path, list[tuple[Path, Path]]]:
@@ -544,10 +551,13 @@ def _stage_asset_deletions(assets: Iterable) -> tuple[Path, list[tuple[Path, Pat
                 os.replace(source, backup)
                 staged.append((source, backup))
         return staging, staged
-    except Exception:
-        _restore_staged_deletions(staged)
+    except Exception as exc:
+        try:
+            _restore_staged_deletions(staged)
+        except Exception as restore_exc:
+            raise RuntimeError(f"photo deletion staging recovery required: {staging}") from restore_exc
         shutil.rmtree(staging, ignore_errors=True)
-        raise
+        raise exc
 
 
 def _finish_staged_deletions(staging: Path, staged: list[tuple[Path, Path]]) -> None:
@@ -580,12 +590,15 @@ def _delete_assets_atomically(conn, report_id: int, assets: list) -> None:
             (report_id,),
         )
         conn.commit()
-    except Exception:
+    except Exception as exc:
         conn.rollback()
-        _restore_staged_deletions(staged)
+        try:
+            _restore_staged_deletions(staged)
+        except Exception as restore_exc:
+            raise RuntimeError(f"photo deletion recovery staging preserved: {staging}") from restore_exc
         if staging is not None:
             shutil.rmtree(staging, ignore_errors=True)
-        raise
+        raise exc
     _finish_staged_deletions(staging, staged)
 
 
