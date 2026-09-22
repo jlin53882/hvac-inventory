@@ -5,89 +5,320 @@ on:
     branches: [master]
   push:
     branches: [master]
+  schedule:
+    - cron: "0 16 * * 6"
   workflow_dispatch:
+    inputs:
+      profile:
+        description: "Collect pytest --durations=50 in the primary full regression"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+  group: >-
+    ci-${{ github.workflow }}-
+    ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) ||
+        github.event_name == 'push' && format('push-{0}', github.sha) ||
+        github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   UV_VERSION: "0.7.5"
 
 jobs:
-  test:
-    name: test (Python ${{ matrix.python-version }})
+  quality:
+    name: CI / Quality
+    if: github.event_name != 'schedule'
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Install uv
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
+      - name: Verify locked dependency graph
         shell: bash
-        run: python -m pip install "uv==${UV_VERSION}"
-      - name: Verify matrix interpreter
+        run: uv lock --check
+      - name: Verify interpreter
         shell: bash
         run: python -c "import sys; print(sys.version); print(sys.executable)"
+      - name: Compile Python sources
+        shell: bash
+        run: python -m compileall -q app tests main.py
+      - name: Check whitespace errors
+        shell: bash
+        run: git -c core.whitespace=cr-at-eol diff --check
+
+  frontend_security:
+    name: CI / Frontend + Security
+    if: github.event_name != 'schedule'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
       - name: Install locked dependencies
         shell: bash
         run: uv sync --locked --group dev --python "$(python -c 'import sys; print(sys.executable)')"
+      - name: Run frontend and security contracts
+        shell: bash
+        run: bash scripts/run-tests.sh frontend
+
+  inventory_database:
+    name: CI / Inventory + Database
+    if: github.event_name != 'schedule'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
+      - name: Install locked dependencies
+        shell: bash
+        run: uv sync --locked --group dev --python "$(python -c 'import sys; print(sys.executable)')"
+      - name: Run inventory and database contracts
+        shell: bash
+        run: bash scripts/run-tests.sh inventory
+
+  rbac:
+    name: CI / RBAC
+    if: github.event_name != 'schedule'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
+      - name: Install locked dependencies
+        shell: bash
+        run: uv sync --locked --group dev --python "$(python -c 'import sys; print(sys.executable)')"
+      - name: Run RBAC contracts
+        shell: bash
+        run: bash scripts/run-tests.sh rbac
+
+  reports:
+    name: CI / Reports
+    if: github.event_name != 'schedule'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
+      - name: Install locked dependencies
+        shell: bash
+        run: uv sync --locked --group dev --python "$(python -c 'import sys; print(sys.executable)')"
+      - name: Run report contracts
+        shell: bash
+        run: bash scripts/run-tests.sh reports
+
+  full_primary:
+    name: CI / Full Regression (Python 3.12)
+    if: github.event_name != 'schedule'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
+      - name: Install locked dependencies
+        shell: bash
+        run: uv sync --locked --group dev --python "$(python -c 'import sys; print(sys.executable)')"
+      - name: Verify runner and test environment
+        shell: bash
+        run: .venv/Scripts/python.exe -c "import os,platform,sys,pytest,xdist; print('python=',sys.version); print('executable=',sys.executable); print('platform=',platform.platform()); print('machine=',platform.machine()); print('cpu_count=',os.cpu_count()); print('pytest=',pytest.__version__); print('pytest_xdist=',xdist.__version__)"
       - name: Run complete test suite
         shell: bash
         env:
-          JUNITXML: test-results-${{ matrix.python-version }}.xml
-        run: bash scripts/run-tests.sh all
+          JUNITXML: test-results-python-3.12.xml
+        run: |
+          PROFILE_ARGS=()
+          if [ "${{ inputs.profile || 'false' }}" = "true" ]; then
+            PROFILE_ARGS+=(--durations=50)
+          fi
+          bash scripts/run-tests.sh all "${PROFILE_ARGS[@]}"
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-python-${{ matrix.python-version }}
-          path: test-results-${{ matrix.python-version }}.xml
+          name: test-results-python-3.12
+          path: test-results-python-3.12.xml
           if-no-files-found: warn
           retention-days: 7
 
-  quality:
-    name: quality
+  compatibility:
+    name: CI / Compatibility (Python 3.11)
+    if: >
+      github.event_name == 'push' ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        inputs.profile != true
+      )
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
-      - name: Install uv
-        shell: bash
-        run: python -m pip install "uv==${UV_VERSION}"
-      - name: Verify locked dependency graph
-        shell: bash
-        run: uv lock --check
-      - name: Verify matrix interpreter
-        shell: bash
-        run: python -c "import sys; print(sys.version); print(sys.executable)"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
       - name: Install locked dependencies
         shell: bash
         run: uv sync --locked --group dev --python "$(python -c 'import sys; print(sys.executable)')"
-      - name: Compile Python sources
+      - name: Verify compatibility interpreter
         shell: bash
-        run: .venv/Scripts/python.exe -m compileall -q app tests
-      - name: Check whitespace errors
+        run: python -c "import sys; print(sys.version); print(sys.executable)"
+      - name: Run compatibility regression
         shell: bash
-        run: git -c core.whitespace=cr-at-eol diff --check
+        env:
+          JUNITXML: test-results-python-3.11.xml
+        run: bash scripts/run-tests.sh all
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-python-3.11
+          path: test-results-python-3.11.xml
+          if-no-files-found: warn
+          retention-days: 7
 
-  ci-status:
-    name: CI status
-    if: always()
-    needs: [test, quality]
+  deep_regression:
+    name: CI / Deep Regression (serial)
+    if: github.event_name == 'schedule'
     runs-on: windows-latest
     steps:
-      - shell: bash
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
+      - name: Install locked dependencies
+        shell: bash
+        run: uv sync --locked --group dev --python "$(python -c 'import sys; print(sys.executable)')"
+      - name: Run serial deep regression
+        shell: bash
+        env:
+          JUNITXML: test-results-deep-serial.xml
+        run: .venv/Scripts/python.exe -m pytest tests/ -q --junitxml="${JUNITXML}"
+      - name: Upload serial report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-deep-serial
+          path: test-results-deep-serial.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+  gate:
+    name: CI / Gate
+    if: always()
+    needs:
+      - quality
+      - frontend_security
+      - inventory_database
+      - rbac
+      - reports
+      - full_primary
+      - compatibility
+      - deep_regression
+    runs-on: windows-latest
+    steps:
+      - name: Check required job results
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PROFILE_INPUT: ${{ inputs.profile }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          FRONTEND_RESULT: ${{ needs.frontend_security.result }}
+          INVENTORY_RESULT: ${{ needs.inventory_database.result }}
+          RBAC_RESULT: ${{ needs.rbac.result }}
+          REPORTS_RESULT: ${{ needs.reports.result }}
+          PRIMARY_RESULT: ${{ needs.full_primary.result }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
+          DEEP_RESULT: ${{ needs.deep_regression.result }}
         run: |
-          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.quality.result }}" != "success" ]; then exit 1; fi
+          set -u
+          failed=0
+          check_required() {
+            local name="$1"
+            local result="$2"
+            if [ "$result" != "success" ]; then
+              echo "❌ $name: $result"
+              failed=1
+            else
+              echo "✅ $name: success"
+            fi
+          }
+          check_expected_skipped() {
+            local name="$1"
+            local result="$2"
+            if [ "$result" != "skipped" ]; then
+              echo "❌ $name: $result (expected skipped)"
+              failed=1
+            else
+              echo "ℹ️ $name: skipped (expected)"
+            fi
+          }
+
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            check_expected_skipped "quality" "$QUALITY_RESULT"
+            check_expected_skipped "frontend-security" "$FRONTEND_RESULT"
+            check_expected_skipped "inventory-database" "$INVENTORY_RESULT"
+            check_expected_skipped "rbac" "$RBAC_RESULT"
+            check_expected_skipped "reports" "$REPORTS_RESULT"
+            check_expected_skipped "full-primary" "$PRIMARY_RESULT"
+            check_expected_skipped "compatibility" "$COMPATIBILITY_RESULT"
+            check_required "deep-regression" "$DEEP_RESULT"
+          else
+            check_required "quality" "$QUALITY_RESULT"
+            check_required "frontend-security" "$FRONTEND_RESULT"
+            check_required "inventory-database" "$INVENTORY_RESULT"
+            check_required "rbac" "$RBAC_RESULT"
+            check_required "reports" "$REPORTS_RESULT"
+            check_required "full-primary" "$PRIMARY_RESULT"
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              check_expected_skipped "compatibility" "$COMPATIBILITY_RESULT"
+            elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$PROFILE_INPUT" = "true" ]; then
+              check_expected_skipped "compatibility" "$COMPATIBILITY_RESULT"
+            else
+              check_required "compatibility" "$COMPATIBILITY_RESULT"
+            fi
+            check_expected_skipped "deep-regression" "$DEEP_RESULT"
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi

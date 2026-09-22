@@ -75,7 +75,7 @@
 
 ### GitHub Actions CI
 
-`.github/workflows/ci.yml` 會在 Pull Request、`master` push 或手動執行時啟動，使用 Windows runner 與 Python 3.11/3.12，透過 `uv.lock` 安裝固定依賴並執行完整測試。CI 只驗證程式碼，不直接連線或部署正式機器；正式上線仍需依 Windows runtime 驗證流程處理。
+CI 使用 GitHub Actions，在 Pull Request、`master` push、每週日排程與手動執行時驗證測試；穩定彙總檢查為 `CI / Gate`。完整 event、profile、concurrency、uv 與維護 SOP 見 [`docs/CI維護文件.md`](docs/CI維護文件.md)。CI 只驗證程式碼，不直接連線或部署正式機器；正式上線仍需依 Windows runtime 驗證流程處理。
 
 ---
 
@@ -86,7 +86,7 @@ hvac-inventory/
 ├── main.py              ← 後端入口（FastAPI + SQLite）
 ├── app/                 ← 後端套件（routes 20 個 + middleware + services + models）
 ├── static/              ← 前端（index.html + login.html + js/ + css/）
-├── tests/               ← pytest（1542 條，34 檔；本輪 collect-only 實測）
+├── tests/               ← pytest（1746 條，40 檔；本輪 collect-only 實測）
 ├── docs/                ← 維護文件（庫存/媒體/安全性/測試/權限/行事曆/Google同步）
 ├── scripts/             ← 啟動/外網/監控腳本
 ├── inventory.db         ← 資料庫（.gitignore）
@@ -145,6 +145,7 @@ hvac-inventory/
 | `docs/行事曆維護文件.md` | 行事曆派工功能與 API |
 | `docs/安全性維護指南.md` | 安全規則與測試方法 |
 | `docs/單元測試維護文件.md` | 測試分組執行 / fixture 模式 / 新增功能測試 SOP |
+| `docs/CI測試群組對照.md` | test file → local group → CI domain / full-only 對照 |
 | `docs/前端資料更新機制維護文件.md` | 資料自動更新時機 / 不會遺失資料的保護機制 |
 | `docs/外網維護文件.md` | 外網固定網址 / 健康監控 / 故障排除 |
 
