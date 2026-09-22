@@ -77,10 +77,17 @@
 #content.wpr-content .wpr-photo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
 #content.wpr-content .wpr-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 112px)); justify-content: start; gap: 8px; margin-top: 11px; }
 #content.wpr-content .wpr-photo-tile, #content.wpr-content .wpr-gallery-grid button { position: relative; min-width: 0; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: #eef2f7; }
-#content.wpr-content .wpr-photo-manage-tile { position: relative; min-width: 0; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: #eef2f7; }
+#content.wpr-content .wpr-photo-manage-tile { position: relative; min-width: 0; aspect-ratio: 1; overflow: hidden; border: 2px solid transparent; border-radius: 8px; background: #eef2f7; }
+#content.wpr-content .wpr-photo-manage-tile.is-selected { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.18); }
 #content.wpr-content .wpr-photo-manage-tile > button:first-child { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; cursor: pointer; }
-#content.wpr-content .wpr-photo-manage-tile .wpr-photo-delete { position: absolute; top: 4px; right: 4px; z-index: 1; width: 25px; height: 25px; padding: 0; border: 0; border-radius: 50%; aspect-ratio: auto; background: rgba(15,23,42,.72); color: #fff; cursor: pointer; }
+#content.wpr-content .wpr-photo-manage-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 #content.wpr-content .wpr-photo-tile img { width: 100%; height: 100%; object-fit: contain; display: block; background: #eef2f7; }
+#content.wpr-content .wpr-photo-selection-badge { position: absolute; top: 5px; left: 5px; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: rgba(15,23,42,.72); color: #fff; font-size: 15px; font-weight: 800; }
+#content.wpr-content .wpr-photo-management-toolbar { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 9px; padding: 9px; border: 1px solid #bfdbfe; border-radius: 9px; background: #eff6ff; }
+#content.wpr-content .wpr-photo-selected-count { margin-right: auto; color: #1e3a5f; font-size: 12px; font-weight: 800; }
+#content.wpr-content .wpr-photo-management-toolbar button { border: 1px solid #cfd8e5; border-radius: 7px; padding: 7px 9px; background: #fff; color: #2456a6; cursor: pointer; font-size: 12px; }
+#content.wpr-content .wpr-photo-management-toolbar .wpr-photo-batch-delete { border-color: #fecaca; color: #b91c1c; }
+#content.wpr-content .wpr-photo-management-toolbar button:disabled { opacity: .55; cursor: not-allowed; }
 #content.wpr-content .wpr-gallery-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
 #content.wpr-content .wpr-photo-tile > .wpr-pending-preview { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 8px; background: #eef2f7; cursor: pointer; }
 #content.wpr-content .wpr-photo-tile .wpr-photo-remove { position: absolute; top: 4px; right: 4px; z-index: 1; border: 0; border-radius: 50%; width: 25px; height: 25px; background: rgba(15,23,42,.72); color: #fff; cursor: pointer; }
@@ -150,11 +157,12 @@
 .wpr-pending-gallery-nav { display: flex; justify-content: center; gap: 10px; }
 .wpr-pending-gallery-nav button { border: 1px solid rgba(255,255,255,.45); border-radius: 7px; padding: 9px 12px; background: rgba(255,255,255,.1); color: #fff; cursor: pointer; }
 
-.wpr-gallery-dialog { width: min(760px, 100%); max-height: 95vh; color: #fff; text-align: center; position: relative; }
-.wpr-gallery-dialog #wpr-gallery-image { display: block; width: 100%; max-height: 72vh; object-fit: contain; border-radius: 8px; background: #0f172a; }
+.wpr-gallery-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; width: min(92vw, 1100px); height: min(88vh, 760px); max-height: calc(100dvh - 28px); color: #fff; text-align: center; position: relative; }
+.wpr-gallery-stage { display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; padding: 8px 0; background: rgba(15,23,42,.35); }
+.wpr-gallery-dialog #wpr-gallery-image { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 8px; background: #0f172a; }
 .wpr-gallery-close { position: absolute; right: 0; top: -34px; border: 0; background: transparent; color: #fff; font-size: 22px; cursor: pointer; }
-.wpr-gallery-count { margin-bottom: 8px; color: #dbeafe; }
-.wpr-gallery-caption { padding: 9px; font-size: 13px; }
+.wpr-gallery-count { min-height: 24px; color: #dbeafe; }
+.wpr-gallery-caption { min-height: 38px; padding: 9px; font-size: 13px; }
 .wpr-gallery-nav { display: flex; justify-content: center; align-items: center; gap: 12px; }
 .wpr-gallery-nav button, .wpr-gallery-download { border: 1px solid rgba(255,255,255,.45); border-radius: 7px; padding: 8px 11px; background: rgba(255,255,255,.1); color: #fff; cursor: pointer; text-decoration: none; font-size: 12px; }
 .wpr-edit-overlay { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 14px; background: rgba(15,23,42,.55); }
@@ -204,7 +212,12 @@
   #content.wpr-content .wpr-job-status { font-size: 10px; }
   #content.wpr-content .wpr-history-item summary { grid-template-columns: auto minmax(0, 1fr); }
   #content.wpr-content .wpr-history-photo-count { grid-column: 2; }
-  .wpr-gallery-overlay { padding: 10px; }
+  .wpr-gallery-overlay { padding: 0; }
+  .wpr-gallery-dialog { width: 100vw; height: 100dvh; max-height: 100dvh; }
+  .wpr-gallery-stage { padding: 8px; }
+  .wpr-gallery-caption { min-height: 46px; padding: 9px 12px; }
+  .wpr-gallery-nav { gap: 5px; padding-bottom: env(safe-area-inset-bottom); }
+  #content.wpr-content .wpr-photo-management-toolbar { position: sticky; bottom: 0; z-index: 2; margin-left: -2px; margin-right: -2px; padding-bottom: calc(9px + env(safe-area-inset-bottom)); }
   .wpr-confirm-overlay, .wpr-unsaved-overlay, .wpr-pending-gallery-overlay { padding: 10px; }
   .wpr-confirm-body dl { grid-template-columns: minmax(88px, .7fr) minmax(0, 1.3fr); gap: 7px 8px; }
   .wpr-confirm-footer, .wpr-unsaved-actions { flex-wrap: wrap; }

@@ -5016,12 +5016,12 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wprResetFilter" in js
     assert "wpr-result-count" in js
     assert "wpr-chip active" in js
-    assert "wprDeletePhoto" in js
-    assert "/photos/" in js and "method:'DELETE'" in js
-    assert "確定刪除此照片" in js
+    assert "wprBatchDeletePhotos" in js
+    assert "/photos/batch-delete" in js
+    assert "method:'POST'" in js
+    assert "確定刪除選取的" in js
     assert "async function wprReloadAndReopenDetail(id, page, targetId)" in js
     assert "await wprReloadAndReopenDetail(id, wprHistoryPage, targetId)" in js
-    assert "await wprReloadAndReopenDetail(reportId, wprHistoryPage, targetId)" in js
     assert "await wprReloadAndReopenDetail(id, 1, targetId)" in js
     assert "wprEditReport" in js
     assert "uploader_name" in js
@@ -5039,7 +5039,7 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wprTogglePhotoManage(id, targetId)" in js
     assert "wprEditReport(id, targetId)" in js
     assert "wprAddExistingPhotos(id, targetId)" in js
-    assert "wprDeletePhoto(reportId, assetId, targetId)" in js
+    assert "wprBatchDeletePhotos(id, targetId)" in js
     assert "wprReloadAndReopenDetail(id, page, targetId)" in js
     assert "tokenKey = id + ':' + detailTargetId" in js
     assert "wpr-detail-action-edit" in js and "wpr-detail-action-manage" in js
@@ -5077,9 +5077,9 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
     assert "!wprSuppressHistoryToggle[" in js
 
     edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
-        "async function wprDeletePhoto", 1
+        "async function wprBatchDeletePhotos", 1
     )[0]
-    photo_delete_block = js.split("async function wprDeletePhoto", 1)[1].split(
+    photo_delete_block = js.split("async function wprBatchDeletePhotos", 1)[1].split(
         "function wprAddExistingPhotos", 1
     )[0]
     add_photo_block = js.split("function wprAddExistingPhotos", 1)[1].split(
@@ -5098,7 +5098,7 @@ def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
     css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
     edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
-        "async function wprDeletePhoto", 1
+        "async function wprBatchDeletePhotos", 1
     )[0]
     assert "wpr-edit-readonly-section" in edit_block
     for label in ("工作日期", "時間", "客戶 / 案場", "地址", "指定服務", "行事曆備註"):

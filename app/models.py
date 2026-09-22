@@ -66,6 +66,19 @@ class WorkProgressNoteUpdate(BaseModel):
     note: Optional[str] = Field(None, max_length=1000)
 
 
+class WorkProgressPhotoBatchDeleteRequest(BaseModel):
+    """Validate one bounded, duplicate-free batch of Work Progress asset IDs."""
+    asset_ids: list[str] = Field(min_length=1, max_length=20)
+
+    @field_validator("asset_ids")
+    @classmethod
+    def reject_duplicate_asset_ids(cls, value: list[str]) -> list[str]:
+        """Reject ambiguous repeated IDs before any storage mutation occurs."""
+        if len(value) != len(set(value)):
+            raise ValueError("asset_ids 不可重複")
+        return value
+
+
 class StockItem(BaseModel):
     id: Optional[int] = None          # F2/F3：existing stock identity（None = new location）
     location: str = ""

@@ -39,11 +39,11 @@ function createHarness() {
     toast() {},
     esc(value) { return String(value); },
     jsStr(value) { return String(value); },
-    wprFetch() {
+    wprFetch(url, options) {
       let resolve;
       let reject;
       const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
-      requests.push({ resolve, reject });
+      requests.push({ resolve, reject, url, options });
       return promise;
     },
     console,
@@ -76,8 +76,11 @@ function report(note) {
     client_name: '三重 A6-12F',
     uploader_name: '測試人員',
     note,
-    photos: [{ asset_id: 'asset-42', thumbnail_url: '/thumb.jpg' }],
-    photo_count: 1,
+    photos: [
+      { asset_id: 'asset-42', thumbnail_url: '/thumb.jpg' },
+      { asset_id: 'asset-43', thumbnail_url: '/thumb-2.jpg' },
+    ],
+    photo_count: 2,
     can_edit: true,
     can_delete: false,
   };
@@ -88,7 +91,7 @@ function report(note) {
  * @returns {Promise<void>} Completion promise.
  */
 async function flush() {
-  for (let index = 0; index < 6; index += 1) await Promise.resolve();
+  for (let index = 0; index < 12; index += 1) await Promise.resolve();
 }
 
 /**
@@ -110,11 +113,11 @@ async function testSelectedDetailManageRefreshesSelectedTarget() {
   h.requests[1].resolve({ ok: true, json: async () => report('managed') });
   await flush();
 
-  assert.match(h.elements.get(selectedId).innerHTML, /wpr-photo-delete/);
+  assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoSelection\(42/);
   assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoManage\(42/);
   assert.match(h.elements.get(selectedId).innerHTML, /wprEditReport\(42,'wpr-selected-report-detail-42'/);
   assert.match(h.elements.get(selectedId).innerHTML, /wprAddExistingPhotos\(42,'wpr-selected-report-detail-42'/);
-  assert.match(h.elements.get(selectedId).innerHTML, /wprDeletePhoto\(42,'asset-42','wpr-selected-report-detail-42'/);
+  assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoSelection\(42/);
 }
 
 /**
@@ -171,10 +174,41 @@ async function testDetailTokensAreScopedPerTarget() {
   assert.match(h.elements.get('wpr-selected-report-detail-42').innerHTML, /selected-response/);
 }
 
+
+/**
+ * Prove selection management sends one batch mutation and preserves its target.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testPhotoManagementUsesOneBatchRequest() {
+  const h = createHarness();
+  const selectedId = 'wpr-selected-report-detail-42';
+  h.sandbox.wprOpenHistoryDetail(42, selectedId);
+  h.requests[0].resolve({ ok: true, json: async () => report('initial') });
+  await flush();
+  h.sandbox.wprTogglePhotoManage(42, selectedId);
+  h.requests[1].resolve({ ok: true, json: async () => report('managed') });
+  await flush();
+  h.sandbox.wprSelectAllPhotoSelection(42, selectedId);
+  h.requests[2].resolve({ ok: true, json: async () => report('selected') });
+  await flush();
+  h.sandbox.window = { confirm: () => true };
+  h.sandbox.wprLoadHistory = async () => {};
+  h.sandbox.wprBatchDeletePhotos(42, selectedId);
+  assert.strictEqual(h.requests.length, 4, 'batch delete must issue one mutation request');
+  assert.strictEqual(h.requests[3].url, '/api/work-progress/42/photos/batch-delete');
+  assert.strictEqual(h.requests[3].options.method, 'POST');
+  const payload = JSON.parse(h.requests[3].options.body);
+  assert.deepStrictEqual(payload.asset_ids.sort(), ['asset-42', 'asset-43']);
+  h.requests[3].resolve({ ok: true, json: async () => ({ deleted_count: 2, remaining_count: 0 }) });
+  await flush();
+  assert.strictEqual(h.requests.length, 5, 'successful mutation must refresh the same detail target');
+  assert.strictEqual(h.requests[4].url, '/api/work-progress/42');
+}
 Promise.resolve()
   .then(testSelectedDetailManageRefreshesSelectedTarget)
+  .then(testPhotoManagementUsesOneBatchRequest)
   .then(testHistoryTargetFallbackRemainsAvailable)
   .then(testReloadHelperPreservesSelectedTarget)
   .then(testDetailTokensAreScopedPerTarget)
-  .then(() => console.log('work_progress_detail_target_lifecycle: 4 passed'))
+  .then(() => console.log('work_progress_detail_target_lifecycle: 5 passed'))
   .catch((error) => { console.error(error.stack || error); process.exitCode = 1; });

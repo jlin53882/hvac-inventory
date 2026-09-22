@@ -62,7 +62,36 @@ def test_detail_target_lifecycle_runtime_contract():
         timeout=120,
     )
     assert result.returncode == 0, f"detail target lifecycle runtime failed:\n{result.stdout}\n{result.stderr}"
-    assert "4 passed" in result.stdout
+    assert "5 passed" in result.stdout
+
+
+def test_work_progress_gallery_has_stable_stage_geometry_for_desktop_and_mobile():
+    """Regression: gallery geometry belongs to the dialog/stage, not image intrinsic size."""
+    css = _read(WORK_PROGRESS_CSS)
+    js = _read(WORK_PROGRESS_JS)
+    assert "wpr-gallery-stage" in js
+    assert ".wpr-gallery-dialog { display: grid" in css
+    assert "grid-template-rows: auto minmax(0, 1fr) auto auto" in css
+    assert "width: min(92vw, 1100px)" in css
+    assert "height: min(88vh, 760px)" in css
+    assert ".wpr-gallery-dialog #wpr-gallery-image" in css
+    assert "max-width: 100%" in css and "max-height: 100%" in css and "object-fit: contain" in css
+    assert ".wpr-gallery-dialog { width: 100vw; height: 100dvh" in css
+
+
+def test_work_progress_photo_management_is_target_scoped_and_single_request():
+    """Regression: management clicks select, and batch mutation has one endpoint contract."""
+    js = _read(WORK_PROGRESS_JS)
+    assert "wprPhotoManageStates" in js
+    assert "wprPhotoManageKey" in js
+    assert "wprTogglePhotoSelection" in js
+    assert "wprSelectAllPhotoSelection" in js
+    assert "wprClearPhotoSelection" in js
+    assert "wprBatchDeletePhotos" in js
+    assert "/photos/batch-delete" in js
+    assert "method:'POST'" in js
+    assert "JSON.stringify({asset_ids:assetIds})" in js
+    assert "wprReloadAndReopenDetail(id, wprHistoryPage, targetId)" in js
 
 
 def test_work_progress_and_calendar_notes_preserve_multiline_text():
