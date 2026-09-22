@@ -875,3 +875,18 @@ def test_generic_media_endpoint_cannot_bypass_work_progress_owner_scope(wpr_env)
     # only the report-scoped endpoint may validate work-progress ownership.
     assert viewer.get(f"/media/{asset_id}/thumbnail").status_code == 404
     assert owner.get(f"/api/work-progress/{report['id']}/photos/{asset_id}/thumbnail").status_code == 200
+
+
+def test_work_progress_photo_variants_are_private_cached(wpr_env):
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+    asset_id = report["photos"][0]["asset_id"]
+
+    for variant in ("thumbnail", "preview"):
+        response = owner.get(
+            f"/api/work-progress/{report['id']}/photos/{asset_id}/{variant}"
+        )
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "private, max-age=86400"

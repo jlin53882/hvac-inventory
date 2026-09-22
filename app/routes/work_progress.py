@@ -616,7 +616,10 @@ def read_work_progress_photo(
             raise HTTPException(404, "照片變體不存在") from exc
         if not path.exists():
             raise HTTPException(404, "照片檔案遺失")
-        kwargs = {"media_type": asset_media_type(asset, actual_variant)}
+        kwargs = {
+            "media_type": asset_media_type(asset, actual_variant),
+            "headers": {"Cache-Control": "private, max-age=86400"},
+        }
         if variant == "download":
             kwargs.update(filename=asset["original_name"] or "photo", content_disposition_type="attachment")
         return FileResponse(path, **kwargs)
