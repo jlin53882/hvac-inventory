@@ -23,6 +23,9 @@ function createHarness() {
   elements.set('wpr-to', { value: '' });
   elements.set('wpr-query', { value: '' });
   elements.set('wpr-result-count', { textContent: '' });
+  elements.set('wpr-selected-area', { hidden: false, innerHTML: '' });
+  elements.set('wpr-save', { disabled: false });
+  elements.set('wpr-date', { value: '2026-09-21' });
   const document = {
     body: { appendChild() {} },
     createElement() {
@@ -40,6 +43,7 @@ function createHarness() {
   };
   const sandbox = {
     document,
+    window: { confirm: () => true },
     currentTab: 'work-progress',
     toast() {},
     esc(value) { return String(value); },
@@ -67,6 +71,7 @@ function createHarness() {
     wprHistoryRequestToken: 0,
     wprHistoryPageSize: 10,
     wprHistoryPage: 1,
+    wprSelectRequestToken: 0,
   };
   vm.runInNewContext(source, sandbox, { filename: sourcePath });
   return { sandbox, elements, requests };
@@ -242,12 +247,116 @@ async function testHistoryReloadCleansOnlyHistoryTargets() {
   assert.strictEqual(h.sandbox.wprPhotoManageState(42, 'wpr-selected-report-detail-42').manage, true);
   assert.deepStrictEqual(Object.keys(h.sandbox.wprPhotoManageState(42, 'wpr-selected-report-detail-42').selected), ['asset-43']);
 }
+/**
+ * A failed report delete leaves the live detail state and cache untouched.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testDeleteReportFailurePreservesPhotoManagementState() {
+  const h = createHarness();
+  const targetId = 'wpr-selected-report-detail-42';
+  const key = h.sandbox.wprPhotoManageKey(42, targetId);
+  const state = h.sandbox.wprPhotoManageState(42, targetId);
+  state.manage = true;
+  state.selected['asset-42'] = true;
+  const cached = report('cached-before-delete');
+  h.sandbox.wprPhotoManageReports[key] = cached;
+  h.sandbox.wprLoadHistory = async () => {};
+  h.sandbox.wprLoadDay = async () => {};
+  h.sandbox.wprLoadKpi = async () => {};
+  h.sandbox.wprDeleteReport(42);
+  assert.strictEqual(h.requests.length, 1);
+  assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).manage, true);
+  h.requests[0].reject(new Error('delete failed'));
+  await flush();
+  assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).manage, true);
+  assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).selected['asset-42'], true);
+  assert.strictEqual(h.sandbox.wprPhotoManageReports[key], cached);
+}
+
+/**
+ * A successful report delete clears its old detail state only after the response.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testDeleteReportSuccessClearsPhotoManagementState() {
+  const h = createHarness();
+  const targetId = 'wpr-selected-report-detail-42';
+  const key = h.sandbox.wprPhotoManageKey(42, targetId);
+  const state = h.sandbox.wprPhotoManageState(42, targetId);
+  state.manage = true;
+  state.selected['asset-42'] = true;
+  h.sandbox.wprPhotoManageReports[key] = report('deleted');
+  h.sandbox.wprLoadHistory = async () => {};
+  h.sandbox.wprLoadDay = async () => {};
+  h.sandbox.wprLoadKpi = async () => {};
+  h.sandbox.wprDeleteReport(42);
+  assert.strictEqual(h.requests.length, 1);
+  assert.strictEqual(h.sandbox.wprPhotoManageStates[key].manage, true);
+  h.requests[0].resolve({ ok: true, json: async () => ({ ok: true }) });
+  await flush();
+  assert.strictEqual(h.sandbox.wprPhotoManageStates[key], undefined);
+  assert.strictEqual(h.sandbox.wprPhotoManageReports[key], undefined);
+}
+
+/**
+ * A failed selected-report navigation preserves the previous report state.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testSelectedReportSwitchFailurePreservesPreviousManagementState() {
+  const h = createHarness();
+  const targetId = 'wpr-selected-report-detail-42';
+  const oldState = h.sandbox.wprPhotoManageState(42, targetId);
+  oldState.manage = true;
+  oldState.selected['asset-42'] = true;
+  const oldReport = { id: 42, appointment_id: 1 };
+  h.sandbox.wprCurrentReport = oldReport;
+  h.sandbox.wprAppointments = [{ id: 1 }, { id: 2 }];
+  h.sandbox.wprReportsByAppointment = { 2: { id: 43, note: 'B' } };
+  h.sandbox.wprHasUnsavedChanges = () => false;
+  h.sandbox.wprRenderJobs = () => {};
+  h.sandbox.wprSelectJob(2);
+  assert.strictEqual(h.requests.length, 1);
+  assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).manage, true);
+  h.requests[0].reject(new Error('switch failed'));
+  await flush();
+  assert.strictEqual(h.sandbox.wprCurrentReport, oldReport);
+  assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).selected['asset-42'], true);
+}
+
+/**
+ * A successful selected-report navigation clears only the previous report state.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testSelectedReportSwitchSuccessClearsPreviousManagementState() {
+  const h = createHarness();
+  const targetId = 'wpr-selected-report-detail-42';
+  const key = h.sandbox.wprPhotoManageKey(42, targetId);
+  const oldState = h.sandbox.wprPhotoManageState(42, targetId);
+  oldState.manage = true;
+  oldState.selected['asset-42'] = true;
+  h.sandbox.wprPhotoManageReports[key] = report('old');
+  h.sandbox.wprCurrentReport = { id: 42, appointment_id: 1 };
+  h.sandbox.wprAppointments = [{ id: 1 }, { id: 2 }];
+  h.sandbox.wprReportsByAppointment = { 2: { id: 43, note: 'B' } };
+  h.sandbox.wprHasUnsavedChanges = () => false;
+  h.sandbox.wprRenderJobs = () => {};
+  h.sandbox.wprSelectJob(2);
+  assert.strictEqual(h.requests.length, 1);
+  assert.strictEqual(h.sandbox.wprPhotoManageStates[key].manage, true);
+  h.requests[0].resolve({ ok: true, json: async () => ({ id: 43, appointment_id: 2, photos: [] }) });
+  await flush();
+  assert.strictEqual(h.sandbox.wprPhotoManageStates[key], undefined);
+  assert.strictEqual(h.sandbox.wprCurrentReport.id, 43);
+}
 Promise.resolve()
+  .then(testDeleteReportFailurePreservesPhotoManagementState)
+  .then(testDeleteReportSuccessClearsPhotoManagementState)
+  .then(testSelectedReportSwitchFailurePreservesPreviousManagementState)
+  .then(testSelectedReportSwitchSuccessClearsPreviousManagementState)
   .then(testHistoryReloadCleansOnlyHistoryTargets)
   .then(testSelectedDetailManageRefreshesSelectedTarget)
   .then(testPhotoManagementUsesOneBatchRequest)
   .then(testHistoryTargetFallbackRemainsAvailable)
   .then(testReloadHelperPreservesSelectedTarget)
   .then(testDetailTokensAreScopedPerTarget)
-  .then(() => console.log('work_progress_detail_target_lifecycle: 6 passed'))
+  .then(() => console.log('work_progress_detail_target_lifecycle: 10 passed'))
   .catch((error) => { console.error(error.stack || error); process.exitCode = 1; });

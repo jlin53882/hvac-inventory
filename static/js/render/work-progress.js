@@ -271,7 +271,7 @@ async function wprSelectJob(id) {
     wprRequestDraftReset(function() { wprSelectJob(id); });
     return;
   }
-  wprClearPhotoManageStates(function(targetId) { return targetId.indexOf('wpr-selected-report-detail-') === 0; });
+  var previousReportId = wprCurrentReport && Number.isInteger(wprCurrentReport.id) ? wprCurrentReport.id : null;
   var existing = wprReportsByAppointment[id];
   if (existing) {
     try {
@@ -285,6 +285,10 @@ async function wprSelectJob(id) {
     }
   } else {
     wprCurrentReport = { appointment_id: id, appointment: job };
+  }
+  var nextReportId = existing ? report.id : null;
+  if (previousReportId && previousReportId !== nextReportId) {
+    wprClearPhotoManageStates(function(targetId) { return targetId === 'wpr-selected-report-detail-' + previousReportId; });
   }
   wprRenderJobs();
   var area = document.getElementById('wpr-selected-area');
@@ -1092,7 +1096,7 @@ function wprAddExistingPhotos(id, targetId) {
  * @param {number} id - Function input.
  * @returns {void} Function result.
  */
-async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { wprClearPhotoManageStates(function(targetId) { return targetId === 'wpr-detail-' + id || targetId === 'wpr-selected-report-detail-' + id; }); await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
+async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); wprClearPhotoManageStates(function(targetId) { return targetId === 'wpr-detail-' + id || targetId === 'wpr-selected-report-detail-' + id; }); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
 /**
  * Create isolated preload state for one Gallery lifecycle.
  * @returns {{completed: Object, inflight: Object}} Lifecycle-owned preload state.
