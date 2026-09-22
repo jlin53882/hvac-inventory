@@ -4994,10 +4994,14 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "PATCH" in js and "DELETE" in js
     assert "wprGalleryMove" in js and "wprCloseGallery" in js
     assert "wprPreloadGalleryPhoto" in js
-    assert "wprPreloadGalleryAdjacent" in js
-    assert "wprGalleryPreloadedUrls[url]" in js
-    assert "wprGalleryPreloadInflight[url]" in js
-    assert "delete wprGalleryPreloadInflight[url]" in js
+    assert "wprPreloadGalleryAround" in js
+    assert "wprCreateGalleryPreloadState" in js
+    assert "wprGalleryPreloadState" in js
+    assert "state.completed[url]" in js
+    assert "state.inflight[url]" in js
+    assert "wprGalleryPreloadOffsets" in js
+    assert "wprPreloadGalleryAround" in js
+    assert "delete state.inflight[url]" in js
     assert "wprLastDetailReport && wprLastDetailReport.id === id" in js
     assert "image.decoding = 'async'" in js
     gallery_block = js.split("function wprPhotoGalleryHtml", 1)[1].split(

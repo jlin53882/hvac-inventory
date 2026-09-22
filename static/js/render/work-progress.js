@@ -3,8 +3,7 @@
 
 var wprGallery = { report: null, index: 0 };
 var wprGalleryRequestToken = 0;
-var wprGalleryPreloadedUrls = Object.create(null);
-var wprGalleryPreloadInflight = Object.create(null);
+var wprGalleryPreloadState = wprCreateGalleryPreloadState();
 var wprLastDetailReport = null;
 var wprPhotoManageReports = {};
 var wprSuppressHistoryToggle = {};
@@ -976,25 +975,34 @@ function wprAddExistingPhotos(id, targetId) {
  */
 async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
 /**
+ * Create isolated preload state for one Gallery lifecycle.
+ * @returns {{completed: Object, inflight: Object}} Lifecycle-owned preload state.
+ */
+function wprCreateGalleryPreloadState() {
+  return { completed: Object.create(null), inflight: Object.create(null) };
+}
+
+/**
  * Start one background request for a preview URL and release the Image after settlement.
  * @param {Object} photo - Gallery photo metadata.
  * @returns {void} Nothing; failures fall back to normal image navigation.
  */
 function wprPreloadGalleryPhoto(photo) {
   var url = photo && photo.preview_url;
-  if (!url || wprGalleryPreloadedUrls[url] || wprGalleryPreloadInflight[url] || typeof Image === 'undefined') return;
+  var state = wprGalleryPreloadState;
+  if (!url || state.completed[url] || state.inflight[url] || typeof Image === 'undefined') return;
   var image;
   var settled = false;
   var settle;
   try {
     image = new Image();
-    wprGalleryPreloadInflight[url] = image;
+    state.inflight[url] = image;
     image.decoding = 'async';
     settle = function(success) {
       if (settled) return;
       settled = true;
-      if (success) wprGalleryPreloadedUrls[url] = true;
-      delete wprGalleryPreloadInflight[url];
+      if (success) state.completed[url] = true;
+      delete state.inflight[url];
       image.onload = null;
       image.onerror = null;
     };
@@ -1006,22 +1014,35 @@ function wprPreloadGalleryPhoto(photo) {
     }
   } catch (error) {
     if (settle) settle(false);
-    else delete wprGalleryPreloadInflight[url];
+    else delete state.inflight[url];
   }
 }
 
 /**
- * Preload only the previous and next preview around the current selection.
+ * Return preload offsets around the current photo for the initial render or move direction.
+ * @param {number} [direction] - Positive for next, negative for previous, omitted initially.
+ * @returns {number[]} Relative photo offsets to preload.
+ */
+function wprGalleryPreloadOffsets(direction) {
+  if (direction > 0) return [-1, 1, 2];
+  if (direction < 0) return [1, -1, -2];
+  return [-1, 1];
+}
+
+/**
+ * Preload bounded adjacent photos, optionally looking one extra step in the move direction.
  * @param {Object} report - Work Progress report containing photos.
  * @param {number} index - Current photo index.
+ * @param {number} [direction] - Relative navigation direction.
  * @returns {void} Nothing.
  */
-function wprPreloadGalleryAdjacent(report, index) {
+function wprPreloadGalleryAround(report, index, direction) {
   var photos = report && report.photos;
   if (!photos || photos.length < 2) return;
   var count = photos.length;
-  wprPreloadGalleryPhoto(photos[(index - 1 + count) % count]);
-  wprPreloadGalleryPhoto(photos[(index + 1) % count]);
+  wprGalleryPreloadOffsets(direction).forEach(function(offset) {
+    wprPreloadGalleryPhoto(photos[(index + offset + count) % count]);
+  });
 }
 
 /**
@@ -1051,9 +1072,10 @@ function wprOpenGallery(id, index) {
 }
 /**
  * Render the current gallery photo and navigation controls.
+ * @param {number} [direction] - Relative navigation direction for lookahead preload.
  * @returns {void} Nothing.
  */
-function wprRenderGallery() {
+function wprRenderGallery(direction) {
   var report = wprGallery.report, photo = report && report.photos[wprGallery.index];
   if (!photo) return;
   document.getElementById('wpr-gallery-count').textContent = (wprGallery.index + 1) + ' / ' + report.photos.length;
@@ -1063,7 +1085,7 @@ function wprRenderGallery() {
   document.getElementById('wpr-gallery-caption').textContent = report.client_name + ' · ' + report.service_name + ' · ' + report.report_date;
   document.getElementById('wpr-gallery-download').href = photo.download_url;
   document.getElementById('wpr-gallery-download').download = photo.original_name;
-  wprPreloadGalleryAdjacent(report, wprGallery.index);
+  wprPreloadGalleryAround(report, wprGallery.index, direction);
 }
 /**
  * Move the gallery selection with wraparound navigation.
@@ -1073,7 +1095,7 @@ function wprRenderGallery() {
 function wprGalleryMove(delta) {
   if (!wprGallery.report || !wprGallery.report.photos.length) return;
   wprGallery.index = (wprGallery.index + delta + wprGallery.report.photos.length) % wprGallery.report.photos.length;
-  wprRenderGallery();
+  wprRenderGallery(delta);
 }
 /**
  * Close the gallery overlay and release its state.
@@ -1085,7 +1107,6 @@ function wprCloseGallery(invalidateRequest) {
   var overlay = document.getElementById('wpr-gallery-overlay');
   if (overlay) overlay.remove();
   wprGallery.report = null;
-  wprGalleryPreloadedUrls = Object.create(null);
-  wprGalleryPreloadInflight = Object.create(null);
+  wprGalleryPreloadState = wprCreateGalleryPreloadState();
 }
 document.addEventListener('keydown', function(event) { if (wprPendingGallery.index >= 0) { if (event.key === 'Escape') wprClosePendingGallery(); if (event.key === 'ArrowLeft') wprPendingGalleryMove(-1); if (event.key === 'ArrowRight') wprPendingGalleryMove(1); return; } if (!wprGallery.report) return; if (event.key === 'Escape') wprCloseGallery(); if (event.key === 'ArrowLeft') wprGalleryMove(-1); if (event.key === 'ArrowRight') wprGalleryMove(1); });
