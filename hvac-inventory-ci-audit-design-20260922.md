@@ -18,7 +18,7 @@
 
 - PR：Python 3.12 完整 regression + 平行 domain gates
 - master push：Python 3.12 primary full regression + Python 3.11 compatibility full regression
-- scheduled：Python 3.11 compatibility full regression
+- scheduled：Python 3.11 serial deep regression（compatibility job skipped）
 - 以穩定的 `CI / Gate` 作為唯一 Merge Gate
 - 改用固定版本的 `astral-sh/setup-uv` 與 uv cache
 - 保留 `uv.lock` strict contract、pytest-xdist、JUnit artifact 與 Windows runner
@@ -37,7 +37,7 @@ Audit 前的 trigger：
 - `pull_request` → `master`
 - `push` → `master`
 - `workflow_dispatch`
-- （Phase 1 implementation 新增）每週日 schedule
+- （Phase 1 implementation 新增）每週日 00:00 Asia/Taipei schedule（UTC Saturday 16:00）
 
 Audit 前 jobs：
 
@@ -316,13 +316,14 @@ master push 已經執行 Python 3.11 compatibility full regression，因此不�
 
 ```yaml
 schedule:
-  - cron: "0 16 * * 0"
+  - cron: "0 16 * * 6"
 ```
 
 UTC 對應：
 
 ```text
-每週日 00:00 Asia/Taipei
+UTC Saturday 16:00
+= Asia/Taipei Sunday 00:00
 ```
 
 scheduled job 使用 Python 3.11，執行：
@@ -423,6 +424,7 @@ Gate 使用 `if: always()`，檢查：
 - required job `cancelled` → Gate fail
 - required job unexpected `skipped` → Gate fail
 - PR 中明確 optional 的 compatibility skipped 不造成永久 waiting
+- `workflow_dispatch` 且 `profile=true` 時，compatibility skipped 是 expected，不造成 Gate failure；`profile=false` 時 compatibility 必須 success
 - 所有 required contracts success 才 pass
 
 建議未來 Branch Protection 只要求：
@@ -465,7 +467,7 @@ Phase 1 primary full job 會輸出：
 - pytest version
 - pytest-xdist version
 
-可由 `workflow_dispatch` 的 `profile=true` 觸發：
+可由 `workflow_dispatch` 的 boolean input `profile=true` 觸發；GitHub Actions `inputs.profile` 保留 boolean semantics。此模式只收集 Python 3.12 primary full regression 的慢測試，不執行 Python 3.11 compatibility job；`profile=false` 才執行完整 manual verification：
 
 ```bash
 bash scripts/run-tests.sh all --durations=50
@@ -540,4 +542,4 @@ Before/After performance 回報只使用實際 GitHub Actions run 數字；若�
 - workflow / scripts / docs：Phase 1 changes complete
 - local `.venv`：ignored，僅供 CI-equivalent verification
 
-Phase 1 的 domain gates 保留 full regression；After timing 已由 PR #28 run `35638123984` 取得。此前第一版因 diagnostic 使用 system Python 而失敗，修正為 `.venv/Scripts/python.exe`；`969cbcf` run 的所有 required PR jobs 成功，`CI / Gate` 亦成功。
+Phase 1 的 domain gates 保留 full regression；After timing 已由 PR #28 run `35638123984` 取得。此前第一版因 diagnostic 使用 system Python 而失敗，修正為 `.venv/Scripts/python.exe`；`969cbcf` run 的所有 required PR jobs 成功，`CI / Gate` 亦成功。Review follow-up：schedule 已對齊每週日 00:00 Asia/Taipei；`workflow_dispatch` 的 `profile=true` 會跳過 Python 3.11 compatibility，且 Gate 將該 skipped 視為 expected。

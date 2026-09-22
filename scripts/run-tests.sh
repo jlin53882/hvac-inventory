@@ -4,7 +4,7 @@
 #
 # 用法: ./scripts/run-tests.sh [core|frontend|storage|auth|database|inventory|rbac|regression|reports|petty_cash|work_progress|all] [pytest args]
 #   組別    內容                                      觸發條件（改到就跑這組）
-#   core      test_main (196) + test_safety_helpers       items/stockout/stocktake/kits/photos/stats/export + 共用安全 helper
+#   core      main API + safety helpers + logging/config/notifications/server lifecycle  items/stockout/stocktake/kits/photos/stats/export + 共用安全 helper
 #   frontend  frontend_assets+security+structure+performance  static/** 任何改動；新增任何後端端點（XSS/公式注入守衛）
 #   storage   media_storage+quotation_uploads+signed_reports+asset_scripts  file_storage、媒體路由、導入/稽核腳本
 #   auth      test_users + test_viewer                  app/routes/auth.py、users.py

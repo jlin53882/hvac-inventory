@@ -6,7 +6,7 @@ on:
   push:
     branches: [master]
   schedule:
-    - cron: "0 16 * * 0"
+    - cron: "0 16 * * 6"
   workflow_dispatch:
     inputs:
       profile:
@@ -176,7 +176,12 @@ jobs:
 
   compatibility:
     name: CI / Compatibility (Python 3.11)
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: >
+      github.event_name == 'push' ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        inputs.profile != true
+      )
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -255,6 +260,7 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
+          PROFILE_INPUT: ${{ inputs.profile }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           FRONTEND_RESULT: ${{ needs.frontend_security.result }}
           INVENTORY_RESULT: ${{ needs.inventory_database.result }}
@@ -276,8 +282,25 @@ jobs:
               echo "✅ $name: success"
             fi
           }
+          check_expected_skipped() {
+            local name="$1"
+            local result="$2"
+            if [ "$result" != "skipped" ]; then
+              echo "❌ $name: $result (expected skipped)"
+              failed=1
+            else
+              echo "ℹ️ $name: skipped (expected)"
+            fi
+          }
 
           if [ "$EVENT_NAME" = "schedule" ]; then
+            check_expected_skipped "quality" "$QUALITY_RESULT"
+            check_expected_skipped "frontend-security" "$FRONTEND_RESULT"
+            check_expected_skipped "inventory-database" "$INVENTORY_RESULT"
+            check_expected_skipped "rbac" "$RBAC_RESULT"
+            check_expected_skipped "reports" "$REPORTS_RESULT"
+            check_expected_skipped "full-primary" "$PRIMARY_RESULT"
+            check_expected_skipped "compatibility" "$COMPATIBILITY_RESULT"
             check_required "deep-regression" "$DEEP_RESULT"
           else
             check_required "quality" "$QUALITY_RESULT"
@@ -286,11 +309,14 @@ jobs:
             check_required "rbac" "$RBAC_RESULT"
             check_required "reports" "$REPORTS_RESULT"
             check_required "full-primary" "$PRIMARY_RESULT"
-            if [ "$EVENT_NAME" != "pull_request" ]; then
-              check_required "compatibility" "$COMPATIBILITY_RESULT"
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              check_expected_skipped "compatibility" "$COMPATIBILITY_RESULT"
+            elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$PROFILE_INPUT" = "true" ]; then
+              check_expected_skipped "compatibility" "$COMPATIBILITY_RESULT"
             else
-              echo "ℹ️ compatibility: $COMPATIBILITY_RESULT (expected skipped on pull_request)"
+              check_required "compatibility" "$COMPATIBILITY_RESULT"
             fi
+            check_expected_skipped "deep-regression" "$DEEP_RESULT"
           fi
 
           if [ "$failed" -ne 0 ]; then
