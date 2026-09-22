@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 import datetime
+import os
 import re
+import shutil
 import sqlite3
+import uuid
 from pathlib import Path
 from typing import Iterable
 
@@ -16,7 +19,7 @@ from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
 from app.database import get_db
-from app.models import WorkProgressNoteUpdate
+from app.models import WorkProgressNoteUpdate, WorkProgressPhotoBatchDeleteRequest
 from app.services.auth import get_user_permissions, require_db_perm
 from app.services.file_storage import (
     asset_media_type,
@@ -514,6 +517,131 @@ def add_work_progress_photos(
         conn.close()
 
 
+def _restore_staged_deletions(staged: list[tuple[Path, Path]]) -> None:
+    """Best-effort restore every staged file and report all restore failures."""
+    errors: list[tuple[Path, Path, Exception]] = []
+    for source, backup in reversed(staged):
+        try:
+            source.parent.mkdir(parents=True, exist_ok=True)
+            if backup.exists():
+                os.replace(backup, source)
+        except Exception as exc:
+            errors.append((source, backup, exc))
+    if errors:
+        details = "; ".join(f"{source} <- {backup}: {exc}" for source, backup, exc in errors)
+        raise OSError(f"failed to restore {len(errors)} staged file(s): {details}") from errors[0][2]
+
+
+def _stage_asset_deletions(assets: Iterable) -> tuple[Path, list[tuple[Path, Path]]]:
+    """Move asset variants into a private staging directory before DB commit."""
+    root = _upload_dir().resolve()
+    staging = root / f".wpr-delete-{uuid.uuid4().hex}"
+    staged: list[tuple[Path, Path]] = []
+    try:
+        for asset in assets:
+            for variant in ("original", "preview", "thumbnail"):
+                try:
+                    source = asset_variant_path(asset, variant, upload_dir=root)
+                except (FileNotFoundError, ValueError):
+                    continue
+                if not source.exists():
+                    continue
+                backup = staging / str(asset["asset_id"]) / source.name
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(source, backup)
+                staged.append((source, backup))
+        return staging, staged
+    except Exception as exc:
+        try:
+            _restore_staged_deletions(staged)
+        except Exception as restore_exc:
+            raise RuntimeError(f"photo deletion staging recovery required: {staging}") from restore_exc
+        shutil.rmtree(staging, ignore_errors=True)
+        raise exc
+
+
+def _finish_staged_deletions(staging: Path, staged: list[tuple[Path, Path]]) -> None:
+    """Finalize a committed deletion and remove empty source directories."""
+    root = _upload_dir().resolve()
+    shutil.rmtree(staging, ignore_errors=True)
+    for source, _backup in staged:
+        parent = source.parent
+        while parent != root and root in parent.parents and parent.exists():
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+
+
+def _delete_assets_atomically(conn, report_id: int, assets: list) -> None:
+    """Delete validated asset rows and files as one recoverable mutation."""
+    staging = None
+    staged: list[tuple[Path, Path]] = []
+    try:
+        staging, staged = _stage_asset_deletions(assets)
+        placeholders = ",".join("?" for _ in assets)
+        conn.execute(
+            f"DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? AND asset_id IN ({placeholders})",
+            [CATEGORY, OWNER_TYPE, str(report_id), *[asset["asset_id"] for asset in assets]],
+        )
+        conn.execute(
+            "UPDATE daily_work_progress_reports SET updated_at=datetime('now','localtime') WHERE id=?",
+            (report_id,),
+        )
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        try:
+            _restore_staged_deletions(staged)
+        except Exception as restore_exc:
+            raise RuntimeError(f"photo deletion recovery staging preserved: {staging}") from restore_exc
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
+        raise exc
+    _finish_staged_deletions(staging, staged)
+
+
+@router.post("/{report_id}/photos/batch-delete")
+def batch_delete_work_progress_photos(
+    report_id: int,
+    body: WorkProgressPhotoBatchDeleteRequest,
+    user: dict = Depends(require_db_perm("work-progress-view")),
+):
+    """Delete one report-scoped photo batch with all validation before mutation."""
+    if any(not ASSET_ID_RE.fullmatch(asset_id) for asset_id in body.asset_ids):
+        raise HTTPException(404, "照片不存在")
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = _get_report(conn, report_id)
+        can_edit, _ = _flags(conn, row, user)
+        if not can_edit:
+            raise HTTPException(403, "沒有刪除照片的權限")
+        placeholders = ",".join("?" for _ in body.asset_ids)
+        assets = conn.execute(
+            f"""SELECT * FROM file_assets
+                WHERE category=? AND owner_type=? AND owner_id=?
+                  AND asset_id IN ({placeholders})""",
+            [CATEGORY, OWNER_TYPE, str(report_id), *body.asset_ids],
+        ).fetchall()
+        by_id = {asset["asset_id"]: asset for asset in assets}
+        if len(by_id) != len(body.asset_ids):
+            raise HTTPException(404, "照片不存在")
+        ordered_assets = [by_id[asset_id] for asset_id in body.asset_ids]
+        _delete_assets_atomically(conn, report_id, ordered_assets)
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            (CATEGORY, OWNER_TYPE, str(report_id)),
+        ).fetchone()[0]
+        return {"ok": True, "deleted_count": len(ordered_assets), "remaining_count": remaining}
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 @router.delete("/{report_id}/photos/{asset_id}")
 def delete_work_progress_photo(
     report_id: int,
@@ -537,18 +665,12 @@ def delete_work_progress_photo(
         ).fetchone()
         if asset is None:
             raise HTTPException(404, "照片不存在")
-        conn.execute("DELETE FROM file_assets WHERE asset_id=?", (asset_id,))
-        conn.execute(
-            "UPDATE daily_work_progress_reports SET updated_at=datetime('now','localtime') WHERE id=?",
-            (report_id,),
-        )
-        conn.commit()
+        _delete_assets_atomically(conn, report_id, [asset])
     except HTTPException:
         conn.rollback()
         raise
     finally:
         conn.close()
-    delete_asset_files(asset, upload_dir=_upload_dir())
     return {"ok": True, "asset_id": asset_id}
 
 

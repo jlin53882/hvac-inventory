@@ -1,6 +1,7 @@
 """每日工作進度回報 API / storage / RBAC regression tests."""
 from concurrent.futures import ThreadPoolExecutor
 import io
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -315,6 +316,130 @@ def test_owner_edit_and_photo_lifecycle_non_owner_forbidden(wpr_env):
     assert owner.delete(f"/api/work-progress/{rid}/photos/{asset_id}").status_code == 200
     assert not (uploads / "work_progress" / "2026-09" / str(rid) / asset_id).exists()
     assert owner.get(f"/api/work-progress/{rid}/photos/{asset_id}/thumbnail").status_code == 404
+
+
+def test_work_progress_batch_delete_is_scoped_and_atomic(wpr_env):
+    """A mixed-report batch must reject every asset and preserve all files/rows."""
+    make_client, _users, _static, uploads = wpr_env
+    client = make_client("owner")
+    first = _appointment(client, date="2026-09-10")
+    second = _appointment(client, date="2026-09-11")
+    report_a = _create(client, first["id"]).json()
+    report_b = _create(client, second["id"], filename="two.png").json()
+    asset_a = report_a["photos"][0]["asset_id"]
+    asset_b = report_b["photos"][0]["asset_id"]
+    before = sorted(path.relative_to(uploads).as_posix() for path in uploads.rglob("*"))
+
+    response = client.post(
+        f"/api/work-progress/{report_a['id']}/photos/batch-delete",
+        json={"asset_ids": [asset_a, asset_b]},
+    )
+
+    assert response.status_code == 404
+    assert client.get(f"/api/work-progress/{report_a['id']}").json()["photos"][0]["asset_id"] == asset_a
+    assert client.get(f"/api/work-progress/{report_b['id']}").json()["photos"][0]["asset_id"] == asset_b
+    assert sorted(path.relative_to(uploads).as_posix() for path in uploads.rglob("*")) == before
+
+
+def test_work_progress_batch_delete_removes_multiple_assets_with_one_request(wpr_env):
+    """A valid batch deletes all selected variants and reports authoritative counts."""
+    make_client, _users, _static, uploads = wpr_env
+    client = make_client("owner")
+    appointment = _appointment(client)
+    created = client.post(
+        "/api/work-progress", data={"appointment_id": str(appointment["id"])},
+        files=[("files", (f"photo-{index}.png", _png(10, 10), "image/png")) for index in range(3)],
+    ).json()
+    selected = [photo["asset_id"] for photo in created["photos"][:2]]
+
+    response = client.post(
+        f"/api/work-progress/{created['id']}/photos/batch-delete",
+        json={"asset_ids": selected},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "deleted_count": 2, "remaining_count": 1}
+    remaining = client.get(f"/api/work-progress/{created['id']}").json()
+    assert len(remaining["photos"]) == 1
+    for asset_id in selected:
+        assert not (uploads / "work_progress" / "2026-09" / str(created["id"]) / asset_id).exists()
+
+
+def test_work_progress_batch_delete_rejects_duplicates_and_permission(wpr_env):
+    """Duplicate IDs and non-owner mutation attempts cannot alter photo rows."""
+    make_client, _users, _static, _uploads = wpr_env
+    owner = make_client("owner")
+    other = make_client("other")
+    appointment = _appointment(owner)
+    report = _create(owner, appointment["id"]).json()
+    asset_id = report["photos"][0]["asset_id"]
+    path = f"/api/work-progress/{report['id']}/photos/batch-delete"
+
+    assert owner.post(path, json={"asset_ids": [asset_id, asset_id]}).status_code == 422
+    assert other.post(path, json={"asset_ids": [asset_id]}).status_code == 403
+    assert owner.get(f"/api/work-progress/{report['id']}").json()["photo_count"] == 1
+
+
+def test_work_progress_batch_delete_restores_files_when_staging_fails(wpr_env, monkeypatch):
+    """A filesystem staging failure leaves both DB rows and files unchanged."""
+    make_client, _users, _static, uploads = wpr_env
+    client = make_client("owner")
+    appointment = _appointment(client)
+    report = client.post(
+        "/api/work-progress", data={"appointment_id": str(appointment["id"])},
+        files=[("files", (f"photo-{index}.png", _png(10, 10), "image/png")) for index in range(2)],
+    ).json()
+    asset_ids = [photo["asset_id"] for photo in report["photos"]]
+    before = sorted(path.relative_to(uploads).as_posix() for path in uploads.rglob("*"))
+    original_replace = work_progress.os.replace
+    calls = {"count": 0}
+
+    def fail_on_second(source, destination):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise OSError("simulated storage failure")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(work_progress.os, "replace", fail_on_second)
+    response = client.post(
+        f"/api/work-progress/{report['id']}/photos/batch-delete",
+        json={"asset_ids": asset_ids},
+    )
+
+    assert response.status_code == 500
+    assert client.get(f"/api/work-progress/{report['id']}").json()["photo_count"] == 2
+    assert sorted(path.relative_to(uploads).as_posix() for path in uploads.rglob("*")) == before
+
+
+
+def test_restore_staged_deletions_attempts_all_and_preserves_failed_backup(tmp_path, monkeypatch):
+    """A restore failure must not prevent later files and must retain recovery material."""
+    source_failed = tmp_path / "failed.jpg"
+    source_later = tmp_path / "later.jpg"
+    backup_failed = tmp_path / "staging" / "failed.jpg"
+    backup_later = tmp_path / "staging" / "later.jpg"
+    backup_failed.parent.mkdir()
+    backup_failed.write_bytes(b"failed")
+    backup_later.write_bytes(b"later")
+    calls = []
+    original_replace = work_progress.os.replace
+
+    def fail_one(source, destination):
+        calls.append((Path(source), Path(destination)))
+        if Path(source) == backup_failed:
+            raise OSError("simulated restore failure")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(work_progress.os, "replace", fail_one)
+    with pytest.raises(OSError, match="failed to restore 1 staged"):
+        work_progress._restore_staged_deletions([
+            (source_failed, backup_failed),
+            (source_later, backup_later),
+        ])
+
+    assert source_later.read_bytes() == b"later"
+    assert backup_failed.read_bytes() == b"failed"
+    assert len(calls) == 2
 
 
 def test_unrelated_asset_cannot_be_read_or_deleted(wpr_env):
