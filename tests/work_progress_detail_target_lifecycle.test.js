@@ -120,13 +120,17 @@ async function testSelectedDetailManageRefreshesSelectedTarget() {
   h.requests[0].resolve({ ok: true, json: async () => report('initial') });
   await flush();
   assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoManage\(42/);
+  assert.doesNotMatch(h.elements.get(selectedId).innerHTML, /wpr-photo-selection-badge/, 'default browsing must not render selection badges');
 
   h.sandbox.wprTogglePhotoManage(42, selectedId);
   assert.strictEqual(h.requests.length, 2, 'manage action must refresh the selected detail');
   h.requests[1].resolve({ ok: true, json: async () => report('managed') });
   await flush();
-
   assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoSelection\(42/);
+  assert.match(h.elements.get(selectedId).innerHTML, /wpr-photo-selection-badge/);
+  assert.match(h.elements.get(selectedId).innerHTML, /wpr-photo-management-actions/);
+  assert.match(h.elements.get(selectedId).innerHTML, /取消選取/);
+  assert.match(h.elements.get(selectedId).innerHTML, /完成選取/);
   assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoManage\(42/);
   assert.match(h.elements.get(selectedId).innerHTML, /wprEditReport\(42,'wpr-selected-report-detail-42'/);
   assert.match(h.elements.get(selectedId).innerHTML, /wprAddExistingPhotos\(42,'wpr-selected-report-detail-42'/);

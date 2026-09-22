@@ -727,7 +727,7 @@ function wprPhotoGalleryHtml(report, id, targetId) {
     var handler = state.manage
       ? 'wprTogglePhotoSelection(' + id + ',' + index + ',\'' + esc(jsStr(actionTargetId)) + '\')'
       : 'wprOpenGallery(' + id + ',' + index + ')';
-    return '<div class="wpr-photo-manage-tile ' + (selected ? 'is-selected' : '') + '"><button type="button" onclick="' + handler + '" aria-pressed="' + (selected ? 'true' : 'false') + '" aria-label="' + (state.manage ? '選取' : '開啟') + '施工照片 ' + (index + 1) + '"><span class="wpr-photo-selection-badge" aria-hidden="true">' + (selected ? '✓' : '') + '</span><img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '" loading="lazy" decoding="async"></button></div>';
+    return '<div class="wpr-photo-manage-tile ' + (selected ? 'is-selected' : '') + '"><button type="button" onclick="' + handler + '" aria-pressed="' + (selected ? 'true' : 'false') + '" aria-label="' + (state.manage ? '選取' : '開啟') + '施工照片 ' + (index + 1) + '">' + (state.manage ? '<span class="wpr-photo-selection-badge" aria-hidden="true">' + (selected ? '✓' : '') + '</span>' : '') + '<img src="' + esc(photo.thumbnail_url) + '" alt="施工照片 ' + (index + 1) + '" loading="lazy" decoding="async"></button></div>';
   }).join('');
 }
 
@@ -742,7 +742,7 @@ function wprPhotoManagementToolbarHtml(id, targetId) {
   var state = wprPhotoManageState(id, targetId);
   var selectedCount = Object.keys(state.selected).length;
   var disabled = state.deleting ? ' disabled' : '';
-  return '<div class="wpr-photo-management-toolbar" role="toolbar" aria-label="施工照片管理"><span class="wpr-photo-selected-count">已選 ' + selectedCount + ' 張</span><button type="button" onclick="wprSelectAllPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>全選</button><button type="button" onclick="wprClearPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>清除選取</button><button type="button" class="wpr-photo-batch-delete" onclick="wprBatchDeletePhotos(' + id + ',\'' + esc(jsStr(targetId)) + '\')" aria-label="刪除選取的 ' + selectedCount + ' 張照片"' + (selectedCount === 0 || state.deleting ? ' disabled' : '') + '>' + (state.deleting ? '刪除中…' : '刪除選取 ' + selectedCount + ' 張') + '</button><button type="button" onclick="wprTogglePhotoManage(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>完成</button></div>';
+  return '<div class="wpr-photo-management-toolbar" role="toolbar" aria-label="施工照片管理"><span class="wpr-photo-selected-count">已選 ' + selectedCount + ' 張</span><div class="wpr-photo-management-actions"><button type="button" class="wpr-photo-select-all" onclick="wprSelectAllPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>全選</button><button type="button" class="wpr-photo-clear-selection" onclick="wprClearPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + (disabled || selectedCount === 0 ? ' disabled' : '') + '>取消選取</button><button type="button" class="wpr-photo-batch-delete" onclick="wprBatchDeletePhotos(' + id + ',\'' + esc(jsStr(targetId)) + '\')" aria-label="刪除選取的 ' + selectedCount + ' 張照片"' + (selectedCount === 0 || state.deleting ? ' disabled' : '') + '>' + (state.deleting ? '刪除中…' : '刪除選取') + '</button><button type="button" class="wpr-photo-finish" onclick="wprTogglePhotoManage(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>完成選取</button></div></div>';
 }
 /**
  * Load and render the full detail body for one report.

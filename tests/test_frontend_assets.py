@@ -5011,12 +5011,21 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert 'loading=\"lazy\"' in gallery_block
     assert 'decoding=\"async\"' in gallery_block
     assert "使用流程" in js
+    assert "state.manage ?" in gallery_block
+    assert "wpr-photo-selection-badge" in gallery_block
+    assert "top: 8px; right: 8px; z-index: 2" in css
+    assert "top: calc(8px + env(safe-area-inset-top))" in css
     assert "wpr-info" in js
     assert "wpr-drop" in js and "dataTransfer.files" in js
     assert "wprResetFilter" in js
     assert "wpr-result-count" in js
     assert "wpr-chip active" in js
     assert "wprBatchDeletePhotos" in js
+    assert "wpr-photo-management-actions" in js
+    assert "wpr-photo-clear-selection" in js
+    assert "取消選取" in js
+    assert "完成選取" in js
+    assert "刪除選取')" in js
     assert "/photos/batch-delete" in js
     assert "method:'POST'" in js
     assert "確定刪除選取的" in js
