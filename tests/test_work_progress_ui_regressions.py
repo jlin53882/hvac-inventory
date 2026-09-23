@@ -62,7 +62,7 @@ def test_detail_target_lifecycle_runtime_contract():
         timeout=120,
     )
     assert result.returncode == 0, f"detail target lifecycle runtime failed:\n{result.stdout}\n{result.stderr}"
-    assert "10 passed" in result.stdout
+    assert "11 passed" in result.stdout
 
 
 def test_work_progress_gallery_has_stable_stage_geometry_for_desktop_and_mobile():

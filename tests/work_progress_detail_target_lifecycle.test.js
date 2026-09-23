@@ -154,6 +154,39 @@ async function testHistoryTargetFallbackRemainsAvailable() {
 }
 
 /**
+ * Prove a zero-photo report still renders its photo-section heading.
+ * @returns {Promise<void>} Completion promise.
+ */
+async function testPhotoHeadingRemainsWhenReportHasNoPhotos() {
+  const h = createHarness();
+  const detailId = 'wpr-detail-8';
+  h.elements.set(detailId, { id: detailId, innerHTML: '', textContent: '' });
+
+  h.sandbox.wprOpenHistoryDetail(8);
+  assert.strictEqual(h.requests.length, 1);
+  h.requests[0].resolve({
+    ok: true,
+    json: async () => ({
+      id: 8,
+      report_date: '2026-09-21',
+      service_name: '保養',
+      client_name: '三重 A6-12F',
+      uploader_name: '測試人員',
+      note: '已完成，無照片',
+      photos: [],
+      photo_count: 0,
+      can_edit: false,
+      can_delete: false,
+    }),
+  });
+  await flush();
+
+  const markup = h.elements.get(detailId).innerHTML;
+  assert.match(markup, /<h4 class="wpr-detail-photo-title">施工照片<\/h4>/);
+  assert.match(markup, /<div class="wpr-gallery-grid"><\/div>/);
+}
+
+/**
  * Prove the shared reload helper can refresh a selected target without history DOM.
  * @returns {Promise<void>} Completion promise.
  */
@@ -360,7 +393,8 @@ Promise.resolve()
   .then(testSelectedDetailManageRefreshesSelectedTarget)
   .then(testPhotoManagementUsesOneBatchRequest)
   .then(testHistoryTargetFallbackRemainsAvailable)
+  .then(testPhotoHeadingRemainsWhenReportHasNoPhotos)
   .then(testReloadHelperPreservesSelectedTarget)
   .then(testDetailTokensAreScopedPerTarget)
-  .then(() => console.log('work_progress_detail_target_lifecycle: 10 passed'))
+  .then(() => console.log('work_progress_detail_target_lifecycle: 11 passed'))
   .catch((error) => { console.error(error.stack || error); process.exitCode = 1; });

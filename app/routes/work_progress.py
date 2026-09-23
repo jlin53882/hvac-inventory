@@ -88,10 +88,25 @@ def _validate_uploader_name(uploader_name: str) -> str:
     return uploader_name
 
 
-def _read_image_uploads(files: Iterable[UploadFile] | None) -> list[tuple[bytes, str, str]]:
-    """Read and validate one atomic batch of image uploads before persistence."""
+def _read_image_uploads(
+    files: Iterable[UploadFile] | None,
+    *,
+    allow_empty: bool = False,
+) -> list[tuple[bytes, str, str]]:
+    """Read and validate an atomic image batch, optionally permitting no files.
+
+    Args:
+        files: Uploaded images supplied by the request.
+        allow_empty: Whether an empty batch is valid for this caller.
+
+    Returns:
+        Validated image bytes, safe filenames, and declared content types.
+
+    Raises:
+        HTTPException: If the batch is empty when required or violates upload limits.
+    """
     uploads = list(files or [])
-    if not uploads:
+    if not uploads and not allow_empty:
         raise HTTPException(400, "至少需要 1 張照片")
     if len(uploads) > MAX_FILES:
         raise HTTPException(400, "單次最多上傳 20 張照片")
@@ -364,14 +379,14 @@ def create_work_progress(
     files: list[UploadFile] | None = File(None),
     user: dict = Depends(require_db_perm("work-progress-create")),
 ):
-    """Create one appointment-bound report and atomically stage its required photos."""
+    """Create one appointment-bound report and atomically stage any supplied photos."""
     uploader_name = _validate_uploader_name(
         user.get("display_name") or user.get("username") or ""
         if uploader_name is None
         else uploader_name
     )
     note = _validate_note(note)
-    uploads = _read_image_uploads(files)
+    uploads = _read_image_uploads(files, allow_empty=True)
     conn = get_db()
     assets = []
     committed = False

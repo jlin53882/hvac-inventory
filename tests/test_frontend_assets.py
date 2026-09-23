@@ -5182,14 +5182,17 @@ def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
     css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
     app = read(APP_JS)
-    submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprConfirmSubmit", 1)[0]
+    submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi", 1)[0]
+    select_block = js.split("async function wprSelectJob(id)", 1)[1].split("function wprUpdateNoteCount", 1)[0]
     photo_block = js.split("function wprValidatePhotoBatch", 1)[1].split("function wprUpdatePendingPhotoControls", 1)[0]
     pending_gallery_block = js.split("function wprOpenPendingGallery", 1)[1].split("function wprRequestLeave", 1)[0]
     existing_block = js.split("function wprAddExistingPhotos", 1)[1].split("async function wprDeleteReport", 1)[0]
     dirty_block = js.split("function wprHasUnsavedChanges", 1)[1].split("function wprInstallBeforeUnload", 1)[0]
 
     assert "wprOpenSubmitConfirmation(snapshot)" in submit_block
+    assert "!wprSelectedFiles.length" not in submit_block
+    assert "save.disabled = false;" in select_block
     assert "wprFetch('/api/work-progress'" not in submit_block
     assert "form.append('uploader_name', snapshot.uploaderName)" in confirm_block
     assert "button.disabled = true" in confirm_block
@@ -5210,6 +5213,9 @@ def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
     assert "accept = 'image/jpeg,image/png,image/webp'" in existing_block
     assert "wprValidatePhotoBatch(files" in existing_block
     assert "report.photo_count" in existing_block
+    assert '施工照片 <b>*</b>' not in js
+    assert "首次回報至少 1 張照片" not in js
+    assert "wprSelectedFiles.length === 0" not in js
     assert "image/*" not in js
 
     for marker in ("wprCurrentReport && !wprCurrentReport.id && wprCurrentReport.appointment_id", "note.value.trim()", "wprInitialUploaderName", "wprSelectedFiles.length"):

@@ -120,6 +120,25 @@ def test_create_snapshots_without_assignee_and_scoped_photos(wpr_env):
     assert download.headers["content-disposition"].startswith("attachment;")
 
 
+def test_create_work_progress_without_photos_is_allowed(wpr_env):
+    """A report can be created without image uploads."""
+    make_client, _users, _static, uploads = wpr_env
+    client = make_client("owner")
+    appointment = _appointment(client)
+
+    response = client.post(
+        "/api/work-progress",
+        data={"appointment_id": str(appointment["id"]), "note": "已完成，無照片"},
+    )
+
+    assert response.status_code == 201, response.text
+    report = response.json()
+    assert report["note"] == "已完成，無照片"
+    assert report["photos"] == []
+    assert report["photo_count"] == 0
+    assert not (uploads / "work_progress").exists()
+
+
 def test_duplicate_appointment_is_conflict_and_only_one_row(wpr_env):
     make_client, _users, _static, _uploads = wpr_env
     client = make_client("owner")
@@ -311,6 +330,7 @@ def test_owner_edit_and_photo_lifecycle_non_owner_forbidden(wpr_env):
     assert updated.json()["uploader_user_id"] == report["uploader_user_id"]
     assert updated.json()["note"] == "已更新"
     assert owner.patch(f"/api/work-progress/{rid}", json={"uploader_name": "   "}).status_code == 400
+    assert owner.post(f"/api/work-progress/{rid}/photos").status_code == 400
     assert owner.post(f"/api/work-progress/{rid}/photos", files={"files": ("extra.png", _png(10, 10), "image/png")}).status_code == 200
     assert other.delete(f"/api/work-progress/{rid}/photos/{asset_id}").status_code == 403
     assert owner.delete(f"/api/work-progress/{rid}/photos/{asset_id}").status_code == 200

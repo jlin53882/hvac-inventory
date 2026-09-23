@@ -100,7 +100,7 @@ async function renderWorkProgress() {
             </ul>
             <div class="wpr-info-badges">
               <span class="wpr-badge">📅 工作來源：行事曆</span>
-              <span class="wpr-badge">📸 首次回報至少 1 張照片</span>
+              <span class="wpr-badge">📸 施工照片可選填</span>
               <span class="wpr-badge">🔒 依權限管理本人或全部資料</span>
             </div>
           </div>
@@ -172,7 +172,7 @@ function wprRenderCreate() {
       <h3 id="wpr-create-progress-title">工作進度資料</h3>
       <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱 <b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
       <div class="wpr-field"><label for="wpr-note">工作進度</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
-      <div class="wpr-field"><label>施工照片 <b>*</b></label>
+      <div class="wpr-field"><label>施工照片（選填）</label>
         <div class="wpr-photo-limit-copy">JPG、PNG、WebP · 單張最多 20MB · 每份最多 20 張</div>
         <div id="wpr-drop" class="wpr-drop">
           <div class="wpr-drop-icon">📸</div><div class="wpr-drop-title">拖曳多張圖片到此</div><div class="wpr-drop-sub">支援 JPG、PNG、WebP；也可以使用相簿或手機相機連續新增</div>
@@ -300,7 +300,7 @@ async function wprSelectJob(id) {
   } else {
     area.hidden = false;
     area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 已選工作</strong></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
-    save.disabled = wprSelectedFiles.length === 0;
+    save.disabled = false;
   }
 }
 /**
@@ -426,7 +426,6 @@ function wprAddPendingFiles(fileList) {
   if (!validation.ok) { toast(validation.error, 'error'); return; }
   files.forEach(function(file) { wprSelectedFiles.push({file: file, previewUrl: URL.createObjectURL(file)}); });
   wprRenderPendingPhotos();
-  if (wprCurrentReport && wprCurrentReport.appointment_id && !wprReportsByAppointment[wprCurrentReport.appointment_id]) document.getElementById('wpr-save').disabled = !wprSelectedFiles.length;
 }
 
 /**
@@ -454,7 +453,7 @@ function wprRemovePending(index) {
   wprSelectedFiles.splice(index, 1);
   wprRenderPendingPhotos();
   var save = document.getElementById('wpr-save');
-  if (save && (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprReportsByAppointment[wprCurrentReport.appointment_id])) save.disabled = !wprSelectedFiles.length;
+  if (save && (!wprCurrentReport || !wprCurrentReport.appointment_id || !wprReportsByAppointment[wprCurrentReport.appointment_id])) save.disabled = false;
 }
 
 /**
@@ -533,7 +532,7 @@ async function wprConfirmSubmit() {
  */
 async function wprSubmit() {
   if (!wprCanCreate()) { toast('沒有新增工作進度回報的權限', 'error'); return; }
-  if (wprPendingSubmit || !wprCurrentReport || !wprCurrentReport.appointment_id || wprReportsByAppointment[wprCurrentReport.appointment_id] || !wprSelectedFiles.length) return;
+  if (wprPendingSubmit || !wprCurrentReport || !wprCurrentReport.appointment_id || wprReportsByAppointment[wprCurrentReport.appointment_id]) return;
   var uploader = document.getElementById('wpr-uploader');
   var uploaderName = uploader ? uploader.value.trim() : '';
   var note = document.getElementById('wpr-note');
