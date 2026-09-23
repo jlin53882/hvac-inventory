@@ -84,6 +84,7 @@ PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test
 # 待測：零用金月報（2026-09-12）
 PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
 PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
+PETTY_CASH_UNPRICED_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_unpriced_runtime.test.js")
 SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
 WORK_PROGRESS_PAGE_VISIBILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "work_progress_page_visibility_runtime.test.js")
 TAB_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_lifecycle_runtime.test.js")
@@ -669,9 +670,19 @@ def test_petty_cash_items_header_columns():
     assert '數量' in js
     assert '單位' in js
     assert '金額' in js
+    assert 'pc-item-amount-optional' in js
+    assert 'pc-item-amount-required' in js
+    assert 'placeholder="金額"' in js
+    assert 'amountOptionalOnMobile' not in js
+    assert 'if (a === null &&' not in js
+    assert "if (a !== null && (!isFinite(a) || a <= 0))" in js
+    assert "it.amount == null || Number(it.amount) === 0 ? '' : ' $' + esc(it.amount)" in js
+    assert '明細金額需 > 0，或留空' in js
     assert '刪除' in js
     css = read_petty_cash_css()
     assert '.pc-items-header' in css
+    assert '.pc-item-amount-required { display: none; }' in css
+    assert '.pc-item-amount-optional { display: inline; }' in css
     assert 'grid-template-columns: 1fr 76px 64px 96px 44px' in css
     assert 'box-sizing: border-box' in css
 
@@ -714,6 +725,32 @@ def test_petty_cash_detail_table_mobile():
     assert '.pc-report-list-table' in css
     assert 'table-layout: auto' in css
     assert '11.11%' not in css
+
+
+def test_petty_cash_unpriced_details_hide_comparison_until_priced():
+    """未填金額時隱藏狀態與差額；有金額時才顯示比較摘要。"""
+    js = read(PETTY_CASH_RENDER_JS)
+    status_fn = js.split("function pcEntryStatus(e)", 1)[1].split("\n}", 1)[0]
+    details_fn = js.split("function pcGeneralDetailsHtml(e)", 1)[1].split("\n}", 1)[0]
+    assert "items.some(item => Number(item.amount) > 0)" in status_fn
+    assert "items.length && !hasPricedItems) return ''" in status_fn
+    assert "e.items.some(item => Number(item.amount) > 0)" in details_fn
+    assert "${hasPricedAmount ?" in details_fn
+    assert "${e.amount_warning ?" not in details_fn
+
+
+def test_petty_cash_unpriced_details_runtime():
+    """Execute the production renderers for blank, partially priced, and matched detail amounts."""
+    result = subprocess.run(
+        ["node", PETTY_CASH_UNPRICED_RUNTIME_JS],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"petty_cash_unpriced_runtime.test.js 失敗：\n{result.stdout}\n{result.stderr}"
+    )
 
 
 def test_petty_cash_settings_options_domain_layout():

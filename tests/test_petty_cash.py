@@ -138,6 +138,50 @@ def test_create_computes_totals(pc_env):
     assert d["status"] == "completed"
 
 
+def test_optional_detail_amount_is_persisted_as_zero(pc_env):
+    """明細金額留空時可儲存；沿用非 NULL 資料庫欄位以 0 表示未填。"""
+    c = pc_env()
+    body = _scenario_a()
+    body["entries"] = [_entry("2026-09-01", "expense", "", 100, items=[
+        _item("無標價項目", 1, "個", None),
+    ])]
+    saved = _create(c, body)
+    item = saved["entries"][0]["items"][0]
+    assert item["amount"] == 0
+    assert saved["entries"][0]["amount_warning"] is None
+    assert saved["entries"][0]["detail_total"] is None
+    assert saved["entries"][0]["difference"] is None
+
+
+def test_partially_priced_items_still_show_a_comparable_total(pc_env):
+    """只要已有明細金額，仍以已填金額計算明細合計與差額。"""
+    c = pc_env()
+    body = _scenario_a()
+    body["entries"] = [_entry("2026-09-01", "expense", "", 100, items=[
+        _item("已標價項目", 1, "個", 40),
+        _item("未標價項目", 1, "個", None),
+    ])]
+    saved = _create(c, body)
+    entry = saved["entries"][0]
+    assert entry["detail_total"] == 40
+    assert entry["difference"] == -60
+    assert "不一致" in entry["amount_warning"]
+
+
+def test_fully_priced_matching_details_report_zero_difference(pc_env):
+    """已填明細金額與帳務金額相同時保留合計與零差額，不標示不一致。"""
+    c = pc_env()
+    body = _scenario_a()
+    body["entries"] = [_entry("2026-09-01", "expense", "", 100, items=[
+        _item("已標價項目", 1, "個", 100),
+    ])]
+    saved = _create(c, body)
+    entry = saved["entries"][0]
+    assert entry["detail_total"] == 100
+    assert entry["difference"] == 0
+    assert entry["amount_warning"] is None
+
+
 def test_amount_mismatch_warning_saved(pc_env):
     """§25：明細合計 1545 ≠ 支出 1334 → warning 但仍可儲存。"""
     c = pc_env()

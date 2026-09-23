@@ -377,6 +377,7 @@
   #content .pc-kpi-card__head .ui-kpi-label { font-size: clamp(8px, 2.7vw, 11px); }
   #content .pc-kpi-card__foot { font-size: 9px; }
 }
+
 /* 收入/支出按鈕 active 色彩區分 */
 #content .pc-step.pc-step--income.active { background: #dcfce7; border: 2px solid #16a34a; color: #15803d; }
 #content .pc-step.pc-step--expense.active { background: #fee2e2; border: 2px solid #dc2626; color: #b91c1c; }
@@ -444,3 +445,33 @@
 .pc-empty-cell { color:#94a3b8; text-align:center; padding:18px; }
 .pc-item-row { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
 .pc-items-header { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
+.pc-item-amount-required { display: none; }
+.pc-item-amount-optional { display: inline; }
+/* Keep the mobile overrides after canonical desktop declarations so the cascade cannot undo them. */
+@media (max-width: 767px) {
+  #content .pc-general-detail-kpi .pc-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #content .pc-general-detail-kpi .pc-kpi-card { flex: initial; width: auto; }
+  #pc-entry-overlay .pc-modal,
+  #pc-report-overlay .pc-modal { width: 100%; max-height: calc(100dvh - 24px); }
+  #pc-entry-overlay .pc-modal__ft > span,
+  #pc-report-overlay .pc-modal__ft > span {
+    display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 8px; min-width: 0;
+  }
+  #pc-entry-overlay .pc-modal__ft button,
+  #pc-report-overlay .pc-modal__ft button { flex: 1 1 120px; min-width: 0; }
+  .pc-items-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "name name del" "qty unit amount";
+  }
+  .pc-items-header span:nth-child(1) { grid-area: name; }
+  .pc-items-header span:nth-child(2) { grid-area: qty; }
+  .pc-items-header span:nth-child(3) { grid-area: unit; }
+  .pc-items-header span:nth-child(4) { grid-area: amount; }
+  .pc-items-header span:nth-child(5) { grid-area: del; }
+  .pc-item-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .pc-item-row input { min-width: 0; }
+}

@@ -6,7 +6,7 @@
 - GET    /api/petty-cash/kpi                      KPI（同篩選全量：總數/已完成/草稿，不受分頁影響）
 - GET    /api/petty-cash-reports/previous-balance 上期餘額（同上傳人、end_date < before 的最近 completed）
 - POST   /api/petty-cash-reports                  建立（含 entries/items，單一 transaction）
-- GET    /api/petty-cash-reports/{id}             明細（含計算 totals + 明細合計警示）
+- GET    /api/petty-cash-reports/{id}             明細（含計算 totals；僅有已填金額的明細才比對金額警示）
 - PUT    /api/petty-cash-reports/{id}             全量替換（仿 quotations._write_quote）
 - DELETE /api/petty-cash-reports/{id}             刪除（CASCADE；本人或 petty-cash-delete-all）
 - GET    /api/petty-cash-reports/{id}/export.xlsx 範本填值匯出（不輸出上傳人；更新 last_exported_at）
@@ -52,8 +52,21 @@ def _totals(opening: float, entries: list) -> dict:
 
 
 def _entry_dict(entry_row, items: list) -> dict:
-    item_total = round(sum(float(i["amount"]) for i in items), 2) if items else None
+    """序列化收支紀錄，只有明細含已填金額時才計算合計與警示。
+
+    Args:
+        entry_row: 收支紀錄資料庫列。
+        items: 此紀錄的商品明細資料列。
+
+    Returns:
+        可供 API 回傳的收支資料；全為零的明細金額視為尚未填寫。
+    """
     amount = round(float(entry_row["amount"]), 2)
+    has_priced_items = any(float(item["amount"] or 0) > 0 for item in items)
+    item_total = (
+        round(sum(float(item["amount"] or 0) for item in items), 2)
+        if has_priced_items else None
+    )
     warning = None
     if item_total is not None and abs(item_total - amount) > 0.005:
         warning = f"明細合計 ${item_total:g} 與支出總額 ${amount:g} 不一致，請確認。"
@@ -281,12 +294,13 @@ def _write_report(conn, body: PettyCashReportIn, user_id: int, report_id: int | 
         )
         entry_id = cur.lastrowid
         for item_order, item in enumerate(entry.items):
+            # The existing table is NOT NULL, so persist an omitted amount as zero.
             conn.execute(
                 """INSERT INTO petty_cash_entry_items
                    (entry_id, item_name, qty, unit, amount, sort_order)
                    VALUES (?,?,?,?,?,?)""",
                 (entry_id, item.item_name, item.qty, item.unit.strip(),
-                 item.amount, item_order),
+                 item.amount if item.amount is not None else 0, item_order),
             )
     return report_id
 

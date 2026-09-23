@@ -67,7 +67,7 @@ async function pcOpenReportModal(id) {
     amount: e.amount, category: e.category || '', sort_order: e.sort_order || i,
     items: (e.items || []).map((it, j) => ({
       _key: 't' + Date.now() + '_' + i + '_' + j,
-      item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount
+      item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount || ''
     }))
   }));
   pcOpeningSource = d.opening_balance_source || 'manual';
@@ -266,14 +266,19 @@ function pcModalRenderEntries() {
   document.getElementById('pc-sum-expense').textContent = '$' + _pcMoney(expense);
   document.getElementById('pc-sum-closing').textContent = '$' + _pcMoney(opening + income - expense);
 }
-// modal 內單筆 entry 卡（內部 state 已由 input 驗證，文字 esc）
+/**
+ * Build one entry summary card and omit currency text when an optional detail amount is unset.
+ * @param {{entry_type: string, amount: number, items: Array<{item_name: string, qty: number, unit?: string, amount?: number|null}>, category?: string, entry_date: string, description: string}} e - Entry and child item values.
+ * @param {number} i - Entry index used by the edit handlers.
+ * @returns {string} Escaped summary-card markup.
+ */
 function pcModalEntryCardHtml(e, i) {
   const amt = e.entry_type === 'income'
     ? `<span class="pc-entry-card__amt pc-kpi-income">+$${esc(_pcMoney(e.amount))}</span>`
     : `<span class="pc-entry-card__amt pc-kpi-expense">-$${esc(_pcMoney(e.amount))}</span>`;
   const itemsHtml = (e.items && e.items.length)
     ? `<ul class="pc-entry-card__items">${e.items.map(it =>
-        `<li>${esc(it.item_name)} ${esc(Number(it.qty))}${esc(it.unit || '')} $${esc(it.amount)}</li>`).join('')}</ul>`
+        `<li>${esc(it.item_name)} ${esc(Number(it.qty))}${esc(it.unit || '')}${it.amount == null || Number(it.amount) === 0 ? '' : ' $' + esc(it.amount)}</li>`).join('')}</ul>`
     : '';
   return `<div class="pc-entry-card pc-entry-card--clickable" role="button" tabindex="0" onclick="pcOpenEntryModal(${i})" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){pcOpenEntryModal(${i})}">
     <div class="pc-entry-card__top">
@@ -321,7 +326,7 @@ function pcOpenEntryModal(idx) {
               <strong>明細項目</strong>
               <button class="pc-btn-sm" onclick="pcEntryAddItemRow()">＋ 新增項目</button>
             </div>
-            <div class="pc-items-header"><span>項目名稱</span><span>數量</span><span>單位</span><span>金額</span><span>刪除</span></div>
+            <div class="pc-items-header"><span>項目名稱</span><span>數量</span><span>單位</span><span>金額<span class="pc-required pc-item-amount-required">*</span><span class="pc-item-amount-optional">（選填）</span></span><span>刪除</span></div>
             <div id="pc-entry-items"></div>
             <div class="pc-balance-hint" id="pc-entry-amount-hint"></div>
           </div>
@@ -388,11 +393,20 @@ function pcUpdateDescRequired() {
   req.style.display = hasItems ? 'none' : '';
 }
 
-// 明細合計 vs 支出總額一致性提醒（僅提醒不擋存，匯出前再次顯示）
+/**
+ * 所有裝置皆僅在至少一項明細金額已填時顯示合計與差額。
+ * @returns {void} 更新提示文字。
+ */
 function pcEntryAmountHint() {
   const hint = document.getElementById('pc-entry-amount-hint');
   if (!hint) return;
   if (pcEntryType !== 'expense' || !pcEntryItemDraft.length) { hint.textContent = ''; return; }
+  const hasPricedItem = pcEntryItemDraft.some(it => Number(it.amount) > 0);
+  if (!hasPricedItem) {
+    hint.className = 'pc-balance-hint';
+    hint.textContent = '';
+    return;
+  }
   const total = pcEntryItemDraft.reduce((s, it) => s + (Number(it.amount) || 0), 0);
   const amt = Number(document.getElementById('pc-e-amount').value) || 0;
   hint.className = 'pc-balance-hint ' + (Math.abs(total - amt) > 0.005 ? 'pc-balance-hint--manual' : 'pc-balance-hint--auto');
@@ -401,7 +415,10 @@ function pcEntryAmountHint() {
     : `✓ 明細合計 $${_pcMoney(total)} 與支出總額一致。`;
 }
 
-// 收支紀錄存檔（驗證後寫入 modal 暫存）
+/**
+ * 驗證並儲存收支草稿；細項金額在所有裝置皆可留空，空值傳為 null。
+ * @returns {void} 驗證失敗時顯示提示，成功時更新暫存紀錄。
+ */
 function pcEntrySave() {
   const date = document.getElementById('pc-e-date').value;
   const desc = document.getElementById('pc-e-desc').value.trim();
@@ -419,10 +436,11 @@ function pcEntrySave() {
     for (const it of pcEntryItemDraft) {
       const nm = (it.item_name || '').trim();
       const q = Number(it.qty);
-      const a = Number(it.amount);
+      const rawAmount = it.amount;
+      const a = rawAmount === '' || rawAmount == null ? null : Number(rawAmount);
       if (!nm) return toast('⚠️ 明細品項名稱不可空白');
       if (!isFinite(q) || q <= 0) return toast('⚠️ 明細數量需 > 0');
-      if (!isFinite(a) || a <= 0) return toast('⚠️ 明細金額需 > 0');
+      if (a !== null && (!isFinite(a) || a <= 0)) return toast('⚠️ 明細金額需 > 0，或留空');
       items.push({ _key: it._key, item_name: nm, qty: q, unit: (it.unit || '').trim(), amount: a });
     }
   }

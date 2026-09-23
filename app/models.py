@@ -358,11 +358,11 @@ class QuotationIn(BaseModel):
 
 # ---------- 零用金月報（2026-09-12：report / entry / entry_item 三層） ----------
 class PettyCashEntryItemIn(BaseModel):
-    """一筆支出底下的明細項目（不綁庫存，可獨立運作）。"""
+    """一筆支出底下的明細項目；金額可留空，寫入舊資料表時以 0 表示未填。"""
     item_name: str = Field(..., min_length=1, max_length=200)
     qty: float = Field(..., gt=0)
     unit: str = Field("", max_length=20)
-    amount: float = Field(..., gt=0)
+    amount: Optional[float] = Field(None, gt=0)
 
     @field_validator("item_name")
     @classmethod

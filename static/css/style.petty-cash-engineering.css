@@ -186,3 +186,25 @@
   .eng-editor .eng-group-head { grid-template-columns:1fr; }
   .eng-detail-view .eng-group-head { grid-template-columns:minmax(0,1fr); }
 }
+
+/* 手機編輯工程費用時，長名稱、按鈕與欄位不得撐開 modal。 */
+@media (max-width: 767px) {
+  #eng-report-overlay .pc-modal { width:100%; height:calc(100dvh - 24px); max-height:calc(100dvh - 24px); }
+  #eng-report-overlay .pc-modal__hd,
+  #eng-report-overlay .pc-modal__ft { flex:0 0 auto; }
+  #eng-report-overlay .pc-modal__bd { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #eng-report-overlay .pc-modal__ft > span {
+    display:flex; flex:1 1 100%; flex-wrap:wrap; gap:8px; min-width:0;
+  }
+  #eng-report-overlay .pc-modal__ft button { flex:1 1 120px; min-width:0; }
+  .eng-editor .eng-category-title,
+  .eng-editor .eng-group-head { width:100%; min-width:0; box-sizing:border-box; }
+  .eng-editor .eng-category-title > *,
+  .eng-editor .eng-group-head > * { min-width:0; max-width:100%; }
+  .eng-editor .eng-detail-row { grid-template-columns:minmax(0,1fr); min-width:0; }
+  .eng-editor .eng-detail-row input { min-width:0; }
+  .eng-editor .eng-editor-receipt-actions { flex-wrap:wrap; }
+  .eng-editor .eng-editor-receipt-actions > button { flex:1 1 120px; min-width:0; }
+  /* 固定手機 modal 高度，讓細項在 footer 上方可捲動；發票欄位改直排避免互相擠壓。 */
+  .eng-editor .eng-receipt-grid { grid-template-columns:minmax(0,1fr); }
+}

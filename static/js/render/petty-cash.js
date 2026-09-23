@@ -527,7 +527,15 @@ function pcBindGeneralDetailEvents() {
     pcToggleGeneralEntry(Number(element.dataset.entryIndex));
   }, true);
 }
+/**
+ * 隱藏未填明細金額的帳務狀態，避免把空值誤當成零元差異。
+ * @param {Object} e 收支紀錄及其明細資料。
+ * @returns {string} 狀態徽章 HTML，未填明細金額時回傳空字串。
+ */
 function pcEntryStatus(e) {
+  const items = Array.isArray(e.items) ? e.items : [];
+  const hasPricedItems = items.some(item => Number(item.amount) > 0);
+  if (items.length && !hasPricedItems) return '';
   return e.amount_warning ? '<span class="pc-entry-status pc-entry-status--warn">⚠ 金額不一致</span>' : '<span class="pc-entry-status">● 正常</span>';
 }
 function pcItemText(it) {
@@ -538,12 +546,18 @@ function pcItemText(it) {
 function pcDetailSubtableHtml(rows) {
   return `<div class="pc-general-detail-list"><div class="pc-general-detail-head"><span>項次</span><span>細項</span></div>${rows.map((row, i) => `<div class="pc-general-detail-item"><span class="pc-general-detail-index">${esc(String(i + 1).padStart(2, '0'))}</span><span class="pc-general-detail-description">${esc(row.description)}</span></div>`).join('')}</div>`;
 }
+/**
+ * 渲染一般零用金明細及已填金額的帳務摘要。
+ * @param {Object} e 收支紀錄及商品明細。
+ * @returns {string} 已跳脫使用者資料的明細 HTML。
+ */
 function pcGeneralDetailsHtml(e) {
   if (!e.items || !e.items.length) return '';
+  const hasPricedAmount = e.items.some(item => Number(item.amount) > 0);
   const detailTotal = e.detail_total == null ? null : '$' + _pcMoney(e.detail_total);
   const difference = e.difference == null ? null : (e.difference >= 0 ? '+$' : '-$') + _pcMoney(Math.abs(e.difference));
   const rows = e.items.map(it => ({ description: pcItemText(it) }));
-  return `<div class="pc-general-detail-panel"><div class="pc-general-detail-title">單據明細（${esc(e.items.length)} 項）</div>${pcDetailSubtableHtml(rows)}${e.amount_warning ? `<div class="pc-general-discrepancy"><span>帳務支出 <b>$${esc(_pcMoney(e.amount))}</b></span><span>明細合計 <b>${esc(detailTotal || '—')}</b></span><span>差額 <b>${esc(difference || '—')}</b></span></div>` : ''}</div>`;
+  return `<div class="pc-general-detail-panel"><div class="pc-general-detail-title">單據明細（${esc(e.items.length)} 項）</div>${pcDetailSubtableHtml(rows)}${hasPricedAmount ? `<div class="pc-general-discrepancy"><span>帳務支出 <b>$${esc(_pcMoney(e.amount))}</b></span><span>明細合計 <b>${esc(detailTotal || '—')}</b></span><span>差額 <b>${esc(difference || '—')}</b></span></div>` : ''}</div>`;
 }
 function pcGeneralEntryRowsHtml(entries) {
   let seq = 0;
