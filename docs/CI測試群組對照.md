@@ -15,6 +15,7 @@
 |---|---|---|---|
 | `test_app_logging.py` | `core` | `full-only` | logging contract，目前不另拆 job |
 | `test_appointments.py` | `regression` | `full-only` | calendar / sync regression |
+| `test_backup_db.py` | `core` | `full-only` | 每日資料庫備份腳本 / monitor 整合 |
 | `test_config.py` | `core` | `full-only` | config contract |
 | `test_database_migrations.py` | `database`, `inventory` | `CI / Inventory + Database` | migration / seed rollback |
 | `test_deadvar_verify.py` | `regression` | `full-only` | dead variable regression |

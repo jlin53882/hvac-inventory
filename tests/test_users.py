@@ -817,3 +817,18 @@ def test_session_expiry_stored_in_utc(admin_client, monkeypatch):
         assert drift < 120
     finally:
         conn.close()
+
+
+def test_ip_fail_records_are_pruned(monkeypatch):
+    """B9：失敗紀錄超過門檻時清掉觀察窗外的 IP；檢查不為未失敗 IP 建立空紀錄。"""
+    import app.services.auth as svc
+    monkeypatch.setattr(svc, "_ip_fail_times", {})
+    now = [1_000_000.0]
+    monkeypatch.setattr(svc.time, "time", lambda: now[0])
+    assert svc.check_ip_rate_limit("10.0.0.1") is False
+    assert "10.0.0.1" not in svc._ip_fail_times
+    for i in range(svc.IP_FAIL_PRUNE_THRESHOLD + 1):
+        svc.record_ip_fail(f"10.1.{i // 256}.{i % 256}")
+    now[0] += svc.IP_FAIL_WINDOW_SEC + 1
+    svc.record_ip_fail("10.9.9.9")
+    assert list(svc._ip_fail_times) == ["10.9.9.9"]
