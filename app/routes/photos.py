@@ -22,6 +22,7 @@ from app.services.file_storage import (
     delete_asset_files,
     finalize_asset_paths,
     get_owner_asset,
+    prepare_media,
     store_asset,
 )
 
@@ -100,6 +101,11 @@ def upload_photo(item_id: int, file: UploadFile):
             raise HTTPException(400, "圖片超過 10MB 上限")
         if not data:
             raise HTTPException(400, "空檔案")
+        try:
+            # 2026-09：縮圖在 BEGIN IMMEDIATE 之前完成，不佔 SQLite 寫鎖
+            prepared = prepare_media(data, original_name)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
         conn.execute("BEGIN IMMEDIATE")
         old = _photo_asset(conn, item_id)
@@ -117,6 +123,7 @@ def upload_photo(item_id: int, file: UploadFile):
                 original_name=original_name,
                 mime_type=file.content_type or "",
                 legacy_preview_path=f"{item_id}.jpg",
+                prepared=prepared,
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc

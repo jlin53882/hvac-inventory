@@ -18,13 +18,14 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
 from app.database import get_db
 from app.services.auth import require_login, require_perm
 from app.services.safety import has_perm, safe_download_name
-from app.services.file_storage import asset_variant_path, cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, safe_upload_path, store_asset
+from app.services.file_storage import asset_variant_path, cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, prepare_media, safe_upload_path, store_asset
 from app.models import SignedReportUpdate
 
 router = APIRouter()
@@ -54,6 +55,21 @@ def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
     if ext not in ALLOWED_EXTS:
         raise HTTPException(400, f"不支援的檔案格式 {ext}，僅允許 PDF/PNG/JPG/GIF/WebP")
     return data, safe, (file.content_type or "").strip()[:120]
+
+
+def _read_and_prepare(file: UploadFile):
+    """讀檔 + 驗證 + 產生預覽（交易外、threadpool 執行）。
+
+    回傳 (data, safe, mime, prepared)；錯誤以 HTTPException 物件回傳而非拋出，
+    讓呼叫端在 404/403 檢查之後才拋，維持原本的錯誤優先順序。
+    """
+    try:
+        data, safe, mime = _read_upload(file)
+        return data, safe, mime, prepare_media(data, safe)
+    except HTTPException as exc:
+        return exc
+    except ValueError as exc:
+        return HTTPException(400, str(exc))
 
 def _report_capabilities(conn, row, user):
     """Return final action capabilities: action permission AND owner/global scope."""
@@ -105,6 +121,11 @@ def upload_signed_report(
     except Exception:
         raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
     data, safe, mime = _read_upload(file)
+    try:
+        # 2026-09：影像處理在 INSERT（隱式開交易）之前完成，不佔 SQLite 寫鎖
+        prepared = prepare_media(data, safe)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
     conn = get_db()
     asset = None
@@ -127,6 +148,7 @@ def upload_signed_report(
             year_month=ym,
             legacy_original_path=stored,
             upload_dir=Path(STATIC_DIR) / "uploads",
+            prepared=prepared,
         )
         conn.execute(
             "UPDATE daily_signed_reports SET stored_path=?, mime_type=? WHERE id=?",
@@ -274,6 +296,14 @@ async def update_signed_report(
         report_date = payload.report_date
         uploader_name = payload.uploader_name
         note = payload.note
+    # 2026-09：async handler 只做非同步讀取；讀檔/影像處理/SQLite 交易一律丟 threadpool，
+    # 否則會卡住 event loop（處理期間全站所有請求停住）。
+    upload = await run_in_threadpool(_read_and_prepare, file) if file is not None else None
+    return await run_in_threadpool(_apply_update, rid, user, report_date, uploader_name, note, upload)
+
+
+def _apply_update(rid: int, user: dict, report_date, uploader_name, note, upload):
+    """簽名報表編輯的同步主體（threadpool 執行）；upload 為 _read_and_prepare 結果或 None。"""
     conn = get_db()
     new_asset = None
     old_asset = None
@@ -310,14 +340,17 @@ async def update_signed_report(
 
         update_fields = ["report_date=?", "uploader_name=?", "note=?"]
         update_values = [report_date, uploader_name, note]
-        if file is not None:
-            data, safe, mime = _read_upload(file)
+        if upload is not None:
+            if isinstance(upload, HTTPException):
+                raise upload
+            data, safe, mime, prepared = upload
             ym = report_date[:7]
             stored = f"signed_reports/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
             new_asset = store_asset(
                 conn, category="signed_report", owner_type="signed_report", owner_id=rid,
                 data=data, original_name=safe, mime_type=mime, year_month=ym,
                 legacy_original_path=stored, upload_dir=Path(STATIC_DIR) / "uploads",
+                prepared=prepared,
             )
             update_fields.extend(["file_name=?", "stored_path=?", "file_size=?", "mime_type=?"])
             update_values.extend([safe, new_asset.original_path, len(data), new_asset.mime_type])

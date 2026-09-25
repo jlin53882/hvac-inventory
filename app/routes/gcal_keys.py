@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from app.config import BASE_DIR
 from app.database import get_db
 from app.models import GcalKeyIn, GcalKeyUpdate
@@ -195,15 +196,40 @@ def list_gcal_keys():
         conn.close()
 
 
+_JSON_ERROR = object()
+
+
+async def _read_request_body(request: Request):
+    """async 只負責讀取 request body：multipart → ("form", form)；其餘 → ("json", data)。
+
+    2026-09：檔案寫入、SQLite、跨 process key lock、Google API 皆為阻塞操作，
+    必須在 threadpool 執行，否則會卡住 event loop（全站請求停住）。
+    JSON 解析失敗回傳 _JSON_ERROR，由同步主體依原本流程回 422。
+    """
+    content_type = request.headers.get("content-type", "").lower()
+    if content_type.startswith("multipart/form-data"):
+        return "form", await request.form()
+    try:
+        return "json", await request.json()
+    except Exception:
+        return "json", _JSON_ERROR
+
+
 @router.post("/api/gcal-keys", status_code=201, dependencies=[Depends(require_perm("gcal-keys-manage"))])
 async def create_gcal_key(request: Request):
     """新增 key，可上傳 JSON 或輸入伺服器上的 JSON 路徑。"""
+    body = await _read_request_body(request)
+    return await run_in_threadpool(_create_gcal_key_sync, body)
+
+
+def _create_gcal_key_sync(body):
+    """新增 key 的同步主體（threadpool 執行）。"""
     uploaded_path = None
     upload_committed = False
+    kind, content = body
     try:
-        content_type = request.headers.get("content-type", "").lower()
-        if content_type.startswith("multipart/form-data"):
-            form = await request.form()
+        if kind == "form":
+            form = content
             name = str(form.get("name") or "").strip()
             credentials_path = str(form.get("credentials_path") or "").strip()
             calendar_id = str(form.get("calendar_id") or "").strip()
@@ -212,7 +238,7 @@ async def create_gcal_key(request: Request):
                 filename = str(uploaded.filename or "")
                 if Path(filename).suffix.lower() != ".json":
                     raise HTTPException(400, "Service Account 檔案必須是 .json")
-                data = await uploaded.read(MAX_CREDENTIALS_SIZE + 1)
+                data = uploaded.file.read(MAX_CREDENTIALS_SIZE + 1)
                 credentials = _credentials_data(data)
                 storage_dir = UPLOADED_CREDENTIALS_DIR
                 storage_dir.mkdir(parents=True, exist_ok=True)
@@ -224,7 +250,9 @@ async def create_gcal_key(request: Request):
                 credentials_path = str(uploaded_path)
         else:
             try:
-                payload = GcalKeyIn.model_validate(await request.json())
+                if content is _JSON_ERROR:
+                    raise ValueError("invalid json")
+                payload = GcalKeyIn.model_validate(content)
             except Exception as exc:
                 raise HTTPException(422, "Key 資料格式錯誤") from exc
             name = payload.name.strip()
@@ -272,11 +300,17 @@ async def create_gcal_key(request: Request):
 @router.put("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 async def update_gcal_key(key_id: int, request: Request):
     """✏️ 編輯 key（名稱/路徑/calendar_id/啟停），支援重新上傳 JSON。"""
+    body = await _read_request_body(request)
+    return await run_in_threadpool(_update_gcal_key_sync, key_id, body)
+
+
+def _update_gcal_key_sync(key_id: int, body):
+    """同步主體（threadpool 執行）：跨 process key lock 可能等待背景同步的 Google API 呼叫。"""
     with gcal_sync._key_process_lock(key_id):
-        return await _update_gcal_key_locked(key_id, request)
+        return _update_gcal_key_locked(key_id, body)
 
 
-async def _update_gcal_key_locked(key_id: int, request: Request):
+def _update_gcal_key_locked(key_id: int, body):
     uploaded_path = None
     upload_committed = False
     try:
@@ -288,10 +322,10 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
         if not row:
             raise HTTPException(404, "Key 不存在")
 
-        content_type = request.headers.get("content-type", "").lower()
+        kind, content = body
         old_credentials_path = row["credentials_path"]
-        if content_type.startswith("multipart/form-data"):
-            form = await request.form()
+        if kind == "form":
+            form = content
             name = str(form.get("name") or "").strip()
             credentials_path = str(form.get("credentials_path") or "").strip()
             calendar_id = str(form.get("calendar_id") or "").strip()
@@ -304,7 +338,7 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                 filename = str(uploaded.filename or "")
                 if Path(filename).suffix.lower() != ".json":
                     raise HTTPException(400, "Service Account 檔案必須是 .json")
-                data = await uploaded.read(MAX_CREDENTIALS_SIZE + 1)
+                data = uploaded.file.read(MAX_CREDENTIALS_SIZE + 1)
                 credentials = _credentials_data(data)
                 storage_dir = UPLOADED_CREDENTIALS_DIR
                 storage_dir.mkdir(parents=True, exist_ok=True)
@@ -319,7 +353,9 @@ async def _update_gcal_key_locked(key_id: int, request: Request):
                 credentials_path = str(uploaded_path)
         else:
             try:
-                k = GcalKeyUpdate.model_validate(await request.json())
+                if content is _JSON_ERROR:
+                    raise ValueError("invalid json")
+                k = GcalKeyUpdate.model_validate(content)
             except Exception as exc:
                 raise HTTPException(422, "Key 資料格式錯誤") from exc
             name = k.name.strip() if k.name else None
