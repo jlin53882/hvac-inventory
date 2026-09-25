@@ -13,6 +13,7 @@ WORK_PROGRESS_JS = ROOT / "static/js/render/work-progress.js"
 WORK_PROGRESS_CSS = ROOT / "static/css/style.work-progress.css"
 GALLERY_LIFECYCLE_TEST = ROOT / "tests/work_progress_gallery_lifecycle.test.js"
 DETAIL_TARGET_LIFECYCLE_TEST = ROOT / "tests/work_progress_detail_target_lifecycle.test.js"
+UPLOAD_PROGRESS_TEST = ROOT / "tests/work_progress_upload_progress.test.js"
 CALENDAR_JS = ROOT / "static/js/render/calendar.js"
 CALENDAR_CSS = ROOT / "static/css/style.calendar.css"
 APP_JS = ROOT / "static/js/app.js"
@@ -138,3 +139,16 @@ def test_daily_report_note_cells_enable_wrapping():
     ws = load_workbook(buf).active
     assert ws["B6"].value == "第一行\n第二行"
     assert ws["B6"].alignment == Alignment(wrap_text=True, vertical="top")
+
+
+def test_upload_progress_runtime_contract():
+    """2026-09：上傳改用 XHR 回報進度（上傳中 xx% → 伺服器處理中…），錯誤訊息與 wprFetch 一致。"""
+    result = subprocess.run(
+        ["node", str(UPLOAD_PROGRESS_TEST)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, f"upload progress runtime failed:\n{result.stdout}\n{result.stderr}"
+    assert "work progress upload progress runtime ok" in result.stdout

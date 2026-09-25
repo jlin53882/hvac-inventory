@@ -64,6 +64,7 @@
 - `tests/tab_lifecycle_runtime.test.js`
 - `tests/tab_async_lifecycle.test.js`
 - `tests/work_progress_detail_target_lifecycle.test.js`
+- `tests/work_progress_upload_progress.test.js`：由 `test_work_progress_ui_regressions.py` 執行（上傳進度條）
 
 ## Phase 2 boundary
 
