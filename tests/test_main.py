@@ -27,6 +27,40 @@ import app.database as app_db  # noqa: E402
 import main as app_main  # noqa: E402
 
 
+
+def _concurrent_authenticated_posts(
+    client: TestClient, operations: list[tuple[str, dict[str, object]]]
+) -> list[int]:
+    """Run authenticated API writes concurrently through separate clients.
+
+    Args:
+        client: Authenticated fixture client sharing the isolated test database.
+        operations: Endpoint paths and JSON payloads to submit at one barrier.
+
+    Returns:
+        HTTP status codes in the same order as ``operations``.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    from app.services.auth import SESSION_COOKIE
+
+    token = client.cookies.get(SESSION_COOKIE)
+    assert token is not None
+    barrier = threading.Barrier(len(operations))
+
+    def send(operation: tuple[str, dict[str, object]]) -> int:
+        """Submit one request only after every worker is ready."""
+        path, payload = operation
+        with TestClient(app_main.app) as concurrent_client:
+            concurrent_client.cookies.set(SESSION_COOKIE, token)
+            barrier.wait(timeout=10)
+            return concurrent_client.post(path, json=payload).status_code
+
+    with ThreadPoolExecutor(max_workers=len(operations)) as pool:
+        return list(pool.map(send, operations))
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     """每個測試獨立 DB：切 DB_PATH → 重建 schema → 建立 admin → 自動登入 → 回傳帶 session 的 TestClient"""
@@ -2525,6 +2559,65 @@ class TestPhase3Concurrency:
         finally:
             conn.close()
         assert qty == 2, f"庫存應為 2（10-8），實際 {qty}（不得負庫存）"
+
+    def test_concurrent_selected_stock_reductions_never_underflow(self, client: TestClient) -> None:
+        """Two simultaneous targeted reductions cannot spend the same stock twice."""
+        item = _add_item(client, name="指定位置併發扣減", qty=10, location="A倉")
+        stock_id = item["stocks"][0]["id"]
+        path = f"/api/stocks/{stock_id}/adjust"
+        statuses = _concurrent_authenticated_posts(
+            client,
+            [
+                (path, {"delta": -8, "reason": "併發扣減甲"}),
+                (path, {"delta": -8, "reason": "併發扣減乙"}),
+            ],
+        )
+
+        assert sorted(statuses) == [200, 400]
+        updated = _get_item(client, item["id"])
+        assert updated["stocks"][0]["qty"] == 2
+        assert updated["total_qty"] == 2
+        movements = client.get("/api/movements").json()
+        assert len(movements) == 1
+        assert movements[0]["delta"] == -8
+        assert movements[0]["destination"] == "A倉"
+
+    def test_concurrent_prepare_and_selected_reduction_preserve_invariant(
+        self, client: TestClient
+    ) -> None:
+        """Competing writes leave total stock at least as large as prepared stock."""
+        item = _add_item(client, name="待領出併發保護", qty=10, location="A倉")
+        stock_id = item["stocks"][0]["id"]
+        statuses = _concurrent_authenticated_posts(
+            client,
+            [
+                (f"/api/items/{item['id']}/prepare", {"qty": 8}),
+                (f"/api/stocks/{stock_id}/adjust", {"delta": -5, "reason": "併發扣減"}),
+            ],
+        )
+
+        assert sorted(statuses) == [200, 400]
+        updated = _get_item(client, item["id"])
+        conn = app_db.get_db()
+        try:
+            prepared_qty = conn.execute(
+                "SELECT prepared_qty FROM items WHERE id=?", (item["id"],)
+            ).fetchone()["prepared_qty"]
+        finally:
+            conn.close()
+
+        assert updated["total_qty"] >= prepared_qty
+        movements = client.get("/api/movements").json()
+        assert len(movements) == 1
+        if statuses[0] == 200:
+            assert updated["total_qty"] == 10
+            assert prepared_qty == 8
+            assert movements[0]["reason"] == "領出準備"
+        else:
+            assert updated["total_qty"] == 5
+            assert prepared_qty == 0
+            assert movements[0]["delta"] == -5
+            assert movements[0]["destination"] == "A倉"
 
     def test_prepare_twice_atomic_no_overshoot(self, client):
         """H6：併發 prepare 不超可領（兩連線各準備 8，庫存 10 → 至多一個成功）"""
