@@ -238,3 +238,17 @@ def test_prepare_media_batch_keeps_order_and_reports_errors():
     assert all(m.is_image and m.width == 64 and m.height == 48 for m in ok)
     with pytest.raises(ValueError, match="副檔名不一致"):
         file_storage.prepare_media_batch([(_png(), "a.png"), (_png(), "b.jpg")])
+
+
+def test_list_items_direct_json_response_shape(client):
+    """list_items 直接回 JSONResponse（跳過 jsonable_encoder）後，未分頁/分頁兩種回傳結構不變。"""
+    conn = app_db.get_db()
+    try:
+        _seed(conn)
+    finally:
+        conn.close()
+    unpaged = client.get("/api/items?site=all").json()
+    assert isinstance(unpaged, list) and len(unpaged) == 5
+    assert {"stocks", "qty", "total_qty", "location", "has_photo", "in_kits"} <= set(unpaged[0])
+    paged = client.get("/api/items?site=office&page=1&page_size=2&include_alert_items=true").json()
+    assert set(paged) == {"items", "total", "page", "page_size", "stats"}
