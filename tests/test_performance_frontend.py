@@ -47,9 +47,10 @@ def test_inventory_page_load_and_startup_skip_full_items():
     assert "stats: body.stats || null" in api
     assert "renderInventoryDashboard(list, aggregateStats)" in inventory
     assert "getInventoryDashboardStats" in inventory
-    assert "INVENTORY_PENDING_ITEMS[id] = item" in inventory
+    pending_adjustments = (ROOT / "static/js/location-adjustments.js").read_text(encoding="utf-8")
+    assert "INVENTORY_PENDING_ITEMS[itemId] = item" in pending_adjustments
     assert "const savedPendingItems" in inventory
-    assert "keptItems" in api
+    assert "delete INVENTORY_PENDING_ITEMS[id]" in api
     assert "async function loadInventoryAlertItems(type, requestId)" in inventory
     assert "include_alert_items: '1'" in inventory
     assert "await loadInventoryAlertItems(type, requestId)" in inventory

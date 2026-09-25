@@ -85,7 +85,7 @@ Server and frontend status consumers must use the same normalization boundary. D
 
 ### 3.4 Mutation boundaries
 
-- Quantity adjustments are delta operations and must retain reason, transaction, quantity normalization, and prepared invariant checks.
+- Quantity adjustments are delta operations and must retain reason, transaction, quantity normalization, and prepared invariant checks. A user-selected location adjustment must address `item_stocks.id` and write that exact location to the movement destination; it must not fall back to another row.
 - Stock identity, optimistic-lock fields, and location-rename two-phase handling are part of the write contract.
 - BOM rows must be aggregated by item before kit shortage calculation and deduction; duplicate item IDs in kit input are invalid.
 - Soft-delete, multi-location, decimal normalization, prepared quantity, movement records, and exports are one connected contract surface. A change to one must inspect all relevant writers and consumers.
@@ -97,6 +97,7 @@ Inventory mutation ownership is distributed across these current route-level wri
 | Mutation area | Current owner | Transaction characteristic | Protected state and side effects |
 |---|---|---|---|
 | Item create / quantity adjustment | `app/routes/items.py` | Create uses the connection's deferred SQLite write transaction; adjustment uses explicit `BEGIN IMMEDIATE`. | `item_stocks`; adjustment also writes `movements`. |
+| Location-targeted quantity adjustment | `app/routes/items.py::adjust_stock_qty` | `BEGIN IMMEDIATE`; selected stock update and movement insert commit or roll back together. | Only selected `item_stocks.id`; aggregate prepared invariant; movement destination is the selected location snapshot. |
 | Kit inventory mutation | `app/routes/kits.py` | Assembly and disassembly use explicit `BEGIN IMMEDIATE`; helper-emitted stock writes remain inside the route-owned transaction. | Material and kit `item_stocks`; assembly/disassembly `movements`. |
 | Prepared quantity / direct stockout | `app/routes/stockout.py` | Preparation begins on its first guarded write; direct stockout uses explicit `BEGIN IMMEDIATE`. | `items.prepared_qty`, `item_stocks`, and `movements`, according to the operation. |
 | Stocktake | `app/routes/stocktake.py` | Explicit `BEGIN IMMEDIATE`; batch writes commit or roll back together. | Location `item_stocks` and adjustment `movements`. |

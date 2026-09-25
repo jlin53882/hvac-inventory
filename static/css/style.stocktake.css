@@ -153,7 +153,8 @@
 .stocktake-content .stocktake-material-photo img { width: 100%; height: 100%; object-fit: cover; }
 .stocktake-content .stocktake-material-cell b { display: block; color: #334155; font-size: 13px; font-weight: 600; }
 .stocktake-content .stocktake-material-cell small { display: block; margin-top: 3px; color: #64748b; font-size: 11px; }
-.stocktake-content .stocktake-material-cell .stocktake-model { color: #2563eb; font-weight: 600; }
+.stocktake-content .stocktake-material-cell .stocktake-model,
+.stocktake-content .stocktake-item-cell .stocktake-model { color: #2563eb; font-weight: 600; }
 .stocktake-content .stocktake-material-need { color: #64748b; }
 .stocktake-content .stocktake-material-system-qty { color: #475569; font-weight: 600; white-space: nowrap; }
 .stocktake-content .stocktake-material-row .stocktake-input { width: 100px; }

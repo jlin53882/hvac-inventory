@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="/static/css/style.kit.css">
 <link rel="stylesheet" href="/static/css/style.stocktake.css">
 <link rel="stylesheet" href="/static/css/style.stockout.css">
+<link rel="stylesheet" href="/static/css/style.inventory-locations.css">
 </head>
 <body>
 
@@ -345,11 +346,12 @@
     </div>
     <div class="form-row">
       <label>位置清單（多位置管理）</label>
-      <div class="col-headers">
+      <div class="col-headers edit-stock-headers">
         <span class="ch-cabinet">櫃子</span>
         <span class="ch-pos">位置</span>
         <span class="ch-qty">數量</span>
         <span class="ch-note">備註</span>
+        <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="edit-stock-rows"></div>
       <button type="button" class="btn-prepare" style="margin-top:0" onclick="addEditStockRow()">＋ 新增位置</button>
@@ -361,6 +363,18 @@
   </div>
 </div>
 
+
+<!-- 多位置加量選擇；location-adjustments.js 暫存目標，api.js 儲存時呼叫位置調整 API。 -->
+<div class="modal-overlay" id="stock-location-modal">
+  <div class="modal stock-adjust-modal" role="dialog" aria-modal="true" aria-labelledby="stock-location-title">
+    <h3 id="stock-location-title">選擇入庫位置</h3>
+    <p id="stock-location-description" class="stock-adjust-description"></p>
+    <div id="stock-location-options" class="stock-adjust-location-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" onclick="cancelStockLocationPicker()">取消</button>
+    </div>
+  </div>
+</div>
 
 <!-- 整組待領出 BOM Modal -->
 <div class="modal-overlay" id="kit-prepare-modal">
@@ -752,7 +766,7 @@
   </div>
 </div>
 
-<!-- 增減庫存 Dialog（2026-09-12：分數/小數單位 +/- 用；整數維持直調） -->
+<!-- 數量調整 Dialog；方向選擇由 modals/qty.js 綁定，僅多位置總量點擊顯示。 -->
 <div class="modal-overlay" id="qty-dialog">
   <div class="modal">
     <h3 id="qtyd-title">➕ 增加庫存</h3>
@@ -763,6 +777,10 @@
     <div class="form-row">
       <label>目前庫存</label>
       <input type="text" id="qtyd-cur" disabled>
+    </div>
+    <div class="qtyd-direction" id="qtyd-direction" role="group" aria-label="調整方向" hidden>
+      <button type="button" class="btn-ghost" id="qtyd-mode-add" aria-pressed="true" onclick="setQtyDialogMode('add')">＋ 增加</button>
+      <button type="button" class="btn-ghost" id="qtyd-mode-sub" aria-pressed="false" onclick="setQtyDialogMode('sub')">− 減少</button>
     </div>
     <div class="form-row">
       <label>數量 *</label>
@@ -811,6 +829,7 @@
 <script src="/static/js/render/card.js" defer></script>
 <script src="/static/js/render/status-list.js" defer></script>
 <script src="/static/js/render/inventory.js" defer></script>
+<script src="/static/js/location-adjustments.js" defer></script>
 <script src="/static/js/render/prepared.js" defer></script>
 <script src="/static/js/render/stockout.js" defer></script>
 <script src="/static/js/render/stocktake.js" defer></script>

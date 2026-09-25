@@ -110,6 +110,13 @@ function stocktakeInput(key, systemQty, unit) {
   return `<input class="stocktake-input" type="text" inputmode="decimal" value="${esc(String(value))}" placeholder="實際（可輸 1/4）" data-unit="${esc(unit || '')}" data-sysqty="${esc(String(systemQty))}" oninput="stocktakeValues['${jsStr(key)}'] = this.value; calcDiff(this)" onchange="stocktakeValues['${jsStr(key)}'] = this.value; markChanged(this, '${jsStr(key)}')" data-key="${esc(key)}">`;
 }
 
+/**
+ * Render one stocktake item row and any expanded kit component rows.
+ * @param {Object} item - Inventory item; single-material rows may include a model code.
+ * @param {Object} stock - Location-specific system stock being counted.
+ * @param {Object|null} kitDef - Kit definition for an assembly row, if available.
+ * @returns {string} Escaped table-row markup for the item and its kit components.
+ */
 function stocktakeRow(item, stock, kitDef) {
   const key = `${item.id}:${stock.location}`;
   const systemQty = (typeof Qty !== 'undefined') ? Qty.format(stock.qty, Qty.unitTypeOf(item.unit)) : absNum(stock.qty);
@@ -126,7 +133,7 @@ function stocktakeRow(item, stock, kitDef) {
   const displayLoc = stock.location ? `位置：${esc(stock.location)}` : '未標示';
   const photo = item.has_photo ? `<img src="${photoSrc(item.id, 'thumbnail')}" alt="" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
   const rowClass = item.is_kit ? 'stocktake-assembly-row' : 'stocktake-single-row';
-  return `<tr class="${rowClass}"><td><div class="stocktake-item-cell"><span class="cphoto">${photo}</span><span><b>${esc(item.brand || '')} ${esc(item.name || '未命名')}</b><small>${displayLoc}${stock.note ? ' · 📝 ' + esc(stock.note) : ''}</small></span></div></td><td class="stocktake-system-qty">${esc(String(systemQty))} ${esc(item.unit || '')}</td><td>${stocktakeInput(key, systemQty, item.unit)}</td><td class="st-diff ${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'}">${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'}</td></tr>${materials}`;
+  return `<tr class="${rowClass}"><td><div class="stocktake-item-cell"><span class="cphoto">${photo}</span><span><b>${esc(item.brand || '')} ${esc(item.name || '未命名')}</b>${!item.is_kit && item.code ? '<small class="stocktake-model">型號 ' + esc(item.code) + '</small>' : ''}<small>${displayLoc}${stock.note ? ' · 📝 ' + esc(stock.note) : ''}</small></span></div></td><td class="stocktake-system-qty">${esc(String(systemQty))} ${esc(item.unit || '')}</td><td>${stocktakeInput(key, systemQty, item.unit)}</td><td class="st-diff ${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'}">${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'}</td></tr>${materials}`;
 }
 
 function stkGroupByLoc(rows) {

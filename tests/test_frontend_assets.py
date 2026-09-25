@@ -38,6 +38,7 @@ CSS_INVENTORY = os.path.join(STATIC, "css", "style.inventory.css")
 CSS_KIT = os.path.join(STATIC, "css", "style.kit.css")
 CSS_STOCKTAKE = os.path.join(STATIC, "css", "style.stocktake.css")
 CSS_STOCKOUT = os.path.join(STATIC, "css", "style.stockout.css")
+CSS_INVENTORY_LOCATIONS = os.path.join(STATIC, "css", "style.inventory-locations.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js
@@ -2383,15 +2384,35 @@ def test_stocktake_totalqty_card_not_clickable():
 
 
 def test_stocktake_list_shows_model_and_kits():
-    """缺貨/低庫存清單品項欄顯示型號（藍色粗體）+ 整組材料標註「屬於整組：名稱」（2026-08-13 Sarah 需求）"""
+    """缺貨/低庫存清單與盤點單一材料列顯示型號；整組材料列標註所屬整組名稱。"""
     js = read(STOCKTAKE_JS)
     assert "function renderStocktakeStatusItem(item, isLow)" in js
+    single_row_renderer = js.split("function stocktakeRow(item, stock, kitDef) {", 1)[1].split("function stkGroupByLoc(", 1)[0]
+    assert "${!item.is_kit && item.code ?" in single_row_renderer
+    assert "'<small class=\"stocktake-model\">型號 ' + esc(item.code) + '</small>'" in single_row_renderer
+    stocktake_css = read(CSS_STOCKTAKE)
+    assert ".stocktake-item-cell .stocktake-model" in stocktake_css, "盤點單一材料的型號樣式未掛載"
     # 型號透過共用 renderer renderSharedProductStatusItem 顯示（status-list.js）
     assert "renderSharedProductStatusItem" in js
     # 整組材料標註：in_kits 陣列非空才顯示「屬於整組：名稱」
     assert "in_kits" in js
     assert "屬於整組：" in js
     assert "esc(item.in_kits.join('、'))" in js
+
+
+def test_stocktake_model_runtime():
+    """Execute the production row renderer for model visibility, escaping, and kit exclusion."""
+    runtime_test = os.path.join(BASE_DIR, "tests", "stocktake_model_runtime.test.js")
+    result = subprocess.run(
+        ["node", runtime_test],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"stocktake_model_runtime.test.js 失敗：\n{result.stdout}\n{result.stderr}"
+    )
 
 
 def test_stocktake_tabs_kit_single_split():
@@ -2675,6 +2696,35 @@ def test_edit_modal_core_functions():
         assert fn in js, f"edit.js 缺 {fn}"
 
 
+
+def test_inventory_location_adjustment_runtime():
+    """真正執行庫存 renderer/API/modal，驗證多位置 + 必須選 stock 並只送指定端點。"""
+    script = os.path.join(BASE_DIR, "tests", "inventory_location_runtime.test.js")
+    result = subprocess.run(
+        ["node", script], cwd=BASE_DIR, capture_output=True, text=True,
+        encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"inventory location runtime regression 失敗：\n{result.stdout}\n{result.stderr}"
+    )
+
+
+def test_edit_stock_rows_mobile_grid_layout():
+    """編輯位置列在手機改為兩列網格，刪除控制不會擠壓四個輸入欄位。"""
+    css = read(CSS_INVENTORY_LOCATIONS)
+    mobile_css = css.split("@media (max-width: 767px)", 1)[1]
+    assert "#edit-stock-rows .stock-row" in mobile_css
+    assert 'grid-template-areas: "cabinet sub remove" "qty note remove"' in mobile_css
+    assert ".edit-stock-headers" in mobile_css
+    html = read(INDEX)
+    assert 'class="col-headers edit-stock-headers"' in html
+    assert 'href="/static/css/style.inventory-locations.css"' in html
+    assert 'src="/static/js/location-adjustments.js"' in html
+    assert 'id="stock-location-modal"' in html
+    modal_attributes = html.split('id="stock-location-modal"', 1)[1].split('>', 1)[0]
+    assert 'aria-hidden="true"' not in modal_attributes, "openModal does not clear a static aria-hidden state"
+
+
 def test_expiry_modal_core_functions():
     """modals/expiry.js：密碼到期提示與跳轉"""
     js = read(EXPIRY_JS)
@@ -2920,9 +2970,10 @@ def test_calendar_js_month_url():
 def test_api_js_saveall_keeps_failed_pending():
     """api.js saveAll：失敗的調整保留在 pending（不靜默丟失），成功才清空"""
     js = read(API_JS)
-    assert "failed" in js, "api.js saveAll 缺 failed 陣列"
-    assert "kept" in js and "pending = kept" in js, "api.js saveAll 未保留失敗 pending"
-    assert "失敗的調整已保留" in js, "api.js saveAll 失敗 toast 未提示保留"
+    assert "let fail = 0" in js, "api.js saveAll 缺 request failure tracking"
+    assert "if (!response.ok) { fail++; continue; }" in js, "失敗請求必須跳過 pending 扣除"
+    assert "pending[id] = Math.round" in js, "成功 request 才能扣除 pending delta"
+    assert "失敗調整已保留" in js, "api.js saveAll 失敗 toast 未提示保留"
 
 
 # ---------- 2026-08-25：輸入驗證補強（A1-A3/B1-B5） ----------
@@ -4385,6 +4436,13 @@ def test_qty_domain_mounted_and_wired():
     inv = read(INVENTORY_RENDER_JS)
     assert "Qty.inputTypeOf(item.unit) !== 'integer'" in inv, "整數直調/分數 dialog 分流遺失"
     assert "openQtyDialog" in inv, "changeQty 未接 dialog"
+    assert "item.stocks.length > 1" in inv and "openQtyDialog(id, 'choose')" in inv, "多位置點數量未開方向選擇 Dialog"
+    assert 'id="qtyd-direction"' in idx, "qty-dialog 缺少 +／− 方向選擇器"
+    qty_modal = read(os.path.join(STATIC, "js", "modals", "qty.js"))
+    assert "function setQtyDialogMode(mode)" in qty_modal, "qty-dialog 缺少方向切換 handler"
+    qty_css = read(CSS_INVENTORY)
+    assert ".qtyd-direction[hidden] { display: none; }" in qty_css, "方向選擇控制必須遵守 hidden 狀態"
+    assert '.qtyd-direction .btn-ghost[aria-pressed="true"]' in qty_css, "方向按鈕缺少目前選取狀態樣式"
     kits = read(KITS_RENDER_JS)
     assert "kitCompQtyChanged" in kits, "kit 材料需求量分數輸入遺失"
     assert "組裝組數必須為正整數" in kits and "拆解組數必須為正整數" in kits, "組裝/拆解整數檢查遺失"

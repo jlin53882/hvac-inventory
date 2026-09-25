@@ -12,6 +12,7 @@
   - v10 語義：數量存在 item_stocks（位置庫存），品項主檔只有名稱/廠牌等
 """
 import os
+import sqlite3
 import sys
 
 import pytest
@@ -386,6 +387,146 @@ class TestAdjustQty:
         """驗證調整不存在的品項回傳 404"""
         r = client.post("/api/items/99999/adjust", json={"delta": 1})
         assert r.status_code == 404
+
+
+    def test_adjust_selected_stock_location_only(self, client):
+        """多位置調整必須只修改使用者選取的 stock，並記錄目標位置。"""
+        item = _add_item(client, name="位置指定調整", qty=10, location="編號A | 1-1")
+        created = client.post(f"/api/items/{item['id']}/stocks",
+                              json={"location": "編號B | 2-1", "qty": 2})
+        assert created.status_code == 201, created.text
+        selected = next(stock for stock in _get_item(client, item["id"])["stocks"]
+                        if stock["location"] == "編號B | 2-1")
+
+        response = client.post(f"/api/stocks/{selected['id']}/adjust",
+                               json={"delta": 1.25, "reason": "手動調整"})
+
+        assert response.status_code == 200, response.text
+        updated = _get_item(client, item["id"])
+        quantities = {stock["location"]: stock["qty"] for stock in updated["stocks"]}
+        assert quantities == {"編號A | 1-1": 10, "編號B | 2-1": 3.25}
+        assert updated["total_qty"] == 13.25
+        movement = client.get("/api/movements").json()[0]
+        assert movement["destination"] == "編號B | 2-1"
+        assert movement["before_qty"] == 12
+        assert movement["after_qty"] == 13.25
+
+    def test_adjust_selected_stock_subtracts_only_target_location(self, client):
+        """A targeted reduction changes only the selected location and records its movement."""
+        item = _add_item(client, name="指定位置扣減", qty=10, location="編號A | 1-1")
+        created = client.post(f"/api/items/{item['id']}/stocks",
+                              json={"location": "編號B | 2-1", "qty": 2})
+        assert created.status_code == 201, created.text
+        selected = next(stock for stock in _get_item(client, item["id"])["stocks"]
+                        if stock["location"] == "編號B | 2-1")
+
+        response = client.post(f"/api/stocks/{selected['id']}/adjust",
+                               json={"delta": -0.75, "reason": "指定位置扣減"})
+
+        assert response.status_code == 200, response.text
+        assert response.json()["after"] == 11.25
+        updated = _get_item(client, item["id"])
+        quantities = {stock["location"]: stock["qty"] for stock in updated["stocks"]}
+        assert quantities == {"編號A | 1-1": 10, "編號B | 2-1": 1.25}
+        assert updated["total_qty"] == 11.25
+        movement = client.get("/api/movements").json()[0]
+        assert movement["delta"] == -0.75
+        assert movement["destination"] == "編號B | 2-1"
+        assert movement["before_qty"] == 12
+        assert movement["after_qty"] == 11.25
+
+    @pytest.mark.parametrize("delta", ["0", "0.0004", "-0.0004", "NaN", "Infinity"])
+    def test_adjust_selected_stock_rejects_invalid_delta(self, client, delta):
+        """Reject zero-after-rounding and non-finite location adjustments without writes."""
+        item = _add_item(client, name="無效指定調整", qty=3, location="編號A | 1-1")
+        stock_id = item["stocks"][0]["id"]
+        before = _get_item(client, item["id"])
+        movements = client.get("/api/movements").json()
+
+        response = client.post(
+            f"/api/stocks/{stock_id}/adjust",
+            content='{"delta":' + delta + '}',
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 400
+        assert _get_item(client, item["id"])["stocks"] == before["stocks"]
+        assert client.get("/api/movements").json() == movements
+
+    def test_adjust_selected_stock_rejects_long_reason(self, client):
+        """Bound movement reason length at the request boundary."""
+        item = _add_item(client, name="異動原因過長", qty=1)
+        stock_id = item["stocks"][0]["id"]
+        response = client.post(f"/api/stocks/{stock_id}/adjust",
+                               json={"delta": 1, "reason": "x" * 101})
+        assert response.status_code == 422
+        assert _get_item(client, item["id"])["total_qty"] == 1
+        assert client.get("/api/movements").json() == []
+
+    def test_adjust_selected_stock_not_found(self, client):
+        """Reject unknown location IDs without creating a movement."""
+        response = client.post("/api/stocks/999999/adjust", json={"delta": 1})
+        assert response.status_code == 404
+        assert client.get("/api/movements").json() == []
+
+    def test_adjust_selected_stock_respects_prepared_quantity(self, client):
+        """A targeted reduction must preserve total stock above prepared quantity."""
+        item = _add_item(client, name="指定位置待領出保護", qty=5, location="編號A | 1-1")
+        stock_id = item["stocks"][0]["id"]
+        prepared = client.post(f"/api/items/{item['id']}/prepare", json={"qty": 4})
+        assert prepared.status_code == 200, prepared.text
+        movements = client.get("/api/movements").json()
+
+        response = client.post(f"/api/stocks/{stock_id}/adjust",
+                               json={"delta": -2, "reason": "待領出保護"})
+
+        assert response.status_code == 400
+        assert _get_item(client, item["id"])["total_qty"] == 5
+        assert client.get("/api/movements").json() == movements
+
+    def test_adjust_selected_stock_rolls_back_when_movement_insert_fails(self, client):
+        """The location update must roll back if its movement cannot be inserted."""
+        item = _add_item(client, name="指定位置交易回滾", qty=5, location="編號A | 1-1")
+        stock_id = item["stocks"][0]["id"]
+        before = _get_item(client, item["id"])
+        movements = client.get("/api/movements").json()
+        conn = app_db.get_db()
+        try:
+            conn.execute("""
+                CREATE TRIGGER fail_location_adjust_movement
+                BEFORE INSERT ON movements
+                WHEN NEW.reason = '位置交易失敗注入'
+                BEGIN SELECT RAISE(ABORT, 'injected movement insert failure'); END
+            """)
+            conn.commit()
+        finally:
+            conn.close()
+
+        with pytest.raises(sqlite3.IntegrityError, match="injected movement insert failure"):
+            client.post(f"/api/stocks/{stock_id}/adjust",
+                        json={"delta": 2, "reason": "位置交易失敗注入"})
+
+        assert _get_item(client, item["id"])["stocks"] == before["stocks"]
+        assert client.get("/api/movements").json() == movements
+
+    def test_adjust_selected_stock_rejects_location_underflow(self, client):
+        """指定位置扣減不得改由其他位置補足，也不得留下異動流水。"""
+        item = _add_item(client, name="指定位置不足", qty=0, location="空位置")
+        client.post(f"/api/items/{item['id']}/stocks",
+                    json={"location": "有庫存位置", "qty": 5})
+        empty_stock = next(stock for stock in _get_item(client, item["id"])["stocks"]
+                           if stock["location"] == "空位置")
+        movement_baseline = client.get("/api/movements").json()
+
+        response = client.post(f"/api/stocks/{empty_stock['id']}/adjust",
+                               json={"delta": -1, "reason": "手動調整"})
+
+        assert response.status_code == 400
+        updated = _get_item(client, item["id"])
+        assert {stock["location"]: stock["qty"] for stock in updated["stocks"]} == {
+            "空位置": 0, "有庫存位置": 5,
+        }
+        assert client.get("/api/movements").json() == movement_baseline
 
 
 # ========== 兩階段出庫（待領出 → 已領出） ==========

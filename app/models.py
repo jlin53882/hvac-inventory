@@ -122,6 +122,13 @@ class AdjustRequest(BaseModel):
     destination: str = ""  # 出庫去向（客戶/案場/工地）
 
 
+class StockAdjustRequest(BaseModel):
+    """調整單一庫存位置的相對數量。"""
+
+    delta: float
+    reason: str = Field(default="手動調整", max_length=100)
+
+
 # ---------- 出庫 ----------
 class StockOutRequest(BaseModel):
     item_id: int

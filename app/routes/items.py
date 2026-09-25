@@ -6,6 +6,7 @@
 - POST        /api/items/{id}/stocks        新增位置
 - PATCH       /api/stocks/{sid}             修改位置數量/備註
 - DELETE      /api/stocks/{sid}             刪除位置
+- POST        /api/stocks/{sid}/adjust      指定位置加減庫存
 - POST        /api/items/{id}/adjust        加減庫存
 - POST        /api/import                   從 JSON 匯入
 
@@ -14,6 +15,7 @@
   新增時若已存在 → 400 提示，需改用「新增位置」加到既有品項。
 """
 import datetime
+import math
 import os
 from typing import Optional
 
@@ -27,6 +29,7 @@ from app.models import (
     ItemCreate,
     ItemUpdate,
     INVENTORY_SITES,
+    StockAdjustRequest,
     StockUpdate,
 )
 from app.routes.photos import has_photo, list_photo_ids
@@ -719,6 +722,79 @@ def adjust_qty(item_id: int, req: AdjustRequest):
         )
         conn.commit()
         return {"ok": True, "before": total_before, "after": total_after}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@router.post("/api/stocks/{stock_id}/adjust", dependencies=[Depends(require_perm("stock-mgmt"))])
+def adjust_stock_qty(stock_id: int, req: StockAdjustRequest) -> dict:
+    """Adjust one location inside a writer transaction and record its destination.
+
+    Args:
+        stock_id: Persisted stock-location identifier selected by the user.
+        req: Signed quantity delta and movement reason.
+
+    Returns:
+        The selected stock's updated quantity and aggregate before/after totals.
+
+    Raises:
+        HTTPException: If the location is missing, the delta is invalid, or stock invariants fail.
+    """
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        stock = conn.execute(
+            "SELECT s.id, s.item_id, s.location, s.qty FROM item_stocks s "
+            "JOIN items i ON i.id=s.item_id WHERE s.id=? AND i.is_deleted=0",
+            (stock_id,),
+        ).fetchone()
+        if not stock:
+            raise HTTPException(404, "找不到該庫存位置")
+        if not math.isfinite(req.delta):
+            raise HTTPException(400, "調整數量必須是有限數值")
+        delta = canonical_qty(req.delta)
+        if delta == 0:
+            raise HTTPException(400, "調整數量正規化後不可為 0")
+        stock_before = canonical_qty(stock["qty"])
+        if canonical_qty(stock_before + delta) < 0:
+            raise HTTPException(400, f"此位置庫存不足！剩 {stock_before}")
+
+        item_id = stock["item_id"]
+        before = canonical_qty(sum(row["qty"] for row in conn.execute(
+            "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
+        assert_projected_inventory(conn, item_id, stock_delta=delta)
+        updated_at = datetime.datetime.now().isoformat()
+        if delta < 0:
+            cursor = conn.execute(
+                "UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=? AND qty>=?",
+                (delta, updated_at, stock_id, canonical_qty(-delta)),
+            )
+        else:
+            cursor = conn.execute(
+                "UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
+                (delta, updated_at, stock_id),
+            )
+        if cursor.rowcount != 1:
+            raise HTTPException(400, "此位置庫存已變更，請重新載入後再試")
+
+        after = canonical_qty(sum(row["qty"] for row in conn.execute(
+            "SELECT qty FROM item_stocks WHERE item_id=?", (item_id,)).fetchall()))
+        conn.execute(
+            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (item_id, delta, before, after, req.reason, stock["location"], movement_time.now_sql()),
+        )
+        conn.commit()
+        return {
+            "ok": True,
+            "stock_id": stock_id,
+            "stock_qty": canonical_qty(stock_before + delta),
+            "before": before,
+            "after": after,
+        }
     except Exception:
         conn.rollback()
         raise

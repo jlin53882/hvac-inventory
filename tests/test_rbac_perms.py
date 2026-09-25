@@ -365,6 +365,7 @@ WRITE_ENDPOINTS = [
     ("POST", "/api/items/1/stocks", "stock-mgmt"),
     ("PATCH", "/api/stocks/1", "stock-mgmt"),
     ("DELETE", "/api/stocks/1", "stock-mgmt"),
+    ("POST", "/api/stocks/1/adjust", "stock-mgmt"),
     ("POST", "/api/quotations", "item-mgmt"),
     ("PUT", "/api/quotations/1", "item-mgmt"),
     ("DELETE", "/api/quotations/1", "item-mgmt"),

@@ -568,75 +568,58 @@ function setInventoryView(mode) {
 
 // ========== 數量增減（暫存） ==========
 
+/**
+ * Queue a +/- adjustment while preventing new modal flows during a save batch.
+ * @param {number} id - Inventory item ID.
+ * @param {number} delta - Signed quantity change.
+ * @returns {void}
+ */
 function changeQty(id, delta) {
-
-  const item = ALL_ITEMS.find(i => i.id === id);
-
+  if (typeof savingAll !== 'undefined' && savingAll) {
+    toast('儲存中，請稍後再調整。', 'info');
+    return;
+  }
+  const item = ALL_ITEMS.find(function(candidate) { return Number(candidate.id) === Number(id); });
   if (!item) return;
-
-  // 2026-09-12 分數/小數單位：+/- 開 dialog 輸入增減量（整數維持直調 ±1）
   if (typeof Qty !== 'undefined' && Qty.inputTypeOf(item.unit) !== 'integer') {
     if (typeof openQtyDialog === 'function') { openQtyDialog(id, delta > 0 ? 'add' : 'sub'); return; }
   }
-
-  const cur = pending[id] || 0;
-
-  const newDelta = cur + delta;
-
-  if (item.qty + newDelta < 0) return;
-
-  if (newDelta === 0) {
-    delete pending[id];
-    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') delete INVENTORY_PENDING_ITEMS[id];
-  } else {
-    pending[id] = newDelta;
-    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') INVENTORY_PENDING_ITEMS[id] = item;
-  }
-
-  renderInventory();
-
+  queueInventoryAdjustment(item, delta);
 }
 
-
-
-// 點卡片數量數字 → prompt 輸入新數量，差異寫入 pending 暫存後重繪
-
+/**
+ * Open a direction dialog for multi-location items or set a single-location total.
+ * @param {number} id - Inventory item ID.
+ * @returns {void}
+ */
 function quickSet(id) {
-
-  const item = ALL_ITEMS.find(i => i.id === id);
-
+  if (typeof savingAll !== 'undefined' && savingAll) {
+    toast('儲存中，請稍後再調整。', 'info');
+    return;
+  }
+  const item = ALL_ITEMS.find(function(candidate) { return Number(candidate.id) === Number(id); });
   if (!item) return;
-
-  const cur = item.qty + (pending[id] || 0);
-
-  const input = prompt(`輸入「${item.name}」的新數量：`, cur);
-
+  if (Array.isArray(item.stocks) && item.stocks.length > 1 && typeof openQtyDialog === 'function') {
+    openQtyDialog(id, 'choose');
+    return;
+  }
+  const currentDelta = Number(pending[id] || 0);
+  const current = Number(item.qty) + currentDelta;
+  const input = prompt(`輸入「${item.name}」的新數量：`, current);
   if (input === null) return;
 
-  let val;
+  let value;
   if (typeof Qty !== 'undefined') {
-    const v = Qty.validFor(input, Qty.inputTypeOf(item.unit));
-    if (!v.ok) { toast(v.error, 'error'); return; }
-    val = v.value;
+    const parsed = Qty.validFor(input, Qty.inputTypeOf(item.unit));
+    if (!parsed.ok) { toast(parsed.error, 'error'); return; }
+    value = parsed.value;
   } else {
-    val = parseFloat(input);
-    if (!isFinite(val) || val < 0) { toast('請輸入有效的數字', 'error'); return; }
+    value = parseFloat(input);
+    if (!isFinite(value) || value < 0) { toast('請輸入有效的數字', 'error'); return; }
   }
-
-  const newDelta = Math.round((val - item.qty) * 1000) / 1000;
-
-  if (newDelta === 0) {
-    delete pending[id];
-    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') delete INVENTORY_PENDING_ITEMS[id];
-  } else {
-    pending[id] = newDelta;
-    if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') INVENTORY_PENDING_ITEMS[id] = item;
-  }
-
-  renderInventory();
-
+  const desiredDelta = Math.round((value - item.qty) * 1000) / 1000;
+  queueInventoryAdjustment(item, Math.round((desiredDelta - currentDelta) * 1000) / 1000);
 }
-
 
 
 // 依 pending 是否有未儲存變更，顯示/隱藏底部「儲存變更」列

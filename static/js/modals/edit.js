@@ -42,27 +42,30 @@ function openEditModal(id) {
   bindSimilarCheck('e-name', 'e-code', 'e-similar-warn', id);
 }
 
-// 渲染編輯 modal 的位置清單列（兩段式：櫃子下拉 + 位置輸入）
-// 2026-09-12：數量載入即格式化（0.333…→1/3，不再顯示一串小數；type=number 照樣可填分數）
+/**
+ * Render editable location rows with mobile labels and a remove control.
+ * @param {Array<Object>} stocks - Persisted stock rows belonging to the item.
+ * @param {string} unit - Unit used to format quantities.
+ * @returns {void}
+ */
 function renderEditStockRows(stocks, unit) {
   const box = document.getElementById('edit-stock-rows');
-  const _t = (typeof Qty !== 'undefined') ? Qty.unitTypeOf(unit) : 'fraction';
-  box.innerHTML = stocks.map((s, idx) => {
-    // 解析 location：「編號A | 1-1」→ cabinet=編號A, sub=1-1
-    const loc = s.location || '';
-    const pipeIdx = loc.indexOf(' | ');
-    const cabinet = pipeIdx >= 0 ? loc.substring(0, pipeIdx) : loc;
-    const sub = pipeIdx >= 0 ? loc.substring(pipeIdx + 3) : '';
-    const qv = (typeof Qty !== 'undefined') ? Qty.format(s.qty ?? 0, _t) : (s.qty ?? 0);
-    // F2/F3：保留 stock id + updated_at 作為 identity + optimistic lock revision
-    const stockId = s.id != null ? s.id : '';
-    const stockRev = s.updated_at || '';
+  const qtyType = typeof Qty !== 'undefined' ? Qty.unitTypeOf(unit) : 'fraction';
+  box.innerHTML = stocks.map((stock, index) => {
+    const location = stock.location || '';
+    const separator = location.indexOf(' | ');
+    const cabinet = separator >= 0 ? location.substring(0, separator) : location;
+    const subLocation = separator >= 0 ? location.substring(separator + 3) : '';
+    const quantity = typeof Qty !== 'undefined' ? Qty.format(stock.qty ?? 0, qtyType) : (stock.qty ?? 0);
+    const stockId = stock.id != null ? stock.id : '';
+    const revision = stock.updated_at || '';
     return `
-    <div class="stock-row" data-idx="${idx}" data-stock-id="${esc(String(stockId))}" data-stock-updated-at="${esc(stockRev)}">
-      <select class="stock-cabinet">${_cabinetOptions(cabinet)}</select>
-      <input type="text" class="stock-sub" value="${esc(sub)}" list="location-list" placeholder="位置">
-      <input type="text" inputmode="decimal" class="stock-qty" value="${esc(qv)}" placeholder="數量（可輸 1/4）">
-      <input type="text" class="stock-note" value="${esc(s.note || '')}" placeholder="備註（選填）">
+    <div class="stock-row" data-idx="${esc(String(index))}" data-stock-id="${esc(String(stockId))}" data-stock-qty="${esc(String(stock.qty ?? 0))}" data-stock-updated-at="${esc(revision)}">
+      <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet">${_cabinetOptions(cabinet)}</select></label>
+      <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" value="${esc(subLocation)}" list="location-list" placeholder="位置"></label>
+      <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" value="${esc(quantity)}" placeholder="數量（可輸 1/4）"></label>
+      <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" value="${esc(stock.note || '')}" placeholder="備註（選填）"></label>
+      <button type="button" class="stock-remove" onclick="deleteEditStockRow(this)" aria-label="移除第 ${esc(String(index + 1))} 個位置" title="移除此位置">✕</button>
     </div>`;
   }).join('');
 }
@@ -73,28 +76,56 @@ function _cabinetOptions(selected) {
   return cabs.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c || '— 請選擇 —'}</option>`).join('');
 }
 
-// 在編輯 Modal 新增一列位置庫存輸入列
+/**
+ * Append a zero-quantity editable location row with a removable control.
+ * @returns {void}
+ */
 function addEditStockRow() {
   const box = document.getElementById('edit-stock-rows');
-  const idx = box.children.length;
   const row = document.createElement('div');
   row.className = 'stock-row';
-  row.dataset.idx = idx;
+  row.dataset.idx = box.children.length;
+  row.dataset.stockId = '';
+  row.dataset.stockUpdatedAt = '';
+  row.dataset.stockQty = '0';
   row.innerHTML = `
-    <select class="stock-cabinet">${_cabinetOptions('')}</select>
-    <input type="text" class="stock-sub" list="location-list" placeholder="位置">
-    <input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）">
-    <input type="text" class="stock-note" placeholder="備註（選填）">
+    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet">${_cabinetOptions('')}</select></label>
+    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" list="location-list" placeholder="位置"></label>
+    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
+    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" placeholder="備註（選填）"></label>
+    <button type="button" class="stock-remove" onclick="deleteEditStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>
   `;
   box.appendChild(row);
   row.querySelector('.stock-sub').focus();
 }
 
-// 刪除編輯 Modal 中指定按鈕所在的庫存列（至少保留一列）
-function deleteEditStockRow(btn) {
+/**
+ * Remove an empty persisted location or discard an unsaved row without risking stock loss.
+ * @param {HTMLButtonElement} button - Remove control inside the location row.
+ * @returns {void}
+ */
+function deleteEditStockRow(button) {
   const box = document.getElementById('edit-stock-rows');
-  if (box.querySelectorAll('.stock-row').length <= 1) return;
-  btn.closest('.stock-row').remove();
+  const row = button && button.closest('.stock-row');
+  if (!row) return;
+  if (box.querySelectorAll('.stock-row').length <= 1) {
+    toast('至少保留一個位置列；若要清空庫存，請先確認品項資料。', 'info');
+    return;
+  }
+
+  const stockId = row.dataset.stockId || '';
+  if (stockId) {
+    const persistedQty = Number(row.dataset.stockQty);
+    if (!Number.isFinite(persistedQty)) {
+      toast('位置庫存快照不完整，請重新載入後再移除。', 'error');
+      return;
+    }
+    if (Math.round(persistedQty * 1000) / 1000 !== 0) {
+      toast('此位置目前仍有庫存，請先將數量調整為 0 並儲存；重新開啟編輯後再移除。', 'error');
+      return;
+    }
+  }
+  row.remove();
 }
 
 // 送出編輯表單（PATCH /api/items/{id}，位置庫存全量替換），成功後關閉 Modal 並重載資料

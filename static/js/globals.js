@@ -21,7 +21,9 @@ var preparedItems = [];  // 待領出清單（含非庫存品項；openPreparedS
 
 var currentBrands = [];   // 多選品牌篩選（空=全部）
 var currentCategories = [];  // 多選分類篩選（空=全部）
-var pending = {};   // itemId -> delta
+var pending = {};   // itemId -> net delta, including selected stock changes
+var pendingByStock = {};  // stockId -> { itemId, delta } for exact-location additions
+var stockLocationPickerState = null;  // pending item and delta while choosing a location
 var INVENTORY_PENDING_ITEMS = {};   // itemId -> base item snapshot for paged KPI adjustments
 var inventoryStatusRequestSeq = 0;
 var inventoryStatusModalType = '';

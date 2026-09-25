@@ -1382,6 +1382,10 @@ button.inventory-kpi-card:focus-visible,
 /* 增減庫存 dialog 快捷列（2026-09-12 分數/小數單位；modal 本體沿用全域 .modal 樣式） */
 .qtyd-quick { display: flex; gap: 8px; margin: 2px 0 10px; }
 .qtyd-quick .btn-ghost { flex: 1; min-height: 40px; font-size: 15px; }
+.qtyd-direction { display: flex; gap: 8px; margin: 2px 0 10px; }
+.qtyd-direction[hidden] { display: none; }
+.qtyd-direction .btn-ghost { flex: 1; min-height: 44px; font-size: 15px; }
+.qtyd-direction .btn-ghost[aria-pressed="true"] { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }
 @media (max-width: 767px) {
   #qty-dialog .modal { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
   #qtyd-input { font-size: 17px; min-height: 46px; }

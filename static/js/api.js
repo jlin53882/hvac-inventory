@@ -207,48 +207,80 @@ async function loadDestinations() {
   } catch (e) { if (e.name !== 'AbortError') console.error('[loadDestinations] 網路錯誤', e); }
 }
 
-// 將 pending 暫存的所有數量調整逐筆送出（POST /api/items/{id}/adjust），成功後重載資料
-let savingAll = false;  // in-flight 旗標：防止連點「全部儲存」重複送出同一批調整
+/**
+ * Save aggregate and explicitly targeted stock adjustments without discarding partial successes.
+ * @returns {Promise<void>}
+ */
+let savingAll = false;  // 防止連點「全部儲存」重複送出同一批調整
 async function saveAll() {
   if (savingAll) return;
   const ids = Object.keys(pending);
   if (!ids.length) return;
   savingAll = true;
-  const btn = document.getElementById('btn-save');
-  if (btn) btn.disabled = true;
-  let ok = 0, fail = 0;
-  const failed = [];  // 2026-08-14 P4-2：失敗的調整 id 保留（不靜默丟失）
+  const button = document.getElementById('btn-save');
+  if (button) button.disabled = true;
+  let ok = 0;
+  let fail = 0;
   try {
     for (const id of ids) {
-      try {
-        const res = await fetch(`/api/items/${id}/adjust`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ delta: pending[id], reason: '手動調整' })
+      const changes = Object.entries(pendingByStock)
+        .filter(([, entry]) => String(entry.itemId) === String(id))
+        .map(([stockId, entry]) => ({ stockId: stockId, delta: entry.delta }));
+      const selectedTotal = changes.reduce((sum, change) => sum + change.delta, 0);
+      const globalDelta = Math.round(((Number(pending[id]) || 0) - selectedTotal) * 1000) / 1000;
+      const operations = [];
+      if (globalDelta !== 0) {
+        operations.push({
+          url: `/api/items/${id}/adjust`,
+          delta: globalDelta,
+          stockId: null,
         });
-        if (res.ok) ok++;
-        else { fail++; failed.push(id); }
-      } catch (e) { fail++; failed.push(id); }
-    }
-    // 2026-08-14 P4-2：只保留失敗的 pending（併發被他人先扣 400 的調整可修正後再存）
-    if (failed.length) {
-      const kept = {};
-      failed.forEach(id => { kept[id] = pending[id]; });
-      pending = kept;
-      if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') {
-        const keptItems = {};
-        failed.forEach(id => { if (INVENTORY_PENDING_ITEMS[id]) keptItems[id] = INVENTORY_PENDING_ITEMS[id]; });
-        INVENTORY_PENDING_ITEMS = keptItems;
       }
-    } else {
-      pending = {};
-      if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') INVENTORY_PENDING_ITEMS = {};
+      changes.forEach(change => operations.push({
+        url: `/api/stocks/${change.stockId}/adjust`,
+        delta: change.delta,
+        stockId: change.stockId,
+      }));
+
+      // Apply additions before subtractions so prepared-stock guards see the net-safe intermediate state.
+      operations.sort((left, right) => Number(left.delta < 0) - Number(right.delta < 0));
+      for (const operation of operations) {
+        try {
+          const response = await fetch(operation.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ delta: operation.delta, reason: '手動調整' }),
+          });
+          if (!response.ok) { fail++; continue; }
+          ok++;
+          pending[id] = Math.round(((Number(pending[id]) || 0) - operation.delta) * 1000) / 1000;
+          if (operation.stockId !== null) {
+            const current = pendingByStock[operation.stockId];
+            if (current) {
+              current.delta = Math.round((current.delta - operation.delta) * 1000) / 1000;
+              if (current.delta <= 0) delete pendingByStock[operation.stockId];
+            }
+          }
+        } catch (error) {
+          fail++;
+        }
+      }
     }
+
+    Object.keys(pending).forEach(function(id) {
+      const hasSelectedStock = Object.keys(pendingByStock).some(function(stockId) {
+        return String(pendingByStock[stockId].itemId) === String(id);
+      });
+      if (Math.abs(Number(pending[id]) || 0) < 0.0005 && !hasSelectedStock) {
+        delete pending[id];
+        if (typeof INVENTORY_PENDING_ITEMS !== 'undefined') delete INVENTORY_PENDING_ITEMS[id];
+      }
+    });
     await loadData();
-    if (fail === 0) toast(`✅ 已儲存 ${ok} 項變更`, 'success');
-    else toast(`⚠️ ${ok} 成功，${fail} 失敗——失敗的調整已保留，可修正後再儲存`, 'error');
+    if (fail === 0) toast(`✅ 已儲存 ${ok} 項庫存調整`, 'success');
+    else toast(`⚠️ ${ok} 成功，${fail} 失敗——失敗調整已保留，可修正後再儲存`, 'error');
   } finally {
     savingAll = false;
-    if (btn) btn.disabled = false;
+    if (button) button.disabled = false;
   }
 }
