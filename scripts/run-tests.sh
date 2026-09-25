@@ -5,7 +5,7 @@
 # 用法: ./scripts/run-tests.sh [core|frontend|storage|auth|database|inventory|rbac|regression|reports|petty_cash|work_progress|all] [pytest args]
 #   組別    內容                                      觸發條件（改到就跑這組）
 #   core      main API + safety helpers + logging/config/notifications/server lifecycle  items/stockout/stocktake/kits/photos/stats/export + 共用安全 helper
-#   frontend  frontend_assets+security+structure+performance  static/** 任何改動；新增任何後端端點（XSS/公式注入守衛）
+#   frontend  frontend_assets+calendar_frontend+security+structure+performance  static/** 任何改動；新增任何後端端點（XSS/公式注入守衛）
 #   storage   media_storage+quotation_uploads+signed_reports+asset_scripts  file_storage、媒體路由、導入/稽核腳本
 #   auth      test_users + test_viewer                  app/routes/auth.py、users.py
 #   database  test_database_migrations                  app/database.py transaction/migration safety
@@ -31,7 +31,7 @@ fi
 
 case "${1:-all}" in
   core) FILES="tests/test_main.py tests/test_safety_helpers.py tests/test_app_logging.py tests/test_config.py tests/test_notifications.py tests/test_server_lifecycle.py";; # core API/helpers/config/lifecycle contracts
-  frontend)   FILES="tests/test_frontend_assets.py tests/test_security_regression.py tests/test_structure.py tests/test_performance_frontend.py tests/test_work_progress_ui_regressions.py" ;;
+  frontend)   FILES="tests/test_frontend_assets.py tests/test_calendar_frontend.py tests/test_security_regression.py tests/test_structure.py tests/test_performance_frontend.py tests/test_work_progress_ui_regressions.py" ;;
   storage)    FILES="tests/test_media_storage.py tests/test_quotation_uploads.py tests/test_quotations.py tests/test_signed_reports.py tests/test_file_asset_scripts.py" ;;
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   database)   FILES="tests/test_database_migrations.py" ;;
