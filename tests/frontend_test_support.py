@@ -82,7 +82,6 @@ SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
 # 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
 CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
-GLOBALS_JS = os.path.join(STATIC, "js", "globals.js")
 
 
 def read(p: str) -> str:
@@ -93,13 +92,6 @@ def read(p: str) -> str:
 def read_petty_cash_css() -> str:
     """零用金三層 CSS 合併內容（僅供既有行為測試）。"""
     return read(PETTY_CASH_CSS) + read(PETTY_CASH_REPORTS_CSS) + read(PETTY_CASH_ENGINEERING_CSS)
-
-
-def read_calendar_js_all() -> str:
-    """calendar 拆檔後（2026-08-16）：render + modals/calendar + modals/calendar-settings + globals.js 合併讀。
-    ⚠️ 必含 globals.js——URLSearchParams 初始化（_calM/calMonth）搬去 globals.js，test_calendar_js_month_url 斷言它在這"""
-    return (read(CALENDAR_RENDER_JS) + read(CALENDAR_MODAL_JS)
-            + read(CALENDAR_SETTINGS_JS) + read(GLOBALS_JS))
 
 
 def read_css_all() -> str:

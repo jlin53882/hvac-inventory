@@ -21,7 +21,6 @@ from frontend_test_support import (
     SETTINGS_JS,
     STATIC,
     read,
-    read_calendar_js_all,
     read_css_all,
 )
 
@@ -30,6 +29,19 @@ from frontend_test_support import (
 GCAL_KEY_JS = os.path.join(STATIC, "js", "modals", "gcal-key.js")
 GCAL_KEYS_PY = os.path.join(BASE_DIR, "app", "routes", "gcal_keys.py")
 DATABASE_PY = os.path.join(BASE_DIR, "app", "database.py")
+
+
+def read_calendar_js_all() -> str:
+    """Read Calendar assets in load order for source-level contracts.
+
+    Include globals.js because Calendar URL state is initialized there.
+    """
+    return (
+        read(CALENDAR_RENDER_JS)
+        + read(CALENDAR_MODAL_JS)
+        + read(CALENDAR_SETTINGS_JS)
+        + read(GLOBALS_JS)
+    )
 
 
 # ---------- Calendar and GCal contracts ----------
@@ -154,6 +166,24 @@ def test_css_has_calendar_styles():
     for sel in (".cal-grid", ".cal-cell", ".cal-evt", ".cal-event-card",
                 ".cal-set-table", ".cal-person-opt", ".switch"):
         assert sel in css, f"缺 {sel}"
+
+def test_css_cal_evt_b_variant_and_no_overflow():
+    """2026-08-14 家豪 B 方案：月曆格時間/內容兩段式 ＋ 跑版防回歸
+    - .cal-grid 必須 minmax(0, 1fr)（1fr=minmax(auto,1fr) 會被長 nowrap 文字撐破格子——8/22 跑版根因）
+    - .cal-evt 兩段結構：時間一行 + 內容一行截斷"""
+    css = read_css_all()
+    assert "repeat(7, minmax(0, 1fr))" in css            # 跑版防回歸（長內容不撐破格子）
+    assert ".cal-evt .cal-evt-time" in css               # 時間維持獨立語意節點
+    assert ".cal-evt .cal-evt-body" in css               # 內容一行（ellipsis 截斷）
+
+
+def test_css_cal_selected_highlight():
+    """2026-09-09：Today 與 Selected 依設計文件同時可見。"""
+    css = read_css_all()
+    assert ".cal-cell.cal-selected {" in css and "border: 1px solid #2563eb" in css
+    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: #2563eb" in css
+    assert ".cal-cell.cal-today .cal-day-num" in css
+
 
 def test_calendar_desktop_dispatch_layout():
     """2026-09-08：桌面版行事曆 65/35、動態高度與組合搜尋列守護。"""

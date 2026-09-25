@@ -150,24 +150,6 @@ def test_css_mobile_media_query():
     assert ".top-actions { flex-wrap: wrap" in css or "flex-wrap: wrap" in css
 
 
-def test_css_cal_evt_b_variant_and_no_overflow():
-    """2026-08-14 家豪 B 方案：月曆格時間/內容兩段式 ＋ 跑版防回歸
-    - .cal-grid 必須 minmax(0, 1fr)（1fr=minmax(auto,1fr) 會被長 nowrap 文字撐破格子——8/22 跑版根因）
-    - .cal-evt 兩段結構：時間一行 + 內容一行截斷"""
-    css = read_css_all()
-    assert "repeat(7, minmax(0, 1fr))" in css            # 跑版防回歸（長內容不撐破格子）
-    assert ".cal-evt .cal-evt-time" in css               # 時間維持獨立語意節點
-    assert ".cal-evt .cal-evt-body" in css               # 內容一行（ellipsis 截斷）
-
-
-def test_css_cal_selected_highlight():
-    """2026-09-09：Today 與 Selected 依設計文件同時可見。"""
-    css = read_css_all()
-    assert ".cal-cell.cal-selected {" in css and "border: 1px solid #2563eb" in css
-    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: #2563eb" in css
-    assert ".cal-cell.cal-today .cal-day-num" in css
-
-
 def test_css_modal_mobile_visible_fix():
     """2026-08-25 手機 modal 三層修復防回歸（家豪截圖實證三輪迭代定案）
 
