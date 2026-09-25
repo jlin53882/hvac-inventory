@@ -556,13 +556,14 @@ def delete_item(item_id: int):
     for asset in photo_assets:
         delete_asset_files(asset)
     # 舊版本沒有 metadata，仍清理 legacy preview。
-    from app.routes.photos import _photo_path
+    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
     try:
         p = _photo_path(item_id)
         if os.path.exists(p):
             os.remove(p)
     except OSError:
         pass
+    invalidate_photo_ids_cache()
     return {"ok": True, "deleted": item_id}
 
 

@@ -104,38 +104,42 @@ def submit_stocktake(req: StocktakeSubmit):
 def list_stocktakes(limit: int = Query(200, ge=1, le=500), site: InventorySiteQuery = "all"):
     """盤點紀錄（含差異，可按庫存區篩選）"""
     conn = get_db()
-    where = ""
-    params = []
-    if site != "all":
-        where = " WHERE i.site=?"
-        params.append(site)
-    params.append(limit)
-    rows = conn.execute(f"""
-        SELECT s.*, i.name as item_name, i.brand, i.unit
-        FROM stocktakes s JOIN items i ON i.id = s.item_id
-        {where}
-        ORDER BY s.id DESC LIMIT ?
-    """, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        where = ""
+        params = []
+        if site != "all":
+            where = " WHERE i.site=?"
+            params.append(site)
+        params.append(limit)
+        rows = conn.execute(f"""
+            SELECT s.*, i.name as item_name, i.brand, i.unit
+            FROM stocktakes s JOIN items i ON i.id = s.item_id
+            {where}
+            ORDER BY s.id DESC LIMIT ?
+        """, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 @router.get("/api/stocktake/dates")
 def stocktake_dates(site: InventorySiteQuery = "all"):
     """盤點日期清單（含每批差異統計，可按庫存區篩選）"""
     conn = get_db()
-    where = ""
-    params = []
-    if site != "all":
-        where = " WHERE i.site=?"
-        params.append(site)
-    rows = conn.execute(f"""
-        SELECT s.take_date, COUNT(*) as item_count,
-               SUM(CASE WHEN s.diff != 0 THEN 1 ELSE 0 END) as diff_count,
-               ROUND(SUM(s.diff), 3) as total_diff
-        FROM stocktakes s JOIN items i ON i.id = s.item_id
-        {where}
-        GROUP BY s.take_date ORDER BY s.take_date DESC
-    """, params).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        where = ""
+        params = []
+        if site != "all":
+            where = " WHERE i.site=?"
+            params.append(site)
+        rows = conn.execute(f"""
+            SELECT s.take_date, COUNT(*) as item_count,
+                   SUM(CASE WHEN s.diff != 0 THEN 1 ELSE 0 END) as diff_count,
+                   ROUND(SUM(s.diff), 3) as total_diff
+            FROM stocktakes s JOIN items i ON i.id = s.item_id
+            {where}
+            GROUP BY s.take_date ORDER BY s.take_date DESC
+        """, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()

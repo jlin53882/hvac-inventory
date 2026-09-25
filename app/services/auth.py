@@ -15,7 +15,7 @@ import re
 import secrets
 import sqlite3
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request
 
@@ -146,11 +146,18 @@ def update_failed_attempts(conn: sqlite3.Connection, user_id: int, success: bool
     conn.commit()
 
 
+def _utc_sql_now(delta: timedelta = timedelta()) -> str:
+    """UTC 時間字串（與 SQLite datetime('now') 同格式），供與 DB 內 UTC 欄位比較/寫入。"""
+    return (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def is_locked(row) -> bool:
-    """檢查是否在鎖定期間（locked_until 未來時間 = 鎖中）"""
+    """檢查是否在鎖定期間（locked_until 未來時間 = 鎖中）。
+    locked_until 由 SQLite datetime('now', ...) 寫入 = UTC，必須與 UTC 比較
+    （2026-09 修正：原本比本地時間，台灣時區下鎖定永遠不生效）。"""
     if not row["locked_until"]:
         return False
-    return str(row["locked_until"]) > datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return str(row["locked_until"]) > _utc_sql_now()
 
 
 # ---------- session 生命週期 ----------
@@ -161,7 +168,7 @@ def create_session(conn: sqlite3.Connection, user_id: int) -> str:
     token = secrets.token_hex(32)
     conn.execute(
         "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
-        (user_id, hash_token(token), datetime.now() + timedelta(days=SESSION_DAYS)),
+        (user_id, hash_token(token), _utc_sql_now(timedelta(days=SESSION_DAYS))),  # UTC：與 datetime('now') 比較
     )
     conn.commit()
     return token

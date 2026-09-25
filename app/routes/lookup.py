@@ -117,13 +117,15 @@ def find_similar(name: str = "", code: str = "", site: InventorySiteQuery = "all
 def list_locations(site: InventorySiteQuery = "all"):
     """回傳既有位置名稱清單（新增品項時位置欄自動補全用）"""
     conn = get_db()
-    sql = ("SELECT DISTINCT s.location FROM item_stocks s"
-           " JOIN items i ON i.id = s.item_id")
-    params = []
-    if site and site != "all":
-        sql += " WHERE i.site = ?"
-        params.append(site)
-    sql += " ORDER BY s.location COLLATE NOCASE"
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
-    return [r["location"] for r in rows]
+    try:
+        sql = ("SELECT DISTINCT s.location FROM item_stocks s"
+               " JOIN items i ON i.id = s.item_id")
+        params = []
+        if site and site != "all":
+            sql += " WHERE i.site = ?"
+            params.append(site)
+        sql += " ORDER BY s.location COLLATE NOCASE"
+        rows = conn.execute(sql, params).fetchall()
+        return [r["location"] for r in rows]
+    finally:
+        conn.close()

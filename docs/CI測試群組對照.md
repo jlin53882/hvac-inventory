@@ -34,6 +34,7 @@
 | `test_petty_cash_excel_rendering.py` | `petty_cash`, `reports` | `CI / Reports` | Excel rendering regression |
 | `test_petty_cash_frontend_races.py` | `petty_cash`, `reports` | `CI / Reports` | frontend async race harness wrapper |
 | `test_permission_taxonomy.py` | `rbac` | `CI / RBAC` | permission taxonomy |
+| `test_performance_regressions.py` | `inventory` | `CI / Inventory + Database` | 2026-09 效能/穩定性：索引、統計批次、照片快取、上傳鎖、時區 |
 | `test_performance_frontend.py` | `frontend` | `CI / Frontend + Security` | frontend performance contracts |
 | `test_prepared_api.py` | `inventory` | `CI / Inventory + Database` | prepared quantity API |
 | `test_quantity.py` | `inventory` | `CI / Inventory + Database` | canonical quantity contracts |
