@@ -140,7 +140,8 @@ def setup_logging() -> Path:
     """初始化集中式 handlers；重複呼叫安全，回傳今日 log 目錄。"""
     today_dir = _today_dir()
     today_dir.mkdir(parents=True, exist_ok=True)
-    cleanup_old_logs(today_dir.parent)
+    log_base = today_dir.parent
+    cleanup_old_logs(log_base)
     formatter = logging.Formatter(_FORMAT)
     request_filter = _RequestIdFilter()
     root = logging.getLogger()
@@ -154,8 +155,11 @@ def setup_logging() -> Path:
 
     def file_handler(filename: str, level: int = logging.INFO) -> logging.Handler:
         # server.log 負責跨日清理（每次切日只需觸發一次）
+        # 基底目錄（含 pytest 的 logs/test/）在 setup 時固定，之後只隨日期換 MMDD；
+        # 不在每次 emit 重判 PYTEST_CURRENT_TEST，避免測試之間背景執行緒的 log 寫進正式 logs/。
         handler = DailyDirFileHandler(
-            filename, _today_dir, on_rollover=_cleanup_rotated if filename == "server.log" else None,
+            filename, lambda: log_base / datetime.now().strftime("%m%d"),
+            on_rollover=_cleanup_rotated if filename == "server.log" else None,
         )
         handler.setLevel(level)
         handler.setFormatter(formatter)

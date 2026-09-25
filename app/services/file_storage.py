@@ -183,7 +183,7 @@ def _resize_to_width(image: Image.Image, width: int) -> Image.Image:
 def _image_variants(data: bytes, expected_format: str | None = None) -> tuple[bytes, bytes, int, int]:
     """產生 preview / thumbnail，回傳 (preview, thumbnail, 原圖寬, 原圖高)。
 
-    2026-09 效能（單張 12MP 約 540ms → 250ms）：
+    2026-09 效能（單張 12MP JPEG 實測約 400ms → 125ms）：
     - 開檔一次同時驗證格式（原本驗證與解碼各開一次）
     - JPEG 用 ``draft`` 在解碼階段直接縮小（仍保證兩邊 >= PREVIEW_WIDTH，畫質不受影響）
     - thumbnail 由 preview 縮出，不再從全尺寸重縮；省去兩次全尺寸 copy
