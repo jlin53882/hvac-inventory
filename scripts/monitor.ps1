@@ -1,6 +1,6 @@
 ﻿# 振佳空調庫存管理系統 - 外網健康監控（常駐）
 # 由「install-monitor.bat」啟動。直接執行亦可。
-# 行為：每 10 分鐘檢查本機 server(8000) 與 Tailscale Funnel 網址
+# 行為：每 10 分鐘檢查本機 server(8000) 與 Tailscale Funnel 網址，並每天備份一次資料庫
 #   - 本機 8000 無回應 → start 開新視窗跑 start.bat 重啟 + Discord 通知
 #   - 公網 Funnel 無回應 → 觸發高權限工作排程重啟 Tailscale 服務 + Discord 通知
 #   - 本機 Funnel 檢查只作輔助；公網探測繞過 MagicDNS，避免漏判控制平面不同步
@@ -31,6 +31,9 @@ if (-not $monitorMutex.WaitOne(0)) {
 $TS        = 'C:\Program Files\Tailscale\tailscale.exe'
 $PROJ      = Split-Path $PSScriptRoot -Parent
 $STARTPS1   = Join-Path $PROJ 'scripts\start-server.ps1'
+$PYTHON    = Join-Path $PROJ '.venv\Scripts\python.exe'
+$BACKUPPY  = Join-Path $PROJ 'scripts\backup_db.py'
+$BACKUP_EVERY_HOURS = 24   # 每天備份一次 inventory.db（只保留 1 份：backups\inventory.db）
 $TS_RECOVERY_TASK = 'HVAC-Tailscale-Recovery'
 $PUBLIC_HOST = 'node.tail13203e.ts.net'
 $DNS_SERVER  = '1.1.1.1'
@@ -108,10 +111,13 @@ function Get-State {
             if ($null -eq $s.PSObject.Properties['funnel_recovery_attempts']) {
                 $s | Add-Member -NotePropertyName funnel_recovery_attempts -NotePropertyValue 0
             }
+            if ($null -eq $s.PSObject.Properties['backup_notified']) {
+                $s | Add-Member -NotePropertyName backup_notified -NotePropertyValue $false
+            }
             return $s
         } catch {}
     }
-    return [PSCustomObject]@{ local_fails = 0; funnel_fails = 0; local_notified = $false; funnel_notified = $false; funnel_recovery_attempts = 0 }
+    return [PSCustomObject]@{ local_fails = 0; funnel_fails = 0; local_notified = $false; funnel_notified = $false; funnel_recovery_attempts = 0; backup_notified = $false }
 }
 
 function Save-State($s) {
@@ -121,6 +127,29 @@ function Save-State($s) {
 function Reset-Counter([string]$Key, $s) {
     if ($Key -eq 'local') { $s.local_fails = 0; $s.local_notified = $false }
     else { $s.funnel_fails = 0; $s.funnel_notified = $false; $s.funnel_recovery_attempts = 0 }
+}
+
+function Invoke-DailyBackup($s, [string]$now) {
+    # backup_db.py 自行判斷既有備份是否滿 24 小時；未滿直接略過，所以每輪呼叫成本很低。
+    if (-not (Test-Path $PYTHON)) {
+        Write-Host "   ⚠️ 找不到 $PYTHON，略過資料庫備份" -ForegroundColor Yellow
+        return
+    }
+    if ($DryRun) {
+        Write-Host "   💾 [DryRun] 會執行：backup_db.py --if-older-than-hours $BACKUP_EVERY_HOURS" -ForegroundColor Cyan
+        return
+    }
+    $out = & $PYTHON $BACKUPPY --if-older-than-hours $BACKUP_EVERY_HOURS 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0) {
+        if ($out -notmatch '略過') { Write-Host "   💾 $($out.Trim())" -ForegroundColor Green }
+        $s.backup_notified = $false
+    } else {
+        Write-Host "   ❌ 資料庫備份失敗：$($out.Trim())" -ForegroundColor Red
+        if (-not $s.backup_notified) {
+            $s.backup_notified = $true
+            Send-Discord "🚨 庫存系統資料庫備份失敗（$now）`n$($out.Trim())`n下一輪監控會自動重試。"
+        }
+    }
 }
 
 function Test-OneRound {
@@ -193,6 +222,9 @@ function Test-OneRound {
             if (-not $DryRun) { Send-Discord $txt } else { Write-Host "   📢 [DryRun] 會通知 Discord：Funnel 公網網址無回應" -ForegroundColor Cyan }
         }
     }
+
+    # ══ 3. 每日資料庫備份 ══
+    Invoke-DailyBackup $s $now
 
     Save-State $s
     # 寫入 heartbeat

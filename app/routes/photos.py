@@ -22,6 +22,7 @@ from app.services.file_storage import (
     delete_asset_files,
     finalize_asset_paths,
     get_owner_asset,
+    prepare_media,
     store_asset,
 )
 
@@ -40,21 +41,43 @@ def _photo_asset(conn, item_id: int):
     return get_owner_asset(conn, "item_photo", "item", item_id)
 
 
+# legacy preview id 快取：key = (UPLOAD_DIR, 目錄 mtime_ns)。新增/刪除/改名檔案會改變目錄 mtime，
+# 照片上傳/刪除 route 另外主動 invalidate，避免同一 mtime tick 內的變動漏更新。
+_photo_ids_cache: tuple | None = None
+
+
+def invalidate_photo_ids_cache() -> None:
+    """照片新增/刪除後呼叫，強制下次 list_photo_ids 重掃目錄。"""
+    global _photo_ids_cache
+    _photo_ids_cache = None
+
+
 def has_photo(item_id: int) -> bool:
-    """檢查品項是否有照片；保留舊檔案相容性。"""
-    return os.path.exists(_photo_path(item_id))
+    """檢查品項是否有照片；保留舊檔案相容性（走目錄快取，不逐筆 stat）。"""
+    return int(item_id) in list_photo_ids()
 
 
 def list_photo_ids() -> set:
-    """一次掃描 legacy preview，避免 list_items 對每筆品項 stat。"""
+    """回傳有 legacy preview 的品項 id；目錄未變動時直接用快取（2026-09 效能：原本每次請求 listdir）。"""
+    global _photo_ids_cache
+    upload_dir = app_config.UPLOAD_DIR
     try:
-        return {
-            int(f.split(".")[0])
-            for f in os.listdir(app_config.UPLOAD_DIR)
-            if re.fullmatch(r"[0-9]+\.jpg", f)
-        }
+        mtime = os.stat(upload_dir).st_mtime_ns
     except OSError:
         return set()
+    cached = _photo_ids_cache
+    if cached is not None and cached[0] == upload_dir and cached[1] == mtime:
+        return cached[2]
+    try:
+        ids = frozenset(
+            int(f.split(".")[0])
+            for f in os.listdir(upload_dir)
+            if re.fullmatch(r"[0-9]+\.jpg", f)
+        )
+    except OSError:
+        return set()
+    _photo_ids_cache = (upload_dir, mtime, ids)
+    return ids
 
 
 @router.post("/api/items/{item_id}/photo", status_code=200, dependencies=[Depends(require_perm("photo"))])
@@ -78,6 +101,11 @@ def upload_photo(item_id: int, file: UploadFile):
             raise HTTPException(400, "圖片超過 10MB 上限")
         if not data:
             raise HTTPException(400, "空檔案")
+        try:
+            # 2026-09：縮圖在 BEGIN IMMEDIATE 之前完成，不佔 SQLite 寫鎖
+            prepared = prepare_media(data, original_name)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
         conn.execute("BEGIN IMMEDIATE")
         old = _photo_asset(conn, item_id)
@@ -95,6 +123,7 @@ def upload_photo(item_id: int, file: UploadFile):
                 original_name=original_name,
                 mime_type=file.content_type or "",
                 legacy_preview_path=f"{item_id}.jpg",
+                prepared=prepared,
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
@@ -127,6 +156,7 @@ def upload_photo(item_id: int, file: UploadFile):
         raise HTTPException(500, "圖片儲存失敗") from exc
     finally:
         conn.close()
+        invalidate_photo_ids_cache()
 
 
 @router.delete("/api/items/{item_id}/photo", dependencies=[Depends(require_perm("photo"))])
@@ -158,4 +188,5 @@ def delete_photo(item_id: int):
         pass
     except OSError:
         raise HTTPException(500, "圖片刪除失敗")
+    invalidate_photo_ids_cache()
     return {"ok": True, "deleted": item_id}

@@ -21,7 +21,7 @@ from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
 from app.routes.photos import has_photo
 from app.services import movement_time
 from app.services.auth import require_perm
-from app.services.inventory_stock import assert_projected_inventory, current_state
+from app.services.inventory_stock import assert_projected_inventory, chunked_ids, current_state, total_qty_map
 from app.services.quantity import canonical_qty
 
 # 整組 API 路由
@@ -36,36 +36,48 @@ def _total(conn, item_id) -> float:
 
 @router.get("/api/kits", dependencies=[Depends(require_perm("kit-view"))])
 def list_kits(site: Optional[InventorySiteQuery] = None):
-    """套件清單（含組成材料）"""
+    """套件清單（含組成材料）；零件與庫存總量批次查詢（2026-09 效能：原本每組/每零件各查一次）。"""
     conn = get_db()
-    where = ""
-    params = ()
-    if site and site != "all":
-        where = " WHERE i.site = ?"
-        params = (site,)
-    kits = conn.execute(
-        f"SELECT k.*, i.unit, i.brand, i.code, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} AND i.is_deleted = 0 ORDER BY k.name",
-        params).fetchall()
-    result = []
-    for k in kits:
-        items = conn.execute("""
-            SELECT ki.item_id, ki.qty as need_qty, i.name, i.brand, i.code, i.unit
-            FROM kit_items ki JOIN items i ON i.id = ki.item_id
-            WHERE ki.kit_id = ?
-        """, (k["id"],)).fetchall()
-        d = dict(k)
-        d["stock_qty"] = _total(conn, k["item_id"])
-        comps = []
-        for x in items:
-            cx = dict(x)
-            cx["stock"] = _total(conn, x["item_id"])
-            # 每個材料（單一庫存品項）自己的照片縮圖（2026-08-12 Sarah 需求）
-            cx["has_photo"] = has_photo(x["item_id"])
-            comps.append(cx)
-        d["components"] = comps
-        result.append(d)
-    conn.close()
-    return result
+    try:
+        where = ""
+        params = ()
+        if site and site != "all":
+            where = " WHERE i.site = ?"
+            params = (site,)
+        kits = conn.execute(
+            f"SELECT k.*, i.unit, i.brand, i.code, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} AND i.is_deleted = 0 ORDER BY k.name",
+            params).fetchall()
+        comps_by_kit: dict = {}
+        for chunk in chunked_ids(k["id"] for k in kits):
+            placeholders = ",".join("?" * len(chunk))
+            for x in conn.execute(f"""
+                SELECT ki.kit_id, ki.item_id, ki.qty as need_qty, i.name, i.brand, i.code, i.unit
+                FROM kit_items ki JOIN items i ON i.id = ki.item_id
+                WHERE ki.kit_id IN ({placeholders})
+                ORDER BY ki.id
+            """, chunk):
+                comps_by_kit.setdefault(x["kit_id"], []).append(x)
+        totals = total_qty_map(
+            conn,
+            [k["item_id"] for k in kits] + [x["item_id"] for comps in comps_by_kit.values() for x in comps],
+        )
+        result = []
+        for k in kits:
+            d = dict(k)
+            d["stock_qty"] = totals[k["item_id"]]
+            comps = []
+            for x in comps_by_kit.get(k["id"], []):
+                cx = dict(x)
+                del cx["kit_id"]
+                cx["stock"] = totals[x["item_id"]]
+                # 每個材料（單一庫存品項）自己的照片縮圖（2026-08-12 Sarah 需求）
+                cx["has_photo"] = has_photo(x["item_id"])
+                comps.append(cx)
+            d["components"] = comps
+            result.append(d)
+        return result
+    finally:
+        conn.close()
 
 
 @router.post("/api/kits", status_code=201, dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -239,7 +251,7 @@ def delete_kit(kit_id: int):
     finally:
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
     # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
-    from app.routes.photos import _photo_path
+    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
     import os
     try:
         p = _photo_path(item_id)
@@ -247,6 +259,7 @@ def delete_kit(kit_id: int):
             os.remove(p)
     except OSError:
         pass
+    invalidate_photo_ids_cache()
     return {"ok": True, "deleted": kit_id}
 
 
@@ -394,4 +407,4 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         conn.rollback()
         raise
     finally:
-        conn.close()
+        conn.close()

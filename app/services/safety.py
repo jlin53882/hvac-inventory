@@ -13,7 +13,7 @@ _can_delete_all×3、日期驗證×2、xlsx 下載×5），改一處漏一處。
 - has_perm：單一權限點判斷（各報表 _can_delete_all 的參數化版）
 """
 import datetime
-import os
+import ntpath
 import re
 from urllib.parse import quote
 
@@ -34,7 +34,9 @@ def excel_safe(value):
 
 def safe_download_name(name: str) -> str:
     """檔名清理：去路徑、只留中英文數字._-、其餘轉 _、防前綴、限 120 字。"""
-    name = os.path.basename((name or "file").strip()) or "file"
+    # ntpath 同時處理 / 與 \（及磁碟代號），任何平台行為都與正式機 Windows 一致；
+    # os.path.basename 在 Linux 不切反斜線，"a/b\\c.pdf" 會變成夾帶路徑的 "b_c.pdf"。
+    name = ntpath.basename((name or "file").strip()) or "file"
     # 保留中英文、數字、._-，其餘轉 _
     name = re.sub(r"[^0-9A-Za-z\u4e00-\u9fa5._-]", "_", name)
     # 防公式注入前綴與隱藏檔

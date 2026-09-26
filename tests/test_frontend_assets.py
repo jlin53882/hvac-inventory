@@ -4647,3 +4647,19 @@ def test_frontend_async_lifecycle_contracts():
     assert result.returncode == 0, (
         f"async lifecycle runtime 失敗：\n{result.stdout}\n{result.stderr}"
     )
+
+
+def test_work_progress_uploads_report_progress():
+    """2026-09 A5：新增工作進度與追加照片都走 wprUploadWithProgress（XHR upload.onprogress），
+    不再用 fetch 一次送出而只顯示「儲存中…」。runtime 行為見 work_progress_upload_progress.test.js。"""
+    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    helper = js.split("function wprUploadWithProgress", 1)[1].split("function wprCurrentUserName", 1)[0]
+    assert "xhr.upload.onprogress" in helper
+    assert "xhr.upload.onload" in helper
+    assert "wprUploadProgressText" in js
+    confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprSubmit()", 1)[0]
+    assert "wprUploadWithProgress('/api/work-progress', form" in confirm_block
+    assert "button.textContent = wprUploadProgressText(phase, percent)" in confirm_block
+    existing_block = js.split("function wprAddExistingPhotos", 1)[1].split("async function wprDeleteReport", 1)[0]
+    assert "wprUploadWithProgress('/api/work-progress/' + id + '/photos', form" in existing_block
+    assert "{method:'POST', body:form}" not in existing_block

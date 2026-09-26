@@ -20,6 +20,7 @@ import os
 from typing import Optional
 
 from fastapi import Depends, APIRouter, Body, HTTPException
+from fastapi.responses import JSONResponse
 
 from app.database import get_db
 from app.models import (
@@ -273,9 +274,11 @@ def list_items(
         ids = [r["id"] for r in rows]
         kit_map, stocks_map, photo_ids, photo_map = _item_detail_maps(conn, ids)
         result = [_item_full(conn, r, kit_map, stocks_map, photo_ids, photo_map) for r in rows]
+        # 2026-09 效能：內容全是 SQLite 原生型別（str/int/float/None），直接 JSONResponse
+        # 跳過 FastAPI jsonable_encoder（全量 3000 筆時 encoder 佔 ~130ms；輸出位元組相同）。
         if page is not None:
-            return {"items": result, "total": total, "page": page, "page_size": page_size, "stats": page_stats}
-        return result
+            return JSONResponse({"items": result, "total": total, "page": page, "page_size": page_size, "stats": page_stats})
+        return JSONResponse(result)
     finally:
         conn.close()
 
@@ -556,13 +559,14 @@ def delete_item(item_id: int):
     for asset in photo_assets:
         delete_asset_files(asset)
     # 舊版本沒有 metadata，仍清理 legacy preview。
-    from app.routes.photos import _photo_path
+    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
     try:
         p = _photo_path(item_id)
         if os.path.exists(p):
             os.remove(p)
     except OSError:
         pass
+    invalidate_photo_ids_cache()
     return {"ok": True, "deleted": item_id}
 
 

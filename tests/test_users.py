@@ -763,3 +763,72 @@ def test_f11_key_change_keeps_shared_old_key_relationship(admin_client, monkeypa
         assert row is None or row["op_type"] != "D"
     finally:
         conn.close()
+
+
+# ========== 2026-09 時區修正：帳號鎖定/session 到期一律以 UTC 比較 ==========
+
+class _TaipeiClockDatetime:
+    """模擬台灣主機：naive now() 回傳 UTC+8 本地時間；帶 tz 時照常。"""
+    import datetime as _dt
+
+    @classmethod
+    def now(cls, tz=None):
+        real = cls._dt.datetime.now(cls._dt.timezone.utc)
+        if tz is None:
+            return (real + cls._dt.timedelta(hours=8)).replace(tzinfo=None)
+        return real.astimezone(tz)
+
+
+def test_account_lock_effective_on_taipei_clock(admin_client, monkeypatch):
+    """連錯 MAX_FAILED 次後，即使主機時鐘為 UTC+8，正確密碼也應回 429（鎖定生效）。"""
+    import app.services.auth as svc
+    from app.services.auth import MAX_FAILED, clear_ip_fail
+    monkeypatch.setattr(svc, "datetime", type("TaipeiDatetime", (_TaipeiClockDatetime,), {}))
+    admin_client.post("/api/users", json={
+        "username": "lockme", "password": "Lock1234", "display_name": "L", "role": "user",
+    })
+    try:
+        with TestClient(fastapi_app) as c:
+            for _ in range(MAX_FAILED):
+                clear_ip_fail("testclient")
+                assert c.post("/api/auth/login", json={"username": "lockme", "password": "Wrong999"}).status_code == 401
+            clear_ip_fail("testclient")
+            r = c.post("/api/auth/login", json={"username": "lockme", "password": "Lock1234"})
+            assert r.status_code == 429, r.text
+    finally:
+        clear_ip_fail("testclient")
+
+
+def test_session_expiry_stored_in_utc(admin_client, monkeypatch):
+    """sessions.expires_at 以 UTC 寫入，與 datetime('now') 比較時有效期恰為 SESSION_DAYS。"""
+    import app.services.auth as svc
+    from app.services.auth import SESSION_DAYS, create_session
+    monkeypatch.setattr(svc, "datetime", type("TaipeiDatetime", (_TaipeiClockDatetime,), {}))
+    conn = get_db()
+    try:
+        uid = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()["id"]
+        token = create_session(conn, uid)
+        from app.services.auth import hash_token
+        drift = conn.execute(
+            "SELECT ABS(strftime('%s', expires_at) - strftime('%s', datetime('now', ?))) AS d "
+            "FROM sessions WHERE token_hash=?",
+            (f"+{SESSION_DAYS} days", hash_token(token)),
+        ).fetchone()["d"]
+        assert drift < 120
+    finally:
+        conn.close()
+
+
+def test_ip_fail_records_are_pruned(monkeypatch):
+    """B9：失敗紀錄超過門檻時清掉觀察窗外的 IP；檢查不為未失敗 IP 建立空紀錄。"""
+    import app.services.auth as svc
+    monkeypatch.setattr(svc, "_ip_fail_times", {})
+    now = [1_000_000.0]
+    monkeypatch.setattr(svc.time, "time", lambda: now[0])
+    assert svc.check_ip_rate_limit("10.0.0.1") is False
+    assert "10.0.0.1" not in svc._ip_fail_times
+    for i in range(svc.IP_FAIL_PRUNE_THRESHOLD + 1):
+        svc.record_ip_fail(f"10.1.{i // 256}.{i % 256}")
+    now[0] += svc.IP_FAIL_WINDOW_SEC + 1
+    svc.record_ip_fail("10.9.9.9")
+    assert list(svc._ip_fail_times) == ["10.9.9.9"]

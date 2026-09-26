@@ -12,18 +12,20 @@ router = APIRouter()
 def list_movements(limit: int = Query(50, ge=1, le=500), site: InventorySiteQuery = "all"):
     """異動紀錄（含名稱/品牌/site），依 id 倒序並可按庫存區過濾。"""
     conn = get_db()
-    where = ""
-    params = []
-    if site != "all":
-        where = " WHERE i.site=?"
-        params.append(site)
-    params.append(limit)
-    rows = conn.execute(
-        f"""SELECT m.*, i.name, i.brand, i.site FROM movements m
-           JOIN items i ON i.id = m.item_id
-           {where}
-           ORDER BY m.id DESC LIMIT ?""",
-        params,
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    try:
+        where = ""
+        params = []
+        if site != "all":
+            where = " WHERE i.site=?"
+            params.append(site)
+        params.append(limit)
+        rows = conn.execute(
+            f"""SELECT m.*, i.name, i.brand, i.site FROM movements m
+               JOIN items i ON i.id = m.item_id
+               {where}
+               ORDER BY m.id DESC LIMIT ?""",
+            params,
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()

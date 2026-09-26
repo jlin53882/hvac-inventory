@@ -15,6 +15,7 @@
 |---|---|---|---|
 | `test_app_logging.py` | `core` | `full-only` | logging contract，目前不另拆 job |
 | `test_appointments.py` | `regression` | `full-only` | calendar / sync regression |
+| `test_backup_db.py` | `core` | `full-only` | 每日資料庫備份腳本 / monitor 整合 |
 | `test_config.py` | `core` | `full-only` | config contract |
 | `test_database_migrations.py` | `database`, `inventory` | `CI / Inventory + Database` | migration / seed rollback |
 | `test_deadvar_verify.py` | `regression` | `full-only` | dead variable regression |
@@ -34,6 +35,7 @@
 | `test_petty_cash_excel_rendering.py` | `petty_cash`, `reports` | `CI / Reports` | Excel rendering regression |
 | `test_petty_cash_frontend_races.py` | `petty_cash`, `reports` | `CI / Reports` | frontend async race harness wrapper |
 | `test_permission_taxonomy.py` | `rbac` | `CI / RBAC` | permission taxonomy |
+| `test_performance_regressions.py` | `inventory` | `CI / Inventory + Database` | 2026-09 效能/穩定性：索引、統計批次、照片快取、上傳鎖、時區 |
 | `test_performance_frontend.py` | `frontend` | `CI / Frontend + Security` | frontend performance contracts |
 | `test_prepared_api.py` | `inventory` | `CI / Inventory + Database` | prepared quantity API |
 | `test_quantity.py` | `inventory` | `CI / Inventory + Database` | canonical quantity contracts |
@@ -63,6 +65,7 @@
 - `tests/tab_lifecycle_runtime.test.js`
 - `tests/tab_async_lifecycle.test.js`
 - `tests/work_progress_detail_target_lifecycle.test.js`
+- `tests/work_progress_upload_progress.test.js`：由 `test_work_progress_ui_regressions.py` 執行（上傳進度條）
 
 ## Phase 2 boundary
 

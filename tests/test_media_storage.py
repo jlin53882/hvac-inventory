@@ -3,6 +3,7 @@
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 import io
+import json
 import os
 import sqlite3
 from pathlib import Path
@@ -898,7 +899,7 @@ def test_unpaged_items_chunks_photo_metadata_ids(media_env, monkeypatch):
 
     monkeypatch.setattr(item_routes, "get_db", lambda: conn)
     monkeypatch.setattr(item_routes, "list_photo_ids", lambda: set())
-    result = item_routes.list_items(site="office")
+    result = json.loads(item_routes.list_items(site="office").body)
     assert len(result) == 501
 
 

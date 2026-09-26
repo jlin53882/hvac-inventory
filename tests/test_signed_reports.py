@@ -493,3 +493,116 @@ def test_edit_note_rejects_overlong_value(signed_env):
         f"/api/signed-reports/{report['id']}", data={"note": "x" * 501}
     )
     assert response.status_code in (400, 422)
+
+
+
+# ========== M2：替換檔案前先做便宜的存在/權限檢查（404/403 不可先做影像處理） ==========
+
+import io as _io
+
+from PIL import Image as _Image
+
+
+def _png_bytes(color="red"):
+    buf = _io.BytesIO()
+    _Image.new("RGB", (32, 24), color).save(buf, "PNG")
+    return buf.getvalue()
+
+
+@pytest.fixture()
+def prepare_spy(monkeypatch):
+    """arm() 後 prepare_media 一被呼叫就記錄並失敗（模擬昂貴且會壞的影像處理）；回傳呼叫紀錄。"""
+    calls = []
+
+    def exploding_prepare(data, name):
+        calls.append(name)
+        raise ValueError("無法解析圖片")
+
+    def arm():
+        monkeypatch.setattr(signed_reports, "prepare_media", exploding_prepare)
+        return calls
+
+    return arm
+
+
+def test_replace_missing_signed_report_returns_404_before_media_prepare(signed_env, prepare_spy):
+    """Case A：不存在的 rid + 會失敗的影像處理 → 404，且完全沒做影像處理。"""
+    make_client, _ = signed_env
+    admin = make_client()
+    calls = prepare_spy()
+    response = admin.patch(
+        "/api/signed-reports/999999", data={"note": "x"},
+        files={"file": ("big.png", _png_bytes(), "image/png")},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "報表不存在"
+    assert calls == []
+
+
+def test_replace_signed_report_without_edit_capability_returns_403_before_media_prepare(signed_env, prepare_spy):
+    """Case B：他人的報表、無全域範圍 → 403，且完全沒做影像處理。"""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    other = make_client("other", "user")
+    report = _upload(owner).json()
+    calls = prepare_spy()
+    response = other.patch(
+        f"/api/signed-reports/{report['id']}", data={"note": "x"},
+        files={"file": ("big.png", _png_bytes(), "image/png")},
+    )
+    assert response.status_code == 403
+    assert calls == []
+    assert owner.get(f"/api/signed-reports/{report['id']}/download").content == b"%PDF-signed"
+
+
+def test_replace_signed_report_with_valid_image_by_owner(signed_env):
+    """Case C：合法 rid + 合法使用者 + 有效圖片 → 正常替換。"""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    image = _png_bytes("blue")
+    response = owner.patch(
+        f"/api/signed-reports/{report['id']}", data={"note": "換成照片"},
+        files={"file": ("photo.png", image, "image/png")},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["file_name"] == "photo.png"
+    assert response.json()["note"] == "換成照片"
+    assert owner.get(f"/api/signed-reports/{report['id']}/download").content == image
+
+
+def test_replace_signed_report_rechecks_permission_inside_transaction(signed_env, monkeypatch):
+    """Case D：precheck 通過後、交易前權限被撤銷 → 交易內權威檢查仍回 403，資料與檔案不變。"""
+    make_client, static_dir = signed_env
+    owner = make_client("owner", "user")
+    make_client("other", "user")
+    report = _upload(owner).json()
+    real_read_and_prepare = signed_reports._read_and_prepare
+
+    def revoke_after_prepare(file):
+        result = real_read_and_prepare(file)
+        conn = app_db.get_db()
+        try:   # 模擬處理期間報表被轉給他人（owner 失去編輯範圍）
+            conn.execute(
+                "UPDATE daily_signed_reports SET uploader_user_id=(SELECT id FROM users WHERE username='other') WHERE id=?",
+                (report["id"],),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return result
+
+    monkeypatch.setattr(signed_reports, "_read_and_prepare", revoke_after_prepare)
+    response = owner.patch(
+        f"/api/signed-reports/{report['id']}", data={"note": "不應寫入"},
+        files={"file": ("photo.png", _png_bytes(), "image/png")},
+    )
+    assert response.status_code == 403
+    conn = app_db.get_db()
+    try:
+        row = conn.execute("SELECT note, file_name FROM daily_signed_reports WHERE id=?", (report["id"],)).fetchone()
+    finally:
+        conn.close()
+    assert (row["note"], row["file_name"]) == ("已簽回", "daily.pdf")
+    stored = [p.name for p in static_dir.rglob("*") if p.is_file()]
+    assert not any(name.endswith("photo.png") or name == "preview.jpg" for name in stored), stored

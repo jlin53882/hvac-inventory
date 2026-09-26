@@ -62,6 +62,46 @@ async function wprFetch(url, options) {
   return response.json();
 }
 /**
+ * Label for the upload phases shown on the submit button.
+ * @param {string} phase - 'upload' while bytes are sent, 'processing' after the server has them.
+ * @param {number} percent - Upload percentage (0-100), ignored for processing.
+ * @returns {string} Button label.
+ */
+function wprUploadProgressText(phase, percent) {
+  if (phase === 'processing') return '伺服器處理中…';
+  var value = Math.max(0, Math.min(100, Math.floor(Number(percent) || 0)));
+  return '上傳中 ' + value + '%';
+}
+/**
+ * POST multipart data with upload progress (fetch cannot report request-body progress).
+ * Error semantics match wprFetch: rejects with the API detail message.
+ * @param {string} url - Endpoint.
+ * @param {FormData} form - Multipart body.
+ * @param {function(string, number): void} onProgress - Receives ('upload', percent) then ('processing', 100).
+ * @returns {Promise<object>} Parsed JSON response.
+ */
+function wprUploadWithProgress(url, form, onProgress) {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    var report = function(phase, percent) { if (onProgress) onProgress(phase, percent); };
+    xhr.open('POST', url);
+    xhr.upload.onprogress = function(event) {
+      if (event.lengthComputable && event.total > 0) report('upload', event.loaded * 100 / event.total);
+    };
+    xhr.upload.onload = function() { report('processing', 100); };
+    xhr.onload = function() {
+      var body = {};
+      try { body = JSON.parse(xhr.responseText || '{}'); } catch (error) { body = {}; }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.detail || ('API 錯誤：' + xhr.status)));
+    };
+    xhr.onerror = function() { reject(new Error('網路連線中斷，上傳失敗，請重試')); };
+    xhr.onabort = function() { reject(new Error('上傳已中止')); };
+    report('upload', 0);
+    xhr.send(form);
+  });
+}
+/**
  * Resolve the read-only display name shown on the create form.
  * @returns {void} Function result.
  */
@@ -512,7 +552,9 @@ async function wprConfirmSubmit() {
   form.append('note', snapshot.note);
   snapshot.files.forEach(function(item) { form.append('files', item.file, item.file.name); });
   try {
-    await wprFetch('/api/work-progress', {method: 'POST', body: form});
+    await wprUploadWithProgress('/api/work-progress', form, function(phase, percent) {
+      button.textContent = wprUploadProgressText(phase, percent);
+    });
     wprCloseSubmitConfirmation();
     wprClearPendingFiles();
     wprCurrentReport = null;
@@ -1083,7 +1125,9 @@ function wprAddExistingPhotos(id, targetId) {
       if (!validation.ok) { toast(validation.error, 'error'); return; }
       var form = new FormData();
       files.forEach(function(file) { form.append('files', file, file.name); });
-      await wprFetch('/api/work-progress/' + id + '/photos', {method:'POST', body:form});
+      await wprUploadWithProgress('/api/work-progress/' + id + '/photos', form, function(phase, percent) {
+        toast(wprUploadProgressText(phase, percent));
+      });
       toast('照片已新增', 'success');
       await wprReloadAndReopenDetail(id, 1, targetId);
     } catch (error) { toast(error.message, 'error'); }

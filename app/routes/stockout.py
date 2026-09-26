@@ -27,7 +27,7 @@ from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, S
 from app.routes.photos import has_photo
 from app.services import movement_time
 from app.services.auth import require_perm
-from app.services.inventory_stock import assert_projected_inventory
+from app.services.inventory_stock import assert_projected_inventory, chunked_ids
 from app.services.quantity import canonical_qty
 
 # 出庫/待領出 API 路由
@@ -64,11 +64,13 @@ def _total_qty(conn, item_id) -> float:
                                       (item_id,)).fetchone()[0])
 
 
-def _item_payload(conn, row) -> dict:
-    """回傳品項完整 payload（補 total_qty/stocks/location/note 相容欄位）"""
+def _item_payload(conn, row, stocks=None) -> dict:
+    """回傳品項完整 payload（補 total_qty/stocks/location/note 相容欄位）。
+    stocks：列表 API 批次預載的位置庫存（省每筆一次查詢）；None 時自行查詢。"""
     d = dict(row)
-    stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
-                          (row["id"],)).fetchall()
+    if stocks is None:
+        stocks = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id",
+                              (row["id"],)).fetchall()
     d["stocks"] = [dict(s) for s in stocks]
     d["total_qty"] = _canonical_qty(sum(s["qty"] for s in stocks))
     d["qty"] = d["total_qty"]
@@ -244,7 +246,6 @@ def stock_out_nonstock(req: NonStockOutRequest):
 @router.get("/api/stockouts", dependencies=[Depends(require_perm("prepared"))])
 def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", site: Optional[InventorySiteQuery] = None):
     """出庫紀錄（含去向）+ 退回紀錄（2026-09-07 Sarah：退回要顯示在已領出頁）"""
-    conn = get_db()
     sql = """
         SELECT m.*, i.name as item_name, i.brand, i.code, i.unit, i.is_deleted as item_deleted
         FROM movements m JOIN items i ON i.id = m.item_id
@@ -261,12 +262,15 @@ def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", sit
         params += [like, like, like]
     sql += " ORDER BY m.id DESC LIMIT ?"
     params.append(limit)
-    rows = conn.execute(sql, params).fetchall()
-    conn.close()
+    conn = get_db()
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
     outs = []
     for r in rows:
         d = dict(r)
-        d["has_photo"] = has_photo(d["item_id"])
+        d["has_photo"] = has_photo(d["item_id"])  # 目錄快取 set lookup，不逐筆 stat
         outs.append(d)
     return outs
 
@@ -763,26 +767,40 @@ def prepared_return(item_id: int, req: PrepareRequest):
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.get("/api/prepared", dependencies=[Depends(require_perm("prepared"))])
 def list_prepared(site: Optional[InventorySiteQuery] = None):
-    """準備中清單（已領出尚未出庫）"""
+    """準備中清單（已領出尚未出庫）；位置庫存與準備說明批次查詢（2026-09 效能：原本每筆各查一次）"""
     conn = get_db()
-    where = ""
-    params = ()
-    if site and site != "all":
-        where = " AND (site = ? OR (is_deleted = 1 AND site = ''))"  # 2026-08-16 修復：非庫存品項（is_deleted=1, site=''）不分 site 永遠顯示（比照 list_stock_outs）
-        params = (site,)
-    rows = conn.execute(f"""
-        SELECT * FROM items WHERE prepared_qty > 0 AND (is_deleted = 0 OR site = ''){where} ORDER BY brand COLLATE NOCASE, name
-    """, params).fetchall()
-    payloads = [_item_payload(conn, r) for r in rows]  # 補 total_qty/location/stocks 相容欄位
-    # 補 destination（準備說明）：取該品項最新一筆「領出準備」movements 的 destination
-    for p in payloads:
-        mv = conn.execute(
-            "SELECT destination FROM movements WHERE item_id=? AND reason='領出準備' ORDER BY id DESC LIMIT 1",
-            (p["id"],)
-        ).fetchone()
-        p["destination"] = mv["destination"] if mv and mv["destination"] else ""
-    conn.close()
-    return payloads
+    try:
+        where = ""
+        params = ()
+        if site and site != "all":
+            where = " AND (site = ? OR (is_deleted = 1 AND site = ''))"  # 2026-08-16 修復：非庫存品項（is_deleted=1, site=''）不分 site 永遠顯示（比照 list_stock_outs）
+            params = (site,)
+        rows = conn.execute(f"""
+            SELECT * FROM items WHERE prepared_qty > 0 AND (is_deleted = 0 OR site = ''){where} ORDER BY brand COLLATE NOCASE, name
+        """, params).fetchall()
+        stocks_map: dict = {}
+        destinations: dict = {}
+        for chunk in chunked_ids(r["id"] for r in rows):
+            placeholders = ",".join("?" * len(chunk))
+            for stock in conn.execute(
+                f"SELECT * FROM item_stocks WHERE item_id IN ({placeholders}) ORDER BY item_id, id", chunk
+            ):
+                stocks_map.setdefault(stock["item_id"], []).append(stock)
+            # 補 destination（準備說明）：取該品項最新一筆「領出準備」movements 的 destination
+            for mv in conn.execute(
+                f"""SELECT m.item_id, m.destination FROM movements m
+                    WHERE m.id IN (SELECT MAX(id) FROM movements
+                                   WHERE reason='領出準備' AND item_id IN ({placeholders})
+                                   GROUP BY item_id)""",
+                chunk,
+            ):
+                destinations[mv["item_id"]] = mv["destination"]
+        payloads = [_item_payload(conn, r, stocks_map.get(r["id"], [])) for r in rows]  # 補 total_qty/location/stocks 相容欄位
+        for p in payloads:
+            p["destination"] = destinations.get(p["id"]) or ""
+        return payloads
+    finally:
+        conn.close()
 
 @router.patch("/api/prepared/{item_id}")
 def update_prepared_item(

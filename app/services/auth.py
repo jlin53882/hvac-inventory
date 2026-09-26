@@ -15,7 +15,7 @@ import re
 import secrets
 import sqlite3
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request
 
@@ -38,19 +38,32 @@ IP_FAIL_WINDOW_SEC = 60   # 觀察窗（秒）
 IP_FAIL_MAX = 10          # 視窗內失敗次數上限（超過 → 429）
 # 純 in-memory：單機部署夠用；成功登入即清空該 IP；重啟自動歸零
 _ip_fail_times: dict = {}
+IP_FAIL_PRUNE_THRESHOLD = 256   # 紀錄的 IP 數超過此值時，順手清掉觀察窗外的過期 IP（防記憶體無限成長）
+
+
+def _prune_ip_fails(now: float) -> None:
+    """移除所有已無觀察窗內失敗紀錄的 IP。"""
+    for ip in [ip for ip, times in _ip_fail_times.items() if not times or now - times[-1] >= IP_FAIL_WINDOW_SEC]:
+        _ip_fail_times.pop(ip, None)
 
 
 def check_ip_rate_limit(ip: str) -> bool:
     """該 IP 是否已超過失敗次數上限（True = 應拒絕）"""
     now = time.time()
     times = [t for t in _ip_fail_times.get(ip, []) if now - t < IP_FAIL_WINDOW_SEC]
-    _ip_fail_times[ip] = times
+    if times:
+        _ip_fail_times[ip] = times
+    else:
+        _ip_fail_times.pop(ip, None)   # 不為從未失敗/已過期的 IP 保留空紀錄
     return len(times) >= IP_FAIL_MAX
 
 
 def record_ip_fail(ip: str) -> None:
     """記錄一次該 IP 的登入失敗"""
-    _ip_fail_times.setdefault(ip, []).append(time.time())
+    now = time.time()
+    if len(_ip_fail_times) > IP_FAIL_PRUNE_THRESHOLD:
+        _prune_ip_fails(now)
+    _ip_fail_times.setdefault(ip, []).append(now)
 
 
 def clear_ip_fail(ip: str) -> None:
@@ -146,11 +159,18 @@ def update_failed_attempts(conn: sqlite3.Connection, user_id: int, success: bool
     conn.commit()
 
 
+def _utc_sql_now(delta: timedelta = timedelta()) -> str:
+    """UTC 時間字串（與 SQLite datetime('now') 同格式），供與 DB 內 UTC 欄位比較/寫入。"""
+    return (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def is_locked(row) -> bool:
-    """檢查是否在鎖定期間（locked_until 未來時間 = 鎖中）"""
+    """檢查是否在鎖定期間（locked_until 未來時間 = 鎖中）。
+    locked_until 由 SQLite datetime('now', ...) 寫入 = UTC，必須與 UTC 比較
+    （2026-09 修正：原本比本地時間，台灣時區下鎖定永遠不生效）。"""
     if not row["locked_until"]:
         return False
-    return str(row["locked_until"]) > datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return str(row["locked_until"]) > _utc_sql_now()
 
 
 # ---------- session 生命週期 ----------
@@ -161,7 +181,7 @@ def create_session(conn: sqlite3.Connection, user_id: int) -> str:
     token = secrets.token_hex(32)
     conn.execute(
         "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
-        (user_id, hash_token(token), datetime.now() + timedelta(days=SESSION_DAYS)),
+        (user_id, hash_token(token), _utc_sql_now(timedelta(days=SESSION_DAYS))),  # UTC：與 datetime('now') 比較
     )
     conn.commit()
     return token

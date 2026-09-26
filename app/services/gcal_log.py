@@ -2,7 +2,7 @@
 """
 gcal_sync 共用 logging 設定
 ============================
-- 每日分目錄：logs/MMDD/gcal_sync.log（如 logs/0908/gcal_sync.log）
+- 每日分目錄：logs/MMDD/gcal_sync.log（如 logs/0908/gcal_sync.log；跨日自動切換，2026-09）
 - 跨月壓縮：進入新月時，上個月的 MMDD 目錄打包為 logs/archive_YYYYMM.tar.gz
 - 舊檔歸檔：首次啟動時，logs/gcal_sync.log（舊格式）移到 logs/archive_legacy_gcal_sync.log
 - 錯誤隔離：所有檔案操作都包 try/except，不癱瘓主程式
@@ -104,10 +104,12 @@ def setup_gcal_logging():
         # 目錄建立失敗 → fallback 到 logs/ 根目錄
         today_dir = _LOG_BASE
 
-    # 4. 建立 FileHandler
-    log_path = os.path.join(today_dir, "gcal_sync.log")
+    # 4. 建立 FileHandler（跨日自動切到新的 MMDD 目錄；目錄建立失敗時固定寫 logs/ 根目錄）
+    from app.services.app_log import DailyDirFileHandler
+    fixed_dir = today_dir
+    dir_func = _today_dir if fixed_dir != _LOG_BASE else (lambda: fixed_dir)
     try:
-        fh = logging.FileHandler(log_path, encoding="utf-8")
+        fh = DailyDirFileHandler("gcal_sync.log", dir_func)
         fh.setFormatter(_FORMATTER)
     except Exception:
         # FileHandler 建立失敗 → 用 NullHandler（不寫檔但不崩）

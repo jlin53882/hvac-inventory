@@ -30,12 +30,12 @@ else
 fi
 
 case "${1:-all}" in
-  core) FILES="tests/test_main.py tests/test_safety_helpers.py tests/test_app_logging.py tests/test_config.py tests/test_notifications.py tests/test_server_lifecycle.py";; # core API/helpers/config/lifecycle contracts
+  core) FILES="tests/test_main.py tests/test_safety_helpers.py tests/test_app_logging.py tests/test_config.py tests/test_notifications.py tests/test_server_lifecycle.py tests/test_backup_db.py";; # core API/helpers/config/lifecycle contracts
   frontend)   FILES="tests/test_frontend_assets.py tests/test_calendar_frontend.py tests/test_security_regression.py tests/test_structure.py tests/test_performance_frontend.py tests/test_work_progress_ui_regressions.py" ;;
   storage)    FILES="tests/test_media_storage.py tests/test_quotation_uploads.py tests/test_quotations.py tests/test_signed_reports.py tests/test_file_asset_scripts.py" ;;
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   database)   FILES="tests/test_database_migrations.py" ;;
-  inventory)  FILES="tests/test_inventory_integrity.py tests/test_inventory_writer_transactions.py tests/test_inventory_writer_scanner.py tests/test_prepared_api.py tests/test_quantity.py tests/test_vehicle_inventory.py tests/test_database_migrations.py tests/test_units.py" ;;
+  inventory)  FILES="tests/test_inventory_integrity.py tests/test_inventory_writer_transactions.py tests/test_inventory_writer_scanner.py tests/test_prepared_api.py tests/test_quantity.py tests/test_vehicle_inventory.py tests/test_database_migrations.py tests/test_units.py tests/test_performance_regressions.py" ;;
   rbac)       FILES="tests/test_rbac.py tests/test_rbac_perms.py tests/test_permission_taxonomy.py" ;;
   regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py tests/test_gcal_keys.py tests/test_deadvar_verify.py" ;;
   reports)    FILES="tests/test_export.py tests/test_petty_cash.py tests/test_engineering_petty_cash.py tests/test_petty_cash_excel_rendering.py tests/test_petty_cash_frontend_races.py" ;;

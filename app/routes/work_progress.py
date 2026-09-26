@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Iterable
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
@@ -27,6 +28,7 @@ from app.services.file_storage import (
     cleanup_asset_paths,
     delete_asset_files,
     finalize_asset_paths,
+    prepare_media_batch,
     store_asset,
 )
 from app.services.safety import safe_download_name
@@ -231,12 +233,56 @@ def _cleanup_assets(assets: Iterable) -> None:
                 parent = parent.parent
 
 
-def _store_batch(conn, report_id: int, report_date: str, uploads) -> list:
-    """Stage every upload in a report batch and clean partial output on failure."""
+def _precheck_create(appointment_id: int) -> None:
+    """不上鎖的新增前檢查（行程存在、尚無回報）；交易內會再權威檢查一次。"""
+    conn = get_db()
+    try:
+        if conn.execute("SELECT 1 FROM appointments WHERE id=?", (appointment_id,)).fetchone() is None:
+            raise HTTPException(404, "行事曆工作不存在")
+        if conn.execute(
+            "SELECT 1 FROM daily_work_progress_reports WHERE appointment_id=?", (appointment_id,)
+        ).fetchone() is not None:
+            raise HTTPException(409, "此工作已有工作進度回報")
+    finally:
+        conn.close()
+
+
+def _precheck_add_photos(report_id: int, user: dict, count: int) -> None:
+    """不上鎖的追加照片前檢查（存在、權限、張數上限）；交易內會再權威檢查一次。"""
+    conn = get_db()
+    try:
+        row = _get_report(conn, report_id)
+        can_edit, _ = _flags(conn, row, user)
+        if not can_edit:
+            raise HTTPException(403, "沒有新增照片的權限")
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            (CATEGORY, OWNER_TYPE, str(report_id)),
+        ).fetchone()[0]
+        if existing + count > MAX_FILES:
+            raise HTTPException(400, "每份工作進度最多保留 20 張照片")
+    finally:
+        conn.close()
+
+
+def _prepare_uploads(uploads) -> list:
+    """在開 DB 交易前平行完成驗證/縮圖（2026-09：影像處理不可佔住 SQLite 寫鎖）。"""
+    try:
+        return prepare_media_batch([(data, name) for data, name, _mime in uploads])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+def _store_batch(conn, report_id: int, report_date: str, uploads, prepared=None) -> list:
+    """Stage every upload in a report batch and clean partial output on failure.
+
+    prepared：與 uploads 同序的 :func:`prepare_media_batch` 結果；None 時逐張同步處理。
+    """
     assets = []
     base_dir = f"work_progress/{report_date[:7]}/{report_id}"
+    prepared = prepared or [None] * len(uploads)
     try:
-        for data, original_name, mime_type in uploads:
+        for (data, original_name, mime_type), media in zip(uploads, prepared):
             assets.append(store_asset(
                 conn,
                 category=CATEGORY,
@@ -248,6 +294,7 @@ def _store_batch(conn, report_id: int, report_date: str, uploads) -> list:
                 year_month=report_date[:7],
                 base_relative_dir=base_dir,
                 upload_dir=_upload_dir(),
+                prepared=media,
             ))
         return assets
     except Exception:
@@ -387,6 +434,11 @@ def create_work_progress(
     )
     note = _validate_note(note)
     uploads = _read_image_uploads(files, allow_empty=True)
+    prepared = None
+    if uploads:
+        # 先做不上鎖的快速檢查，避免對必定失敗的請求白做影像處理；交易內仍會再檢查一次。
+        _precheck_create(appointment_id)
+        prepared = _prepare_uploads(uploads)
     conn = get_db()
     assets = []
     committed = False
@@ -420,7 +472,7 @@ def create_work_progress(
                 raise HTTPException(409, "此工作已有工作進度回報") from exc
             raise
         report_id = cur.lastrowid
-        assets = _store_batch(conn, report_id, report_date, uploads)
+        assets = _store_batch(conn, report_id, report_date, uploads, prepared)
         conn.commit()
         committed = True
         _finalize(assets)
@@ -458,6 +510,12 @@ async def update_work_progress(
         raise HTTPException(400, "工作進度編輯資料格式錯誤") from exc
     if body.note is None and body.uploader_name is None:
         raise HTTPException(400, "至少提供回報人或工作進度備註")
+    # 2026-09：SQLite 交易（BEGIN IMMEDIATE 可能等鎖）不可在 event loop 上執行
+    return await run_in_threadpool(_apply_note_update, report_id, user, body)
+
+
+def _apply_note_update(report_id: int, user: dict, body: WorkProgressNoteUpdate) -> dict:
+    """工作進度文字欄位更新的同步主體（threadpool 執行）。"""
     conn = get_db()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -488,6 +546,8 @@ def add_work_progress_photos(
 ):
     """Append a validated photo batch to an existing report atomically."""
     uploads = _read_image_uploads(files)
+    _precheck_add_photos(report_id, user, len(uploads))
+    prepared = _prepare_uploads(uploads)
     conn = get_db()
     assets = []
     committed = False
@@ -504,7 +564,7 @@ def add_work_progress_photos(
         ).fetchone()[0]
         if existing_count + len(uploads) > MAX_FILES:
             raise HTTPException(400, "每份工作進度最多保留 20 張照片")
-        assets = _store_batch(conn, report_id, row["report_date"], uploads)
+        assets = _store_batch(conn, report_id, row["report_date"], uploads, prepared)
         conn.execute(
             "UPDATE daily_work_progress_reports SET updated_at=datetime('now','localtime') WHERE id=?",
             (report_id,),

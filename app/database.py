@@ -290,6 +290,14 @@ def _exec_init(conn):
     CREATE INDEX IF NOT EXISTS idx_stocks_location ON item_stocks(location);
     CREATE INDEX IF NOT EXISTS idx_stocks_item_location ON item_stocks(item_id, location);
     CREATE INDEX IF NOT EXISTS idx_movements_item ON movements(item_id);
+    -- 2026-09 效能：匯出日期區間、待領出最新說明、套件 BOM、盤點紀錄
+    CREATE INDEX IF NOT EXISTS idx_movements_created ON movements(created_at);
+    CREATE INDEX IF NOT EXISTS idx_movements_item_reason ON movements(item_id, reason, id);
+    CREATE INDEX IF NOT EXISTS idx_kit_items_kit ON kit_items(kit_id);
+    CREATE INDEX IF NOT EXISTS idx_kit_items_item ON kit_items(item_id);
+    CREATE INDEX IF NOT EXISTS idx_kits_item ON kits(item_id);
+    CREATE INDEX IF NOT EXISTS idx_stocktakes_date ON stocktakes(take_date);
+    CREATE INDEX IF NOT EXISTS idx_stocktakes_item ON stocktakes(item_id);
     CREATE INDEX IF NOT EXISTS idx_appt_date ON appointments(date);
     CREATE INDEX IF NOT EXISTS idx_appt_date_start ON appointments(date, start_time);
     CREATE INDEX IF NOT EXISTS idx_appt_svc ON appointments(service_type_id);

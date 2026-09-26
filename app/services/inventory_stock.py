@@ -51,3 +51,28 @@ def assert_projected_inventory(conn, item_id, stock_delta=0, prepared_delta=0):
             f"此操作後庫存 {projected_total} 將低於待領出 {projected_prepared}",
         )
     return projected_total, projected_prepared
+
+
+_IN_CHUNK = 500
+
+
+def chunked_ids(ids, size: int = _IN_CHUNK):
+    """去重後依 SQLite 參數上限切塊，供 IN (...) 批次查詢。"""
+    unique = list(dict.fromkeys(int(i) for i in ids))
+    for start in range(0, len(unique), size):
+        yield unique[start:start + size]
+
+
+def total_qty_map(conn, item_ids) -> dict:
+    """批次計算多個品項的位置庫存總量 {item_id: qty}（無 stock 的品項為 0）。"""
+    totals = {}
+    for chunk in chunked_ids(item_ids):
+        placeholders = ",".join("?" * len(chunk))
+        for row in conn.execute(
+            f"SELECT item_id, COALESCE(SUM(qty),0) AS q FROM item_stocks WHERE item_id IN ({placeholders}) GROUP BY item_id",
+            chunk,
+        ):
+            totals[row["item_id"]] = row["q"]
+        for item_id in chunk:
+            totals[item_id] = canonical_qty(totals.get(item_id, 0))
+    return totals

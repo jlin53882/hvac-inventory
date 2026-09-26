@@ -71,6 +71,8 @@
 - 每 10 分鐘檢查本機 server 與外網網址
 - server 掛掉 → 自動重啟；外網掛掉 → 自動重建
 - 異常連續 2 次 → 自動推播 Discord 通知
+- 每天自動備份一次資料庫到 `backups/inventory.db`（只保留最新 1 份；先完整性檢查再替換，失敗會推播 Discord）
+- 手動備份：`.venv\Scripts\python.exe scripts\backup_db.py`
 - 安裝：`scripts/install-monitor.bat`（需系統管理員）
 
 ### GitHub Actions CI
