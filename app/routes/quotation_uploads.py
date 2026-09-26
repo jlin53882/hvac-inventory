@@ -298,8 +298,26 @@ async def update_quotation_upload(
         note = payload.note
     # 2026-09：async handler 只做非同步讀取；讀檔/影像處理/SQLite 交易一律丟 threadpool，
     # 否則會卡住 event loop（處理期間全站所有請求停住）。
+    # 先做便宜的存在/權限檢查，404/403 不先付出讀檔與影像處理成本；交易內仍會權威重驗。
+    await run_in_threadpool(_precheck_quotation_upload_update, rid, user)
     upload = await run_in_threadpool(_read_and_prepare, file) if file is not None else None
     return await run_in_threadpool(_apply_update, rid, user, report_date, uploader_name, note, upload)
+
+
+def _precheck_quotation_upload_update(rid: int, user: dict) -> None:
+    """報價單編輯的便宜預先檢查（不開交易、不寫入）：不存在 404、無編輯範圍 403。
+
+    僅為效能上的提早拒絕；_apply_update 在 BEGIN IMMEDIATE 內仍會重新檢查（權威結果）。
+    """
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM quotation_uploads WHERE id=?", (rid,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "報表不存在")
+        if not _upload_capabilities(conn, row, user)["can_edit"]:
+            raise HTTPException(403, "缺少報價單上傳管理權限或不在可編輯範圍")
+    finally:
+        conn.close()
 
 
 def _apply_update(rid: int, user: dict, report_date, uploader_name, note, upload):

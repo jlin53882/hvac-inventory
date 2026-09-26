@@ -252,3 +252,54 @@ def test_list_items_direct_json_response_shape(client):
     assert {"stocks", "qty", "total_qty", "location", "has_photo", "in_kits"} <= set(unpaged[0])
     paged = client.get("/api/items?site=office&page=1&page_size=2&include_alert_items=true").json()
     assert set(paged) == {"items", "total", "page", "page_size", "stats"}
+
+
+def test_media_prepare_concurrency_is_bounded_process_wide(monkeypatch):
+    """M1：多個 request 同時上傳時，全 process 同時進行的影像處理數不可超過 MAX_PREPARE_WORKERS。
+
+    舊實作每個 batch 各開一組最多 4 worker 的 pool、單檔直接在呼叫端執行，
+    3 個 batch + 3 個單檔同時進來會有 >4 個同時解碼。fake 會等到「超過上限」或逾時才離開，
+    所以只要實作允許超過上限，就一定會被觀察到（不依賴速度門檻）。
+    """
+    limit = file_storage.MAX_PREPARE_WORKERS
+    cond = threading.Condition()
+    state = {"active": 0, "max": 0}
+
+    def fake_variants(data, expected_format=None):
+        with cond:
+            state["active"] += 1
+            state["max"] = max(state["max"], state["active"])
+            cond.notify_all()
+            cond.wait_for(lambda: state["active"] > limit, timeout=0.3)
+            state["active"] -= 1
+            cond.notify_all()
+        return b"preview", b"thumb", 1, 1
+
+    monkeypatch.setattr(file_storage, "_image_variants", fake_variants)
+    batches = [[(_png(), f"b{b}-{i}.png") for i in range(4)] for b in range(3)]
+    results, errors = {}, []
+
+    def run(key, fn):
+        try:
+            results[key] = fn()
+        except Exception as exc:  # pragma: no cover - 失敗時由 assert errors 呈現
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=run, args=(("batch", b), lambda b=b: [
+            m.original_name for m in file_storage.prepare_media_batch(batches[b])
+        ]))
+        for b in range(3)
+    ] + [
+        threading.Thread(target=run, args=(("single", s), lambda s=s: file_storage.prepare_media(_png(), f"s{s}.png").original_name))
+        for s in range(3)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    assert not errors
+    assert state["max"] <= limit, f"同時處理 {state['max']} 張，超過上限 {limit}"
+    for b in range(3):
+        assert results[("batch", b)] == [name for _data, name in batches[b]]   # 輸出順序 = 輸入順序
+    assert [results[("single", s)] for s in range(3)] == ["s0.png", "s1.png", "s2.png"]

@@ -12,6 +12,7 @@ import io
 import os
 import re
 import shutil
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -216,12 +217,40 @@ def _image_variants(data: bytes, expected_format: str | None = None) -> tuple[by
     return preview_buf.getvalue(), thumbnail_buf.getvalue(), width, height
 
 
+# 全 process 同時進行的影像處理上限（所有 request、單檔與批次共用）。
+# 每個 request 各自開 pool 會在多人同時上傳時造成 CPU/RAM 超量（大型 PNG 解碼尤其明顯）。
+MAX_PREPARE_WORKERS = 4
+_PREPARE_SLOTS = threading.BoundedSemaphore(MAX_PREPARE_WORKERS)
+_prepare_executor: ThreadPoolExecutor | None = None
+_prepare_executor_lock = threading.Lock()
+
+
+def _get_prepare_executor() -> ThreadPoolExecutor:
+    """process-wide 共用 executor（lazy 建立；閒置 worker 於直譯器結束時由 concurrent.futures 回收）。"""
+    global _prepare_executor
+    with _prepare_executor_lock:
+        if _prepare_executor is None:
+            _prepare_executor = ThreadPoolExecutor(
+                max_workers=min(MAX_PREPARE_WORKERS, os.cpu_count() or 1),
+                thread_name_prefix="media-prepare",
+            )
+        return _prepare_executor
+
+
 def prepare_media(data: bytes, original_name: str) -> PreparedMedia:
     """驗證檔案簽章並產生圖片變體（純 CPU，不碰 DB/檔案系統，可在交易外或 thread 中執行）。
+
+    佔用一個 process-wide 處理名額（_PREPARE_SLOTS），全 process 同時執行數 <= MAX_PREPARE_WORKERS。
 
     Raises:
         ValueError: 空檔、簽章不符、無法解析或解析度過高。
     """
+    with _PREPARE_SLOTS:
+        return _prepare_media_unbounded(data, original_name)
+
+
+def _prepare_media_unbounded(data: bytes, original_name: str) -> PreparedMedia:
+    """prepare_media 本體；呼叫端必須已持有 _PREPARE_SLOTS。"""
     if not data:
         raise ValueError("空檔案不可儲存")
     ext = _safe_ext(original_name)
@@ -245,19 +274,24 @@ def prepare_media(data: bytes, original_name: str) -> PreparedMedia:
     )
 
 
-MAX_PREPARE_WORKERS = 4
-
-
 def prepare_media_batch(items: list[tuple[bytes, str]]) -> list[PreparedMedia]:
     """多檔平行 prepare（Pillow 解碼/縮圖/編碼會釋放 GIL，多核心可同時處理）。
 
-    items: [(data, original_name), ...]；回傳順序與輸入一致，任一失敗即拋出該 ValueError。
+    所有 batch 共用 process-wide executor，且每張仍經 prepare_media 取得處理名額，
+    多個 request 同時上傳時總同時處理數 <= MAX_PREPARE_WORKERS。
+    items: [(data, original_name), ...]；回傳順序與輸入一致，任一失敗即拋出該 ValueError
+    （尚未開始的其餘項目會取消）。
     """
     if len(items) <= 1:
         return [prepare_media(data, name) for data, name in items]
-    workers = min(MAX_PREPARE_WORKERS, os.cpu_count() or 1, len(items))
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="media-prepare") as pool:
-        return list(pool.map(lambda item: prepare_media(*item), items))
+    executor = _get_prepare_executor()
+    futures = [executor.submit(prepare_media, data, name) for data, name in items]
+    try:
+        return [future.result() for future in futures]
+    except BaseException:
+        for future in futures:
+            future.cancel()
+        raise
 
 
 def store_asset(
