@@ -37,7 +37,7 @@ case "${1:-all}" in
   database)   FILES="tests/test_database_migrations.py" ;;
   inventory)  FILES="tests/test_inventory_integrity.py tests/test_inventory_writer_transactions.py tests/test_inventory_writer_scanner.py tests/test_prepared_api.py tests/test_quantity.py tests/test_vehicle_inventory.py tests/test_database_migrations.py tests/test_units.py tests/test_performance_regressions.py" ;;
   rbac)       FILES="tests/test_rbac.py tests/test_rbac_perms.py tests/test_permission_taxonomy.py" ;;
-  regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py tests/test_gcal_keys.py tests/test_deadvar_verify.py" ;;
+  regression) FILES="tests/test_v101.py tests/test_appointments.py tests/test_gcal_sync.py tests/test_gcal_keys.py tests/test_gcal_process_lock.py tests/test_deadvar_verify.py" ;;
   reports)    FILES="tests/test_export.py tests/test_petty_cash.py tests/test_engineering_petty_cash.py tests/test_petty_cash_excel_rendering.py tests/test_petty_cash_frontend_races.py" ;;
   petty_cash) FILES="tests/test_petty_cash.py tests/test_engineering_petty_cash.py tests/test_petty_cash_excel_rendering.py tests/test_petty_cash_frontend_races.py" ;;
   work_progress) FILES="tests/test_work_progress.py tests/test_work_progress_ui_regressions.py" ;;

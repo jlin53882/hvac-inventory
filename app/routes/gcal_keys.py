@@ -304,10 +304,16 @@ async def update_gcal_key(key_id: int, request: Request):
     return await run_in_threadpool(_update_gcal_key_sync, key_id, body)
 
 
+_LOCK_BUSY_DETAIL = "Google 行事曆同步正在處理這個 Key，請稍後再試"
+
+
 def _update_gcal_key_sync(key_id: int, body):
     """同步主體（threadpool 執行）：跨 process key lock 可能等待背景同步的 Google API 呼叫。"""
-    with gcal_sync._key_process_lock(key_id):
-        return _update_gcal_key_locked(key_id, body)
+    try:
+        with gcal_sync._key_process_lock(key_id):
+            return _update_gcal_key_locked(key_id, body)
+    except gcal_sync.GcalLockTimeout as exc:
+        raise HTTPException(503, _LOCK_BUSY_DETAIL) from exc
 
 
 def _update_gcal_key_locked(key_id: int, body):
@@ -660,6 +666,9 @@ def delete_gcal_key(key_id: int):
                 msg = f"Key 已刪除（Google 事件：{deleted_ok} 成功 / 0 失敗）"
                 logger.info(msg)
                 return {"ok": True, "google_deleted": deleted_ok, "google_failed": 0}
+    except gcal_sync.GcalLockTimeout as exc:
+        conn.rollback()
+        raise HTTPException(503, _LOCK_BUSY_DETAIL) from exc
     finally:
         conn.close()
 

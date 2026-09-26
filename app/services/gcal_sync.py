@@ -8,17 +8,20 @@ Google Calendar 單向同步（Multi-Key Service Account）
 - sync_pending(due) -> (ok, fail, error_summary)   批次同步（每列對應一 key）
 - is_enabled() -> bool                          gcal_keys 有啟用 key 才 True
 """
+import errno
 import hashlib
 import json
 import os
 import re
 import tempfile
 import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Tuple
 
+import app.database as app_database
 from app.database import get_db
 from app.services.gcal_log import get_logger
 
@@ -141,10 +144,60 @@ def stable_event_id(appt_id: int, key_id: int) -> str:
     return hashlib.sha256(f"hvac:{appt_id}:{key_id}".encode("ascii")).hexdigest()
 
 
+# 跨 process 鎖最長等待時間：背景同步可能在 Google API 呼叫或速率限制等待時持有 key 鎖數十秒。
+LOCK_WAIT_TIMEOUT_SECONDS = 120
+_LOCK_POLL_MIN_SECONDS = 0.05
+_LOCK_POLL_MAX_SECONDS = 0.5
+# Windows msvcrt 非阻塞取鎖失敗回 EACCES；舊版阻塞模式重試 10 次後回 EDEADLOCK（Errno 36）。
+_LOCK_BUSY_ERRNOS = {errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLOCK", errno.EDEADLK)}
+
+
+class GcalLockTimeout(TimeoutError):
+    """等待跨 process 同步鎖超過 LOCK_WAIT_TIMEOUT_SECONDS。"""
+
+
+def _lock_dir() -> Path:
+    """依資料庫路徑區分鎖檔目錄：同一 DB 的多個 process 互斥，不同 DB（如平行測試）互不干擾。"""
+    db_path = os.path.normcase(os.path.abspath(str(app_database.DB_PATH)))
+    digest = hashlib.sha256(db_path.encode("utf-8")).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / "hvac-gcal-sync-locks" / digest
+
+
+def _try_lock_file(handle) -> bool:
+    """非阻塞嘗試鎖住 handle 的第 1 byte；已被他人持有回 False，其他錯誤照常拋出。"""
+    handle.seek(0)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        if exc.errno in _LOCK_BUSY_ERRNOS:
+            return False
+        raise
+    return True
+
+
+def _unlock_file(handle) -> None:
+    handle.seek(0)
+    if os.name == "nt":
+        import msvcrt
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 @contextmanager
 def _named_process_lock(lock_name: str):
-    """跨 process 使用具名 lock file 序列化 remote I/O。"""
-    lock_dir = Path(tempfile.gettempdir()) / "hvac-gcal-sync-locks"
+    """跨 process 使用具名 lock file 序列化 remote I/O。
+
+    2026-09：改為非阻塞重試直到 LOCK_WAIT_TIMEOUT_SECONDS（原本 Windows LK_LOCK 約 10 秒就拋
+    Errno 36），逾時拋 GcalLockTimeout；鎖檔目錄依 DB 路徑區分。
+    """
+    lock_dir = _lock_dir()
     lock_dir.mkdir(parents=True, exist_ok=True)
     handle = (lock_dir / f"{lock_name}.lock").open("a+b")
     acquired = False
@@ -153,24 +206,19 @@ def _named_process_lock(lock_name: str):
         if handle.tell() == 0:
             handle.write(b"0")
             handle.flush()
-        handle.seek(0)
-        if os.name == "nt":
-            import msvcrt
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        deadline = time.monotonic() + LOCK_WAIT_TIMEOUT_SECONDS
+        delay = _LOCK_POLL_MIN_SECONDS
+        while not _try_lock_file(handle):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise GcalLockTimeout(f"等待同步鎖 {lock_name} 超過 {LOCK_WAIT_TIMEOUT_SECONDS} 秒")
+            time.sleep(min(delay, remaining))
+            delay = min(delay * 2, _LOCK_POLL_MAX_SECONDS)
         acquired = True
         yield
     finally:
         if acquired:
-            handle.seek(0)
-            if os.name == "nt":
-                import msvcrt
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _unlock_file(handle)
         handle.close()
 
 
