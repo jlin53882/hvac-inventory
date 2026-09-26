@@ -162,7 +162,7 @@ def test_export_custom_date_range_and_filename(client):
 
 
 def test_export_overview_and_stats_remain_optional_not_default(client):
-    """Regression: 總覽與統計可手動選取，但預設不產生。"""
+    """回歸測試：總覽與統計可手動選取，但預設不產生。"""
     item = add_item(client, name="分類統計", category="冷媒零件", qty=6)
     conn = app_db.get_db()
     try:
@@ -480,7 +480,7 @@ def test_transfer_uses_single_timestamp_for_both_movements(client, monkeypatch):
 
 
 def test_export_rejects_empty_or_unknown_sections(client):
-    """Reject empty section selections and unknown worksheet identifiers."""
+    """拒絕空的工作表選取內容及未知的工作表識別碼。"""
     assert client.get("/api/export", params={"sections": ""}).status_code == 400
     assert client.get("/api/export", params={"sections": "inventory,unknown"}).status_code == 400
 

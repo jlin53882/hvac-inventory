@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Build selectable single-inventory Excel reports with safe formulas."""
+"""產生可選工作表的單一庫存 Excel 報表，並安全處理公式。"""
 from __future__ import annotations
 
 import datetime as dt
@@ -85,7 +85,7 @@ def _period_text(label: str, display_period: str) -> str:
 
 
 def _style_title(ws, title: str, period: str):
-    """Write the workbook title and reporting period without a snapshot stamp."""
+    """寫入活頁簿標題與報表期間，不加入庫存快照時間標記。"""
     ws.merge_cells("A1:D1")
     ws["A1"] = title
     ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
@@ -116,13 +116,13 @@ def _style_data(ws, header_row: int, qty_columns: Iterable[int] = (), note_colum
 
 
 def _display_width(value) -> int:
-    """Estimate Excel width, counting full-width East Asian glyphs twice."""
+    """估算 Excel 欄寬，將全形東亞字元計為兩個寬度單位。"""
     lines = str(value).splitlines() or [""]
     return max(sum(2 if unicodedata.east_asian_width(char) in ("F", "W") else 1 for char in line) for line in lines)
 
 
 def _autofit_columns(ws, body_only_columns: Iterable[int] = ()):
-    """Size columns from headers and values, excluding long ID headings."""
+    """依表頭與資料值估算欄寬，排除較長的識別碼表頭。"""
     body_only = set(body_only_columns)
     for column in range(1, ws.max_column + 1):
         values = []
@@ -137,10 +137,10 @@ def _autofit_columns(ws, body_only_columns: Iterable[int] = ()):
 
 
 def _apply_workbook_styles(ws: Worksheet) -> None:
-    """Apply the report font, text format, and centered body alignment.
+    """套用報表字型、文字格式與資料列置中對齊。
 
-    Rows 1–2 retain their title/period layout. Quantity formats set by each
-    sheet builder remain numeric so Excel can still calculate with them.
+    第 1–2 列保留標題與期間樣式。各工作表建構函式設定的數量格式
+    維持數值格式，讓 Excel 仍可進行計算。
     """
     for row in ws.iter_rows():
         for cell in row:
@@ -156,7 +156,7 @@ def _apply_workbook_styles(ws: Worksheet) -> None:
 
 
 def _parse_export_sections(sections: str | None) -> set[str]:
-    """Validate requested worksheets, using the standard three-sheet default."""
+    """驗證要求匯出的工作表；未指定時採用標準三張工作表作為預設。"""
     if sections is None:
         return set(DEFAULT_EXPORT_SECTIONS)
     requested = [part.strip() for part in sections.split(",") if part.strip()]
@@ -193,14 +193,14 @@ def _write_headers(ws, headers, row: int = 5):
 
 
 def _build_inventory_sheet(ws, items, positions, position_table_available: bool, qty_types):
-    """Build the inventory summary, using formulas only when its source table exists.
+    """建立庫存總表；僅在來源位置表存在時使用公式。
 
     Args:
-        ws: Inventory worksheet to populate.
-        items: Selected item rows from the database.
-        positions: Location rows used for values and structured table formulas.
-        position_table_available: Whether the exported position table can be referenced.
-        qty_types: Unit-name to numeric-format mapping.
+        ws: 要填入資料的庫存工作表。
+        items: 從資料庫選出的品項資料列。
+        positions: 用於計算數值及結構化表格公式的位置資料列。
+        position_table_available: 匯出的位置表是否可供公式參照。
+        qty_types: 單位名稱至數量格式的對應表。
     """
     headers = ["品項編號(系統編號)", "庫存區", "廠牌", "品項名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存", "可用庫存", "位置數", "庫存狀態", "警示序號"]
     _write_headers(ws, headers)
@@ -241,7 +241,7 @@ def _build_inventory_sheet(ws, items, positions, position_table_available: bool,
 
 
 def _build_position_sheet(ws, positions, qty_types):
-    """Build one row per location, omitting category data from the export."""
+    """每個庫存位置各輸出一列，並省略分類資料。"""
     headers = ["品項編號(系統編號)", "庫存區", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
@@ -278,12 +278,12 @@ def _build_movement_sheet(ws, movements):
 
 
 def _build_overview(ws: Worksheet, inventory_available: bool, period: str) -> None:
-    """Build optional KPI and site summaries from the inventory table.
+    """使用庫存總表建立可選的 KPI 與庫存區摘要。
 
     Args:
-        ws: Overview worksheet to populate.
-        inventory_available: Whether a populated inventory table is exported.
-        period: Display period shared with the other report sheets.
+        ws: 要填入資料的總覽工作表。
+        inventory_available: 是否有匯出含資料的庫存總表。
+        period: 與其他報表工作表共用的顯示期間。
     """
     _style_title(ws, "庫存管理報表", period)
     _write_headers(ws, ["指標", "數值"])
@@ -319,17 +319,17 @@ def _build_overview(ws: Worksheet, inventory_available: bool, period: str) -> No
 
 
 def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inventory_available: bool, period: str) -> None:
-    """Build optional site, category, and brand summaries.
+    """建立可選的庫存區、分類與廠牌摘要。
 
-    Category totals are calculated from the export snapshot because category
-    is intentionally not a column in the inventory and position worksheets.
+    庫存總表與位置明細未包含分類欄位，因此分類總量
+    依匯出快照計算。
 
     Args:
-        ws: Statistics worksheet to populate.
-        items: Selected item rows, including category for aggregation.
-        positions: Selected location rows used for on-hand totals.
-        inventory_available: Whether formula-based table summaries are available.
-        period: Display period shared with the other report sheets.
+        ws: 要填入資料的統計工作表。
+        items: 包含分類欄位、供彙總使用的品項資料列。
+        positions: 用於計算現有庫存總量的位置資料列。
+        inventory_available: 是否可使用公式彙總庫存總表。
+        period: 與其他報表工作表共用的顯示期間。
     """
     _style_title(ws, "庫存統計", period)
     ws["A4"] = "庫存區統計"
@@ -434,7 +434,7 @@ def _movement_type(reason: str, delta: float) -> str:
 
 
 def _build_alert_sheet(ws, items, positions, inventory_available: bool):
-    """Build alert rows from the inventory table or standalone snapshot values."""
+    """依庫存總表或獨立快照值建立警示資料列。"""
     headers = ["庫存狀態", "品項編號(系統編號)", "庫存區", "廠牌", "品項名稱", "型號", "單位", "總庫存", "待領出", "可用庫存", "低庫存門檻"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
@@ -461,21 +461,21 @@ def _build_alert_sheet(ws, items, positions, inventory_available: bool):
 
 @router.get("/api/export", dependencies=[Depends(require_perm("export"))])
 def export_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sites: str | None = None, sections: str | None = None):
-    """Validate request parameters and return the selected inventory workbook sheets.
+    """驗證請求參數，並回傳所選的庫存報表工作表。
 
     Args:
-        month: Optional YYYY-MM period.
-        start_date: Inclusive custom range start in YYYY-MM-DD form.
-        end_date: Inclusive custom range end in YYYY-MM-DD form.
-        days: Optional trailing-day range.
-        sites: Comma-separated internal inventory-site identifiers.
-        sections: Comma-separated requested workbook sections.
+        month: 可選的 YYYY-MM 期間。
+        start_date: YYYY-MM-DD 格式的自訂區間起日（含）。
+        end_date: YYYY-MM-DD 格式的自訂區間迄日（含）。
+        days: 可選的近幾日區間。
+        sites: 以逗號分隔的內部庫存區識別碼。
+        sections: 以逗號分隔的匯出工作表識別碼。
 
     Returns:
-        An XLSX download response containing the requested sheets.
+        包含所選工作表的 XLSX 下載回應。
 
     Raises:
-        HTTPException: If a date range, site, or section is invalid.
+        HTTPException: 日期範圍、庫存區或工作表識別值不合法時引發。
     """
     selected_sections = _parse_export_sections(sections)
     if days is not None and month is None and start_date is None and end_date is None:
