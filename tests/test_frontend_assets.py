@@ -4135,6 +4135,12 @@ def test_inventory_export_dialog_contract():
     assert "params.set('month'" in js
     assert "start_date" in js and "end_date" in js
     assert "sections" in js and "sites" in js
+    assert "params.set('sections', sections.join(','))" in js
+    assert 'data-section="alerts">庫存警示' in index
+    assert 'data-section="alerts" checked' not in index
+    assert 'id="inventory-export-content"' in index
+    assert 'src="/static/js/site-label.js"' in index
+    assert "onclick=\"switchSite('office')\">🏢 公司" in index
     assert "Content-Disposition" in js
     assert 'id="inventory-export-dialog"' in index
     assert 'src="/static/js/modals/inventory-export.js"' in index

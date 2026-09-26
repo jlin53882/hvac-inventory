@@ -3,6 +3,11 @@ var transferItemId = null;
 var transferItemSnapshot = null;
 var transferSubmitting = false;
 
+/**
+ * Open the transfer dialog for an item and display user-facing site labels.
+ * @param {number|string} itemId Inventory item identifier.
+ * @returns {void}
+ */
 function openTransferModal(itemId) {
   if (transferSubmitting) return;
   const item = (ALL_ITEMS || []).find(i => Number(i.id) === Number(itemId));
@@ -16,13 +21,13 @@ function openTransferModal(itemId) {
   }
   const modal = document.getElementById('transfer-modal');
   document.getElementById('transfer-item-name').textContent = item.name || '';
-  document.getElementById('transfer-item-meta').textContent = `${item.brand || ''} ${item.code || ''} · 目前 ${item.site || currentSite}`.trim();
+  document.getElementById('transfer-item-meta').textContent = `${item.brand || ''} ${item.code || ''} · 目前 ${inventorySiteLabel(item.site || currentSite)}`.trim();
   const target = document.getElementById('transfer-target-site');
   target.replaceChildren();
   INVENTORY_SITES.filter(site => site !== (item.site || currentSite)).forEach(site => {
     const option = document.createElement('option');
     option.value = site;
-    option.textContent = ({ office: '🏢 辦公室', warehouse: '🏭 倉庫', van: '🚐 廂型車', truck: '🚚 貨車' })[site];
+    option.textContent = ({ office: '🏢 ', warehouse: '🏭 ', van: '🚐 ', truck: '🚚 ' })[site] + inventorySiteLabel(site);
     target.appendChild(option);
   });
   const source = document.getElementById('transfer-source-location');

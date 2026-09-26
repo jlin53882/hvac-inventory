@@ -1,7 +1,7 @@
 // 庫存管理系統 - 入口控制（v8 拆分 → Phase 1 Shell v2 2026-09-06）
 // 載入順序：globals → utils → api → render/* → modals/* → 本檔（最後觸發啟動）
 
-// ========== 分片切換（辦公室 / 倉庫 / 廂型車 / 貨車） ==========
+// ========== 分片切換（公司 / 倉庫 / 廂型車 / 貨車） ==========
 // M15：有未儲存的數量調整 → 切分片/重整前先確認，避免 pending 錯位或靜默丟失
 function hasPending() {
   return typeof pending !== 'undefined' && Object.keys(pending).length > 0;
@@ -149,7 +149,7 @@ function switchTab(tab) {
   updateBreadcrumb(tab);
   closeSidebar();
 
-  // 行事曆與簽名報表不需要搜尋框、辦公室/倉庫分片與廠牌 tab
+  // 行事曆與簽名報表不需要搜尋框、公司/倉庫分片與廠牌 tab
   var isCal = tab === 'calendar' || tab === 'work-progress' || tab === 'signed-reports' || tab === 'quotation' || tab === 'petty-cash';
   var isInventory = tab === 'inventory';
   var sb = document.querySelector('.h-search');

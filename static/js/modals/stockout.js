@@ -247,6 +247,11 @@ var editStockoutReturnId = null;
 var repairStockoutReturnId = null;
 
 // 開啟「退回已領出」Modal，帶入原記錄資料
+/**
+ * Prepare the return dialog with translated site labels and available stocks.
+ * @param {number} movementId Original stockout movement identifier.
+ * @returns {void}
+ */
 function openReturnStockoutModal(movementId) {
   editStockoutReturnId = null;
   repairStockoutReturnId = null;
@@ -267,15 +272,16 @@ function openReturnStockoutModal(movementId) {
   document.getElementById('rs-qty').value = remaining > 0 ? remaining : 0;
   document.getElementById('rs-qty').max = remaining;
   document.getElementById('rs-dest').value = '公司';
+  const sourceSite = inventorySiteLabel(rec.source_site || '');
   const sourceLabel = rec.source_site || rec.source_location
-    ? `${rec.source_site || ''}${rec.source_site && rec.source_location ? '／' : ''}${rec.source_location || ''}`
+    ? `${sourceSite}${sourceSite && rec.source_location ? '／' : ''}${rec.source_location || ''}`
     : '原始位置未記錄';
   document.getElementById('rs-source-location').value = sourceLabel;
   const item = (typeof ALL_ITEMS !== 'undefined' ? ALL_ITEMS : []).find(i => i.id === rec.item_id);
   const sel = document.getElementById('rs-location');
   sel.innerHTML = '<option value="">— 請選擇 —</option>';
   (item && item.stocks || []).forEach(s => {
-    const label = `${item.site || ''}${item.site && s.location ? '／' : ''}${s.location || '未標示'}`;
+    const label = `${inventorySiteLabel(item.site || '')}${item.site && s.location ? '／' : ''}${s.location || '未標示'}`;
     sel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(s.id))}">${esc(label)}</option>`);
   });
   if (rec.source_stock_id && sel.querySelector(`option[value="${Number(rec.source_stock_id)}"]`)) {
@@ -437,7 +443,7 @@ function openRepairStockoutReturnModal(movementId) {
   sel.innerHTML = '<option value="">— 請選擇當時回補位置 —</option>';
   const item = (typeof ALL_ITEMS !== 'undefined' ? ALL_ITEMS : []).find(i => i.id === rec.item_id);
   (item && item.stocks || []).forEach(st => {
-    const label = `${item.site || ''}${item.site && st.location ? '／' : ''}${st.location || '未標示'}`;
+    const label = `${inventorySiteLabel(item.site || '')}${item.site && st.location ? '／' : ''}${st.location || '未標示'}`;
     sel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(st.id))}">${esc(label)}</option>`);
   });
   if (rec.return_stock_id && sel.querySelector(`option[value="${Number(rec.return_stock_id)}"]`)) {
@@ -448,6 +454,11 @@ function openRepairStockoutReturnModal(movementId) {
   openModal('return-stockout-modal');
 }
 
+/**
+ * Populate the return editor using the saved return-stock location.
+ * @param {number} movementId Return movement identifier.
+ * @returns {void}
+ */
 function openEditStockoutReturnModal(movementId) {
   repairStockoutReturnId = null;
   document.getElementById('rs-title').textContent = '↩️ 編輯退回已領出';
@@ -463,7 +474,7 @@ function openEditStockoutReturnModal(movementId) {
   const sel = document.getElementById('rs-location');
   sel.innerHTML = '<option value="">— 請選擇 —</option>';
   (item && item.stocks || []).forEach(st => {
-    const label = `${item.site || ''}${item.site && st.location ? '／' : ''}${st.location || '未標示'}`;
+    const label = `${inventorySiteLabel(item.site || '')}${item.site && st.location ? '／' : ''}${st.location || '未標示'}`;
     sel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(st.id))}">${esc(label)}</option>`);
   });
   sel.value = String(rec.return_stock_id || '');

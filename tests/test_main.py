@@ -2241,11 +2241,11 @@ class TestV10CompatAndCascade:
         import io as _io
         from openpyxl import load_workbook
         wb = load_workbook(_io.BytesIO(r.content))
-        assert wb.sheetnames == ["01 總覽", "02 庫存總表", "03 位置明細", "04 庫存警示", "05 異動紀錄", "06 統計"]
-        assert wb["02 庫存總表"].tables["tblInventory"]
-        assert wb["03 位置明細"].tables["tblPosition"]
-        assert wb["02 庫存總表"].cell(6, 10).value.startswith("=")
-        assert wb["03 位置明細"].cell(6, 9).value == 5
+        assert wb.sheetnames == ["庫存總表(單一庫存)", "位置明細(單一庫存)", "異動紀錄(單一庫存)"]
+        assert wb["庫存總表(單一庫存)"].tables["tblInventory"]
+        assert wb["位置明細(單一庫存)"].tables["tblPosition"]
+        assert wb["庫存總表(單一庫存)"].cell(6, 9).value.startswith("=")
+        assert wb["位置明細(單一庫存)"].cell(6, 8).value == 5
 
     def test_export_formula_injection_safe(self, client):
         """公式注入防護：= 開頭的字串以 ' 前綴儲存，開啟 Excel 不會被當公式執行（含 unit / 廠牌統計）"""
@@ -2256,14 +2256,14 @@ class TestV10CompatAndCascade:
         import io as _io
         from openpyxl import load_workbook
         wb = load_workbook(_io.BytesIO(r.content))
-        ws = wb["03 位置明細"]
+        ws = wb["位置明細(單一庫存)"]
         values = [v for row in ws.iter_rows(min_row=6, values_only=True) for v in row]
         assert "'=1+1" in values        # 防護：撇號前綴
         assert "'=HYPERLINK(1)" in values
         assert "'=2+2" in values        # unit 欄位也有防護
         assert "=1+1" not in values     # 沒有裸公式
         assert "=2+2" not in values
-        inventory_values = [v for row in wb["02 庫存總表"].iter_rows(min_row=6, values_only=True) for v in row]
+        inventory_values = [v for row in wb["庫存總表(單一庫存)"].iter_rows(min_row=6, values_only=True) for v in row]
         assert "'=1+1" in inventory_values  # 庫存總表 brand 仍有防護
         assert "=1+1" not in inventory_values
 

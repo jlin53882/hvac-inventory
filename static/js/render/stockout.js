@@ -49,6 +49,12 @@ function renderStockoutActions(o, isViewer) {
   return `<button type="button" onclick="openEditStockoutModal(${o.id})">✏️ 編輯</button><button type="button" class="return" onclick="returnStockout(${o.id})">↩️ 退回</button><button type="button" class="danger" onclick="deleteStockoutRecord(${o.id})">刪除</button>`;
 }
 
+/**
+ * Render one desktop record row with translated return-site labels.
+ * @param {object} o Stockout record.
+ * @param {boolean} isViewer Whether mutation actions are forbidden.
+ * @returns {string} Escaped record-row HTML.
+ */
 function renderStockoutDesktopRow(o, isViewer) {
   const reverted = !!o.reverted_at;
   const isReturn = o.reason === '退回已領出';
@@ -56,25 +62,33 @@ function renderStockoutDesktopRow(o, isViewer) {
   const rowClass = returnReverted ? 'is-reverted-return' : (isReturn ? 'is-return' : (reverted ? 'is-reverted' : ''));
   const photo = o.has_photo ? `<img class="so-photo stockout-photo" src="${photoSrc(o.item_id, 'thumbnail')}" alt="" loading="lazy" onclick="openPhotoLightbox(${o.item_id})" title="點擊看大圖">` : '<div class="so-photo stockout-photo stockout-photo-empty">📷</div>';
   const destination = o.destination ? `<span class="stockout-destination-badge">🏢 ${esc(o.destination)}</span>` : '';
-  const returnSeparator = o.return_site ? '／' : '';
-  const returnLocation = isReturn && o.return_location ? `<span class="stockout-destination-badge return-location">📍 ${esc(o.return_site || '')}${esc(returnSeparator)}${esc(o.return_location)}</span>` : '';
+  const returnSite = inventorySiteLabel(o.return_site || '');
+  const returnSeparator = returnSite ? '／' : '';
+  const returnLocation = isReturn && o.return_location ? `<span class="stockout-destination-badge return-location">📍 ${esc(returnSite)}${esc(returnSeparator)}${esc(o.return_location)}</span>` : '';
   const returned = returnReverted ? '<span class="stockout-returned-badge revoked">↩️ 已撤銷退回</span>' : (isReturn ? '<span class="stockout-returned-badge">↩️ 已退回</span>' : (reverted ? '<span class="stockout-returned-badge revoked">已撤銷</span>' : ''));
   const quantityClass = returnReverted ? 'is-revoked' : (isReturn ? 'qty-pos' : 'qty-neg');
   return `<tr class="stockout-record-row ${esc(rowClass)}"><td>${photo}</td><td><div class="stockout-item-name">${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${returned}</div>${o.code ? `<small class="stockout-item-meta">型號 ${esc(o.code)}</small>` : ''}${o.note ? `<small class="stockout-note">📝 ${esc(o.note)}</small>` : ''}</td><td class="stockout-qty ${esc(quantityClass)}">${isReturn ? '+' : '-'}${esc((typeof Qty !== 'undefined') ? Qty.disp(o.delta, o.unit) : String(absNum(o.delta)))} ${esc(o.unit)}</td><td><div class="stockout-destination">${destination}${returnLocation}</div>${!destination && !returnLocation ? '<span class="muted">—</span>' : ''}</td><td><div class="stockout-actions">${renderStockoutActions(o, isViewer)}</div></td></tr>`;
 }
 
+/**
+ * Render one mobile record card with translated return-site labels.
+ * @param {object} o Stockout record.
+ * @param {boolean} isViewer Whether mutation actions are forbidden.
+ * @returns {string} Escaped record-card HTML.
+ */
 function renderStockoutMobileCard(o, isViewer) {
   const reverted = !!o.reverted_at;
   const isReturn = o.reason === '退回已領出';
   const returnReverted = isReturn && reverted;
   const returned = returnReverted ? '<span class="stockout-returned-badge revoked">↩️ 已撤銷退回</span>' : (isReturn ? '<span class="stockout-returned-badge">↩️ 已退回</span>' : (reverted ? '<span class="stockout-returned-badge revoked">已撤銷</span>' : ''));
+  const returnSite = inventorySiteLabel(o.return_site || '');
   return mobileCardShell({
     reverted: reverted,
     moreBtnHTML: `<button class="more-btn" onclick="openStockoutSheet(${o.id})">⋯</button>`,
     thumb: buildThumb(o.item_id, o.has_photo, o.item_name, '📷'),
     nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? `<small class="stockout-item-meta">型號 ${esc(o.code)}</small>` : ''}${returned}`,
     subHTML: esc(String(o.created_at || '').slice(5,10)),
-    extraHTML: `${o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : ''}${isReturn && o.return_location ? `<div><span class="loc-tag">📍 ${esc(o.return_site || '')}${esc(o.return_site ? '／' : '')}${esc(o.return_location)}</span></div>` : ''}`,
+    extraHTML: `${o.destination ? `<div><span class="loc-tag">🏢 ${esc(o.destination)}</span></div>` : ''}${isReturn && o.return_location ? `<div><span class="loc-tag">📍 ${esc(returnSite)}${esc(returnSite ? '／' : '')}${esc(o.return_location)}</span></div>` : ''}`,
     noteHTML: o.note ? `<div class="item-note"><span class="item-note-label">📝 註解: </span><span class="item-note-text">${esc(o.note)}</span></div>` : '',
     qtyHTML: buildQtyNum((isReturn ? '+' : '-') + absNum(o.delta), o.unit, returnReverted ? 'is-revoked' : (isReturn ? 'qty-pos' : 'qty-neg')),
     actionsHTML: '',
