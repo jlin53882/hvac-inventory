@@ -161,14 +161,47 @@ def test_export_custom_date_range_and_filename(client):
     assert len(rows) == 1
 
 
-def test_export_omits_overview_stats_and_category_columns(client):
-    """匯出移除總覽、統計與分類欄。"""
-    book = export_book(client)
-    assert "總覽" not in book.sheetnames
-    assert "統計" not in book.sheetnames
+def test_export_overview_and_stats_remain_optional_not_default(client):
+    """Regression: 總覽與統計可手動選取，但預設不產生。"""
+    item = add_item(client, name="分類統計", category="冷媒零件", qty=6)
+    conn = app_db.get_db()
+    try:
+        conn.execute("UPDATE items SET prepared_qty=2 WHERE id=?", (item["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    default_book = export_book(client)
+    assert "01 總覽" not in default_book.sheetnames
+    assert "06 統計" not in default_book.sheetnames
+
+    optional_book = export_book(client, sections="overview,inventory,stats")
+    assert optional_book.sheetnames == ["01 總覽", "庫存總表(單一庫存)", "06 統計"]
+    assert optional_book["01 總覽"]["A1"].value == "庫存管理報表"
+    assert optional_book["06 統計"]["A4"].value == "庫存區統計"
+    assert "tblInventory" in optional_book["01 總覽"]["B6"].value
+    assert optional_book["06 統計"]["J6"].value == "冷媒零件"
+    assert optional_book["06 統計"]["K6"].value == 1
+    assert optional_book["06 統計"]["L6"].value == 6
+    assert optional_book["06 統計"]["M6"].value == 4
+
     for title in ("庫存總表(單一庫存)", "位置明細(單一庫存)"):
-        headers = [cell.value for cell in book[title][5] if cell.value is not None]
+        headers = [cell.value for cell in default_book[title][5] if cell.value is not None]
         assert "分類" not in headers
+
+
+def test_export_stats_have_no_24_row_ceiling_for_brands_and_categories(client):
+    """統計表選取後，分類與廠牌摘要完整輸出超過 24 筆的項目。"""
+    for index in range(30):
+        add_item(client, name=f"統計品項{index}", brand=f"品牌{index:02d}", code=f"STAT-{index}", category=f"分類{index:02d}", qty=index + 1)
+    stats = export_book(client, sections="inventory,stats")["06 統計"]
+    assert [stats.cell(row, 10).value for row in range(6, 36)] == [f"分類{index:02d}" for index in range(30)]
+    assert [stats.cell(row, 15).value for row in range(6, 36)] == [f"品牌{index:02d}" for index in range(30)]
+    assert stats.cell(35, 11).value == 1
+    assert stats.cell(35, 12).value == 30
+    assert stats.cell(35, 13).value == 30
+    assert stats.cell(35, 16).value.startswith("=COUNTIF(tblInventory[廠牌]")
+    assert stats.cell(35, 17).value.startswith("=SUMIF(tblInventory[廠牌]")
+    assert stats.cell(35, 18).value.startswith("=SUMIF(tblInventory[廠牌]")
 
 
 def test_export_display_period_does_not_show_exclusive_end_as_inclusive(client):
@@ -449,7 +482,7 @@ def test_transfer_uses_single_timestamp_for_both_movements(client, monkeypatch):
 def test_export_rejects_empty_or_unknown_sections(client):
     """Reject empty section selections and unknown worksheet identifiers."""
     assert client.get("/api/export", params={"sections": ""}).status_code == 400
-    assert client.get("/api/export", params={"sections": "inventory,overview"}).status_code == 400
+    assert client.get("/api/export", params={"sections": "inventory,unknown"}).status_code == 400
 
 
 def test_export_sections_default_to_single_inventory_and_keep_alerts_optional(client):
@@ -463,6 +496,30 @@ def test_export_sections_default_to_single_inventory_and_keep_alerts_optional(cl
 
     alert_book = export_book(client, sections="alerts")
     assert alert_book.sheetnames == ["庫存警示(單一庫存)"]
+
+
+def test_export_body_cells_use_text_format_and_center_alignment(client):
+    """文字格式與置中對齊適用於 A3 以後，不覆寫標題列或數量格式。"""
+    add_item(client, name="格式對齊", code="ALIGN", qty=2)
+    book = export_book(client, sections="inventory,positions,movements")
+    for sheet in book.worksheets:
+        assert sheet["A1"].font.name == "Microsoft JhengHei"
+        assert sheet["A2"].font.name == "Microsoft JhengHei"
+        assert sheet["A1"].number_format == "General"
+        assert sheet["A2"].number_format == "General"
+        for row in sheet.iter_rows(min_row=3):
+            for cell in row:
+                if cell.value is None:
+                    continue
+                assert cell.alignment.horizontal == "center"
+                assert cell.alignment.vertical == "center"
+                assert cell.font.name == "Microsoft JhengHei"
+                if isinstance(cell.value, str) and not cell.value.startswith("="):
+                    assert cell.number_format == "@"
+                if cell.number_format == "General":
+                    raise AssertionError(f"{sheet.title}!{cell.coordinate} kept General format")
+    assert book["位置明細(單一庫存)"].cell(6, 8).number_format == "#,##0"
+    assert book["庫存總表(單一庫存)"].cell(6, 12).number_format == "@"
 
 
 def test_export_single_inventory_headers_styles_and_columns(client):
@@ -497,7 +554,7 @@ def test_export_single_inventory_headers_styles_and_columns(client):
     assert inventory["A1"].font.name == "Microsoft JhengHei"
     assert inventory["A1"].font.bold
     assert all(inventory.cell(5, col).font.bold for col in range(1, len(inventory_headers) + 1))
-    assert inventory["B6"].number_format == "General"
+    assert inventory["B6"].number_format == "@"
     assert inventory["G6"].number_format == "#,##0"
     assert inventory.column_dimensions["A"].width < 15
     assert inventory["B6"].value == "公司"

@@ -4138,6 +4138,10 @@ def test_inventory_export_dialog_contract():
     assert "params.set('sections', sections.join(','))" in js
     assert 'data-section="alerts">庫存警示' in index
     assert 'data-section="alerts" checked' not in index
+    assert 'data-section="overview">總覽' in index
+    assert 'data-section="stats">統計' in index
+    assert 'data-section="overview" checked' not in index
+    assert 'data-section="stats" checked' not in index
     assert 'id="inventory-export-content"' in index
     assert 'src="/static/js/site-label.js"' in index
     assert "onclick=\"switchSite('office')\">🏢 公司" in index

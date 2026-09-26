@@ -25,7 +25,8 @@ function openInventoryExportDialog() {
   syncInventoryExportPeriodMode();
   document.getElementById('inventory-export-all-sites').checked = true;
   document.querySelectorAll('#inventory-export-sites input[data-site]').forEach(input => { input.checked = true; });
-  document.querySelectorAll('#inventory-export-content input[data-section]').forEach(input => { input.checked = input.dataset.section !== 'alerts'; });
+  const defaultSections = ['inventory', 'positions', 'movements'];
+  document.querySelectorAll('#inventory-export-content input[data-section]').forEach(input => { input.checked = defaultSections.includes(input.dataset.section); });
   modal.classList.add('show');
   modal.setAttribute('aria-hidden', 'false');
 }

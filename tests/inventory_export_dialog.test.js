@@ -21,7 +21,7 @@ const elements = {
   'inventory-export-submit': element(),
 };
 const sites = ['office', 'warehouse', 'van', 'truck'].map(site => element({ checked: true, dataset: { site } }));
-const sections = ['inventory', 'positions', 'alerts', 'movements'].map(section => element({ checked: section !== 'alerts', dataset: { section } }));
+const sections = ['overview', 'inventory', 'positions', 'alerts', 'movements', 'stats'].map(section => element({ checked: !['overview', 'alerts', 'stats'].includes(section), dataset: { section } }));
 const documentStub = {
   getElementById(id) { return elements[id]; },
   querySelectorAll(selector) { return selector.includes('data-site') ? sites : (selector.includes('data-section') ? sections.filter(input => !selector.includes(':checked') || input.checked) : []); },
@@ -39,7 +39,7 @@ const now = new Date();
 if (String(elements['inventory-export-year'].value) !== String(now.getFullYear())) throw new Error('default year not initialized');
 if (elements['inventory-export-month'].value !== String(now.getMonth() + 1).padStart(2, '0')) throw new Error('default month not initialized');
 if (!elements['inventory-export-month-mode'].checked || elements['inventory-export-custom-mode'].checked) throw new Error('default radio state invalid');
-if (!sections[0].checked || !sections[1].checked || sections[2].checked || !sections[3].checked) throw new Error('default export sections invalid');
+if (sections[0].checked || !sections[1].checked || !sections[2].checked || sections[3].checked || !sections[4].checked || sections[5].checked) throw new Error('default export sections invalid');
 if (elements['inventory-export-month-fields'].hidden || !elements['inventory-export-custom-fields'].hidden) throw new Error('default visibility invalid');
 
 elements['inventory-export-custom-mode'].checked = true;
@@ -48,6 +48,6 @@ if (!elements['inventory-export-month-fields'].hidden || elements['inventory-exp
 context.closeInventoryExportDialog();
 context.openInventoryExportDialog();
 if (!elements['inventory-export-month-mode'].checked || elements['inventory-export-custom-mode'].checked) throw new Error('reopen radio state invalid');
-if (sections[2].checked) throw new Error('alerts must remain unselected on reopen');
+if (sections[0].checked || sections[3].checked || sections[5].checked) throw new Error('optional sections must remain unselected on reopen');
 if (elements['inventory-export-month-fields'].hidden || !elements['inventory-export-custom-fields'].hidden) throw new Error('reopen visibility invalid');
 console.log('inventory export dialog runtime ok');
