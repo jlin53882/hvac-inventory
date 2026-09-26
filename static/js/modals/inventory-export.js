@@ -1,9 +1,9 @@
-// 庫存 Excel 匯出 Dialog：期間、庫存區與可選工作表。
+// 庫存 Excel 匯出對話框：期間、庫存區與可選工作表。
 var exportInFlight = false;
 function exportPad(value) { return String(value).padStart(2, '0'); }
 
 /**
- * Reset the export dialog to the standard period, site, and sheet defaults.
+ * 將匯出對話框重設為標準的期間、庫存區與工作表預設值。
  * @returns {void}
  */
 function openInventoryExportDialog() {
@@ -59,8 +59,8 @@ function syncInventoryExportAllSites() {
 function exportExcel() { openInventoryExportDialog(); }
 
 /**
- * Validate selected filters and download the requested workbook sections.
- * @returns {Promise<void>} Resolves after the request and UI cleanup complete.
+ * 驗證所選篩選條件，並下載指定的活頁簿工作表。
+ * @returns {Promise<void>} 完成請求並清理介面後結束。
  */
 async function submitInventoryExport() {
   if (exportInFlight) return;

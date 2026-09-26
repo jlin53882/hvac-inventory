@@ -149,7 +149,7 @@ function switchTab(tab) {
   updateBreadcrumb(tab);
   closeSidebar();
 
-  // 行事曆與簽名報表不需要搜尋框、公司/倉庫分片與廠牌 tab
+  // 行事曆與簽名報表不需要搜尋框、公司／倉庫分片與廠牌分頁
   var isCal = tab === 'calendar' || tab === 'work-progress' || tab === 'signed-reports' || tab === 'quotation' || tab === 'petty-cash';
   var isInventory = tab === 'inventory';
   var sb = document.querySelector('.h-search');

@@ -1,7 +1,7 @@
 /**
- * Convert an internal inventory-site key to its UI label.
- * @param {string} site Internal site identifier or user-provided location text.
- * @returns {string} Display label, preserving unrecognized text unchanged.
+ * 將內部庫存區識別值轉換為 UI 顯示名稱。
+ * @param {string} site 內部庫存區識別值或使用者提供的位置文字。
+ * @returns {string} 顯示名稱；若無法識別，則原樣保留輸入文字。
  */
 function inventorySiteLabel(site) {
   const labels = { office: '公司', warehouse: '倉庫', van: '廂型車', truck: '貨車' };

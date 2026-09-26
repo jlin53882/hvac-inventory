@@ -4,8 +4,8 @@ var transferItemSnapshot = null;
 var transferSubmitting = false;
 
 /**
- * Open the transfer dialog for an item and display user-facing site labels.
- * @param {number|string} itemId Inventory item identifier.
+ * 開啟指定品項的調撥對話框，並顯示使用者可讀的庫存區名稱。
+ * @param {number|string} itemId 庫存品項識別碼。
  * @returns {void}
  */
 function openTransferModal(itemId) {

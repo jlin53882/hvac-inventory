@@ -113,8 +113,8 @@ function quoteDownload(id, ext) { window.open('/api/quotations/' + id + '/export
 function quoteOpenInventory() { var overlay = document.getElementById('quote-inventory-overlay'); if (overlay) { overlay.classList.add('open'); document.getElementById('quote-inventory-q')?.focus(); quoteSearchInventory(); } }
 function quoteCloseInventory() { document.getElementById('quote-inventory-overlay')?.classList.remove('open'); }
 /**
- * Search quote-eligible inventory and render friendly site labels.
- * @returns {Promise<void>} Resolves after results or an error state is rendered.
+ * 搜尋可加入報價的庫存品項，並顯示易讀的庫存區名稱。
+ * @returns {Promise<void>} 結果或錯誤狀態完成呈現後結束。
  */
 async function quoteSearchInventory() { var list = document.getElementById('quote-inventory-list'); if (!list) return; var q = document.getElementById('quote-inventory-q')?.value.trim() || ''; try { var res = await fetch('/api/quotations/inventory-items?q=' + encodeURIComponent(q)); var data = await res.json(); if (!res.ok) throw new Error(data.detail || '庫存載入失敗'); quotationInventoryResults = data;
  list.innerHTML = data.map(function(item) { return `<button class="quote-inventory-row" type="button" onclick="quoteUseInventory(${esc(String(item.id))})"><span><strong>${esc(item.brand || '無品牌')} ${esc(item.name)}</strong><small>${esc(item.code || '無型號')} · ${esc(inventorySiteLabel(item.site))} · 庫存 ${esc((typeof Qty !== 'undefined') ? Qty.disp(item.total_qty, item.unit) : String(item.total_qty))} ${esc(item.unit)}</small></span><b>帶入</b></button>`; }).join('') || '<div class="dsr-empty">沒有符合的庫存品項</div>'; } catch (e) { list.innerHTML = `<div class="dsr-empty">⚠️ ${esc(e.message)}</div>`; } }

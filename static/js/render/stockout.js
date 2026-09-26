@@ -50,10 +50,10 @@ function renderStockoutActions(o, isViewer) {
 }
 
 /**
- * Render one desktop record row with translated return-site labels.
- * @param {object} o Stockout record.
- * @param {boolean} isViewer Whether mutation actions are forbidden.
- * @returns {string} Escaped record-row HTML.
+ * 以桌面列呈現一筆記錄，並顯示轉換後的退回庫存區名稱。
+ * @param {object} o 出庫記錄物件。
+ * @param {boolean} isViewer 是否為僅檢視者；若是，則不提供異動操作。
+ * @returns {string} 已跳脫 HTML 的記錄列字串。
  */
 function renderStockoutDesktopRow(o, isViewer) {
   const reverted = !!o.reverted_at;
@@ -71,10 +71,10 @@ function renderStockoutDesktopRow(o, isViewer) {
 }
 
 /**
- * Render one mobile record card with translated return-site labels.
- * @param {object} o Stockout record.
- * @param {boolean} isViewer Whether mutation actions are forbidden.
- * @returns {string} Escaped record-card HTML.
+ * 以行動版卡片呈現一筆記錄，並顯示轉換後的退回庫存區名稱。
+ * @param {object} o 出庫記錄物件。
+ * @param {boolean} isViewer 是否為僅檢視者；若是，則不提供異動操作。
+ * @returns {string} 已跳脫 HTML 的記錄卡片字串。
  */
 function renderStockoutMobileCard(o, isViewer) {
   const reverted = !!o.reverted_at;

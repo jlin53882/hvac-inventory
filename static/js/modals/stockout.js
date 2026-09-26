@@ -248,8 +248,8 @@ var repairStockoutReturnId = null;
 
 // 開啟「退回已領出」Modal，帶入原記錄資料
 /**
- * Prepare the return dialog with translated site labels and available stocks.
- * @param {number} movementId Original stockout movement identifier.
+ * 準備退回對話框，顯示使用者可讀的庫存區名稱與可用庫存。
+ * @param {number} movementId 原始出庫異動記錄識別碼。
  * @returns {void}
  */
 function openReturnStockoutModal(movementId) {
@@ -455,8 +455,8 @@ function openRepairStockoutReturnModal(movementId) {
 }
 
 /**
- * Populate the return editor using the saved return-stock location.
- * @param {number} movementId Return movement identifier.
+ * 使用已儲存的回補庫存區，填入退回編輯器。
+ * @param {number} movementId 退回異動記錄識別碼。
  * @returns {void}
  */
 function openEditStockoutReturnModal(movementId) {
