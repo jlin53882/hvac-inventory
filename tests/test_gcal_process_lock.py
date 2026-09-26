@@ -167,3 +167,194 @@ def test_key_routes_return_503_when_sync_holds_lock_too_long(client, monkeypatch
     ):
         assert response.status_code == 503, response.text
         assert "稍後再試" in response.json()["detail"]
+
+
+# ========== Hardening：DB lock namespace 以 canonical physical path 計算 ==========
+
+
+def _lock_dir_for(monkeypatch, db_path) -> str:
+    monkeypatch.setattr(app_db, "DB_PATH", str(db_path))
+    return str(gcal_sync._lock_dir())
+
+
+def test_lock_namespace_same_for_symlink_alias_of_same_db(tmp_path, monkeypatch):
+    """同一實體 DB 經 symlink/junction 別名存取時，必須落在同一個跨 process 鎖域。"""
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    (real_dir / "inventory.db").write_bytes(b"")
+    alias_dir = tmp_path / "alias"
+    try:
+        os.symlink(real_dir, alias_dir, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"此環境無法建立目錄 symlink（{exc}）；由 monkeypatch 測試涵蓋 realpath contract")
+    assert _lock_dir_for(monkeypatch, alias_dir / "inventory.db") == _lock_dir_for(monkeypatch, real_dir / "inventory.db")
+    assert _lock_dir_for(monkeypatch, alias_dir / ".." / "real" / "inventory.db") == _lock_dir_for(monkeypatch, real_dir / "inventory.db")
+
+
+def test_lock_namespace_resolves_realpath_contract(tmp_path, monkeypatch):
+    """平台無關：_lock_dir 必須經過 os.path.realpath（模擬 junction 等無法在 CI 建立的別名）。"""
+    real = str(tmp_path / "real" / "inventory.db")
+    alias = str(tmp_path / "junction" / "inventory.db")
+    real_realpath = os.path.realpath
+
+    def fake_realpath(path, *args, **kwargs):
+        if os.path.normcase(os.path.abspath(path)) == os.path.normcase(os.path.abspath(alias)):
+            return real
+        return real_realpath(path, *args, **kwargs)
+
+    monkeypatch.setattr(gcal_sync.os.path, "realpath", fake_realpath)
+    assert _lock_dir_for(monkeypatch, alias) == _lock_dir_for(monkeypatch, real)
+
+
+def test_lock_namespace_differs_for_different_physical_dbs(tmp_path, monkeypatch):
+    first = _lock_dir_for(monkeypatch, tmp_path / "a" / "inventory.db")
+    second = _lock_dir_for(monkeypatch, tmp_path / "b" / "inventory.db")
+    assert first != second
+    assert os.path.dirname(first) == os.path.dirname(second)   # 同一個上層目錄，只以 DB 雜湊區分
+
+
+# ========== Hardening：真正的跨 process 互斥 contract（subprocess，非 thread） ==========
+
+import queue
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+HANDSHAKE_TIMEOUT = 60   # 單次等待上限；只在失敗時才會等滿，避免 CI 永久卡住
+
+# 子 process：設定 DB_PATH 與取鎖上限 → 取鎖 → 以 stdout 回報 → 等 parent 從 stdin 送 RELEASE 才釋放。
+_CHILD_CODE = r"""
+import sys
+import app.database as app_database
+from app.services import gcal_sync
+
+db_path, lock_name, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])
+app_database.DB_PATH = db_path
+gcal_sync.LOCK_WAIT_TIMEOUT_SECONDS = timeout
+print("ATTEMPTING", flush=True)
+try:
+    with gcal_sync._named_process_lock(lock_name):
+        print("LOCK_ACQUIRED", flush=True)
+        sys.stdin.readline()
+    print("RELEASED", flush=True)
+except gcal_sync.GcalLockTimeout:
+    print("TIMEOUT", flush=True)
+"""
+
+
+class _LockChild:
+    """包裝一個持鎖子 process；stdout 由背景執行緒讀入 queue，stderr 寫入 tmp 檔避免 pipe 塞滿。"""
+
+    def __init__(self, db_path, stderr_path, lock_name="key-1", timeout=60.0):
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+        self._stderr = open(stderr_path, "w", encoding="utf-8")
+        self.proc = subprocess.Popen(
+            [sys.executable, "-c", _CHILD_CODE, str(db_path), lock_name, str(timeout)],
+            cwd=str(ROOT), env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=self._stderr, text=True, encoding="utf-8",
+        )
+        self.stderr_path = stderr_path
+        self.lines: "queue.Queue[str | None]" = queue.Queue()
+        self.seen: list[str] = []
+        threading.Thread(target=self._pump, daemon=True).start()
+
+    def _pump(self):
+        for line in self.proc.stdout:
+            self.lines.put(line.strip())
+        self.lines.put(None)
+
+    def _take(self, block, timeout=None):
+        line = self.lines.get(block=block, timeout=timeout)
+        if line is not None:
+            self.seen.append(line)
+        return line
+
+    def expect(self, token, timeout=HANDSHAKE_TIMEOUT):
+        deadline = time.monotonic() + timeout
+        while token not in self.seen:
+            remaining = deadline - time.monotonic()
+            try:
+                line = self._take(True, max(remaining, 0.01)) if remaining > 0 else None
+            except queue.Empty:
+                line = None
+            if line is None and (remaining <= 0 or self.proc.poll() is not None):
+                raise AssertionError(
+                    f"等不到 {token}；目前輸出 {self.seen}；stderr：\n"
+                    + Path(self.stderr_path).read_text(encoding="utf-8")[-2000:]
+                )
+
+    def drain(self):
+        while True:
+            try:
+                if self._take(False) is None:
+                    break
+            except queue.Empty:
+                break
+        return list(self.seen)
+
+    def release(self):
+        self.proc.stdin.write("RELEASE\n")
+        self.proc.stdin.flush()
+
+    def close(self):
+        if self.proc.poll() is None:
+            self.proc.kill()
+        try:
+            self.proc.wait(timeout=10)
+        finally:
+            for stream in (self.proc.stdin, self.proc.stdout):
+                try:
+                    stream.close()
+                except OSError:
+                    pass
+            self._stderr.close()
+
+
+@pytest.fixture
+def spawn_lock_child(tmp_path):
+    children = []
+
+    def spawn(db_path, **kwargs):
+        child = _LockChild(db_path, tmp_path / f"child-{len(children)}.stderr", **kwargs)
+        children.append(child)
+        return child
+
+    yield spawn
+    for child in children:
+        child.close()
+
+
+def test_subprocess_same_db_same_lock_is_mutually_exclusive(tmp_path, spawn_lock_child):
+    """A 持有 db_a/key-1 時，另一個 OS process 的 B 不能取得；A 釋放後 B 必須取得。"""
+    db = tmp_path / "db_a" / "inventory.db"
+    holder = spawn_lock_child(db)
+    holder.expect("LOCK_ACQUIRED")
+
+    contender = spawn_lock_child(db)
+    contender.expect("ATTEMPTING")
+    # 第三個 process 以短上限探測：拿不到（TIMEOUT）即證明鎖在跨 process 間確實被持有；
+    # 探測期間 contender 一直在輪詢，若互斥失效它必然已回報 LOCK_ACQUIRED。
+    probe = spawn_lock_child(db, timeout=0.5)
+    probe.expect("TIMEOUT")
+    assert "LOCK_ACQUIRED" not in contender.drain(), "A 尚未釋放時 B 就取得了鎖"
+
+    holder.release()
+    holder.expect("RELEASED")
+    contender.expect("LOCK_ACQUIRED")
+    contender.release()
+    contender.expect("RELEASED")
+
+
+def test_subprocess_different_db_same_lock_do_not_block(tmp_path, spawn_lock_child):
+    """db_a/key-1 與 db_b/key-1 是獨立同步域：A 持有期間，另一個 process 的 B 仍可立即取得。"""
+    holder = spawn_lock_child(tmp_path / "db_a" / "inventory.db")
+    holder.expect("LOCK_ACQUIRED")
+    other = spawn_lock_child(tmp_path / "db_b" / "inventory.db", timeout=30)
+    other.expect("LOCK_ACQUIRED")
+    assert holder.proc.poll() is None and "RELEASED" not in holder.drain()   # A 仍持有
+    other.release()
+    other.expect("RELEASED")
+    holder.release()
+    holder.expect("RELEASED")

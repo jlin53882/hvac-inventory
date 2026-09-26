@@ -156,9 +156,15 @@ class GcalLockTimeout(TimeoutError):
     """等待跨 process 同步鎖超過 LOCK_WAIT_TIMEOUT_SECONDS。"""
 
 
+def _canonical_db_path(db_path) -> str:
+    """實體 DB 的 canonical 路徑：解析 symlink/junction/.. 等別名後再 normcase（Windows 不分大小寫）。"""
+    return os.path.normcase(os.path.realpath(os.path.abspath(str(db_path))))
+
+
 def _lock_dir() -> Path:
-    """依資料庫路徑區分鎖檔目錄：同一 DB 的多個 process 互斥，不同 DB（如平行測試）互不干擾。"""
-    db_path = os.path.normcase(os.path.abspath(str(app_database.DB_PATH)))
+    """依實體資料庫區分鎖檔目錄：同一實體 DB（即使經不同路徑別名存取）的多個 process 互斥，
+    不同 DB（如平行測試）互不干擾。"""
+    db_path = _canonical_db_path(app_database.DB_PATH)
     digest = hashlib.sha256(db_path.encode("utf-8")).hexdigest()[:16]
     return Path(tempfile.gettempdir()) / "hvac-gcal-sync-locks" / digest
 
