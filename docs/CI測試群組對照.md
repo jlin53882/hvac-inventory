@@ -24,6 +24,7 @@
 | `test_file_asset_scripts.py` | `storage` | `full-only` | file asset maintenance scripts |
 | `test_frontend_assets.py` | `frontend` | `CI / Frontend + Security` | frontend structure / JS contracts |
 | `test_gcal_keys.py` | `regression` | `full-only` | Google Calendar key lifecycle |
+| `test_gcal_process_lock.py` | `regression` | `full-only` | GCal 跨 process 鎖：canonical DB namespace、subprocess 互斥/獨立、非阻塞等待、逾時 503、Windows >10 秒實機 |
 | `test_gcal_sync.py` | `regression` | `full-only` | Google Calendar sync engine |
 | `test_inventory_integrity.py` | `inventory` | `CI / Inventory + Database` | inventory invariants |
 | `test_inventory_writer_scanner.py` | `inventory` | `CI / Inventory + Database` | writer topology scanner |
