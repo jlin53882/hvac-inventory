@@ -72,7 +72,7 @@
     </div>
     <div class="h-right">
       <div class="h-site">
-        <button class="on" id="site-office" onclick="switchSite('office')">🏢 辦公室</button>
+        <button class="on" id="site-office" onclick="switchSite('office')">🏢 公司</button>
         <button id="site-warehouse" onclick="switchSite('warehouse')">🏭 倉庫</button>
         <button id="site-van" onclick="switchSite('van')">🚐 廂型車</button>
         <button id="site-truck" onclick="switchSite('truck')">🚚 貨車</button>
@@ -230,7 +230,7 @@
       <div class="form-row">
         <label>分類位置</label>
         <select id="f-site">
-          <option value="office">🏢 辦公室</option>
+          <option value="office">🏢 公司</option>
           <option value="warehouse">🏭 倉庫</option>
        <option value="van">🚐 廂型車</option><option value="truck">🚚 貨車</option>
         </select>
@@ -334,7 +334,7 @@
       <div class="form-row">
         <label>分類位置</label>
         <select id="e-site">
-          <option value="office">🏢 辦公室</option>
+          <option value="office">🏢 公司</option>
           <option value="warehouse">🏭 倉庫</option>
        <option value="van">🚐 廂型車</option><option value="truck">🚚 貨車</option>
         </select>
@@ -809,9 +809,9 @@
       <div class="inventory-export-period-fields" id="inventory-export-custom-fields" hidden><input id="inventory-export-start" type="date" aria-label="開始日期"> ～ <input id="inventory-export-end" type="date" aria-label="結束日期"></div>
     </div>
     <div class="inventory-export-section"><strong>庫存區</strong><label class="inventory-export-check"><input type="checkbox" id="inventory-export-all-sites" checked onchange="toggleInventoryExportSites(this)">全部</label><div class="inventory-export-sites" id="inventory-export-sites">
-      <label><input type="checkbox" data-site="office" checked onchange="syncInventoryExportAllSites()">辦公室</label><label><input type="checkbox" data-site="warehouse" checked onchange="syncInventoryExportAllSites()">倉庫</label><label><input type="checkbox" data-site="van" checked onchange="syncInventoryExportAllSites()">廂型車</label><label><input type="checkbox" data-site="truck" checked onchange="syncInventoryExportAllSites()">貨車</label>
+      <label><input type="checkbox" data-site="office" checked onchange="syncInventoryExportAllSites()">公司</label><label><input type="checkbox" data-site="warehouse" checked onchange="syncInventoryExportAllSites()">倉庫</label><label><input type="checkbox" data-site="van" checked onchange="syncInventoryExportAllSites()">廂型車</label><label><input type="checkbox" data-site="truck" checked onchange="syncInventoryExportAllSites()">貨車</label>
     </div></div>
-    <div class="inventory-export-section"><strong>匯出內容</strong><div class="inventory-export-content-list"><label><input type="checkbox" checked disabled>總覽</label><label><input type="checkbox" checked disabled>庫存總表</label><label><input type="checkbox" checked disabled>位置明細</label><label><input type="checkbox" checked disabled>庫存警示</label><label><input type="checkbox" checked disabled>異動紀錄</label><label><input type="checkbox" checked disabled>統計</label></div><p class="inventory-export-note">ℹ️ 衍生數值會保留為 Excel 公式，可在 Excel 中檢視與重新計算。</p></div>
+    <div class="inventory-export-section"><strong>匯出內容</strong><div class="inventory-export-content-list" id="inventory-export-content"><label><input type="checkbox" data-section="overview">總覽</label><label><input type="checkbox" data-section="inventory" checked>庫存總表</label><label><input type="checkbox" data-section="positions" checked>位置明細</label><label><input type="checkbox" data-section="alerts">庫存警示</label><label><input type="checkbox" data-section="movements" checked>異動紀錄</label><label><input type="checkbox" data-section="stats">統計</label></div><p class="inventory-export-note">ℹ️ 衍生數值會保留為 Excel 公式；「統計」中的分類摘要依匯出當下快照計算。</p></div>
     <div class="modal-actions inventory-export-dialog__footer"><button class="btn-cancel" onclick="closeInventoryExportDialog()">取消</button><button class="btn-confirm" id="inventory-export-submit" onclick="submitInventoryExport()">匯出報表</button></div>
   </div>
 </div>
@@ -820,6 +820,7 @@
 <datalist id="dest-list"></datalist>
 
 <script src="/static/js/globals.js" defer></script>
+<script src="/static/js/site-label.js" defer></script>
 <script src="/static/js/auth.js" defer></script>
 <script src="/static/js/utils.js" defer></script>
 <script src="/static/js/qty.js" defer></script>

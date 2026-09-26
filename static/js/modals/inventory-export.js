@@ -1,11 +1,11 @@
-// 庫存 Excel 匯出 Dialog：期間、庫存區與固定六張工作表。
+// 庫存 Excel 匯出對話框：期間、庫存區與可選工作表。
 var exportInFlight = false;
-var EXPORT_SITES = [
-  ['office', '辦公室'], ['warehouse', '倉庫'], ['van', '廂型車'], ['truck', '貨車'],
-];
-
 function exportPad(value) { return String(value).padStart(2, '0'); }
 
+/**
+ * 將匯出對話框重設為標準的期間、庫存區與工作表預設值。
+ * @returns {void}
+ */
 function openInventoryExportDialog() {
   const modal = document.getElementById('inventory-export-dialog');
   if (!modal) return;
@@ -25,6 +25,8 @@ function openInventoryExportDialog() {
   syncInventoryExportPeriodMode();
   document.getElementById('inventory-export-all-sites').checked = true;
   document.querySelectorAll('#inventory-export-sites input[data-site]').forEach(input => { input.checked = true; });
+  const defaultSections = ['inventory', 'positions', 'movements'];
+  document.querySelectorAll('#inventory-export-content input[data-section]').forEach(input => { input.checked = defaultSections.includes(input.dataset.section); });
   modal.classList.add('show');
   modal.setAttribute('aria-hidden', 'false');
 }
@@ -56,6 +58,10 @@ function syncInventoryExportAllSites() {
 
 function exportExcel() { openInventoryExportDialog(); }
 
+/**
+ * 驗證所選篩選條件，並下載指定的活頁簿工作表。
+ * @returns {Promise<void>} 完成請求並清理介面後結束。
+ */
 async function submitInventoryExport() {
   if (exportInFlight) return;
   const button = document.getElementById('inventory-export-submit');
@@ -72,7 +78,9 @@ async function submitInventoryExport() {
   const sites = [...document.querySelectorAll('#inventory-export-sites input[data-site]:checked')].map(input => input.dataset.site);
   if (!sites.length) { toast('匯出失敗：至少選擇一個庫存區', 'error'); return; }
   params.set('sites', sites.join(','));
-  params.set('sections', 'overview,inventory,positions,alerts,movements,stats');
+  const sections = [...document.querySelectorAll('#inventory-export-content input[data-section]:checked')].map(input => input.dataset.section);
+  if (!sections.length) { toast('匯出失敗：至少選擇一種匯出內容', 'error'); return; }
+  params.set('sections', sections.join(','));
   exportInFlight = true;
   if (button) { button.disabled = true; button.textContent = '產生報表中…'; }
   try {

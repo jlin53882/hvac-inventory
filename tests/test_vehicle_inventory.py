@@ -60,9 +60,9 @@ def test_export_contains_all_sites_in_shared_inventory_sheet(client):
     from io import BytesIO
     from openpyxl import load_workbook
     workbook = load_workbook(BytesIO(response.content), read_only=True)
-    assert workbook.sheetnames == ["01 總覽", "02 庫存總表", "03 位置明細", "04 庫存警示", "05 異動紀錄", "06 統計"]
-    rows = list(workbook["02 庫存總表"].iter_rows(min_row=6, values_only=True))
-    assert {row[1] for row in rows if row[0]} == {"辦公室", "倉庫", "廂型車", "貨車"}
+    assert workbook.sheetnames == ["庫存總表(單一庫存)", "位置明細(單一庫存)", "異動紀錄(單一庫存)"]
+    rows = list(workbook["庫存總表(單一庫存)"].iter_rows(min_row=6, values_only=True))
+    assert {row[1] for row in rows if row[0]} == {"公司", "倉庫", "廂型車", "貨車"}
 
 
 def test_vehicle_sites_accept_duplicate_item_identity_per_site(client):
