@@ -408,5 +408,22 @@
 <script src="/static/js/modals/changepw.js" defer></script>
 <script src="/static/js/modals/gcal-key.js" defer></script>
 <script src="/static/js/settings.js" defer></script>
+<script defer>
+// 2026-09-27 頁面初始化：載入預設資料
+document.addEventListener('DOMContentLoaded', async () => {
+  // 先載入 Units（全域依賴）
+  if (typeof loadUnits === 'function') {
+    await loadUnits();
+  }
+  // 預設顯示 Units Panel
+  if (typeof renderUnitsPanel === 'function') {
+    renderUnitsPanel();
+  }
+  // 預先載入 Cabinets（Settings 初始化時）
+  if (typeof loadCabinets === 'function') {
+    await loadCabinets();
+  }
+});
+</script>
 </body>
 </html>

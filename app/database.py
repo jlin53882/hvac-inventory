@@ -851,3 +851,17 @@ def _exec_init(conn):
             "INSERT OR IGNORE INTO user_page_visibility (user_id, page_key, visible) VALUES (?, ?, ?)",
             [(_user["id"], _key, 1 if _key in _visible else 0) for _key in PAGE_KEYS],
         )
+    
+    # ---------- 櫃子預設值（2026-09-27 多位置管理）----------
+    _DEFAULT_CABINETS = [
+        ("編號A", ""),
+        ("編號B", ""),
+        ("編號C", ""),
+        ("編號D", ""),
+        ("編號E", ""),
+        ("編號F", ""),
+        ("鐵架", ""),
+        ("二樓", ""),
+    ]
+    for _name, _note in _DEFAULT_CABINETS:
+        conn.execute("INSERT OR IGNORE INTO cabinets (name, note) VALUES (?, ?)", (_name, _note))
