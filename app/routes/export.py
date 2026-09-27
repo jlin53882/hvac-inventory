@@ -266,12 +266,13 @@ def _build_kit_inventory_sheet(ws, kit_items, kit_locations, qty_types):
     _write_headers(ws, headers)
     _style_header(ws, 5)
     
-    qty_by_id = {item["id"]: item.get("qty", 0) or 0 for item in kit_locations}
+    qty_by_id = {item["id"]: (item["qty"] if "qty" in item.keys() else 0) or 0 for item in kit_locations}
     
     for item in kit_items:
         qty = qty_by_id.get(item["id"], 0)
-        status = "缺貨" if qty == 0 else ("低庫存" if item.get("low_stock") and qty <= item["low_stock"] else "正常")
-        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), item.get("low_stock") or 0, qty, status])
+        low_stock = item["low_stock"] if "low_stock" in item.keys() else 0
+        status = "缺貨" if qty == 0 else ("低庫存" if low_stock and qty <= low_stock else "正常")
+        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), low_stock, qty, status])
     
     if kit_items:
         _add_table(ws, "tblKitInventory", 5)
@@ -291,7 +292,9 @@ def _build_kit_position_sheet(ws, kit_locations, qty_types):
     _style_header(ws, 5)
     
     for item in kit_locations:
-        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), _safe(item.get("location") or ""), item.get("qty", 0) or 0])
+        location = item["location"] if "location" in item.keys() else ""
+        qty = item["qty"] if "qty" in item.keys() else 0
+        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), _safe(location or ""), qty or 0])
     
     if kit_locations:
         _add_table(ws, "tblKitPosition", 5)
@@ -308,14 +311,15 @@ def _build_kit_alert_sheet(ws, kit_items, kit_locations):
     _write_headers(ws, headers)
     _style_header(ws, 5)
     
-    qty_by_id = {item["id"]: item.get("qty", 0) or 0 for item in kit_locations}
+    qty_by_id = {item["id"]: (item["qty"] if "qty" in item.keys() else 0) or 0 for item in kit_locations}
     alerts = []
     
     for item in kit_items:
         qty = qty_by_id.get(item["id"], 0)
-        if qty == 0 or (item.get("low_stock") and qty <= item["low_stock"]):
+        low_stock = item["low_stock"] if "low_stock" in item.keys() else 0
+        if qty == 0 or (low_stock and qty <= low_stock):
             status = "缺貨" if qty == 0 else "低庫存"
-            alerts.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), item.get("low_stock") or 0, qty, status])
+            alerts.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), low_stock, qty, status])
     
     if alerts:
         for row in alerts:
