@@ -181,7 +181,7 @@ function goEditSimilar(id) {
 }
 
 // ========== 整組照片（新增/編輯 modal） ==========
-// 整組照片：新增時建立後自動上傳（背景），編輯時可修改
+// 整組照片：新增時建立後自動上傳（背景），編輯時可修改；選檔後立即預覽
 function renderKitPhotoBox(kitId, hasPhoto) {
   const box = document.getElementById('k-photo-box');
   if (!box) return;
@@ -192,14 +192,15 @@ function renderKitPhotoBox(kitId, hasPhoto) {
   }
   // 新增模式（kitId = null）vs 編輯模式（kitId ≠ null）
   if (kitId === null || kitId === undefined) {
-    // 新增模式：選檔，建立後背景上傳
+    // 新增模式：選檔後立即預覽
     box.innerHTML = `<div style="font-size:11px;color:#999;padding:6px 0">建立後可立即上傳照片</div>
+      <div id="k-photo-preview" style="margin:8px 0"></div>
       <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
         <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
-          <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none">
+          <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
         </label>
         <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
-          <input type="file" accept="image/*" id="k-photo-album" style="display:none">
+          <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="_previewKitPhoto(this)">
         </label>
       </div>`;
     // 兩個 input 互斥（選一個就清另一個）
@@ -211,25 +212,47 @@ function renderKitPhotoBox(kitId, hasPhoto) {
     // 編輯模式：顯示既有照片 + 修改選項
     if (hasPhoto) {
       box.innerHTML = `<img src="${photoSrc(kitId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${kitId})" style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
+        <div id="k-photo-preview" style="margin:8px 0"></div>
         <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
           <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
-            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
           <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
-            <input type="file" accept="image/*" id="k-photo-album" style="display:none">
+            <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
           <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteItemPhoto(${kitId})">🗑 刪除</button>
         </div>`;
     } else {
       box.innerHTML = `<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
+        <div id="k-photo-preview" style="margin:8px 0"></div>
         <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
           <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
-            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none">
+            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
           <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
-            <input type="file" accept="image/*" id="k-photo-album" style="display:none">
+            <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
         </div>`;
     }
   }
+}
+
+// 整組照片：選檔後本地預覽（FileReader）
+function _previewKitPhoto(input) {
+  const preview = document.getElementById('k-photo-preview');
+  if (!preview) return;
+  const file = input.files && input.files[0];
+  if (!file) {
+    preview.innerHTML = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    preview.innerHTML = `
+      <div style="position:relative;display:inline-block">
+        <img src="${e.target.result}" alt="預覽" style="width:320px;height:240px;object-fit:cover;border-radius:4px;border:1px solid #ddd">
+        <button type="button" style="position:absolute;top:4px;right:4px;padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px" onclick="this.parentElement.parentElement.innerHTML='';document.getElementById('k-photo-input').value='';document.getElementById('k-photo-album').value=''">✕ 清除</button>
+      </div>`;
+  };
+  reader.readAsDataURL(file);
 }
