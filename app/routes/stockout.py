@@ -701,7 +701,7 @@ def prepared_out(item_id: int, req: PrepareRequest):
             if cur.rowcount == 0:
                 raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
             conn.execute(
-                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,0,0,'出庫',?,?)",
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,0,0,'領出結帳',?,?)",
                 (item_id, -qty, dest, movement_time.now_sql()),
             )
             conn.commit()
@@ -720,8 +720,8 @@ def prepared_out(item_id: int, req: PrepareRequest):
             raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
         source = _stock_payload(conn, source_stock_id, item_id)
         conn.execute(
-            "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (item_id, -qty, before, after, "出庫", dest, source_stock_id,
+            'INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+            (item_id, -qty, before, after, "領出結帳", dest, source_stock_id,
              source["site"] if source else row["site"], source["location"] if source else req.location, movement_time.now_sql()),
         )
         conn.commit()
