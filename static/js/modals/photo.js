@@ -251,8 +251,18 @@ function _previewKitPhoto(input) {
     preview.innerHTML = `
       <div style="position:relative;display:inline-block">
         <img src="${e.target.result}" alt="預覽" style="width:320px;height:240px;object-fit:cover;border-radius:4px;border:1px solid #ddd">
-        <button type="button" style="position:absolute;top:4px;right:4px;padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px" onclick="this.parentElement.parentElement.innerHTML='';document.getElementById('k-photo-input').value='';document.getElementById('k-photo-album').value=''">✕ 清除</button>
+        <button type="button" style="position:absolute;top:4px;right:4px;padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px" onclick="_clearKitPhotoPreview()">✕ 清除</button>
       </div>`;
   };
   reader.readAsDataURL(file);
+}
+
+// 清除預覽並重置輸入
+function _clearKitPhotoPreview() {
+  const preview = document.getElementById('k-photo-preview');
+  if (preview) preview.innerHTML = '';
+  const cam = document.getElementById('k-photo-input');
+  const album = document.getElementById('k-photo-album');
+  if (cam) cam.value = '';
+  if (album) album.value = '';
 }
