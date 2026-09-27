@@ -564,3 +564,51 @@ def test_export_single_inventory_headers_styles_and_columns(client):
     assert inventory.column_dimensions["A"].width < 15
     assert inventory["B6"].value == "公司"
     assert "庫存快照" not in str(inventory["A2"].value)
+
+
+def test_stockout_export_headers_and_site_labels(client):
+    """已領出 Excel: row 5 header、row 6 data、movement type、site label 修復驗證"""
+    # 建立品項 + 直接出庫
+    item = add_item(client, name="出庫測試品", code="TEST-OUT-1", qty=5)
+    stockout_resp = client.post("/api/stockout", json={
+        "item_id": item["id"],
+        "qty": 2,
+        "destination": "客戶A",
+        "note": "現場領取"
+    })
+    assert stockout_resp.status_code == 200
+    
+    # 匯出已領出 Excel
+    resp = client.get("/api/stockout-export?month=2026-09&sections=movements")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    
+    # 讀取並驗證
+    from io import BytesIO
+    from openpyxl import load_workbook
+    
+    book = load_workbook(BytesIO(resp.content))
+    ws = book["異動紀錄(已領出)"]
+    
+    # 驗證 row 5 header（未被覆蓋）
+    expected_headers = [
+        "時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", 
+        "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"
+    ]
+    actual_headers = [ws[f"{chr(65+i)}5"].value for i in range(12)]
+    assert actual_headers == expected_headers, f"Header mismatch: {actual_headers}"
+    
+    # 驗證 row 6 data（第一筆資料真的在 row 6）
+    assert ws["A6"].value is not None, "Row 6 should have data"
+    assert ws["C6"].value == item["id"], f"Item ID should be {item['id']}, got {ws['C6'].value}"
+    
+    # 驗證 movement type（B 欄應是「出庫」而非「品項異動」）
+    assert ws["B6"].value == "出庫", f"Movement type should be '出庫', got '{ws['B6'].value}'"
+    
+    # 驗證 site label（G 欄應是「公司」而非「office」）
+    assert ws["G6"].value == "公司", f"Site should display as '公司', got '{ws['G6'].value}'"
+    
+    # 驗證 workbook 可正常載入（round-trip）
+    assert book is not None
+    assert "異動紀錄(已領出)" in book.sheetnames
+    book.close()

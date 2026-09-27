@@ -942,12 +942,12 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         row = 6
         for m in movements:
             movement[f"A{row}"] = m["created_at"]
-            movement[f"B{row}"] = "整組異動" if m["is_kit"] else "品項異動"
+            movement[f"B{row}"] = _movement_type(m["reason"] or "", m["delta"])
             movement[f"C{row}"] = m["item_id"]
             movement[f"D{row}"] = m["brand"]
             movement[f"E{row}"] = m["name"]
             movement[f"F{row}"] = m["code"]
-            movement[f"G{row}"] = m["site"]
+            movement[f"G{row}"] = SITES.get(m["site"], m["site"])
             movement[f"H{row}"] = m["delta"]
             movement[f"I{row}"] = m["before_qty"]
             movement[f"J{row}"] = m["after_qty"]
