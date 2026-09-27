@@ -576,10 +576,11 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
             movement_sql,
             [*selected_sites, movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)],
         ).fetchall()
-        # 單一庫存匯出：過濾掉整組組裝/拆解異動（is_kit=1 且 reason 含「組裝/拆解」）
-        # 但子材料因拆解產生的 delta 要保留（is_kit=0）
-        # 臨時暫不過濾「領出準備」流程（測試依賴直接出庫數據；待領出應由已領出頁處理）
+        # 單一庫存匯出：過濾掉：
+        # 1. 整組組裝/拆解異動（is_kit=1 且 reason 含「組裝/拆解」）
+        # 2. 待領出流程相關異動（領出準備、領出結帳、退回準備、退回已領出、盤點*）
         filtered_movements = []
+        prepared_out_reasons = {"領出準備", "領出結帳", "退回準備", "退回已領出"}
         for row in movements:
             is_kit = row["is_kit"] if "is_kit" in row.keys() else 0
             reason = row["reason"] if "reason" in row.keys() else ""
@@ -587,7 +588,12 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
             is_kit_operation = is_kit == 1 and any(
                 reason.startswith(prefix) for prefix in ["組裝", "拆解"]
             )
-            if not is_kit_operation:
+            # 待領出流程判定
+            is_prepared_out = reason in prepared_out_reasons
+            # 盤點異動判定
+            is_checkpoint = reason.startswith("盤點")
+            # 都排除
+            if not (is_kit_operation or is_prepared_out or is_checkpoint):
                 filtered_movements.append(row)
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
@@ -785,12 +791,12 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     
     conn = get_db()
     try:
-        # 查詢已領出的異動（領出準備 → 出庫 的流程）
+        # 查詢已領出的異動（領出準備 → 領出結帳 的流程）
         movement_sql = (
             "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
             "m.destination, m.reason, i.site, i.brand, i.name, i.code, i.is_kit "
             "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE m.reason IN ('領出準備', '出庫', '退回準備') "
+            "WHERE m.reason IN ('領出準備', '領出結帳', '退回準備', '退回已領出') "
             "AND m.created_at >= ? AND m.created_at < ? "
             "ORDER BY m.created_at DESC, m.id DESC"
         )
