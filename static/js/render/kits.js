@@ -163,6 +163,14 @@ function renderKitCard(k, isViewer, isM) {
   const stockQty = Number(k.stock_qty || 0);
   // 整組照片（表格與卡片共用 buildThumb 顯示）
   const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
+  // 2026-09-27 多位置管理：顯示位置清單（最多顯示 2 個，後續用「還有 N 個」表示）
+  const locations = Array.isArray(k.locations) ? k.locations : [];
+  const locDisplay = locations.length > 0
+    ? locations.slice(0, 2)
+        .map(l => `${esc(l.cabinet || '')}${l.position ? ' ' + esc(l.position) : ''}`)
+        .join(' | ')
+        + (locations.length > 2 ? ` +${locations.length - 2}` : '')
+    : '';
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
       <div class="kit-photo-slot">${kitThumb}</div>
@@ -170,7 +178,7 @@ function renderKitCard(k, isViewer, isM) {
         <div class="kit-name">${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div>
         <div class="kit-meta">
           ${k.code ? `<span class="kit-code">型號 ${esc(k.code)}</span>` : ''}
-          ${k.location ? `<span class="kit-location">📍 ${esc(k.location)}</span>` : ''}
+          ${locDisplay ? `<span class="kit-location">📍 ${locDisplay}</span>` : ''}
           <span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>
           ${renderKitStatusBadge(status.status)}
           <span class="kit-comp-count">${components.length} 項組成材料</span>
