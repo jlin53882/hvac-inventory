@@ -1,7 +1,6 @@
 // 庫存管理系統 - 整組 Modal（v8 拆分；材料選擇為 demo 樣式：已選列 + 單一可搜尋框）
 var kitUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯整組 modal 時的 updated_at 快照
 var kitLocationRows = [];  // 2026-09-27 多位置管理：[{cabinet, position, qty, note}, ...]
-var kitLocationInitialQty = 0;
 async function loadKitCabinetOptions() {
   try {
     const res = await fetch('/api/cabinets');
@@ -12,14 +11,10 @@ async function loadKitCabinetOptions() {
     console.warn('整組位置載入櫃子清單失敗', e);
   }
 }
-function sumKitLocationQty(locations) {
-  return (locations || []).reduce((sum, loc) => sum + (Number(loc.qty) || 0), 0);
-}
 function openKitModal() {
   editingKitId = null;
   kitModalCompRows = [];
   kitLocationRows = [];
-  kitLocationInitialQty = 0;
   document.getElementById('k-name').value = '';
   document.getElementById('k-note').value = '';
   document.getElementById('k-brand').value = '';
@@ -67,7 +62,6 @@ async function submitKit() {
     .map(r => ({ item_id: parseInt(r.item_id), qty: r.qty }));
   if (!items.length) { toast('請至少加入一個材料', 'error'); return; }
   const locations = getKitLocations();
-  const locationQtyDelta = sumKitLocationQty(locations) - kitLocationInitialQty;
   setKitSubmitBusy(true);
   try {
     const res = await fetch('/api/kits', {
@@ -135,13 +129,12 @@ async function submitKitEdit() {
   if (!items.length) { toast('請至少加入一個材料', 'error'); return; }
   if (!editingKitId) { toast('編輯目標遺失，請重開', 'error'); return; }
   const locations = getKitLocations();
-  const locationQtyDelta = sumKitLocationQty(locations) - kitLocationInitialQty;
   setKitSubmitBusy(true);
   try {
     const res = await fetch(`/api/kits/${editingKitId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, items: items, locations: locations, location_qty_delta: locationQtyDelta, note: document.getElementById('k-note').value.trim(),
+      body: JSON.stringify({ name: name, brand: brand, code: code, items: items, locations: locations, note: document.getElementById('k-note').value.trim(),
                              updated_at: kitUpdatedAt })
     });
     if (!res.ok) {
@@ -172,7 +165,7 @@ function renderKitLocationRows() {
     <div class="edit-stock-row" data-idx="${idx}">
       <select class="kit-loc-cabinet">${_cabinetOptions(row.cabinet || '')}</select>
       <input type="text" class="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
-      <input type="number" class="kit-loc-qty" value="${esc(String(row.qty ?? 0))}" placeholder="0" min="0" step="1" oninput="kitLocationQtyChanged()">
+      <input type="number" class="kit-loc-qty" value="${esc(String(row.qty ?? 0))}" placeholder="0" min="0" step="1">
       <input type="text" class="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
       <button type="button" class="btn-remove" onclick="removeKitLocationRow(${idx})">🗑</button>
     </div>
