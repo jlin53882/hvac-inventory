@@ -82,11 +82,21 @@ function _uploadKitPhotoAsync(kitId) {
     .then(r => {
       if (r.ok) {
         toast('📷 整組照片已上傳', 'info');
+        // 背景重載資料，確保照片顯示
+        setTimeout(() => loadData({ full: false }), 500);
+      } else {
+        return r.json().then(e => {
+          console.warn('整組照片上傳失敗:', e.detail || '未知錯誤');
+          toast('⚠️ 照片上傳失敗，請重試', 'error');
+        }).catch(() => {
+          console.warn('整組照片上傳失敗 (無回應)');
+          toast('⚠️ 照片上傳失敗', 'error');
+        });
       }
     })
     .catch(e => {
-      console.warn('整組照片上傳失敗:', e.message);
-      // 不 toast 失敗（避免打擾用戶），但可在 console 追蹤
+      console.warn('整組照片上傳錯誤:', e.message);
+      toast('⚠️ 照片上傳出錯', 'error');
     });
 }
 
@@ -117,10 +127,12 @@ async function submitKitEdit() {
     const saved = await res.json();
     closeModalForce('kit-modal');
     toast('✅ 已更新整組「' + saved.name + '」｜品牌：' + (saved.brand || '未填寫') + '｜型號：' + (saved.code || '未填寫'), 'success');
-    // 背景非同步上傳照片（如果有新選檔）
+    // 背景非同步上傳照片（如果有新選檔）+ 背景重載資料
     _uploadKitPhotoAsync(editingKitId);
-    // 同步 ALL_ITEMS 與整組頁，避免下一個待領出/已領出操作讀到舊品牌或型號。
-    await loadData({ full: true });
+    setTimeout(() => {
+      // 同步 ALL_ITEMS 與整組頁，避免下一個待領出/已領出操作讀到舊品牌或型號。
+      loadData({ full: true });
+    }, 600);
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   } finally {

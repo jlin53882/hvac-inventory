@@ -1170,7 +1170,9 @@ def test_kit_edit_rerenders_directly_after_save():
     js = read(KIT_MODAL_JS)
     start = js.index("async function submitKitEdit()")
     body = js[start:]
-    assert "await loadData({ full: true });" in body
+    # loadData({ full: true }) 可能在 setTimeout 或直接 await（兩種都可）
+    assert ("await loadData({ full: true });" in body or 
+            "loadData({ full: true })" in body), "submitKitEdit must call loadData({ full: true })"
     assert "await renderKits();" not in body
     render = read(os.path.join(STATIC, "js", "render", "kits.js"))
     assert "kitRenderRequestSeq" in render
