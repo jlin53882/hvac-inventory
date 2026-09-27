@@ -159,7 +159,6 @@ def _exec_init(conn):
         kit_id      INTEGER NOT NULL REFERENCES kits(id) ON DELETE CASCADE,
         cabinet     TEXT NOT NULL DEFAULT '',
         position    TEXT NOT NULL DEFAULT '',
-        qty         INTEGER NOT NULL DEFAULT 0,
         note        TEXT DEFAULT '',
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP

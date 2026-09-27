@@ -69,7 +69,7 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
             d["has_photo"] = has_photo(k["item_id"])
             # 整組多位置清單（2026-09-27 多位置管理）
             loc_rows = conn.execute(
-                "SELECT cabinet, position, qty, note FROM kit_locations WHERE kit_id = ? ORDER BY id ASC",
+                "SELECT cabinet, position, note FROM kit_locations WHERE kit_id = ? ORDER BY id ASC",
                 (k["id"],)
             ).fetchall()
             d["locations"] = [dict(r) for r in loc_rows]
@@ -428,15 +428,14 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
 
 # 2026-09-27 多位置管理：保存套件位置清單
 def _save_kit_locations(conn, kit_id: int, locations: list) -> None:
-    """清空既有位置，批次插入新位置列"""
+    """清空既有位置，批次插入新位置列（2026-09-28 移除 qty；數量由 item_stocks 提供唯一來源）"""
     conn.execute("DELETE FROM kit_locations WHERE kit_id = ?", (kit_id,))
     for loc in locations:
         # loc 是 KitLocation Pydantic 模型，用屬性存取
         cabinet = loc.cabinet if hasattr(loc, 'cabinet') else loc.get('cabinet', '')
         position = loc.position if hasattr(loc, 'position') else loc.get('position', '')
-        qty = loc.qty if hasattr(loc, 'qty') else loc.get('qty', 0)
         note = loc.note if hasattr(loc, 'note') else loc.get('note', '')
         conn.execute(
-            "INSERT INTO kit_locations (kit_id, cabinet, position, qty, note) VALUES (?,?,?,?,?)",
-            (kit_id, cabinet, position, qty, note)
+            "INSERT INTO kit_locations (kit_id, cabinet, position, note) VALUES (?,?,?,?)",
+            (kit_id, cabinet, position, note)
         )

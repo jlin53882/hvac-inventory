@@ -196,10 +196,9 @@ class PreparedItemUpdate(BaseModel):
 
 # ---------- 整組（套件） ----------
 class KitLocation(BaseModel):
-    """整組位置單筆記錄"""
+    """整組位置單筆記錄（2026-09-28 改為只記 cabinet/position/note；qty 由 item_stocks 提供唯一來源）"""
     cabinet: str = ""
     position: str = ""
-    qty: int = 0
     note: str = ""
 
 
