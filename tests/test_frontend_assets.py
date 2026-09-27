@@ -1297,11 +1297,13 @@ def test_stockout_js_shows_model():
 
 
 def test_kits_components_show_photo():
-    """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求：不是整組一張，是每個單一材料）"""
+    """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求：不是整組一張，是每個單一材料）
+    同時整組本身在卡片左方也顯示照片（2026-09-27 新需求）"""
     js = read(KITS_RENDER_JS)
     assert "cphoto" in js                                          # 手機 kit-comp 縮圖 class
-    assert "openPhotoLightbox(${c.item_id})" in js                 # 點擊放大
-    assert "k.has_photo" not in js                                 # kit 層級縮圖已移除（誤解版）
+    assert "openPhotoLightbox(${c.item_id})" in js                 # 材料點擊放大
+    assert "k.has_photo" in js                                     # 整組本身照片（buildThumb 用）
+    assert "buildThumb(k.item_id, !!k.has_photo" in js             # 整組卡片用 buildThumb 顯示照片
 
 
 def test_kit_comp_left_align():
