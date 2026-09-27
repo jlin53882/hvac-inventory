@@ -412,3 +412,28 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         raise
     finally:
         conn.close()
+
+
+@router.get("/api/kits/export/movements", tags=["kits"])
+async def export_kit_movements(start: str, end: str):
+    """
+    整組庫存異動紀錄匯出端點 (2026-09-27)
+    
+    僅返回整組自身的異動（組裝/拆解），不含子材料異動。
+    前端負責觸發瀏覽器下載，使用既有 Excel 匯出邏輯。
+    """
+    conn = get_db()
+    try:
+        # 查詢整組異動（is_kit=1 且 reason 以「組裝/拆解」開頭）
+        sql = (
+            "SELECT m.created_at, m.item_id, m.delta, m.reason, "
+            "i.brand, i.name, i.code FROM movements m "
+            "JOIN items i ON i.id=m.item_id WHERE i.is_kit=1 "
+            "AND (m.reason LIKE '組裝%' OR m.reason LIKE '拆解%') "
+            "AND m.created_at >= ? AND m.created_at < ? "
+            "ORDER BY m.created_at DESC, m.id DESC"
+        )
+        movements = conn.execute(sql, [start, end]).fetchall()
+        return {"ok": True, "movements": [dict(m) for m in movements]}
+    finally:
+        conn.close()
