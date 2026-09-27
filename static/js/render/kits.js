@@ -112,7 +112,11 @@ function renderKitToolbar(count) {
   const search = document.getElementById('search-input');
   const query = search ? search.value.trim() : '';
   const searchText = query ? `目前搜尋：${query}` : '使用上方搜尋框搜尋整組、材料、型號';
-  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span></div>`;
+  // 2026-09-27 整組庫存匯出（預設本月）
+  const now = new Date();
+  const month_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const month_end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="kit-toolbar-export" onclick="exportKitMovements('${month_start}', '${month_end}')">📊 匯出異動</button></div>`;
 }
 
 function renderKitStatusBadge(status) {
@@ -593,4 +597,22 @@ function showKitStatusList(type) {
     },
     renderItem: function(kit) { return renderKitStatusItem(kit, validType); },
   });
+}
+
+// 2026-09-27 整組庫存異動匯出
+async function exportKitMovements(start, end) {
+  try {
+    const res = await fetch(`/api/kits/export/movements?start=${start}&end=${end}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.ok || !data.movements.length) {
+      alert('該時段沒有整組異動紀錄');
+      return;
+    }
+    // 使用既有 export 邏輯產生 Excel（參考 inventory.js exportData）
+    // 簡化版：觸發瀏覽器下載（使用既有匯出路由）
+    window.location.href = `/api/export?sections=movements&period=custom&start=${start}&end=${end}&type=kit`;
+  } catch (e) {
+    alert('匯出失敗：' + e.message);
+  }
 }
