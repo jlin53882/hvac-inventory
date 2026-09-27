@@ -839,7 +839,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         row = 5
         for m in movements:
             movement[f"A{row}"] = m["created_at"]
-            movement[f"B{row}"] = "整組異動" if m.get("is_kit") else "品項異動"
+            movement[f"B{row}"] = "整組異動" if m["is_kit"] else "品項異動"
             movement[f"C{row}"] = m["item_id"]
             movement[f"D{row}"] = m["brand"]
             movement[f"E{row}"] = m["name"]
