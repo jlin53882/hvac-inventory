@@ -408,6 +408,20 @@
   </div>
 </div>
 
+<!-- 已領出 Excel 匯出 Dialog (2026-09-27) -->
+<div class="modal-overlay inventory-export-dialog" id="stockout-export-dialog" aria-hidden="true" onclick="if(event.target===this) closeStockoutExportDialog()">
+  <div class="modal inventory-export-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="stockout-export-title">
+    <div class="inventory-export-dialog__header"><h3 id="stockout-export-title">📊 匯出已領出報表</h3><button type="button" class="inventory-export-dialog__close" onclick="closeStockoutExportDialog()" aria-label="關閉">✕</button></div>
+    <div class="inventory-export-section"><strong>報表期間</strong>
+      <label class="inventory-export-period-choice"><input type="radio" id="stockout-export-month-mode" name="stockout-export-period" onchange="document.getElementById('stockout-export-month-fields').hidden=false;document.getElementById('stockout-export-custom-fields').hidden=true">月份</label>
+      <div class="inventory-export-period-fields" id="stockout-export-month-fields"><input id="stockout-export-year" type="number" min="2000" max="2100" aria-label="年份"> 年 <select id="stockout-export-month" aria-label="月份"></select> 月</div>
+      <label class="inventory-export-period-choice"><input type="radio" id="stockout-export-custom-mode" name="stockout-export-period" onchange="document.getElementById('stockout-export-month-fields').hidden=true;document.getElementById('stockout-export-custom-fields').hidden=false">自訂日期</label>
+      <div class="inventory-export-period-fields" id="stockout-export-custom-fields" hidden><input id="stockout-export-start" type="date" aria-label="開始日期"> ～ <input id="stockout-export-end" type="date" aria-label="結束日期"></div>
+    </div>
+    <div class="modal-actions inventory-export-dialog__footer"><button class="btn-cancel" onclick="closeStockoutExportDialog()">取消</button><button class="btn-confirm" id="stockout-export-submit" onclick="submitStockoutExport()">匯出報表</button></div>
+  </div>
+</div>
+
 <!-- 待領出編輯 Modal -->
 <div class="modal-overlay" id="prepared-edit-modal">
   <div class="modal" style="max-width:440px">
@@ -842,6 +856,7 @@
 <script src="/static/js/api.js" defer></script>
 <script src="/static/js/modals/inventory-export.js" defer></script>
 <script src="/static/js/modals/kit-export.js" defer></script>
+<script src="/static/js/modals/stockout-export.js" defer></script>
 <script src="/static/js/units.js" defer></script>
 <script src="/static/js/render/card.js" defer></script>
 <script src="/static/js/render/status-list.js" defer></script>

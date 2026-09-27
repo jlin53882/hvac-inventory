@@ -143,7 +143,7 @@ async function renderStockOuts() {
     const kpis = getStockoutKpis(filteredOuts);
     const stockoutBar = renderStockoutPageHeader(isViewer, kpis);
     let html = stockoutBar;
-    html += `<div class="stockout-toolbar"><span>共 <strong>${esc(String(kpis.recordCount))}</strong> 筆</span>${filteredOuts.length !== outs.length ? `<span>已篩選 ${esc(String(filteredOuts.length))} / ${esc(String(outs.length))} 筆</span>` : ''}<button class="stockout-toolbar-export" onclick="exportStockoutMovements()">📊 匯出異動</button></div>`;
+    html += `<div class="stockout-toolbar"><span>共 <strong>${esc(String(kpis.recordCount))}</strong> 筆</span>${filteredOuts.length !== outs.length ? `<span>已篩選 ${esc(String(filteredOuts.length))} / ${esc(String(outs.length))} 筆</span>` : ''}<button class="stockout-toolbar-export" onclick="openStockoutExportDialog()">📊 匯出報表</button></div>`;
     if (!filteredOuts.length) {
       const filtered = outs.length > 0;
       html += `<div class="stockout-empty-state"><span class="empty-icon">🚚</span><strong>${esc(filtered ? '沒有符合條件的已領出紀錄' : '目前沒有已領出的紀錄')}</strong><p>${esc(filtered ? '可以清除搜尋或日期篩選後再試一次。' : '當商品正式領出後，紀錄會顯示在這裡。')}</p>${filtered ? '<button type="button" class="stockout-filter-action" onclick="clearStockoutFilters()">清除篩選</button>' : ''}</div>`;
@@ -233,26 +233,5 @@ function openStockoutSheet(movementId) {
 
   openSheet(`${rec.brand} ${rec.item_name}`, actions);
 
-}
-
-// 2026-09-27 已領出異動紀錄匯出
-async function exportStockoutMovements() {
-  try {
-    const now = new Date();
-    const month_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const month_end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-    
-    const res = await fetch(`/api/stockout/export/movements?start=${month_start}&end=${month_end}`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (!data.ok || !data.movements.length) {
-      alert('該時段沒有已領出異動紀錄');
-      return;
-    }
-    // 觸發瀏覽器下載 Excel（使用既有匯出路由）
-    window.location.href = `/api/export?sections=movements&period=custom&start=${month_start}&end=${month_end}&type=stockout`;
-  } catch (e) {
-    alert('匯出失敗：' + e.message);
-  }
 }
 
