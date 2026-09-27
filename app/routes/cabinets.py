@@ -80,10 +80,10 @@ def update_cabinet(cabinet_id: int, data: CabinetUpdate):
             ).fetchone()
             if not old_cabinet:
                 raise HTTPException(404, "櫃子不存在")
-            
+
             old_name = old_cabinet["name"]
             new_name = data.name.strip()
-            
+
             # 若名稱有改，同步 item_stocks.location 中的櫃子部分
             if old_name != new_name:
                 # location 格式為 "櫃子名|位置" 或只有 "櫃子名"
@@ -97,14 +97,14 @@ def update_cabinet(cabinet_id: int, data: CabinetUpdate):
                     "UPDATE kit_locations SET cabinet = ? WHERE cabinet = ?",
                     (new_name, old_name)
                 )
-            
+
             # 更新 cabinets 表
             conn.execute(
                 "UPDATE cabinets SET name = ?, note = ? WHERE id = ?",
                 (new_name, data.note, cabinet_id)
             )
             conn.commit()
-            
+
             cabinet = conn.execute(
                 "SELECT id, name, note, created_at FROM cabinets WHERE id = ?",
                 (cabinet_id,)
@@ -137,29 +137,29 @@ def delete_cabinet(cabinet_id: int):
             ).fetchone()
             if not cabinet:
                 raise HTTPException(404, "櫃子不存在")
-            
+
             cabinet_name = cabinet["name"]
-            
+
             # 檢查 item_stocks 是否有使用該櫃子
             usage_count = conn.execute(
                 "SELECT COUNT(*) as cnt FROM item_stocks WHERE location = ? OR location LIKE ?",
                 (cabinet_name, f"{cabinet_name}|%")
             ).fetchone()["cnt"]
-            
+
             if usage_count > 0:
                 conn.rollback()
                 raise HTTPException(409, f"櫃子「{cabinet_name}」仍有 {usage_count} 筆位置使用，無法刪除")
-            
+
             # 若保留 kit_locations，也檢查該表
             kit_usage_count = conn.execute(
                 "SELECT COUNT(*) as cnt FROM kit_locations WHERE cabinet = ?",
                 (cabinet_name,)
             ).fetchone()["cnt"]
-            
+
             if kit_usage_count > 0:
                 conn.rollback()
                 raise HTTPException(409, f"櫃子「{cabinet_name}」在整組中有 {kit_usage_count} 個位置，無法刪除")
-            
+
             # 無使用則刪除
             conn.execute("DELETE FROM cabinets WHERE id = ?", (cabinet_id,))
             conn.commit()

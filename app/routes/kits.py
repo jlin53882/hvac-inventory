@@ -57,7 +57,7 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
                 ORDER BY ki.id
             """, chunk):
                 comps_by_kit.setdefault(x["kit_id"], []).append(x)
-        
+
         # Batch load kit_locations (2026-09-28 修復 N+1)
         locations_by_kit: dict = {}
         kit_ids = [k["id"] for k in kits]
@@ -72,7 +72,7 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
                     r = dict(row)
                     kit_id = r.pop("kit_id")
                     locations_by_kit.setdefault(kit_id, []).append(r)
-        
+
         totals = total_qty_map(
             conn,
             [k["item_id"] for k in kits] + [x["item_id"] for comps in comps_by_kit.values() for x in comps],
