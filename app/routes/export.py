@@ -27,8 +27,12 @@ SITES = {"office": "公司", "warehouse": "倉庫", "van": "廂型車", "truck":
 SITE_ORDER = tuple(SITES)
 MAX_RANGE_DAYS = 366
 DEFAULT_EXPORT_SECTIONS = ("inventory", "positions", "movements")
-DEFAULT_STOCKOUT_SECTIONS = ("movements",)  # 已領出匯出預設只包含異動紀錄
-EXPORT_SECTION_ORDER = ("overview", "inventory", "positions", "alerts", "movements", "stats")
+DEFAULT_STOCKOUT_SECTIONS = ("movements",)
+
+# Endpoint-specific section allowlists
+SINGLE_EXPORT_SECTIONS = ("overview", "inventory", "positions", "alerts", "movements", "stats")
+KIT_EXPORT_SECTIONS = ("overview", "inventory", "positions", "alerts", "movements")
+STOCKOUT_EXPORT_SECTIONS = ("overview", "movements")
 HEADER_FILL = "2E5C8A"
 TITLE_FILL = "163B63"
 STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"}
@@ -205,13 +209,17 @@ def _apply_workbook_styles(ws: Worksheet) -> None:
                 break
 
 
-def _parse_export_sections(sections: str | None, default_sections: tuple = DEFAULT_EXPORT_SECTIONS) -> set[str]:
+def _parse_export_sections(sections: str | None, default_sections: tuple = DEFAULT_EXPORT_SECTIONS, allowed_sections: tuple = SINGLE_EXPORT_SECTIONS) -> set[str]:
     """驗證要求匯出的工作表；未指定時採用指定的預設工作表。"""
     if sections is None:
         return set(default_sections)
     requested = [part.strip() for part in sections.split(",") if part.strip()]
-    if not requested or any(part not in EXPORT_SECTION_ORDER for part in requested):
-        raise HTTPException(400, "sections 含有不合法的匯出工作表")
+    if not requested:
+        raise HTTPException(400, "sections 不可為空")
+    # 檢查所有請求的 section 都在 allowlist 內
+    for section in requested:
+        if section not in allowed_sections:
+            raise HTTPException(400, f"section '{section}' 不支援此端點")
     return set(requested)
 
 
@@ -619,7 +627,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     Raises:
         HTTPException: 日期範圍、庫存區或工作表識別值不合法時引發。
     """
-    selected_sections = _parse_export_sections(sections)
+    selected_sections = _parse_export_sections(sections, DEFAULT_EXPORT_SECTIONS, SINGLE_EXPORT_SECTIONS)
     if days is not None and month is None and start_date is None and end_date is None:
         if days < 0 or days > MAX_RANGE_DAYS:
             raise HTTPException(400, "days 必須介於 0 到 366")
@@ -655,21 +663,23 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         # 4. Nonstock 異動（is_deleted=1）— 只在已領出匯出中顯示
         # P0 決策：退回已領出 同時顯示在單一庫存及已領出匯出（例外）
         filtered_movements = []
-        excluded_reasons = {
+        # 排除整組自身的流程（組裝/拆解），但允許包含子項細節的變體
+        excluded_exact = {
             "組裝完成", "組裝套件", "拆解", "拆解套件",
-            "領出準備", "領出結帳", "退回準備",  # 不含「退回已領出」
+            "領出準備", "領出結帳", "退回準備"
         }
+        
         for row in movements:
             reason = row["reason"] if "reason" in row.keys() else ""
             is_deleted = row["is_deleted"] if "is_deleted" in row.keys() else 0
             
             # 判定是否排除
-            is_excluded_reason = reason in excluded_reasons
+            is_excluded_exact = reason in excluded_exact
             is_checkpoint = reason.startswith("盤點")
             is_nonstock = is_deleted == 1  # nonstock 品項
             
-            # 排除上述四類，其他都保留
-            if not (is_excluded_reason or is_checkpoint or is_nonstock):
+            # 排除上述四類，但允許帶子項細節的變體（如「組裝:KIT-001」）
+            if not (is_excluded_exact or is_checkpoint or is_nonstock):
                 filtered_movements.append(row)
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
@@ -737,7 +747,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     Returns:
         包含所選工作表的 XLSX 下載回應。
     """
-    selected_sections = _parse_export_sections(sections)
+    selected_sections = _parse_export_sections(sections, DEFAULT_EXPORT_SECTIONS, KIT_EXPORT_SECTIONS)
     if days is not None and month is None and start_date is None and end_date is None:
         if days < 0 or days > MAX_RANGE_DAYS:
             raise HTTPException(400, "days 必須介於 0 到 366")
@@ -863,7 +873,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     Returns:
         包含所選工作表的 XLSX 下載回應。
     """
-    selected_sections = _parse_export_sections(sections, DEFAULT_STOCKOUT_SECTIONS)
+    selected_sections = _parse_export_sections(sections, DEFAULT_STOCKOUT_SECTIONS, STOCKOUT_EXPORT_SECTIONS)
     if days is not None and month is None and start_date is None and end_date is None:
         if days < 0 or days > MAX_RANGE_DAYS:
             raise HTTPException(400, "days 必須介於 0 到 366")
