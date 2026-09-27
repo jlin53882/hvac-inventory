@@ -676,13 +676,13 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     try:
         # 查詢整組品項（is_kit=1）
         kit_items = conn.execute(
-            "SELECT id, category, brand, name, code, unit, low_stock, location FROM items WHERE is_kit=1 AND is_deleted=0 ORDER BY brand COLLATE NOCASE, name, id"
+            "SELECT i.id, i.category, i.brand, i.name, i.code, i.unit, i.low_stock, k.location FROM items i LEFT JOIN kits k ON k.item_id=i.id WHERE i.is_kit=1 AND i.is_deleted=0 ORDER BY i.brand COLLATE NOCASE, i.name, i.id"
         ).fetchall()
         
         # 查詢整組位置（每個整組只有一個位置）
         kit_locations = conn.execute(
-            "SELECT i.id, i.brand, i.name, i.code, i.unit, i.location, SUM(s.qty) as qty, '' as note "
-            "FROM items i LEFT JOIN item_stocks s ON s.item_id=i.id "
+            "SELECT i.id, i.brand, i.name, i.code, i.unit, k.location, SUM(s.qty) as qty, '' as note "
+            "FROM items i LEFT JOIN kits k ON k.item_id=i.id LEFT JOIN item_stocks s ON s.item_id=i.id "
             "WHERE i.is_kit=1 AND i.is_deleted=0 "
             "GROUP BY i.id"
         ).fetchall()
