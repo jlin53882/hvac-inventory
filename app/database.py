@@ -570,6 +570,9 @@ def _exec_init(conn):
     if "updated_at" not in kit_cols:
         conn.execute("ALTER TABLE kits ADD COLUMN updated_at TIMESTAMP")
         logger.info("[migrate] kits.updated_at 欄位已新增（樂觀鎖）")
+    if "location" not in kit_cols:
+        conn.execute("ALTER TABLE kits ADD COLUMN location TEXT DEFAULT ''")
+        logger.info("[migrate] kits.location 欄位已新增（整組存放位置）")
     unit_cols = [r[1] for r in conn.execute("PRAGMA table_info(units)").fetchall()]
     if "qty_type" not in unit_cols:
         conn.execute("ALTER TABLE units ADD COLUMN qty_type TEXT NOT NULL DEFAULT 'integer'")

@@ -67,6 +67,8 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
             d["stock_qty"] = totals[k["item_id"]]
             # 整組品項本身的照片縮圖（2026-09-27 前端圖片顯示需求）
             d["has_photo"] = has_photo(k["item_id"])
+            # 整組存放位置（2026-09-27 位置欄位需求）
+            # 位置已在 kits.location 中，dict() 會自動帶出
             comps = []
             for x in comps_by_kit.get(k["id"], []):
                 cx = dict(x)
@@ -103,8 +105,8 @@ def create_kit(kit: KitCreate):
                      (kit_item_id, "", 0, kit.note))
         # 建立套件定義
         cur2 = conn.execute(
-            "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
-            (kit_item_id, kit.name, kit.note),
+            "INSERT INTO kits (item_id, name, note, location) VALUES (?,?,?,?)",
+            (kit_item_id, kit.name, kit.note, kit.location.strip()),
         )
         kit_id = cur2.lastrowid
         seen_items: set = set()

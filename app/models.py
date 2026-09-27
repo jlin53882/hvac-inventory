@@ -199,6 +199,7 @@ class KitCreate(BaseModel):
     name: str
     brand: str = ""
     code: str = ""
+    location: str = ""  # 2026-09-27 整組存放位置
     site: Optional[InventorySite] = None
     items: list  # [{item_id, qty}]
     note: str = ""
