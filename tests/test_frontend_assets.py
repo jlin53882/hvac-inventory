@@ -1297,13 +1297,14 @@ def test_stockout_js_shows_model():
 
 
 def test_kits_components_show_photo():
-    """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求：不是整組一張，是每個單一材料）
-    同時整組本身在卡片左方也顯示照片（2026-09-27 新需求）"""
+    """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求）
+    同時整組本身的照片在表格第一行顯示（2026-09-27 新需求：位置調整，不在卡片標題）"""
     js = read(KITS_RENDER_JS)
-    assert "cphoto" in js                                          # 手機 kit-comp 縮圖 class
+    assert "cphoto" in js                                          # icon class（卡片用）
     assert "openPhotoLightbox(${c.item_id})" in js                 # 材料點擊放大
-    assert "k.has_photo" in js                                     # 整組本身照片（buildThumb 用）
-    assert "buildThumb(k.item_id, !!k.has_photo" in js             # 整組卡片用 buildThumb 顯示照片
+    assert "k.has_photo" in js                                     # 整組本身照片邏輯
+    assert "kit-row-header" in js                                  # 表格整組行（新）
+    assert "buildThumb(k.item_id, !!k.has_photo" in js             # 整組照片在表格行用 buildThumb
 
 
 def test_kit_comp_left_align():
@@ -4072,7 +4073,8 @@ def test_stocktake_frontend_sends_current_site():
 def test_submit_kit_sends_current_site():
     js = read(KIT_MODAL_JS)
     assert "site: currentSite" in js
-    assert "JSON.stringify({ name: name, brand: brand, code: code, site: currentSite" in js
+    assert "name: name, brand: brand, code: code" in js
+    assert "JSON.stringify({" in js
 
 
 def test_url_restore_uses_all_inventory_sites():

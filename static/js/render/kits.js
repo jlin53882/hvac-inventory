@@ -161,14 +161,19 @@ function renderKitCard(k, isViewer, isM) {
   const status = getKitStatus(k);
   const components = Array.isArray(k.components) ? k.components : [];
   const stockQty = Number(k.stock_qty || 0);
-  // 整組圖片：用 buildThumb 顯示（若有照片），否則顯示 🔧 icon
-  const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
-      <div class="kit-assembly-title"><div class="kit-assembly-name"><span class="cphoto">${kitThumb}</span> ${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta">${k.code ? `<span class="kit-assembly-model">型號 ${esc(k.code)}</span>` : ''}${k.location ? `<span class="kit-location">📍 ${esc(k.location)}</span>` : ''}<span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
+      <div class="kit-assembly-title"><div class="kit-assembly-name"><span class="cphoto">🔧</span> ${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta">${k.code ? `<span class="kit-assembly-model">型號 ${esc(k.code)}</span>` : ''}${k.location ? `<span class="kit-location">📍 ${esc(k.location)}</span>` : ''}<span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
       ${renderKitActionButtons(k, isViewer, isM, status)}
     </header>
-    <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>${components.map(renderKitComponentRow).join('')}</tbody></table></div>
+    <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody><tr class="kit-row-header">
+        <td class="kit-col-photo">${buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url)}</td>
+        <td class="kit-col-info"><strong>${esc(k.name)}</strong>${k.location ? `<br><small>📍 ${esc(k.location)}</small>` : ''}</td>
+        <td class="kit-col-need">-</td>
+        <td class="kit-col-stock"><strong>${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</strong></td>
+        <td class="kit-col-status">-</td>
+      </tr>
+      ${components.map(renderKitComponentRow).join('')}</tbody></table></div>
   </article>`;
 }
 
@@ -472,6 +477,7 @@ async function editKit(kitId) {
   document.getElementById('k-note').value = kit.note || '';
   document.getElementById('k-brand').value = kit.brand || '';
   document.getElementById('k-code').value = kit.code || '';
+  document.getElementById('k-location').value = kit.location || '';
 
   document.querySelector('#kit-modal h3').textContent = '🔧 編輯整組';
 
