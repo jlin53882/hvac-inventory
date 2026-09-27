@@ -574,7 +574,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         movement_sql = (
             "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
             "m.destination, m.reason, " + movement_site + " AS site, "
-            "i.brand, i.name, i.code, i.is_kit "
+            "i.brand, i.name, i.code, i.is_kit, i.is_deleted "
             "FROM movements m JOIN items i ON i.id=m.item_id "
             "WHERE (((" + movement_site + f" IN ({site_placeholders}) OR "
             + movement_site + " = '') AND m.created_at >= ? AND m.created_at < ?)) "
@@ -585,19 +585,26 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
             [*selected_sites, movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)],
         ).fetchall()
         # 單一庫存匯出：過濾掉：
-        # 1. 待領出準備階段異動（領出準備、退回準備）——因為這些是待確認，不計入庫存
-        # 2. 盤點異動
-        # 保留：領出結帳、退回已領出（因為庫存已實際異動）、所有其他異動（包括整組異動）
+        # 1. 整組異動（組裝完成、組裝套件、拆解、拆解套件）— 只在整組匯出中顯示
+        # 2. 待領出流程全階段（領出準備、領出結帳、退回準備、退回已領出）— 只在已領出匯出中顯示
+        # 3. 盤點異動（盤點調整等）
+        # 4. Nonstock 異動（is_deleted=1）— 只在已領出匯出中顯示
         filtered_movements = []
-        prepared_out_reasons = {"領出準備", "退回準備"}
+        excluded_reasons = {
+            "組裝完成", "組裝套件", "拆解", "拆解套件",
+            "領出準備", "領出結帳", "退回準備", "退回已領出",
+        }
         for row in movements:
             reason = row["reason"] if "reason" in row.keys() else ""
-            # 待領出準備判定（只排除準備階段）
-            is_prepared_out = reason in prepared_out_reasons
-            # 盤點異動判定
+            is_deleted = row["is_deleted"] if "is_deleted" in row.keys() else 0
+            
+            # 判定是否排除
+            is_excluded_reason = reason in excluded_reasons
             is_checkpoint = reason.startswith("盤點")
-            # 排除準備和盤點，其他都保留
-            if not (is_prepared_out or is_checkpoint):
+            is_nonstock = is_deleted == 1  # nonstock 品項
+            
+            # 排除上述四類，其他都保留
+            if not (is_excluded_reason or is_checkpoint or is_nonstock):
                 filtered_movements.append(row)
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}

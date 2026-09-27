@@ -313,7 +313,8 @@ def test_export_kit_assemble_disassemble_movements_are_preserved(client):
     assert any(str(reason).startswith("拆解套件:") for reason in reasons)
 
 
-def test_export_movements_preserve_soft_deleted_item_history(client):
+def test_export_movements_exclude_soft_deleted_item_history(client):
+    """Soft-deleted 品項（nonstock）的歷史應該被排除，不在單一庫存匯出中（符合選項 1 設計）"""
     item = add_item(client, name="歷史刪除品", code="DEL-HISTORY", qty=3)
     deleted = client.delete(f"/api/items/{item['id']}")
     assert deleted.status_code == 200, deleted.text
@@ -321,12 +322,11 @@ def test_export_movements_preserve_soft_deleted_item_history(client):
     book = export_book(client)
     rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
     deleted_rows = [row for row in rows if row[2] == item["id"]]
-    assert deleted_rows
-    assert any(row[11] == "品項刪除清零" and row[1] == "刪除清零" for row in deleted_rows)
-    assert not any(row[0] == item["id"] for row in book["庫存總表(單一庫存)"].iter_rows(min_row=6, values_only=True))
+    assert not deleted_rows, "Soft-deleted 品項的異動應該被排除，不出現在單一庫存匯出"
 
 
-def test_export_movements_include_nonstock_stockout(client):
+def test_export_movements_exclude_nonstock_stockout(client):
+    """Nonstock 異動應該被排除，只在已領出匯出中顯示（符合選項 1 設計）"""
     response = client.post("/api/stockout/nonstock", json={
         "name": "非庫存歷史品", "code": "NONSTOCK-1", "unit": "個",
         "qty": 2, "destination": "測試案場",
@@ -337,7 +337,7 @@ def test_export_movements_include_nonstock_stockout(client):
     book = export_book(client)
     rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
     nonstock_rows = [row for row in rows if row[2] == item_id]
-    assert nonstock_rows and nonstock_rows[0][11] == "出庫"
+    assert not nonstock_rows, "Nonstock 異動應該被排除，不出現在單一庫存匯出"
 
 
 @pytest.mark.parametrize("reason, expected", [
@@ -367,7 +367,8 @@ def test_export_custom_range_uses_left_closed_right_open_boundaries(client):
     assert [row[0] for row in rows] == ["2026-09-01 00:00:00"]
 
 
-def test_export_movement_site_prefers_return_site_over_source_site(client):
+def test_export_movement_site_prefers_return_site_over_source_site_excluded(client):
+    """退回已領出異動應該被排除（在單一庫存匯出），只在已領出匯出中顯示（符合選項 1 設計）"""
     item = add_item(client, name="退回來源品", code="RETURN-SITE")
     conn = app_db.get_db()
     try:
@@ -381,7 +382,8 @@ def test_export_movement_site_prefers_return_site_over_source_site(client):
         conn.close()
     book = export_book(client, month="2026-09", sites="warehouse")
     rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
-    assert rows and rows[0][6] == "倉庫"
+    return_rows = [row for row in rows if row[2] == item["id"]]
+    assert not return_rows, "退回已領出異動應該被排除，不出現在單一庫存匯出"
 
 
 @pytest.mark.parametrize("raw, expected", [
