@@ -69,21 +69,46 @@ def create_cabinet(data: CabinetCreate):
 
 @router.put("/api/cabinets/{cabinet_id}", dependencies=[Depends(require_perm("user-mgmt"))])
 def update_cabinet(cabinet_id: int, data: CabinetUpdate):
-    """編輯櫃子"""
+    """編輯櫃子（2026-09-28 rename 時同步更新 persisted location 中的櫃子名）"""
     try:
         conn = get_db()
         try:
+            conn.execute("BEGIN IMMEDIATE")
+            # 先取舊名稱
+            old_cabinet = conn.execute(
+                "SELECT name FROM cabinets WHERE id = ?", (cabinet_id,)
+            ).fetchone()
+            if not old_cabinet:
+                raise HTTPException(404, "櫃子不存在")
+            
+            old_name = old_cabinet["name"]
+            new_name = data.name.strip()
+            
+            # 若名稱有改，同步 item_stocks.location 中的櫃子部分
+            if old_name != new_name:
+                # location 格式為 "櫃子名|位置" 或只有 "櫃子名"
+                # REPLACE old_name| → new_name| 並處理純 old_name 的情況
+                conn.execute(
+                    "UPDATE item_stocks SET location = REPLACE(location, ?, ?) WHERE location LIKE ? OR location = ?",
+                    (f"{old_name}|", f"{new_name}|", f"{old_name}|%", old_name)
+                )
+                # 若保留 kit_locations，同步其 cabinet 欄位
+                conn.execute(
+                    "UPDATE kit_locations SET cabinet = ? WHERE cabinet = ?",
+                    (new_name, old_name)
+                )
+            
+            # 更新 cabinets 表
             conn.execute(
                 "UPDATE cabinets SET name = ?, note = ? WHERE id = ?",
-                (data.name, data.note, cabinet_id)
+                (new_name, data.note, cabinet_id)
             )
             conn.commit()
+            
             cabinet = conn.execute(
                 "SELECT id, name, note, created_at FROM cabinets WHERE id = ?",
                 (cabinet_id,)
             ).fetchone()
-            if not cabinet:
-                raise HTTPException(404, "櫃子不存在")
             return dict(cabinet)
         except sqlite3.IntegrityError as e:
             conn.rollback()
@@ -101,15 +126,52 @@ def update_cabinet(cabinet_id: int, data: CabinetUpdate):
 
 @router.delete("/api/cabinets/{cabinet_id}", dependencies=[Depends(require_perm("user-mgmt"))])
 def delete_cabinet(cabinet_id: int):
-    """刪除櫃子"""
+    """刪除櫃子（2026-09-28 檢查是否有位置使用該櫃子，若有則拒絕）"""
     try:
         conn = get_db()
         try:
+            conn.execute("BEGIN IMMEDIATE")
+            # 先取櫃子名稱
+            cabinet = conn.execute(
+                "SELECT name FROM cabinets WHERE id = ?", (cabinet_id,)
+            ).fetchone()
+            if not cabinet:
+                raise HTTPException(404, "櫃子不存在")
+            
+            cabinet_name = cabinet["name"]
+            
+            # 檢查 item_stocks 是否有使用該櫃子
+            usage_count = conn.execute(
+                "SELECT COUNT(*) as cnt FROM item_stocks WHERE location = ? OR location LIKE ?",
+                (cabinet_name, f"{cabinet_name}|%")
+            ).fetchone()["cnt"]
+            
+            if usage_count > 0:
+                conn.rollback()
+                raise HTTPException(409, f"櫃子「{cabinet_name}」仍有 {usage_count} 筆位置使用，無法刪除")
+            
+            # 若保留 kit_locations，也檢查該表
+            kit_usage_count = conn.execute(
+                "SELECT COUNT(*) as cnt FROM kit_locations WHERE cabinet = ?",
+                (cabinet_name,)
+            ).fetchone()["cnt"]
+            
+            if kit_usage_count > 0:
+                conn.rollback()
+                raise HTTPException(409, f"櫃子「{cabinet_name}」在整組中有 {kit_usage_count} 個位置，無法刪除")
+            
+            # 無使用則刪除
             conn.execute("DELETE FROM cabinets WHERE id = ?", (cabinet_id,))
             conn.commit()
             return {"deleted": True}
+        except HTTPException:
+            if conn:
+                conn.rollback()
+            raise
         finally:
             conn.close()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"delete_cabinet 失敗: {e}")
         raise HTTPException(500, "刪除失敗")
