@@ -65,6 +65,8 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
         for k in kits:
             d = dict(k)
             d["stock_qty"] = totals[k["item_id"]]
+            # 整組品項本身的照片縮圖（2026-09-27 前端圖片顯示需求）
+            d["has_photo"] = has_photo(k["item_id"])
             comps = []
             for x in comps_by_kit.get(k["id"], []):
                 cx = dict(x)
@@ -407,4 +409,4 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         conn.rollback()
         raise
     finally:
-        conn.close()
+        conn.close()
