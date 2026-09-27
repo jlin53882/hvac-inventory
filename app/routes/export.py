@@ -572,8 +572,8 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
             "m.destination, m.reason, " + movement_site + " AS site, "
             "i.brand, i.name, i.code, i.is_kit "
             "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE ((" + movement_site + f" IN ({site_placeholders}) OR "
-            + movement_site + ") AND m.created_at >= ? AND m.created_at < ?) "
+            "WHERE (((" + movement_site + f" IN ({site_placeholders}) OR "
+            + movement_site + " = '') AND m.created_at >= ? AND m.created_at < ?)) "
             "ORDER BY m.created_at DESC, m.id DESC"
         )
         movements = conn.execute(
@@ -581,23 +581,19 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
             [*selected_sites, movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)],
         ).fetchall()
         # 單一庫存匯出：過濾掉：
-        # 1. 整組組裝/拆解異動（is_kit=1 且 reason 含「組裝/拆解」）
-        # 2. 待領出流程相關異動（領出準備、領出結帳、退回準備、退回已領出、盤點*）
+        # 1. 待領出準備階段異動（領出準備、退回準備）——因為這些是待確認，不計入庫存
+        # 2. 盤點異動
+        # 保留：領出結帳、退回已領出（因為庫存已實際異動）、所有其他異動（包括整組異動）
         filtered_movements = []
-        prepared_out_reasons = {"領出準備", "領出結帳", "退回準備", "退回已領出"}
+        prepared_out_reasons = {"領出準備", "退回準備"}
         for row in movements:
-            is_kit = row["is_kit"] if "is_kit" in row.keys() else 0
             reason = row["reason"] if "reason" in row.keys() else ""
-            # 整組相關異動判定
-            is_kit_operation = is_kit == 1 and any(
-                reason.startswith(prefix) for prefix in ["組裝", "拆解"]
-            )
-            # 待領出流程判定
+            # 待領出準備判定（只排除準備階段）
             is_prepared_out = reason in prepared_out_reasons
             # 盤點異動判定
             is_checkpoint = reason.startswith("盤點")
-            # 都排除
-            if not (is_kit_operation or is_prepared_out or is_checkpoint):
+            # 排除準備和盤點，其他都保留
+            if not (is_prepared_out or is_checkpoint):
                 filtered_movements.append(row)
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
