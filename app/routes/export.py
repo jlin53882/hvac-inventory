@@ -33,6 +33,82 @@ TITLE_FILL = "163B63"
 STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"}
 
 
+def _fix_inlinestr_headers(buf: io.BytesIO) -> None:
+    """修復 inlineStr 格式的儲存格字型：在 <is> 內加入 <rPr> 以確保 Excel 正確顯示。
+    
+    openpyxl 在寫入帶格式的儲存格時，有時會使用 inlineStr 格式（內聯字串）。
+    當 Excel 看到 inlineStr 時，只會讀取 <is><rPr> 內的字型定義，忽略外部樣式。
+    此函式修復 XML，添加明確的字型定義。
+    """
+    import zipfile
+    import xml.etree.ElementTree as ET
+    
+    # 暫存檔案
+    buf.seek(0)
+    with zipfile.ZipFile(buf, 'r') as zip_ref:
+        # 讀取 worksheet XML（通常是 sheet1.xml）
+        sheet_names = [n for n in zip_ref.namelist() if n.startswith('xl/worksheets/sheet')]
+        
+        for sheet_name in sheet_names:
+            ws_xml = zip_ref.read(sheet_name).decode('utf-8')
+            
+            # 找所有 inlineStr 格式的儲存格並加入 <rPr>
+            # 模式：<c ... t="inlineStr"><is><t>...</t></is></c>
+            # 改為：<c ... t="inlineStr"><is><rPr><rFont val="Microsoft JhengHei"/><b/><color rgb="00FFFFFF"/><sz val="11"/></rPr><t>...</t></is></c>
+            
+            def fix_inlinestr(match):
+                """為每個 inlineStr 儲存格加入字型定義。"""
+                cell_xml = match.group(0)
+                
+                # 檢查是否已有 <rPr>
+                if '<rPr>' in cell_xml:
+                    return cell_xml
+                
+                # 判斷儲存格的樣式 ID（s="N"）以決定字型
+                style_match = re.search(r's="(\d+)"', cell_xml)
+                if not style_match:
+                    return cell_xml
+                
+                style_id = int(style_match.group(1))
+                
+                # 根據樣式 ID 選擇字型定義
+                if style_id == 1:  # 標題 A1
+                    rpr = '<rPr><rFont val="Microsoft JhengHei"/><b/><color rgb="00FFFFFF"/><sz val="18"/></rPr>'
+                elif style_id == 2:  # 副標題 A2
+                    rpr = '<rPr><rFont val="Microsoft JhengHei"/><i/><color rgb="00475569"/><sz val="10"/></rPr>'
+                elif style_id == 3:  # 表頭 A5
+                    rpr = '<rPr><rFont val="Microsoft JhengHei"/><b/><color rgb="00FFFFFF"/><sz val="11"/></rPr>'
+                else:
+                    return cell_xml
+                
+                # 在 <is> 後、<t> 前插入 <rPr>
+                return re.sub(r'(<is>)', r'\1' + rpr, cell_xml)
+            
+            # 應用修復
+            ws_xml = re.sub(r'<c r="[A-Z0-9]+" s="[0-9]+"[^>]*t="inlineStr"[^>]*>.*?</c>', fix_inlinestr, ws_xml, flags=re.DOTALL)
+    
+    # 重寫 ZIP（覆蓋原 buf）
+    temp_buf = io.BytesIO()
+    buf.seek(0)
+    with zipfile.ZipFile(buf, 'r') as zip_in:
+        with zipfile.ZipFile(temp_buf, 'w', zipfile.ZIP_DEFLATED) as zip_out:
+            for item in zip_in.infolist():
+                if item.filename.startswith('xl/worksheets/sheet'):
+                    # 重新寫入修復過的工作表
+                    sheet_name = item.filename
+                    modified_xml = ws_xml if sheet_name in [n for n in zip_in.namelist() if n.startswith('xl/worksheets/sheet')] else zip_in.read(item.filename)
+                    zip_out.writestr(item, modified_xml if isinstance(modified_xml, bytes) else modified_xml.encode('utf-8'))
+                else:
+                    # 其他檔案保持原樣
+                    zip_out.writestr(item, zip_in.read(item.filename))
+    
+    # 覆蓋原 buf
+    buf.truncate(0)
+    buf.seek(0)
+    buf.write(temp_buf.getvalue())
+    buf.seek(0)
+
+
 def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str, str]:
     """解析月份或自訂日期範圍，回傳 SQL 邊界與 Excel 顯示期間。"""
     now = now or dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
@@ -84,25 +160,58 @@ def _period_text(label: str, display_period: str) -> str:
     return f"報表期間：{label}　異動統計：{display_period}"
 
 
-def _style_title(ws, title: str, period: str):
-    """寫入活頁簿標題與報表期間，不加入庫存快照時間標記。"""
-    ws.merge_cells("A1:D1")
-    ws["A1"] = title
-    ws["A1"].font = Font(bold=True, size=18, color="FFFFFF")
-    ws["A1"].fill = PatternFill("solid", fgColor=TITLE_FILL)
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+def _style_title(ws, title: str, period: str, header_count: int = 4):
+    """寫入活頁簿標題與報表期間，合併欄位跟隨標題列寬度，自動調整欄寬。
+    
+    Args:
+        ws: 工作表
+        title: 標題文本
+        period: 期間文本
+        header_count: 標題要合併到的欄數（預設 4 = A:D）
+    """
+    from openpyxl.utils import get_column_letter
+    
+    # 動態計算合併範圍
+    end_col = get_column_letter(header_count)
+    ws.merge_cells(f"A1:{end_col}1")
+    
+    # A1 標題
+    cell_a1 = ws["A1"]
+    cell_a1.value = title
+    cell_a1.font = Font(name="Microsoft JhengHei", bold=True, size=18, color="FFFFFF")
+    cell_a1.fill = PatternFill("solid", fgColor=TITLE_FILL)
+    cell_a1.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws.row_dimensions[1].height = 30
-    ws["A2"] = period
-    ws["A2"].font = Font(color="475569", italic=True, size=10)
+    
+    # A2 期間
+    cell_a2 = ws["A2"]
+    cell_a2.value = period
+    cell_a2.font = Font(name="Microsoft JhengHei", color="475569", italic=True, size=10)
+    cell_a2.alignment = Alignment(horizontal="left", vertical="center")
+    
+    # 自動調整欄寬：計算標題文本寬度
+    title_width = sum(2 if ord(c) > 255 else 1 for c in title)
+    period_width = sum(2 if ord(c) > 255 else 1 for c in period)
+    max_width = max(title_width, period_width)
+    
+    # 當欄數少時（如只有 2 欄），用更寬的固定欄寬
+    if header_count <= 2:
+        # 小欄數：每欄寬度足以容納標題（加邊距）
+        # 「庫存管理報表」(6字) = 12 寬度單位，加邊距需要 25+
+        col_width = max(max_width + 5, 25)  # 最小 25，足以容納中文 6 字標題
+    else:
+        # 多欄數：平均分配，但保證最小寬度
+        col_width = (max_width // header_count) + 2
+        col_width = max(col_width, 10)  # 最小寬度 10
+    
+    # 設定所有涉及的欄寬
+    for i in range(1, header_count + 1):
+        col_letter = get_column_letter(i)
+        ws.column_dimensions[col_letter].width = col_width
 
 
 def _style_header(ws, row: int):
-    """套用資料表表頭樣式並設定凍結窗格。"""
-    for cell in ws[row]:
-        if cell.value is not None:
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    """設定表頭凍結窗格（樣式已在 _write_headers 套用）。"""
     ws.freeze_panes = f"A{row + 1}"
 
 
@@ -146,6 +255,9 @@ def _apply_workbook_styles(ws: Worksheet) -> None:
         for cell in row:
             if cell.value is None:
                 continue
+            # 確保字型物件存在（避免 None 導致字型遺失）
+            if cell.font is None:
+                cell.font = Font()
             font = copy(cell.font)
             font.name = "Microsoft JhengHei"
             cell.font = font
@@ -153,6 +265,19 @@ def _apply_workbook_styles(ws: Worksheet) -> None:
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=cell.alignment.wrap_text)
                 if cell.number_format == "General":
                     cell.number_format = "@"
+    
+    # 如果標題只跨 A 與 B 兩欄（A1:B1），調整欄寬以確保標題完整顯示
+    # 檢查 A1 是否被合併
+    if ws['A1'].coordinate in ws.merged_cells:
+        # 找出 A1 所屬的合併範圍
+        for merged_range in ws.merged_cells.ranges:
+            if 'A1' in str(merged_range):
+                range_str = str(merged_range)
+                # 檢查是否恰好是 A1:B1（2 欄）
+                if range_str == 'A1:B1':
+                    ws.column_dimensions['A'].width = 25
+                    ws.column_dimensions['B'].width = 25
+                break
 
 
 def _parse_export_sections(sections: str | None) -> set[str]:
@@ -187,9 +312,14 @@ def _write_empty(ws, row: int, text: str = "目前沒有資料"):
 
 
 def _write_headers(ws, headers, row: int = 5):
-    """將欄位標題寫入指定表頭列。"""
+    """將欄位標題寫入指定表頭列，並立即套用樣式避免 inlineStr 格式。"""
     for column, value in enumerate(headers, 1):
-        ws.cell(row, column).value = value
+        cell = ws.cell(row, column)
+        cell.value = value
+        # 立即套用樣式，避免後續被 inlineStr 覆蓋
+        cell.font = Font(name="Microsoft JhengHei", bold=True, size=11, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
 def _build_inventory_sheet(ws, items, positions, position_table_available: bool, qty_types):
@@ -359,7 +489,7 @@ def _build_overview(ws: Worksheet, inventory_available: bool, period: str) -> No
         inventory_available: 是否有匯出含資料的庫存總表。
         period: 與其他報表工作表共用的顯示期間。
     """
-    _style_title(ws, "庫存管理報表", period)
+    _style_title(ws, "庫存管理報表", period, header_count=2)
     _write_headers(ws, ["指標", "數值"])
     _style_header(ws, 5)
     kpis = [
@@ -405,7 +535,7 @@ def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inve
         inventory_available: 是否可使用公式彙總庫存總表。
         period: 與其他報表工作表共用的顯示期間。
     """
-    _style_title(ws, "庫存統計", period)
+    _style_title(ws, "庫存統計", period, header_count=7)
     ws["A4"] = "庫存區統計"
     ws["J4"] = "分類統計"
     ws["O4"] = "廠牌統計"
@@ -618,19 +748,19 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         _build_overview(overview, "inventory" in selected_sections and bool(items), period_text)
     if "inventory" in selected_sections:
         inventory = wb.create_sheet("庫存總表(單一庫存)")
-        _style_title(inventory, "單一庫存總表", period_text)
+        _style_title(inventory, "單一庫存總表", period_text, header_count=13)
         _build_inventory_sheet(inventory, items, positions, "positions" in selected_sections and bool(positions), qty_types)
     if "positions" in selected_sections:
         position = wb.create_sheet("位置明細(單一庫存)")
-        _style_title(position, "單一庫存位置明細", period_text)
+        _style_title(position, "單一庫存位置明細", period_text, header_count=9)
         _build_position_sheet(position, positions, qty_types)
     if "alerts" in selected_sections:
         alerts = wb.create_sheet("庫存警示(單一庫存)")
-        _style_title(alerts, "單一庫存警示", period_text)
+        _style_title(alerts, "單一庫存警示", period_text, header_count=11)
         _build_alert_sheet(alerts, items, positions, "inventory" in selected_sections and bool(items))
     if "movements" in selected_sections:
         movement = wb.create_sheet("異動紀錄(單一庫存)")
-        _style_title(movement, "單一庫存異動紀錄", period_text)
+        _style_title(movement, "單一庫存異動紀錄", period_text, header_count=12)
         _build_movement_sheet(movement, movements)
     if "stats" in selected_sections:
         stats = wb.create_sheet("06 統計")
@@ -639,6 +769,11 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         _apply_workbook_styles(sheet)
         id_column = {"庫存總表(單一庫存)": 1, "位置明細(單一庫存)": 1, "庫存警示(單一庫存)": 2, "異動紀錄(單一庫存)": 3}.get(sheet.title)
         _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
+    # 確保所有 2 欄標題工作表的欄寬足夠
+    for sheet in wb.worksheets:
+        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
+            sheet.column_dimensions['A'].width = 25
+            sheet.column_dimensions['B'].width = 25
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
     stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
     if month and not start_date and not end_date:
@@ -720,7 +855,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     
     if "overview" in selected_sections:
         overview = wb.create_sheet("01 總覽")
-        _style_title(overview, "整組庫存報表", period_text)
+        _style_title(overview, "整組庫存報表", period_text, header_count=2)
         # 簡化的整組 KPI（無庫存區概念）
         _write_headers(overview, ["指標", "數值"])
         _style_header(overview, 5)
@@ -733,29 +868,34 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     
     if "inventory" in selected_sections:
         inventory = wb.create_sheet("庫存總表(整組)")
-        _style_title(inventory, "整組庫存總表", period_text)
+        _style_title(inventory, "整組庫存總表", period_text, header_count=8)
         _build_kit_inventory_sheet(inventory, kit_items, kit_locations, qty_types)
     
     if "positions" in selected_sections:
         position = wb.create_sheet("位置明細(整組)")
-        _style_title(position, "整組位置明細", period_text)
+        _style_title(position, "整組位置明細", period_text, header_count=7)
         _build_kit_position_sheet(position, kit_locations, qty_types)
     
     if "alerts" in selected_sections:
         alerts = wb.create_sheet("庫存警示(整組)")
-        _style_title(alerts, "整組庫存警示", period_text)
+        _style_title(alerts, "整組庫存警示", period_text, header_count=7)
         # 顯示低庫存/缺貨的整組
         _build_kit_alert_sheet(alerts, kit_items, kit_locations)
     
     if "movements" in selected_sections:
         movement = wb.create_sheet("異動紀錄(整組)")
-        _style_title(movement, "整組異動紀錄", period_text)
+        _style_title(movement, "整組異動紀錄", period_text, header_count=12)
         _build_movement_sheet(movement, movements)
     
     for sheet in wb.worksheets:
         _apply_workbook_styles(sheet)
         id_column = {"庫存總表(整組)": 1, "位置明細(整組)": 1, "庫存警示(整組)": 2, "異動紀錄(整組)": 3}.get(sheet.title)
         _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
+    # 確保所有 2 欄標題工作表的欄寬足夠
+    for sheet in wb.worksheets:
+        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
+            sheet.column_dimensions['A'].width = 25
+            sheet.column_dimensions['B'].width = 25
     
     buf = io.BytesIO()
     wb.save(buf)
@@ -826,7 +966,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     
     if "overview" in selected_sections:
         overview = wb.create_sheet("01 總覽")
-        _style_title(overview, "已領出報表", period_text)
+        _style_title(overview, "已領出報表", period_text, header_count=2)
         # 已領出 KPI
         _write_headers(overview, ["指標", "數值"])
         _style_header(overview, 5)
@@ -849,7 +989,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     
     if "movements" in selected_sections:
         movement = wb.create_sheet("異動紀錄(已領出)")
-        _style_title(movement, "已領出異動紀錄", period_text)
+        _style_title(movement, "已領出異動紀錄", period_text, header_count=12)
         headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
         _write_headers(movement, headers)
         _style_header(movement, 5)
@@ -896,12 +1036,25 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         movement.column_dimensions["L"].width = 12
         
         # 凍結窗格
-        id_column = {"異動紀錄(已領出)": 3}.get(movement.title)
+        id_column = {'異動紀錄(已領出)': 3}.get(movement.title)
         if id_column:
             movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
     
+    # 套用全工作簿字型與格式（同單一庫存與整組匯出）
+    for sheet in wb.worksheets:
+        _apply_workbook_styles(sheet)
+    # 確保所有 2 欄標題工作表的欄寬足夠
+    for sheet in wb.worksheets:
+        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
+            sheet.column_dimensions['A'].width = 25
+            sheet.column_dimensions['B'].width = 25
+    
     buf = io.BytesIO()
     wb.save(buf)
+    buf.seek(0)
+    
+    # 修復 inlineStr 格式的表頭字型：加入 <rPr> 以確保 Excel 顯示
+    _fix_inlinestr_headers(buf)
     buf.seek(0)
     
     stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")

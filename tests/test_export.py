@@ -69,7 +69,10 @@ def test_export_has_expected_sheets_in_order(client):
     book = export_book(client)
     assert book.sheetnames == ["庫存總表(單一庫存)", "位置明細(單一庫存)", "異動紀錄(單一庫存)"]
     for worksheet in book.worksheets:
-        assert "A1:D1" in {str(merged_range) for merged_range in worksheet.merged_cells.ranges}
+        # 檢查 A1 被合併到某一欄（動態根據標題欄數）
+        merged_ranges = {str(merged_range) for merged_range in worksheet.merged_cells.ranges}
+        assert any(merged_range.startswith("A1:") for merged_range in merged_ranges), \
+            f"A1 應被合併，但未找到 A1:X 範圍。已合併: {merged_ranges}"
         assert worksheet["A1"].value
         assert worksheet["A1"].alignment.horizontal == "center"
 
