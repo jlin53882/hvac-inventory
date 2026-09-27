@@ -480,6 +480,7 @@ async function editKit(kitId) {
   btn.setAttribute('onclick', 'submitKitEdit()');
 
   renderKitCompRows();
+  renderKitPhotoBox(kitId, !!kit.has_photo);  // 编辑模式：显示既有照片 + 修改选项
 
   openModal('kit-modal');
 

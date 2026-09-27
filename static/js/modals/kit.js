@@ -12,6 +12,7 @@ function openKitModal() {
   btn.textContent = '✅ 建立整組';
   btn.setAttribute('onclick', 'submitKit()');
   renderKitCompRows();  // 顯示「尚未加入材料」+ 搜尋框（同 demo）
+  renderKitPhotoBox(null);  // 新增模式：選檔，建立後背景上傳
   openModal('kit-modal');
 }
 
@@ -34,7 +35,7 @@ function setKitSubmitBusy(isBusy) {
   btn.setAttribute('aria-busy', String(isBusy));
 }
 
-// 送出新增整組表單（POST /api/kits），成功後關閉 Modal 並重載資料
+// 送出新增整組表單（POST /api/kits），成功後立即關閉 Modal，背景上傳照片（避免多人併發卡頓）
 async function submitKit() {
   if (document.querySelector('#kit-modal .btn-confirm')?.disabled) return;
   const name = document.getElementById('k-name').value.trim();
@@ -54,14 +55,39 @@ async function submitKit() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || '新增失敗');
+    const kitId = data.id;
     closeModalForce('kit-modal');
     toast(`✅ 已新增整組「${data.name || name}」｜品牌：${data.brand || '未填寫'}｜型號：${data.code || '未填寫'}`, 'success');
+    // 背景非同步上傳照片（不阻擋 UI，避免多人上傳時卡頓）
+    _uploadKitPhotoAsync(kitId);
     await loadData();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   } finally {
     setKitSubmitBusy(false);
   }
+}
+
+// 背景上傳整組照片（非同步，不 await，避免阻擋多人併發操作）
+function _uploadKitPhotoAsync(kitId) {
+  const photoInput = document.getElementById('k-photo-input');
+  const albumInput = document.getElementById('k-photo-album');
+  const chosenFile = (photoInput && photoInput.files && photoInput.files[0])
+    || (albumInput && albumInput.files && albumInput.files[0]);
+  if (!chosenFile) return;  // 沒選檔，不上傳
+  
+  const fd = new FormData();
+  fd.append('file', chosenFile);
+  fetch(`/api/kits/${kitId}/photo`, { method: 'POST', body: fd })
+    .then(r => {
+      if (r.ok) {
+        toast('📷 整組照片已上傳', 'info');
+      }
+    })
+    .catch(e => {
+      console.warn('整組照片上傳失敗:', e.message);
+      // 不 toast 失敗（避免打擾用戶），但可在 console 追蹤
+    });
 }
 
 // 送出編輯整組（PUT /api/kits/{id}；與新增共用同一個 modal）
@@ -91,6 +117,8 @@ async function submitKitEdit() {
     const saved = await res.json();
     closeModalForce('kit-modal');
     toast('✅ 已更新整組「' + saved.name + '」｜品牌：' + (saved.brand || '未填寫') + '｜型號：' + (saved.code || '未填寫'), 'success');
+    // 背景非同步上傳照片（如果有新選檔）
+    _uploadKitPhotoAsync(editingKitId);
     // 同步 ALL_ITEMS 與整組頁，避免下一個待領出/已領出操作讀到舊品牌或型號。
     await loadData({ full: true });
   } catch (e) {

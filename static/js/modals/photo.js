@@ -179,3 +179,57 @@ function goEditSimilar(id) {
   closeModalForce('edit-modal');
   openEditModal(id);
 }
+
+// ========== 整組照片（新增/編輯 modal） ==========
+// 整組照片：新增時建立後自動上傳（背景），編輯時可修改
+function renderKitPhotoBox(kitId, hasPhoto) {
+  const box = document.getElementById('k-photo-box');
+  if (!box) return;
+  const canPhoto = hasPerm('photo');
+  if (!canPhoto) {
+    box.innerHTML = '<div style="font-size:11px;color:#999;padding:6px 0">無照片上傳權限</div>';
+    return;
+  }
+  // 新增模式（kitId = null）vs 編輯模式（kitId ≠ null）
+  if (kitId === null || kitId === undefined) {
+    // 新增模式：選檔，建立後背景上傳
+    box.innerHTML = `<div style="font-size:11px;color:#999;padding:6px 0">建立後可立即上傳照片</div>
+      <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+          <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none">
+        </label>
+        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+          <input type="file" accept="image/*" id="k-photo-album" style="display:none">
+        </label>
+      </div>`;
+    // 兩個 input 互斥（選一個就清另一個）
+    const cam = document.getElementById('k-photo-input');
+    const album = document.getElementById('k-photo-album');
+    cam?.addEventListener('change', () => { if (cam.files[0]) album.value = ''; });
+    album?.addEventListener('change', () => { if (album.files[0]) cam.value = ''; });
+  } else {
+    // 編輯模式：顯示既有照片 + 修改選項
+    if (hasPhoto) {
+      box.innerHTML = `<img src="${photoSrc(kitId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${kitId})" style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
+        <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none">
+          </label>
+          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+            <input type="file" accept="image/*" id="k-photo-album" style="display:none">
+          </label>
+          <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteItemPhoto(${kitId})">🗑 刪除</button>
+        </div>`;
+    } else {
+      box.innerHTML = `<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
+        <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none">
+          </label>
+          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+            <input type="file" accept="image/*" id="k-photo-album" style="display:none">
+          </label>
+        </div>`;
+    }
+  }
+}
