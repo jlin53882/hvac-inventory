@@ -154,7 +154,7 @@ function renderKitLocationRows() {
     <div class="edit-stock-row" data-idx="${idx}">
       <input type="text" class="kit-loc-cabinet" value="${esc(row.cabinet || '')}" placeholder="編號A" list="location-list">
       <input type="text" class="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
-      <input type="number" class="kit-loc-qty" value="${row.qty || 0}" placeholder="0" min="0">
+      <input type="number" class="kit-loc-qty" value="${row.qty || 0}" placeholder="0" min="0" readonly style="background-color: #f5f5f5; cursor: not-allowed;">
       <input type="text" class="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
       <button type="button" class="btn-remove" onclick="removeKitLocationRow(${idx})">🗑</button>
     </div>
@@ -179,7 +179,7 @@ function getKitLocations() {
   return Array.from(rows).map(row => ({
     cabinet: row.querySelector('.kit-loc-cabinet').value.trim(),
     position: row.querySelector('.kit-loc-pos').value.trim(),
-    qty: parseInt(row.querySelector('.kit-loc-qty').value) || 0,
+    qty: parseFloat(row.querySelector('.kit-loc-qty').value) || 0,
     note: row.querySelector('.kit-loc-note').value.trim()
   })).filter(r => r.cabinet || r.position);  // 至少一個欄位填寫才算有效
 }

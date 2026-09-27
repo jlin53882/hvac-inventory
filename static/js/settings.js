@@ -867,9 +867,9 @@ function renderCabinetTable() {
     <tr>
       <td><strong>${esc(c.name)}</strong></td>
       <td>${esc(c.note || '（無備註）')}</td>
-      <td style="text-align: right;">
-        <button class="btn-ghost" onclick="editCabinet(${c.id})">✎ 編輯</button>
-        <button class="btn-ghost" style="color: #e74c3c;" onclick="deleteCabinet(${c.id})">🗑 刪除</button>
+      <td style="text-align: right; display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+        <button class="btn-save" style="flex-shrink: 0; padding: 6px 12px; min-height: 32px; font-size: 12px;" onclick="editCabinet(${c.id})">✎ 編輯</button>
+        <button class="btn-cancel-ghost" style="flex-shrink: 0; padding: 6px 12px; min-height: 32px; font-size: 12px; color: #dc2626;" onclick="deleteCabinet(${c.id})">🗑 刪除</button>
       </td>
     </tr>
   `).join('');
