@@ -65,6 +65,8 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
         for k in kits:
             d = dict(k)
             d["stock_qty"] = totals[k["item_id"]]
+            # 整組照片指示（供前端判斷是否顯示圖片）
+            d["has_photo"] = has_photo(k["item_id"])
             # 整組存放位置（2026-09-27 位置欄位需求）
             # 位置已在 kits.location 中，dict() 會自動帶出
             comps = []

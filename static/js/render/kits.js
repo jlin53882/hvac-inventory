@@ -562,7 +562,7 @@ function renderKitStatusItem(kit, type) {
     ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();editKit(${esc(String(Number(kit.id)))})">編輯</button>`
     : '';
   return `<article class="inventory-status-item status-list-mobile-row kit-status-item ${esc(statusClass)}">
-    <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!source.has_photo, kit.name, '🔧', source.thumbnail_url)}</div>
+    <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!kit.has_photo, kit.name, '🔧', kit.thumbnail_url)}</div>
     <div class="inventory-status-info">
       <div class="inventory-status-name">${esc(kit.name || '未命名整組')}</div>
       <div class="inventory-status-sub">${esc(source.brand || kit.brand || '整組')}${esc(kit.code ? ' · 型號 ' + kit.code : '')}</div>
