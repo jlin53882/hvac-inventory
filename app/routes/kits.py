@@ -57,6 +57,22 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
                 ORDER BY ki.id
             """, chunk):
                 comps_by_kit.setdefault(x["kit_id"], []).append(x)
+        
+        # Batch load kit_locations (2026-09-28 修復 N+1)
+        locations_by_kit: dict = {}
+        kit_ids = [k["id"] for k in kits]
+        if kit_ids:
+            for chunk in chunked_ids(kit_ids):
+                placeholders = ",".join("?" * len(chunk))
+                for row in conn.execute(f"""
+                    SELECT kit_id, cabinet, position, note FROM kit_locations
+                    WHERE kit_id IN ({placeholders})
+                    ORDER BY kit_id, id
+                """, chunk):
+                    r = dict(row)
+                    kit_id = r.pop("kit_id")
+                    locations_by_kit.setdefault(kit_id, []).append(r)
+        
         totals = total_qty_map(
             conn,
             [k["item_id"] for k in kits] + [x["item_id"] for comps in comps_by_kit.values() for x in comps],
@@ -67,12 +83,8 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
             d["stock_qty"] = totals[k["item_id"]]
             # 整組照片指示（供前端判斷是否顯示圖片）
             d["has_photo"] = has_photo(k["item_id"])
-            # 整組多位置清單（2026-09-27 多位置管理）
-            loc_rows = conn.execute(
-                "SELECT cabinet, position, note FROM kit_locations WHERE kit_id = ? ORDER BY id ASC",
-                (k["id"],)
-            ).fetchall()
-            d["locations"] = [dict(r) for r in loc_rows]
+            # 整組多位置清單（2026-09-28 改用 batch locations）
+            d["locations"] = locations_by_kit.get(k["id"], [])
             comps = []
             for x in comps_by_kit.get(k["id"], []):
                 cx = dict(x)
