@@ -92,7 +92,7 @@ async function submitStockoutExport() {
   
   try {
     // 呼叫已領出專用匯出端點
-    const response = await fetch(`/api/stockout-export?${params.toString()}&sections=overview,movements`);
+    const response = await fetch(`/api/stockout-export?${params.toString()}`);
     if (!response.ok) {
       let message = `HTTP ${response.status}`;
       try {

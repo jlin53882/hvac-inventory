@@ -543,11 +543,20 @@ def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inve
     for cell in (ws["A4"], ws["J4"], ws["O4"]):
         cell.font = Font(bold=True, size=13, color=TITLE_FILL)
     _write_headers(ws, ["庫存區", "品項數", "總庫存", "待領出", "可用庫存", "低庫存", "缺貨"], row=5)
+    # 手動寫分類統計和廠牌統計標題，並套用相同的表頭樣式
     for column, header in enumerate(["分類", "品項數", "總庫存", "可用庫存"], 10):
-        ws.cell(5, column).value = header
+        cell = ws.cell(5, column)
+        cell.value = header
+        cell.font = Font(name="Microsoft JhengHei", bold=True, size=11, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     for column, header in enumerate(["廠牌", "品項數", "總庫存", "可用庫存"], 15):
-        ws.cell(5, column).value = header
-    _style_header(ws, 5)
+        cell = ws.cell(5, column)
+        cell.value = header
+        cell.font = Font(name="Microsoft JhengHei", bold=True, size=11, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    # 左側庫存區表頭已由 _write_headers() 套用，不需重複處理
 
     quantity_by_item = {}
     for position in positions:
