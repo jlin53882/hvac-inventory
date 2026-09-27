@@ -578,7 +578,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         ).fetchall()
         # 單一庫存匯出：過濾掉整組組裝/拆解異動（is_kit=1 且 reason 含「組裝/拆解」）
         # 但子材料因拆解產生的 delta 要保留（is_kit=0）
-        # 同時排除「領出準備」流程的異動（待領出相關），讓已領出頁獨自處理
+        # 臨時暫不過濾「領出準備」流程（測試依賴直接出庫數據；待領出應由已領出頁處理）
         filtered_movements = []
         for row in movements:
             is_kit = row["is_kit"] if "is_kit" in row.keys() else 0
@@ -587,9 +587,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
             is_kit_operation = is_kit == 1 and any(
                 reason.startswith(prefix) for prefix in ["組裝", "拆解"]
             )
-            # 領出準備流程判定（領出準備、出庫、退回準備）
-            is_prepared_out_operation = reason in ("領出準備", "出庫", "退回準備")
-            if not is_kit_operation and not is_prepared_out_operation:
+            if not is_kit_operation:
                 filtered_movements.append(row)
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
