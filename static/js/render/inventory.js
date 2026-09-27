@@ -1122,15 +1122,17 @@ document.addEventListener('click', function(e) {
 // ========== 響應式篩選面板重新計算 ==========
 // 視窗大小改變時，重新計算並渲染篩選 chips（品牌與分類）
 var filterPanelResizeTimer = null;
-window.addEventListener('resize', function() {
-  // 防止頻繁重新渲染，延遲 300ms 後才執行
-  clearTimeout(filterPanelResizeTimer);
-  filterPanelResizeTimer = setTimeout(function() {
-    var brandEl = document.getElementById('fp-brand-chips');
-    var catEl = document.getElementById('fp-cat-chips');
-    // 如果篩選面板存在，重新計算 chips 顯示個數
-    if (brandEl || catEl) {
-      buildFilterPanel();
-    }
-  }, 300);
-});
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', function() {
+    // 防止頻繁重新渲染，延遲 300ms 後才執行
+    clearTimeout(filterPanelResizeTimer);
+    filterPanelResizeTimer = setTimeout(function() {
+      var brandEl = document.getElementById('fp-brand-chips');
+      var catEl = document.getElementById('fp-cat-chips');
+      // 如果篩選面板存在，重新計算 chips 顯示個數
+      if (brandEl || catEl) {
+        buildFilterPanel();
+      }
+    }, 300);
+  });
+}

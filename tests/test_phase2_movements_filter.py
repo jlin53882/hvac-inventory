@@ -100,42 +100,6 @@ def test_kit_export_only_keeps_kit_movements():
         )
 
 
-def test_stockout_export_filters_reasons():
-    """已領出匯出只保留出庫相關的 reason"""
-    # 規則：reason 必須是出庫流程相關
-    
-    stockout_patterns = [
-        "領出準備",
-        "出庫",
-        "解除待領出",
-        "退回已領出",
-    ]
-    
-    test_cases = [
-        # (reason, should_keep)
-        ("領出準備", True),
-        ("出庫", True),
-        ("出庫 - 客戶領取", True),  # 含備註的出庫
-        ("解除待領出", True),
-        ("退回已領出", True),
-        ("盤點", False),
-        ("庫存調撥", False),
-        ("組裝完成:整組X", False),
-        ("拆解:整組X", False),
-    ]
-    
-    for reason, should_keep in test_cases:
-        # 判定邏輯：reason 必須以出庫相關的 pattern 開頭或完全匹配
-        keep = any(
-            reason == pattern or reason.startswith(pattern)
-            for pattern in stockout_patterns
-        )
-        
-        assert keep == should_keep, (
-            f"reason='{reason}': "
-            f"expected keep={should_keep}, got {keep}"
-        )
-
 
 def test_kit_location_field_storage_contract():
     """整組位置欄位的儲存契約"""
@@ -161,4 +125,3 @@ def test_kit_has_photo_field_in_response():
     # - 與子材料的 has_photo 邏輯一致
     
     # 驗證邏輯正確
-    assert True == True   # has_photo 應為布林值

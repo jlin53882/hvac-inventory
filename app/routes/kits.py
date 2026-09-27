@@ -65,8 +65,6 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
         for k in kits:
             d = dict(k)
             d["stock_qty"] = totals[k["item_id"]]
-            # 整組品項本身的照片縮圖（2026-09-27 前端圖片顯示需求）
-            d["has_photo"] = has_photo(k["item_id"])
             # 整組存放位置（2026-09-27 位置欄位需求）
             # 位置已在 kits.location 中，dict() 會自動帶出
             comps = []
@@ -179,13 +177,13 @@ def update_kit(kit_id: int, kit: KitCreate):
         # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
         if kit.updated_at:
             cur = conn.execute(
-                "UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=? AND updated_at=?",
-                (kit.name, kit.note, kit_id, kit.updated_at))
+                "UPDATE kits SET name=?, note=?, location=?, updated_at=datetime('now') WHERE id=? AND updated_at=?",
+                (kit.name, kit.note, kit.location or "", kit_id, kit.updated_at))
             if cur.rowcount == 0:
                 raise HTTPException(409, "該整組已被他人修改，請重新整理後再編輯")
         else:
-            conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
-                         (kit.name, kit.note, kit_id))
+            conn.execute("UPDATE kits SET name=?, note=?, location=?, updated_at=datetime('now') WHERE id=?",
+                         (kit.name, kit.note, kit.location or "", kit_id))
         try:
             conn.execute("UPDATE items SET name=?, brand=?, code=?, updated_at=? WHERE id=?",
                          (kit.name, kit.brand.strip(), kit.code.strip(), datetime.datetime.now().isoformat(), row["item_id"]))
