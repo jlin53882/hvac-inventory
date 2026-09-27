@@ -901,28 +901,3 @@ def update_prepared_item(
         raise
     finally:
         conn.close()
-
-
-@router.get("/api/stockout/export/movements", tags=["stockout"])
-async def export_stockout_movements(start: str, end: str):
-    """
-    已領出異動紀錄匯出端點 (2026-09-27)
-    
-    返回所有出庫相關異動（領出準備、實際領出等）
-    前端負責觸發瀏覽器下載，使用既有 Excel 匯出邏輯。
-    """
-    conn = get_db()
-    try:
-        # 查詢出庫相關異動
-        sql = (
-            "SELECT m.created_at, m.item_id, m.delta, m.destination, m.reason, "
-            "i.brand, i.name, i.code FROM movements m "
-            "JOIN items i ON i.id=m.item_id "
-            "WHERE m.reason IN ('領出準備', '實際領出', '待領出', '解除待領出') "
-            "AND m.created_at >= ? AND m.created_at < ? "
-            "ORDER BY m.created_at DESC, m.id DESC"
-        )
-        movements = conn.execute(sql, [start, end]).fetchall()
-        return {"ok": True, "movements": [dict(m) for m in movements]}
-    finally:
-        conn.close()
