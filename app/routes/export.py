@@ -580,8 +580,8 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         # 但子材料因拆解產生的 delta 要保留（is_kit=0）
         filtered_movements = []
         for row in movements:
-            is_kit = row.get("is_kit", 0)
-            reason = row.get("reason", "")
+            is_kit = row["is_kit"] if "is_kit" in row.keys() else 0
+            reason = row["reason"] if "reason" in row.keys() else ""
             # 整組相關異動判定
             is_kit_operation = is_kit == 1 and any(
                 reason.startswith(prefix) for prefix in ["組裝", "拆解"]
