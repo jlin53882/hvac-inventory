@@ -367,8 +367,8 @@ def test_export_custom_range_uses_left_closed_right_open_boundaries(client):
     assert [row[0] for row in rows] == ["2026-09-01 00:00:00"]
 
 
-def test_export_movement_site_prefers_return_site_over_source_site_excluded(client):
-    """退回已領出異動應該被排除（在單一庫存匯出），只在已領出匯出中顯示（符合選項 1 設計）"""
+def test_export_movement_site_prefers_return_site_over_source_site_included(client):
+    """P0 決策：退回已領出異動應該同時顯示在單一庫存及已領出匯出（例外，符合 Q3=C）"""
     item = add_item(client, name="退回來源品", code="RETURN-SITE")
     conn = app_db.get_db()
     try:
@@ -383,7 +383,7 @@ def test_export_movement_site_prefers_return_site_over_source_site_excluded(clie
     book = export_book(client, month="2026-09", sites="warehouse")
     rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
     return_rows = [row for row in rows if row[2] == item["id"]]
-    assert not return_rows, "退回已領出異動應該被排除，不出現在單一庫存匯出"
+    assert return_rows, "退回已領出異動應該顯示，出現在單一庫存匯出（P0 決策）"
 
 
 @pytest.mark.parametrize("raw, expected", [

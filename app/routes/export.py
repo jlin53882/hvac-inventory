@@ -586,13 +586,14 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         ).fetchall()
         # 單一庫存匯出：過濾掉：
         # 1. 整組異動（組裝完成、組裝套件、拆解、拆解套件）— 只在整組匯出中顯示
-        # 2. 待領出流程全階段（領出準備、領出結帳、退回準備、退回已領出）— 只在已領出匯出中顯示
+        # 2. 待領出流程前段（領出準備、領出結帳、退回準備）— 只在已領出匯出中顯示
         # 3. 盤點異動（盤點調整等）
         # 4. Nonstock 異動（is_deleted=1）— 只在已領出匯出中顯示
+        # P0 決策：退回已領出 同時顯示在單一庫存及已領出匯出（例外）
         filtered_movements = []
         excluded_reasons = {
             "組裝完成", "組裝套件", "拆解", "拆解套件",
-            "領出準備", "領出結帳", "退回準備", "退回已領出",
+            "領出準備", "領出結帳", "退回準備",  # 不含「退回已領出」
         }
         for row in movements:
             reason = row["reason"] if "reason" in row.keys() else ""
