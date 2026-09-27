@@ -399,15 +399,6 @@
   </div>
 </div>
 
-<script src="/static/js/globals.js" defer></script>
-<script src="/static/js/auth.js" defer></script>
-<script src="/static/js/utils.js" defer></script>
-<script src="/static/js/qty.js" defer></script>
-<script src="/static/js/api.js" defer></script>
-<script src="/static/js/units.js" defer></script>
-<script src="/static/js/modals/changepw.js" defer></script>
-<script src="/static/js/modals/gcal-key.js" defer></script>
-<script src="/static/js/settings.js" defer></script>
 <script defer>
 // 2026-09-27 頁面初始化：載入預設資料
 document.addEventListener('DOMContentLoaded', async () => {
@@ -425,5 +416,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 </script>
+
+<!-- 2026-09-27 編輯櫃子 Modal -->
+<div class="modal-overlay" id="edit-cabinet-modal" onclick="if(event.target===this) closeModalForce('edit-cabinet-modal')">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="margin: 0;">編輯櫃子</h3>
+      <button class="btn-close" onclick="closeModalForce('edit-cabinet-modal')">✕</button>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+      <input type="text" id="edit-cabinet-name" placeholder="櫃子編號或名稱" style="flex: 1;">
+      <input type="text" id="edit-cabinet-note" placeholder="位置說明（選填）" style="flex: 1;">
+    </div>
+    <div style="display: flex; gap: 10px; margin-top: 18px;">
+      <button class="btn-save" style="flex: 2;" onclick="submitCabinetEdit()">💾 儲存</button>
+      <button class="btn-cancel-ghost" style="flex: 1;" onclick="closeModalForce('edit-cabinet-modal')">取消</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/globals.js" defer></script>
+<script src="/static/js/auth.js" defer></script>
+<script src="/static/js/utils.js" defer></script>
+<script src="/static/js/qty.js" defer></script>
+<script src="/static/js/api.js" defer></script>
+<script src="/static/js/units.js" defer></script>
+<script src="/static/js/modals/changepw.js" defer></script>
+<script src="/static/js/modals/gcal-key.js" defer></script>
+<script src="/static/js/settings.js" defer></script>
 </body>
 </html>

@@ -950,3 +950,44 @@ async function deleteCabinet(cabinetId) {
 async function initCabinetsTab() {
   await loadCabinets();
 }
+
+// 2026-09-27：編輯櫃子邏輯
+var currentEditCabinetId = null;
+function editCabinet(id) {
+  const cabinet = cabinetList.find(c => c.id === id);
+  if (!cabinet) return;
+  currentEditCabinetId = id;
+  document.getElementById('edit-cabinet-name').value = cabinet.name || '';
+  document.getElementById('edit-cabinet-note').value = cabinet.note || '';
+  openModal('edit-cabinet-modal');
+}
+
+async function submitCabinetEdit() {
+  const name = document.getElementById('edit-cabinet-name').value.trim();
+  if (!name) {
+    toast('請輸入櫃子編號或名稱', 'error');
+    return;
+  }
+  const note = document.getElementById('edit-cabinet-note').value.trim();
+  try {
+    const res = await fetch(`/api/cabinets/${currentEditCabinetId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, note })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '編輯失敗');
+    }
+    const data = await res.json();
+    const idx = cabinetList.findIndex(c => c.id === currentEditCabinetId);
+    if (idx >= 0) {
+      cabinetList[idx] = data;
+    }
+    renderCabinetTable();
+    closeModalForce('edit-cabinet-modal');
+    toast('✅ 已編輯櫃子「' + name + '」', 'success');
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
