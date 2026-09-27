@@ -23,6 +23,17 @@ function openAddModal() {
   if (fUnitAdd) fUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
   // 品項照片：初始化照片上傳區塊
   renderAddPhotoBox();
+  // 2026-09-27：新增時也載入最新櫃子清單
+  (async () => {
+    try {
+      const res = await fetch('/api/cabinets');
+      if (res.ok) {
+        globalCabinetList = await res.json();
+      }
+    } catch (e) {
+      console.warn('新增 modal 載入櫃子清單失敗', e);
+    }
+  })();
 }
 
 // 渲染新增 modal 的照片上傳區塊（無品項 ID，建立後自動上傳）
