@@ -193,7 +193,7 @@ function renderKitPhotoBox(kitId, hasPhoto) {
   // 新增模式（kitId = null）vs 編輯模式（kitId ≠ null）
   if (kitId === null || kitId === undefined) {
     // 新增模式：選檔後立即預覽
-    box.innerHTML = `<div style="font-size:11px;color:#999;padding:6px 0">建立後可立即上傳照片</div>
+    box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">建立後可立即上傳照片</div>
       <div id="k-photo-preview" style="margin:8px 0"></div>
       <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
         <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
@@ -223,7 +223,7 @@ function renderKitPhotoBox(kitId, hasPhoto) {
           <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteItemPhoto(${kitId})">🗑 刪除</button>
         </div>`;
     } else {
-      box.innerHTML = `<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
+      box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
         <div id="k-photo-preview" style="margin:8px 0"></div>
         <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
           <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
@@ -240,12 +240,15 @@ function renderKitPhotoBox(kitId, hasPhoto) {
 // 整組照片：選檔後本地預覽（FileReader）
 function _previewKitPhoto(input) {
   const preview = document.getElementById('k-photo-preview');
+  const message = document.getElementById('k-photo-message');
   if (!preview) return;
   const file = input.files && input.files[0];
   if (!file) {
     preview.innerHTML = '';
+    if (message) message.style.display = '';  // 顯示「尚無照片」
     return;
   }
+  if (message) message.style.display = 'none';  // 隱藏「尚無照片」
   const reader = new FileReader();
   reader.onload = function(e) {
     preview.innerHTML = `
@@ -260,7 +263,9 @@ function _previewKitPhoto(input) {
 // 清除預覽並重置輸入
 function _clearKitPhotoPreview() {
   const preview = document.getElementById('k-photo-preview');
+  const message = document.getElementById('k-photo-message');
   if (preview) preview.innerHTML = '';
+  if (message) message.style.display = '';  // 重新顯示「尚無照片」
   const cam = document.getElementById('k-photo-input');
   const album = document.getElementById('k-photo-album');
   if (cam) cam.value = '';
