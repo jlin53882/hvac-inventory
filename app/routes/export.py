@@ -718,7 +718,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         _style_header(overview, 5)
         kpis = [
             ("整組數", len(kit_items)),
-            ("總庫存", sum(item.get("qty", 0) or 0 for item in kit_locations)),
+            ("總庫存", sum((item["qty"] if "qty" in item.keys() else 0) or 0 for item in kit_locations)),
         ]
         for label, value in kpis:
             overview.append([label, value])
