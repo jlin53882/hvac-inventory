@@ -444,5 +444,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 <script src="/static/js/modals/changepw.js" defer></script>
 <script src="/static/js/modals/gcal-key.js" defer></script>
 <script src="/static/js/settings.js" defer></script>
+<script defer>
+// 2026-09-27 Settings 頁面初始化（settings.js 載入完後）
+window.addEventListener('load', async () => {
+  // 先載入 Units（全域依賴）
+  if (typeof loadUnits === 'function') {
+    await loadUnits();
+  }
+  // 預設顯示 Units Panel
+  if (typeof renderUnitsPanel === 'function') {
+    renderUnitsPanel();
+  }
+  // 預先載入 Cabinets（Settings 初始化時）
+  if (typeof loadCabinets === 'function') {
+    await loadCabinets();
+  }
+});
+</script>
 </body>
 </html>
