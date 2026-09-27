@@ -976,6 +976,11 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         _apply_workbook_styles(sheet)
         id_column = {'異動紀錄(已領出)': 3}.get(sheet.title)
         _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
+    # 確保所有 2 欄標題工作表的欄寬足夠
+    for sheet in wb.worksheets:
+        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
+            sheet.column_dimensions['A'].width = 25
+            sheet.column_dimensions['B'].width = 25
     
     buf = io.BytesIO()
     wb.save(buf)
