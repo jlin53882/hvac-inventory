@@ -966,33 +966,17 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
             
             row += 1
         
-        # 設定欄寬
-        movement.column_dimensions["A"].width = 18
-        movement.column_dimensions["B"].width = 12
-        movement.column_dimensions["C"].width = 18
-        movement.column_dimensions["D"].width = 12
-        movement.column_dimensions["E"].width = 16
-        movement.column_dimensions["F"].width = 12
-        movement.column_dimensions["G"].width = 12
-        movement.column_dimensions["H"].width = 10
-        movement.column_dimensions["I"].width = 10
-        movement.column_dimensions["J"].width = 10
-        movement.column_dimensions["K"].width = 12
-        movement.column_dimensions["L"].width = 12
+        # 自動分配欄寬（依內容長度）
+        _autofit_columns(movement)
         
         # 凍結窗格
         id_column = {'異動紀錄(已領出)': 3}.get(movement.title)
         if id_column:
             movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
     
-    # 套用全工作簿字型與格式（同單一庫存與整組匯出）
+    # 套用全工作簿字型與格式
     for sheet in wb.worksheets:
         _apply_workbook_styles(sheet)
-    # 確保所有 2 欄標題工作表的欄寬足夠
-    for sheet in wb.worksheets:
-        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
-            sheet.column_dimensions['A'].width = 25
-            sheet.column_dimensions['B'].width = 25
     
     buf = io.BytesIO()
     wb.save(buf)
