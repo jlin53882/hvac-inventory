@@ -482,10 +482,14 @@ def _movement_type(reason: str, delta: float) -> str:
         return "待領出"
     if reason.startswith("解除"):
         return "解除待領出"
+    if reason == "領出結帳":
+        return "領出結帳"
     if reason.startswith("出庫"):
         return "出庫"
     if reason == "退回已領出":
         return "退回"
+    if reason == "退回準備":
+        return "退回準備"
     if reason == "庫存調撥":
         return "調撥"
     if reason.startswith("盤點"):
