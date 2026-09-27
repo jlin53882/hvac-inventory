@@ -101,27 +101,3 @@ def test_kit_export_only_keeps_kit_movements():
 
 
 
-def test_kit_location_field_storage_contract():
-    """整組位置欄位的儲存契約"""
-    test_locations = [
-        "",                    # 未設定
-        "二樓",
-        "倉庫 A",
-        "工地 B",
-        "客戶廠房",
-    ]
-    
-    for loc in test_locations:
-        # 驗證位置字符串有效
-        assert isinstance(loc, str)
-        assert len(loc) <= 100  # 假設最大長度 100
-
-
-def test_kit_has_photo_field_in_response():
-    """整組 has_photo 欄位應在 API 返回中"""
-    # 期望：
-    # - API GET /api/kits 返回值包含 has_photo（布林值）
-    # - 邏輯：has_photo(kit.item_id)
-    # - 與子材料的 has_photo 邏輯一致
-    
-    # 驗證邏輯正確

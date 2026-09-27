@@ -298,6 +298,7 @@ def test_export_includes_assembled_kit_inventory(client):
 
 
 def test_export_kit_assemble_disassemble_movements_are_preserved(client):
+    """單一庫存異動只包含子材料 movement（組裝套件、拆解套件），不含整組 movement"""
     material = add_item(client, name="拆解材料", code="KIT-MAT-2", qty=10)
     kit_response = client.post("/api/kits", json={
         "name": "組拆整組", "brand": "測試牌", "code": "KIT-002",
@@ -310,10 +311,14 @@ def test_export_kit_assemble_disassemble_movements_are_preserved(client):
 
     book = export_book(client)
     reasons = [row[11] for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
-    assert any(str(reason).startswith("組裝套件:") for reason in reasons)
-    assert any(str(reason).startswith("組裝完成:") for reason in reasons)
-    assert any(str(reason).startswith("拆解:") for reason in reasons)
-    assert any(str(reason).startswith("拆解套件:") for reason in reasons)
+    
+    # 單一庫存應有子材料 movement
+    assert any(str(reason).startswith("組裝套件:") for reason in reasons), "應有『組裝套件:...』"
+    assert any(str(reason).startswith("拆解套件:") for reason in reasons), "應有『拆解套件:...』"
+    
+    # 單一庫存不應有整組 movement
+    assert not any(str(reason).startswith("組裝完成:") for reason in reasons), "不應有『組裝完成:...』"
+    assert not any(str(reason).startswith("拆解:") and "拆解套件" not in str(reason) for reason in reasons), "不應有『拆解:...』（非拆解套件）"
 
 
 def test_export_movements_exclude_soft_deleted_item_history(client):
@@ -612,3 +617,76 @@ def test_stockout_export_headers_and_site_labels(client):
     assert book is not None
     assert "異動紀錄(已領出)" in book.sheetnames
     book.close()
+
+
+def test_kit_movement_ownership_assemble_disassemble(client):
+    """整組組裝/拆解：驗證 movement 出現在正確的 export（單一庫存 vs 整組）"""
+    from io import BytesIO
+    from openpyxl import load_workbook
+    
+    # 建立材料
+    mat1 = add_item(client, name="組裝材料1", code="MAT-1", qty=10)
+    mat2 = add_item(client, name="組裝材料2", code="MAT-2", qty=5)
+    
+    # 建立整組
+    kit_resp = client.post("/api/kits", json={
+        "name": "測試整組A", "brand": "測試", "code": "KIT-A",
+        "site": "office", "location": "A架",
+        "items": [
+            {"item_id": mat1["id"], "qty": 2},
+            {"item_id": mat2["id"], "qty": 1},
+        ]
+    })
+    assert kit_resp.status_code == 201
+    kit = kit_resp.json()
+    
+    # 【組裝】
+    assemble_resp = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 1})
+    assert assemble_resp.status_code == 200
+    
+    # 【驗證：單一庫存 export】
+    single_resp = client.get("/api/export?sections=movements")
+    assert single_resp.status_code == 200
+    single_book = load_workbook(BytesIO(single_resp.content))
+    single_ws = single_book["異動紀錄(單一庫存)"]
+    
+    # 單一庫存應有子材料 movement（組裝套件:...）
+    single_rows = [single_ws.cell(r, 12).value for r in range(6, single_ws.max_row + 1)]
+    has_assemble_material = any("組裝套件" in str(v) for v in single_rows if v)
+    assert has_assemble_material, "單一庫存應有『組裝套件』movement"
+    
+    # 單一庫存不應有整組 movement（組裝完成:...）
+    has_assemble_kit = any("組裝完成" in str(v) for v in single_rows if v)
+    assert not has_assemble_kit, "單一庫存不應有『組裝完成』movement"
+    
+    # 【驗證：整組 export】
+    kit_resp = client.get("/api/kit-export?sections=movements")
+    assert kit_resp.status_code == 200
+    kit_book = load_workbook(BytesIO(kit_resp.content))
+    kit_ws = kit_book["異動紀錄(整組)"]
+    
+    # 整組應有整組 movement（組裝完成:...）
+    kit_rows = [kit_ws.cell(r, 12).value for r in range(6, kit_ws.max_row + 1)]
+    has_kit_assemble = any("組裝完成" in str(v) for v in kit_rows if v)
+    assert has_kit_assemble, "整組應有『組裝完成』movement"
+    
+    # 【拆解】
+    disassemble_resp = client.post(f"/api/kits/{kit['id']}/disassemble", json={"qty": 1})
+    assert disassemble_resp.status_code == 200
+    
+    # 【驗證：單一庫存 export（拆解）】
+    single_resp = client.get("/api/export?sections=movements")
+    single_book = load_workbook(BytesIO(single_resp.content))
+    single_ws = single_book["異動紀錄(單一庫存)"]
+    
+    single_rows = [single_ws.cell(r, 12).value for r in range(6, single_ws.max_row + 1)]
+    # 應有拆解套件
+    has_disassemble_material = any("拆解套件" in str(v) for v in single_rows if v)
+    assert has_disassemble_material, "單一庫存應有『拆解套件』movement"
+    
+    # 不應有拆解（整組）
+    has_disassemble_kit = any(str(v).startswith("拆解:") if v else False for v in single_rows)
+    assert not has_disassemble_kit, "單一庫存不應有『拆解:...』movement"
+    
+    single_book.close()
+    kit_book.close()

@@ -663,23 +663,23 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         # 4. Nonstock 異動（is_deleted=1）— 只在已領出匯出中顯示
         # P0 決策：退回已領出 同時顯示在單一庫存及已領出匯出（例外）
         filtered_movements = []
-        # 排除整組自身的流程（組裝/拆解），但允許包含子項細節的變體
-        excluded_exact = {
-            "組裝完成", "組裝套件", "拆解", "拆解套件",
-            "領出準備", "領出結帳", "退回準備"
-        }
+        # 整組自身 movement（is_kit=1）排除：組裝完成、拆解 等
+        # 但保留子材料 movement（is_kit=0）：組裝套件、拆解套件 等
+        kit_movement_prefixes = ("組裝完成", "拆解")
         
         for row in movements:
             reason = row["reason"] if "reason" in row.keys() else ""
             is_deleted = row["is_deleted"] if "is_deleted" in row.keys() else 0
+            is_kit = row["is_kit"] if "is_kit" in row.keys() else 0
             
             # 判定是否排除
-            is_excluded_exact = reason in excluded_exact
+            is_kit_movement = is_kit and any(reason.startswith(p) for p in kit_movement_prefixes)
             is_checkpoint = reason.startswith("盤點")
-            is_nonstock = is_deleted == 1  # nonstock 品項
+            is_nonstock = is_deleted == 1
+            is_leadout_prep = reason in ("領出準備", "領出結帳", "退回準備")
             
-            # 排除上述四類，但允許帶子項細節的變體（如「組裝:KIT-001」）
-            if not (is_excluded_exact or is_checkpoint or is_nonstock):
+            # 排除：整組 movement、盤點、nonstock、領出準備流程
+            if not (is_kit_movement or is_checkpoint or is_nonstock or is_leadout_prep):
                 filtered_movements.append(row)
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
