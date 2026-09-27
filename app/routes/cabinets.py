@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/api/cabinets", dependencies=[Depends(require_perm("settings-read"))])
+@router.get("/api/cabinets")
 def get_cabinets():
     """取得全部櫃子清單"""
     try:
@@ -36,7 +36,7 @@ def get_cabinets():
         raise HTTPException(500, "查詢失敗")
 
 
-@router.post("/api/cabinets", status_code=201, dependencies=[Depends(require_perm("settings-write"))])
+@router.post("/api/cabinets", status_code=201, dependencies=[Depends(require_perm("user-mgmt"))])
 def create_cabinet(data: CabinetCreate):
     """新增櫃子"""
     try:
@@ -67,7 +67,7 @@ def create_cabinet(data: CabinetCreate):
         raise HTTPException(500, "新增失敗")
 
 
-@router.put("/api/cabinets/{cabinet_id}", dependencies=[Depends(require_perm("settings-write"))])
+@router.put("/api/cabinets/{cabinet_id}", dependencies=[Depends(require_perm("user-mgmt"))])
 def update_cabinet(cabinet_id: int, data: CabinetUpdate):
     """編輯櫃子"""
     try:
@@ -99,7 +99,7 @@ def update_cabinet(cabinet_id: int, data: CabinetUpdate):
         raise HTTPException(500, "編輯失敗")
 
 
-@router.delete("/api/cabinets/{cabinet_id}", dependencies=[Depends(require_perm("settings-write"))])
+@router.delete("/api/cabinets/{cabinet_id}", dependencies=[Depends(require_perm("user-mgmt"))])
 def delete_cabinet(cabinet_id: int):
     """刪除櫃子"""
     try:

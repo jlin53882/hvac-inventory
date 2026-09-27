@@ -67,8 +67,12 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
             d["stock_qty"] = totals[k["item_id"]]
             # 整組照片指示（供前端判斷是否顯示圖片）
             d["has_photo"] = has_photo(k["item_id"])
-            # 整組存放位置（2026-09-27 位置欄位需求）
-            # 位置已在 kits.location 中，dict() 會自動帶出
+            # 整組多位置清單（2026-09-27 多位置管理）
+            loc_rows = conn.execute(
+                "SELECT cabinet, position, qty, note FROM kit_locations WHERE kit_id = ? ORDER BY id ASC",
+                (k["id"],)
+            ).fetchall()
+            d["locations"] = [dict(r) for r in loc_rows]
             comps = []
             for x in comps_by_kit.get(k["id"], []):
                 cx = dict(x)
@@ -105,8 +109,8 @@ def create_kit(kit: KitCreate):
                      (kit_item_id, "", 0, kit.note))
         # 建立套件定義
         cur2 = conn.execute(
-            "INSERT INTO kits (item_id, name, note, location) VALUES (?,?,?,?)",
-            (kit_item_id, kit.name, kit.note, kit.location.strip()),
+            "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
+            (kit_item_id, kit.name, kit.note),
         )
         kit_id = cur2.lastrowid
         seen_items: set = set()
@@ -182,13 +186,13 @@ def update_kit(kit_id: int, kit: KitCreate):
         # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
         if kit.updated_at:
             cur = conn.execute(
-                "UPDATE kits SET name=?, note=?, location=?, updated_at=datetime('now') WHERE id=? AND updated_at=?",
-                (kit.name, kit.note, kit.location or "", kit_id, kit.updated_at))
+                "UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=? AND updated_at=?",
+                (kit.name, kit.note, kit_id, kit.updated_at))
             if cur.rowcount == 0:
                 raise HTTPException(409, "該整組已被他人修改，請重新整理後再編輯")
         else:
-            conn.execute("UPDATE kits SET name=?, note=?, location=?, updated_at=datetime('now') WHERE id=?",
-                         (kit.name, kit.note, kit.location or "", kit_id))
+            conn.execute("UPDATE kits SET name=?, note=?, updated_at=datetime('now') WHERE id=?",
+                         (kit.name, kit.note, kit_id))
         try:
             conn.execute("UPDATE items SET name=?, brand=?, code=?, updated_at=? WHERE id=?",
                          (kit.name, kit.brand.strip(), kit.code.strip(), datetime.datetime.now().isoformat(), row["item_id"]))
@@ -427,7 +431,12 @@ def _save_kit_locations(conn, kit_id: int, locations: list) -> None:
     """清空既有位置，批次插入新位置列"""
     conn.execute("DELETE FROM kit_locations WHERE kit_id = ?", (kit_id,))
     for loc in locations:
+        # loc 是 KitLocation Pydantic 模型，用屬性存取
+        cabinet = loc.cabinet if hasattr(loc, 'cabinet') else loc.get('cabinet', '')
+        position = loc.position if hasattr(loc, 'position') else loc.get('position', '')
+        qty = loc.qty if hasattr(loc, 'qty') else loc.get('qty', 0)
+        note = loc.note if hasattr(loc, 'note') else loc.get('note', '')
         conn.execute(
             "INSERT INTO kit_locations (kit_id, cabinet, position, qty, note) VALUES (?,?,?,?,?)",
-            (kit_id, loc.get("cabinet", ""), loc.get("position", ""), loc.get("qty", 0), loc.get("note", ""))
+            (kit_id, cabinet, position, qty, note)
         )
