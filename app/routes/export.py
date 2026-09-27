@@ -751,3 +751,146 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         filename = f"整組報表_{stamp}.xlsx"
     
     return xlsx_download(buf.getvalue(), filename)
+
+
+@router.get("/api/stockout-export", dependencies=[Depends(require_perm("export"))])
+def export_stockout_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sections: str | None = None):
+    """
+    已領出專用匯出端點 (2026-09-27)
+    
+    已領出品項的匯出報表，包含異動紀錄與簡化的總覽。
+    
+    Args:
+        month: 可選的 YYYY-MM 期間。
+        start_date: YYYY-MM-DD 格式的自訂區間起日。
+        end_date: YYYY-MM-DD 格式的自訂區間迄日。
+        days: 可選的近幾日區間。
+        sections: 以逗號分隔的工作表識別碼。
+    
+    Returns:
+        包含所選工作表的 XLSX 下載回應。
+    """
+    selected_sections = _parse_export_sections(sections)
+    if days is not None and month is None and start_date is None and end_date is None:
+        if days < 0 or days > MAX_RANGE_DAYS:
+            raise HTTPException(400, "days 必須介於 0 到 366")
+        now = dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
+        start = now - dt.timedelta(days=days)
+        end = now
+        period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"
+        display_period = period
+    else:
+        start, end, period, display_period = _parse_export_range(month, start_date, end_date)
+    
+    conn = get_db()
+    try:
+        # 查詢已領出的異動（領出準備、實際領出、待領出、解除待領出）
+        movement_sql = (
+            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
+            "m.destination, m.reason, i.site, i.brand, i.name, i.code, i.is_kit "
+            "FROM movements m JOIN items i ON i.id=m.item_id "
+            "WHERE m.reason IN ('領出準備', '實際領出', '待領出', '解除待領出') "
+            "AND m.created_at >= ? AND m.created_at < ? "
+            "ORDER BY m.created_at DESC, m.id DESC"
+        )
+        movements = conn.execute(movement_sql, [movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)]).fetchall()
+    finally:
+        conn.close()
+    
+    wb = Workbook()
+    wb.remove(wb.active)
+    wb.calculation.fullCalcOnLoad = True
+    wb.calculation.forceFullCalc = True
+    wb.calculation.calcMode = "auto"
+    
+    period_text = _period_text(period, display_period)
+    
+    if "overview" in selected_sections:
+        overview = wb.create_sheet("01 總覽")
+        _style_title(overview, "已領出報表", period_text)
+        # 已領出 KPI
+        _write_headers(overview, ["指標", "數值"])
+        _style_header(overview, 5)
+        
+        # 統計已領出的異動
+        movement_count = len(movements)
+        total_delta = sum(abs(m["delta"]) for m in movements)
+        
+        kpis = [
+            ("領出紀錄數", movement_count),
+            ("累計領出數量", total_delta),
+        ]
+        for i, (label, value) in enumerate(kpis, 6):
+            overview[f"A{i}"] = label
+            overview[f"B{i}"] = value
+            overview[f"B{i}"].number_format = "@" if isinstance(value, str) else "0"
+        
+        overview.column_dimensions["A"].width = 20
+        overview.column_dimensions["B"].width = 15
+    
+    if "movements" in selected_sections:
+        movement = wb.create_sheet("異動紀錄(已領出)")
+        _style_title(movement, "已領出異動紀錄", period_text)
+        headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
+        _write_headers(movement, headers)
+        _style_header(movement, 5)
+        
+        row = 5
+        for m in movements:
+            movement[f"A{row}"] = m["created_at"]
+            movement[f"B{row}"] = "整組異動" if m.get("is_kit") else "品項異動"
+            movement[f"C{row}"] = m["item_id"]
+            movement[f"D{row}"] = m["brand"]
+            movement[f"E{row}"] = m["name"]
+            movement[f"F{row}"] = m["code"]
+            movement[f"G{row}"] = m["site"]
+            movement[f"H{row}"] = m["delta"]
+            movement[f"I{row}"] = m["before_qty"]
+            movement[f"J{row}"] = m["after_qty"]
+            movement[f"K{row}"] = m["destination"]
+            movement[f"L{row}"] = m["reason"]
+            
+            # 格式化
+            for col in "ABCDEFGHIJKL":
+                cell = movement[f"{col}{row}"]
+                cell.font = Font(name="微軟正黑體")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                if col in "CHIJ":
+                    cell.number_format = "0"
+                else:
+                    cell.number_format = "@"
+            
+            row += 1
+        
+        # 設定欄寬
+        movement.column_dimensions["A"].width = 18
+        movement.column_dimensions["B"].width = 12
+        movement.column_dimensions["C"].width = 18
+        movement.column_dimensions["D"].width = 12
+        movement.column_dimensions["E"].width = 16
+        movement.column_dimensions["F"].width = 12
+        movement.column_dimensions["G"].width = 12
+        movement.column_dimensions["H"].width = 10
+        movement.column_dimensions["I"].width = 10
+        movement.column_dimensions["J"].width = 10
+        movement.column_dimensions["K"].width = 12
+        movement.column_dimensions["L"].width = 12
+        
+        # 凍結窗格
+        id_column = {"異動紀錄(已領出)": 3}.get(movement.title)
+        if id_column:
+            movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
+    
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    
+    stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
+    if month and not start_date and not end_date:
+        filename = f"已領出報表_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
+    elif start_date and end_date:
+        filename = f"已領出報表_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
+    else:
+        filename = f"已領出報表_{stamp}.xlsx"
+    
+    return xlsx_download(buf.getvalue(), filename)
