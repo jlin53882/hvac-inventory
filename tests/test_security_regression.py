@@ -103,6 +103,8 @@ REVIEWED_SAFE_BODIES = {
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'partial_failed' ? '部分同步失敗' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '✅' : e.sync_status === 'partial_failed' ? '⚠️' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''",
+    # 整組卡片照片內插（2026-09-27 Phase 2：kitPhoto 為內部生成 HTML，photoSrc 回傳 URL；均由自有邏輯生成，無使用者輸入）
+    "photoSrc(k.item_id, 'thumbnail')", "kitPhoto",
     # sync_error（2026-09-15：syncErr 內含 esc() 跳脫，安全）
     "syncErr",
     # settings.js（2026-08-16 設定中心）：u.is_active 為 DB bool 常數輸出（同帳號頁模式）；u.count 為 COUNT(*) 數字（已 esc）
