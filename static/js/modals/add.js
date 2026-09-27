@@ -139,3 +139,38 @@ async function submitAdd() {
     toast('新增失敗', 'error');
   }
 }
+// 2026-09-27：動態載入櫃子清單（settings 同步）
+async function loadCabinetOptions() {
+  try {
+    const res = await fetch('/api/cabinets');
+    if (res.ok) {
+      const cabinets = await res.json();
+      const select = document.getElementById('f-cabinet');
+      if (select) {
+        // 保留「請選擇」選項
+        const currentValue = select.value;
+        const options = select.querySelectorAll('option');
+        const firstOption = options[0];
+        select.innerHTML = '';
+        select.appendChild(firstOption);
+        // 添加新選項
+        cabinets.forEach(cab => {
+          const opt = document.createElement('option');
+          opt.value = cab.name;
+          opt.textContent = cab.name + (cab.note ? ` (${cab.note})` : '');
+          select.appendChild(opt);
+        });
+        select.value = currentValue;
+      }
+    }
+  } catch (e) {
+    console.error('載入櫃子清單失敗', e);
+  }
+}
+
+// 在 openAddModal 中呼叫
+const originalOpenAddModal = openAddModal;
+openAddModal = function() {
+  originalOpenAddModal.call(this);
+  loadCabinetOptions();
+};

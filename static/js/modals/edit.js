@@ -193,3 +193,30 @@ async function submitEdit() {
     toast('儲存失敗', 'error');
   }
 }
+// 2026-09-27：編輯 modal 也要動態載入櫃子清單
+async function loadEditCabinetOptions() {
+  try {
+    const res = await fetch('/api/cabinets');
+    if (res.ok) {
+      const cabinets = await res.json();
+      const selects = document.querySelectorAll('[id*="cabinet"]');
+      selects.forEach(select => {
+        if (!select.id.includes('location')) {  // 避免位置表單欄位
+          const currentValue = select.value;
+          const firstOption = select.querySelector('option:first-child');
+          select.innerHTML = '';
+          if (firstOption) select.appendChild(firstOption);
+          cabinets.forEach(cab => {
+            const opt = document.createElement('option');
+            opt.value = cab.name;
+            opt.textContent = cab.name + (cab.note ? ` (${cab.note})` : '');
+            select.appendChild(opt);
+          });
+          select.value = currentValue;
+        }
+      });
+    }
+  } catch (e) {
+    console.error('載入櫃子清單失敗', e);
+  }
+}
