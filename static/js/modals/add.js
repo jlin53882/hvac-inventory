@@ -164,10 +164,11 @@ async function loadCabinetOptions() {
         const firstOption = options[0];
         select.innerHTML = '';
         select.appendChild(firstOption);
-        // 添加新選項
+        // 添加新選項（包含備註）
         cabinets.forEach(cab => {
           const opt = document.createElement('option');
           opt.value = cab.name;
+          // 顯示格式：編號A (備註內容)
           opt.textContent = cab.name + (cab.note ? ` (${cab.note})` : '');
           select.appendChild(opt);
         });

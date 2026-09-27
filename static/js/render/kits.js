@@ -179,6 +179,7 @@ function renderKitCard(k, isViewer, isM) {
         <div class="kit-meta">
           ${k.code ? `<span class="kit-code">型號 ${esc(k.code)}</span>` : ''}
           ${locDisplay ? `<span class="kit-location">📍 ${locDisplay}</span>` : ''}
+          ${k.note ? `<span class="kit-note-tag">📝 ${esc(k.note)}</span>` : ''}
           <span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>
           ${renderKitStatusBadge(status.status)}
           <span class="kit-comp-count">${components.length} 項組成材料</span>
