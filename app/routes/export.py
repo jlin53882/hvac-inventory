@@ -34,82 +34,6 @@ TITLE_FILL = "163B63"
 STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"}
 
 
-def _fix_inlinestr_headers(buf: io.BytesIO) -> None:
-    """修復 inlineStr 格式的儲存格字型：在 <is> 內加入 <rPr> 以確保 Excel 正確顯示。
-    
-    openpyxl 在寫入帶格式的儲存格時，有時會使用 inlineStr 格式（內聯字串）。
-    當 Excel 看到 inlineStr 時，只會讀取 <is><rPr> 內的字型定義，忽略外部樣式。
-    此函式修復 XML，添加明確的字型定義。
-    """
-    import zipfile
-    import xml.etree.ElementTree as ET
-    
-    # 暫存檔案
-    buf.seek(0)
-    with zipfile.ZipFile(buf, 'r') as zip_ref:
-        # 讀取 worksheet XML（通常是 sheet1.xml）
-        sheet_names = [n for n in zip_ref.namelist() if n.startswith('xl/worksheets/sheet')]
-        
-        for sheet_name in sheet_names:
-            ws_xml = zip_ref.read(sheet_name).decode('utf-8')
-            
-            # 找所有 inlineStr 格式的儲存格並加入 <rPr>
-            # 模式：<c ... t="inlineStr"><is><t>...</t></is></c>
-            # 改為：<c ... t="inlineStr"><is><rPr><rFont val="Microsoft JhengHei"/><b/><color rgb="00FFFFFF"/><sz val="11"/></rPr><t>...</t></is></c>
-            
-            def fix_inlinestr(match):
-                """為每個 inlineStr 儲存格加入字型定義。"""
-                cell_xml = match.group(0)
-                
-                # 檢查是否已有 <rPr>
-                if '<rPr>' in cell_xml:
-                    return cell_xml
-                
-                # 判斷儲存格的樣式 ID（s="N"）以決定字型
-                style_match = re.search(r's="(\d+)"', cell_xml)
-                if not style_match:
-                    return cell_xml
-                
-                style_id = int(style_match.group(1))
-                
-                # 根據樣式 ID 選擇字型定義
-                if style_id == 1:  # 標題 A1
-                    rpr = '<rPr><rFont val="Microsoft JhengHei"/><b/><color rgb="00FFFFFF"/><sz val="18"/></rPr>'
-                elif style_id == 2:  # 副標題 A2
-                    rpr = '<rPr><rFont val="Microsoft JhengHei"/><i/><color rgb="00475569"/><sz val="10"/></rPr>'
-                elif style_id == 3:  # 表頭 A5
-                    rpr = '<rPr><rFont val="Microsoft JhengHei"/><b/><color rgb="00FFFFFF"/><sz val="11"/></rPr>'
-                else:
-                    return cell_xml
-                
-                # 在 <is> 後、<t> 前插入 <rPr>
-                return re.sub(r'(<is>)', r'\1' + rpr, cell_xml)
-            
-            # 應用修復
-            ws_xml = re.sub(r'<c r="[A-Z0-9]+" s="[0-9]+"[^>]*t="inlineStr"[^>]*>.*?</c>', fix_inlinestr, ws_xml, flags=re.DOTALL)
-    
-    # 重寫 ZIP（覆蓋原 buf）
-    temp_buf = io.BytesIO()
-    buf.seek(0)
-    with zipfile.ZipFile(buf, 'r') as zip_in:
-        with zipfile.ZipFile(temp_buf, 'w', zipfile.ZIP_DEFLATED) as zip_out:
-            for item in zip_in.infolist():
-                if item.filename.startswith('xl/worksheets/sheet'):
-                    # 重新寫入修復過的工作表
-                    sheet_name = item.filename
-                    modified_xml = ws_xml if sheet_name in [n for n in zip_in.namelist() if n.startswith('xl/worksheets/sheet')] else zip_in.read(item.filename)
-                    zip_out.writestr(item, modified_xml if isinstance(modified_xml, bytes) else modified_xml.encode('utf-8'))
-                else:
-                    # 其他檔案保持原樣
-                    zip_out.writestr(item, zip_in.read(item.filename))
-    
-    # 覆蓋原 buf
-    buf.truncate(0)
-    buf.seek(0)
-    buf.write(temp_buf.getvalue())
-    buf.seek(0)
-
-
 def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str, str]:
     """解析月份或自訂日期範圍，回傳 SQL 邊界與 Excel 顯示期間。"""
     now = now or dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
@@ -953,12 +877,13 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     
     conn = get_db()
     try:
-        # 查詢已領出的異動（領出準備 → 領出結帳 的流程 + nonstock 出庫）
+        # 查詢已領出的異動：直接出庫（出庫%）+ 退回已領出
+        # 對齊 /api/stockouts contract: m.delta < 0 AND m.reason LIKE '出庫%'
         movement_sql = (
             "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
             "m.destination, m.reason, i.site, i.brand, i.name, i.code, i.is_kit, i.is_deleted "
             "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE (m.reason IN ('領出準備', '領出結帳', '退回準備', '退回已領出') OR i.is_deleted=1) "
+            "WHERE ((m.delta < 0 AND m.reason LIKE '出庫%') OR m.reason = '退回已領出') "
             "AND m.created_at >= ? AND m.created_at < ? "
             "ORDER BY m.created_at DESC, m.id DESC"
         )
@@ -1004,7 +929,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         _write_headers(movement, headers)
         _style_header(movement, 5)
         
-        row = 5
+        row = 6
         for m in movements:
             movement[f"A{row}"] = m["created_at"]
             movement[f"B{row}"] = "整組異動" if m["is_kit"] else "品項異動"
@@ -1061,10 +986,6 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     
     buf = io.BytesIO()
     wb.save(buf)
-    buf.seek(0)
-    
-    # 修復 inlineStr 格式的表頭字型：加入 <rPr> 以確保 Excel 顯示
-    _fix_inlinestr_headers(buf)
     buf.seek(0)
     
     stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
