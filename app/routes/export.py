@@ -966,17 +966,16 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
             
             row += 1
         
-        # 自動分配欄寬（依內容長度）
-        _autofit_columns(movement)
-        
         # 凍結窗格
         id_column = {'異動紀錄(已領出)': 3}.get(movement.title)
         if id_column:
             movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
     
-    # 套用全工作簿字型與格式
+    # 套用全工作簿字型與格式，並自動分配所有 sheet 的欄寬
     for sheet in wb.worksheets:
         _apply_workbook_styles(sheet)
+        id_column = {'異動紀錄(已領出)': 3}.get(sheet.title)
+        _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
     
     buf = io.BytesIO()
     wb.save(buf)
