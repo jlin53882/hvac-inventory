@@ -91,8 +91,8 @@ async function submitStockoutExport() {
   }
   
   try {
-    // 臨時使用既有 export 路由，type=stockout 區分（需後端支援）
-    const response = await fetch(`/api/export?${params.toString()}&type=stockout`);
+    // 呼叫已領出專用匯出端點
+    const response = await fetch(`/api/stockout-export?${params.toString()}&sections=overview,movements`);
     if (!response.ok) {
       let message = `HTTP ${response.status}`;
       try {
