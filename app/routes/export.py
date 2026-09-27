@@ -256,6 +256,76 @@ def _build_position_sheet(ws, positions, qty_types):
         _write_empty(ws, 6)
 
 
+
+
+# ========== 整組庫存專用匯出 Builders ==========
+
+def _build_kit_inventory_sheet(ws, kit_items, kit_locations, qty_types):
+    """整組庫存總表（只含整組品項，不含子材料）"""
+    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "單位", "低庫存門檻", "總庫存", "庫存狀態"]
+    _write_headers(ws, headers)
+    _style_header(ws, 5)
+    
+    qty_by_id = {item["id"]: item.get("qty", 0) or 0 for item in kit_locations}
+    
+    for item in kit_items:
+        qty = qty_by_id.get(item["id"], 0)
+        status = "缺貨" if qty == 0 else ("低庫存" if item.get("low_stock") and qty <= item["low_stock"] else "正常")
+        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), item.get("low_stock") or 0, qty, status])
+    
+    if kit_items:
+        _add_table(ws, "tblKitInventory", 5)
+        _style_data(ws, 5, qty_columns=(7,))
+        for row in range(6, ws.max_row + 1):
+            ws.cell(row, 1).alignment = Alignment(horizontal="center")
+            fmt = _qty_format(qty_types.get(str(ws.cell(row, 5).value).lstrip("'"), "decimal"))
+            ws.cell(row, 7).number_format = fmt
+    else:
+        _write_empty(ws, 6)
+
+
+def _build_kit_position_sheet(ws, kit_locations, qty_types):
+    """整組位置明細（每個整組本身位置一列）"""
+    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "單位", "位置", "位置數量"]
+    _write_headers(ws, headers)
+    _style_header(ws, 5)
+    
+    for item in kit_locations:
+        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), _safe(item.get("location") or ""), item.get("qty", 0) or 0])
+    
+    if kit_locations:
+        _add_table(ws, "tblKitPosition", 5)
+        _style_data(ws, 5, qty_columns=(7,))
+        for row in range(6, ws.max_row + 1):
+            ws.cell(row, 7).number_format = _qty_format(qty_types.get(str(ws.cell(row, 5).value).lstrip("'"), "decimal"))
+    else:
+        _write_empty(ws, 6)
+
+
+def _build_kit_alert_sheet(ws, kit_items, kit_locations):
+    """整組庫存警示（低庫存/缺貨整組）"""
+    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "低庫存門檻", "目前庫存", "狀態"]
+    _write_headers(ws, headers)
+    _style_header(ws, 5)
+    
+    qty_by_id = {item["id"]: item.get("qty", 0) or 0 for item in kit_locations}
+    alerts = []
+    
+    for item in kit_items:
+        qty = qty_by_id.get(item["id"], 0)
+        if qty == 0 or (item.get("low_stock") and qty <= item["low_stock"]):
+            status = "缺貨" if qty == 0 else "低庫存"
+            alerts.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), item.get("low_stock") or 0, qty, status])
+    
+    if alerts:
+        for row in alerts:
+            ws.append(row)
+        _add_table(ws, "tblKitAlert", 5)
+        _style_data(ws, 5, qty_columns=(6,))
+    else:
+        _write_empty(ws, 6, "目前沒有低庫存或缺貨的整組")
+
+
 def _build_movement_sheet(ws, movements):
     """建立期間異動紀錄，保留原始數量並依值套用顯示格式。"""
     headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
@@ -558,4 +628,126 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         filename = f"庫存報表_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
     else:
         filename = f"庫存報表_{stamp}.xlsx"
+    return xlsx_download(buf.getvalue(), filename)
+
+
+@router.get("/api/kit-export", dependencies=[Depends(require_perm("export"))])
+def export_kit_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sections: str | None = None):
+    """
+    整組庫存專用匯出端點 (2026-09-27)
+    
+    類似單一庫存匯出，但只含整組品項、位置與異動紀錄。
+    不支援庫存區篩選（整組沒有庫存區分）。
+    
+    Args:
+        month: 可選的 YYYY-MM 期間。
+        start_date: YYYY-MM-DD 格式的自訂區間起日。
+        end_date: YYYY-MM-DD 格式的自訂區間迄日。
+        days: 可選的近幾日區間。
+        sections: 以逗號分隔的工作表識別碼。
+    
+    Returns:
+        包含所選工作表的 XLSX 下載回應。
+    """
+    selected_sections = _parse_export_sections(sections)
+    if days is not None and month is None and start_date is None and end_date is None:
+        if days < 0 or days > MAX_RANGE_DAYS:
+            raise HTTPException(400, "days 必須介於 0 到 366")
+        now = dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
+        start = now - dt.timedelta(days=days)
+        end = now
+        period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"
+        display_period = period
+    else:
+        start, end, period, display_period = _parse_export_range(month, start_date, end_date)
+    
+    conn = get_db()
+    try:
+        # 查詢整組品項（is_kit=1）
+        kit_items = conn.execute(
+            "SELECT id, category, brand, name, code, unit, low_stock, location FROM items WHERE is_kit=1 AND is_deleted=0 ORDER BY brand COLLATE NOCASE, name, id"
+        ).fetchall()
+        
+        # 查詢整組位置（每個整組只有一個位置）
+        kit_locations = conn.execute(
+            "SELECT i.id, i.brand, i.name, i.code, i.unit, i.location, SUM(s.qty) as qty, '' as note "
+            "FROM items i LEFT JOIN item_stocks s ON s.item_id=i.id "
+            "WHERE i.is_kit=1 AND i.is_deleted=0 "
+            "GROUP BY i.id"
+        ).fetchall()
+        
+        # 查詢整組異動（只含組裝/拆解）
+        movement_sql = (
+            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
+            "m.destination, m.reason, i.site, i.brand, i.name, i.code "
+            "FROM movements m JOIN items i ON i.id=m.item_id "
+            "WHERE i.is_kit=1 AND (m.reason LIKE '組裝%' OR m.reason LIKE '拆解%') "
+            "AND m.created_at >= ? AND m.created_at < ? "
+            "ORDER BY m.created_at DESC, m.id DESC"
+        )
+        movements = conn.execute(movement_sql, [movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)]).fetchall()
+        
+        qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
+    finally:
+        conn.close()
+    
+    wb = Workbook()
+    wb.remove(wb.active)
+    wb.calculation.fullCalcOnLoad = True
+    wb.calculation.forceFullCalc = True
+    wb.calculation.calcMode = "auto"
+    
+    period_text = _period_text(period, display_period)
+    
+    if "overview" in selected_sections:
+        overview = wb.create_sheet("01 總覽")
+        _style_title(overview, "整組庫存報表", period_text)
+        # 簡化的整組 KPI（無庫存區概念）
+        _write_headers(overview, ["指標", "數值"])
+        _style_header(overview, 5)
+        kpis = [
+            ("整組數", len(kit_items)),
+            ("總庫存", sum(item.get("qty", 0) or 0 for item in kit_locations)),
+        ]
+        for label, value in kpis:
+            overview.append([label, value])
+    
+    if "inventory" in selected_sections:
+        inventory = wb.create_sheet("庫存總表(整組)")
+        _style_title(inventory, "整組庫存總表", period_text)
+        _build_kit_inventory_sheet(inventory, kit_items, kit_locations, qty_types)
+    
+    if "positions" in selected_sections:
+        position = wb.create_sheet("位置明細(整組)")
+        _style_title(position, "整組位置明細", period_text)
+        _build_kit_position_sheet(position, kit_locations, qty_types)
+    
+    if "alerts" in selected_sections:
+        alerts = wb.create_sheet("庫存警示(整組)")
+        _style_title(alerts, "整組庫存警示", period_text)
+        # 顯示低庫存/缺貨的整組
+        _build_kit_alert_sheet(alerts, kit_items, kit_locations)
+    
+    if "movements" in selected_sections:
+        movement = wb.create_sheet("異動紀錄(整組)")
+        _style_title(movement, "整組異動紀錄", period_text)
+        _build_movement_sheet(movement, movements)
+    
+    for sheet in wb.worksheets:
+        _apply_workbook_styles(sheet)
+        id_column = {"庫存總表(整組)": 1, "位置明細(整組)": 1, "庫存警示(整組)": 2, "異動紀錄(整組)": 3}.get(sheet.title)
+        _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
+    
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    
+    stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
+    if month and not start_date and not end_date:
+        filename = f"整組報表_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
+    elif start_date and end_date:
+        filename = f"整組報表_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
+    else:
+        filename = f"整組報表_{stamp}.xlsx"
+    
     return xlsx_download(buf.getvalue(), filename)
