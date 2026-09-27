@@ -27,6 +27,7 @@ SITES = {"office": "公司", "warehouse": "倉庫", "van": "廂型車", "truck":
 SITE_ORDER = tuple(SITES)
 MAX_RANGE_DAYS = 366
 DEFAULT_EXPORT_SECTIONS = ("inventory", "positions", "movements")
+DEFAULT_STOCKOUT_SECTIONS = ("movements",)  # 已領出匯出預設只包含異動紀錄
 EXPORT_SECTION_ORDER = ("overview", "inventory", "positions", "alerts", "movements", "stats")
 HEADER_FILL = "2E5C8A"
 TITLE_FILL = "163B63"
@@ -280,10 +281,10 @@ def _apply_workbook_styles(ws: Worksheet) -> None:
                 break
 
 
-def _parse_export_sections(sections: str | None) -> set[str]:
-    """驗證要求匯出的工作表；未指定時採用標準三張工作表作為預設。"""
+def _parse_export_sections(sections: str | None, default_sections: tuple = DEFAULT_EXPORT_SECTIONS) -> set[str]:
+    """驗證要求匯出的工作表；未指定時採用指定的預設工作表。"""
     if sections is None:
-        return set(DEFAULT_EXPORT_SECTIONS)
+        return set(default_sections)
     requested = [part.strip() for part in sections.split(",") if part.strip()]
     if not requested or any(part not in EXPORT_SECTION_ORDER for part in requested):
         raise HTTPException(400, "sections 含有不合法的匯出工作表")
@@ -929,7 +930,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     Returns:
         包含所選工作表的 XLSX 下載回應。
     """
-    selected_sections = _parse_export_sections(sections)
+    selected_sections = _parse_export_sections(sections, DEFAULT_STOCKOUT_SECTIONS)
     if days is not None and month is None and start_date is None and end_date is None:
         if days < 0 or days > MAX_RANGE_DAYS:
             raise HTTPException(400, "days 必須介於 0 到 366")
