@@ -496,16 +496,29 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         movement_sql = (
             "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
             "m.destination, m.reason, " + movement_site + " AS site, "
-            "i.brand, i.name, i.code "
+            "i.brand, i.name, i.code, i.is_kit "
             "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE (" + movement_site + f" IN ({site_placeholders}) OR "
-            + movement_site + " = '') AND m.created_at >= ? AND m.created_at < ? "
+            "WHERE ((" + movement_site + f" IN ({site_placeholders}) OR "
+            + movement_site + ") AND m.created_at >= ? AND m.created_at < ?) "
             "ORDER BY m.created_at DESC, m.id DESC"
         )
         movements = conn.execute(
             movement_sql,
             [*selected_sites, movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)],
         ).fetchall()
+        # 單一庫存匯出：過濾掉整組組裝/拆解異動（is_kit=1 且 reason 含「組裝/拆解」）
+        # 但子材料因拆解產生的 delta 要保留（is_kit=0）
+        filtered_movements = []
+        for row in movements:
+            is_kit = row.get("is_kit", 0)
+            reason = row.get("reason", "")
+            # 整組相關異動判定
+            is_kit_operation = is_kit == 1 and any(
+                reason.startswith(prefix) for prefix in ["組裝", "拆解"]
+            )
+            if not is_kit_operation:
+                filtered_movements.append(row)
+        movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
     finally:
         conn.close()
