@@ -802,12 +802,12 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     
     conn = get_db()
     try:
-        # 查詢已領出的異動（領出準備 → 領出結帳 的流程）
+        # 查詢已領出的異動（領出準備 → 領出結帳 的流程 + nonstock 出庫）
         movement_sql = (
             "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
-            "m.destination, m.reason, i.site, i.brand, i.name, i.code, i.is_kit "
+            "m.destination, m.reason, i.site, i.brand, i.name, i.code, i.is_kit, i.is_deleted "
             "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE m.reason IN ('領出準備', '領出結帳', '退回準備', '退回已領出') "
+            "WHERE (m.reason IN ('領出準備', '領出結帳', '退回準備', '退回已領出') OR i.is_deleted=1) "
             "AND m.created_at >= ? AND m.created_at < ? "
             "ORDER BY m.created_at DESC, m.id DESC"
         )
