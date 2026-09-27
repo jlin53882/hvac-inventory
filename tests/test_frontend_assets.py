@@ -1184,7 +1184,7 @@ def test_kit_edit_rerenders_directly_after_save():
     assert "renderRequestId !== preparedRenderRequestSeq" in prepared
     assert "siteAtRequest !== currentSite" in prepared
     render = read(os.path.join(STATIC, "js", "render", "kits.js"))
-    assert "kit-assembly-model" in render
+    assert "kit-code" in render                                      # 新結構用 kit-code
     assert "esc(k.code)" in render
     assert "[kit.name, kit.brand, kit.code, kit.note" in render
     assert "data-kit-id" not in render
@@ -1298,13 +1298,11 @@ def test_stockout_js_shows_model():
 
 def test_kits_components_show_photo():
     """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求）
-    同時整組本身的照片在表格第一行顯示（2026-09-27 新需求：位置調整，不在卡片標題）"""
+    同時整組本身的照片在卡片標題左邊顯示（2026-09-27 新需求）"""
     js = read(KITS_RENDER_JS)
-    assert "cphoto" in js                                          # icon class（卡片用）
+    assert "kit-photo-slot" in js                                  # 卡片標題照片區（新）
+    assert "buildThumb(k.item_id, !!k.has_photo" in js             # 整組照片用 buildThumb
     assert "openPhotoLightbox(${c.item_id})" in js                 # 材料點擊放大
-    assert "k.has_photo" in js                                     # 整組本身照片邏輯
-    assert "kit-row-header" in js                                  # 表格整組行（新）
-    assert "buildThumb(k.item_id, !!k.has_photo" in js             # 整組照片在表格行用 buildThumb
 
 
 def test_kit_comp_left_align():
