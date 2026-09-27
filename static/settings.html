@@ -304,6 +304,7 @@
 <div class="perm-layout">
   <aside class="side-list" id="settingsSideList">
     <div class="side-item active" data-panel="units" onclick="settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
+    <div class="side-item" data-panel="cabinets" onclick="settingsSwitch('cabinets')"><span class="ic">📦</span><div>櫃子<span class="desc">位置備註/同步庫存</span></div></div>
     <div class="side-item" data-panel="gcal" onclick="settingsSwitch('gcal')"><span class="ic">📅</span><div>行事曆同步<span class="desc">Google 行事曆同步</span></div></div>
     <div class="side-item" data-panel="petty-cash" onclick="settingsSwitch('petty-cash')"><span class="ic">🪙</span><div>零用金選單<span class="desc">一般／工程分開管理</span></div></div>
     <div class="side-item" data-panel="pw" onclick="settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
@@ -312,6 +313,25 @@
     <div id="panel-units"></div>
     <div id="panel-gcal" style="display:none"></div>
     <div id="panel-petty-cash" style="display:none"></div>
+    <div id="panel-cabinets" style="display:none">
+      <h4>📦 櫃子</h4>
+      <p style="font-size: 13px; color: #666; margin-bottom: 16px;">全站共用的櫃子清單（單一庫存與整組庫存同步）。</p>
+      <div class="u-add-row">
+        <input type="text" id="cabinet-name" placeholder="櫃子編號或名稱（例：編號A、倉庫1）" maxlength="50">
+        <input type="text" id="cabinet-note" placeholder="位置說明（例：二樓東側、倉庫 A 區）" maxlength="100">
+        <button class="btn-primary" onclick="addCabinet()">＋ 新增</button>
+      </div>
+      <table class="u-table" id="cabinetTable">
+        <thead>
+          <tr>
+            <th style="width: 30%;">編號/名稱</th>
+            <th style="width: 50%;">位置說明</th>
+            <th style="width: 20%;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="cabinetList"></tbody>
+      </table>
+    </div>
     <div id="panel-pw" style="display:none">
       <h4>🔑 修改密碼</h4>
       <div class="form-row">
