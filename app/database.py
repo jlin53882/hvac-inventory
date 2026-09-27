@@ -139,6 +139,10 @@ def _exec_init(conn):
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         item_id     INTEGER NOT NULL REFERENCES items(id),
         name        TEXT NOT NULL,
+        brand       TEXT DEFAULT '',  -- 2026-09-27 品牌
+        code        TEXT DEFAULT '',  -- 2026-09-27 型號
+        site        TEXT NOT NULL DEFAULT 'office',  -- 2026-09-27 分類位置
+        has_photo   INTEGER NOT NULL DEFAULT 0,  -- 2026-09-27 是否有照片
         note        TEXT DEFAULT '',
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at  TIMESTAMP   -- 2026-08-14 樂觀鎖（併發編輯防覆蓋）
@@ -149,6 +153,23 @@ def _exec_init(conn):
         item_id     INTEGER NOT NULL REFERENCES items(id),
         qty         REAL NOT NULL DEFAULT 1,
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS kit_locations (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        kit_id      INTEGER NOT NULL REFERENCES kits(id) ON DELETE CASCADE,
+        cabinet     TEXT NOT NULL DEFAULT '',
+        position    TEXT NOT NULL DEFAULT '',
+        qty         INTEGER NOT NULL DEFAULT 0,
+        note        TEXT DEFAULT '',
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS cabinets (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL UNIQUE,
+        note        TEXT DEFAULT '',
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS users (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -643,8 +643,25 @@
       </div>
     </div>
     <div class="form-row">
-      <label>整組存放位置（選填）</label>
-      <input type="text" id="k-location" placeholder="例如：二樓、倉庫 A">
+      <label>分類位置</label>
+      <select id="k-site">
+        <option value="office">🏢 公司</option>
+        <option value="warehouse">🏭 倉庫</option>
+        <option value="van">🚐 廂型車</option>
+        <option value="truck">🚚 貨車</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>位置清單（多位置管理）</label>
+      <div class="col-headers edit-stock-headers">
+        <span class="ch-cabinet">櫃子</span>
+        <span class="ch-pos">位置</span>
+        <span class="ch-qty">數量</span>
+        <span class="ch-note">備註</span>
+        <span class="ch-remove" aria-hidden="true"></span>
+      </div>
+      <div id="kit-location-rows"></div>
+      <button type="button" class="btn-prepare" style="margin-top:0" onclick="addKitLocationRow()">＋ 新增位置</button>
     </div>
     <div class="form-row">
       <label>整組照片（選填，可手機直接拍照）</label>

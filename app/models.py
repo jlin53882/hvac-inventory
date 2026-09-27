@@ -195,13 +195,21 @@ class PreparedItemUpdate(BaseModel):
 
 
 # ---------- 整組（套件） ----------
+class KitLocation(BaseModel):
+    """整組位置單筆記錄"""
+    cabinet: str = ""
+    position: str = ""
+    qty: int = 0
+    note: str = ""
+
+
 class KitCreate(BaseModel):
     name: str
     brand: str = ""
     code: str = ""
-    location: str = ""  # 2026-09-27 整組存放位置
     site: Optional[InventorySite] = None
     items: list  # [{item_id, qty}]
+    locations: list[KitLocation] = []  # 2026-09-27 多位置管理
     note: str = ""
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯整組時的 updated_at 快照
 
@@ -530,3 +538,16 @@ class EngineeringReportIn(BaseModel):
         return self
 
 
+
+
+# ---------- 櫃子（Settings 設定） ----------
+class CabinetCreate(BaseModel):
+    """新增/編輯櫃子設定"""
+    name: str  # 櫃子編號或名稱，如「編號A」、「倉庫1」
+    note: str = ""  # 櫃子位置說明（防忘記在哪裡）
+
+
+class CabinetUpdate(BaseModel):
+    """編輯櫃子"""
+    name: str
+    note: str = ""

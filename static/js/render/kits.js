@@ -485,7 +485,14 @@ async function editKit(kitId) {
   document.getElementById('k-note').value = kit.note || '';
   document.getElementById('k-brand').value = kit.brand || '';
   document.getElementById('k-code').value = kit.code || '';
-  document.getElementById('k-location').value = kit.location || '';
+  document.getElementById('k-site').value = kit.site || 'office';
+  // 填入位置清單
+  kitLocationRows = (kit.locations || []).map(loc => ({
+    cabinet: loc.cabinet || '',
+    position: loc.position || '',
+    qty: loc.qty || 0,
+    note: loc.note || ''
+  }));
 
   document.querySelector('#kit-modal h3').textContent = '🔧 編輯整組';
 
@@ -496,6 +503,7 @@ async function editKit(kitId) {
   btn.setAttribute('onclick', 'submitKitEdit()');
 
   renderKitCompRows();
+  renderKitLocationRows();  // 渲染位置清單
   renderKitPhotoBox(kitId, !!kit.has_photo);  // 编辑模式：显示既有照片 + 修改选项
 
   openModal('kit-modal');

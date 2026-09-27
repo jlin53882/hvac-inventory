@@ -1,18 +1,21 @@
 // 庫存管理系統 - 整組 Modal（v8 拆分；材料選擇為 demo 樣式：已選列 + 單一可搜尋框）
 var kitUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯整組 modal 時的 updated_at 快照
+var kitLocationRows = [];  // 2026-09-27 多位置管理：[{cabinet, position, qty, note}, ...]
 function openKitModal() {
   editingKitId = null;
   kitModalCompRows = [];
+  kitLocationRows = [];
   document.getElementById('k-name').value = '';
   document.getElementById('k-note').value = '';
   document.getElementById('k-brand').value = '';
   document.getElementById('k-code').value = '';
-  document.getElementById('k-location').value = '';
+  document.getElementById('k-site').value = 'office';
   document.querySelector('#kit-modal h3').textContent = '🔧 新增整組';
   const btn = document.querySelector('#kit-modal .btn-confirm');
   btn.textContent = '✅ 建立整組';
   btn.setAttribute('onclick', 'submitKit()');
   renderKitCompRows();  // 顯示「尚未加入材料」+ 搜尋框（同 demo）
+  renderKitLocationRows();  // 顯示位置清單（初始為空）
   renderKitPhotoBox(null);  // 新增模式：選檔，建立後背景上傳
   openModal('kit-modal');
 }
@@ -47,12 +50,13 @@ async function submitKit() {
     .filter(r => r.item_id && r.qty > 0)
     .map(r => ({ item_id: parseInt(r.item_id), qty: r.qty }));
   if (!items.length) { toast('請至少加入一個材料', 'error'); return; }
+  const locations = getKitLocations();
   setKitSubmitBusy(true);
   try {
     const res = await fetch('/api/kits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, location: document.getElementById('k-location').value.trim(), site: currentSite, items: items, note: document.getElementById('k-note').value.trim() })
+      body: JSON.stringify({ name: name, brand: brand, code: code, site: currentSite, items: items, locations: locations, note: document.getElementById('k-note').value.trim() })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || '新增失敗');
@@ -113,12 +117,13 @@ async function submitKitEdit() {
     .map(r => ({ item_id: parseInt(r.item_id), qty: r.qty }));
   if (!items.length) { toast('請至少加入一個材料', 'error'); return; }
   if (!editingKitId) { toast('編輯目標遺失，請重開', 'error'); return; }
+  const locations = getKitLocations();
   setKitSubmitBusy(true);
   try {
     const res = await fetch(`/api/kits/${editingKitId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, location: document.getElementById('k-location').value.trim(), items: items, note: document.getElementById('k-note').value.trim(),
+      body: JSON.stringify({ name: name, brand: brand, code: code, items: items, locations: locations, note: document.getElementById('k-note').value.trim(),
                              updated_at: kitUpdatedAt })
     });
     if (!res.ok) {
@@ -139,4 +144,42 @@ async function submitKitEdit() {
   } finally {
     setKitSubmitBusy(false);
   }
+}
+
+// 渲染整組位置清單（多位置管理）
+function renderKitLocationRows() {
+  const container = document.getElementById('kit-location-rows');
+  if (!container) return;
+  container.innerHTML = kitLocationRows.map((row, idx) => `
+    <div class="edit-stock-row" data-idx="${idx}">
+      <input type="text" class="kit-loc-cabinet" value="${esc(row.cabinet || '')}" placeholder="編號A" list="location-list">
+      <input type="text" class="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
+      <input type="number" class="kit-loc-qty" value="${row.qty || 0}" placeholder="0" min="0">
+      <input type="text" class="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
+      <button type="button" class="btn-remove" onclick="removeKitLocationRow(${idx})">🗑</button>
+    </div>
+  `).join('');
+}
+
+// 新增位置列
+function addKitLocationRow() {
+  kitLocationRows.push({ cabinet: '', position: '', qty: 0, note: '' });
+  renderKitLocationRows();
+}
+
+// 刪除位置列
+function removeKitLocationRow(idx) {
+  kitLocationRows.splice(idx, 1);
+  renderKitLocationRows();
+}
+
+// 收集位置資料（submitKit / submitKitEdit 時呼叫）
+function getKitLocations() {
+  const rows = document.querySelectorAll('#kit-location-rows .edit-stock-row');
+  return Array.from(rows).map(row => ({
+    cabinet: row.querySelector('.kit-loc-cabinet').value.trim(),
+    position: row.querySelector('.kit-loc-pos').value.trim(),
+    qty: parseInt(row.querySelector('.kit-loc-qty').value) || 0,
+    note: row.querySelector('.kit-loc-note').value.trim()
+  })).filter(r => r.cabinet || r.position);  // 至少一個欄位填寫才算有效
 }

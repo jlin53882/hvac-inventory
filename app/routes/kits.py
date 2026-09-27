@@ -414,3 +414,14 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         conn.close()
 
 
+
+
+# 2026-09-27 多位置管理：保存套件位置清單
+def _save_kit_locations(conn, kit_id: int, locations: list) -> None:
+    """清空既有位置，批次插入新位置列"""
+    conn.execute("DELETE FROM kit_locations WHERE kit_id = ?", (kit_id,))
+    for loc in locations:
+        conn.execute(
+            "INSERT INTO kit_locations (kit_id, cabinet, position, qty, note) VALUES (?,?,?,?,?)",
+            (kit_id, loc.get("cabinet", ""), loc.get("position", ""), loc.get("qty", 0), loc.get("note", ""))
+        )
