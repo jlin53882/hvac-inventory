@@ -167,7 +167,7 @@ function renderKitCard(k, isViewer, isM) {
   const locations = Array.isArray(k.locations) ? k.locations : [];
   const locDisplay = locations.length > 0
     ? locations.slice(0, 2)
-        .map(l => `${esc(l.cabinet || '')}${l.position ? ' ' + esc(l.position) : ''}`)
+        .map(l => `${esc(l.cabinet || '')}${l.position ? ' ' + esc(l.position) : ''}${l.note ? ` (${esc(l.note)})` : ''}`)
         .join(' | ')
         + (locations.length > 2 ? ` +${locations.length - 2}` : '')
     : '';

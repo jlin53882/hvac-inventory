@@ -169,7 +169,7 @@ async function loadCabinetOptions() {
           const opt = document.createElement('option');
           opt.value = cab.name;
           // 顯示格式：編號A (備註內容)
-          opt.textContent = cab.name + (cab.note ? ` (${cab.note})` : '');
+          opt.textContent = cab.name + (cab.note ? `(${cab.note})` : '');
           select.appendChild(opt);
         });
         select.value = currentValue;

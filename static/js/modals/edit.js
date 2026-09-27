@@ -87,10 +87,12 @@ function renderEditStockRows(stocks, unit) {
 var globalCabinetList = [];  // 全局存放櫃子清單
 function _cabinetOptions(selected) {
   // 若全局清單為空，用預設值（應不會發生，除非 loadCabinets 還未完成）
-  const cabs = globalCabinetList.length > 0
-    ? ['', ...globalCabinetList.map(c => c.name)]
-    : ['','編號A','編號B','編號C','編號D','編號E','編號F','鐵架','二樓'];
-  return cabs.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c || '— 請選擇 —'}</option>`).join('');
+  const cabs = [{ name: '', note: '' }, ...globalCabinetList];
+  return cabs.map(c => {
+    const name = c.name || '';
+    const label = name ? name + (c.note ? `(${c.note})` : '') : '— 請選擇 —';
+    return `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
 }
 
 /**
@@ -226,7 +228,7 @@ async function loadEditCabinetOptions() {
           cabinets.forEach(cab => {
             const opt = document.createElement('option');
             opt.value = cab.name;
-            opt.textContent = cab.name + (cab.note ? ` (${cab.note})` : '');
+            opt.textContent = cab.name + (cab.note ? `(${cab.note})` : '');
             select.appendChild(opt);
           });
           select.value = currentValue;
