@@ -165,7 +165,6 @@ function renderKitLocationRows() {
     <div class="edit-stock-row" data-idx="${idx}">
       <select class="kit-loc-cabinet">${_cabinetOptions(row.cabinet || '')}</select>
       <input type="text" class="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
-      <input type="number" class="kit-loc-qty" value="${esc(String(row.qty ?? 0))}" placeholder="0" min="0" step="1">
       <input type="text" class="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
       <button type="button" class="btn-remove" onclick="removeKitLocationRow(${idx})">🗑</button>
     </div>

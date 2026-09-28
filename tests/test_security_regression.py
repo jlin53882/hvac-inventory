@@ -115,6 +115,8 @@ REVIEWED_SAFE_BODIES = {
     "it.item_id",
     "absNum(it.total_qty)",
     "g.items.length",
+    # _cabinetOptions 三元（2026-09-28：只輸出 'selected' 常數或空字串）
+    "name === selected ? 'selected' : ''",
     "isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'",
     # card.js mobileCardShell cardClass（2026-09-07 Phase 5：CSS class 為開發者傳入常數）
     "p.cardClass ? ' ' + p.cardClass : ''", "isLow ? '警示值' : '位置'",
@@ -195,7 +197,7 @@ REVIEWED_SAFE_BODIES = {
     "materials",
     # edit.js 兩段式位置（2026-09-06）：_cabinetOptions 從固定清單產生 select options，
     # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
-    "_cabinetOptions(cabinet)", "_cabinetOptions('')", "c",
+    "_cabinetOptions(cabinet)", "_cabinetOptions('')", "_cabinetOptions(row.cabinet || '')", "c",
     "c === selected ? 'selected' : ''", "c || '— 請選擇 —'",
     # calendar.js Desktop dashboard（2026-09-09）：service/sync/updated/range 是由已 esc 的資料組成的內部 HTML fragment；icon 是固定映射。
     "calSyncStatusIcon(e.sync_status)", "service", "sync", "updated", "range",
