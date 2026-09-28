@@ -62,6 +62,7 @@ function baseContext(overrides = {}) {
     qupPageSize: 20,
     qupTotal: 0,
     document: {
+      body: { dataset: { page: 'quotation-upload' } },
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, element(id));
         return elements.get(id);
@@ -201,6 +202,7 @@ function setupHistoryContext(source, prefix, tab, endpoint) {
   const context = baseContext({
     currentTab: tab,
     document: {
+      body: { dataset: { page: 'quotation-upload' } },
       getElementById(id) {
         if (!context._elements.has(id)) context._elements.set(id, element(id));
         return context._elements.get(id);

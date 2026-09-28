@@ -38,7 +38,8 @@ async function loadData(options) {
     checkReminder();
     updateNotifications();
     updateSubInfo();
-    switchTab(currentTab);
+    // 載入期間使用者可能已切到保留掛載的頁（報價單 / 簽名報表…）：不可重新 mount，否則會丟掉子模式與表單狀態
+    if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)) switchTab(currentTab);
     loadPreparedBadge();
   } catch (e) {
     if (e.name === 'AbortError' || requestId !== dataRequestSeq || siteAtRequest !== currentSite) return;
@@ -110,6 +111,8 @@ async function loadInventoryPageImpl(page, refreshSummary) {
     } else {
       renderSubInfo();
     }
+    // await updateSubInfo 期間可能已切頁或有新請求：不可把庫存頁畫進別頁的 #content
+    if (requestId !== inventoryRequestSeq || currentTab !== 'inventory') return;
     renderInventory();
   } catch (e) {
     if (e.name === 'AbortError' || requestId !== inventoryRequestSeq || siteAtRequest !== currentSite) return;

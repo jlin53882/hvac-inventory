@@ -4771,3 +4771,21 @@ def test_page_scope_contract():
     quote = read(os.path.join(STATIC, "js", "render", "quotation.js"))
     assert "setPageScope(mode === 'upload' ? 'quotation-upload' : 'quotation');" in quote
     assert "quotation-upload-content" not in quote
+
+
+def test_full_load_completion_does_not_remount_preserved_tabs():
+    """整頁資料（/api/items）載入完成時，若使用者已切到保留掛載的頁，不可 switchTab 重掛
+    （visual 快速切頁測試：整組頁觸發的 full load 回來後，把「報價單上傳」重掛成「報價單」）。"""
+    api = read(API_JS)
+    body = api[api.index("const items = await res.json();"):api.index("loadPreparedBadge();", api.index("const items = await res.json();"))]
+    assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)) switchTab(currentTab);" in body
+    assert "\n    switchTab(currentTab);" not in body
+
+
+def test_inventory_page_load_does_not_render_after_tab_left():
+    """庫存列表載入在 await updateSubInfo 後，若已切頁或被新請求取代，不可 renderInventory 蓋掉別頁
+    （visual 快速切頁測試：簽名報表頁被晚到的庫存渲染整個覆蓋）。"""
+    api = read(API_JS)
+    body = api[api.index("async function loadInventoryPageImpl"):]
+    body = body[body.index("await updateSubInfo();"):body.index("renderInventory();")]
+    assert "if (requestId !== inventoryRequestSeq || currentTab !== 'inventory') return;" in body

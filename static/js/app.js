@@ -308,7 +308,10 @@ function mountPreservedTabAfterBootstrap() {
     applyRoleView(user);
     if (!currentTab) { renderNoAccessiblePage(); return; }
     if (user.password_expired) openExpiryModal();
+    var bootTab = currentTab;
     await loadUnits();
+    // 等待期間使用者已自行切頁（switchTab 已掛載該頁與範圍）→ 不可再用啟動時的流程覆蓋（例：報價單上傳被重掛成報價單）
+    var tabChangedDuringBoot = currentTab !== bootTab;
     updateBreadcrumb(currentTab);
     // site active 同步
     document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('on'); });
@@ -318,10 +321,10 @@ function mountPreservedTabAfterBootstrap() {
     var sbNav = document.getElementById('sb-nav-' + currentTab);
     document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
     if (sbNav) sbNav.classList.add('active');
-    setPageScope(currentTab);
+    if (!tabChangedDuringBoot) setPageScope(currentTab);
     loadData();
     // loadData 不重繪保留 mount 的頁面；F5 直接開啟時由 bootstrap 建立一次頁面。
-    mountPreservedTabAfterBootstrap();
+    if (!tabChangedDuringBoot) mountPreservedTabAfterBootstrap();
   } else {
     var content = document.getElementById('content');
     if (content) content.innerHTML = '<div class="empty">⚠️ 無法連線伺服器，請重新整理頁面<br><small>若持續發生請聯絡管理員</small></div>';

@@ -12,7 +12,8 @@ var qupHistoryRequestSeq = 0;
 var qupKpiRequestSeq = 0;
 
 function qupRenderIsCurrent(renderSeq) {
-  return renderSeq === qupRenderSeq && currentTab === 'quotation';
+  // data-page 由 setPageScope 維護：切回報價單模式（或啟動流程重新掛載）後，進行中的上傳頁渲染必須停止
+  return renderSeq === qupRenderSeq && currentTab === 'quotation' && document.body.dataset.page === 'quotation-upload';
 }
 
 // 將 Date 物件轉為 YYYY-MM-DD 字串

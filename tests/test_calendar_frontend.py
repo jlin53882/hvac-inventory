@@ -103,7 +103,7 @@ def test_app_boot_clears_default_calendar_active_before_selected_tab():
     boot = js[boot_start:boot_end]
     assert "querySelectorAll('.sb-nav-link').forEach" in boot
     assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('active')")
-    assert "setPageScope(currentTab);" in boot
+    assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
     assert boot.index("setPageScope(currentTab);") < boot.index("loadData();")
 
 def test_index_loads_calendar_js():
@@ -718,3 +718,14 @@ def test_render_calendar_stops_when_tab_left_during_load():
     js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
     body = js[js.index("const applied = await calLoadData();"):js.index("calRenderMonth();", js.index("const applied = await calLoadData();"))]
     assert "if (currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;" in body
+
+
+def test_bootstrap_does_not_remount_when_user_switched_tab_during_boot():
+    """啟動等待 loadUnits 期間使用者已切頁：不可再以啟動流程重設頁面範圍 / 重新掛載（曾把報價單上傳重掛成報價單）。"""
+    js = read(os.path.join(STATIC, "js", "app.js"))
+    boot = js[js.index("var bootTab = currentTab;"):js.index("mountPreservedTabAfterBootstrap();", js.index("var bootTab = currentTab;")) + 40]
+    assert boot.index("var bootTab = currentTab;") < boot.index("await loadUnits();") < boot.index("var tabChangedDuringBoot = currentTab !== bootTab;")
+    assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
+    assert "if (!tabChangedDuringBoot) mountPreservedTabAfterBootstrap();" in boot
+    qup = read(os.path.join(STATIC, "js", "render", "quotation-upload.js"))
+    assert "document.body.dataset.page === 'quotation-upload'" in qup[qup.index("function qupRenderIsCurrent"):]
