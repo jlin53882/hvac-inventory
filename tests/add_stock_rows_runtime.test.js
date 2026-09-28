@@ -72,7 +72,18 @@ const labels = JSON.parse(JSON.stringify(kitsContext.kitLocationLabels({
 })));
 assert.deepEqual(labels, ['編號A | 1-1', '編號B | 1-1', '編號C'], '建議存放位置需顯示且與實際位置去重');
 assert.deepEqual(JSON.parse(JSON.stringify(kitsContext.kitLocationLabels({}))), [], '無位置時回傳空陣列');
+vm.runInContext(extractFunction(read('static/js/render/kits.js'), 'kitLocationNotes'), kitsContext);
+const locNotes = JSON.parse(JSON.stringify(kitsContext.kitLocationNotes({
+  stock_positions: [{ location: '', qty: 1, note: '整組備註複本' }, { location: '編號A | 2-1', qty: 1, note: '實際位置備註' }],
+  locations: [
+    { cabinet: '編號B', position: '1-1', note: '123' },
+    { cabinet: '編號A', position: '1-1', note: '666' },
+    { cabinet: '編號C', position: '', note: '' },
+  ],
+})));
+assert.deepEqual(locNotes, ['編號A | 2-1：實際位置備註', '編號B | 1-1：123', '編號A | 1-1：666'], '整組卡片需顯示各位置備註（空位置列略過）');
 const kitsSource = read('static/js/render/kits.js');
+assert.ok(kitsSource.includes('const locNotes = kitLocationNotes(k);') && kitsSource.includes('locNotes.map(esc)'), 'renderKitCard 需顯示位置備註並 escape');
 assert.ok(kitsSource.includes('const locLabels = kitLocationLabels(k);'), 'renderKitCard 需使用 kitLocationLabels');
 assert.ok(extractFunction(kitsSource, 'editKit').includes('loadKitCabinetOptions();'), '編輯整組需載入櫃子清單');
 

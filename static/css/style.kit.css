@@ -164,7 +164,8 @@
   white-space: nowrap;
 }
 /* 多個位置時允許換行，避免手機版卡片被撐寬 */
-.kit-content .kit-location {
+.kit-content .kit-location,
+.kit-content .kit-location-note {
   min-width: 0;
   overflow-wrap: anywhere;
 }

@@ -180,6 +180,29 @@ function kitLocationLabels(k) {
 }
 
 /**
+ * Collect per-location notes for the Kit card ("位置：備註"), like the single-inventory
+ * card's 📝 註解 lines. Blank-location stock rows are skipped (their note mirrors kits.note).
+ * @param {Object} k Kit response with stock_positions and locations.
+ * @returns {string[]} Unescaped "location：note" strings.
+ */
+function kitLocationNotes(k) {
+  const notes = [];
+  const push = (location, note) => {
+    const text = `${location}：${note}`;
+    if (location && note && !notes.includes(text)) notes.push(text);
+  };
+  (Array.isArray(k && k.stock_positions) ? k.stock_positions : []).forEach(position => {
+    push(String(position.location || '').trim(), String(position.note || '').trim());
+  });
+  (Array.isArray(k && k.locations) ? k.locations : []).forEach(loc => {
+    const cabinet = String(loc.cabinet || '').trim();
+    const position = String(loc.position || '').trim();
+    push(cabinet && position ? `${cabinet} | ${position}` : (cabinet || position), String(loc.note || '').trim());
+  });
+  return notes;
+}
+
+/**
  * Render a Kit card with its stock positions and suggested storage locations.
  * @param {Object} k Kit response including stock_positions and components.
  * @param {boolean} isViewer Whether controls should be read-only.
@@ -198,6 +221,7 @@ function renderKitCard(k, isViewer, isM) {
     ? locLabels.slice(0, 3).map(esc).join('、') + (locLabels.length > 3 ? ` +${locLabels.length - 3}` : '')
     : '';
   const locTitle = locLabels.join('、');
+  const locNotes = kitLocationNotes(k);
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
       <div class="kit-photo-slot">${kitThumb}</div>
@@ -207,6 +231,7 @@ function renderKitCard(k, isViewer, isM) {
           ${k.code ? `<span class="kit-code">型號 ${esc(k.code)}</span>` : ''}
           ${locDisplay ? `<span class="kit-location" title="${esc(locTitle)}">📍 ${locDisplay}</span>` : ''}
           ${k.note ? `<span class="kit-note-tag">📝 ${esc(k.note)}</span>` : ''}
+          ${locNotes.length ? `<span class="kit-location-note">📝 註解 · ${locNotes.map(esc).join('、')}</span>` : ''}
           <span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>
           ${renderKitStatusBadge(status.status)}
           <span class="kit-comp-count">${components.length} 項組成材料</span>
