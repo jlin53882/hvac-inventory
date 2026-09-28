@@ -136,9 +136,8 @@ def create_kit(kit: KitCreate):
                 "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
                 (kit_id, cid, canonical_qty(comp.get("qty", 1))),
             )
-        # 2026-09-27 多位置管理：保存位置清單
-        if kit.locations:
-            _save_kit_locations(conn, kit_id, kit.locations)
+        # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
+        _save_kit_locations(conn, kit_id, kit.locations)
         conn.commit()
         return {"id": kit_id, "item_id": kit_item_id, "name": kit.name,
                 "brand": kit.brand.strip(), "code": kit.code.strip()}
@@ -222,9 +221,8 @@ def update_kit(kit_id: int, kit: KitCreate):
             seen_items.add(cid)
             conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
                          (kit_id, cid, canonical_qty(comp.get("qty", 1))))
-        # 2026-09-27 多位置管理：保存位置清單
-        if kit.locations:
-            _save_kit_locations(conn, kit_id, kit.locations)
+        # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
+        _save_kit_locations(conn, kit_id, kit.locations)
         conn.commit()
         saved = conn.execute("""
             SELECT k.id, i.name, i.brand, i.code

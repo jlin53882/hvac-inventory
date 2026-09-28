@@ -86,13 +86,23 @@ def update_cabinet(cabinet_id: int, data: CabinetUpdate):
 
             # 若名稱有改，同步 item_stocks.location 中的櫃子部分
             if old_name != new_name:
-                # location 格式為 "櫃子名|位置" 或只有 "櫃子名"
-                # REPLACE old_name| → new_name| 並處理純 old_name 的情況
+                # Production location 格式為 "編號A | 1-1" 或純 "編號A"，分隔符是 " | "（含空格）
+                # 需同時處理帶和不帶 sub-location 的情況
+                separator = " | "
+                old_with_sep = f"{old_name}{separator}"
+                new_with_sep = f"{new_name}{separator}"
+                
+                # 1. 更新帶 sub-location 的（編號A | 1-1 → A櫃 | 1-1）
                 conn.execute(
-                    "UPDATE item_stocks SET location = REPLACE(location, ?, ?) WHERE location LIKE ? OR location = ?",
-                    (f"{old_name}|", f"{new_name}|", f"{old_name}|%", old_name)
+                    "UPDATE item_stocks SET location = REPLACE(location, ?, ?) WHERE location LIKE ?",
+                    (old_with_sep, new_with_sep, f"{old_name}{separator}%")
                 )
-                # 若保留 kit_locations，同步其 cabinet 欄位
+                # 2. 更新純櫃子名稱的（編號A → A櫃）
+                conn.execute(
+                    "UPDATE item_stocks SET location = ? WHERE location = ?",
+                    (new_name, old_name)
+                )
+                # 3. 若保留 kit_locations，同步其 cabinet 欄位
                 conn.execute(
                     "UPDATE kit_locations SET cabinet = ? WHERE cabinet = ?",
                     (new_name, old_name)
@@ -139,11 +149,13 @@ def delete_cabinet(cabinet_id: int):
                 raise HTTPException(404, "櫃子不存在")
 
             cabinet_name = cabinet["name"]
-
+            separator = " | "
+            
             # 檢查 item_stocks 是否有使用該櫃子
+            # 需匹配：純名稱（編號A） 或 帶位置（編號A | 1-1）
             usage_count = conn.execute(
                 "SELECT COUNT(*) as cnt FROM item_stocks WHERE location = ? OR location LIKE ?",
-                (cabinet_name, f"{cabinet_name}|%")
+                (cabinet_name, f"{cabinet_name}{separator}%")
             ).fetchone()["cnt"]
 
             if usage_count > 0:

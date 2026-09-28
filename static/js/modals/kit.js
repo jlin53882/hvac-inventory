@@ -189,7 +189,6 @@ function getKitLocations() {
   return Array.from(rows).map(row => ({
     cabinet: row.querySelector('.kit-loc-cabinet').value.trim(),
     position: row.querySelector('.kit-loc-pos').value.trim(),
-    qty: parseFloat(row.querySelector('.kit-loc-qty').value) || 0,
     note: row.querySelector('.kit-loc-note').value.trim()
   })).filter(r => r.cabinet || r.position);  // 至少一個欄位填寫才算有效
 }
