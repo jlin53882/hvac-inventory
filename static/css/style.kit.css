@@ -177,6 +177,44 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* 存放位置清單：每個位置一行，名稱對齊、備註接在後面 */
+.kit-content .kit-loc-block {
+  max-width: 560px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.kit-content .kit-loc-title {
+  margin-bottom: 2px;
+  color: #475569;
+  font-weight: 600;
+}
+.kit-content .kit-loc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+.kit-content .kit-loc-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.kit-content .kit-loc-name {
+  flex: none;
+  min-width: 96px;
+  color: #334155;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.kit-content .kit-loc-note {
+  min-width: 0;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
 .kit-content .kit-actions-slot {
   display: flex;
   flex-wrap: wrap;

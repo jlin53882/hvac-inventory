@@ -59,32 +59,37 @@ const loaded = editContext._cabinetOptions('編號B');
 assert.equal((loaded.match(/value="編號B"/g) || []).length, 1, '櫃子已在清單內時不得重複');
 assert.ok(!editContext._cabinetOptions('').includes('不在櫃子清單'), '空值不得新增額外選項');
 
-// ---- 3. kitLocationLabels：卡片同時顯示實際庫存位置與建議存放位置 ----
-const kitsContext = vm.createContext({});
-vm.runInContext(extractFunction(read('static/js/render/kits.js'), 'kitLocationLabels'), kitsContext);
-const labels = JSON.parse(JSON.stringify(kitsContext.kitLocationLabels({
-  stock_positions: [{ location: '', qty: 1 }, { location: '編號A | 1-1', qty: 2 }],
-  locations: [
-    { cabinet: '編號B', position: '1-1', note: '123' },
-    { cabinet: '編號A', position: '1-1', note: '666' },
-    { cabinet: '編號C', position: '', note: '' },
-  ],
-})));
-assert.deepEqual(labels, ['編號A | 1-1', '編號B | 1-1', '編號C'], '建議存放位置需顯示且與實際位置去重');
-assert.deepEqual(JSON.parse(JSON.stringify(kitsContext.kitLocationLabels({}))), [], '無位置時回傳空陣列');
-vm.runInContext(extractFunction(read('static/js/render/kits.js'), 'kitLocationNotes'), kitsContext);
-const locNotes = JSON.parse(JSON.stringify(kitsContext.kitLocationNotes({
-  stock_positions: [{ location: '', qty: 1, note: '整組備註複本' }, { location: '編號A | 2-1', qty: 1, note: '實際位置備註' }],
-  locations: [
-    { cabinet: '編號B', position: '1-1', note: '123' },
-    { cabinet: '編號A', position: '1-1', note: '666' },
-    { cabinet: '編號C', position: '', note: '' },
-  ],
-})));
-assert.deepEqual(locNotes, ['編號A | 2-1：實際位置備註', '編號B | 1-1：123', '編號A | 1-1：666'], '整組卡片需顯示各位置備註（空位置列略過）');
+// ---- 3. kitLocationEntries / renderKitLocationList：每個位置一行，備註接在該位置後面 ----
+const kitsContext = vm.createContext({ esc: escapeHtml });
 const kitsSource = read('static/js/render/kits.js');
-assert.ok(kitsSource.includes("const locNotes = kitLocationNotes(k);") && kitsSource.includes("esc(locNotes.join(") && kitsSource.includes("<div class=\"kit-detail-lines\">"), "renderKitCard 需把位置/備註放在獨立行並 escape");
-assert.ok(kitsSource.includes('const locLabels = kitLocationLabels(k);'), 'renderKitCard 需使用 kitLocationLabels');
+vm.runInContext(extractFunction(kitsSource, 'kitLocationEntries'), kitsContext);
+vm.runInContext(extractFunction(kitsSource, 'renderKitLocationList'), kitsContext);
+const entries = JSON.parse(JSON.stringify(kitsContext.kitLocationEntries({
+  stock_positions: [
+    { location: '', qty: 1, note: '整組備註複本' },
+    { location: '編號A | 1-1', qty: 2, note: '實際位置備註' },
+  ],
+  locations: [
+    { cabinet: '編號B', position: '1-1', note: '123' },
+    { cabinet: '編號A', position: '1-1', note: '666' },
+    { cabinet: '編號C', position: '', note: '' },
+  ],
+})));
+assert.deepEqual(entries, [
+  { label: '編號A | 1-1', notes: ['實際位置備註', '666'] },
+  { label: '編號B | 1-1', notes: ['123'] },
+  { label: '編號C', notes: [] },
+], '實際位置在前、建議存放位置在後；同位置合併備註；空位置列略過');
+assert.deepEqual(JSON.parse(JSON.stringify(kitsContext.kitLocationEntries({}))), [], '無位置時回傳空陣列');
+assert.equal(kitsContext.renderKitLocationList([]), '', '無位置時不輸出區塊');
+const listHtml = kitsContext.renderKitLocationList([
+  { label: '編號A | 1-1', notes: ['<b>x</b>'] },
+  { label: '編號B', notes: [] },
+]);
+assert.equal((listHtml.match(/<li class="kit-loc-item">/g) || []).length, 2, '每個位置各自一行');
+assert.ok(listHtml.includes('<span class="kit-loc-name">編號A | 1-1</span><span class="kit-loc-note">&lt;b&gt;x&lt;/b&gt;</span>'), '備註接在位置後面且需 escape');
+assert.ok(listHtml.includes('<span class="kit-loc-name">編號B</span></li>'), '無備註的位置不輸出備註欄');
+assert.ok(extractFunction(kitsSource, 'renderKitCard').includes('renderKitLocationList(kitLocationEntries(k))'), 'renderKitCard 需使用位置清單');
 assert.ok(extractFunction(kitsSource, 'editKit').includes('loadKitCabinetOptions();'), '編輯整組需載入櫃子清單');
 
 // ---- 4. 整組位置列：新增/刪除列與櫃子清單晚到時，不得清掉已輸入的值 ----

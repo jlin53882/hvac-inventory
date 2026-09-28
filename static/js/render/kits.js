@@ -158,48 +158,48 @@ function renderKitComponentRow(c) {
 }
 
 /**
- * Collect Kit card location labels in the single-inventory "櫃子 | 位置" format.
+ * Collect Kit card locations with their notes, one entry per "櫃子 | 位置".
  * Actual item_stocks positions come first; suggested storage rows saved in the Kit
- * editor (kit_locations) follow, de-duplicated. Pure function for runtime tests.
+ * editor (kit_locations) follow. Same location → merged, notes de-duplicated.
+ * Blank-location stock rows are skipped (their note mirrors kits.note).
+ * Pure function for runtime tests.
  * @param {Object} k Kit response with stock_positions and locations.
- * @returns {string[]} Unescaped location labels.
+ * @returns {Array<{label: string, notes: string[]}>} Unescaped entries.
  */
-function kitLocationLabels(k) {
-  const labels = [];
+function kitLocationEntries(k) {
+  const entries = [];
+  const add = (label, note) => {
+    if (!label) return;
+    let entry = entries.find(e => e.label === label);
+    if (!entry) {
+      entry = { label: label, notes: [] };
+      entries.push(entry);
+    }
+    if (note && !entry.notes.includes(note)) entry.notes.push(note);
+  };
   (Array.isArray(k && k.stock_positions) ? k.stock_positions : []).forEach(position => {
-    const text = String(position.location || '').trim();
-    if (text && !labels.includes(text)) labels.push(text);
+    add(String(position.location || '').trim(), String(position.note || '').trim());
   });
   (Array.isArray(k && k.locations) ? k.locations : []).forEach(loc => {
     const cabinet = String(loc.cabinet || '').trim();
     const position = String(loc.position || '').trim();
-    const text = cabinet && position ? `${cabinet} | ${position}` : (cabinet || position);
-    if (text && !labels.includes(text)) labels.push(text);
+    add(cabinet && position ? `${cabinet} | ${position}` : (cabinet || position), String(loc.note || '').trim());
   });
-  return labels;
+  return entries;
 }
 
 /**
- * Collect per-location notes for the Kit card ("位置：備註"), like the single-inventory
- * card's 📝 註解 lines. Blank-location stock rows are skipped (their note mirrors kits.note).
- * @param {Object} k Kit response with stock_positions and locations.
- * @returns {string[]} Unescaped "location：note" strings.
+ * Render the Kit card location list: one row per location, note beside it.
+ * @param {Array<{label: string, notes: string[]}>} entries From kitLocationEntries.
+ * @returns {string} Escaped HTML ('' when there are no locations).
  */
-function kitLocationNotes(k) {
-  const notes = [];
-  const push = (location, note) => {
-    const text = `${location}：${note}`;
-    if (location && note && !notes.includes(text)) notes.push(text);
-  };
-  (Array.isArray(k && k.stock_positions) ? k.stock_positions : []).forEach(position => {
-    push(String(position.location || '').trim(), String(position.note || '').trim());
-  });
-  (Array.isArray(k && k.locations) ? k.locations : []).forEach(loc => {
-    const cabinet = String(loc.cabinet || '').trim();
-    const position = String(loc.position || '').trim();
-    push(cabinet && position ? `${cabinet} | ${position}` : (cabinet || position), String(loc.note || '').trim());
-  });
-  return notes;
+function renderKitLocationList(entries) {
+  if (!entries.length) return '';
+  const rows = entries.map(e =>
+    '<li class="kit-loc-item"><span class="kit-loc-name">' + esc(e.label) + '</span>' +
+    (e.notes.length ? '<span class="kit-loc-note">' + esc(e.notes.join('；')) + '</span>' : '') +
+    '</li>').join('');
+  return '<div class="kit-loc-block"><div class="kit-loc-title">📍 存放位置</div><ul class="kit-loc-list">' + rows + '</ul></div>';
 }
 
 /**
@@ -216,14 +216,9 @@ function renderKitCard(k, isViewer, isM) {
   // 整組照片（表格與卡片共用 buildThumb 顯示）
   const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
   // 位置顯示：實際庫存位置（item_stocks）+ 編輯整組填的建議存放位置（kit_locations）
-  // 位置/備註各自獨立一行（可換行），不再與庫存徽章混排；位置全部列出不截斷
-  const locLabels = kitLocationLabels(k);
-  const locNotes = kitLocationNotes(k);
-  const detailLines = [
-    locLabels.length ? `<div class="kit-detail-line kit-location">📍 ${esc(locLabels.join('、'))}</div>` : '',
-    k.note ? `<div class="kit-detail-line kit-note-tag">📝 ${esc(k.note)}</div>` : '',
-    locNotes.length ? `<div class="kit-detail-line kit-location-note">📝 註解 · ${esc(locNotes.join('、'))}</div>` : '',
-  ].join('');
+  // 每個位置一行、備註接在該位置後面；整組備註另起一行
+  const detailLines = renderKitLocationList(kitLocationEntries(k)) +
+    (k.note ? '<div class="kit-detail-line kit-note-tag">📝 ' + esc(k.note) + '</div>' : '');
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
       <div class="kit-photo-slot">${kitThumb}</div>
