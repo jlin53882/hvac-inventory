@@ -23,13 +23,17 @@ from app.services.quantity import canonical_qty
 
 
 def normalize_stock_location(value):
-    """Canonical ``item_stocks.location``: strip surrounding whitespace.
+    """Canonical ``item_stocks.location`` normalization for production request/import paths.
 
-    Single contract for every API that writes a stock location (create/update item
-    stocks, add/update stock, batch relocation) so ``"編號A | 1-1"`` and
-    ``" 編號A | 1-1 "`` are the same location for duplicate checks and persistence.
-    Non-string values (``None`` = "location not provided" on partial updates) are
-    returned unchanged so field defaults and Pydantic type errors keep working.
+    Only leading/trailing whitespace is stripped (no internal-space, case or delimiter
+    rewrite), so ``"編號A | 1-1"`` and ``" 編號A | 1-1 "`` are one location for identity
+    lookups and persistence. Applied via ``models.StockLocation`` to create/update item
+    stocks, add/update stock, batch relocation and inventory transfer source/target, and
+    directly in the legacy bulk import. Internal-only writers (kit placeholder ``""``,
+    cabinet rename built from already-validated cabinet names) do not take external
+    location input. Existing legacy rows are not migrated.
+    Non-string values (``None`` = "location not provided", e.g. transfer source = any
+    location) are returned unchanged so defaults and Pydantic type errors keep working.
     """
     return value.strip() if isinstance(value, str) else value
 

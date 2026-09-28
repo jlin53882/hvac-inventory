@@ -37,7 +37,7 @@ from app.routes.photos import has_photo, list_photo_ids
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.file_storage import delete_asset_files
-from app.services.inventory_stock import assert_projected_inventory
+from app.services.inventory_stock import assert_projected_inventory, normalize_stock_location
 from app.services.quantity import canonical_qty
 
 # 品項 API 路由
@@ -852,7 +852,8 @@ def import_items(items: list = Body(..., embed=True)):
             unit = it.get("unit", "個")
             site = it.get("site", "office")
             qty = canonical_qty(it.get("qty", 0))
-            location = it.get("location", "")
+            # canonical location：同品項 + 正規化後同位置 → 合併數量（含同批前一筆剛 INSERT 的列）
+            location = normalize_stock_location(it.get("location", ""))
             note = it.get("note", "")
             exists = conn.execute(
                 "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",

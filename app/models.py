@@ -339,8 +339,9 @@ class TransferRequest(BaseModel):
     item_id: int = Field(..., ge=1)
     target_site: InventorySite
     qty: float = Field(..., gt=0)
-    source_location: Optional[str] = Field(None, max_length=100)
-    target_location: str = Field("", max_length=100)
+    # 2026-09-28：與其他 stock API 共用 canonical location；source None = 不限位置依序扣除（保留）
+    source_location: Optional[StockLocation] = Field(None, max_length=100)
+    target_location: StockLocation = Field("", max_length=100)
 
 
 class BatchLocationRequest(BaseModel):
