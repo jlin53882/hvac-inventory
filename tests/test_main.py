@@ -180,6 +180,94 @@ class TestItemsCRUD:
         items = client.get("/api/items?site=all").json()
         assert not any(i["code"] == "DUP-LOC" for i in items)
 
+    @staticmethod
+    def _db_rows(sql, params=()):
+        conn = app_db.get_db()
+        try:
+            return [tuple(r) for r in conn.execute(sql, params).fetchall()]
+        finally:
+            conn.close()
+
+    def test_create_item_rejects_whitespace_equivalent_duplicate_locations(self, client):
+        """location normalization：前後空白不同但實質相同的位置 → 400，且 items / item_stocks 都不留半成品"""
+        stocks_before = self._db_rows("SELECT COUNT(*) FROM item_stocks")
+        r = client.post("/api/items", json={
+            "brand": "大金", "code": "WS-DUP", "name": "空白重複位置品",
+            "stocks": [
+                {"location": "編號A | 1-1", "qty": 1},
+                {"location": " 編號A | 1-1 ", "qty": 2},
+            ],
+        })
+        assert r.status_code == 400, r.text
+        assert "重複" in r.json()["detail"]
+        assert self._db_rows("SELECT id FROM items WHERE code=?", ("WS-DUP",)) == []
+        assert self._db_rows("SELECT COUNT(*) FROM item_stocks") == stocks_before
+        assert self._db_rows(
+            "SELECT COUNT(*) FROM item_stocks s LEFT JOIN items i ON i.id=s.item_id WHERE i.id IS NULL") == [(0,)]
+
+    def test_create_item_persists_normalized_distinct_locations(self, client):
+        """不同位置仍可建立；DB 實際寫入的是去除前後空白的 canonical location"""
+        r = client.post("/api/items", json={
+            "brand": "大金", "code": "WS-OK", "name": "正常多位置品",
+            "stocks": [
+                {"location": " 編號A | 1-1 ", "qty": 1},
+                {"location": "編號A | 1-2\t", "qty": 2},
+            ],
+        })
+        assert r.status_code == 201, r.text
+        item_id = r.json()["id"]
+        assert self._db_rows("SELECT location, qty FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)) == [
+            ("編號A | 1-1", 1), ("編號A | 1-2", 2)]
+
+    def test_update_item_rejects_whitespace_equivalent_duplicate_location(self, client):
+        """PATCH /api/items stocks 全量同步：新位置與既有位置只差空白 → 400，DB 不變"""
+        item = client.post("/api/items", json={
+            "brand": "大金", "code": "WS-UPD", "name": "編輯空白位置品",
+            "stocks": [{"location": "編號A | 1-1", "qty": 1}],
+        }).json()
+        stock = item["stocks"][0]
+        r = client.patch(f"/api/items/{item['id']}", json={
+            "updated_at": item["updated_at"],
+            "stocks": [
+                {"id": stock["id"], "stock_updated_at": stock["updated_at"], "location": "編號A | 1-1", "qty": 1},
+                {"location": " 編號A | 1-1 ", "qty": 3},
+            ],
+        })
+        assert r.status_code == 400, r.text
+        assert self._db_rows("SELECT location, qty FROM item_stocks WHERE item_id=?", (item["id"],)) == [("編號A | 1-1", 1)]
+
+    def test_add_and_update_stock_normalize_location(self, client):
+        """POST /api/items/{id}/stocks 與 PATCH /api/stocks/{id} 共用同一 location 正規化"""
+        item = client.post("/api/items", json={
+            "brand": "大金", "code": "WS-ADD", "name": "新增位置空白品",
+            "stocks": [{"location": "編號A | 1-1", "qty": 1}],
+        }).json()
+        dup = client.post(f"/api/items/{item['id']}/stocks", json={"location": " 編號A | 1-1 ", "qty": 1})
+        assert dup.status_code == 400, dup.text
+        added = client.post(f"/api/items/{item['id']}/stocks", json={"location": " 編號B | 2-1 ", "qty": 0})
+        assert added.status_code == 201, added.text
+        new_stock = next(s for s in added.json() if s["location"] != "編號A | 1-1")
+        assert new_stock["location"] == "編號B | 2-1"
+        moved = client.patch(f"/api/stocks/{new_stock['id']}", json={"location": "  編號A | 1-1  "})
+        assert moved.status_code == 400, moved.text  # 正規化後與既有位置重複
+        renamed = client.patch(f"/api/stocks/{new_stock['id']}", json={"location": " 編號C "})
+        assert renamed.status_code == 200, renamed.text
+        assert self._db_rows("SELECT location FROM item_stocks WHERE item_id=? ORDER BY id", (item["id"],)) == [
+            ("編號A | 1-1",), ("編號C",)]
+
+    def test_batch_location_normalizes_and_rejects_blank(self, client):
+        """批次改位置：前後空白去除；純空白位置 → 422"""
+        item = client.post("/api/items", json={
+            "brand": "大金", "code": "WS-BATCH", "name": "批次位置品",
+            "stocks": [{"location": "編號A | 1-1", "qty": 1}],
+        }).json()
+        stock_id = item["stocks"][0]["id"]
+        blank = client.post("/api/stocks/batch-location", json={"stock_ids": [stock_id], "new_location": "   "})
+        assert blank.status_code == 422, blank.text
+        ok = client.post("/api/stocks/batch-location", json={"stock_ids": [stock_id], "new_location": " 編號D | 4-4 "})
+        assert ok.status_code == 200, ok.text
+        assert self._db_rows("SELECT location FROM item_stocks WHERE id=?", (stock_id,)) == [("編號D | 4-4",)]
+
     def test_list_items(self, client):
         """驗證 GET /api/items 列出全部品項"""
         _add_item(client, name="一", brand="三菱")

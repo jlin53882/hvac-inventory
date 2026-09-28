@@ -331,6 +331,7 @@ def create_item(item: ItemCreate):
             raise HTTPException(400, f"該品項已存在（id={exists['id']}）！要放新位置請用「編輯」→「新增位置」")
 
         # 多位置新增：與編輯相同規則，同一品項不可有重複庫存位置
+        # （s.location 已由 models.StockLocation 正規化，前後空白不同視為同一位置；驗證在任何 INSERT 之前）
         locations = [s.location or "" for s in item.stocks]
         if len(locations) != len(set(locations)):
             raise HTTPException(400, "同一品項不可有重複庫存位置")

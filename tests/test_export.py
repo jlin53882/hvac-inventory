@@ -900,6 +900,91 @@ def test_kit_export_rejects_unknown_section_but_accepts_components(client):
     assert client.get("/api/kit-export?sections=stats").status_code == 400
 
 
+def _set_prepared_qty(item_id, prepared):
+    conn = app_db.get_db()
+    try:
+        conn.execute("UPDATE items SET prepared_qty=? WHERE id=?", (prepared, item_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_kit_export_quantity_uses_item_stocks_only(client):
+    """數量契約：總庫存 = SUM(item_stocks.qty)；kit_locations（建議存放位置）永遠不參與數量；
+    待領出 = items.prepared_qty；可用 = 總庫存 - 待領出；狀態以可用庫存判定。"""
+    material = add_item(client, name="數量契約材料", code="KIT-QTY-MAT", qty=10)
+    created = client.post("/api/kits", json={
+        "name": "數量契約整組", "brand": "測試牌", "code": "KIT-QTY", "site": "office",
+        "items": [{"item_id": material["id"], "qty": 2}],
+        # 建議存放位置（metadata）：刻意用和實際位置不同的櫃子，且筆數 2，若被算入就會讓總量變 7
+        "locations": [
+            {"cabinet": "編號C", "position": "1-1", "note": "建議1"},
+            {"cabinet": "編號D", "position": "2-1", "note": "建議2"},
+        ],
+    })
+    assert created.status_code == 201, created.text
+    kit = created.json()
+    assert client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 5}).status_code == 200
+
+    # 把 5 組拆到兩個實際庫存位置：A=2、B=3
+    kit_item = next(row for row in client.get("/api/items?site=office").json() if row["id"] == kit["item_id"])
+    split = client.patch(f"/api/items/{kit['item_id']}", json={
+        "updated_at": kit_item["updated_at"],
+        "stocks": [
+            {"id": kit_item["stocks"][0]["id"], "stock_updated_at": kit_item["stocks"][0]["updated_at"],
+             "location": "編號A | 1-1", "qty": 2, "note": ""},
+            {"location": "編號B | 1-1", "qty": 3, "note": ""},
+        ],
+    })
+    assert split.status_code == 200, split.text
+    _set_prepared_qty(kit["item_id"], 2)
+
+    book = load_workbook(io.BytesIO(client.get("/api/kit-export?sections=overview,inventory,positions,alerts").content))
+
+    headers, rows = _kit_sheet_rows(book["庫存總表(整組)"], kit["item_id"])
+    row = dict(zip(headers, rows[0]))
+    assert (row["總庫存"], row["待領出"], row["可用庫存"], row["庫存狀態"]) == (5, 2, 3, "正常")
+    assert row["建議存放位置"] == "編號C | 1-1、編號D | 2-1"  # 建議位置只以文字出現
+
+    headers, rows = _kit_sheet_rows(book["位置明細(整組)"], kit["item_id"])
+    by_type = {}
+    for r in rows:
+        d = dict(zip(headers, r))
+        by_type.setdefault(d["位置類型"], []).append((d["位置"], d["位置數量"]))
+    assert by_type["庫存位置"] == [("編號A | 1-1", 2), ("編號B | 1-1", 3)]
+    assert by_type["建議存放位置"] == [("編號C | 1-1", None), ("編號D | 2-1", None)], "建議位置數量必須留空，不得為 0/1"
+
+    overview = {r[0]: r[1] for r in book["01 總覽"].iter_rows(min_row=6, values_only=True) if r[0]}
+    assert overview["總庫存"] == 5 and overview["待領出"] == 2
+
+    # 全部待領出：總庫存 5、待領出 5 → 可用 0 → 缺貨（不能因總庫存 > 0 顯示正常）
+    _set_prepared_qty(kit["item_id"], 5)
+    book = load_workbook(io.BytesIO(client.get("/api/kit-export?sections=inventory,alerts").content))
+    headers, rows = _kit_sheet_rows(book["庫存總表(整組)"], kit["item_id"])
+    row = dict(zip(headers, rows[0]))
+    assert (row["總庫存"], row["待領出"], row["可用庫存"], row["庫存狀態"]) == (5, 5, 0, "缺貨")
+    headers, rows = _kit_sheet_rows(book["庫存警示(整組)"], kit["item_id"])
+    assert rows and dict(zip(headers, rows[0]))["庫存狀態"] == "缺貨"
+
+
+def test_kit_export_component_stock_is_material_item_stocks_sum(client):
+    """組成材料「目前庫存」= 材料 item 的 SUM(item_stocks.qty)（多位置加總，不扣材料待領出）；可組數 = floor(庫存/需求)。"""
+    material = client.post("/api/items", json={
+        "name": "多位置材料", "brand": "測試牌", "code": "KIT-COMP-MAT", "site": "office", "unit": "個",
+        "stocks": [{"location": "編號A | 1-1", "qty": 4}, {"location": "編號B | 1-1", "qty": 3}],
+    }).json()
+    _set_prepared_qty(material["id"], 1)
+    kit = client.post("/api/kits", json={
+        "name": "材料加總整組", "brand": "測試牌", "code": "KIT-COMP", "site": "office",
+        "items": [{"item_id": material["id"], "qty": 2}],
+        "locations": [{"cabinet": "編號C", "position": "9-9", "note": ""}],
+    }).json()
+    book = load_workbook(io.BytesIO(client.get("/api/kit-export?sections=components").content))
+    headers, rows = _kit_sheet_rows(book["組成材料(整組)"], kit["item_id"])
+    comp = dict(zip(headers, rows[0]))
+    assert (comp["每組需求"], comp["目前庫存"], comp["可組數"], comp["材料狀態"]) == (2, 7, 3, "正常")
+
+
 def test_position_sheets_include_cabinet_note_from_settings(client):
     """設定頁「櫃子」的位置說明需帶到單一庫存與整組的位置明細（櫃子說明欄）。"""
     created = client.post("/api/cabinets", json={"name": "編號Z", "note": "二樓東側"})
