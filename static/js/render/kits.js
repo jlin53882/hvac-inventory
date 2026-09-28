@@ -216,12 +216,14 @@ function renderKitCard(k, isViewer, isM) {
   // 整組照片（表格與卡片共用 buildThumb 顯示）
   const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
   // 位置顯示：實際庫存位置（item_stocks）+ 編輯整組填的建議存放位置（kit_locations）
+  // 位置/備註各自獨立一行（可換行），不再與庫存徽章混排；位置全部列出不截斷
   const locLabels = kitLocationLabels(k);
-  const locDisplay = locLabels.length > 0
-    ? locLabels.slice(0, 3).map(esc).join('、') + (locLabels.length > 3 ? ` +${locLabels.length - 3}` : '')
-    : '';
-  const locTitle = locLabels.join('、');
   const locNotes = kitLocationNotes(k);
+  const detailLines = [
+    locLabels.length ? `<div class="kit-detail-line kit-location">📍 ${esc(locLabels.join('、'))}</div>` : '',
+    k.note ? `<div class="kit-detail-line kit-note-tag">📝 ${esc(k.note)}</div>` : '',
+    locNotes.length ? `<div class="kit-detail-line kit-location-note">📝 註解 · ${esc(locNotes.join('、'))}</div>` : '',
+  ].join('');
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
       <div class="kit-photo-slot">${kitThumb}</div>
@@ -229,13 +231,11 @@ function renderKitCard(k, isViewer, isM) {
         <div class="kit-name">${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div>
         <div class="kit-meta">
           ${k.code ? `<span class="kit-code">型號 ${esc(k.code)}</span>` : ''}
-          ${locDisplay ? `<span class="kit-location" title="${esc(locTitle)}">📍 ${locDisplay}</span>` : ''}
-          ${k.note ? `<span class="kit-note-tag">📝 ${esc(k.note)}</span>` : ''}
-          ${locNotes.length ? `<span class="kit-location-note">📝 註解 · ${locNotes.map(esc).join('、')}</span>` : ''}
           <span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>
           ${renderKitStatusBadge(status.status)}
           <span class="kit-comp-count">${components.length} 項組成材料</span>
         </div>
+        ${detailLines ? `<div class="kit-detail-lines">${detailLines}</div>` : ''}
       </div>
       <div class="kit-actions-slot">
         ${renderKitActionButtons(k, isViewer, isM, status)}

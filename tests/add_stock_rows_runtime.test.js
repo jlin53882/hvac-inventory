@@ -83,7 +83,7 @@ const locNotes = JSON.parse(JSON.stringify(kitsContext.kitLocationNotes({
 })));
 assert.deepEqual(locNotes, ['編號A | 2-1：實際位置備註', '編號B | 1-1：123', '編號A | 1-1：666'], '整組卡片需顯示各位置備註（空位置列略過）');
 const kitsSource = read('static/js/render/kits.js');
-assert.ok(kitsSource.includes('const locNotes = kitLocationNotes(k);') && kitsSource.includes('locNotes.map(esc)'), 'renderKitCard 需顯示位置備註並 escape');
+assert.ok(kitsSource.includes("const locNotes = kitLocationNotes(k);") && kitsSource.includes("esc(locNotes.join(") && kitsSource.includes("<div class=\"kit-detail-lines\">"), "renderKitCard 需把位置/備註放在獨立行並 escape");
 assert.ok(kitsSource.includes('const locLabels = kitLocationLabels(k);'), 'renderKitCard 需使用 kitLocationLabels');
 assert.ok(extractFunction(kitsSource, 'editKit').includes('loadKitCabinetOptions();'), '編輯整組需載入櫃子清單');
 

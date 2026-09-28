@@ -163,14 +163,19 @@
 .kit-content .kit-code {
   white-space: nowrap;
 }
-/* 多個位置時允許換行，避免手機版卡片被撐寬 */
-.kit-content .kit-location,
-.kit-content .kit-location-note {
+/* 位置 / 整組備註 / 位置註解：meta 列下方各自一行，長內容自動換行 */
+.kit-content .kit-detail-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.kit-content .kit-detail-line {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.kit-content .kit-comp-count {
-  margin-left: auto;
 }
 .kit-content .kit-actions-slot {
   display: flex;
@@ -303,8 +308,7 @@
   .kit-content .kit-photo-slot { grid-area: photo; width: 56px; height: 56px; }
   .kit-content .kit-info-slot { grid-area: info; width: auto; }
   .kit-content .kit-actions-slot { grid-area: actions; }
-  .kit-content .kit-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .kit-content .kit-comp-count { margin-left: 0; }
+  .kit-content .kit-meta { gap: 6px; }
   .kit-content .kit-actions-slot { width: 100%; justify-content: flex-start; }
   /* 舊結構相容（若有遺留） */
   .kit-content .kit-assembly-name { font-size: 16px; }
