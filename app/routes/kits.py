@@ -121,8 +121,8 @@ def create_kit(kit: KitCreate):
                      (kit_item_id, "", 0, kit.note))
         # 建立套件定義
         cur2 = conn.execute(
-            "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
-            (kit_item_id, kit.name, kit.note),
+            "INSERT INTO kits (item_id, name, site, note) VALUES (?,?,?,?)",
+            (kit_item_id, kit.name, site, kit.note),
         )
         kit_id = cur2.lastrowid
         seen_items: set = set()
