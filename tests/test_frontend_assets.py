@@ -2814,6 +2814,18 @@ def test_settings_cabinet_single_edit_and_delete_reason():
     assert "err.detail || '刪除失敗'" in delete_fn
 
 
+def test_every_item_photo_thumbnail_opens_lightbox():
+    """2026-09-28：所有品項/整組/材料照片縮圖都要能點開大圖（photoSrc 縮圖必掛 openPhotoLightbox）。"""
+    js_dir = Path(STATIC) / "js"
+    missing = []
+    for path in sorted(js_dir.rglob("*.js")):
+        for no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if "<img" in line and "photoSrc(" in line and "'thumbnail'" in line and "openPhotoLightbox(" not in line:
+                missing.append(f"{path.relative_to(js_dir)}:{no}")
+    assert not missing, "照片縮圖缺 openPhotoLightbox：" + ", ".join(missing)
+    assert "openPhotoLightbox(' + id + ')" in read(CARD_JS), "buildThumb 縮圖需可點開"
+
+
 def test_add_stock_rows_and_kit_location_runtime():
     """新增品項多位置 + 整組位置顯示/輸入保留的 runtime 契約（node 執行純函式）。"""
     script = os.path.join(BASE_DIR, "tests", "add_stock_rows_runtime.test.js")

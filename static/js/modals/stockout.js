@@ -581,7 +581,7 @@ function openKitPrepareModal(kitId, kitName) {
   let listHtml = '';
   comps.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:36px;height:36px;border-radius:6px;object-fit:cover" loading="lazy">'
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;cursor:zoom-in" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')" title="點擊看大圖">'
       : '<div style="width:36px;height:36px;border-radius:6px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:14px">📷</div>';
     const stockOk = (c.stock || 0) >= c.need_qty;
     listHtml += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9">' +
