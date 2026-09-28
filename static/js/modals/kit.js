@@ -1,6 +1,6 @@
 // 庫存管理系統 - 整組 Modal（v8 拆分；材料選擇為 demo 樣式：已選列 + 單一可搜尋框）
 var kitUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯整組 modal 時的 updated_at 快照
-var kitLocationRows = [];  // 2026-09-27 多位置管理：[{cabinet, position, qty, note}, ...]
+var kitLocationRows = [];  // Display metadata only; actual stock positions are item_stocks.location.
 async function loadKitCabinetOptions() {
   try {
     const res = await fetch('/api/cabinets');
@@ -157,7 +157,10 @@ async function submitKitEdit() {
   }
 }
 
-// 渲染整組位置清單（多位置管理）
+/**
+ * Render the Kit location display-metadata rows.
+ * @returns {void} Updates the location-row container when it exists.
+ */
 function renderKitLocationRows() {
   const container = document.getElementById('kit-location-rows');
   if (!container) return;
@@ -171,9 +174,12 @@ function renderKitLocationRows() {
   `).join('');
 }
 
-// 新增位置列
+/**
+ * Append one empty Kit location metadata row.
+ * @returns {void} Renders the updated row list.
+ */
 function addKitLocationRow() {
-  kitLocationRows.push({ cabinet: '', position: '', qty: 0, note: '' });
+  kitLocationRows.push({ cabinet: '', position: '', note: '' });
   renderKitLocationRows();
 }
 
@@ -183,7 +189,10 @@ function removeKitLocationRow(idx) {
   renderKitLocationRows();
 }
 
-// 收集位置資料（submitKit / submitKitEdit 時呼叫）
+/**
+ * Collect Kit display metadata for the create/update request.
+ * @returns {Array<{cabinet: string, position: string, note: string}>} Non-empty metadata rows.
+ */
 function getKitLocations() {
   const rows = document.querySelectorAll('#kit-location-rows .edit-stock-row');
   return Array.from(rows).map(row => ({

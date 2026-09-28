@@ -297,6 +297,60 @@ def test_export_includes_assembled_kit_inventory(client):
     assert isinstance(kit_inventory[8], str) and "tblPosition" in kit_inventory[8]
 
 
+def test_kit_export_inventory_total_matches_real_stock_position_rows(client):
+    """The Kit XLSX uses item_stocks positions and sums each location exactly once."""
+    material = add_item(client, name="位置測試材料", code="KIT-POS-MAT", qty=10)
+    created = client.post("/api/kits", json={
+        "name": "多位置整組", "brand": "測試牌", "code": "KIT-POS",
+        "site": "office", "items": [{"item_id": material["id"], "qty": 1}],
+    })
+    assert created.status_code == 201, created.text
+    kit = created.json()
+    assembled = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 3})
+    assert assembled.status_code == 200, assembled.text
+
+    kit_items = client.get("/api/items?site=office").json()
+    kit_item = next(row for row in kit_items if row["id"] == kit["item_id"])
+    stock_update = client.patch(f"/api/items/{kit['item_id']}", json={
+        "updated_at": kit_item["updated_at"],
+        "stocks": [
+            {
+                "id": kit_item["stocks"][0]["id"],
+                "stock_updated_at": kit_item["stocks"][0]["updated_at"],
+                "location": "A | 1-1", "qty": 2, "note": "位置A",
+            },
+            {"location": "B | 2-1", "qty": 1, "note": "位置B"},
+        ],
+    })
+    assert stock_update.status_code == 200, stock_update.text
+    kit_api = next(row for row in client.get("/api/kits").json() if row["id"] == kit["id"])
+    assert [(row["location"], row["qty"], row["note"]) for row in kit_api["stock_positions"]] == [
+        ("A | 1-1", 2, "位置A"), ("B | 2-1", 1, "位置B"),
+    ]
+
+    response = client.get("/api/kit-export")
+    assert response.status_code == 200, response.text
+    workbook = load_workbook(io.BytesIO(response.content), data_only=False)
+    inventory = workbook["庫存總表(整組)"]
+    inventory_headers = [cell.value for cell in inventory[5]]
+    kit_row = next(
+        row for row in inventory.iter_rows(min_row=6, values_only=True)
+        if row[0] == kit["item_id"]
+    )
+    assert kit_row[inventory_headers.index("總庫存")] == 3
+
+    positions = workbook["位置明細(整組)"]
+    position_headers = [cell.value for cell in positions[5]]
+    position_rows = [
+        row for row in positions.iter_rows(min_row=6, values_only=True)
+        if row[0] == kit["item_id"]
+    ]
+    qty_column = position_headers.index("位置數量")
+    assert [row[position_headers.index("位置")] for row in position_rows] == ["A | 1-1", "B | 2-1"]
+    assert [row[qty_column] for row in position_rows] == [2, 1]
+    assert sum(row[qty_column] for row in position_rows) == kit_row[inventory_headers.index("總庫存")]
+
+
 def test_export_kit_assemble_disassemble_movements_are_preserved(client):
     """單一庫存異動只包含子材料 movement（組裝套件、拆解套件），不含整組 movement"""
     material = add_item(client, name="拆解材料", code="KIT-MAT-2", qty=10)

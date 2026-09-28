@@ -324,19 +324,22 @@ def _build_position_sheet(ws, positions, qty_types):
 # ========== 整組庫存專用匯出 Builders ==========
 
 def _build_kit_inventory_sheet(ws, kit_items, kit_locations, qty_types):
-    """整組庫存總表（只含整組品項，不含子材料）"""
+    """整組庫存總表；位置總量以 item_stocks 列加總。"""
     headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "單位", "低庫存門檻", "總庫存", "庫存狀態"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
-    
-    qty_by_id = {item["id"]: (item["qty"] if "qty" in item.keys() else 0) or 0 for item in kit_locations}
-    
+
+    qty_by_id = {}
+    for position in kit_locations:
+        item_id = position["id"]
+        qty_by_id[item_id] = qty_by_id.get(item_id, 0) + (position["qty"] or 0)
+
     for item in kit_items:
         qty = qty_by_id.get(item["id"], 0)
         low_stock = item["low_stock"] if "low_stock" in item.keys() else 0
         status = "缺貨" if qty == 0 else ("低庫存" if low_stock and qty <= low_stock else "正常")
         ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), low_stock, qty, status])
-    
+
     if kit_items:
         _add_table(ws, "tblKitInventory", 5)
         _style_data(ws, 5, qty_columns=(7,))
@@ -349,16 +352,14 @@ def _build_kit_inventory_sheet(ws, kit_items, kit_locations, qty_types):
 
 
 def _build_kit_position_sheet(ws, kit_locations, qty_types):
-    """整組位置明細（每個整組本身位置一列）"""
-    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "單位", "位置", "位置數量"]
+    """整組位置明細（每筆 item_stocks 實際庫存一列）。"""
+    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "單位", "位置", "位置數量", "位置備註"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
-    
+
     for item in kit_locations:
-        location = item["location"] if "location" in item.keys() else ""
-        qty = item["qty"] if "qty" in item.keys() else 0
-        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), _safe(location or ""), qty or 0])
-    
+        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), _safe(item["location"] or ""), item["qty"] or 0, _safe(item["note"] or "")])
+
     if kit_locations:
         _add_table(ws, "tblKitPosition", 5)
         _style_data(ws, 5, qty_columns=(7,))
@@ -374,7 +375,10 @@ def _build_kit_alert_sheet(ws, kit_items, kit_locations):
     _write_headers(ws, headers)
     _style_header(ws, 5)
     
-    qty_by_id = {item["id"]: (item["qty"] if "qty" in item.keys() else 0) or 0 for item in kit_locations}
+    qty_by_id = {}
+    for position in kit_locations:
+        item_id = position["id"]
+        qty_by_id[item_id] = qty_by_id.get(item_id, 0) + (position["qty"] or 0)
     alerts = []
     
     for item in kit_items:
@@ -763,15 +767,17 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     try:
         # 查詢整組品項（is_kit=1）
         kit_items = conn.execute(
-            "SELECT i.id, i.category, i.brand, i.name, i.code, i.unit, i.low_stock, COALESCE(k.location, '') as location FROM items i LEFT JOIN kits k ON k.item_id=i.id WHERE i.is_kit=1 AND i.is_deleted=0 ORDER BY i.brand COLLATE NOCASE, i.name, i.id"
+            "SELECT i.id, i.category, i.brand, i.name, i.code, i.unit, i.low_stock "
+            "FROM items i WHERE i.is_kit=1 AND i.is_deleted=0 "
+            "ORDER BY i.brand COLLATE NOCASE, i.name, i.id"
         ).fetchall()
-        
-        # 查詢整組位置（每個整組只有一個位置）
+
+        # item_stocks is the only actual Kit position and quantity source; kit_locations is UI metadata.
         kit_locations = conn.execute(
-            "SELECT i.id, i.brand, i.name, i.code, i.unit, COALESCE(k.location, '') as location, SUM(s.qty) as qty, '' as note "
-            "FROM items i LEFT JOIN kits k ON k.item_id=i.id LEFT JOIN item_stocks s ON s.item_id=i.id "
+            "SELECT i.id, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note "
+            "FROM items i LEFT JOIN item_stocks s ON s.item_id=i.id "
             "WHERE i.is_kit=1 AND i.is_deleted=0 "
-            "GROUP BY i.id"
+            "ORDER BY i.id, s.id"
         ).fetchall()
         
         # 查詢整組異動（只含組裝/拆解）
@@ -817,7 +823,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     
     if "positions" in selected_sections:
         position = wb.create_sheet("位置明細(整組)")
-        _style_title(position, "整組位置明細", period_text, header_count=7)
+        _style_title(position, "整組位置明細", period_text, header_count=8)
         _build_kit_position_sheet(position, kit_locations, qty_types)
     
     if "alerts" in selected_sections:

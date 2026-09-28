@@ -17,6 +17,7 @@ import os
 import re
 import sqlite3
 import sys
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -103,9 +104,8 @@ REVIEWED_SAFE_BODIES = {
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'partial_failed' ? '部分同步失敗' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '✅' : e.sync_status === 'partial_failed' ? '⚠️' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''",
-    # 整組卡片照片內插（2026-09-27 Phase 2：kitPhoto 為內部生成 HTML，photoSrc 回傳 URL；均由自有邏輯生成，無使用者輸入）
-    # photo.js FileReader preview：e.target.result 為本地檔案 base64 data URL（由瀏覽器生成，安全）
-    "photoSrc(k.item_id, 'thumbnail')", "photoSrc(kitId, 'thumbnail')", "kitPhoto", "kitThumb", "kitId", "e.target.result",
+    # Kit thumbnail HTML comes only from the escaped buildThumb helper; kitId is an API integer ID.
+    "photoSrc(kitId, 'thumbnail')", "kitThumb", "kitId",
     # sync_error（2026-09-15：syncErr 內含 esc() 跳脫，安全）
     "syncErr",
     # settings.js（2026-08-16 設定中心）：u.is_active 為 DB bool 常數輸出（同帳號頁模式）；u.count 為 COUNT(*) 數字（已 esc）
@@ -254,6 +254,13 @@ REVIEWED_SAFE_BODIES = {
     "pcEntryType === 'income' ? ' active' : ''", "pcEntryType === 'expense' ? ' active' : ''",
     "pcEntryType === 'income' ? 'display:none' : ''",
 }
+
+
+def test_kit_photo_preview_uses_dom_property_for_file_reader_data():
+    """Keep FileReader output out of HTML parsing sinks."""
+    photo_js = Path(BASE_DIR, "static", "js", "modals", "photo.js").read_text(encoding="utf-8")
+    assert "image.src = e.target.result;" in photo_js
+    assert "${e.target.result}" not in photo_js
 
 
 def test_js_html_templates_interpolations_escaped():

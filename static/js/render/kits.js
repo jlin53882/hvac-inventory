@@ -157,19 +157,26 @@ function renderKitComponentRow(c) {
   </tr>`;
 }
 
+/**
+ * Render a Kit card from its canonical inventory-backed stock positions.
+ * @param {Object} k Kit response including stock_positions and components.
+ * @param {boolean} isViewer Whether controls should be read-only.
+ * @param {boolean} isM Whether the card is rendered in the mobile view.
+ * @returns {string} Escaped Kit card HTML.
+ */
 function renderKitCard(k, isViewer, isM) {
   const status = getKitStatus(k);
   const components = Array.isArray(k.components) ? k.components : [];
   const stockQty = Number(k.stock_qty || 0);
   // 整組照片（表格與卡片共用 buildThumb 顯示）
   const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
-  // 2026-09-27 多位置管理：顯示位置清單（最多顯示 2 個，後續用「還有 N 個」表示）
-  const locations = Array.isArray(k.locations) ? k.locations : [];
-  const locDisplay = locations.length > 0
-    ? locations.slice(0, 2)
-        .map(l => `${esc(l.cabinet || '')}${l.position ? ' ' + esc(l.position) : ''}${l.note ? ` (${esc(l.note)})` : ''}`)
+  // Actual Kit positions come from item_stocks; kit_locations remains editor metadata only.
+  const positions = Array.isArray(k.stock_positions) ? k.stock_positions.filter(p => p.location) : [];
+  const locDisplay = positions.length > 0
+    ? positions.slice(0, 2)
+        .map(position => esc(position.location))
         .join(' | ')
-        + (locations.length > 2 ? ` +${locations.length - 2}` : '')
+        + (positions.length > 2 ? ` +${positions.length - 2}` : '')
     : '';
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
@@ -469,6 +476,11 @@ async function disassembleKit(kitId) {
 
 // 編輯整組（2026-08-11 Sarah 需求：整組也要能編輯/刪除，與單一庫存一致）
 
+/**
+ * Load a Kit into the editor while retaining locations as display metadata only.
+ * @param {number} kitId Kit definition identifier.
+ * @returns {Promise<void>} Resolves after Kit details and modal state are loaded.
+ */
 async function editKit(kitId) {
 
   let kit = null;
@@ -499,7 +511,6 @@ async function editKit(kitId) {
   kitLocationRows = (kit.locations || []).map(loc => ({
     cabinet: loc.cabinet || '',
     position: loc.position || '',
-    qty: loc.qty || 0,
     note: loc.note || ''
   }));
 

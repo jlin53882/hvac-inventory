@@ -237,7 +237,11 @@ function renderKitPhotoBox(kitId, hasPhoto) {
   }
 }
 
-// 整組照片：選檔後本地預覽（FileReader）
+/**
+ * Preview the selected Kit image using DOM properties, not HTML interpolation.
+ * @param {HTMLInputElement} input File input that contains the selected image.
+ * @returns {void} Replaces the preview content after FileReader finishes.
+ */
 function _previewKitPhoto(input) {
   const preview = document.getElementById('k-photo-preview');
   const message = document.getElementById('k-photo-message');
@@ -251,11 +255,19 @@ function _previewKitPhoto(input) {
   if (message) message.style.display = 'none';  // 隱藏「尚無照片」
   const reader = new FileReader();
   reader.onload = function(e) {
-    preview.innerHTML = `
-      <div style="position:relative;display:inline-block">
-        <img src="${e.target.result}" alt="預覽" style="width:320px;height:240px;object-fit:cover;border-radius:4px;border:1px solid #ddd">
-        <button type="button" style="position:absolute;top:4px;right:4px;padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px" onclick="_clearKitPhotoPreview()">✕ 清除</button>
-      </div>`;
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;display:inline-block';
+    const image = document.createElement('img');
+    image.src = e.target.result;
+    image.alt = '預覽';
+    image.style.cssText = 'width:320px;height:240px;object-fit:cover;border-radius:4px;border:1px solid #ddd';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.textContent = '✕ 清除';
+    clear.style.cssText = 'position:absolute;top:4px;right:4px;padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px';
+    clear.addEventListener('click', _clearKitPhotoPreview);
+    wrapper.append(image, clear);
+    preview.replaceChildren(wrapper);
   };
   reader.readAsDataURL(file);
 }

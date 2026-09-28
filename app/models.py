@@ -203,12 +203,13 @@ class KitLocation(BaseModel):
 
 
 class KitCreate(BaseModel):
+    """Request schema for Kit definitions; inventory identity and stock stay on items."""
     name: str
     brand: str = ""
     code: str = ""
     site: Optional[InventorySite] = None
     items: list  # [{item_id, qty}]
-    locations: list[KitLocation] = []  # 2026-09-27 多位置管理
+    locations: list[KitLocation] = Field(default_factory=list)  # UI display metadata only; stock positions live in item_stocks
     note: str = ""
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯整組時的 updated_at 快照
 

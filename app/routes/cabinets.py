@@ -91,17 +91,22 @@ def update_cabinet(cabinet_id: int, data: CabinetUpdate):
                 separator = " | "
                 old_with_sep = f"{old_name}{separator}"
                 new_with_sep = f"{new_name}{separator}"
-                
-                # 1. 更新帶 sub-location 的（編號A | 1-1 → A櫃 | 1-1）
-                conn.execute(
-                    "UPDATE item_stocks SET location = REPLACE(location, ?, ?) WHERE location LIKE ?",
-                    (old_with_sep, new_with_sep, f"{old_name}{separator}%")
-                )
-                # 2. 更新純櫃子名稱的（編號A → A櫃）
-                conn.execute(
-                    "UPDATE item_stocks SET location = ? WHERE location = ?",
-                    (new_name, old_name)
-                )
+                # Literal prefix matching avoids LIKE wildcard names and protects A from A1.
+                stock_rows = conn.execute(
+                    "SELECT id, location FROM item_stocks "
+                    "WHERE location=? OR substr(location, 1, ?)=?",
+                    (old_name, len(old_with_sep), old_with_sep),
+                ).fetchall()
+                for stock in stock_rows:
+                    location = stock["location"]
+                    updated_location = (
+                        new_name if location == old_name
+                        else new_with_sep + location[len(old_with_sep):]
+                    )
+                    conn.execute(
+                        "UPDATE item_stocks SET location=? WHERE id=?",
+                        (updated_location, stock["id"]),
+                    )
                 # 3. 若保留 kit_locations，同步其 cabinet 欄位
                 conn.execute(
                     "UPDATE kit_locations SET cabinet = ? WHERE cabinet = ?",
@@ -153,9 +158,11 @@ def delete_cabinet(cabinet_id: int):
             
             # 檢查 item_stocks 是否有使用該櫃子
             # 需匹配：純名稱（編號A） 或 帶位置（編號A | 1-1）
+            prefix = f"{cabinet_name}{separator}"
             usage_count = conn.execute(
-                "SELECT COUNT(*) as cnt FROM item_stocks WHERE location = ? OR location LIKE ?",
-                (cabinet_name, f"{cabinet_name}{separator}%")
+                "SELECT COUNT(*) as cnt FROM item_stocks "
+                "WHERE location=? OR substr(location, 1, ?)=?",
+                (cabinet_name, len(prefix), prefix),
             ).fetchone()["cnt"]
 
             if usage_count > 0:
