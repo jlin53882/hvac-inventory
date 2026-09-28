@@ -4047,8 +4047,9 @@ def test_vehicle_inventory_sites_are_wired_in_frontend():
     assert "INVENTORY_SITES.indexOf(site)" in app_js
     assert "van: summary.van || {}" in api_js
     assert "truck: summary.truck || {}" in api_js
-    assert index.count('value="van"') == 2
-    assert index.count('value="truck"') == 2
+    # 2026-09-28：Kit modal 新增分類位置選項，site 選項現在出現 3 次（Library + Transfer + Kit modal）
+    assert index.count('value="van"') == 3
+    assert index.count('value="truck"') == 3
 
 
 def test_inventory_transfer_ui_is_mounted_and_wired():
