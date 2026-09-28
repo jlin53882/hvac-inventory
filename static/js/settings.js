@@ -825,6 +825,7 @@ async function bindGcalUser(userId, keyName) {
   if (chipBar) {
     chipBar.innerHTML = [
       ['units', '📦 單位管理'],
+      ['cabinets', '📦 櫃子'],  // 2026-09-28 手機版也要能進櫃子設定（與側欄一致）
       ['gcal', '📅 行事曆同步'],
       ['petty-cash', '🪙 零用金選單'],
       ['pw', '🔑 修改密碼']

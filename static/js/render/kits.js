@@ -158,7 +158,29 @@ function renderKitComponentRow(c) {
 }
 
 /**
- * Render a Kit card from its canonical inventory-backed stock positions.
+ * Collect Kit card location labels in the single-inventory "櫃子 | 位置" format.
+ * Actual item_stocks positions come first; suggested storage rows saved in the Kit
+ * editor (kit_locations) follow, de-duplicated. Pure function for runtime tests.
+ * @param {Object} k Kit response with stock_positions and locations.
+ * @returns {string[]} Unescaped location labels.
+ */
+function kitLocationLabels(k) {
+  const labels = [];
+  (Array.isArray(k && k.stock_positions) ? k.stock_positions : []).forEach(position => {
+    const text = String(position.location || '').trim();
+    if (text && !labels.includes(text)) labels.push(text);
+  });
+  (Array.isArray(k && k.locations) ? k.locations : []).forEach(loc => {
+    const cabinet = String(loc.cabinet || '').trim();
+    const position = String(loc.position || '').trim();
+    const text = cabinet && position ? `${cabinet} | ${position}` : (cabinet || position);
+    if (text && !labels.includes(text)) labels.push(text);
+  });
+  return labels;
+}
+
+/**
+ * Render a Kit card with its stock positions and suggested storage locations.
  * @param {Object} k Kit response including stock_positions and components.
  * @param {boolean} isViewer Whether controls should be read-only.
  * @param {boolean} isM Whether the card is rendered in the mobile view.
@@ -170,14 +192,12 @@ function renderKitCard(k, isViewer, isM) {
   const stockQty = Number(k.stock_qty || 0);
   // 整組照片（表格與卡片共用 buildThumb 顯示）
   const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
-  // Actual Kit positions come from item_stocks; kit_locations remains editor metadata only.
-  const positions = Array.isArray(k.stock_positions) ? k.stock_positions.filter(p => p.location) : [];
-  const locDisplay = positions.length > 0
-    ? positions.slice(0, 2)
-        .map(position => esc(position.location))
-        .join(' | ')
-        + (positions.length > 2 ? ` +${positions.length - 2}` : '')
+  // 位置顯示：實際庫存位置（item_stocks）+ 編輯整組填的建議存放位置（kit_locations）
+  const locLabels = kitLocationLabels(k);
+  const locDisplay = locLabels.length > 0
+    ? locLabels.slice(0, 3).map(esc).join('、') + (locLabels.length > 3 ? ` +${locLabels.length - 3}` : '')
     : '';
+  const locTitle = locLabels.join('、');
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
       <div class="kit-photo-slot">${kitThumb}</div>
@@ -185,7 +205,7 @@ function renderKitCard(k, isViewer, isM) {
         <div class="kit-name">${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div>
         <div class="kit-meta">
           ${k.code ? `<span class="kit-code">型號 ${esc(k.code)}</span>` : ''}
-          ${locDisplay ? `<span class="kit-location">📍 ${locDisplay}</span>` : ''}
+          ${locDisplay ? `<span class="kit-location" title="${esc(locTitle)}">📍 ${locDisplay}</span>` : ''}
           ${k.note ? `<span class="kit-note-tag">📝 ${esc(k.note)}</span>` : ''}
           <span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>
           ${renderKitStatusBadge(status.status)}
@@ -524,6 +544,7 @@ async function editKit(kitId) {
 
   renderKitCompRows();
   renderKitLocationRows();  // 渲染位置清單
+  loadKitCabinetOptions();  // F5 後直接編輯時櫃子清單可能尚未載入；載入後重繪並保留已存/已輸入的值
   renderKitPhotoBox(kit.id, kit.item_id, !!kit.has_photo);  // Kit ID 用於路由，item ID 用於照片媒體查詢
 
   openModal('kit-modal');

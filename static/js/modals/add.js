@@ -23,17 +23,106 @@ function openAddModal() {
   if (fUnitAdd) fUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
   // 品項照片：初始化照片上傳區塊
   renderAddPhotoBox();
-  // 2026-09-27：新增時也載入最新櫃子清單
+  // 多位置：每次開啟重置為一列空白位置（與編輯品項相同的 櫃子/位置/數量/備註 欄位）
+  resetAddStockRows();
+  // 2026-09-27：新增時也載入最新櫃子清單；載入後只更新下拉選項，保留使用者已輸入的值
   (async () => {
     try {
       const res = await fetch('/api/cabinets');
       if (res.ok) {
         globalCabinetList = await res.json();
+        refreshAddStockCabinetOptions();
       }
     } catch (e) {
       console.warn('新增 modal 載入櫃子清單失敗', e);
     }
   })();
+}
+
+/**
+ * Build one editable add-modal location row (same fields/classes as the edit modal).
+ * @returns {string} Row inner HTML.
+ */
+function addStockRowHtml() {
+  return `
+    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet">${_cabinetOptions('')}</select></label>
+    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" list="location-list" placeholder="例：1-1"></label>
+    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
+    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" placeholder="備註（選填）"></label>
+    <button type="button" class="stock-remove" onclick="removeAddStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>`;
+}
+
+/**
+ * Append one empty location row to the add modal.
+ * @param {boolean} [focus=true] Whether to focus the new row's cabinet select.
+ * @returns {void}
+ */
+function addAddStockRow(focus = true) {
+  const box = document.getElementById('add-stock-rows');
+  if (!box) return;
+  const row = document.createElement('div');
+  row.className = 'stock-row';
+  row.innerHTML = addStockRowHtml();
+  box.appendChild(row);
+  if (focus) row.querySelector('.stock-cabinet').focus();
+}
+
+/** Reset the add modal to a single blank location row. */
+function resetAddStockRows() {
+  const box = document.getElementById('add-stock-rows');
+  if (!box) return;
+  box.innerHTML = '';
+  addAddStockRow(false);
+}
+
+/**
+ * Remove one unsaved add-modal location row, keeping at least one row.
+ * @param {HTMLButtonElement} button Remove control inside the row.
+ * @returns {void}
+ */
+function removeAddStockRow(button) {
+  const box = document.getElementById('add-stock-rows');
+  const row = button && button.closest('.stock-row');
+  if (!box || !row) return;
+  if (box.querySelectorAll('.stock-row').length <= 1) {
+    toast('至少保留一個位置', 'info');
+    return;
+  }
+  row.remove();
+}
+
+/** Rebuild cabinet options after the cabinet list loads, preserving selected values. */
+function refreshAddStockCabinetOptions() {
+  document.querySelectorAll('#add-stock-rows .stock-cabinet').forEach(select => {
+    select.innerHTML = _cabinetOptions(select.value);  // _cabinetOptions 會保留清單外的已選值
+  });
+}
+
+/**
+ * Validate add-modal location rows and build the POST /api/items stocks payload.
+ * Pure function (no DOM) so the rules can be tested directly.
+ * @param {Array<{cabinet: string, sub: string, qty: number, note: string}>} rows Parsed rows.
+ * @returns {{stocks: Array<{location: string, qty: number, note: string}>, error: string}}
+ */
+function buildAddStocks(rows) {
+  const stocks = [];
+  const seen = new Set();
+  for (let i = 0; i < rows.length; i += 1) {
+    const r = rows[i];
+    const cabinet = String(r.cabinet || '').trim();
+    const sub = String(r.sub || '').trim();
+    const note = String(r.note || '').trim();
+    const qty = Number(r.qty || 0);
+    // 完全空白的額外列（沒櫃子、沒位置、數量 0、沒備註）直接忽略
+    if (!cabinet && !sub && !qty && !note) continue;
+    if (!cabinet) return { stocks: [], error: `第 ${i + 1} 個位置請選擇櫃子` };
+    const location = sub ? `${cabinet} | ${sub}` : cabinet;
+    if (seen.has(location)) return { stocks: [], error: `位置「${location}」重複，請合併數量` };
+    seen.add(location);
+    stocks.push({ location: location, qty: qty, note: note });
+  }
+  if (!stocks.length) return { stocks: [], error: '位置必填（至少選櫃子）' };
+  return { stocks: stocks, error: '' };
 }
 
 // 渲染新增 modal 的照片上傳區塊（無品項 ID，建立後自動上傳）
@@ -82,28 +171,33 @@ async function submitAdd() {
   if (!name) { toast('品項名稱必填', 'error'); return; }
   const brand = document.getElementById('f-brand').value.trim();
   const code = document.getElementById('f-code').value.trim();
-  const cabinet = document.getElementById('f-cabinet').value;
-  const sub = document.getElementById('f-sub').value.trim();
-  const location = cabinet ? (sub ? `${cabinet} | ${sub}` : cabinet) : '';
   if (!brand) { toast('廠牌必填', 'error'); return; }
   if (!code) { toast('型號必填', 'error'); return; }
-  if (!location) { toast('位置必填（至少選櫃子）', 'error'); return; }
+  const unit = document.getElementById('f-unit').value;
+  // 多位置：逐列解析（分數/小數單位可輸 1/4；非法數量 qtyInputOrToast 已 toast → 整包擋下）
+  const parsedRows = [];
+  for (const row of document.querySelectorAll('#add-stock-rows .stock-row')) {
+    const qty = qtyInputOrToast(row.querySelector('.stock-qty'), unit);
+    if (typeof qty !== 'number' || !isFinite(qty)) return;
+    parsedRows.push({
+      cabinet: row.querySelector('.stock-cabinet').value,
+      sub: row.querySelector('.stock-sub').value,
+      qty: qty,
+      note: row.querySelector('.stock-note').value,
+    });
+  }
+  const built = buildAddStocks(parsedRows);
+  if (built.error) { toast(built.error, 'error'); return; }
   const payload = {
     brand: brand,
     code: code,
     name: name,
-    unit: document.getElementById('f-unit').value,
+    unit: unit,
     site: document.getElementById('f-site').value,
     category: document.getElementById('f-category').value,
-    // v10：位置庫存陣列（一筆 = 一個位置）
-    stocks: [{
-      location: location,
-      // 2026-09-12：分數/小數單位可輸 1/4；非法 toast 並擋下（qtyInputOrToast 回 NaN → !isFinite 擋）
-      qty: (function() { const _q = qtyInputOrToast('f-qty', document.getElementById('f-unit').value); return isFinite(_q) ? _q : null; })(),
-      note: document.getElementById('f-note').value.trim(),
-    }],
+    // v10：位置庫存陣列（一筆 = 一個位置；第一筆為預設位置）
+    stocks: built.stocks,
   };
-  if (payload.stocks[0].qty === null) return;
   try {
     const res = await fetch('/api/items', {
       method: 'POST',
@@ -139,10 +233,10 @@ async function submitAdd() {
     toast(`✅ 已新增「${name}」${photoMsg}`, 'success');
     closeModalForce('add-modal');
     // f-unit 是動態 select（2026-08-16）→ 不參與 value reset，改重填
-    ['f-brand','f-code','f-name','f-qty','f-sub','f-note'].forEach(id => {
-      document.getElementById(id).value = id === 'f-qty' ? '0' : '';
+    ['f-brand','f-code','f-name'].forEach(id => {
+      document.getElementById(id).value = '';
     });
-    document.getElementById('f-cabinet').value = '';
+    resetAddStockRows();
     document.getElementById('f-category').value = '';
     fillUnitSelect(document.getElementById('f-unit'), '個');
     await loadData();
@@ -150,39 +244,3 @@ async function submitAdd() {
     toast('新增失敗', 'error');
   }
 }
-// 2026-09-27：動態載入櫃子清單（settings 同步）
-async function loadCabinetOptions() {
-  try {
-    const res = await fetch('/api/cabinets');
-    if (res.ok) {
-      const cabinets = await res.json();
-      const select = document.getElementById('f-cabinet');
-      if (select) {
-        // 保留「請選擇」選項
-        const currentValue = select.value;
-        const options = select.querySelectorAll('option');
-        const firstOption = options[0];
-        select.innerHTML = '';
-        select.appendChild(firstOption);
-        // 添加新選項（包含備註）
-        cabinets.forEach(cab => {
-          const opt = document.createElement('option');
-          opt.value = cab.name;
-          // 顯示格式：編號A (備註內容)
-          opt.textContent = cab.name + (cab.note ? `(${cab.note})` : '');
-          select.appendChild(opt);
-        });
-        select.value = currentValue;
-      }
-    }
-  } catch (e) {
-    console.error('載入櫃子清單失敗', e);
-  }
-}
-
-// 在 openAddModal 中呼叫
-const originalOpenAddModal = openAddModal;
-openAddModal = function() {
-  originalOpenAddModal.call(this);
-  loadCabinetOptions();
-};

@@ -166,6 +166,20 @@ class TestItemsCRUD:
         assert item["qty"] == 3
         assert item["location"] == "A櫃"  # 第一筆為主要位置
 
+    def test_create_item_rejects_duplicate_stock_locations(self, client):
+        """2026-09-28 新增品項多位置：同一位置重複 → 400，且不得留下半成品主檔"""
+        r = client.post("/api/items", json={
+            "brand": "大金", "code": "DUP-LOC", "name": "重複位置品",
+            "stocks": [
+                {"location": "編號A | 1-1", "qty": 1},
+                {"location": "編號A | 1-1", "qty": 2},
+            ],
+        })
+        assert r.status_code == 400
+        assert "重複" in r.json()["detail"]
+        items = client.get("/api/items?site=all").json()
+        assert not any(i["code"] == "DUP-LOC" for i in items)
+
     def test_list_items(self, client):
         """驗證 GET /api/items 列出全部品項"""
         _add_item(client, name="一", brand="三菱")

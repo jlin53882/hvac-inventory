@@ -2557,7 +2557,9 @@ def test_add_modal_required_fields_validation():
     js = read(ADD_JS)
     assert "!brand" in js and "廠牌必填" in js, "add.js 缺 brand 必填檢查"
     assert "!code" in js and "型號必填" in js, "add.js 缺 code 必填檢查"
-    assert "!location" in js and "位置必填" in js, "add.js 缺 location 必填檢查"
+    # 2026-09-28 多位置：每列需選櫃子、至少一個位置（buildAddStocks）
+    assert "!cabinet" in js and "請選擇櫃子" in js, "add.js 缺每列櫃子必填檢查"
+    assert "!stocks.length" in js and "位置必填" in js, "add.js 缺至少一個位置檢查"
 
 
 def test_edit_modal_low_stock_validation():
@@ -2739,12 +2741,18 @@ def test_stockout_date_display_only_date():
 # ===== 2026-09-06 兩段式位置（櫃子 | 位置）防回歸 =====
 
 def test_add_modal_has_cabinet_and_sub_inputs():
-    """防回歸：新增品項 modal 有 f-cabinet 下拉和 f-sub 輸入框。"""
+    """防回歸：新增品項 modal 改為多位置清單（2026-09-28），每列 stock-cabinet 下拉 + stock-sub 輸入框。"""
     html = read(INDEX)
-    assert 'id="f-cabinet"' in html, "新增品項需有 f-cabinet 櫃子下拉"
-    assert 'id="f-sub"' in html, "新增品項需有 f-sub 位置輸入框"
-    # 舊的 f-location 不應存在
-    assert 'id="f-location"' not in html, "f-location 已廢棄，應改為 f-cabinet + f-sub"
+    add_modal = html[html.index('id="add-modal"'):html.index('id="edit-modal"')]
+    assert 'id="add-stock-rows"' in add_modal, "新增品項需有多位置清單容器"
+    assert 'onclick="addAddStockRow()"' in add_modal, "新增品項需有「新增位置」按鈕"
+    assert '<span class="ch-qty">數量</span>' in add_modal, "新增品項位置清單需有數量欄"
+    # 舊的單一位置欄位不應存在
+    for old_id in ("f-location", "f-cabinet", "f-sub", "f-qty", "f-note"):
+        assert f'id="{old_id}"' not in html, f"{old_id} 已由多位置清單取代"
+    js = read(ADD_JS)
+    assert 'class="stock-cabinet"' in js and 'class="stock-sub"' in js, "新增位置列需有 stock-cabinet + stock-sub"
+    assert "loadCabinetOptions" not in js and "originalOpenAddModal" not in js, "舊單一櫃子下拉載入包裝應已刪除"
 
 
 def test_edit_modal_has_cabinet_and_sub_per_row():
@@ -2765,13 +2773,30 @@ def test_cabinet_options_function_exists():
 
 
 def test_add_js_composes_cabinet_sub_location():
-    """防回歸：submitAdd 組合 f-cabinet + f-sub 為 location 字串。"""
+    """防回歸：submitAdd 逐列讀取 stock-cabinet + stock-sub，並由 buildAddStocks 組成 location。"""
     js = read(ADD_JS)
-    assert "f-cabinet" in js, "submitAdd 需讀取 f-cabinet"
-    assert "f-sub" in js, "submitAdd 需讀取 f-sub"
-    # 確認組合邏輯存在（cabinet + ' | ' + sub）
-    assert "cabinet" in js and "sub" in js, \
-        "submitAdd 需組合 cabinet + sub 為 location 字串"
+    assert "#add-stock-rows .stock-row" in js, "submitAdd 需逐列讀取新增位置"
+    assert ".stock-cabinet" in js and ".stock-sub" in js, "submitAdd 需讀取櫃子與位置"
+    assert "buildAddStocks(parsedRows)" in js, "submitAdd 需透過 buildAddStocks 驗證並組合 location"
+
+
+def test_settings_cabinets_labels_and_mobile_chip():
+    """2026-09-28：櫃子輸入框上方需有固定小標（輸入後仍看得到欄位名稱），手機 chip 列需能進櫃子設定。"""
+    html = read(SETTINGS_HTML)
+    panel = html[html.index('id="panel-cabinets"'):html.index('id="panel-pw"')]
+    assert '<span class="cab-field-label">櫃子編號 / 名稱 *</span>' in panel
+    assert '<span class="cab-field-label">位置說明（選填）</span>' in panel
+    modal = html[html.index('id="edit-cabinet-modal"'):]
+    assert modal.count('class="cab-field-label"') == 2, "編輯櫃子 modal 也需有小標"
+    assert ".cab-add-btn { flex: none; white-space: nowrap;" in html, "新增按鈕文字不得被擠成直排"
+    assert "['cabinets', '📦 櫃子']" in read(SETTINGS_JS), "手機 chip 列缺櫃子入口"
+
+
+def test_add_stock_rows_and_kit_location_runtime():
+    """新增品項多位置 + 整組位置顯示/輸入保留的 runtime 契約（node 執行純函式）。"""
+    script = os.path.join(BASE_DIR, "tests", "add_stock_rows_runtime.test.js")
+    r = subprocess.run(["node", script], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
 
 
 def test_edit_js_composes_cabinet_sub_location():
@@ -3874,7 +3899,7 @@ def test_qty_domain_mounted_and_wired():
     st_js = read(os.path.join(STATIC, "js", "settings.js"))
     assert "setUnitQtyType" in st_js, "單位類型切換遺失"
     # 2026-09-12：分數輸入框必須是 text+inputmode（type=number 打不出 / 也顯示不了 1/3）
-    for qid in ("f-qty", "o-qty", "ns-qty", "nsp-qty", "p-qty", "po-qty", "es-qty", "rs-qty"):
+    for qid in ("o-qty", "ns-qty", "nsp-qty", "p-qty", "po-qty", "es-qty", "rs-qty"):
         assert 'id="%s"' % qid in idx and 'type="number" id="%s"' % qid not in idx, f"{qid} 必須 text 可輸分數"
     assert idx.count('inputmode="decimal"') >= 9, "分數輸入框缺 inputmode"
     edit = read(EDIT_JS)

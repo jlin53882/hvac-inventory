@@ -120,7 +120,7 @@ def test_export_multi_location_has_one_inventory_row_and_two_position_rows(clien
     assert len(inventory_rows) == 1
     assert len(position_rows) == 2
     assert inventory_rows[0][8].startswith("=")
-    assert all(len(r) == 9 for r in position_rows)
+    assert all(len(r) == 10 for r in position_rows)  # 2026-09-28 +櫃子說明
 
 
 def test_export_prepared_soft_delete_and_raw_text_safety(client):
@@ -813,3 +813,114 @@ def test_kit_movement_ownership_assemble_disassemble(client):
     
     single_book.close()
     kit_book.close()
+
+
+def _kit_sheet_rows(sheet, kit_item_id):
+    """Return (headers, rows for one kit item id) from a kit export sheet."""
+    headers = [cell.value for cell in sheet[5]]
+    rows = [row for row in sheet.iter_rows(min_row=6, values_only=True) if row[0] == kit_item_id]
+    return headers, rows
+
+
+def test_kit_export_includes_suggested_locations_site_prepared_and_components(client):
+    """2026-09-28：編輯整組填的櫃子/位置/備註、庫存區、待領出、備註、組成材料都要出現在整組匯出。"""
+    material = add_item(client, name="匯出材料", code="KIT-EXP-MAT", qty=1, site="warehouse")
+    short = add_item(client, name="缺料材料", code="KIT-EXP-SHORT", qty=0, site="warehouse")
+    created = client.post("/api/kits", json={
+        "name": "匯出整組", "brand": "大金", "code": "FXMQ200MAVE", "site": "warehouse", "note": "整組備註",
+        "items": [{"item_id": material["id"], "qty": 1}, {"item_id": short["id"], "qty": 2}],
+        "locations": [
+            {"cabinet": "編號B", "position": "1-1", "note": "123"},
+            {"cabinet": "=HYPERLINK(\"x\")", "position": "", "note": "@危險"},
+        ],
+    })
+    assert created.status_code == 201, created.text
+    kit = created.json()
+
+    response = client.get("/api/kit-export?sections=overview,inventory,positions,components,alerts")
+    assert response.status_code == 200, response.text
+    book = load_workbook(io.BytesIO(response.content), data_only=False)
+    assert "組成材料(整組)" in book.sheetnames
+
+    headers, rows = _kit_sheet_rows(book["庫存總表(整組)"], kit["item_id"])
+    assert len(rows) == 1
+    row = dict(zip(headers, rows[0]))
+    assert row["庫存區"] == "倉庫"
+    assert row["待領出"] == 0 and row["總庫存"] == 0 and row["可用庫存"] == 0
+    assert row["庫存狀態"] == "缺貨"
+    assert row["組成材料數"] == 2 and row["材料狀態"] == "缺料"
+    assert row["建議存放位置"].startswith("編號B | 1-1、")
+    assert row["備註"] == "整組備註"
+
+    headers, rows = _kit_sheet_rows(book["位置明細(整組)"], kit["item_id"])
+    suggested = [dict(zip(headers, r)) for r in rows if r[headers.index("位置類型")] == "建議存放位置"]
+    assert [(r["位置"], r["位置數量"], r["位置備註"]) for r in suggested] == [
+        ("編號B | 1-1", None, "123"),
+        ("'=HYPERLINK(\"x\")", None, "'@危險"),
+    ], "建議存放位置需輸出文字、不計數量，且字串欄位防公式注入"
+    stock_rows = [dict(zip(headers, r)) for r in rows if r[headers.index("位置類型")] == "庫存位置"]
+    assert sum(r["位置數量"] for r in stock_rows) == 0
+
+    headers, rows = _kit_sheet_rows(book["組成材料(整組)"], kit["item_id"])
+    comps = {r[headers.index("材料編號(系統編號)")]: dict(zip(headers, r)) for r in rows}
+    assert comps[material["id"]]["每組需求"] == 1 and comps[material["id"]]["目前庫存"] == 1
+    assert comps[material["id"]]["可組數"] == 1 and comps[material["id"]]["材料狀態"] == "正常"
+    assert comps[short["id"]]["材料狀態"] == "缺料" and comps[short["id"]]["可組數"] == 0
+
+    headers, rows = _kit_sheet_rows(book["庫存警示(整組)"], kit["item_id"])
+    assert rows and dict(zip(headers, rows[0]))["材料狀態"] == "缺料"
+
+    overview = {r[0]: r[1] for r in book["01 總覽"].iter_rows(min_row=6, values_only=True) if r[0]}
+    assert overview["缺料整組數"] >= 1 and "待領出" in overview
+
+
+def test_kit_export_available_stock_subtracts_prepared(client):
+    """整組可用庫存 = 總庫存 - 待領出，庫存狀態以可用庫存判定（與單一庫存警示一致）。"""
+    material = add_item(client, name="待領材料", code="KIT-PREP-MAT", qty=5)
+    kit = client.post("/api/kits", json={
+        "name": "待領整組", "brand": "測試牌", "code": "KIT-PREP", "site": "office",
+        "items": [{"item_id": material["id"], "qty": 1}],
+    }).json()
+    assert client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 2}).status_code == 200
+    conn = app_db.get_db()
+    try:
+        conn.execute("UPDATE items SET prepared_qty=2 WHERE id=?", (kit["item_id"],))
+        conn.commit()
+    finally:
+        conn.close()
+
+    book = load_workbook(io.BytesIO(client.get("/api/kit-export?sections=inventory").content))
+    headers, rows = _kit_sheet_rows(book["庫存總表(整組)"], kit["item_id"])
+    row = dict(zip(headers, rows[0]))
+    assert (row["總庫存"], row["待領出"], row["可用庫存"], row["庫存狀態"]) == (2, 2, 0, "缺貨")
+
+
+def test_kit_export_rejects_unknown_section_but_accepts_components(client):
+    assert client.get("/api/kit-export?sections=components").status_code == 200
+    assert client.get("/api/kit-export?sections=stats").status_code == 400
+
+
+def test_position_sheets_include_cabinet_note_from_settings(client):
+    """設定頁「櫃子」的位置說明需帶到單一庫存與整組的位置明細（櫃子說明欄）。"""
+    created = client.post("/api/cabinets", json={"name": "編號Z", "note": "二樓東側"})
+    assert created.status_code in (200, 201), created.text
+    item = client.post("/api/items", json={
+        "name": "櫃子說明品", "brand": "測試牌", "code": "CAB-NOTE", "site": "office",
+        "stocks": [{"location": "編號Z | 1-1", "qty": 1}, {"location": "其他櫃", "qty": 1}],
+    }).json()
+    book = export_book(client)
+    sheet = book["位置明細(單一庫存)"]
+    headers = [cell.value for cell in sheet[5]]
+    notes = {r[headers.index("位置")]: r[headers.index("櫃子說明")] for r in sheet.iter_rows(min_row=6, values_only=True) if r[0] == item["id"]}
+    assert notes == {"編號Z | 1-1": "二樓東側", "其他櫃": None}
+
+    material = add_item(client, name="櫃子說明材料", code="CAB-NOTE-MAT", qty=1)
+    kit = client.post("/api/kits", json={
+        "name": "櫃子說明整組", "brand": "測試牌", "code": "CAB-NOTE-KIT", "site": "office",
+        "items": [{"item_id": material["id"], "qty": 1}],
+        "locations": [{"cabinet": "編號Z", "position": "2-1", "note": ""}],
+    }).json()
+    kit_book = load_workbook(io.BytesIO(client.get("/api/kit-export?sections=positions").content))
+    headers, rows = _kit_sheet_rows(kit_book["位置明細(整組)"], kit["item_id"])
+    suggested = [dict(zip(headers, r)) for r in rows if r[headers.index("位置類型")] == "建議存放位置"]
+    assert [(r["位置"], r["櫃子說明"]) for r in suggested] == [("編號Z | 2-1", "二樓東側")]

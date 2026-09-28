@@ -161,9 +161,13 @@
   color: #64748b;
   font-size: 12px;
 }
-.kit-content .kit-code,
-.kit-content .kit-location {
+.kit-content .kit-code {
   white-space: nowrap;
+}
+/* 多個位置時允許換行，避免手機版卡片被撐寬 */
+.kit-content .kit-location {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .kit-content .kit-comp-count {
   margin-left: auto;

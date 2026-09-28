@@ -1,34 +1,34 @@
 /* Inventory location editing and target-location adjustment surfaces. */
-#edit-modal .edit-stock-headers,
-#edit-stock-rows .stock-row {
+#edit-modal .edit-stock-headers, #add-modal .edit-stock-headers,
+#edit-stock-rows .stock-row, #add-stock-rows .stock-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 60px minmax(0, 1fr) 40px;
   gap: 6px;
   align-items: center;
 }
 
-#edit-modal .edit-stock-headers .ch-cabinet { grid-column: 1; }
-#edit-modal .edit-stock-headers .ch-pos { grid-column: 2; }
-#edit-modal .edit-stock-headers .ch-qty { grid-column: 3; width: auto; }
-#edit-modal .edit-stock-headers .ch-note { grid-column: 4; }
-#edit-modal .edit-stock-headers .ch-remove { grid-column: 5; }
+#edit-modal .edit-stock-headers .ch-cabinet, #add-modal .edit-stock-headers .ch-cabinet { grid-column: 1; }
+#edit-modal .edit-stock-headers .ch-pos, #add-modal .edit-stock-headers .ch-pos { grid-column: 2; }
+#edit-modal .edit-stock-headers .ch-qty, #add-modal .edit-stock-headers .ch-qty { grid-column: 3; width: auto; }
+#edit-modal .edit-stock-headers .ch-note, #add-modal .edit-stock-headers .ch-note { grid-column: 4; }
+#edit-modal .edit-stock-headers .ch-remove, #add-modal .edit-stock-headers .ch-remove { grid-column: 5; }
 
-#edit-stock-rows .stock-field {
+#edit-stock-rows .stock-field, #add-stock-rows .stock-field {
   display: block;
   min-width: 0;
   margin: 0;
 }
 
-#edit-stock-rows .stock-field select,
-#edit-stock-rows .stock-field input {
+#edit-stock-rows .stock-field select, #add-stock-rows .stock-field select,
+#edit-stock-rows .stock-field input, #add-stock-rows .stock-field input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
 }
 
-#edit-stock-rows .stock-mobile-label { display: none; }
+#edit-stock-rows .stock-mobile-label, #add-stock-rows .stock-mobile-label { display: none; }
 
-#edit-stock-rows .stock-remove {
+#edit-stock-rows .stock-remove, #add-stock-rows .stock-remove {
   width: 40px;
   height: 36px;
   padding: 0;
@@ -41,7 +41,7 @@
   cursor: pointer;
 }
 
-#edit-stock-rows .stock-remove:hover { background: #fef2f2; }
+#edit-stock-rows .stock-remove:hover, #add-stock-rows .stock-remove:hover { background: #fef2f2; }
 
 .stock-adjust-modal {
   width: min(420px, calc(100vw - 24px));
@@ -90,9 +90,9 @@
 .stock-adjust-location-qty { color: #64748b; font-size: 12px; }
 
 @media (max-width: 767px) {
-  #edit-modal .edit-stock-headers { display: none; }
+  #edit-modal .edit-stock-headers, #add-modal .edit-stock-headers { display: none; }
 
-  #edit-stock-rows .stock-row {
+  #edit-stock-rows .stock-row, #add-stock-rows .stock-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
     grid-template-areas: "cabinet sub remove" "qty note remove";
     gap: 8px 6px;
@@ -102,25 +102,25 @@
     border-radius: 10px;
   }
 
-  #edit-stock-rows .stock-field-cabinet { grid-area: cabinet; }
-  #edit-stock-rows .stock-field-sub { grid-area: sub; }
-  #edit-stock-rows .stock-field-qty { grid-area: qty; }
-  #edit-stock-rows .stock-field-note { grid-area: note; }
-  #edit-stock-rows .stock-remove {
+  #edit-stock-rows .stock-field-cabinet, #add-stock-rows .stock-field-cabinet { grid-area: cabinet; }
+  #edit-stock-rows .stock-field-sub, #add-stock-rows .stock-field-sub { grid-area: sub; }
+  #edit-stock-rows .stock-field-qty, #add-stock-rows .stock-field-qty { grid-area: qty; }
+  #edit-stock-rows .stock-field-note, #add-stock-rows .stock-field-note { grid-area: note; }
+  #edit-stock-rows .stock-remove, #add-stock-rows .stock-remove {
     grid-area: remove;
     width: 44px;
     height: 44px;
     align-self: center;
   }
-  #edit-stock-rows .stock-mobile-label {
+  #edit-stock-rows .stock-mobile-label, #add-stock-rows .stock-mobile-label {
     display: block;
     margin-bottom: 3px;
     color: #64748b;
     font-size: 10px;
     font-weight: 600;
   }
-  #edit-stock-rows .stock-field input,
-  #edit-stock-rows .stock-field select {
+  #edit-stock-rows .stock-field input, #add-stock-rows .stock-field input,
+  #edit-stock-rows .stock-field select, #add-stock-rows .stock-field select {
     padding: 8px 7px;
     font-size: 13px;
   }

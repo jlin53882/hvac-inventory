@@ -330,6 +330,11 @@ def create_item(item: ItemCreate):
         if exists:
             raise HTTPException(400, f"該品項已存在（id={exists['id']}）！要放新位置請用「編輯」→「新增位置」")
 
+        # 多位置新增：與編輯相同規則，同一品項不可有重複庫存位置
+        locations = [s.location or "" for s in item.stocks]
+        if len(locations) != len(set(locations)):
+            raise HTTPException(400, "同一品項不可有重複庫存位置")
+
         cur = conn.execute(
             "INSERT INTO items (brand, code, name, unit, low_stock, site, category) VALUES (?,?,?,?,?,?,?)",
             (item.brand, item.code, item.name, item.unit, item.low_stock, item.site, item.category),

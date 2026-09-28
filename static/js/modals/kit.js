@@ -6,6 +6,7 @@ async function loadKitCabinetOptions() {
     const res = await fetch('/api/cabinets');
     if (!res.ok) return;
     globalCabinetList = await res.json();
+    syncKitLocationRowsFromDom();  // 櫃子清單晚到時，先保留使用者已輸入的值再重繪
     renderKitLocationRows();
   } catch (e) {
     console.warn('整組位置載入櫃子清單失敗', e);
@@ -179,14 +180,30 @@ function renderKitLocationRows() {
  * @returns {void} Renders the updated row list.
  */
 function addKitLocationRow() {
+  syncKitLocationRowsFromDom();  // 重繪前保存目前輸入，避免新增列時清掉已填的櫃子/位置/備註
   kitLocationRows.push({ cabinet: '', position: '', note: '' });
   renderKitLocationRows();
 }
 
 // 刪除位置列
 function removeKitLocationRow(idx) {
+  syncKitLocationRowsFromDom();
   kitLocationRows.splice(idx, 1);
   renderKitLocationRows();
+}
+
+/**
+ * Copy the currently rendered row values back into kitLocationRows (keeps blank rows).
+ * @returns {void}
+ */
+function syncKitLocationRowsFromDom() {
+  const rows = document.querySelectorAll('#kit-location-rows .edit-stock-row');
+  if (!rows.length) return;
+  kitLocationRows = Array.from(rows).map(row => ({
+    cabinet: row.querySelector('.kit-loc-cabinet').value.trim(),
+    position: row.querySelector('.kit-loc-pos').value.trim(),
+    note: row.querySelector('.kit-loc-note').value.trim()
+  }));
 }
 
 /**
