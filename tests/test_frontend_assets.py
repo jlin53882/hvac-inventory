@@ -2792,6 +2792,28 @@ def test_settings_cabinets_labels_and_mobile_chip():
     assert "['cabinets', '📦 櫃子']" in read(SETTINGS_JS), "手機 chip 列缺櫃子入口"
 
 
+def test_kit_card_mobile_photo_left_of_name():
+    """2026-09-28：手機版整組卡片照片縮圖在名稱左邊（同單一庫存），不再是整寬 16:9 大圖。"""
+    css = read(CSS_KIT)
+    mobile = css[css.index("@media (max-width: 767px)"):]
+    mobile = mobile[:mobile.index("\n}\n") if "\n}\n" in mobile else len(mobile)]
+    assert 'grid-template-areas: "photo info" "actions actions";' in mobile
+    assert ".kit-content .kit-photo-slot { grid-area: photo; width: 56px; height: 56px; }" in mobile
+    assert "aspect-ratio: 16 / 9" not in css, "整組照片不得再撐成整寬大圖"
+    # buildThumb 輸出 product-thumbnail-*，kit 照片欄必須對到這些 class（舊 .cphoto 規則對不到）
+    assert ".kit-content .kit-photo-slot .product-thumbnail-wrap img" in css
+    assert ".kit-photo-slot .cphoto" not in css
+
+
+def test_settings_cabinet_single_edit_and_delete_reason():
+    """editCabinet 只能有一份（舊 prompt 版會被覆蓋成 dead code）；刪除失敗需顯示後端原因（例如仍被位置使用）。"""
+    js = read(SETTINGS_JS)
+    assert js.count("function editCabinet(") == 1
+    assert "prompt('編輯櫃子編號/名稱'" not in js
+    delete_fn = js[js.index("async function deleteCabinet("):js.index("async function initCabinetsTab(")]
+    assert "err.detail || '刪除失敗'" in delete_fn
+
+
 def test_add_stock_rows_and_kit_location_runtime():
     """新增品項多位置 + 整組位置顯示/輸入保留的 runtime 契約（node 執行純函式）。"""
     script = os.path.join(BASE_DIR, "tests", "add_stock_rows_runtime.test.js")
