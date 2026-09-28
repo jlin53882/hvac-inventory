@@ -112,7 +112,11 @@ function renderKitToolbar(count) {
   const search = document.getElementById('search-input');
   const query = search ? search.value.trim() : '';
   const searchText = query ? `目前搜尋：${query}` : '使用上方搜尋框搜尋整組、材料、型號';
-  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span></div>`;
+  // 2026-09-27 整組庫存匯出（預設本月）
+  const now = new Date();
+  const month_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const month_end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn-sm btn-export" onclick="openKitExportDialog()">📊 匯出報表</button></div>`;
 }
 
 function renderKitStatusBadge(status) {
@@ -153,16 +157,47 @@ function renderKitComponentRow(c) {
   </tr>`;
 }
 
+/**
+ * Render a Kit card from its canonical inventory-backed stock positions.
+ * @param {Object} k Kit response including stock_positions and components.
+ * @param {boolean} isViewer Whether controls should be read-only.
+ * @param {boolean} isM Whether the card is rendered in the mobile view.
+ * @returns {string} Escaped Kit card HTML.
+ */
 function renderKitCard(k, isViewer, isM) {
   const status = getKitStatus(k);
   const components = Array.isArray(k.components) ? k.components : [];
   const stockQty = Number(k.stock_qty || 0);
+  // 整組照片（表格與卡片共用 buildThumb 顯示）
+  const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
+  // Actual Kit positions come from item_stocks; kit_locations remains editor metadata only.
+  const positions = Array.isArray(k.stock_positions) ? k.stock_positions.filter(p => p.location) : [];
+  const locDisplay = positions.length > 0
+    ? positions.slice(0, 2)
+        .map(position => esc(position.location))
+        .join(' | ')
+        + (positions.length > 2 ? ` +${positions.length - 2}` : '')
+    : '';
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
-      <div class="kit-assembly-title"><div class="kit-assembly-name">🔧 ${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div><div class="kit-assembly-meta">${k.code ? `<span class="kit-assembly-model">型號 ${esc(k.code)}</span>` : ''}<span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>${renderKitStatusBadge(status.status)}<span>${components.length} 項組成材料</span></div></div>
-      ${renderKitActionButtons(k, isViewer, isM, status)}
+      <div class="kit-photo-slot">${kitThumb}</div>
+      <div class="kit-info-slot">
+        <div class="kit-name">${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div>
+        <div class="kit-meta">
+          ${k.code ? `<span class="kit-code">型號 ${esc(k.code)}</span>` : ''}
+          ${locDisplay ? `<span class="kit-location">📍 ${locDisplay}</span>` : ''}
+          ${k.note ? `<span class="kit-note-tag">📝 ${esc(k.note)}</span>` : ''}
+          <span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>
+          ${renderKitStatusBadge(status.status)}
+          <span class="kit-comp-count">${components.length} 項組成材料</span>
+        </div>
+      </div>
+      <div class="kit-actions-slot">
+        ${renderKitActionButtons(k, isViewer, isM, status)}
+      </div>
     </header>
-    <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>${components.map(renderKitComponentRow).join('')}</tbody></table></div>
+    <div class="kit-component-wrap"><table class="kit-component-table"><colgroup><col class="kit-col-photo"><col class="kit-col-info"><col class="kit-col-need"><col class="kit-col-stock"><col class="kit-col-status"></colgroup><thead><tr><th>照片</th><th>材料</th><th>需求數量</th><th>目前庫存</th><th>狀態</th></tr></thead><tbody>
+      ${components.map(renderKitComponentRow).join('')}</tbody></table></div>
   </article>`;
 }
 
@@ -441,6 +476,11 @@ async function disassembleKit(kitId) {
 
 // 編輯整組（2026-08-11 Sarah 需求：整組也要能編輯/刪除，與單一庫存一致）
 
+/**
+ * Load a Kit into the editor while retaining locations as display metadata only.
+ * @param {number} kitId Kit definition identifier.
+ * @returns {Promise<void>} Resolves after Kit details and modal state are loaded.
+ */
 async function editKit(kitId) {
 
   let kit = null;
@@ -466,6 +506,13 @@ async function editKit(kitId) {
   document.getElementById('k-note').value = kit.note || '';
   document.getElementById('k-brand').value = kit.brand || '';
   document.getElementById('k-code').value = kit.code || '';
+  document.getElementById('k-site').value = kit.site || 'office';
+  // 填入位置清單
+  kitLocationRows = (kit.locations || []).map(loc => ({
+    cabinet: loc.cabinet || '',
+    position: loc.position || '',
+    note: loc.note || ''
+  }));
 
   document.querySelector('#kit-modal h3').textContent = '🔧 編輯整組';
 
@@ -476,6 +523,8 @@ async function editKit(kitId) {
   btn.setAttribute('onclick', 'submitKitEdit()');
 
   renderKitCompRows();
+  renderKitLocationRows();  // 渲染位置清單
+  renderKitPhotoBox(kit.id, kit.item_id, !!kit.has_photo);  // Kit ID 用於路由，item ID 用於照片媒體查詢
 
   openModal('kit-modal');
 
@@ -558,7 +607,7 @@ function renderKitStatusItem(kit, type) {
     ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();editKit(${esc(String(Number(kit.id)))})">編輯</button>`
     : '';
   return `<article class="inventory-status-item status-list-mobile-row kit-status-item ${esc(statusClass)}">
-    <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!source.has_photo, kit.name, '🔧', source.thumbnail_url)}</div>
+    <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!kit.has_photo, kit.name, '🔧', kit.thumbnail_url)}</div>
     <div class="inventory-status-info">
       <div class="inventory-status-name">${esc(kit.name || '未命名整組')}</div>
       <div class="inventory-status-sub">${esc(source.brand || kit.brand || '整組')}${esc(kit.code ? ' · 型號 ' + kit.code : '')}</div>

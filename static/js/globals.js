@@ -39,7 +39,7 @@ var currentTab = 'calendar';
 var ITEMLESS_TABS = new Set(['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash']);
 var DATA_REFRESH_PRESERVE_MOUNT_TABS = new Set(['work-progress', 'signed-reports', 'quotation', 'petty-cash']);
 var INVENTORY_SITES = ['office', 'warehouse', 'van', 'truck'];
-var currentSite = 'office';  // office=辦公室 / warehouse=倉庫 / van=廂型車 / truck=貨車
+var currentSite = 'office';  // office=公司 / warehouse=倉庫 / van=廂型車 / truck=貨車
 // 正在編輯的品項 id（編輯 modal）
 var editItemId = null;
 // 出庫 modal 的品項 id

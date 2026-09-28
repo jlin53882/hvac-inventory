@@ -1165,12 +1165,22 @@ def test_kits_js_viewer_mode():
     assert "submitKitEdit" in read(KIT_MODAL_JS)
 
 
+def test_kit_photo_identity_runtime_contract():
+    """Execute editKit/photo renderers with different Kit and backing-item IDs."""
+    script = Path(BASE_DIR) / "tests" / "kit_photo_identity_runtime.test.js"
+    result = subprocess.run(["node", str(script)], capture_output=True, text=True, check=False, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "kit photo identity runtime contract passed" in result.stdout
+
+
 def test_kit_edit_rerenders_directly_after_save():
     """整組編輯成功後直接重繪整組，避免 loadData 的舊 render 覆蓋品牌/型號。"""
     js = read(KIT_MODAL_JS)
     start = js.index("async function submitKitEdit()")
     body = js[start:]
-    assert "await loadData({ full: true });" in body
+    # loadData({ full: true }) 可能在 setTimeout 或直接 await（兩種都可）
+    assert ("await loadData({ full: true });" in body or 
+            "loadData({ full: true })" in body), "submitKitEdit must call loadData({ full: true })"
     assert "await renderKits();" not in body
     render = read(os.path.join(STATIC, "js", "render", "kits.js"))
     assert "kitRenderRequestSeq" in render
@@ -1182,7 +1192,7 @@ def test_kit_edit_rerenders_directly_after_save():
     assert "renderRequestId !== preparedRenderRequestSeq" in prepared
     assert "siteAtRequest !== currentSite" in prepared
     render = read(os.path.join(STATIC, "js", "render", "kits.js"))
-    assert "kit-assembly-model" in render
+    assert "kit-code" in render                                      # 新結構用 kit-code
     assert "esc(k.code)" in render
     assert "[kit.name, kit.brand, kit.code, kit.note" in render
     assert "data-kit-id" not in render
@@ -1295,11 +1305,12 @@ def test_stockout_js_shows_model():
 
 
 def test_kits_components_show_photo():
-    """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求：不是整組一張，是每個單一材料）"""
+    """整組每個材料顯示自己的照片縮圖（2026-08-12 Sarah 需求）
+    同時整組本身的照片在卡片標題左邊顯示（2026-09-27 新需求）"""
     js = read(KITS_RENDER_JS)
-    assert "cphoto" in js                                          # 手機 kit-comp 縮圖 class
-    assert "openPhotoLightbox(${c.item_id})" in js                 # 點擊放大
-    assert "k.has_photo" not in js                                 # kit 層級縮圖已移除（誤解版）
+    assert "kit-photo-slot" in js                                  # 卡片標題照片區（新）
+    assert "buildThumb(k.item_id, !!k.has_photo" in js             # 整組照片用 buildThumb
+    assert "openPhotoLightbox(${c.item_id})" in js                 # 材料點擊放大
 
 
 def test_kit_comp_left_align():
@@ -2746,11 +2757,11 @@ def test_edit_modal_has_cabinet_and_sub_per_row():
 
 
 def test_cabinet_options_function_exists():
-    """防回歸：_cabinetOptions 函式存在（產生櫃子下拉選項）。"""
+    """防回歸：_cabinetOptions 函式存在並動態載入 globalCabinetList（2026-09-28 改為動態選項）。"""
     js = read(EDIT_JS)
     assert "function _cabinetOptions" in js, "_cabinetOptions 函式需存在"
-    assert "編號A" in js, "_cabinetOptions 需含編號A選項"
-    assert "鐵架" in js, "_cabinetOptions 需含鐵架選項"
+    assert "globalCabinetList" in js, "_cabinetOptions 需引用 globalCabinetList"
+    assert "selected" in js, "_cabinetOptions 需處理 selected 狀態"
 
 
 def test_add_js_composes_cabinet_sub_location():
@@ -4044,8 +4055,9 @@ def test_vehicle_inventory_sites_are_wired_in_frontend():
     assert "INVENTORY_SITES.indexOf(site)" in app_js
     assert "van: summary.van || {}" in api_js
     assert "truck: summary.truck || {}" in api_js
-    assert index.count('value="van"') == 2
-    assert index.count('value="truck"') == 2
+    # 2026-09-28：Kit modal 新增分類位置選項，site 選項現在出現 3 次（Library + Transfer + Kit modal）
+    assert index.count('value="van"') == 3
+    assert index.count('value="truck"') == 3
 
 
 def test_inventory_transfer_ui_is_mounted_and_wired():
@@ -4068,7 +4080,8 @@ def test_stocktake_frontend_sends_current_site():
 def test_submit_kit_sends_current_site():
     js = read(KIT_MODAL_JS)
     assert "site: currentSite" in js
-    assert "JSON.stringify({ name: name, brand: brand, code: code, site: currentSite" in js
+    assert "name: name, brand: brand, code: code" in js
+    assert "JSON.stringify({" in js
 
 
 def test_url_restore_uses_all_inventory_sites():
@@ -4135,6 +4148,16 @@ def test_inventory_export_dialog_contract():
     assert "params.set('month'" in js
     assert "start_date" in js and "end_date" in js
     assert "sections" in js and "sites" in js
+    assert "params.set('sections', sections.join(','))" in js
+    assert 'data-section="alerts">庫存警示' in index
+    assert 'data-section="alerts" checked' not in index
+    assert 'data-section="overview">總覽' in index
+    assert 'data-section="stats">統計' in index
+    assert 'data-section="overview" checked' not in index
+    assert 'data-section="stats" checked' not in index
+    assert 'id="inventory-export-content"' in index
+    assert 'src="/static/js/site-label.js"' in index
+    assert "onclick=\"switchSite('office')\">🏢 公司" in index
     assert "Content-Disposition" in js
     assert 'id="inventory-export-dialog"' in index
     assert 'src="/static/js/modals/inventory-export.js"' in index

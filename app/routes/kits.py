@@ -45,7 +45,9 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
             where = " WHERE i.site = ?"
             params = (site,)
         kits = conn.execute(
-            f"SELECT k.*, i.unit, i.brand, i.code, i.site FROM kits k JOIN items i ON i.id = k.item_id{where} AND i.is_deleted = 0 ORDER BY k.name",
+            f"SELECT k.id, k.item_id, k.name, k.note, k.created_at, k.updated_at, "
+            f"i.unit, i.brand, i.code, i.site FROM kits k "
+            f"JOIN items i ON i.id = k.item_id{where} AND i.is_deleted = 0 ORDER BY k.name",
             params).fetchall()
         comps_by_kit: dict = {}
         for chunk in chunked_ids(k["id"] for k in kits):
@@ -57,6 +59,38 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
                 ORDER BY ki.id
             """, chunk):
                 comps_by_kit.setdefault(x["kit_id"], []).append(x)
+
+        # Batch load kit_locations (2026-09-28 修復 N+1)
+        locations_by_kit: dict = {}
+        kit_ids = [k["id"] for k in kits]
+        if kit_ids:
+            for chunk in chunked_ids(kit_ids):
+                placeholders = ",".join("?" * len(chunk))
+                for row in conn.execute(f"""
+                    SELECT kit_id, cabinet, position, note FROM kit_locations
+                    WHERE kit_id IN ({placeholders})
+                    ORDER BY kit_id, id
+                """, chunk):
+                    r = dict(row)
+                    kit_id = r.pop("kit_id")
+                    locations_by_kit.setdefault(kit_id, []).append(r)
+
+        positions_by_item: dict = {}
+        item_ids = [k["item_id"] for k in kits]
+        if item_ids:
+            for chunk in chunked_ids(item_ids):
+                placeholders = ",".join("?" * len(chunk))
+                for position in conn.execute(
+                    f"SELECT item_id, location, qty, note FROM item_stocks "
+                    f"WHERE item_id IN ({placeholders}) ORDER BY item_id, id",
+                    chunk,
+                ):
+                    positions_by_item.setdefault(position["item_id"], []).append({
+                        "location": position["location"] or "",
+                        "qty": position["qty"],
+                        "note": position["note"] or "",
+                    })
+
         totals = total_qty_map(
             conn,
             [k["item_id"] for k in kits] + [x["item_id"] for comps in comps_by_kit.values() for x in comps],
@@ -65,6 +99,11 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
         for k in kits:
             d = dict(k)
             d["stock_qty"] = totals[k["item_id"]]
+            # 整組照片指示（供前端判斷是否顯示圖片）
+            d["has_photo"] = has_photo(k["item_id"])
+            # 整組多位置清單（2026-09-28 改用 batch locations）
+            d["locations"] = locations_by_kit.get(k["id"], [])  # UI-only metadata; not stock positions.
+            d["stock_positions"] = positions_by_item.get(k["item_id"], [])
             comps = []
             for x in comps_by_kit.get(k["id"], []):
                 cx = dict(x)
@@ -116,6 +155,8 @@ def create_kit(kit: KitCreate):
                 "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
                 (kit_id, cid, canonical_qty(comp.get("qty", 1))),
             )
+        # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
+        _save_kit_locations(conn, kit_id, kit.locations)
         conn.commit()
         return {"id": kit_id, "item_id": kit_item_id, "name": kit.name,
                 "brand": kit.brand.strip(), "code": kit.code.strip()}
@@ -199,6 +240,8 @@ def update_kit(kit_id: int, kit: KitCreate):
             seen_items.add(cid)
             conn.execute("INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
                          (kit_id, cid, canonical_qty(comp.get("qty", 1))))
+        # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
+        _save_kit_locations(conn, kit_id, kit.locations)
         conn.commit()
         saved = conn.execute("""
             SELECT k.id, i.name, i.brand, i.code
@@ -216,8 +259,17 @@ def update_kit(kit_id: int, kit: KitCreate):
 
 @router.delete("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
 def delete_kit(kit_id: int):
-    """刪除整組定義：套件、材料關聯、套件品項（含流水/盤點/位置庫存/照片）"""
+    """Delete a Kit definition and its photo assets while retaining inventory audit history."""
+    from pathlib import Path
+    from app import config as app_config
+    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
+    from app.services.file_storage import delete_asset_files, safe_upload_path
+    import os
+
     conn = get_db()
+    photo_assets = []
+    shared_asset_paths = set()
+    legacy_path_shared = False
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
@@ -239,6 +291,38 @@ def delete_kit(kit_id: int):
                     (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
         if kit_stocks:
             conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
+        photo_assets = conn.execute(
+            "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            ("item_photo", "item", str(item_id)),
+        ).fetchall()
+        own_asset_ids = {asset["asset_id"] for asset in photo_assets}
+        own_paths_by_resolved = {}
+        path_columns = ("original_path", "preview_path", "thumbnail_path")
+        for asset in photo_assets:
+            for column in path_columns:
+                relative = asset[column]
+                if relative:
+                    resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
+                    own_paths_by_resolved.setdefault(resolved, set()).add(relative)
+        legacy_path = Path(_photo_path(item_id)).resolve()
+        for reference in conn.execute(
+            "SELECT asset_id, original_path, preview_path, thumbnail_path FROM file_assets"
+        ).fetchall():
+            if reference["asset_id"] in own_asset_ids:
+                continue
+            for column in path_columns:
+                relative = reference[column]
+                if not relative:
+                    continue
+                resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
+                if resolved in own_paths_by_resolved:
+                    shared_asset_paths.update(own_paths_by_resolved[resolved])
+                if resolved == legacy_path:
+                    legacy_path_shared = True
+        conn.execute(
+            "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+            ("item_photo", "item", str(item_id)),
+        )
         conn.execute("DELETE FROM kit_items WHERE kit_id=?", (kit_id,))
         conn.execute("DELETE FROM kits WHERE id=?", (kit_id,))
         # M6：套件品項 soft-delete（保留 movements/stocktakes 稽核軌跡）
@@ -250,15 +334,16 @@ def delete_kit(kit_id: int):
         raise
     finally:
         conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
-    # 順帶刪照片檔（uploads/<id>.jpg）——不留孤兒檔
-    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
-    import os
-    try:
-        p = _photo_path(item_id)
-        if os.path.exists(p):
-            os.remove(p)
-    except OSError:
-        pass
+    # Remove only unshared asset variants after the metadata transaction commits.
+    for asset in photo_assets:
+        delete_asset_files(asset, exclude_paths=shared_asset_paths, upload_dir=app_config.UPLOAD_DIR)
+    if not legacy_path_shared:
+        try:
+            os.remove(_photo_path(item_id))
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise HTTPException(500, "圖片刪除失敗") from exc
     invalidate_photo_ids_cache()
     return {"ok": True, "deleted": kit_id}
 
@@ -407,4 +492,21 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         conn.rollback()
         raise
     finally:
-        conn.close()
+        conn.close()
+
+
+
+
+# 2026-09-27 多位置管理：保存套件位置清單
+def _save_kit_locations(conn, kit_id: int, locations: list) -> None:
+    """清空既有位置，批次插入新位置列（2026-09-28 移除 qty；數量由 item_stocks 提供唯一來源）"""
+    conn.execute("DELETE FROM kit_locations WHERE kit_id = ?", (kit_id,))
+    for loc in locations:
+        # These rows are display metadata only; inventory/export positions are item_stocks.location.
+        cabinet = loc.cabinet if hasattr(loc, 'cabinet') else loc.get('cabinet', '')
+        position = loc.position if hasattr(loc, 'position') else loc.get('position', '')
+        note = loc.note if hasattr(loc, 'note') else loc.get('note', '')
+        conn.execute(
+            "INSERT INTO kit_locations (kit_id, cabinet, position, note) VALUES (?,?,?,?)",
+            (kit_id, cabinet, position, note)
+        )

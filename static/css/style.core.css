@@ -243,6 +243,11 @@
   }
   .section-title.collapsed .collapse-btn { transform: rotate(-90deg); }
   .loc-group.collapsed { display: none; }
+  /* 篩選按鈕隱藏規則（用於寬度足夠時隱藏「還有 XX 個」按鈕） */
+  #fp-brand-toggle.hidden,
+  #fp-cat-toggle.hidden {
+    display: none;
+  }
 
   .item-card {
     background: #fff;

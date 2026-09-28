@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$Restart,
-    [int]$Port = 8000
+    [int]$Port = 8001
 )
 
 $ErrorActionPreference = 'Stop'

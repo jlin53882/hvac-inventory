@@ -1,17 +1,33 @@
 // 庫存管理系統 - 整組 Modal（v8 拆分；材料選擇為 demo 樣式：已選列 + 單一可搜尋框）
 var kitUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯整組 modal 時的 updated_at 快照
+var kitLocationRows = [];  // Display metadata only; actual stock positions are item_stocks.location.
+async function loadKitCabinetOptions() {
+  try {
+    const res = await fetch('/api/cabinets');
+    if (!res.ok) return;
+    globalCabinetList = await res.json();
+    renderKitLocationRows();
+  } catch (e) {
+    console.warn('整組位置載入櫃子清單失敗', e);
+  }
+}
 function openKitModal() {
   editingKitId = null;
   kitModalCompRows = [];
+  kitLocationRows = [];
   document.getElementById('k-name').value = '';
   document.getElementById('k-note').value = '';
   document.getElementById('k-brand').value = '';
   document.getElementById('k-code').value = '';
+  document.getElementById('k-site').value = 'office';
   document.querySelector('#kit-modal h3').textContent = '🔧 新增整組';
   const btn = document.querySelector('#kit-modal .btn-confirm');
   btn.textContent = '✅ 建立整組';
   btn.setAttribute('onclick', 'submitKit()');
   renderKitCompRows();  // 顯示「尚未加入材料」+ 搜尋框（同 demo）
+  renderKitLocationRows();  // 顯示位置清單（初始為空）
+  loadKitCabinetOptions();
+  renderKitPhotoBox(null, null, false);  // 新增模式：選檔，建立後背景上傳
   openModal('kit-modal');
 }
 
@@ -34,7 +50,7 @@ function setKitSubmitBusy(isBusy) {
   btn.setAttribute('aria-busy', String(isBusy));
 }
 
-// 送出新增整組表單（POST /api/kits），成功後關閉 Modal 並重載資料
+// 送出新增整組表單（POST /api/kits），成功後立即關閉 Modal，背景上傳照片（避免多人併發卡頓）
 async function submitKit() {
   if (document.querySelector('#kit-modal .btn-confirm')?.disabled) return;
   const name = document.getElementById('k-name').value.trim();
@@ -45,23 +61,59 @@ async function submitKit() {
     .filter(r => r.item_id && r.qty > 0)
     .map(r => ({ item_id: parseInt(r.item_id), qty: r.qty }));
   if (!items.length) { toast('請至少加入一個材料', 'error'); return; }
+  const locations = getKitLocations();
   setKitSubmitBusy(true);
   try {
     const res = await fetch('/api/kits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, site: currentSite, items: items, note: document.getElementById('k-note').value.trim() })
+      body: JSON.stringify({ name: name, brand: brand, code: code, site: currentSite, items: items, locations: locations, note: document.getElementById('k-note').value.trim() })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || '新增失敗');
+    const kitId = data.id;
     closeModalForce('kit-modal');
     toast(`✅ 已新增整組「${data.name || name}」｜品牌：${data.brand || '未填寫'}｜型號：${data.code || '未填寫'}`, 'success');
+    // 背景非同步上傳照片（不阻擋 UI，避免多人上傳時卡頓）
+    _uploadKitPhotoAsync(kitId);
     await loadData();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   } finally {
     setKitSubmitBusy(false);
   }
+}
+
+// 背景上傳整組照片（非同步，不 await，避免阻擋多人併發操作）
+function _uploadKitPhotoAsync(kitId) {
+  const photoInput = document.getElementById('k-photo-input');
+  const albumInput = document.getElementById('k-photo-album');
+  const chosenFile = (photoInput && photoInput.files && photoInput.files[0])
+    || (albumInput && albumInput.files && albumInput.files[0]);
+  if (!chosenFile) return;  // 沒選檔，不上傳
+  
+  const fd = new FormData();
+  fd.append('file', chosenFile);
+  fetch(`/api/kits/${kitId}/photo`, { method: 'POST', body: fd })
+    .then(r => {
+      if (r.ok) {
+        toast('📷 整組照片已上傳', 'info');
+        // 背景重載資料，確保照片顯示
+        setTimeout(() => loadData({ full: false }), 500);
+      } else {
+        return r.json().then(e => {
+          console.warn('整組照片上傳失敗:', e.detail || '未知錯誤');
+          toast('⚠️ 照片上傳失敗，請重試', 'error');
+        }).catch(() => {
+          console.warn('整組照片上傳失敗 (無回應)');
+          toast('⚠️ 照片上傳失敗', 'error');
+        });
+      }
+    })
+    .catch(e => {
+      console.warn('整組照片上傳錯誤:', e.message);
+      toast('⚠️ 照片上傳出錯', 'error');
+    });
 }
 
 // 送出編輯整組（PUT /api/kits/{id}；與新增共用同一個 modal）
@@ -76,12 +128,13 @@ async function submitKitEdit() {
     .map(r => ({ item_id: parseInt(r.item_id), qty: r.qty }));
   if (!items.length) { toast('請至少加入一個材料', 'error'); return; }
   if (!editingKitId) { toast('編輯目標遺失，請重開', 'error'); return; }
+  const locations = getKitLocations();
   setKitSubmitBusy(true);
   try {
     const res = await fetch(`/api/kits/${editingKitId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, items: items, note: document.getElementById('k-note').value.trim(),
+      body: JSON.stringify({ name: name, brand: brand, code: code, items: items, locations: locations, note: document.getElementById('k-note').value.trim(),
                              updated_at: kitUpdatedAt })
     });
     if (!res.ok) {
@@ -91,11 +144,60 @@ async function submitKitEdit() {
     const saved = await res.json();
     closeModalForce('kit-modal');
     toast('✅ 已更新整組「' + saved.name + '」｜品牌：' + (saved.brand || '未填寫') + '｜型號：' + (saved.code || '未填寫'), 'success');
-    // 同步 ALL_ITEMS 與整組頁，避免下一個待領出/已領出操作讀到舊品牌或型號。
-    await loadData({ full: true });
+    // 背景非同步上傳照片（如果有新選檔）+ 背景重載資料
+    _uploadKitPhotoAsync(editingKitId);
+    setTimeout(() => {
+      // 同步 ALL_ITEMS 與整組頁，避免下一個待領出/已領出操作讀到舊品牌或型號。
+      loadData({ full: true });
+    }, 600);
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   } finally {
     setKitSubmitBusy(false);
   }
+}
+
+/**
+ * Render the Kit location display-metadata rows.
+ * @returns {void} Updates the location-row container when it exists.
+ */
+function renderKitLocationRows() {
+  const container = document.getElementById('kit-location-rows');
+  if (!container) return;
+  container.innerHTML = kitLocationRows.map((row, idx) => `
+    <div class="edit-stock-row" data-idx="${idx}">
+      <select class="kit-loc-cabinet">${_cabinetOptions(row.cabinet || '')}</select>
+      <input type="text" class="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
+      <input type="text" class="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
+      <button type="button" class="btn-remove" onclick="removeKitLocationRow(${idx})">🗑</button>
+    </div>
+  `).join('');
+}
+
+/**
+ * Append one empty Kit location metadata row.
+ * @returns {void} Renders the updated row list.
+ */
+function addKitLocationRow() {
+  kitLocationRows.push({ cabinet: '', position: '', note: '' });
+  renderKitLocationRows();
+}
+
+// 刪除位置列
+function removeKitLocationRow(idx) {
+  kitLocationRows.splice(idx, 1);
+  renderKitLocationRows();
+}
+
+/**
+ * Collect Kit display metadata for the create/update request.
+ * @returns {Array<{cabinet: string, position: string, note: string}>} Non-empty metadata rows.
+ */
+function getKitLocations() {
+  const rows = document.querySelectorAll('#kit-location-rows .edit-stock-row');
+  return Array.from(rows).map(row => ({
+    cabinet: row.querySelector('.kit-loc-cabinet').value.trim(),
+    position: row.querySelector('.kit-loc-pos').value.trim(),
+    note: row.querySelector('.kit-loc-note').value.trim()
+  })).filter(r => r.cabinet || r.position);  // 至少一個欄位填寫才算有效
 }

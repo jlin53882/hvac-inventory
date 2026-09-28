@@ -84,13 +84,16 @@ function settingsSwitch(panel) {
   document.querySelectorAll('#settingsChipBar .chip').forEach(el =>
     el.classList.toggle('active', el.dataset.panel === panel));
   const showUnits = panel === 'units';
+  const showCabinets = panel === 'cabinets';
   const showGcal = panel === 'gcal';
   const showPetty = panel === 'petty-cash';
   document.getElementById('panel-units').style.display = showUnits ? '' : 'none';
+  document.getElementById('panel-cabinets').style.display = showCabinets ? '' : 'none';
   document.getElementById('panel-gcal').style.display = showGcal ? '' : 'none';
   document.getElementById('panel-petty-cash').style.display = showPetty ? '' : 'none';
-  document.getElementById('panel-pw').style.display = (!showUnits && !showGcal && !showPetty) ? '' : 'none';
+  document.getElementById('panel-pw').style.display = (!showUnits && !showCabinets && !showGcal && !showPetty) ? '' : 'none';
   if (showUnits) renderUnitsPanel();
+  if (showCabinets) initCabinetsTab();
   if (showGcal) renderGcalPanel();
   if (showPetty) renderPettyOptionsPanel();
 }
@@ -834,3 +837,157 @@ async function bindGcalUser(userId, keyName) {
   if (gcalKeys.length && !selectedKeyId) selectedKeyId = gcalKeys[0].id;
   settingsSwitch(canUnits ? 'units' : canPettyOptions ? 'petty-cash' : canChangePassword ? 'pw' : 'gcal');
 })();
+
+
+// ========== 櫃子管理（2026-09-27 多位置共用） ==========
+var cabinetList = [];
+
+async function loadCabinets() {
+  try {
+    const res = await fetch('/api/cabinets');
+    if (res.ok) {
+      cabinetList = await res.json();
+      renderCabinetTable();
+    } else {
+      toast('查詢櫃子清單失敗', 'error');
+    }
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
+function renderCabinetTable() {
+  const tbody = document.getElementById('cabinetList');
+  if (!tbody) return;
+  if (!cabinetList.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #999;">尚未新增任何櫃子</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cabinetList.map(c => `
+    <tr>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td>${esc(c.note || '（無備註）')}</td>
+      <td style="text-align: right; display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+        <button class="btn-save" style="flex-shrink: 0; padding: 6px 12px; min-height: 32px; font-size: 12px;" onclick="editCabinet(${c.id})">✎ 編輯</button>
+        <button class="btn-cancel-ghost" style="flex-shrink: 0; padding: 6px 12px; min-height: 32px; font-size: 12px; color: #dc2626;" onclick="deleteCabinet(${c.id})">🗑 刪除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function addCabinet() {
+  const name = document.getElementById('cabinet-name').value.trim();
+  const note = document.getElementById('cabinet-note').value.trim();
+  if (!name) {
+    toast('請輸入櫃子編號或名稱', 'error');
+    return;
+  }
+  try {
+    const res = await fetch('/api/cabinets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, note })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '新增失敗');
+    }
+    const data = await res.json();
+    cabinetList.push(data);
+    renderCabinetTable();
+    document.getElementById('cabinet-name').value = '';
+    document.getElementById('cabinet-note').value = '';
+    toast('✅ 已新增櫃子「' + name + '」', 'success');
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
+async function editCabinet(cabinetId) {
+  const cab = cabinetList.find(c => c.id === cabinetId);
+  if (!cab) return;
+  const name = prompt('編輯櫃子編號/名稱', cab.name);
+  if (name === null) return;
+  const newName = name.trim();
+  if (!newName) {
+    toast('櫃子編號不可為空', 'error');
+    return;
+  }
+  try {
+    const res = await fetch(`/api/cabinets/${cabinetId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName, note: cab.note })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '編輯失敗');
+    }
+    const data = await res.json();
+    Object.assign(cab, data);
+    renderCabinetTable();
+    toast('✅ 已更新櫃子「' + newName + '」', 'success');
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
+async function deleteCabinet(cabinetId) {
+  const cab = cabinetList.find(c => c.id === cabinetId);
+  if (!cab || !confirm('確定刪除櫃子「' + cab.name + '」？')) return;
+  try {
+    const res = await fetch(`/api/cabinets/${cabinetId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('刪除失敗');
+    cabinetList = cabinetList.filter(c => c.id !== cabinetId);
+    renderCabinetTable();
+    toast('✅ 已刪除櫃子', 'success');
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}
+
+// Settings 初始化（與 Units 一樣調用）
+async function initCabinetsTab() {
+  await loadCabinets();
+}
+
+// 2026-09-27：編輯櫃子邏輯
+var currentEditCabinetId = null;
+function editCabinet(id) {
+  const cabinet = cabinetList.find(c => c.id === id);
+  if (!cabinet) return;
+  currentEditCabinetId = id;
+  document.getElementById('edit-cabinet-name').value = cabinet.name || '';
+  document.getElementById('edit-cabinet-note').value = cabinet.note || '';
+  openModal('edit-cabinet-modal');
+}
+
+async function submitCabinetEdit() {
+  const name = document.getElementById('edit-cabinet-name').value.trim();
+  if (!name) {
+    toast('請輸入櫃子編號或名稱', 'error');
+    return;
+  }
+  const note = document.getElementById('edit-cabinet-note').value.trim();
+  try {
+    const res = await fetch(`/api/cabinets/${currentEditCabinetId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, note })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '編輯失敗');
+    }
+    const data = await res.json();
+    const idx = cabinetList.findIndex(c => c.id === currentEditCabinetId);
+    if (idx >= 0) {
+      cabinetList[idx] = data;
+    }
+    renderCabinetTable();
+    closeModalForce('edit-cabinet-modal');
+    toast('✅ 已編輯櫃子「' + name + '」', 'success');
+  } catch (e) {
+    toast('⚠️ ' + e.message, 'error');
+  }
+}

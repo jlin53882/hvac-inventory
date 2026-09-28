@@ -6,7 +6,7 @@ Pydantic 請求模型
 """
 from datetime import date
 from decimal import Decimal
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -195,12 +195,21 @@ class PreparedItemUpdate(BaseModel):
 
 
 # ---------- 整組（套件） ----------
+class KitLocation(BaseModel):
+    """整組位置單筆記錄（2026-09-28 改為只記 cabinet/position/note；qty 由 item_stocks 提供唯一來源）"""
+    cabinet: str = ""
+    position: str = ""
+    note: str = ""
+
+
 class KitCreate(BaseModel):
+    """Request schema for Kit definitions; inventory identity and stock stay on items."""
     name: str
     brand: str = ""
     code: str = ""
     site: Optional[InventorySite] = None
     items: list  # [{item_id, qty}]
+    locations: list[KitLocation] = Field(default_factory=list)  # UI display metadata only; stock positions live in item_stocks
     note: str = ""
     updated_at: Optional[str] = None  # 2026-08-14 樂觀鎖：前端編輯整組時的 updated_at 快照
 
@@ -529,3 +538,37 @@ class EngineeringReportIn(BaseModel):
         return self
 
 
+
+
+# ---------- 櫃子（Settings 設定） ----------
+def _normalize_cabinet_name(value: str) -> str:
+    """修剪櫃子名稱，讓新增與編輯共用相同的唯一名稱格式。"""
+    return value.strip()
+
+
+class CabinetCreate(BaseModel):
+    """Validate and normalize cabinet creation fields."""
+    name: str = Field(..., min_length=1, max_length=100)  # 櫃子編號或名稱，如「編號A」、「倉庫1」
+    note: str = Field("", max_length=500)  # 櫃子位置說明（防忘記在哪裡）
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalize_name(cls, value: Any) -> Any:
+        """在長度驗證與儲存前統一修剪櫃子名稱。"""
+        if not isinstance(value, str):
+            return value
+        return _normalize_cabinet_name(value)
+
+
+class CabinetUpdate(BaseModel):
+    """Validate and normalize cabinet update fields."""
+    name: str = Field(..., min_length=1, max_length=100)
+    note: str = Field("", max_length=500)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalize_name(cls, value: Any) -> Any:
+        """在長度驗證與儲存前統一修剪櫃子名稱。"""
+        if not isinstance(value, str):
+            return value
+        return _normalize_cabinet_name(value)

@@ -38,6 +38,19 @@ function openEditModal(id) {
   warnBox.style.display = 'none';
   warnBox.innerHTML = '';
   openModal('edit-modal');
+  // 2026-09-27：編輯時也載入最新櫃子清單
+  (async () => {
+    try {
+      const res = await fetch('/api/cabinets');
+      if (res.ok) {
+        globalCabinetList = await res.json();
+        // 重新渲染位置列表（更新櫃子選項）
+        renderEditStockRows(stocks, item.unit || '個');
+      }
+    } catch (e) {
+      console.warn('編輯 modal 載入櫃子清單失敗', e);
+    }
+  })();
   // 名稱/型號輸入時即時檢查相似（350ms debounce）
   bindSimilarCheck('e-name', 'e-code', 'e-similar-warn', id);
 }
@@ -70,10 +83,16 @@ function renderEditStockRows(stocks, unit) {
   }).join('');
 }
 
-// 產生櫃子下拉 options
+// 2026-09-27：產生櫃子下拉 options（從 API 動態載入，不用硬編碼）
+var globalCabinetList = [];  // 全局存放櫃子清單
 function _cabinetOptions(selected) {
-  const cabs = ['','編號A','編號B','編號C','編號D','編號E','編號F','鐵架','二樓'];
-  return cabs.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c || '— 請選擇 —'}</option>`).join('');
+  // 若全局清單為空，用預設值（應不會發生，除非 loadCabinets 還未完成）
+  const cabs = [{ name: '', note: '' }, ...globalCabinetList];
+  return cabs.map(c => {
+    const name = c.name || '';
+    const label = name ? name + (c.note ? `(${c.note})` : '') : '— 請選擇 —';
+    return `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
 }
 
 /**
@@ -191,5 +210,32 @@ async function submitEdit() {
     await loadData();
   } catch (e) {
     toast('儲存失敗', 'error');
+  }
+}
+// 2026-09-27：編輯 modal 也要動態載入櫃子清單
+async function loadEditCabinetOptions() {
+  try {
+    const res = await fetch('/api/cabinets');
+    if (res.ok) {
+      const cabinets = await res.json();
+      const selects = document.querySelectorAll('[id*="cabinet"]');
+      selects.forEach(select => {
+        if (!select.id.includes('location')) {  // 避免位置表單欄位
+          const currentValue = select.value;
+          const firstOption = select.querySelector('option:first-child');
+          select.innerHTML = '';
+          if (firstOption) select.appendChild(firstOption);
+          cabinets.forEach(cab => {
+            const opt = document.createElement('option');
+            opt.value = cab.name;
+            opt.textContent = cab.name + (cab.note ? `(${cab.note})` : '');
+            select.appendChild(opt);
+          });
+          select.value = currentValue;
+        }
+      });
+    }
+  } catch (e) {
+    console.error('載入櫃子清單失敗', e);
   }
 }
