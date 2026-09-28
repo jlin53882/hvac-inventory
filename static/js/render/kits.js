@@ -158,7 +158,52 @@ function renderKitComponentRow(c) {
 }
 
 /**
- * Render a Kit card from its canonical inventory-backed stock positions.
+ * Collect Kit card locations with their notes, one entry per "櫃子 | 位置".
+ * Actual item_stocks positions come first; suggested storage rows saved in the Kit
+ * editor (kit_locations) follow. Same location → merged, notes de-duplicated.
+ * Blank-location stock rows are skipped (their note mirrors kits.note).
+ * Pure function for runtime tests.
+ * @param {Object} k Kit response with stock_positions and locations.
+ * @returns {Array<{label: string, notes: string[]}>} Unescaped entries.
+ */
+function kitLocationEntries(k) {
+  const entries = [];
+  const add = (label, note) => {
+    if (!label) return;
+    let entry = entries.find(e => e.label === label);
+    if (!entry) {
+      entry = { label: label, notes: [] };
+      entries.push(entry);
+    }
+    if (note && !entry.notes.includes(note)) entry.notes.push(note);
+  };
+  (Array.isArray(k && k.stock_positions) ? k.stock_positions : []).forEach(position => {
+    add(String(position.location || '').trim(), String(position.note || '').trim());
+  });
+  (Array.isArray(k && k.locations) ? k.locations : []).forEach(loc => {
+    const cabinet = String(loc.cabinet || '').trim();
+    const position = String(loc.position || '').trim();
+    add(cabinet && position ? `${cabinet} | ${position}` : (cabinet || position), String(loc.note || '').trim());
+  });
+  return entries;
+}
+
+/**
+ * Render the Kit card location list: one row per location, note beside it.
+ * @param {Array<{label: string, notes: string[]}>} entries From kitLocationEntries.
+ * @returns {string} Escaped HTML ('' when there are no locations).
+ */
+function renderKitLocationList(entries) {
+  if (!entries.length) return '';
+  const rows = entries.map(e =>
+    '<li class="kit-loc-item"><span class="kit-loc-name">' + esc(e.label) + '</span>' +
+    (e.notes.length ? '<span class="kit-loc-note">' + esc(e.notes.join('；')) + '</span>' : '') +
+    '</li>').join('');
+  return '<div class="kit-loc-block"><div class="kit-loc-title">📍 存放位置</div><ul class="kit-loc-list">' + rows + '</ul></div>';
+}
+
+/**
+ * Render a Kit card with its stock positions and suggested storage locations.
  * @param {Object} k Kit response including stock_positions and components.
  * @param {boolean} isViewer Whether controls should be read-only.
  * @param {boolean} isM Whether the card is rendered in the mobile view.
@@ -170,14 +215,10 @@ function renderKitCard(k, isViewer, isM) {
   const stockQty = Number(k.stock_qty || 0);
   // 整組照片（表格與卡片共用 buildThumb 顯示）
   const kitThumb = buildThumb(k.item_id, !!k.has_photo, k.name, '🔧', k.thumbnail_url);
-  // Actual Kit positions come from item_stocks; kit_locations remains editor metadata only.
-  const positions = Array.isArray(k.stock_positions) ? k.stock_positions.filter(p => p.location) : [];
-  const locDisplay = positions.length > 0
-    ? positions.slice(0, 2)
-        .map(position => esc(position.location))
-        .join(' | ')
-        + (positions.length > 2 ? ` +${positions.length - 2}` : '')
-    : '';
+  // 位置顯示：實際庫存位置（item_stocks）+ 編輯整組填的建議存放位置（kit_locations）
+  // 每個位置一行、備註接在該位置後面；整組備註另起一行
+  const detailLines = renderKitLocationList(kitLocationEntries(k)) +
+    (k.note ? '<div class="kit-detail-line kit-note-tag">📝 ' + esc(k.note) + '</div>' : '');
   return `<article class="kit-assembly-card is-${esc(status.status)}">
     <header class="kit-assembly-header">
       <div class="kit-photo-slot">${kitThumb}</div>
@@ -185,12 +226,11 @@ function renderKitCard(k, isViewer, isM) {
         <div class="kit-name">${esc(k.brand || '') ? esc(k.brand) + ' ' : ''}${esc(k.name || '未命名整組')}</div>
         <div class="kit-meta">
           ${k.code ? `<span class="kit-code">型號 ${esc(k.code)}</span>` : ''}
-          ${locDisplay ? `<span class="kit-location">📍 ${locDisplay}</span>` : ''}
-          ${k.note ? `<span class="kit-note-tag">📝 ${esc(k.note)}</span>` : ''}
           <span class="kit-stock-badge ${stockQty > 0 ? '' : 'is-empty'}">庫存 ${esc(typeof Qty !== 'undefined' ? Qty.format(stockQty, 'integer') : formatKitNumber(stockQty))} ${esc(k.unit || '組')}</span>
           ${renderKitStatusBadge(status.status)}
           <span class="kit-comp-count">${components.length} 項組成材料</span>
         </div>
+        ${detailLines ? `<div class="kit-detail-lines">${detailLines}</div>` : ''}
       </div>
       <div class="kit-actions-slot">
         ${renderKitActionButtons(k, isViewer, isM, status)}
@@ -524,6 +564,7 @@ async function editKit(kitId) {
 
   renderKitCompRows();
   renderKitLocationRows();  // 渲染位置清單
+  loadKitCabinetOptions();  // F5 後直接編輯時櫃子清單可能尚未載入；載入後重繪並保留已存/已輸入的值
   renderKitPhotoBox(kit.id, kit.item_id, !!kit.has_photo);  // Kit ID 用於路由，item ID 用於照片媒體查詢
 
   openModal('kit-modal');

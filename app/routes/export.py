@@ -31,7 +31,7 @@ DEFAULT_STOCKOUT_SECTIONS = ("movements",)
 
 # Endpoint-specific section allowlists
 SINGLE_EXPORT_SECTIONS = ("overview", "inventory", "positions", "alerts", "movements", "stats")
-KIT_EXPORT_SECTIONS = ("overview", "inventory", "positions", "alerts", "movements")
+KIT_EXPORT_SECTIONS = ("overview", "inventory", "positions", "components", "alerts", "movements")
 STOCKOUT_EXPORT_SECTIONS = ("overview", "movements")
 HEADER_FILL = "2E5C8A"
 TITLE_FILL = "163B63"
@@ -303,16 +303,28 @@ def _build_inventory_sheet(ws, items, positions, position_table_available: bool,
             ws.conditional_formatting.add(status_range, FormulaRule(formula=[f'$L6="{status}"'], fill=PatternFill("solid", fgColor=color)))
 
 
-def _build_position_sheet(ws, positions, qty_types):
-    """每個庫存位置各輸出一列，並省略分類資料。"""
-    headers = ["品項編號(系統編號)", "庫存區", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註"]
+def _load_cabinet_notes(conn) -> dict:
+    """設定頁「櫃子」的位置說明（櫃子名稱 → 說明），供位置明細對照。"""
+    return {row["name"]: row["note"] or "" for row in conn.execute("SELECT name, note FROM cabinets")}
+
+
+def _cabinet_note(location: str, cabinet_notes: dict) -> str:
+    """依「櫃子 | 位置」格式取出櫃子名稱並查位置說明；非櫃子位置回傳空字串。"""
+    cabinet = (location or "").split(" | ", 1)[0].strip()
+    return cabinet_notes.get(cabinet, "") if cabinet else ""
+
+
+def _build_position_sheet(ws, positions, qty_types, cabinet_notes):
+    """每個庫存位置各輸出一列，並省略分類資料；櫃子說明取自設定頁櫃子清單。"""
+    headers = ["品項編號(系統編號)", "庫存區", "廠牌", "品項名稱", "型號", "單位", "位置", "位置數量", "位置備註", "櫃子說明"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
     for row in positions:
-        ws.append([row["id"], _site_label(row["site"]), _safe(row["brand"] or "未設定廠牌"), _safe(row["name"]), _safe(row["code"]), _safe(row["unit"]), _safe(row["location"]), row["qty"], _safe(row["note"])])
+        ws.append([row["id"], _site_label(row["site"]), _safe(row["brand"] or "未設定廠牌"), _safe(row["name"]), _safe(row["code"]), _safe(row["unit"]), _safe(row["location"]), row["qty"], _safe(row["note"]),
+                   _safe(_cabinet_note(row["location"], cabinet_notes))])
     if positions:
         _add_table(ws, "tblPosition", 5)
-        _style_data(ws, 5, qty_columns=(8,), note_columns=(9,))
+        _style_data(ws, 5, qty_columns=(8,), note_columns=(9, 10))
         for row in range(6, ws.max_row + 1):
             ws.cell(row, 8).number_format = _qty_format(qty_types.get(str(ws.cell(row, 6).value).lstrip("'"), "decimal"))
     else:
@@ -323,78 +335,178 @@ def _build_position_sheet(ws, positions, qty_types):
 
 # ========== 整組庫存專用匯出 Builders ==========
 
-def _build_kit_inventory_sheet(ws, kit_items, kit_locations, qty_types):
-    """整組庫存總表；位置總量以 item_stocks 列加總。"""
-    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "單位", "低庫存門檻", "總庫存", "庫存狀態"]
+KIT_POSITION_STOCK = "庫存位置"
+KIT_POSITION_SUGGESTED = "建議存放位置"
+
+
+def _kit_location_text(cabinet: str, position: str) -> str:
+    """建議存放位置沿用單一庫存的「櫃子 | 位置」格式。"""
+    cabinet = (cabinet or "").strip()
+    position = (position or "").strip()
+    if cabinet and position:
+        return f"{cabinet} | {position}"
+    return cabinet or position
+
+
+def _kit_totals(kit_positions) -> dict:
+    """整組總量只加總 item_stocks 實際庫存列（建議存放位置不計數量）。"""
+    qty_by_id: dict = {}
+    for position in kit_positions:
+        qty_by_id[position["id"]] = qty_by_id.get(position["id"], 0) + (position["qty"] or 0)
+    return qty_by_id
+
+
+def _kit_component_state(stock: float, need: float) -> str:
+    """與整組頁材料狀態一致：缺料 / 庫存不足 / 正常（1e-9 容差）。"""
+    if need > 0 and stock <= 0:
+        return "缺料"
+    if stock < need - 1e-9:
+        return "庫存不足"
+    return "正常"
+
+
+def _kit_material_status(components) -> str:
+    """整組材料狀態：任一缺料 → 缺料；否則任一不足 → 庫存不足；否則正常。"""
+    states = [_kit_component_state(c["stock"] or 0, c["need_qty"] or 0) for c in components]
+    if "缺料" in states:
+        return "缺料"
+    if "庫存不足" in states:
+        return "庫存不足"
+    return "正常"
+
+
+def _kit_stock_status(available: float, low_stock: float) -> str:
+    """整組庫存狀態，規則與單一庫存警示相同（以可用庫存判定）。"""
+    if available < 0:
+        return "資料異常"
+    if available == 0:
+        return "缺貨"
+    if low_stock and available <= low_stock:
+        return "低庫存"
+    return "正常"
+
+
+def _build_kit_inventory_sheet(ws, kit_items, kit_positions, suggested_by_kit, components_by_kit, qty_types):
+    """整組庫存總表；總庫存以 item_stocks 列加總，建議存放位置另列文字欄。"""
+    headers = ["整組編號(系統編號)", "庫存區", "廠牌", "整組名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存",
+               "可用庫存", "庫存狀態", "組成材料數", "材料狀態", "建議存放位置", "備註"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
-
-    qty_by_id = {}
-    for position in kit_locations:
-        item_id = position["id"]
-        qty_by_id[item_id] = qty_by_id.get(item_id, 0) + (position["qty"] or 0)
+    qty_by_id = _kit_totals(kit_positions)
 
     for item in kit_items:
         qty = qty_by_id.get(item["id"], 0)
-        low_stock = item["low_stock"] if "low_stock" in item.keys() else 0
-        status = "缺貨" if qty == 0 else ("低庫存" if low_stock and qty <= low_stock else "正常")
-        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), low_stock, qty, status])
+        prepared = item["prepared_qty"] or 0
+        available = qty - prepared
+        low_stock = item["low_stock"] or 0
+        components = components_by_kit.get(item["kit_id"], [])
+        suggested = "、".join(
+            text for text in (_kit_location_text(loc["cabinet"], loc["position"]) for loc in suggested_by_kit.get(item["kit_id"], []))
+            if text
+        )
+        ws.append([item["id"], _site_label(item["site"]), _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]),
+                   _safe(item["unit"]), low_stock, prepared, qty, available, _kit_stock_status(available, low_stock),
+                   len(components), _kit_material_status(components) if components else "未設定材料", _safe(suggested), _safe(item["note"] or "")])
 
     if kit_items:
         _add_table(ws, "tblKitInventory", 5)
-        _style_data(ws, 5, qty_columns=(7,))
+        _style_data(ws, 5, qty_columns=(7, 8, 9, 10), note_columns=(14, 15))
         for row in range(6, ws.max_row + 1):
             ws.cell(row, 1).alignment = Alignment(horizontal="center")
-            fmt = _qty_format(qty_types.get(str(ws.cell(row, 5).value).lstrip("'"), "decimal"))
-            ws.cell(row, 7).number_format = fmt
+            fmt = _qty_format(qty_types.get(str(ws.cell(row, 6).value).lstrip("'"), "decimal"))
+            for col in (8, 9, 10):
+                ws.cell(row, col).number_format = fmt
+        status_range = f"K6:K{ws.max_row}"
+        for status, color in STATUS_FILLS.items():
+            ws.conditional_formatting.add(status_range, FormulaRule(formula=[f'$K6="{status}"'], fill=PatternFill("solid", fgColor=color)))
     else:
         _write_empty(ws, 6)
 
 
-def _build_kit_position_sheet(ws, kit_locations, qty_types):
-    """整組位置明細（每筆 item_stocks 實際庫存一列）。"""
-    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "單位", "位置", "位置數量", "位置備註"]
+def _build_kit_position_sheet(ws, kit_items, kit_positions, suggested_by_kit, qty_types, cabinet_notes):
+    """整組位置明細：先列 item_stocks 實際庫存位置（含數量），再列編輯整組時填的建議存放位置（不計數量）。"""
+    headers = ["整組編號(系統編號)", "庫存區", "廠牌", "整組名稱", "型號", "單位", "位置", "位置數量", "位置備註", "位置類型", "櫃子說明"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
+    items_by_id = {item["id"]: item for item in kit_items}
 
-    for item in kit_locations:
-        ws.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]), _safe(item["location"] or ""), item["qty"] or 0, _safe(item["note"] or "")])
+    for item in kit_positions:
+        kit = items_by_id.get(item["id"])
+        site = _site_label(kit["site"]) if kit else ""
+        ws.append([item["id"], site, _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), _safe(item["unit"]),
+                   _safe(item["location"] or ""), item["qty"] or 0, _safe(item["note"] or ""), KIT_POSITION_STOCK,
+                   _safe(_cabinet_note(item["location"], cabinet_notes))])
+    for kit in kit_items:
+        for loc in suggested_by_kit.get(kit["kit_id"], []):
+            ws.append([kit["id"], _site_label(kit["site"]), _safe(kit["brand"] or "未設定廠牌"), _safe(kit["name"]), _safe(kit["code"]),
+                       _safe(kit["unit"]), _safe(_kit_location_text(loc["cabinet"], loc["position"])), None, _safe(loc["note"] or ""),
+                       KIT_POSITION_SUGGESTED, _safe(cabinet_notes.get((loc["cabinet"] or "").strip(), ""))])
 
-    if kit_locations:
+    if ws.max_row > 5:
         _add_table(ws, "tblKitPosition", 5)
-        _style_data(ws, 5, qty_columns=(7,))
+        _style_data(ws, 5, qty_columns=(8,), note_columns=(9, 11))
         for row in range(6, ws.max_row + 1):
-            ws.cell(row, 7).number_format = _qty_format(qty_types.get(str(ws.cell(row, 5).value).lstrip("'"), "decimal"))
+            ws.cell(row, 8).number_format = _qty_format(qty_types.get(str(ws.cell(row, 6).value).lstrip("'"), "decimal"))
     else:
         _write_empty(ws, 6)
 
 
-def _build_kit_alert_sheet(ws, kit_items, kit_locations):
-    """整組庫存警示（低庫存/缺貨整組）"""
-    headers = ["整組編號(系統編號)", "廠牌", "整組名稱", "型號", "低庫存門檻", "目前庫存", "狀態"]
+def _build_kit_component_sheet(ws, kit_items, components_by_kit, qty_types):
+    """整組組成材料（BOM）：每個整組的每項材料一列，含需求量、目前庫存與缺料狀態。"""
+    headers = ["整組編號(系統編號)", "整組名稱", "材料編號(系統編號)", "廠牌", "材料名稱", "型號", "單位", "每組需求", "目前庫存",
+               "可組數", "材料狀態"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
-    
-    qty_by_id = {}
-    for position in kit_locations:
-        item_id = position["id"]
-        qty_by_id[item_id] = qty_by_id.get(item_id, 0) + (position["qty"] or 0)
+
+    for kit in kit_items:
+        for comp in components_by_kit.get(kit["kit_id"], []):
+            need = comp["need_qty"] or 0
+            stock = comp["stock"] or 0
+            buildable = int(stock // need) if need > 0 and stock > 0 else 0
+            ws.append([kit["id"], _safe(kit["name"]), comp["item_id"], _safe(comp["brand"] or "未設定廠牌"), _safe(comp["name"]),
+                       _safe(comp["code"]), _safe(comp["unit"]), need, stock, buildable, _kit_component_state(stock, need)])
+
+    if ws.max_row > 5:
+        _add_table(ws, "tblKitComponent", 5)
+        _style_data(ws, 5, qty_columns=(8, 9, 10))
+        for row in range(6, ws.max_row + 1):
+            fmt = _qty_format(qty_types.get(str(ws.cell(row, 7).value).lstrip("'"), "decimal"))
+            for col in (8, 9):
+                ws.cell(row, col).number_format = fmt
+        status_range = f"K6:K{ws.max_row}"
+        for status, color in (("缺料", "FECACA"), ("庫存不足", "FED7AA")):
+            ws.conditional_formatting.add(status_range, FormulaRule(formula=[f'$K6="{status}"'], fill=PatternFill("solid", fgColor=color)))
+    else:
+        _write_empty(ws, 6, "目前沒有整組組成材料")
+
+
+def _build_kit_alert_sheet(ws, kit_items, kit_positions, components_by_kit):
+    """整組庫存警示：可用庫存缺貨/低庫存，或組成材料缺料/不足的整組。"""
+    headers = ["整組編號(系統編號)", "庫存區", "廠牌", "整組名稱", "型號", "低庫存門檻", "待領出", "目前庫存", "可用庫存", "庫存狀態", "材料狀態"]
+    _write_headers(ws, headers)
+    _style_header(ws, 5)
+    qty_by_id = _kit_totals(kit_positions)
     alerts = []
-    
+
     for item in kit_items:
         qty = qty_by_id.get(item["id"], 0)
-        low_stock = item["low_stock"] if "low_stock" in item.keys() else 0
-        if qty == 0 or (low_stock and qty <= low_stock):
-            status = "缺貨" if qty == 0 else "低庫存"
-            alerts.append([item["id"], _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]), low_stock, qty, status])
-    
+        prepared = item["prepared_qty"] or 0
+        available = qty - prepared
+        low_stock = item["low_stock"] or 0
+        stock_status = _kit_stock_status(available, low_stock)
+        components = components_by_kit.get(item["kit_id"], [])
+        material_status = _kit_material_status(components) if components else "未設定材料"
+        if stock_status != "正常" or material_status != "正常":
+            alerts.append([item["id"], _site_label(item["site"]), _safe(item["brand"] or "未設定廠牌"), _safe(item["name"]), _safe(item["code"]),
+                           low_stock, prepared, qty, available, stock_status, material_status])
+
     if alerts:
         for row in alerts:
             ws.append(row)
         _add_table(ws, "tblKitAlert", 5)
-        _style_data(ws, 5, qty_columns=(6,))
+        _style_data(ws, 5, qty_columns=(7, 8, 9))
     else:
-        _write_empty(ws, 6, "目前沒有低庫存或缺貨的整組")
+        _write_empty(ws, 6, "目前沒有低庫存、缺貨或缺料的整組")
 
 
 def _build_movement_sheet(ws, movements):
@@ -687,6 +799,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
                 filtered_movements.append(row)
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
+        cabinet_notes = _load_cabinet_notes(conn)
     finally:
         conn.close()
     wb = Workbook(); wb.remove(wb.active); wb.calculation.fullCalcOnLoad = True; wb.calculation.forceFullCalc = True; wb.calculation.calcMode = "auto"
@@ -700,8 +813,8 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         _build_inventory_sheet(inventory, items, positions, "positions" in selected_sections and bool(positions), qty_types)
     if "positions" in selected_sections:
         position = wb.create_sheet("位置明細(單一庫存)")
-        _style_title(position, "單一庫存位置明細", period_text, header_count=9)
-        _build_position_sheet(position, positions, qty_types)
+        _style_title(position, "單一庫存位置明細", period_text, header_count=10)
+        _build_position_sheet(position, positions, qty_types, cabinet_notes)
     if "alerts" in selected_sections:
         alerts = wb.create_sheet("庫存警示(單一庫存)")
         _style_title(alerts, "單一庫存警示", period_text, header_count=11)
@@ -738,8 +851,8 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     """
     整組庫存專用匯出端點 (2026-09-27)
     
-    類似單一庫存匯出，但只含整組品項、位置與異動紀錄。
-    不支援庫存區篩選（整組沒有庫存區分）。
+    類似單一庫存匯出，但只含整組品項、位置、組成材料與異動紀錄。
+    整組庫存區以 items.site 輸出為欄位（不提供庫存區篩選）。
     
     Args:
         month: 可選的 YYYY-MM 期間。
@@ -765,21 +878,43 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     
     conn = get_db()
     try:
-        # 查詢整組品項（is_kit=1）
+        # 查詢整組品項（is_kit=1）；kits 定義提供 kit_id / 備註，庫存區與品牌型號以 items 為準
         kit_items = conn.execute(
-            "SELECT i.id, i.category, i.brand, i.name, i.code, i.unit, i.low_stock "
-            "FROM items i WHERE i.is_kit=1 AND i.is_deleted=0 "
+            "SELECT i.id, i.site, i.brand, i.name, i.code, i.unit, i.low_stock, i.prepared_qty, "
+            "k.id AS kit_id, k.note "
+            "FROM items i LEFT JOIN kits k ON k.item_id=i.id "
+            "WHERE i.is_kit=1 AND i.is_deleted=0 "
             "ORDER BY i.brand COLLATE NOCASE, i.name, i.id"
         ).fetchall()
 
-        # item_stocks is the only actual Kit position and quantity source; kit_locations is UI metadata.
-        kit_locations = conn.execute(
+        # item_stocks 是整組實際位置與數量的唯一來源
+        kit_positions = conn.execute(
             "SELECT i.id, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note "
-            "FROM items i LEFT JOIN item_stocks s ON s.item_id=i.id "
+            "FROM items i JOIN item_stocks s ON s.item_id=i.id "
             "WHERE i.is_kit=1 AND i.is_deleted=0 "
             "ORDER BY i.id, s.id"
         ).fetchall()
-        
+
+        # 編輯整組填寫的建議存放位置（櫃子/位置/備註）；只輸出文字，不計入數量
+        suggested_by_kit: dict = {}
+        for row in conn.execute(
+            "SELECT kl.kit_id, kl.cabinet, kl.position, kl.note FROM kit_locations kl "
+            "JOIN kits k ON k.id=kl.kit_id JOIN items i ON i.id=k.item_id "
+            "WHERE i.is_kit=1 AND i.is_deleted=0 ORDER BY kl.kit_id, kl.id"
+        ):
+            suggested_by_kit.setdefault(row["kit_id"], []).append(row)
+
+        # 組成材料（BOM）與材料目前總庫存
+        components_by_kit: dict = {}
+        for row in conn.execute(
+            "SELECT ki.kit_id, ki.item_id, ki.qty AS need_qty, m.brand, m.name, m.code, m.unit, "
+            "COALESCE((SELECT SUM(s.qty) FROM item_stocks s WHERE s.item_id=ki.item_id), 0) AS stock "
+            "FROM kit_items ki JOIN items m ON m.id=ki.item_id "
+            "JOIN kits k ON k.id=ki.kit_id JOIN items i ON i.id=k.item_id "
+            "WHERE i.is_kit=1 AND i.is_deleted=0 ORDER BY ki.kit_id, ki.id"
+        ):
+            components_by_kit.setdefault(row["kit_id"], []).append(row)
+
         # 查詢整組異動（只含組裝/拆解）
         movement_sql = (
             "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
@@ -792,6 +927,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         movements = conn.execute(movement_sql, [movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)]).fetchall()
         
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
+        cabinet_notes = _load_cabinet_notes(conn)
     finally:
         conn.close()
     
@@ -811,26 +947,33 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         _style_header(overview, 5)
         kpis = [
             ("整組數", len(kit_items)),
-            ("總庫存", sum((item["qty"] if "qty" in item.keys() else 0) or 0 for item in kit_locations)),
+            ("總庫存", sum((item["qty"] or 0) for item in kit_positions)),
+            ("待領出", sum((item["prepared_qty"] or 0) for item in kit_items)),
+            ("缺料整組數", sum(1 for item in kit_items if _kit_material_status(components_by_kit.get(item["kit_id"], [])) == "缺料")),
         ]
         for label, value in kpis:
             overview.append([label, value])
     
     if "inventory" in selected_sections:
         inventory = wb.create_sheet("庫存總表(整組)")
-        _style_title(inventory, "整組庫存總表", period_text, header_count=8)
-        _build_kit_inventory_sheet(inventory, kit_items, kit_locations, qty_types)
+        _style_title(inventory, "整組庫存總表", period_text, header_count=15)
+        _build_kit_inventory_sheet(inventory, kit_items, kit_positions, suggested_by_kit, components_by_kit, qty_types)
     
     if "positions" in selected_sections:
         position = wb.create_sheet("位置明細(整組)")
-        _style_title(position, "整組位置明細", period_text, header_count=8)
-        _build_kit_position_sheet(position, kit_locations, qty_types)
+        _style_title(position, "整組位置明細", period_text, header_count=11)
+        _build_kit_position_sheet(position, kit_items, kit_positions, suggested_by_kit, qty_types, cabinet_notes)
+
+    if "components" in selected_sections:
+        component = wb.create_sheet("組成材料(整組)")
+        _style_title(component, "整組組成材料", period_text, header_count=11)
+        _build_kit_component_sheet(component, kit_items, components_by_kit, qty_types)
     
     if "alerts" in selected_sections:
         alerts = wb.create_sheet("庫存警示(整組)")
-        _style_title(alerts, "整組庫存警示", period_text, header_count=7)
-        # 顯示低庫存/缺貨的整組
-        _build_kit_alert_sheet(alerts, kit_items, kit_locations)
+        _style_title(alerts, "整組庫存警示", period_text, header_count=11)
+        # 顯示低庫存/缺貨/缺料的整組
+        _build_kit_alert_sheet(alerts, kit_items, kit_positions, components_by_kit)
     
     if "movements" in selected_sections:
         movement = wb.create_sheet("異動紀錄(整組)")
@@ -839,7 +982,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     
     for sheet in wb.worksheets:
         _apply_workbook_styles(sheet)
-        id_column = {"庫存總表(整組)": 1, "位置明細(整組)": 1, "庫存警示(整組)": 2, "異動紀錄(整組)": 3}.get(sheet.title)
+        id_column = {"庫存總表(整組)": 1, "位置明細(整組)": 1, "組成材料(整組)": 1, "庫存警示(整組)": 1, "異動紀錄(整組)": 3}.get(sheet.title)
         _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
     # 確保所有 2 欄標題工作表的欄寬足夠
     for sheet in wb.worksheets:

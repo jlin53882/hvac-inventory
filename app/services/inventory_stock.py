@@ -22,6 +22,22 @@ from fastapi import HTTPException
 from app.services.quantity import canonical_qty
 
 
+def normalize_stock_location(value):
+    """Canonical ``item_stocks.location`` normalization for production request/import paths.
+
+    Only leading/trailing whitespace is stripped (no internal-space, case or delimiter
+    rewrite), so ``"編號A | 1-1"`` and ``" 編號A | 1-1 "`` are one location for identity
+    lookups and persistence. Applied via ``models.StockLocation`` to create/update item
+    stocks, add/update stock, batch relocation and inventory transfer source/target, and
+    directly in the legacy bulk import. Internal-only writers (kit placeholder ``""``,
+    cabinet rename built from already-validated cabinet names) do not take external
+    location input. Existing legacy rows are not migrated.
+    Non-string values (``None`` = "location not provided", e.g. transfer source = any
+    location) are returned unchanged so defaults and Pydantic type errors keep working.
+    """
+    return value.strip() if isinstance(value, str) else value
+
+
 def current_state(conn, item_id):
     """Return ``(total_qty, prepared_qty)`` freshly read from ``conn``."""
     total = canonical_qty(conn.execute(

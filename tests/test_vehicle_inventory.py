@@ -371,6 +371,87 @@ def test_import_accepts_van_and_truck(client):
     assert client.get("/api/items", params={"site": "truck"}).json()[0]["site"] == "truck"
 
 
+# ===== 2026-09-28 item_stocks.location canonical identity（transfer / import） =====
+
+def _stock_rows(item_id):
+    """直接讀 DB 的 (location, qty)，確認沒有前後空白的第二筆列。"""
+    conn = app_db.get_db()
+    try:
+        return [(r["location"], r["qty"]) for r in conn.execute(
+            "SELECT location, qty FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,))]
+    finally:
+        conn.close()
+
+
+def test_transfer_target_whitespace_location_merges_into_existing_row(client):
+    source = add_item(client, site="office", code="WS-XFER-T", qty=10, location="櫃位")
+    target = add_item(client, site="van", code="WS-XFER-T", qty=5, location="編號A | 1-1")
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 3, "target_location": " 編號A | 1-1 ",
+    })
+    assert response.status_code == 201, response.text
+    assert response.json()["target_item_id"] == target["id"]
+    assert response.json()["target_location"] == "編號A | 1-1"
+    assert _stock_rows(target["id"]) == [("編號A | 1-1", 8)], "只能有一筆 canonical 列，不得新增含空白的第二筆"
+
+
+def test_transfer_source_whitespace_location_resolves_existing_row(client):
+    source = add_item(client, site="office", code="WS-XFER-S", qty=5, location="編號B | 2-1")
+    client.post(f"/api/items/{source['id']}/stocks", json={"location": "其他", "qty": 4})
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "van", "qty": 2, "source_location": " 編號B | 2-1 ",
+    })
+    assert response.status_code == 201, response.text
+    assert _stock_rows(source["id"]) == [("編號B | 2-1", 3), ("其他", 4)], "只能扣指定位置"
+
+
+def test_transfer_blank_target_location_keeps_vehicle_default(client):
+    """純空白 target_location 正規化為空 → 沿用既有預設（車內），不改 endpoint contract。"""
+    source = add_item(client, site="office", code="WS-XFER-B", qty=2, location="櫃位")
+    response = client.post("/api/inventory/transfers", json={
+        "item_id": source["id"], "target_site": "truck", "qty": 1, "target_location": "   ",
+    })
+    assert response.status_code == 201, response.text
+    assert _stock_rows(response.json()["target_item_id"]) == [("車內", 1)]
+
+
+def test_import_whitespace_equivalent_location_merges_existing_qty(client):
+    existing = add_item(client, site="office", code="WS-IMP", qty=5, location="A櫃 | 1-1")
+    response = client.post("/api/import", json={"items": [
+        {"brand": "大金", "code": "WS-IMP", "name": "冷媒 R410A", "unit": "個", "site": "office",
+         "qty": 3, "location": " A櫃 | 1-1 "},
+    ]})
+    assert response.status_code == 200, response.text
+    assert response.json()["merged"] == 1
+    assert _stock_rows(existing["id"]) == [("A櫃 | 1-1", 8)]
+
+
+def test_import_distinct_location_creates_new_row(client):
+    existing = add_item(client, site="office", code="WS-IMP-D", qty=5, location="A櫃 | 1-1")
+    response = client.post("/api/import", json={"items": [
+        {"brand": "大金", "code": "WS-IMP-D", "name": "冷媒 R410A", "unit": "個", "site": "office",
+         "qty": 3, "location": "A櫃 | 1-2"},
+    ]})
+    assert response.status_code == 200, response.text
+    assert _stock_rows(existing["id"]) == [("A櫃 | 1-1", 5), ("A櫃 | 1-2", 3)]
+
+
+def test_import_new_item_persists_canonical_and_same_batch_collapses(client):
+    response = client.post("/api/import", json={"items": [
+        {"brand": "大金", "code": "WS-IMP-N", "name": "新匯入品", "unit": "個", "site": "office",
+         "qty": 2, "location": "A櫃 | 1-1"},
+        {"brand": "大金", "code": "WS-IMP-N", "name": "新匯入品", "unit": "個", "site": "office",
+         "qty": 3, "location": " A櫃 | 1-1 "},
+        {"brand": "大金", "code": "WS-IMP-C", "name": "新匯入品C", "unit": "個", "site": "office",
+         "qty": 1, "location": "\tB櫃 | 2-2 "},
+    ]})
+    assert response.status_code == 200, response.text
+    assert (response.json()["inserted"], response.json()["merged"]) == (2, 1)
+    items = {i["code"]: i["id"] for i in client.get("/api/items", params={"site": "office"}).json()}
+    assert _stock_rows(items["WS-IMP-N"]) == [("A櫃 | 1-1", 5)], "同批空白等價列需合併成一筆"
+    assert _stock_rows(items["WS-IMP-C"]) == [("B櫃 | 2-2", 1)], "新品項寫入 canonical location"
+
+
 def test_transfer_rejects_qty_that_canonicalizes_to_zero(client):
     source = add_item(client, site="office", code="ZERO-CANON", qty=1, location="A")
     response = client.post("/api/inventory/transfers", json={

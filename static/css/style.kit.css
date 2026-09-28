@@ -128,20 +128,19 @@
   width: 52px;
   height: 52px;
 }
-.kit-content .kit-photo-slot .cphoto {
-  width: 52px;
-  height: 52px;
+/* buildThumb() 輸出 product-thumbnail-wrap / placeholder：填滿照片欄並裁切成方形 */
+.kit-content .kit-photo-slot .product-thumbnail-wrap,
+.kit-content .kit-photo-slot .product-thumbnail-placeholder {
+  width: 100%;
+  height: 100%;
   border-radius: 8px;
-  overflow: hidden;
-  background: #f1f5f9;
-  display: grid;
-  place-items: center;
   font-size: 24px;
 }
-.kit-content .kit-photo-slot .cphoto img {
+.kit-content .kit-photo-slot .product-thumbnail-wrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  cursor: zoom-in;
 }
 .kit-content .kit-info-slot {
   flex: 1;
@@ -161,12 +160,60 @@
   color: #64748b;
   font-size: 12px;
 }
-.kit-content .kit-code,
-.kit-content .kit-location {
+.kit-content .kit-code {
   white-space: nowrap;
 }
-.kit-content .kit-comp-count {
-  margin-left: auto;
+/* 位置 / 整組備註 / 位置註解：meta 列下方各自一行，長內容自動換行 */
+.kit-content .kit-detail-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.kit-content .kit-detail-line {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 存放位置清單：每個位置一行，名稱對齊、備註接在後面 */
+.kit-content .kit-loc-block {
+  max-width: 560px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.kit-content .kit-loc-title {
+  margin-bottom: 2px;
+  color: #475569;
+  font-weight: 600;
+}
+.kit-content .kit-loc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+.kit-content .kit-loc-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.kit-content .kit-loc-name {
+  flex: none;
+  min-width: 96px;
+  color: #334155;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.kit-content .kit-loc-note {
+  min-width: 0;
+  color: #64748b;
+  overflow-wrap: anywhere;
 }
 .kit-content .kit-actions-slot {
   display: flex;
@@ -287,13 +334,19 @@
   .kit-content .kit-kpi-number { font-size: 21px; }
   .kit-content .kit-kpi-label { font-size: 11px; }
   .kit-content .kit-toolbar { align-items: flex-start; flex-direction: column; gap: 4px; min-height: 44px; }
-  /* 手機版：卡片標題改垂直佈局（新結構） */
-  .kit-content .kit-assembly-header { flex-direction: column; gap: 12px; padding: 14px; }
-  .kit-content .kit-photo-slot { width: 100%; height: auto; aspect-ratio: 16 / 9; }
-  .kit-content .kit-photo-slot .cphoto { width: 100%; height: 100%; }
-  .kit-content .kit-info-slot { width: 100%; }
-  .kit-content .kit-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .kit-content .kit-comp-count { margin-left: 0; }
+  /* 手機版：與單一庫存卡片一致——照片縮圖在名稱左邊，操作按鈕換到下一列 */
+  .kit-content .kit-assembly-header {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-areas: "photo info" "actions actions";
+    column-gap: 12px;
+    row-gap: 12px;
+    padding: 14px;
+  }
+  .kit-content .kit-photo-slot { grid-area: photo; width: 56px; height: 56px; }
+  .kit-content .kit-info-slot { grid-area: info; width: auto; }
+  .kit-content .kit-actions-slot { grid-area: actions; }
+  .kit-content .kit-meta { gap: 6px; }
   .kit-content .kit-actions-slot { width: 100%; justify-content: flex-start; }
   /* 舊結構相容（若有遺留） */
   .kit-content .kit-assembly-name { font-size: 16px; }

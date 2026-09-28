@@ -825,6 +825,7 @@ async function bindGcalUser(userId, keyName) {
   if (chipBar) {
     chipBar.innerHTML = [
       ['units', '📦 單位管理'],
+      ['cabinets', '📦 櫃子'],  // 2026-09-28 手機版也要能進櫃子設定（與側欄一致）
       ['gcal', '📅 行事曆同步'],
       ['petty-cash', '🪙 零用金選單'],
       ['pw', '🔑 修改密碼']
@@ -903,41 +904,16 @@ async function addCabinet() {
   }
 }
 
-async function editCabinet(cabinetId) {
-  const cab = cabinetList.find(c => c.id === cabinetId);
-  if (!cab) return;
-  const name = prompt('編輯櫃子編號/名稱', cab.name);
-  if (name === null) return;
-  const newName = name.trim();
-  if (!newName) {
-    toast('櫃子編號不可為空', 'error');
-    return;
-  }
-  try {
-    const res = await fetch(`/api/cabinets/${cabinetId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, note: cab.note })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || '編輯失敗');
-    }
-    const data = await res.json();
-    Object.assign(cab, data);
-    renderCabinetTable();
-    toast('✅ 已更新櫃子「' + newName + '」', 'success');
-  } catch (e) {
-    toast('⚠️ ' + e.message, 'error');
-  }
-}
-
 async function deleteCabinet(cabinetId) {
   const cab = cabinetList.find(c => c.id === cabinetId);
   if (!cab || !confirm('確定刪除櫃子「' + cab.name + '」？')) return;
   try {
     const res = await fetch(`/api/cabinets/${cabinetId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('刪除失敗');
+    if (!res.ok) {
+      // 櫃子仍被單一庫存/整組位置使用時後端回 409，需顯示原因
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '刪除失敗');
+    }
     cabinetList = cabinetList.filter(c => c.id !== cabinetId);
     renderCabinetTable();
     toast('✅ 已刪除櫃子', 'success');

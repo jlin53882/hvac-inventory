@@ -6,9 +6,15 @@ Pydantic 請求模型
 """
 from datetime import date
 from decimal import Decimal
-from typing import Any, List, Literal, Optional
+from typing import Annotated, Any, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
+
+from app.services.inventory_stock import normalize_stock_location
+
+# 2026-09-28：item_stocks.location 正規化（前後空白去除）單一入口；所有寫入位置的請求模型共用。
+# BeforeValidator 先正規化，之後才套 str 型別與 Field 長度限制（純空白 → ""）。
+StockLocation = Annotated[str, BeforeValidator(normalize_stock_location)]
 
 
 INVENTORY_SITES = ("office", "warehouse", "van", "truck")
@@ -81,7 +87,7 @@ class WorkProgressPhotoBatchDeleteRequest(BaseModel):
 
 class StockItem(BaseModel):
     id: Optional[int] = None          # F2/F3：existing stock identity（None = new location）
-    location: str = ""
+    location: StockLocation = ""      # 新增/編輯品項的重複位置判斷與寫入都用 canonical 值
     qty: float = Field(0, ge=0)
     note: str = ""
     stock_updated_at: Optional[str] = None  # F2：stock-level optimistic lock revision
@@ -111,7 +117,7 @@ class ItemUpdate(BaseModel):
 
 
 class StockUpdate(BaseModel):
-    location: Optional[str] = None
+    location: Optional[StockLocation] = None  # None = 不改位置
     qty: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
 
@@ -333,13 +339,14 @@ class TransferRequest(BaseModel):
     item_id: int = Field(..., ge=1)
     target_site: InventorySite
     qty: float = Field(..., gt=0)
-    source_location: Optional[str] = Field(None, max_length=100)
-    target_location: str = Field("", max_length=100)
+    # 2026-09-28：與其他 stock API 共用 canonical location；source None = 不限位置依序扣除（保留）
+    source_location: Optional[StockLocation] = Field(None, max_length=100)
+    target_location: StockLocation = Field("", max_length=100)
 
 
 class BatchLocationRequest(BaseModel):
     stock_ids: List[int] = Field(..., min_length=1)
-    new_location: str = Field(..., min_length=1, max_length=100)
+    new_location: StockLocation = Field(..., min_length=1, max_length=100)  # 先正規化再套 min_length，純空白 → 422
     new_site: Optional[InventorySite] = None
 
 
