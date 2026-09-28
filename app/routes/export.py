@@ -947,18 +947,18 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         
         row = 6
         for m in movements:
-            movement[f"A{row}"] = m["created_at"]
-            movement[f"B{row}"] = _movement_type(m["reason"] or "", m["delta"])
+            movement[f"A{row}"] = _safe(m["created_at"])
+            movement[f"B{row}"] = _safe(_movement_type(m["reason"] or "", m["delta"]))
             movement[f"C{row}"] = m["item_id"]
-            movement[f"D{row}"] = m["brand"]
-            movement[f"E{row}"] = m["name"]
-            movement[f"F{row}"] = m["code"]
-            movement[f"G{row}"] = SITES.get(m["site"], m["site"])
+            movement[f"D{row}"] = _safe(m["brand"])
+            movement[f"E{row}"] = _safe(m["name"])
+            movement[f"F{row}"] = _safe(m["code"])
+            movement[f"G{row}"] = _safe(SITES.get(m["site"], m["site"]))
             movement[f"H{row}"] = m["delta"]
             movement[f"I{row}"] = m["before_qty"]
             movement[f"J{row}"] = m["after_qty"]
-            movement[f"K{row}"] = m["destination"]
-            movement[f"L{row}"] = m["reason"]
+            movement[f"K{row}"] = _safe(m["destination"])
+            movement[f"L{row}"] = _safe(m["reason"])
             
             # 格式化
             for col in "ABCDEFGHIJKL":

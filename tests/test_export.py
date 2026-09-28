@@ -673,6 +673,75 @@ def test_stockout_export_headers_and_site_labels(client):
     book.close()
 
 
+def test_stockout_export_formula_injection_safe(client):
+    """已領出 XLSX 將使用者控制文字安全寫入，並保留數值欄型別。"""
+    item = add_item(client, name="+CMD", brand="=1+1", code="-FORMULA")
+    stockout_response = client.post("/api/stockout", json={
+        "item_id": item["id"],
+        "qty": 2,
+        "destination": "@evil",
+        "note": "=REASON",
+    })
+    assert stockout_response.status_code == 200, stockout_response.text
+
+    conn = app_db.get_db()
+    try:
+        # Site 是受限識別值；此處模擬 DB 中未知/損壞值，驗證匯出仍採安全字串寫入。
+        conn.execute("UPDATE items SET site=? WHERE id=?", ("=SITE", item["id"]))
+        conn.commit()
+        stored = conn.execute(
+            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
+            "m.destination, m.reason, i.site, i.brand, i.name, i.code "
+            "FROM movements m JOIN items i ON i.id=m.item_id "
+            "WHERE m.item_id=? ORDER BY m.id DESC LIMIT 1",
+            (item["id"],),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert stored["brand"] == "=1+1"
+    assert stored["name"] == "+CMD"
+    assert stored["code"] == "-FORMULA"
+    assert stored["site"] == "=SITE"
+    assert stored["destination"] == "@evil"
+    assert stored["reason"] == "出庫 - =REASON"
+
+    response = client.get(
+        "/api/stockout-export",
+        params={"month": stored["created_at"][:7], "sections": "movements"},
+    )
+    assert response.status_code == 200, response.text
+    book = load_workbook(io.BytesIO(response.content), data_only=False)
+    ws = book["異動紀錄(已領出)"]
+    row = next(
+        row_number for row_number in range(6, ws.max_row + 1)
+        if ws[f"C{row_number}"].value == item["id"]
+    )
+
+    expected_text = {
+        "A": stored["created_at"],
+        "B": "出庫",
+        "D": "'=1+1",
+        "E": "'+CMD",
+        "F": "'-FORMULA",
+        "G": "'=SITE",
+        "K": "'@evil",
+        "L": "出庫 - =REASON",
+    }
+    for column, expected in expected_text.items():
+        cell = ws[f"{column}{row}"]
+        assert cell.value == expected
+        assert cell.data_type == "s"
+
+    expected_numbers = {"C": item["id"], "H": -2, "I": 10, "J": 8}
+    for column, expected in expected_numbers.items():
+        cell = ws[f"{column}{row}"]
+        assert cell.value == expected
+        assert cell.data_type == "n"
+
+    book.close()
+
+
 def test_kit_movement_ownership_assemble_disassemble(client):
     """整組組裝/拆解：驗證 movement 出現在正確的 export（單一庫存 vs 整組）"""
     from io import BytesIO
