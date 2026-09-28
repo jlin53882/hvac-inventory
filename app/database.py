@@ -851,16 +851,18 @@ def _exec_init(conn):
             [(_user["id"], _key, 1 if _key in _visible else 0) for _key in PAGE_KEYS],
         )
     
-    # ---------- 櫃子預設值（2026-09-27 多位置管理）----------
-    _DEFAULT_CABINETS = [
-        ("編號A", ""),
-        ("編號B", ""),
-        ("編號C", ""),
-        ("編號D", ""),
-        ("編號E", ""),
-        ("編號F", ""),
-        ("鐵架", ""),
-        ("二樓", ""),
-    ]
-    for _name, _note in _DEFAULT_CABINETS:
-        conn.execute("INSERT OR IGNORE INTO cabinets (name, note) VALUES (?, ?)", (_name, _note))
+    # ---------- 櫃子預設值（2026-09-28 僅 fresh DB 時插入，不復活已刪除的櫃子）----------
+    cabinet_count = conn.execute("SELECT COUNT(*) as cnt FROM cabinets").fetchone()["cnt"]
+    if cabinet_count == 0:  # Fresh DB，才插入預設值
+        _DEFAULT_CABINETS = [
+            ("編號A", ""),
+            ("編號B", ""),
+            ("編號C", ""),
+            ("編號D", ""),
+            ("編號E", ""),
+            ("編號F", ""),
+            ("鐵架", ""),
+            ("二樓", ""),
+        ]
+        for _name, _note in _DEFAULT_CABINETS:
+            conn.execute("INSERT INTO cabinets (name, note) VALUES (?, ?)", (_name, _note))
