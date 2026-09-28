@@ -77,10 +77,6 @@ function renderInventory() {
   const content = document.getElementById('content');
   const list = getFilteredInventoryItems();
 
-  // 顯示篩選面板
-  var filterPanel = document.getElementById('filter-panel');
-  if (filterPanel) filterPanel.style.display = '';
-
   // 篩選變更或數量暫存後重繪，避免清單顯示舊的 KPI 詳情。
   closeInventoryStatusModal();
   renderInventoryPageHeading();
@@ -740,82 +736,40 @@ function toggleLoc(titleEl, loc) {
 
 var filterExpandedState = { brand: false, category: false };
 
-/**
- * 根據容器寬度動態計算可顯示的 chips 個數（含「全部」）。
- * 每個 chip 估算寬度 ~90px（含間距），根據容器實際寬度決定截斷。
- * 如果容器寬度為 0（尚未渲染或隱藏），回傳一個合理的預設值。
- */
-function calculateVisibleChipsCount(containerId) {
-  var el = document.getElementById(containerId);
-  if (!el) return 999;  // 容器不存在，視為無限制
-  
-  var containerWidth = el.offsetWidth;
-  // 如果容器寬度為 0，使用視窗寬度作為備選值
-  if (containerWidth <= 0) {
-    containerWidth = window.innerWidth * 0.8;  // 假設容器佔視窗 80% 寬度
-  }
-  
-  var estimatedChipWidth = 90;  // 每個 chip 約 90px（含 margin/padding）
-  var visibleCount = Math.max(1, Math.floor(containerWidth / estimatedChipWidth));
-  
-  return visibleCount;
-}
-
 function buildFilterPanel() {
-  // 確保篩選面板容器存在，否則跳過（會在 renderInventory 時再次呼叫）
-  var brandChipsEl = document.getElementById('fp-brand-chips');
-  var catChipsEl = document.getElementById('fp-cat-chips');
-  
-  if (!brandChipsEl || !catChipsEl) {
-    return;  // 容器還未渲染，直接返回（不延遲重試）
+  var brandCounts = INVENTORY_FACETS && INVENTORY_FACETS.brands && Object.keys(INVENTORY_FACETS.brands).length
+    ? INVENTORY_FACETS.brands
+    : {};
+  if (!Object.keys(brandCounts).length) {
+    ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+      var b = i.brand || '無廠牌';
+      brandCounts[b] = (brandCounts[b] || 0) + 1;
+    });
   }
+  var brands = Object.entries(brandCounts).sort(function(a, b) { return b[1] - a[1]; });
+  document.getElementById('fp-brand-count').textContent = '(' + brands.length + ' 個品牌)';
+  renderFilterChips('fp-brand-chips', brands, currentBrands, 'brand', 'fp-brand-toggle');
 
-  try {
-    var brandCounts = INVENTORY_FACETS && INVENTORY_FACETS.brands && Object.keys(INVENTORY_FACETS.brands).length
-      ? INVENTORY_FACETS.brands
-      : {};
-    if (!Object.keys(brandCounts).length) {
-      ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
-        var b = i.brand || '無廠牌';
-        brandCounts[b] = (brandCounts[b] || 0) + 1;
-      });
-    }
-    var brands = Object.entries(brandCounts).sort(function(a, b) { return b[1] - a[1]; });
-    document.getElementById('fp-brand-count').textContent = '(' + brands.length + ' 個品牌)';
-    renderFilterChips('fp-brand-chips', brands, currentBrands, 'brand', 'fp-brand-toggle');
-
-    var catCounts = INVENTORY_FACETS && INVENTORY_FACETS.categories && Object.keys(INVENTORY_FACETS.categories).length
-      ? INVENTORY_FACETS.categories
-      : {};
-    if (!Object.keys(catCounts).length) {
-      ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
-        var c = i.category || '';
-        if (c) catCounts[c] = (catCounts[c] || 0) + 1;
-      });
-    }
-    var cats = Object.entries(catCounts).sort(function(a, b) { return b[1] - a[1]; });
-    document.getElementById('fp-cat-count').textContent = '(' + cats.length + ' 類)';
-    renderFilterChips('fp-cat-chips', cats, currentCategories, 'category', 'fp-cat-toggle');
-    var list = getFilteredItems();
-    document.getElementById('fp-summary').textContent = '共 ' + (INVENTORY_META.total || list.length) + ' 項';
-  } catch (e) {
-    console.warn('buildFilterPanel error:', e.message);
+  var catCounts = INVENTORY_FACETS && INVENTORY_FACETS.categories && Object.keys(INVENTORY_FACETS.categories).length
+    ? INVENTORY_FACETS.categories
+    : {};
+  if (!Object.keys(catCounts).length) {
+    ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+      var c = i.category || '';
+      if (c) catCounts[c] = (catCounts[c] || 0) + 1;
+    });
   }
+  var cats = Object.entries(catCounts).sort(function(a, b) { return b[1] - a[1]; });
+  document.getElementById('fp-cat-count').textContent = '(' + cats.length + ' 類)';
+  renderFilterChips('fp-cat-chips', cats, currentCategories, 'category', 'fp-cat-toggle');
+  var list = getFilteredItems();
+  document.getElementById('fp-summary').textContent = '共 ' + (INVENTORY_META.total || list.length) + ' 項';
 }
 
 
-/**
- * 渲染篩選 chips，根據容器寬度動態決定是否截斷。
- * @param {string} containerId - 容器元素 ID
- * @param {Array} counts - [名稱, 計數] 的陣列
- * @param {Array} selectedArr - 目前選中的值陣列
- * @param {string} type - 篩選類型（'brand' 或 'category'）
- * @param {string} toggleBtnId - 展開/收合按鈕 ID
- */
 function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) {
 
   var el = document.getElementById(containerId);
-  if (!el) return;
 
   el.innerHTML = '';
   el.classList.toggle('collapsed', !filterExpandedState[type]);
@@ -830,19 +784,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
   el.appendChild(allChip);
 
-  // 判定容器寬度是否足夠顯示全部 chips
-  var isCollapsed = el.classList.contains('collapsed');
-  var visibleCount = calculateVisibleChipsCount(containerId);
-  var totalChipsNeeded = counts.length + 1;  // 包含「全部」
-  
-  // 如果寬度足以顯示全部 chips，則無論 collapsed 狀態都全部顯示
-  var canDisplayAll = visibleCount >= totalChipsNeeded;
-  var shouldDisplayAll = canDisplayAll || !isCollapsed;
-  
-  var chipsAdded = 1;  // 已加入「全部」
   counts.forEach(function(pair) {
-
-    if (!shouldDisplayAll && chipsAdded >= visibleCount) return;  // 達到顯示限制（只在非全部顯示時截斷）
 
     var name = pair[0], count = pair[1];
 
@@ -867,28 +809,19 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
     };
 
     el.appendChild(chip);
-    chipsAdded++;
 
   });
 
-  // 更新展開/收合按鈕的文字
   if (toggleBtnId) {
 
     var btn = document.getElementById(toggleBtnId);
 
-    if (btn) {
-      // 如果寬度足以顯示全部，按鈕隱藏或顯示為「無截斷」
-      if (canDisplayAll) {
-        btn.classList.add('hidden');  // 寬度足夠，隱藏按鈕
-      } else {
-        btn.classList.remove('hidden');  // 顯示按鈕
-        var hidden = counts.length - (visibleCount - 1);
-        if (hidden > 0 && isCollapsed) {
-          btn.textContent = '還有 ' + hidden + ' 個' + (type === 'brand' ? '品牌' : '分類') + ' ▼';
-        } else {
-          btn.textContent = isCollapsed ? '展開 ▼' : '收合 ▲';
-        }
-      }
+    if (btn && el.classList.contains('collapsed')) {
+
+      var hidden = counts.length - 3;
+
+      if (hidden > 0) btn.textContent = '還有 ' + hidden + ' 個' + (type === 'brand' ? '品牌' : '分類') + ' ▼';
+
     }
 
   }
@@ -939,8 +872,7 @@ function toggleFilterCollapse(containerId, toggleBtnId) {
   var filterType = containerId === 'fp-brand-chips' ? 'brand' : 'category';
   filterExpandedState[filterType] = !isCollapsed;
 
-  // 重新重繪篩選 chips（更新顯示個數與按鈕文字）
-  buildFilterPanel();
+  btn.textContent = isCollapsed ? '展開 ▼' : '收合 ▲';
 
 }
 
@@ -1118,21 +1050,3 @@ document.addEventListener('click', function(e) {
   if (!e.target.closest('.more-actions-wrap')) closeMoreActions();
   if (!e.target.closest('.inventory-action-menu')) closeInventoryActionMenus();
 });
-
-// ========== 響應式篩選面板重新計算 ==========
-// 視窗大小改變時，重新計算並渲染篩選 chips（品牌與分類）
-var filterPanelResizeTimer = null;
-if (typeof window !== 'undefined') {
-  window.addEventListener('resize', function() {
-    // 防止頻繁重新渲染，延遲 300ms 後才執行
-    clearTimeout(filterPanelResizeTimer);
-    filterPanelResizeTimer = setTimeout(function() {
-      var brandEl = document.getElementById('fp-brand-chips');
-      var catEl = document.getElementById('fp-cat-chips');
-      // 如果篩選面板存在，重新計算 chips 顯示個數
-      if (brandEl || catEl) {
-        buildFilterPanel();
-      }
-    }, 300);
-  });
-}

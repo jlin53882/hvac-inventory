@@ -122,60 +122,6 @@
   padding: 18px 20px;
   border-bottom: 1px solid #eef2f7;
 }
-/* 卡片標題三欄佈局：照片 | 資訊 | 操作 */
-.kit-content .kit-photo-slot {
-  flex: none;
-  width: 52px;
-  height: 52px;
-}
-.kit-content .kit-photo-slot .cphoto {
-  width: 52px;
-  height: 52px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #f1f5f9;
-  display: grid;
-  place-items: center;
-  font-size: 24px;
-}
-.kit-content .kit-photo-slot .cphoto img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.kit-content .kit-info-slot {
-  flex: 1;
-  min-width: 0;
-}
-.kit-content .kit-name {
-  color: #0f172a;
-  font-size: 16px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.kit-content .kit-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: #64748b;
-  font-size: 12px;
-}
-.kit-content .kit-code,
-.kit-content .kit-location {
-  white-space: nowrap;
-}
-.kit-content .kit-comp-count {
-  margin-left: auto;
-}
-.kit-content .kit-actions-slot {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  flex: none;
-}
-/* 移除舊結構（相容性） */
 .kit-content .kit-assembly-title { min-width: 0; }
 .kit-content .kit-assembly-name { color: #0f172a; font-size: 18px; font-weight: 700; }
 .kit-content .kit-assembly-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; color: #64748b; font-size: 12px; }
@@ -287,15 +233,7 @@
   .kit-content .kit-kpi-number { font-size: 21px; }
   .kit-content .kit-kpi-label { font-size: 11px; }
   .kit-content .kit-toolbar { align-items: flex-start; flex-direction: column; gap: 4px; min-height: 44px; }
-  /* 手機版：卡片標題改垂直佈局（新結構） */
   .kit-content .kit-assembly-header { flex-direction: column; gap: 12px; padding: 14px; }
-  .kit-content .kit-photo-slot { width: 100%; height: auto; aspect-ratio: 16 / 9; }
-  .kit-content .kit-photo-slot .cphoto { width: 100%; height: 100%; }
-  .kit-content .kit-info-slot { width: 100%; }
-  .kit-content .kit-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .kit-content .kit-comp-count { margin-left: 0; }
-  .kit-content .kit-actions-slot { width: 100%; justify-content: flex-start; }
-  /* 舊結構相容（若有遺留） */
   .kit-content .kit-assembly-name { font-size: 16px; }
   .kit-content .kit-assembly-actions { width: 100%; justify-content: flex-start; }
   .kit-content .kit-assembly-header .kit-more { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-left: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #475569; font-size: 20px; cursor: pointer; }
@@ -317,63 +255,4 @@
   .kit-content .kit-mobile-actions { gap: 6px; }
   .kit-content .kit-mobile-actions .kit-action { padding-left: 6px; padding-right: 6px; font-size: 11px; }
   .kit-content .kit-mobile-actions .kit-more { flex-basis: 34px; }
-}
-
-/* Kit 位置清單（2026-09-27 多位置管理） */
-.col-headers {
-  display: flex;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 12px;
-  color: #666;
-  padding: 8px 0;
-  border-bottom: 1px solid #e5e7eb;
-  margin-bottom: 8px;
-}
-
-.col-headers span {
-  flex: 1;
-  min-width: 0;
-}
-
-.col-headers .ch-cabinet { flex: 0 0 25%; }
-.col-headers .ch-pos { flex: 0 0 25%; }
-.col-headers .ch-qty { flex: 0 0 15%; }
-.col-headers .ch-note { flex: 1; min-width: 120px; }
-.col-headers .ch-remove { flex: 0 0 32px; }
-
-.edit-stock-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.edit-stock-row input[type="text"],
-.edit-stock-row input[type="number"] {
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid #cfd6df;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.edit-stock-row input.kit-loc-cabinet { width: 25%; flex-shrink: 0; }
-.edit-stock-row input.kit-loc-pos { width: 25%; flex-shrink: 0; }
-.edit-stock-row input.kit-loc-qty { width: 15%; flex-shrink: 0; }
-.edit-stock-row input.kit-loc-note { flex: 1; min-width: 120px; }
-
-.edit-stock-row .btn-remove {
-  flex: 0 0 32px;
-  padding: 6px;
-  border: none;
-  background: none;
-  color: #e74c3c;
-  cursor: pointer;
-  font-size: 16px;
-}
-
-.edit-stock-row .btn-remove:hover {
-  background: #ffe8e8;
-  border-radius: 4px;
 }

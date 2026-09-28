@@ -17,7 +17,6 @@ import os
 import re
 import sqlite3
 import sys
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -104,8 +103,6 @@ REVIEWED_SAFE_BODIES = {
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'partial_failed' ? '部分同步失敗' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '✅' : e.sync_status === 'partial_failed' ? '⚠️' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''",
-    # Kit thumbnail HTML comes only from the escaped buildThumb helper; kitId is an API integer ID.
-    "photoSrc(kitId, 'thumbnail')", "kitThumb", "kitId",
     # sync_error（2026-09-15：syncErr 內含 esc() 跳脫，安全）
     "syncErr",
     # settings.js（2026-08-16 設定中心）：u.is_active 為 DB bool 常數輸出（同帳號頁模式）；u.count 為 COUNT(*) 數字（已 esc）
@@ -116,8 +113,6 @@ REVIEWED_SAFE_BODIES = {
     "it.item_id",
     "absNum(it.total_qty)",
     "g.items.length",
-    # _cabinetOptions 三元（2026-09-28：只輸出 'selected' 常數或空字串）
-    "name === selected ? 'selected' : ''",
     "isLow ? '🎉 沒有低庫存品項' : '🎉 沒有缺貨品項'",
     # card.js mobileCardShell cardClass（2026-09-07 Phase 5：CSS class 為開發者傳入常數）
     "p.cardClass ? ' ' + p.cardClass : ''", "isLow ? '警示值' : '位置'",
@@ -198,7 +193,7 @@ REVIEWED_SAFE_BODIES = {
     "materials",
     # edit.js 兩段式位置（2026-09-06）：_cabinetOptions 從固定清單產生 select options，
     # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
-    "_cabinetOptions(cabinet)", "_cabinetOptions('')", "_cabinetOptions(row.cabinet || '')", "c",
+    "_cabinetOptions(cabinet)", "_cabinetOptions('')", "c",
     "c === selected ? 'selected' : ''", "c || '— 請選擇 —'",
     # calendar.js Desktop dashboard（2026-09-09）：service/sync/updated/range 是由已 esc 的資料組成的內部 HTML fragment；icon 是固定映射。
     "calSyncStatusIcon(e.sync_status)", "service", "sync", "updated", "range",
@@ -229,7 +224,6 @@ REVIEWED_SAFE_BODIES = {
     "absNum(item.prepared_qty)", "absNum(item.qty)", "actions",
     # 共用 status-list renderer：rows/locationFilter/extraHTML 是已 esc 的內部 fragment；buildThumb 統一處理 URL/placeholder。
     "locationFilter", "rows", "columnHeadings", "buildThumb(kit.item_id, !!source.has_photo, kit.name, '🔧', source.thumbnail_url)",
-    "buildThumb(kit.item_id, !!kit.has_photo, kit.name, '🔧', kit.thumbnail_url)",
     "buildThumb(item.id, item.has_photo, item.name, '📦', item.thumbnail_url)", "config.extraHTML || ''",
     "missingHTML", "statusListFormatQuantity(stock)", "statusListFormatQuantity(status.qty)",
     # 2026-09-12 數量系統：Qty.disp 輸出僅數字/分數字元（0-9 . / - 空格），無 HTML metachars；
@@ -254,13 +248,6 @@ REVIEWED_SAFE_BODIES = {
     "pcEntryType === 'income' ? ' active' : ''", "pcEntryType === 'expense' ? ' active' : ''",
     "pcEntryType === 'income' ? 'display:none' : ''",
 }
-
-
-def test_kit_photo_preview_uses_dom_property_for_file_reader_data():
-    """Keep FileReader output out of HTML parsing sinks."""
-    photo_js = Path(BASE_DIR, "static", "js", "modals", "photo.js").read_text(encoding="utf-8")
-    assert "image.src = e.target.result;" in photo_js
-    assert "${e.target.result}" not in photo_js
 
 
 def test_js_html_templates_interpolations_escaped():

@@ -23,17 +23,6 @@ function openAddModal() {
   if (fUnitAdd) fUnitAdd.style.display = hasPerm('item-mgmt') ? '' : 'none';
   // 品項照片：初始化照片上傳區塊
   renderAddPhotoBox();
-  // 2026-09-27：新增時也載入最新櫃子清單
-  (async () => {
-    try {
-      const res = await fetch('/api/cabinets');
-      if (res.ok) {
-        globalCabinetList = await res.json();
-      }
-    } catch (e) {
-      console.warn('新增 modal 載入櫃子清單失敗', e);
-    }
-  })();
 }
 
 // 渲染新增 modal 的照片上傳區塊（無品項 ID，建立後自動上傳）
@@ -150,39 +139,3 @@ async function submitAdd() {
     toast('新增失敗', 'error');
   }
 }
-// 2026-09-27：動態載入櫃子清單（settings 同步）
-async function loadCabinetOptions() {
-  try {
-    const res = await fetch('/api/cabinets');
-    if (res.ok) {
-      const cabinets = await res.json();
-      const select = document.getElementById('f-cabinet');
-      if (select) {
-        // 保留「請選擇」選項
-        const currentValue = select.value;
-        const options = select.querySelectorAll('option');
-        const firstOption = options[0];
-        select.innerHTML = '';
-        select.appendChild(firstOption);
-        // 添加新選項（包含備註）
-        cabinets.forEach(cab => {
-          const opt = document.createElement('option');
-          opt.value = cab.name;
-          // 顯示格式：編號A (備註內容)
-          opt.textContent = cab.name + (cab.note ? `(${cab.note})` : '');
-          select.appendChild(opt);
-        });
-        select.value = currentValue;
-      }
-    }
-  } catch (e) {
-    console.error('載入櫃子清單失敗', e);
-  }
-}
-
-// 在 openAddModal 中呼叫
-const originalOpenAddModal = openAddModal;
-openAddModal = function() {
-  originalOpenAddModal.call(this);
-  loadCabinetOptions();
-};

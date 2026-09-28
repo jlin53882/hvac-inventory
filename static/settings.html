@@ -135,90 +135,10 @@
 .modal-box h4 { font-size: 16px; margin-bottom: 16px; color: #1e3a5f; }
 .modal-box .form-row { margin-bottom: 14px; }
 .modal-box .form-row label { display: block; font-size: 12.5px; color: #444; margin-bottom: 4px; font-weight: 600; }
-.modal-box .form-row input { 
-  width: 100%; 
-  padding: 10px 12px; 
-  border: 1px solid #cbd5e1; 
-  border-radius: 10px; 
-  font-size: 14px;
-  background: #fff;
-  color: #1e3a5f;
-  box-sizing: border-box;
-}
-.modal-box .form-row input:focus { 
-  outline: none;
-  border-color: #1d4ed8;
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
-}
-.btn-save { 
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 8px 14px;
-  background: #1d4ed8; 
-  color: #fff; 
-  border: 1px solid #1d4ed8;
-  border-radius: 10px; 
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  box-sizing: border-box;
-}
-.btn-save:hover { background: #1e40af; border-color: #1e40af; }
-.btn-cancel-ghost { 
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 8px 14px;
-  background: #fff; 
-  color: #1e3a5f; 
-  border: 1px solid #cbd5e1;
-  border-radius: 10px; 
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  box-sizing: border-box;
-}
-.btn-cancel-ghost:hover { background: #f8fafc; }
-/* 編輯櫃子 modal 輸入框樣式（2026-09-28）*/
-#edit-cabinet-modal input[type="text"] {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #fff;
-  color: #1e3a5f;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-#edit-cabinet-modal input[type="text"]:focus {
-  outline: none;
-  border-color: #1d4ed8;
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
-}
-#edit-cabinet-modal .form-row input,
-#edit-cabinet-modal .form-row select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #fff;
-  color: #1e3a5f;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-#edit-cabinet-modal .form-row input:focus,
-#edit-cabinet-modal .form-row select:focus {
-  outline: none;
-  border-color: #1d4ed8;
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
-}
+.modal-box .form-row input { width: 100%; padding: 9px 10px; border: 1px solid #cfd6df; border-radius: 8px; font-size: 14px; }
+.btn-save { padding: 9px; background: #1890ff; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.btn-save:hover { background: #096dd9; }
+.btn-cancel-ghost { padding: 9px; background: #f5f5f5; color: #666; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; cursor: pointer; }
 
 @media (max-width: 768px) {
   /* 手機改為上下排列，Key 清單與詳細面板各自跟隨 viewport 寬度。 */
@@ -384,7 +304,6 @@
 <div class="perm-layout">
   <aside class="side-list" id="settingsSideList">
     <div class="side-item active" data-panel="units" onclick="settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
-    <div class="side-item" data-panel="cabinets" onclick="settingsSwitch('cabinets')"><span class="ic">📦</span><div>櫃子<span class="desc">位置備註/同步庫存</span></div></div>
     <div class="side-item" data-panel="gcal" onclick="settingsSwitch('gcal')"><span class="ic">📅</span><div>行事曆同步<span class="desc">Google 行事曆同步</span></div></div>
     <div class="side-item" data-panel="petty-cash" onclick="settingsSwitch('petty-cash')"><span class="ic">🪙</span><div>零用金選單<span class="desc">一般／工程分開管理</span></div></div>
     <div class="side-item" data-panel="pw" onclick="settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
@@ -393,25 +312,6 @@
     <div id="panel-units"></div>
     <div id="panel-gcal" style="display:none"></div>
     <div id="panel-petty-cash" style="display:none"></div>
-    <div id="panel-cabinets" style="display:none">
-      <h4>📦 櫃子</h4>
-      <p style="font-size: 13px; color: #666; margin-bottom: 16px;">全站共用的櫃子清單（單一庫存與整組庫存同步）。</p>
-      <div class="u-add-row">
-        <input type="text" id="cabinet-name" placeholder="櫃子編號或名稱（例：編號A、倉庫1）" maxlength="50">
-        <input type="text" id="cabinet-note" placeholder="位置說明（例：二樓東側、倉庫 A 區）" maxlength="100">
-        <button class="btn-primary" onclick="addCabinet()">＋ 新增</button>
-      </div>
-      <table class="u-table" id="cabinetTable">
-        <thead>
-          <tr>
-            <th style="width: 30%;">編號/名稱</th>
-            <th style="width: 50%;">位置說明</th>
-            <th style="width: 20%;">操作</th>
-          </tr>
-        </thead>
-        <tbody id="cabinetList"></tbody>
-      </table>
-    </div>
     <div id="panel-pw" style="display:none">
       <h4>🔑 修改密碼</h4>
       <div class="form-row">
@@ -479,42 +379,6 @@
   </div>
 </div>
 
-<script defer>
-// 2026-09-27 頁面初始化：載入預設資料
-document.addEventListener('DOMContentLoaded', async () => {
-  // 先載入 Units（全域依賴）
-  if (typeof loadUnits === 'function') {
-    await loadUnits();
-  }
-  // 預設顯示 Units Panel
-  if (typeof renderUnitsPanel === 'function') {
-    renderUnitsPanel();
-  }
-  // 預先載入 Cabinets（Settings 初始化時）
-  if (typeof loadCabinets === 'function') {
-    await loadCabinets();
-  }
-});
-</script>
-
-<!-- 2026-09-27 編輯櫃子 Modal -->
-<div class="modal-overlay" id="edit-cabinet-modal" onclick="if(event.target===this) closeModalForce('edit-cabinet-modal')">
-  <div class="modal-box">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <h3 style="margin: 0;">編輯櫃子</h3>
-      <button class="btn-close" onclick="closeModalForce('edit-cabinet-modal')">✕</button>
-    </div>
-    <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-      <input type="text" id="edit-cabinet-name" placeholder="櫃子編號或名稱" style="flex: 1;">
-      <input type="text" id="edit-cabinet-note" placeholder="位置說明（選填）" style="flex: 1;">
-    </div>
-    <div style="display: flex; gap: 10px; margin-top: 18px;">
-      <button class="btn-save" style="flex: 2;" onclick="submitCabinetEdit()">💾 儲存</button>
-      <button class="btn-cancel-ghost" style="flex: 1;" onclick="closeModalForce('edit-cabinet-modal')">取消</button>
-    </div>
-  </div>
-</div>
-
 <script src="/static/js/globals.js" defer></script>
 <script src="/static/js/auth.js" defer></script>
 <script src="/static/js/utils.js" defer></script>
@@ -524,22 +388,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 <script src="/static/js/modals/changepw.js" defer></script>
 <script src="/static/js/modals/gcal-key.js" defer></script>
 <script src="/static/js/settings.js" defer></script>
-<script defer>
-// 2026-09-27 Settings 頁面初始化（settings.js 載入完後）
-window.addEventListener('load', async () => {
-  // 先載入 Units（全域依賴）
-  if (typeof loadUnits === 'function') {
-    await loadUnits();
-  }
-  // 預設顯示 Units Panel
-  if (typeof renderUnitsPanel === 'function') {
-    renderUnitsPanel();
-  }
-  // 預先載入 Cabinets（Settings 初始化時）
-  if (typeof loadCabinets === 'function') {
-    await loadCabinets();
-  }
-});
-</script>
 </body>
 </html>

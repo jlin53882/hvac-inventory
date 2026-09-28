@@ -67,12 +67,9 @@ def export_book(client, **params):
 
 def test_export_has_expected_sheets_in_order(client):
     book = export_book(client)
-    assert book.sheetnames == ["庫存總表(單一庫存)", "位置明細(單一庫存)", "異動紀錄(單一庫存)"]
+    assert book.sheetnames == ["01 總覽", "02 庫存總表", "03 位置明細", "04 庫存警示", "05 異動紀錄", "06 統計"]
     for worksheet in book.worksheets:
-        # 檢查 A1 被合併到某一欄（動態根據標題欄數）
-        merged_ranges = {str(merged_range) for merged_range in worksheet.merged_cells.ranges}
-        assert any(merged_range.startswith("A1:") for merged_range in merged_ranges), \
-            f"A1 應被合併，但未找到 A1:X 範圍。已合併: {merged_ranges}"
+        assert "A1:D1" in {str(merged_range) for merged_range in worksheet.merged_cells.ranges}
         assert worksheet["A1"].value
         assert worksheet["A1"].alignment.horizontal == "center"
 
@@ -82,7 +79,7 @@ def test_export_month_filters_movements_and_past_month_excludes_next_month(clien
     insert_movement(item["id"], "2026-09-05 10:00:00")
     insert_movement(item["id"], "2026-10-01 00:00:00", delta=2)
     book = export_book(client, month="2026-09")
-    rows = list(book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True))
+    rows = list(book["05 異動紀錄"].iter_rows(min_row=6, values_only=True))
     assert len([r for r in rows if r[0]]) == 1
     assert rows[0][0] == "2026-09-05 10:00:00"
 
@@ -98,16 +95,18 @@ def test_export_formula_contract_and_tables(client):
     item = add_item(client)
     insert_movement(item["id"], "2026-09-05 10:00:00")
     book = export_book(client, month="2026-09")
-    inventory = book["庫存總表(單一庫存)"]
+    inventory = book["02 庫存總表"]
     assert set(inventory.tables) == {"tblInventory"}
-    assert set(book["位置明細(單一庫存)"].tables) == {"tblPosition"}
-    assert set(book["異動紀錄(單一庫存)"].tables) == {"tblMovement"}
+    assert set(book["03 位置明細"].tables) == {"tblPosition"}
+    assert set(book["05 異動紀錄"].tables) == {"tblMovement"}
     headers = [c.value for c in inventory[5]]
     cells = {name: inventory.cell(6, headers.index(name) + 1).value for name in headers}
-    assert cells["總庫存"] == "=SUMIFS(tblPosition[位置數量],tblPosition[品項編號(系統編號)],A6)"
-    assert cells["可用庫存"] == "=I6-H6"
-    assert cells["位置數"] == "=COUNTIFS(tblPosition[品項編號(系統編號)],A6)"
-    assert cells["庫存狀態"].startswith("=IF(J6<0")
+    assert cells["總庫存"] == "=SUMIFS(tblPosition[位置數量],tblPosition[品項編號],A6)"
+    assert cells["可用庫存"] == "=J6-I6"
+    assert cells["位置數"] == "=COUNTIFS(tblPosition[品項編號],A6)"
+    assert cells["庫存狀態"].startswith("=IF(K6<0")
+    overview = book["01 總覽"]
+    assert any(isinstance(cell.value, str) and "tblInventory" in cell.value for row in overview.iter_rows() for cell in row)
 
 
 def test_export_multi_location_has_one_inventory_row_and_two_position_rows(client):
@@ -115,12 +114,12 @@ def test_export_multi_location_has_one_inventory_row_and_two_position_rows(clien
     response = client.post(f"/api/items/{item['id']}/stocks", json={"location": "B櫃", "qty": 2})
     assert response.status_code == 201, response.text
     book = export_book(client)
-    inventory_rows = [r for r in book["庫存總表(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
-    position_rows = [r for r in book["位置明細(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
+    inventory_rows = [r for r in book["02 庫存總表"].iter_rows(min_row=6, values_only=True) if r[0]]
+    position_rows = [r for r in book["03 位置明細"].iter_rows(min_row=6, values_only=True) if r[0]]
     assert len(inventory_rows) == 1
     assert len(position_rows) == 2
-    assert inventory_rows[0][8].startswith("=")
-    assert all(len(r) == 9 for r in position_rows)
+    assert inventory_rows[0][9].startswith("=")
+    assert all(len(r) == 10 for r in position_rows)
 
 
 def test_export_prepared_soft_delete_and_raw_text_safety(client):
@@ -134,19 +133,19 @@ def test_export_prepared_soft_delete_and_raw_text_safety(client):
     finally:
         conn.close()
     book = export_book(client)
-    rows = [r for r in book["庫存總表(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
+    rows = [r for r in book["02 庫存總表"].iter_rows(min_row=6, values_only=True) if r[0]]
     assert len(rows) == 1
-    assert rows[0][2].startswith("'")
     assert rows[0][3].startswith("'")
-    assert rows[0][7] == 7
-    assert isinstance(rows[0][8], str) and rows[0][8].startswith("=")
+    assert rows[0][4].startswith("'")
+    assert rows[0][8] == 7
+    assert isinstance(rows[0][9], str) and rows[0][9].startswith("=")
 
 
 def test_export_decimal_qty_stays_numeric_and_uses_unit_format(client):
     add_item(client, name="小數品", code="DEC", unit="米", qty=0.333, low_stock=0)
     book = export_book(client)
-    position = book["位置明細(單一庫存)"]
-    qty_cell = position.cell(6, 8)
+    position = book["03 位置明細"]
+    qty_cell = position.cell(6, 9)
     assert isinstance(qty_cell.value, (int, float))
     assert qty_cell.value == pytest.approx(0.333)
     assert qty_cell.number_format == "#,##0.###"
@@ -160,59 +159,34 @@ def test_export_custom_date_range_and_filename(client):
     assert response.status_code == 200
     assert "20260917-20260917_" in response.headers["content-disposition"]
     book = load_workbook(filename=__import__("io").BytesIO(response.content), data_only=False)
-    rows = [r for r in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
+    rows = [r for r in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if r[0]]
     assert len(rows) == 1
 
 
-def test_export_overview_and_stats_remain_optional_not_default(client):
-    """回歸測試：總覽與統計可手動選取，但預設不產生。"""
-    item = add_item(client, name="分類統計", category="冷媒零件", qty=6)
-    conn = app_db.get_db()
-    try:
-        conn.execute("UPDATE items SET prepared_qty=2 WHERE id=?", (item["id"],))
-        conn.commit()
-    finally:
-        conn.close()
-    default_book = export_book(client)
-    assert "01 總覽" not in default_book.sheetnames
-    assert "06 統計" not in default_book.sheetnames
-
-    optional_book = export_book(client, sections="overview,inventory,stats")
-    assert optional_book.sheetnames == ["01 總覽", "庫存總表(單一庫存)", "06 統計"]
-    assert optional_book["01 總覽"]["A1"].value == "庫存管理報表"
-    assert optional_book["06 統計"]["A4"].value == "庫存區統計"
-    assert "tblInventory" in optional_book["01 總覽"]["B6"].value
-    assert optional_book["06 統計"]["J6"].value == "冷媒零件"
-    assert optional_book["06 統計"]["K6"].value == 1
-    assert optional_book["06 統計"]["L6"].value == 6
-    assert optional_book["06 統計"]["M6"].value == 4
-
-    for title in ("庫存總表(單一庫存)", "位置明細(單一庫存)"):
-        headers = [cell.value for cell in default_book[title][5] if cell.value is not None]
-        assert "分類" not in headers
-
-
 def test_export_stats_have_no_24_row_ceiling_for_brands_and_categories(client):
-    """統計表選取後，分類與廠牌摘要完整輸出超過 24 筆的項目。"""
     for index in range(30):
         add_item(client, name=f"統計品項{index}", brand=f"品牌{index:02d}", code=f"STAT-{index}", category=f"分類{index:02d}", qty=index + 1)
-    stats = export_book(client, sections="inventory,stats")["06 統計"]
-    assert [stats.cell(row, 10).value for row in range(6, 36)] == [f"分類{index:02d}" for index in range(30)]
-    assert [stats.cell(row, 15).value for row in range(6, 36)] == [f"品牌{index:02d}" for index in range(30)]
-    assert stats.cell(35, 11).value == 1
-    assert stats.cell(35, 12).value == 30
-    assert stats.cell(35, 13).value == 30
-    assert stats.cell(35, 16).value.startswith("=COUNTIF(tblInventory[廠牌]")
-    assert stats.cell(35, 17).value.startswith("=SUMIF(tblInventory[廠牌]")
-    assert stats.cell(35, 18).value.startswith("=SUMIF(tblInventory[廠牌]")
+    book = export_book(client)
+    stats = book["06 統計"]
+    brand_rows = [stats.cell(row, 15).value for row in range(6, 36)]
+    category_rows = [stats.cell(row, 10).value for row in range(6, 36)]
+    assert len([value for value in brand_rows if value]) == 30
+    assert len([value for value in category_rows if value]) == 30
+    for row in range(30, 36):
+        assert stats.cell(row, 16).value.startswith("=COUNTIF(tblInventory[廠牌]")
+        assert stats.cell(row, 17).value.startswith("=SUMIF(tblInventory[廠牌]")
+        assert stats.cell(row, 18).value.startswith("=SUMIF(tblInventory[廠牌]")
+        assert stats.cell(row, 11).value.startswith("=COUNTIF(tblInventory[分類]")
+        assert stats.cell(row, 12).value.startswith("=SUMIF(tblInventory[分類]")
+        assert stats.cell(row, 13).value.startswith("=SUMIF(tblInventory[分類]")
 
 
 def test_export_display_period_does_not_show_exclusive_end_as_inclusive(client):
     past = export_book(client, month="2026-08")
-    assert "2026/08/01 ～ 2026/08/31" in past["庫存總表(單一庫存)"]["A2"].value
+    assert "2026/08/01 ～ 2026/08/31" in past["01 總覽"]["A3"].value
     single = export_book(client, start_date="2026-09-17", end_date="2026-09-17")
-    assert "2026/09/17 ～ 2026/09/17" in single["庫存總表(單一庫存)"]["A2"].value
-    assert "2026/09/18" not in single["庫存總表(單一庫存)"]["A2"].value
+    assert "2026/09/17 ～ 2026/09/17" in single["01 總覽"]["A3"].value
+    assert "2026/09/18" not in single["01 總覽"]["A3"].value
 
 
 def test_export_contains_no_dynamic_array_functions_or_xlfn_in_formulas_and_xml(client):
@@ -230,13 +204,13 @@ def test_export_contains_no_dynamic_array_functions_or_xlfn_in_formulas_and_xml(
 
 def test_export_alerts_use_traditional_index_match_formulas(client):
     add_item(client, name="缺貨", code="F5-2", qty=0, low_stock=2)
-    book = export_book(client, sections="inventory,positions,alerts,movements")
-    inventory = book["庫存總表(單一庫存)"]
-    alert = book["庫存警示(單一庫存)"]
-    assert inventory.column_dimensions["M"].hidden is True
-    assert inventory.cell(5, 13).value == "警示序號"
-    assert "IF(" in inventory.cell(6, 13).value and "COUNTIF(" in inventory.cell(6, 13).value
-    for column in range(1, 12):
+    book = export_book(client)
+    inventory = book["02 庫存總表"]
+    alert = book["04 庫存警示"]
+    assert inventory.column_dimensions["N"].hidden is True
+    assert inventory.cell(5, 14).value == "警示序號"
+    assert "IF(" in inventory.cell(6, 14).value and "COUNTIF(" in inventory.cell(6, 14).value
+    for column in range(1, 13):
         formula = alert.cell(6, column).value
         assert isinstance(formula, str) and formula.startswith("=IFERROR(INDEX(")
         assert "MATCH(ROW()-5,tblInventory[警示序號],0)" in formula
@@ -248,12 +222,12 @@ def test_export_alert_candidates_cover_multiple_and_zero_alerts_without_errors(c
         add_item(client, name=f"警示{index}", code=f"F5-A{index}", qty=0, low_stock=1)
     for index in range(3):
         add_item(client, name=f"正常{index}", code=f"F5-N{index}", qty=10, low_stock=1)
-    book = export_book(client, sections="inventory,positions,alerts,movements")
-    alert = book["庫存警示(單一庫存)"]
+    book = export_book(client)
+    alert = book["04 庫存警示"]
     assert all(isinstance(alert.cell(row, 1).value, str) and alert.cell(row, 1).value.startswith("=IFERROR(") for row in range(6, 14))
     assert alert.max_row == 13
-    empty_book = export_book(client, sites="van", sections="alerts")
-    empty_alert = empty_book["庫存警示(單一庫存)"]
+    empty_book = export_book(client, sites="van")
+    empty_alert = empty_book["04 庫存警示"]
     assert empty_alert.cell(6, 1).value == "目前沒有資料"
 
 
@@ -264,7 +238,7 @@ def test_export_movement_integer_and_decimal_number_formats(client):
     insert_movement(decimal_item["id"], "2026-09-17 09:00:00", delta=0.333, reason="庫存調整")
 
     book = export_book(client, month="2026-09")
-    movement = book["異動紀錄(單一庫存)"]
+    movement = book["05 異動紀錄"]
     rows = [row for row in movement.iter_rows(min_row=6) if row[0].value]
     integer_row = next(row for row in rows if row[2].value == integer_item["id"])
     decimal_row = next(row for row in rows if row[2].value == decimal_item["id"])
@@ -288,71 +262,16 @@ def test_export_includes_assembled_kit_inventory(client):
     assert assembled.status_code == 200, assembled.text
 
     book = export_book(client)
-    inventory_rows = [r for r in book["庫存總表(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
-    position_rows = [r for r in book["位置明細(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
+    inventory_rows = [r for r in book["02 庫存總表"].iter_rows(min_row=6, values_only=True) if r[0]]
+    position_rows = [r for r in book["03 位置明細"].iter_rows(min_row=6, values_only=True) if r[0]]
     assert any(row[0] == kit["item_id"] for row in inventory_rows)
     kit_positions = [row for row in position_rows if row[0] == kit["item_id"]]
-    assert kit_positions and kit_positions[0][7] == 2
+    assert kit_positions and kit_positions[0][8] == 2
     kit_inventory = next(row for row in inventory_rows if row[0] == kit["item_id"])
-    assert isinstance(kit_inventory[8], str) and "tblPosition" in kit_inventory[8]
-
-
-def test_kit_export_inventory_total_matches_real_stock_position_rows(client):
-    """The Kit XLSX uses item_stocks positions and sums each location exactly once."""
-    material = add_item(client, name="位置測試材料", code="KIT-POS-MAT", qty=10)
-    created = client.post("/api/kits", json={
-        "name": "多位置整組", "brand": "測試牌", "code": "KIT-POS",
-        "site": "office", "items": [{"item_id": material["id"], "qty": 1}],
-    })
-    assert created.status_code == 201, created.text
-    kit = created.json()
-    assembled = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 3})
-    assert assembled.status_code == 200, assembled.text
-
-    kit_items = client.get("/api/items?site=office").json()
-    kit_item = next(row for row in kit_items if row["id"] == kit["item_id"])
-    stock_update = client.patch(f"/api/items/{kit['item_id']}", json={
-        "updated_at": kit_item["updated_at"],
-        "stocks": [
-            {
-                "id": kit_item["stocks"][0]["id"],
-                "stock_updated_at": kit_item["stocks"][0]["updated_at"],
-                "location": "A | 1-1", "qty": 2, "note": "位置A",
-            },
-            {"location": "B | 2-1", "qty": 1, "note": "位置B"},
-        ],
-    })
-    assert stock_update.status_code == 200, stock_update.text
-    kit_api = next(row for row in client.get("/api/kits").json() if row["id"] == kit["id"])
-    assert [(row["location"], row["qty"], row["note"]) for row in kit_api["stock_positions"]] == [
-        ("A | 1-1", 2, "位置A"), ("B | 2-1", 1, "位置B"),
-    ]
-
-    response = client.get("/api/kit-export")
-    assert response.status_code == 200, response.text
-    workbook = load_workbook(io.BytesIO(response.content), data_only=False)
-    inventory = workbook["庫存總表(整組)"]
-    inventory_headers = [cell.value for cell in inventory[5]]
-    kit_row = next(
-        row for row in inventory.iter_rows(min_row=6, values_only=True)
-        if row[0] == kit["item_id"]
-    )
-    assert kit_row[inventory_headers.index("總庫存")] == 3
-
-    positions = workbook["位置明細(整組)"]
-    position_headers = [cell.value for cell in positions[5]]
-    position_rows = [
-        row for row in positions.iter_rows(min_row=6, values_only=True)
-        if row[0] == kit["item_id"]
-    ]
-    qty_column = position_headers.index("位置數量")
-    assert [row[position_headers.index("位置")] for row in position_rows] == ["A | 1-1", "B | 2-1"]
-    assert [row[qty_column] for row in position_rows] == [2, 1]
-    assert sum(row[qty_column] for row in position_rows) == kit_row[inventory_headers.index("總庫存")]
+    assert isinstance(kit_inventory[9], str) and "tblPosition" in kit_inventory[9]
 
 
 def test_export_kit_assemble_disassemble_movements_are_preserved(client):
-    """單一庫存異動只包含子材料 movement（組裝套件、拆解套件），不含整組 movement"""
     material = add_item(client, name="拆解材料", code="KIT-MAT-2", qty=10)
     kit_response = client.post("/api/kits", json={
         "name": "組拆整組", "brand": "測試牌", "code": "KIT-002",
@@ -364,31 +283,27 @@ def test_export_kit_assemble_disassemble_movements_are_preserved(client):
     assert client.post(f"/api/kits/{kit['id']}/disassemble", json={"qty": 1}).status_code == 200
 
     book = export_book(client)
-    reasons = [row[11] for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
-    
-    # 單一庫存應有子材料 movement
-    assert any(str(reason).startswith("組裝套件:") for reason in reasons), "應有『組裝套件:...』"
-    assert any(str(reason).startswith("拆解套件:") for reason in reasons), "應有『拆解套件:...』"
-    
-    # 單一庫存不應有整組 movement
-    assert not any(str(reason).startswith("組裝完成:") for reason in reasons), "不應有『組裝完成:...』"
-    assert not any(str(reason).startswith("拆解:") and "拆解套件" not in str(reason) for reason in reasons), "不應有『拆解:...』（非拆解套件）"
+    reasons = [row[11] for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    assert any(str(reason).startswith("組裝套件:") for reason in reasons)
+    assert any(str(reason).startswith("組裝完成:") for reason in reasons)
+    assert any(str(reason).startswith("拆解:") for reason in reasons)
+    assert any(str(reason).startswith("拆解套件:") for reason in reasons)
 
 
-def test_export_movements_exclude_soft_deleted_item_history(client):
-    """Soft-deleted 品項（nonstock）的歷史應該被排除，不在單一庫存匯出中（符合選項 1 設計）"""
+def test_export_movements_preserve_soft_deleted_item_history(client):
     item = add_item(client, name="歷史刪除品", code="DEL-HISTORY", qty=3)
     deleted = client.delete(f"/api/items/{item['id']}")
     assert deleted.status_code == 200, deleted.text
 
     book = export_book(client)
-    rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
     deleted_rows = [row for row in rows if row[2] == item["id"]]
-    assert not deleted_rows, "Soft-deleted 品項的異動應該被排除，不出現在單一庫存匯出"
+    assert deleted_rows
+    assert any(row[11] == "品項刪除清零" and row[1] == "刪除清零" for row in deleted_rows)
+    assert not any(row[0] == item["id"] for row in book["02 庫存總表"].iter_rows(min_row=6, values_only=True))
 
 
-def test_export_movements_exclude_nonstock_stockout(client):
-    """Nonstock 異動應該被排除，只在已領出匯出中顯示（符合選項 1 設計）"""
+def test_export_movements_include_nonstock_stockout(client):
     response = client.post("/api/stockout/nonstock", json={
         "name": "非庫存歷史品", "code": "NONSTOCK-1", "unit": "個",
         "qty": 2, "destination": "測試案場",
@@ -397,14 +312,14 @@ def test_export_movements_exclude_nonstock_stockout(client):
     item_id = response.json()["id"]
 
     book = export_book(client)
-    rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
     nonstock_rows = [row for row in rows if row[2] == item_id]
-    assert not nonstock_rows, "Nonstock 異動應該被排除，不出現在單一庫存匯出"
+    assert nonstock_rows and nonstock_rows[0][11] == "出庫"
 
 
 @pytest.mark.parametrize("reason, expected", [
     ("領出準備", "待領出"), ("出庫", "出庫"), ("出庫 - 案場", "出庫"),
-    ("領出結帳", "領出結帳"), ("退回準備", "退回準備"), ("退回已領出", "退回"), ("盤點調整", "盤點"), ("庫存調撥", "調撥"),
+    ("退回已領出", "退回"), ("盤點調整", "盤點"), ("庫存調撥", "調撥"),
     ("組裝套件:測試整組", "整組組裝"), ("組裝完成:測試整組", "整組組裝"),
     ("拆解:測試整組", "整組拆解"), ("拆解套件:測試整組", "整組拆解"),
     ("品項刪除清零", "刪除清零"), ("已領出編輯調整", "庫存調整"),
@@ -425,12 +340,11 @@ def test_export_custom_range_uses_left_closed_right_open_boundaries(client):
     insert_movement(item["id"], "2026-09-01 00:00:00", reason="庫存調整")
     insert_movement(item["id"], "2026-10-01 00:00:00", delta=2, reason="庫存調整")
     book = export_book(client, start_date="2026-09-01", end_date="2026-09-30")
-    rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
     assert [row[0] for row in rows] == ["2026-09-01 00:00:00"]
 
 
-def test_export_movement_site_prefers_return_site_over_source_site_included(client):
-    """P0 決策：退回已領出異動應該同時顯示在單一庫存及已領出匯出（例外，符合 Q3=C）"""
+def test_export_movement_site_prefers_return_site_over_source_site(client):
     item = add_item(client, name="退回來源品", code="RETURN-SITE")
     conn = app_db.get_db()
     try:
@@ -443,9 +357,8 @@ def test_export_movement_site_prefers_return_site_over_source_site_included(clie
     finally:
         conn.close()
     book = export_book(client, month="2026-09", sites="warehouse")
-    rows = [row for row in book["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
-    return_rows = [row for row in rows if row[2] == item["id"]]
-    assert return_rows, "退回已領出異動應該顯示，出現在單一庫存匯出（P0 決策）"
+    rows = [row for row in book["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    assert rows and rows[0][6] == "倉庫"
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -482,8 +395,8 @@ def test_stockout_created_at_uses_taipei_business_time_and_export_boundary(clien
     assert movement["created_at"] == "2026-10-01 00:30:00"
     october = export_book(client, start_date="2026-10-01", end_date="2026-10-01")
     september = export_book(client, start_date="2026-09-01", end_date="2026-09-01")
-    oct_rows = [r for r in october["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
-    sep_rows = [r for r in september["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if r[0]]
+    oct_rows = [r for r in october["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if r[0]]
+    sep_rows = [r for r in september["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if r[0]]
     assert any(r[2] == item["id"] and r[0] == "2026-10-01 00:30:00" for r in oct_rows)
     assert not any(r[2] == item["id"] and r[0] == "2026-10-01 00:30:00" for r in sep_rows)
 
@@ -537,279 +450,7 @@ def test_transfer_uses_single_timestamp_for_both_movements(client, monkeypatch):
 
     september = export_book(client, start_date="2026-09-30", end_date="2026-09-30")
     october = export_book(client, start_date="2026-10-01", end_date="2026-10-01")
-    sep_rows = [row for row in september["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
-    oct_rows = [row for row in october["異動紀錄(單一庫存)"].iter_rows(min_row=6, values_only=True) if row[0]]
+    sep_rows = [row for row in september["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
+    oct_rows = [row for row in october["05 異動紀錄"].iter_rows(min_row=6, values_only=True) if row[0]]
     assert len([row for row in sep_rows if row[11] == "庫存調撥"]) == 2
     assert not [row for row in oct_rows if row[11] == "庫存調撥"]
-
-
-def test_export_rejects_empty_or_unknown_sections(client):
-    """拒絕空的工作表選取內容及未知的工作表識別碼。"""
-    assert client.get("/api/export", params={"sections": ""}).status_code == 400
-    assert client.get("/api/export", params={"sections": "inventory,unknown"}).status_code == 400
-
-
-def test_export_sections_default_to_single_inventory_and_keep_alerts_optional(client):
-    """預設匯出三張單一庫存表，警示只在明確選取時輸出。"""
-    default_book = export_book(client)
-    assert default_book.sheetnames == [
-        "庫存總表(單一庫存)",
-        "位置明細(單一庫存)",
-        "異動紀錄(單一庫存)",
-    ]
-
-    alert_book = export_book(client, sections="alerts")
-    assert alert_book.sheetnames == ["庫存警示(單一庫存)"]
-
-
-def test_export_body_cells_use_text_format_and_center_alignment(client):
-    """文字格式與置中對齊適用於 A3 以後，不覆寫標題列或數量格式。"""
-    add_item(client, name="格式對齊", code="ALIGN", qty=2)
-    book = export_book(client, sections="inventory,positions,movements")
-    for sheet in book.worksheets:
-        assert sheet["A1"].font.name == "Microsoft JhengHei"
-        assert sheet["A2"].font.name == "Microsoft JhengHei"
-        assert sheet["A1"].number_format == "General"
-        assert sheet["A2"].number_format == "General"
-        for row in sheet.iter_rows(min_row=3):
-            for cell in row:
-                if cell.value is None:
-                    continue
-                assert cell.alignment.horizontal == "center"
-                assert cell.alignment.vertical == "center"
-                assert cell.font.name == "Microsoft JhengHei"
-                if isinstance(cell.value, str) and not cell.value.startswith("="):
-                    assert cell.number_format == "@"
-                if cell.number_format == "General":
-                    raise AssertionError(f"{sheet.title}!{cell.coordinate} kept General format")
-    assert book["位置明細(單一庫存)"].cell(6, 8).number_format == "#,##0"
-    assert book["庫存總表(單一庫存)"].cell(6, 12).number_format == "@"
-
-
-def test_export_single_inventory_headers_styles_and_columns(client):
-    """單一庫存匯出移除分類並保留 Excel 可用的欄名、格式與欄寬。"""
-    add_item(client, name="格式驗證", code="W-7", qty=12)
-    book = export_book(client, sections="inventory,positions,alerts,movements")
-    inventory = book["庫存總表(單一庫存)"]
-    positions = book["位置明細(單一庫存)"]
-    alerts = book["庫存警示(單一庫存)"]
-    movements = book["異動紀錄(單一庫存)"]
-
-    assert inventory["A1"].value == "單一庫存總表"
-    assert positions["A1"].value == "單一庫存位置明細"
-    assert alerts["A1"].value == "單一庫存警示"
-    assert movements["A1"].value == "單一庫存異動紀錄"
-    assert "庫存快照" not in " ".join(str(cell.value) for sheet in book for row in sheet for cell in row if cell.value)
-
-    inventory_headers = [cell.value for cell in inventory[5] if cell.value is not None]
-    position_headers = [cell.value for cell in positions[5] if cell.value is not None]
-    alert_headers = [cell.value for cell in alerts[5] if cell.value is not None]
-    movement_headers = [cell.value for cell in movements[5] if cell.value is not None]
-    assert inventory_headers[0] == "品項編號(系統編號)"
-    assert "分類" not in inventory_headers
-    assert "分類" not in position_headers
-    assert "分類" not in alert_headers
-    assert position_headers[0] == "品項編號(系統編號)"
-    assert alert_headers[1] == "品項編號(系統編號)"
-    assert movement_headers[2] == "品項編號(系統編號)"
-    assert "tblPosition[品項編號(系統編號)]" in inventory.cell(6, 9).value
-    assert inventory.cell(6, 13).value.startswith("=IF(")
-
-    assert inventory["A1"].font.name == "Microsoft JhengHei"
-    assert inventory["A1"].font.bold
-    assert all(inventory.cell(5, col).font.bold for col in range(1, len(inventory_headers) + 1))
-    assert inventory["B6"].number_format == "@"
-    assert inventory["G6"].number_format == "#,##0"
-    assert inventory.column_dimensions["A"].width < 15
-    assert inventory["B6"].value == "公司"
-    assert "庫存快照" not in str(inventory["A2"].value)
-
-
-def test_stockout_export_headers_and_site_labels(client):
-    """已領出 Excel: row 5 header、row 6 data、movement type、site label 修復驗證"""
-    # 建立品項 + 直接出庫
-    item = add_item(client, name="出庫測試品", code="TEST-OUT-1", qty=5)
-    stockout_resp = client.post("/api/stockout", json={
-        "item_id": item["id"],
-        "qty": 2,
-        "destination": "客戶A",
-        "note": "現場領取"
-    })
-    assert stockout_resp.status_code == 200
-    
-    # 匯出已領出 Excel
-    resp = client.get("/api/stockout-export?month=2026-09&sections=movements")
-    assert resp.status_code == 200
-    assert resp.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    
-    # 讀取並驗證
-    from io import BytesIO
-    from openpyxl import load_workbook
-    
-    book = load_workbook(BytesIO(resp.content))
-    ws = book["異動紀錄(已領出)"]
-    
-    # 驗證 row 5 header（未被覆蓋）
-    expected_headers = [
-        "時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", 
-        "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"
-    ]
-    actual_headers = [ws[f"{chr(65+i)}5"].value for i in range(12)]
-    assert actual_headers == expected_headers, f"Header mismatch: {actual_headers}"
-    
-    # 驗證 row 6 data（第一筆資料真的在 row 6）
-    assert ws["A6"].value is not None, "Row 6 should have data"
-    assert ws["C6"].value == item["id"], f"Item ID should be {item['id']}, got {ws['C6'].value}"
-    
-    # 驗證 movement type（B 欄應是「出庫」而非「品項異動」）
-    assert ws["B6"].value == "出庫", f"Movement type should be '出庫', got '{ws['B6'].value}'"
-    
-    # 驗證 site label（G 欄應是「公司」而非「office」）
-    assert ws["G6"].value == "公司", f"Site should display as '公司', got '{ws['G6'].value}'"
-    
-    # 驗證 workbook 可正常載入（round-trip）
-    assert book is not None
-    assert "異動紀錄(已領出)" in book.sheetnames
-    book.close()
-
-
-def test_stockout_export_formula_injection_safe(client):
-    """已領出 XLSX 將使用者控制文字安全寫入，並保留數值欄型別。"""
-    item = add_item(client, name="+CMD", brand="=1+1", code="-FORMULA")
-    stockout_response = client.post("/api/stockout", json={
-        "item_id": item["id"],
-        "qty": 2,
-        "destination": "@evil",
-        "note": "=REASON",
-    })
-    assert stockout_response.status_code == 200, stockout_response.text
-
-    conn = app_db.get_db()
-    try:
-        # Site 是受限識別值；此處模擬 DB 中未知/損壞值，驗證匯出仍採安全字串寫入。
-        conn.execute("UPDATE items SET site=? WHERE id=?", ("=SITE", item["id"]))
-        conn.commit()
-        stored = conn.execute(
-            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
-            "m.destination, m.reason, i.site, i.brand, i.name, i.code "
-            "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE m.item_id=? ORDER BY m.id DESC LIMIT 1",
-            (item["id"],),
-        ).fetchone()
-    finally:
-        conn.close()
-
-    assert stored["brand"] == "=1+1"
-    assert stored["name"] == "+CMD"
-    assert stored["code"] == "-FORMULA"
-    assert stored["site"] == "=SITE"
-    assert stored["destination"] == "@evil"
-    assert stored["reason"] == "出庫 - =REASON"
-
-    response = client.get(
-        "/api/stockout-export",
-        params={"month": stored["created_at"][:7], "sections": "movements"},
-    )
-    assert response.status_code == 200, response.text
-    book = load_workbook(io.BytesIO(response.content), data_only=False)
-    ws = book["異動紀錄(已領出)"]
-    row = next(
-        row_number for row_number in range(6, ws.max_row + 1)
-        if ws[f"C{row_number}"].value == item["id"]
-    )
-
-    expected_text = {
-        "A": stored["created_at"],
-        "B": "出庫",
-        "D": "'=1+1",
-        "E": "'+CMD",
-        "F": "'-FORMULA",
-        "G": "'=SITE",
-        "K": "'@evil",
-        "L": "出庫 - =REASON",
-    }
-    for column, expected in expected_text.items():
-        cell = ws[f"{column}{row}"]
-        assert cell.value == expected
-        assert cell.data_type == "s"
-
-    expected_numbers = {"C": item["id"], "H": -2, "I": 10, "J": 8}
-    for column, expected in expected_numbers.items():
-        cell = ws[f"{column}{row}"]
-        assert cell.value == expected
-        assert cell.data_type == "n"
-
-    book.close()
-
-
-def test_kit_movement_ownership_assemble_disassemble(client):
-    """整組組裝/拆解：驗證 movement 出現在正確的 export（單一庫存 vs 整組）"""
-    from io import BytesIO
-    from openpyxl import load_workbook
-    
-    # 建立材料
-    mat1 = add_item(client, name="組裝材料1", code="MAT-1", qty=10)
-    mat2 = add_item(client, name="組裝材料2", code="MAT-2", qty=5)
-    
-    # 建立整組
-    kit_resp = client.post("/api/kits", json={
-        "name": "測試整組A", "brand": "測試", "code": "KIT-A",
-        "site": "office", "location": "A架",
-        "items": [
-            {"item_id": mat1["id"], "qty": 2},
-            {"item_id": mat2["id"], "qty": 1},
-        ]
-    })
-    assert kit_resp.status_code == 201
-    kit = kit_resp.json()
-    
-    # 【組裝】
-    assemble_resp = client.post(f"/api/kits/{kit['id']}/assemble", json={"qty": 1})
-    assert assemble_resp.status_code == 200
-    
-    # 【驗證：單一庫存 export】
-    single_resp = client.get("/api/export?sections=movements")
-    assert single_resp.status_code == 200
-    single_book = load_workbook(BytesIO(single_resp.content))
-    single_ws = single_book["異動紀錄(單一庫存)"]
-    
-    # 單一庫存應有子材料 movement（組裝套件:...）
-    single_rows = [single_ws.cell(r, 12).value for r in range(6, single_ws.max_row + 1)]
-    has_assemble_material = any("組裝套件" in str(v) for v in single_rows if v)
-    assert has_assemble_material, "單一庫存應有『組裝套件』movement"
-    
-    # 單一庫存不應有整組 movement（組裝完成:...）
-    has_assemble_kit = any("組裝完成" in str(v) for v in single_rows if v)
-    assert not has_assemble_kit, "單一庫存不應有『組裝完成』movement"
-    
-    # 【驗證：整組 export】
-    kit_resp = client.get("/api/kit-export?sections=movements")
-    assert kit_resp.status_code == 200
-    kit_book = load_workbook(BytesIO(kit_resp.content))
-    kit_ws = kit_book["異動紀錄(整組)"]
-    
-    # 整組應有整組 movement（組裝完成:...）
-    kit_rows = [kit_ws.cell(r, 12).value for r in range(6, kit_ws.max_row + 1)]
-    has_kit_assemble = any("組裝完成" in str(v) for v in kit_rows if v)
-    assert has_kit_assemble, "整組應有『組裝完成』movement"
-    
-    # 【拆解】
-    disassemble_resp = client.post(f"/api/kits/{kit['id']}/disassemble", json={"qty": 1})
-    assert disassemble_resp.status_code == 200
-    
-    # 【驗證：單一庫存 export（拆解）】
-    single_resp = client.get("/api/export?sections=movements")
-    single_book = load_workbook(BytesIO(single_resp.content))
-    single_ws = single_book["異動紀錄(單一庫存)"]
-    
-    single_rows = [single_ws.cell(r, 12).value for r in range(6, single_ws.max_row + 1)]
-    # 應有拆解套件
-    has_disassemble_material = any("拆解套件" in str(v) for v in single_rows if v)
-    assert has_disassemble_material, "單一庫存應有『拆解套件』movement"
-    
-    # 不應有拆解（整組）
-    has_disassemble_kit = any(str(v).startswith("拆解:") if v else False for v in single_rows)
-    assert not has_disassemble_kit, "單一庫存不應有『拆解:...』movement"
-    
-    single_book.close()
-    kit_book.close()
