@@ -27,7 +27,7 @@ function openKitModal() {
   renderKitCompRows();  // 顯示「尚未加入材料」+ 搜尋框（同 demo）
   renderKitLocationRows();  // 顯示位置清單（初始為空）
   loadKitCabinetOptions();
-  renderKitPhotoBox(null);  // 新增模式：選檔，建立後背景上傳
+  renderKitPhotoBox(null, null, false);  // 新增模式：選檔，建立後背景上傳
   openModal('kit-modal');
 }
 

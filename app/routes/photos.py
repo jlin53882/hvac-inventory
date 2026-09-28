@@ -286,7 +286,7 @@ def delete_kit_photo(kit_id: int):
         
         item_id = row["item_id"]
         rows = conn.execute(
-            "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? RETURNING asset_id, preview_path, thumbnail_path",
+            "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? RETURNING asset_id, original_path, preview_path, thumbnail_path",
             ("item_photo", "item", str(item_id)),
         ).fetchall()
         conn.commit()

@@ -9,6 +9,7 @@
 - `/api/kits` 的 `stock_positions` 回傳實際 `item_stocks` 明細。Kit 卡片與 Kit XLSX 的位置都使用此欄位／來源。
 - `kit_locations`／API `locations` 只保留 Kit 編輯器的櫃位顯示 metadata；不得用於庫存數量、實際位置或匯出。`locations: []` 表示清空這些 metadata。
 - Kit 照片是 `file_assets` 中 `category=item_photo, owner_type=item, owner_id=<kit item id>` 的資產；legacy `<item_id>.jpg` 僅為相容 preview。
+- 照片 UI 的識別碼不可混用：Kit definition 使用 `kits.id`，照片 owner/display/lightbox 使用 `kits.item_id`；上傳與刪除透過 `/api/kits/{kit_id}/photo`，端點再解析 backing item owner。
 
 ## Schema 與升級
 

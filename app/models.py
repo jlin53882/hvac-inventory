@@ -6,7 +6,7 @@ Pydantic 請求模型
 """
 from datetime import date
 from decimal import Decimal
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -541,13 +541,34 @@ class EngineeringReportIn(BaseModel):
 
 
 # ---------- 櫃子（Settings 設定） ----------
+def _normalize_cabinet_name(value: str) -> str:
+    """修剪櫃子名稱，讓新增與編輯共用相同的唯一名稱格式。"""
+    return value.strip()
+
+
 class CabinetCreate(BaseModel):
-    """新增/編輯櫃子設定"""
-    name: str  # 櫃子編號或名稱，如「編號A」、「倉庫1」
-    note: str = ""  # 櫃子位置說明（防忘記在哪裡）
+    """Validate and normalize cabinet creation fields."""
+    name: str = Field(..., min_length=1, max_length=100)  # 櫃子編號或名稱，如「編號A」、「倉庫1」
+    note: str = Field("", max_length=500)  # 櫃子位置說明（防忘記在哪裡）
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalize_name(cls, value: Any) -> Any:
+        """在長度驗證與儲存前統一修剪櫃子名稱。"""
+        if not isinstance(value, str):
+            return value
+        return _normalize_cabinet_name(value)
 
 
 class CabinetUpdate(BaseModel):
-    """編輯櫃子"""
-    name: str
-    note: str = ""
+    """Validate and normalize cabinet update fields."""
+    name: str = Field(..., min_length=1, max_length=100)
+    note: str = Field("", max_length=500)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalize_name(cls, value: Any) -> Any:
+        """在長度驗證與儲存前統一修剪櫃子名稱。"""
+        if not isinstance(value, str):
+            return value
+        return _normalize_cabinet_name(value)

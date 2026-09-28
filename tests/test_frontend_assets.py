@@ -1165,6 +1165,14 @@ def test_kits_js_viewer_mode():
     assert "submitKitEdit" in read(KIT_MODAL_JS)
 
 
+def test_kit_photo_identity_runtime_contract():
+    """Execute editKit/photo renderers with different Kit and backing-item IDs."""
+    script = Path(BASE_DIR) / "tests" / "kit_photo_identity_runtime.test.js"
+    result = subprocess.run(["node", str(script)], capture_output=True, text=True, check=False, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "kit photo identity runtime contract passed" in result.stdout
+
+
 def test_kit_edit_rerenders_directly_after_save():
     """整組編輯成功後直接重繪整組，避免 loadData 的舊 render 覆蓋品牌/型號。"""
     js = read(KIT_MODAL_JS)

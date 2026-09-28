@@ -182,7 +182,14 @@ function goEditSimilar(id) {
 
 // ========== 整組照片（新增/編輯 modal） ==========
 // 整組照片：新增時建立後自動上傳（背景），編輯時可修改；選檔後立即預覽
-function renderKitPhotoBox(kitId, hasPhoto) {
+/**
+ * 依 Kit 定義與其庫存品項的不同識別碼渲染整組照片控制。
+ * @param {number|null} kitId - kits.id；用於整組專屬上傳與刪除端點。
+ * @param {number|null} itemId - kits.item_id；用於照片縮圖與 lightbox 媒體查詢。
+ * @param {boolean} hasPhoto - 該 backing item 是否已有照片。
+ * @returns {void} 更新整組編輯 modal 的照片區塊。
+ */
+function renderKitPhotoBox(kitId, itemId, hasPhoto) {
   const box = document.getElementById('k-photo-box');
   if (!box) return;
   const canPhoto = hasPerm('photo');
@@ -190,7 +197,7 @@ function renderKitPhotoBox(kitId, hasPhoto) {
     box.innerHTML = '<div style="font-size:11px;color:#999;padding:6px 0">無照片上傳權限</div>';
     return;
   }
-  // 新增模式（kitId = null）vs 編輯模式（kitId ≠ null）
+  // 新增模式沒有 Kit/item 識別碼；編輯模式分開使用 Kit ID 與 backing item ID。
   if (kitId === null || kitId === undefined) {
     // 新增模式：選檔後立即預覽
     box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">建立後可立即上傳照片</div>
@@ -211,7 +218,7 @@ function renderKitPhotoBox(kitId, hasPhoto) {
   } else {
     // 編輯模式：顯示既有照片 + 修改選項
     if (hasPhoto) {
-      box.innerHTML = `<img src="${photoSrc(kitId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${kitId})" style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
+      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${itemId})" style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
         <div id="k-photo-preview" style="margin:8px 0"></div>
         <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
           <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
@@ -220,7 +227,7 @@ function renderKitPhotoBox(kitId, hasPhoto) {
           <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
             <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
-          <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteItemPhoto(${kitId})">🗑 刪除</button>
+          <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteKitPhoto(${kitId}, ${itemId})">🗑 刪除</button>
         </div>`;
     } else {
       box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
@@ -234,6 +241,41 @@ function renderKitPhotoBox(kitId, hasPhoto) {
           </label>
         </div>`;
     }
+  }
+}
+
+/**
+ * 透過 Kit 專屬端點刪除照片，避免將 Kit ID 誤當成 backing item ID。
+ * @param {number} kitId - kits.id；用於 DELETE /api/kits/{kitId}/photo。
+ * @param {number} itemId - kits.item_id；用於更新前端 item/Kit 照片狀態。
+ * @returns {Promise<void>} 刪除成功後重繪照片區並刷新目前資料。
+ */
+async function deleteKitPhoto(kitId, itemId) {
+  try {
+    const res = await fetch(`/api/kits/${kitId}/photo`, { method: 'DELETE' });
+    if (!res.ok) { toast('刪除失敗', 'error'); return; }
+
+    const kit = Array.isArray(currentKitItems)
+      ? currentKitItems.find(entry => Number(entry.id) === Number(kitId))
+      : null;
+    if (kit) {
+      kit.has_photo = false;
+      kit.thumbnail_url = null;
+      kit.preview_url = null;
+    }
+    const item = Array.isArray(ALL_ITEMS)
+      ? ALL_ITEMS.find(entry => Number(entry.id) === Number(itemId))
+      : null;
+    if (item) {
+      item.has_photo = false;
+      item.thumbnail_url = null;
+      item.preview_url = null;
+    }
+    renderKitPhotoBox(kitId, itemId, false);
+    toast('🗑 照片已刪除', 'success');
+    await loadData();
+  } catch {
+    toast('刪除失敗', 'error');
   }
 }
 

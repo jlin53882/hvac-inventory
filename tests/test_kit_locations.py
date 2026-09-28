@@ -193,6 +193,151 @@ def test_kit_location_dom_runtime_contract():
     assert 'kit location runtime contract passed' in result.stdout
 
 
+def test_kit_photo_delete_does_not_delete_unrelated_item_photo_when_ids_differ(
+    client, sample_item, tmp_path, monkeypatch
+):
+    """Deleting Kit ID 1 must not delete the ordinary item photo also owned by item ID 1."""
+    from app import config as app_config
+    from app.services.file_storage import safe_upload_path
+
+    upload_dir = tmp_path / 'uploads'
+    monkeypatch.setattr(app_config, 'UPLOAD_DIR', str(upload_dir))
+    image = Image.new('RGB', (24, 24), color='purple')
+    data = io.BytesIO()
+    image.save(data, format='JPEG')
+    item_upload = client.post(
+        f"/api/items/{sample_item['id']}/photo",
+        files={'file': ('item.jpg', data.getvalue(), 'image/jpeg')},
+    )
+    assert item_upload.status_code == 200, item_upload.text
+
+    kit = _create_kit(client, sample_item['id'])
+    assert kit['id'] == sample_item['id']
+    assert kit['item_id'] != kit['id']
+    kit_upload = client.post(
+        f"/api/kits/{kit['id']}/photo",
+        files={'file': ('kit.jpg', data.getvalue(), 'image/jpeg')},
+    )
+    assert kit_upload.status_code == 200, kit_upload.text
+    assert kit_upload.json()['kit_id'] == kit['id']
+    assert kit_upload.json()['item_id'] == kit['item_id']
+
+    conn = app_db.get_db()
+    try:
+        unrelated_asset = conn.execute(
+            "SELECT * FROM file_assets WHERE category='item_photo' AND owner_type='item' AND owner_id=?",
+            (str(sample_item['id']),),
+        ).fetchone()
+        kit_asset = conn.execute(
+            "SELECT * FROM file_assets WHERE category='item_photo' AND owner_type='item' AND owner_id=?",
+            (str(kit['item_id']),),
+        ).fetchone()
+        assert unrelated_asset is not None and kit_asset is not None
+        unrelated_paths = [
+            safe_upload_path(unrelated_asset[column], upload_dir)
+            for column in ('original_path', 'preview_path', 'thumbnail_path')
+            if unrelated_asset[column]
+        ]
+        kit_paths = [
+            safe_upload_path(kit_asset[column], upload_dir)
+            for column in ('original_path', 'preview_path', 'thumbnail_path')
+            if kit_asset[column]
+        ]
+    finally:
+        conn.close()
+
+    assert kit_paths, 'Kit photo fixture must create at least one stored file'
+    assert all(path.exists() for path in kit_paths), 'Kit photo files must exist before delete'
+    deleted = client.delete(f"/api/kits/{kit['id']}/photo")
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()['deleted'] == kit['id']
+    assert all(path.exists() for path in unrelated_paths)
+    assert all(not path.exists() for path in kit_paths)
+    conn = app_db.get_db()
+    try:
+        assert conn.execute(
+            "SELECT 1 FROM file_assets WHERE category='item_photo' AND owner_type='item' AND owner_id=?",
+            (str(sample_item['id']),),
+        ).fetchone() is not None
+        assert conn.execute(
+            "SELECT 1 FROM file_assets WHERE category='item_photo' AND owner_type='item' AND owner_id=?",
+            (str(kit['item_id']),),
+        ).fetchone() is None
+    finally:
+        conn.close()
+
+
+def test_cabinet_rejects_blank_name(client):
+    """Cabinet create and update both reject empty or whitespace-only names."""
+    for name in ('', '   '):
+        created = client.post('/api/cabinets', json={'name': name})
+        assert created.status_code == 422
+    assert client.post('/api/cabinets', json={'name': 'A' * 101}).status_code == 422
+    assert client.post('/api/cabinets', json={'name': '備註邊界', 'note': 'n' * 501}).status_code == 422
+
+    cabinet = next(row for row in client.get('/api/cabinets').json() if row['name'] == '編號A')
+    updated = client.put(
+        f"/api/cabinets/{cabinet['id']}", json={'name': '   ', 'note': ''}
+    )
+    assert updated.status_code == 422
+
+
+def test_cabinet_enforces_field_length_limits_on_create_and_update(client):
+    """Cabinet API accepts boundary-sized text and rejects oversized values consistently."""
+    max_fields = {'name': 'A' * 100, 'note': 'n' * 500}
+    minimum_created = client.post('/api/cabinets', json={'name': 'C', 'note': ''})
+    assert minimum_created.status_code == 201, minimum_created.text
+    assert minimum_created.json()['name'] == 'C'
+
+    created = client.post('/api/cabinets', json=max_fields)
+    assert created.status_code == 201, created.text
+    assert len(created.json()['name']) == 100
+    assert len(created.json()['note']) == 500
+    assert client.post('/api/cabinets', json={'name': 'B' * 101}).status_code == 422
+    assert client.post('/api/cabinets', json={'name': '短名', 'note': 'n' * 501}).status_code == 422
+
+    updated = client.put(f"/api/cabinets/{created.json()['id']}", json=max_fields)
+    assert updated.status_code == 200, updated.text
+    assert len(updated.json()['name']) == 100
+    assert len(updated.json()['note']) == 500
+    minimum = client.put(
+        f"/api/cabinets/{created.json()['id']}", json={'name': 'B', 'note': ''}
+    )
+    assert minimum.status_code == 200, minimum.text
+    assert minimum.json()['name'] == 'B'
+    assert minimum.json()['note'] == ''
+    assert client.put(
+        f"/api/cabinets/{created.json()['id']}", json={'name': 'B' * 101, 'note': ''}
+    ).status_code == 422
+    assert client.put(
+        f"/api/cabinets/{created.json()['id']}", json={'name': '短名', 'note': 'n' * 501}
+    ).status_code == 422
+
+
+def test_cabinet_normalizes_name_whitespace(client):
+    """Cabinet create and update persist the same trimmed canonical name."""
+    created = client.post('/api/cabinets', json={'name': '  測試櫃  ', 'note': '備註'})
+    assert created.status_code == 201, created.text
+    assert created.json()['name'] == '測試櫃'
+
+    updated = client.put(
+        f"/api/cabinets/{created.json()['id']}",
+        json={'name': '  更新櫃  ', 'note': '更新備註'},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()['name'] == '更新櫃'
+
+
+def test_kit_location_editor_labels_metadata_without_inventory_quantity():
+    """Kit location metadata is presented as suggested storage, never stock truth."""
+    html = (Path(BASE_DIR) / 'static' / 'index.html').read_text(encoding='utf-8')
+    kit_modal = html[html.index('id="kit-modal"'):]
+    start = kit_modal.index('<label>建議存放位置（管理備註）</label>')
+    end = kit_modal.index('id="kit-location-rows"', start)
+    location_header = kit_modal[start:end]
+    assert 'ch-qty' not in location_header
+
+
 def test_upgraded_db_can_create_kit_without_duplicate_metadata_columns(upgraded_client):
     """The production POST path works after migration from a Kit table without duplicate fields."""
     conn = app_db.get_db()

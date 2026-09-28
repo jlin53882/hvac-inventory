@@ -524,7 +524,7 @@ async function editKit(kitId) {
 
   renderKitCompRows();
   renderKitLocationRows();  // 渲染位置清單
-  renderKitPhotoBox(kitId, !!kit.has_photo);  // 编辑模式：显示既有照片 + 修改选项
+  renderKitPhotoBox(kit.id, kit.item_id, !!kit.has_photo);  // Kit ID 用於路由，item ID 用於照片媒體查詢
 
   openModal('kit-modal');
 
