@@ -2749,11 +2749,11 @@ def test_edit_modal_has_cabinet_and_sub_per_row():
 
 
 def test_cabinet_options_function_exists():
-    """防回歸：_cabinetOptions 函式存在（產生櫃子下拉選項）。"""
+    """防回歸：_cabinetOptions 函式存在並動態載入 globalCabinetList（2026-09-28 改為動態選項）。"""
     js = read(EDIT_JS)
     assert "function _cabinetOptions" in js, "_cabinetOptions 函式需存在"
-    assert "編號A" in js, "_cabinetOptions 需含編號A選項"
-    assert "鐵架" in js, "_cabinetOptions 需含鐵架選項"
+    assert "globalCabinetList" in js, "_cabinetOptions 需引用 globalCabinetList"
+    assert "selected" in js, "_cabinetOptions 需處理 selected 狀態"
 
 
 def test_add_js_composes_cabinet_sub_location():
