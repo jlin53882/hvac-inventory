@@ -104,7 +104,8 @@ REVIEWED_SAFE_BODIES = {
     "e.sync_status === 'synced' ? '已同步到 Google 行事曆' : e.sync_status === 'partial_failed' ? '部分同步失敗' : e.sync_status === 'pending' ? '等待同步' : e.sync_status === 'failed' ? '同步失敗' : '未綁定同步 Key'",
     "e.sync_status === 'synced' ? '✅' : e.sync_status === 'partial_failed' ? '⚠️' : e.sync_status === 'pending' ? '⏳' : e.sync_status === 'failed' ? '❌' : ''",
     # 整組卡片照片內插（2026-09-27 Phase 2：kitPhoto 為內部生成 HTML，photoSrc 回傳 URL；均由自有邏輯生成，無使用者輸入）
-    "photoSrc(k.item_id, 'thumbnail')", "kitPhoto",
+    # photo.js FileReader preview：e.target.result 為本地檔案 base64 data URL（由瀏覽器生成，安全）
+    "photoSrc(k.item_id, 'thumbnail')", "photoSrc(kitId, 'thumbnail')", "kitPhoto", "kitThumb", "kitId", "e.target.result",
     # sync_error（2026-09-15：syncErr 內含 esc() 跳脫，安全）
     "syncErr",
     # settings.js（2026-08-16 設定中心）：u.is_active 為 DB bool 常數輸出（同帳號頁模式）；u.count 為 COUNT(*) 數字（已 esc）
@@ -228,6 +229,7 @@ REVIEWED_SAFE_BODIES = {
     "absNum(item.prepared_qty)", "absNum(item.qty)", "actions",
     # 共用 status-list renderer：rows/locationFilter/extraHTML 是已 esc 的內部 fragment；buildThumb 統一處理 URL/placeholder。
     "locationFilter", "rows", "columnHeadings", "buildThumb(kit.item_id, !!source.has_photo, kit.name, '🔧', source.thumbnail_url)",
+    "buildThumb(kit.item_id, !!kit.has_photo, kit.name, '🔧', kit.thumbnail_url)",
     "buildThumb(item.id, item.has_photo, item.name, '📦', item.thumbnail_url)", "config.extraHTML || ''",
     "missingHTML", "statusListFormatQuantity(stock)", "statusListFormatQuantity(status.qty)",
     # 2026-09-12 數量系統：Qty.disp 輸出僅數字/分數字元（0-9 . / - 空格），無 HTML metachars；
