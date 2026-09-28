@@ -1,7 +1,7 @@
 # CSS 架構重構設計（頁面樣式互相衝突的根因與重整方案）
 
 > 建立：2026-09-28
-> 狀態：**設計稿，等待確認後才動程式碼**（本 PR 第一個 commit 只有這份文件）
+> 狀態：**已定案，執行中**（決策見 §9）
 > 範圍：`static/css/*.css`（15 檔 / 5,560 行）、`static/*.html` 內嵌 `<style>` 與 `style=""`、JS 寫入的 inline style、對應的 pytest 斷言
 
 ---
@@ -249,11 +249,11 @@ document.body.dataset.page = mode === 'upload' ? 'quotation-upload' : 'quotation
 
 1. 以測試 DB 啟動 server，登入 admin。
 2. 對每個頁籤 × 兩種 viewport（桌機 1440×900、手機 390×844）截圖；另外截關鍵 modal（新增品項、編輯品項、整組、零用金一般/工程、簽名報表編輯、報價上傳編輯）。
-3. 輸出到 `tests/visual/baseline/*.png`，**在動任何 CSS 前先提交基準**。
+3. 輸出到 `tests/visual/_baseline/*.png`（已加入 `.gitignore`，不提交），**在動任何 CSS 前先建立基準**。
 
-每個重構 commit 後重跑並做像素比對（容許 0.1% 誤差）；差異圖輸出到 `tests/visual/diff/` 供人工確認。這是「重構後視覺不變」的唯一可靠證據。
+每個重構 commit 後重跑並做像素比對（容許 0.1% 誤差）；差異圖輸出到 `tests/visual/_diff/` 供人工確認。這是「重構後視覺不變」的唯一可靠證據。
 
-> 若不想把 PNG 放進 repo，可改為只在本機 / CI artifact 產生，repo 只放腳本。
+> 截圖跨作業系統不可比（字型不同），因此 repo 只放腳本；需要時在同一台機器上重建基準。
 
 ### 6.2 再補「計算結果」測試（取代原文字串比對）
 
@@ -285,23 +285,42 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 
 ---
 
-## 7. 分階段執行計畫（每階段一個 commit，視覺基準必須全綠）
+## 7. 分階段執行計畫（全部在同一個 PR，每階段獨立 commit）
 
-| 階段 | 內容 | 風險 | 驗證 |
+| 階段 | 內容 | 畫面 | 驗證 |
 |---|---|---|---|
-| **P0** | 本文件；建立 Playwright 視覺基準腳本與基準圖 | 無 | 基準可重跑且穩定 |
-| **P1** | 新增 `tokens.css`（宣告 layer 順序 + `:root`），`switchTab` 加上 `body[data-page]`（保留舊 class） | 低 | 視覺 0 差異 |
-| **P2** | 既有 15 檔**原封不動**各自包進 `@layer`（core→components、各頁→pages），移到新目錄；更新 `index.html` link、`tests/frontend_test_support.py` 路徑常數 | 中：unlayered 變 layered 後，特異度戰爭改由 layer 決定，需逐頁看 diff | 視覺比對、全量 pytest |
-| **P3** | 拆 core：Shell / 元件 / 庫存頁規則分檔；合併 core ↔ inventory 60+ 個重複 class | 高 | 視覺比對、computed-style 測試 |
-| **P4** | 修正跨模組借用：`.col-headers`、`.pc-modal`、`.dsr-btn`、`.drag`、`.cphoto`、`.product-thumbnail` | 中 | 新增 §6.2 對應測試 |
-| **P5** | 頁面檔全部改用 `[data-page]` 範圍，移除 `#content.xxx` 前綴與 `!important`；統一斷點 | 中 | `test_css_architecture.py` 規則 1–5 啟用 |
-| **P6** | settings / permissions / login 內嵌 `<style>` 搬檔；靜態 inline style → utility class | 中 | 三頁視覺比對 |
-| **P7** | 顏色 / z-index 換成 token；啟用規則 6–7；移除舊 `xxx-content` class 與過渡程式碼 | 低 | 全部測試 |
-| **P8** | 更新 `專案架構.md`、`docs/新增內容與修改規範.md`（新增頁面 / 改樣式 SOP） | 無 | — |
+| **P0** | `uv add --group visual playwright`；CI 新增 `visual` 專用 job（其餘 job 不變）；Playwright 伺服器 fixture；截圖腳本與重構前基準；`.col-headers` 跨 modal 汙染的失敗測試 | 不變 | 基準可重跑且穩定 |
+| **P1** | `tokens.css`（宣告 layer 順序 + `:root`）；`switchTab` 設定 `body[data-page]`（保留舊 class） | 不變 | 截圖 0 差異 |
+| **P2** | 15 檔內容不改，搬入新目錄並各自包進 `@layer`；更新 link 與測試路徑 | 不變 | 截圖比對、全量 pytest |
+| **P3** | 拆 core：版面 / 共用元件 / 庫存頁；合併 core ↔ inventory 60+ 重複 class | 不變 | 截圖比對、computed-style |
+| **P4** | 修正跨模組借用：`.col-headers`、`.pc-modal`、`.dsr-btn`、`.drag`、`.cphoto`、`.product-thumbnail` | 不變（修掉 bug 處除外） | P0 失敗測試轉綠 |
+| **P5** | 頁面檔全改 `[data-page]` 範圍；移除 `#content.xxx` 前綴與 `!important`；斷點統一 | 不變 | 架構測試規則 1–5 |
+| **P6** | settings / permissions / login 內嵌 `<style>` 搬檔；靜態 inline style → utility | 不變 | 三頁截圖比對 |
+| **P7** | 狀態 class 統一 `is-*`，一個元件一個 commit（見 §7.1） | 不變 | 互動測試先行（改前改後皆綠） |
+| **P7.5** | 設計系統統一：標準色票 / 字級 / 間距 / 圓角；按鈕收斂為單一 `.btn`；輸入框、卡片、徽章、表格各一套（見 §7.2） | **會變** | 每個元件輸出前後對照截圖，使用者確認後才進下一個 |
+| **P8** | 顏色 / z-index / 字級 / 圓角全部改用 token；架構測試全開；移除過渡程式碼；更新文件 SOP | 不變 | 全部測試 |
 
-每階段完成後依 `CLAUDE.md` 規範：跑 GitNexus `detect_changes`、Dead Code 4 步自查（取代即刪：舊 CSS 檔在同一 commit 刪除）、前端行為改動補 `tests/test_frontend_assets.py` 斷言。
+每階段依 `CLAUDE.md`：Dead Code 4 步自查（被取代的舊檔同 commit 刪除）、前端行為改動補測試、GitNexus `detect_changes`（本雲端環境無法建立索引時於 commit 訊息註明）。
 
----
+### 7.1 狀態 class 對照
+
+| 舊 | 新 | 備註 |
+|---|---|---|
+| `.active` | `.is-active` | 頁籤、側欄、子頁籤 |
+| `.open`、`.show` | `.is-open` | 兩者合併 |
+| `.on` | `.is-active` | 分片切換，與頁籤一致 |
+| `.selected` / `.collapsed` / `.expanded` / `.changed` | `.is-selected` / `.is-collapsed` / `.is-expanded` / `.is-changed` | |
+| `:disabled`、`:checked` | 不變 | 原生偽類 |
+| `.hidden` | 不變 | utility，不是狀態 |
+
+完成後靜態測試禁止 CSS 出現裸的 `.active` / `.open` / `.show` / `.on`。
+
+### 7.2 設計系統標準（P7.5）
+
+- 標準值以「目前出現次數最多」為起點提出（現況：按鈕 class 48 種、圓角 22 種、字級 45 種、色碼 163 種），先產出一頁色票與元件樣張給使用者確認。
+- 目標規模：顏色約 12 個語意 token、字級約 6 級、間距約 6 級、圓角 3 級；按鈕 `.btn` + 變體（primary / secondary / ghost / danger）× 尺寸（sm / md）。
+- `.dsr-btn*`、`.pc-btn*`、`.qup-btn*`、`.btn-save`、`.btn-confirm` 等改用 `.btn`，同 commit 刪除舊定義。
+- 防回歸：`tokens.css` 以外禁止 hex；字級 / 圓角 / z-index 只能用變數；`button.css` 以外禁止定義 `*-btn` / `btn-*` class。
 
 ## 8. 改完之後的「改樣式 SOP」
 
@@ -312,9 +331,10 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 
 ---
 
-## 9. 待確認事項
+## 9. 已定案事項（2026-09-28）
 
-1. 視覺基準 PNG 是否要提交進 repo（建議：提交，約 40 張、< 5 MB）？
-2. 是否接受引入 Playwright 為 dev dependency（`uv add --dev playwright pytest-playwright`）？
-3. 狀態 class 是否一併統一成 `is-*`（會動到 JS，範圍較大；可延後到 P7 之後另開 PR）？
-4. 階段是否要拆成多個 PR（建議：P0–P2 一個 PR、P3–P5 一個 PR、P6–P8 一個 PR）？
+1. 全部階段在同一個 PR（分支 `ccr-db5387cf-dzuvb0`）完成。
+2. Playwright 以 `uv add --group visual playwright` 安裝在獨立 `visual` 群組，不進 `dev`；CI 既有 job 不變，另加一個 `visual` job 安裝 Chromium 並只跑瀏覽器測試；本機缺 Playwright 或瀏覽器時自動略過。
+3. 截圖基準只用於重構過程比對，不提交進 repo（跨作業系統字型差異）。長期留在 CI 的是 computed-style 與互動測試。
+4. 狀態 class 統一 `is-*`（對照見 §7.1）。
+5. 設計系統統一（P7.5）納入本 PR，標準值由使用者看過色票 / 樣張後確認。
