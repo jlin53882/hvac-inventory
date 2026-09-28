@@ -56,6 +56,7 @@
 | `test_viewer.py` | `auth` | `full-only` | viewer read-only behavior |
 | `test_work_progress.py` | `work_progress` | `full-only` | work progress API / media / RBAC |
 | `test_work_progress_ui_regressions.py` | `frontend`, `work_progress` | `CI / Frontend + Security` | frontend lifecycle regression |
+| `visual/test_css_isolation.py` | `visual` | `CI / Visual (browser)` | Playwright：CSS 跨頁外洩清單（`visual/known_css_leaks.json`）+ computed-style 版面契約；未安裝 visual 群組時自動略過（ubuntu runner） |
 
 ## Auxiliary JavaScript harnesses
 
@@ -67,6 +68,7 @@
 - `tests/tab_async_lifecycle.test.js`
 - `tests/work_progress_detail_target_lifecycle.test.js`
 - `tests/work_progress_upload_progress.test.js`：由 `test_work_progress_ui_regressions.py` 執行（上傳進度條）
+- `tests/visual/leak_probe.js`、`harness.py`、`serve.py`：由 `visual/test_css_isolation.py` 使用；`snapshot.py` 是 CSS 重構用截圖比對 / 外洩清單更新 CLI
 
 ## Phase 2 boundary
 

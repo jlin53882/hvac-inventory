@@ -33,3 +33,8 @@ scripts/tunnel-8002.ps1
 restart-server-8003.bat
 外網啟動-8003.bat
 backups/
+
+# Visual 截圖比對產物（跨作業系統不可比，不提交）
+tests/visual/_baseline/
+tests/visual/_current/
+tests/visual/_diff/
