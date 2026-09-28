@@ -1,0 +1,214 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
+  /* ============ 全域 ============ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    min-height: 100vh;
+    background: #0F172A;
+    color: #F8FAFC;
+  }
+  /* 背景裝飾 */
+  .bg-blob { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.28; z-index: 0; }
+  .blob1 { width: 340px; height: 340px; background: #1d4ed8; top: -80px; left: -80px; }
+  .blob2 { width: 260px; height: 260px; background: #0e7490; bottom: -60px; right: -60px; }
+
+  /* ═══ 主容器（手機：單卡；桌機：雙欄） ═══ */
+  .login-wrap {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 20px 70px;   /* 底部預留頁尾空間 */
+  }
+
+  /* ═══ 登入卡片（手機版為主樣式） ═══ */
+  .login-card {
+    width: 90%; max-width: 400px;
+    margin: 0 auto;               /* 手機 block 模式下水平置中 */
+    background: rgba(30, 41, 59, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    padding: 32px 28px 28px;
+    animation: pop-in 0.35s ease;
+    position: relative;
+  }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* 系統標題區（手機顯示在卡片內） */
+  .brand { text-align: center; margin-bottom: 24px; }
+  .brand .logo {
+    width: 64px; height: 64px; margin: 0 auto 10px;
+    background: #fff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 5px rgba(255,255,255,0.06), 0 0 24px rgba(255,255,255,0.20), 0 8px 18px rgba(0,0,0,0.4);
+    overflow: hidden;
+  }
+  .brand .logo img { width: 100%; height: 100%; object-fit: contain; display: block;
+    transform: translateX(-2px) translateY(-4px); /* 速調登入圖位置：X 負=左/正=右，Y 負=上/正=下，單位 px */ }
+  .brand h1 { font-size: 20px; font-weight: 700; color: #F8FAFC; }
+  .brand .sub { font-size: 12.5px; color: #94A3B8; margin-top: 4px; }
+
+  /* 表單 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: #94A3B8; margin-bottom: 6px; }
+  .field .wrap { position: relative; }
+  .field input {
+    width: 100%; height: 46px; padding: 0 40px 0 38px;
+    border: 1.5px solid #334155; border-radius: 10px;
+    font-size: 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    background: rgba(15, 23, 42, 0.75);
+    color: #F8FAFC;
+  }
+  .field input::placeholder { color: #64748B; }
+  .field input:focus { border-color: #60A5FA; background: rgba(15, 23, 42, 0.95); box-shadow: 0 0 0 3px rgba(96,165,250,0.22), 0 0 12px rgba(96,165,250,0.15); }
+  .field input.err { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+  /* 左側 icon（帳號👤 / 密碼🔒） */
+  .field .wrap::before {
+    content: '👤';
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    font-size: 15px; opacity: 0.55; pointer-events: none; z-index: 1;
+  }
+  .field.pw-field .wrap::before { content: '🔒'; }
+
+  .password-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.55;
+    padding: 4px; line-height: 1;
+  }
+  .password-toggle:hover { opacity: 0.9; }
+
+  /* 表單附加列：記住帳號 + 忘記密碼 */
+  .form-extra {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 4px 0 14px; font-size: 13px;
+  }
+  .form-extra .remember { display: flex; align-items: center; gap: 6px; color: #94A3B8; cursor: pointer; }
+  .form-extra .remember input { width: 15px; height: 15px; accent-color: #1890FF; cursor: pointer; }
+  .form-extra .forgot { color: #60A5FA; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .form-extra .forgot:hover { text-decoration: underline; }
+
+  /* 登入按鈕（亮藍漸層） */
+  .login-btn {
+    width: 100%; height: 46px;
+    background: linear-gradient(135deg, #3B82F6, #60A5FA);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .login-btn:hover { filter: brightness(1.1); box-shadow: 0 10px 26px rgba(59,130,246,0.5); }
+  .login-btn:active { transform: scale(0.98); }
+  .login-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  /* 錯誤 / 資訊提示 */
+  .error-box {
+    display: none;
+    background: rgba(127, 29, 29, 0.35); border: 1px solid rgba(248, 113, 113, 0.4); color: #fca5a5;
+    border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600;
+    margin-bottom: 14px; align-items: center; gap: 8px;
+  }
+  .error-box.show { display: flex; animation: shake 0.4s ease; }
+  .error-box.info { background: rgba(30, 64, 175, 0.35); border-color: rgba(96, 165, 250, 0.4); color: #93c5fd; animation: none; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+  }
+
+  /* 登入成功覆蓋層 */
+  .success-overlay {
+    position: absolute; inset: 0; z-index: 10;
+    background: linear-gradient(150deg, #0f1e33, #16283f 60%, #1d3a5f);
+    border-radius: 16px; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; text-align: center; padding: 30px;
+  }
+  .success-overlay.show { display: flex; animation: fade-in 0.3s ease; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .success-overlay .ok-icon { font-size: 52px; margin-bottom: 14px; }
+  .success-overlay h2 { font-size: 20px; margin-bottom: 8px; }
+  .success-overlay p { font-size: 13px; color: #94A3B8; }
+
+  /* 頁尾（fixed 置底半透明白字） */
+  .footer-note {
+    position: fixed; bottom: 16px; left: 0; right: 0;
+    text-align: center; z-index: 1;
+    font-size: 12px; color: #94A3B8;
+    pointer-events: none;
+  }
+
+  /* 系統狀態（右下角） */
+  .sys-status {
+    position: fixed; bottom: 16px; right: 16px; z-index: 1;
+    font-size: 11px; color: rgba(255,255,255,0.65);
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
+    padding: 4px 10px; border-radius: 14px;
+  }
+
+  /* 維護公告橫幅（預設隱藏，需要時移除 hidden） */
+  .announce {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+    background: rgba(120, 83, 0, 0.75); color: #fde68a; border-bottom: 1px solid rgba(253, 230, 138, 0.3);
+    font-size: 13px; font-weight: 600; text-align: center;
+    padding: 8px 16px;
+  }
+
+  /* ═══ 電腦端（≥768px）：雙欄 ═══ */
+  .brand-panel { display: none; }   /* 手機隱藏 */
+  @media (min-width: 768px) {
+    .login-wrap { padding: 40px 6vw 90px; }
+    .login-panels {
+      display: flex; width: 100%; max-width: 960px;
+      background: rgba(30, 41, 59, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 20px; overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
+      min-height: 540px;
+    }
+    /* 左：品牌形象區 */
+    .brand-panel {
+      display: flex; flex: 55%;
+      background: linear-gradient(155deg, #16283f 0%, #1e3a5f 55%, #2d5a8e 100%);
+      color: #fff; position: relative; overflow: hidden;
+      align-items: center; justify-content: center;
+    }
+    .brand-panel::before, .brand-panel::after {
+      content: ''; position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+    }
+    .brand-panel::before { width: 380px; height: 380px; top: -120px; right: -120px; }
+    .brand-panel::after { width: 300px; height: 300px; bottom: -100px; left: -80px; }
+    .brand-panel-inner { position: relative; z-index: 1; text-align: center; padding: 40px; }
+    .brand-panel-inner .big-logo {
+      width: 96px; height: 96px; margin: 0 auto 18px;
+      background: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 6px rgba(255,255,255,0.06), 0 0 30px rgba(255,255,255,0.20), 0 10px 24px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
+    .brand-panel-inner .big-logo img { width: 100%; height: 100%; object-fit: contain; display: block;
+      transform: translateX(-3px) translateY(-4px); /* 速調登入圖位置：X 負=左/正=右，Y 負=上/正=下，單位 px */ }
+    .brand-panel-inner h2 { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+    .brand-panel-inner p { font-size: 14px; color: #94A3B8; line-height: 1.8; }
+    .brand-panel-inner .geo {
+      margin-top: 26px; font-size: 40px; opacity: 0.35; letter-spacing: 10px;
+    }
+    /* 右：表單操作區 */
+    .form-panel { flex: 45%; display: flex; align-items: center; justify-content: center; padding: 40px 30px; }
+    .login-card { width: 100%; max-width: 400px; box-shadow: none; background: transparent; padding: 0; border: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .brand { display: none; }   /* 桌機卡片內不重複品牌（左邊已有） */
+  }
+
+  @media (max-width: 767px) {
+    .sys-status { display: none; }   /* 手機不顯示系統狀態，避免與頁尾擠 */
+  }
+}

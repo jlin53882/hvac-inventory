@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* ========== 行事曆派工（📅） ========== */
 .cal-wrap { display: flex; flex-direction: column; gap: 14px; }
 /* Desktop：Main Content dashboard split；不修改全站 Sidebar / Navbar */
@@ -368,3 +371,4 @@
 .cal-sync-team-extra { margin-top: 10px; color: #6b7280; font-size: 12px; }
 .cal-sync-clickable.cal-sync-retrying, .cal-sync-clickable.cal-sync-partial_retrying { border-color: #fcd34d; }
 .cal-sync-clickable.cal-sync-failed, .cal-sync-clickable.cal-sync-partial_failed { border-color: #fecaca; }
+}

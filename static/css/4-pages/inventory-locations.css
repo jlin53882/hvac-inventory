@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* Inventory location editing and target-location adjustment surfaces. */
 #edit-modal .edit-stock-headers, #add-modal .edit-stock-headers,
 #edit-stock-rows .stock-row, #add-stock-rows .stock-row {
@@ -124,4 +127,5 @@
     padding: 8px 7px;
     font-size: 13px;
   }
+}
 }

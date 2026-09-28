@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 from frontend_test_support import (
+    read_page_with_css,
     API_JS,
     APP_JS,
     AUTH_JS,
@@ -62,7 +63,7 @@ def test_calendar_runtime():
 def test_gcal_key_reminder_cards_contract():
     """每把 Key 顯示統一卡片，可新增/移除，最多五筆 Popup 通知。"""
     js = read(SETTINGS_JS)
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert "gcal-reminder-row" in js
     assert "gcal-reminders-list" in js
     assert "addGcalReminderRow" in js
@@ -532,9 +533,9 @@ def test_calendar_cal_content_full_width():
     # app.js：switchTab → setPageScope 必須對應 cal-content class
     assert "'calendar': 'cal-content'" in app, \
         'app.js switchTab 缺 cal-content class toggle'
-    # style.calendar.css：必須有 #content.cal-content 覆寫 max-width
+    # 4-pages/calendar.css：必須有 #content.cal-content 覆寫 max-width
     assert '#content.cal-content' in css, \
-        'style.calendar.css 缺 #content.cal-content 規則'
+        '4-pages/calendar.css 缺 #content.cal-content 規則'
     assert 'max-width: none' in css, \
         'cal-content 規則應設定 max-width: none 解除 640px 限制'
 
@@ -558,7 +559,7 @@ def test_calendar_btn_edit_is_feature_owned():
     assert 'class=\"cal-icon-btn btn-edit\"' in calendar_js, (
         "Calendar edit-button producer must remain"
     )
-    assert index.index("style.core.css") < index.index("style.calendar.css"), (
+    assert index.index("legacy/core.css") < index.index("4-pages/calendar.css"), (
         "Core must load before Calendar CSS"
     )
 
@@ -578,7 +579,7 @@ def test_calendar_btn_edit_is_feature_owned():
 def test_gcal_sync_health_and_queue_ui_contract():
     """設定頁必須接上 health、queue、指定列 retry，且不把錯誤只留在 calendar card。"""
     js = read(SETTINGS_JS)
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert "/api/gcal-sync-status" in js
     assert "/api/gcal-sync-queue" in js
     assert "retrySyncQueue" in js
@@ -592,7 +593,7 @@ def test_gcal_sync_health_and_queue_ui_contract():
 
 def test_gcal_sync_health_mobile_cards_contract():
     """設定頁新增同步資訊在手機要使用 card stack，不得固定 table 寬度。"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert ".gcal-sync-issue" in html
     assert "@media (max-width: 768px)" in html
     assert ".gcal-sync-issue-actions" in html
@@ -704,7 +705,7 @@ def test_gcal_detail_head_has_class():
 
 def test_settings_html_gcal_mobile_css():
     """settings.html 手機版 CSS 包含 GCal 優化規則"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert ".gcal-key-item" in html
     assert ".gcal-key-add" in html
     assert ".gcal-detail-head" in html

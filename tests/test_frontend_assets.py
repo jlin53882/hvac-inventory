@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from frontend_test_support import (
+    read_page_with_css,
     ADD_JS,
     API_JS,
     APP_JS,
@@ -402,9 +403,9 @@ def test_petty_cash_frontend_contract():
     assert "switchTab('petty-cash')" in index
     assert 'src="/static/js/render/petty-cash.js"' in index
     assert 'src="/static/js/modals/petty-cash.js"' in index
-    assert 'href="/static/css/style.petty-cash.css"' in index
-    assert 'href="/static/css/style.petty-cash-reports.css"' in index
-    assert 'href="/static/css/style.petty-cash-engineering.css"' in index
+    assert 'href="/static/css/4-pages/petty-cash.css"' in index
+    assert 'href="/static/css/4-pages/petty-cash-reports.css"' in index
+    assert 'href="/static/css/4-pages/petty-cash-engineering.css"' in index
     assert 'style.petty-cash-pr8.css' not in index
     app = read(APP_JS)
     assert "'petty-cash':'零用金月報'" in app
@@ -496,7 +497,7 @@ def test_petty_cash_css_ownership_and_breakpoint_contract():
     base = read(PETTY_CASH_CSS)
     reports = read(PETTY_CASH_REPORTS_CSS)
     engineering = read(PETTY_CASH_ENGINEERING_CSS)
-    assert index.index('style.petty-cash.css') < index.index('style.petty-cash-reports.css') < index.index('style.petty-cash-engineering.css')
+    assert index.index('4-pages/petty-cash.css') < index.index('4-pages/petty-cash-reports.css') < index.index('4-pages/petty-cash-engineering.css')
     assert 'style.petty-cash-pr8.css' not in index
     assert '.pc-report-list-table' in reports
     assert '.pc-general-detail-table' in reports
@@ -681,7 +682,7 @@ def test_petty_cash_unpriced_details_runtime():
 
 def test_petty_cash_settings_options_domain_layout():
     """零用金設定 domain：一般只有科目，工程分開管理分類與項目（2026-09-13）。"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     js = read(SETTINGS_JS)
     assert 'panel-petty-cash' in html
     assert '一般零用金' in js and '工程零用金' in js
@@ -882,7 +883,7 @@ def test_permissions_html_has_reset_perm_overlay():
 
 def test_permissions_html_breadcrumb_topbar():
     """2026-08-15 變體 B 麵包屑頂欄：vb-back 圓鈕 + 麵包屑 + 內容區大標題"""
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert 'class="vb-back"' in html
     assert 'class="vb-crumb"' in html
     assert "庫存" in html and "vb-crumb-current" in html  # 麵包屑「庫存 › 帳號與權限」
@@ -892,7 +893,7 @@ def test_permissions_html_breadcrumb_topbar():
 
 def test_permissions_html_save_bar_variant_b():
     """2026-08-15 方案 B sticky 底條：save-bar fixed bottom + inner 對齊 + 手機 column 雙鈕"""
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert ".save-bar {" in html and "position: fixed; bottom: 0" in html  # fixed 底條
     assert ".save-bar-inner" in html  # 桌面 1200 對齊 wrapper
     assert ".save-btns" in html  # 雙鈕組
@@ -906,7 +907,7 @@ def test_permissions_html_save_bar_variant_b():
 def test_permissions_html_btn_ghost_white_fix():
     """2026-08-15 根因修復：.btn-ghost 全域白字樣式（topbar 專用）用於白底容器會隱形——
        save-bar / modal 內必須覆寫白底深字版"""
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert ".save-btns .btn-ghost" in html and "color: #555" in html  # save-bar 重設鈕覆寫
     assert ".modal .btn-ghost" in html and "color: #555" in html  # modal 取消鈕覆寫
 
@@ -974,7 +975,7 @@ def test_permissions_html_loads_perms_js():
 def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
     """Permission inventory is DB-driven, paginated, searchable, and page visibility is separate."""
     js = read(PERMS_JS)
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert 'permissionDetail.permissions' in js
     assert 'PERMISSIONS_PAGE_SIZE = 10' in js
     assert 'permSearch' in js and 'permFilter' in js and 'permPage' in js
@@ -1096,7 +1097,7 @@ def test_perms_html_nav_buttons_use_root():
 def test_perms_html_switch_after_overridden():
     """2026-08-14 修：權限頁開關必須覆寫 style.css 的 .switch::after（行事曆 button 開關的白圈）
     ——否則兩者共用 .switch class 撞名，權限頁每顆開關多出一個永遠停在左邊的白圈（家豪「兩個白色圓圈」）"""
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert ".switch::after { content: none; }" in html
     assert ".switch { background: transparent; }" in html
 
@@ -1569,7 +1570,7 @@ def test_login_img_no_manual_cachebuster():
 
 def test_login_img_position_adjust_params():
     """登入圖 CSS 速調參數存在（2026-08-12 家豪需求：translateX/translateY 手動微調）"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert html.count("速調登入圖位置") == 2                   # 手機 .brand .logo img + 桌機 .big-logo img
     assert "translateX(" in html and "translateY(" in html    # 參數本體不能整組被移除
     assert "負=左/正=右" in html and "負=上/正=下" in html     # 註解規則存在（調整指引）
@@ -1610,7 +1611,7 @@ def test_login_has_viewport():
 
 def test_login_dual_panel_desktop():
     """桌機雙欄：brand-panel 存在且 ≥768px 才顯示"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert 'class="brand-panel"' in html
     assert 'class="form-panel"' in html
     assert '@media (min-width: 768px)' in html
@@ -1618,7 +1619,7 @@ def test_login_dual_panel_desktop():
 
 def test_login_mobile_single_card():
     """手機維持單卡：卡片 90% + max-width 400px"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert "width: 90%; max-width: 400px" in html
 
 
@@ -1632,7 +1633,7 @@ def test_login_footer_text():
 
 def test_login_input_icons_and_style():
     """輸入框 icon + 亮藍按鈕 + 高 46px"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert "👤" in html and "🔒" in html or "content: '👤'" in html and "content: '🔒'" in html
     assert "1890FF" in html
     assert "height: 46px" in html
@@ -2305,7 +2306,7 @@ def test_edit_stock_rows_mobile_grid_layout():
     assert ".edit-stock-headers" in mobile_css
     html = read(INDEX)
     assert 'class="col-headers edit-stock-headers"' in html
-    assert 'href="/static/css/style.inventory-locations.css"' in html
+    assert 'href="/static/css/4-pages/inventory-locations.css"' in html
     assert 'src="/static/js/location-adjustments.js"' in html
     assert 'id="stock-location-modal"' in html
     modal_attributes = html.split('id="stock-location-modal"', 1)[1].split('>', 1)[0]
@@ -2782,7 +2783,7 @@ def test_add_js_composes_cabinet_sub_location():
 
 def test_settings_cabinets_labels_and_mobile_chip():
     """2026-09-28：櫃子輸入框上方需有固定小標（輸入後仍看得到欄位名稱），手機 chip 列需能進櫃子設定。"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     panel = html[html.index('id="panel-cabinets"'):html.index('id="panel-pw"')]
     assert '<span class="cab-field-label">櫃子編號 / 名稱 *</span>' in panel
     assert '<span class="cab-field-label">位置說明（選填）</span>' in panel
@@ -3394,7 +3395,7 @@ def test_desktop_inventory_and_prepared_styles_are_loaded():
     html = read(INDEX)
     app = read(APP_JS)
     css = read(CSS_INVENTORY)
-    assert "/static/css/style.inventory.css" in html
+    assert "/static/css/4-pages/inventory.css" in html
     assert "'inventory': 'inventory-content'" in app
     assert "'prepared': 'prepared-content'" in app
     assert ".content.inventory-content" in css
@@ -3595,7 +3596,7 @@ def test_desktop_inventory_pending_visual_system_css():
     for token in (".inventory-page-heading", ".inventory-kpi-card", ".inventory-status-dialog",
                   ".prepared-page-header", ".prepared-summary-card", ".prepared-table-wrap",
                   ".prepared-qty-badge", ".prepared-stock-badge", ".status-low", ".status-out"):
-        assert token in css, f"style.inventory.css 缺少 {token}"
+        assert token in css, f"4-pages/inventory.css 缺少 {token}"
     assert "@media (max-width: 1440px)" in css
     assert "@media (max-width: 767px)" in css
 
@@ -3607,7 +3608,7 @@ def test_kit_desktop_dashboard_assets_and_existing_actions():
     app = read(APP_JS)
     js = read(KITS_RENDER_JS)
     css = read(CSS_KIT)
-    assert "/static/css/style.kit.css" in html
+    assert "/static/css/4-pages/kit.css" in html
     assert "'kit': 'kit-content'" in app
     for token in (
         "kit-page-header", "kit-kpi-grid", "kit-toolbar", "kit-assembly-card",
@@ -3649,7 +3650,7 @@ def test_stocktake_desktop_dashboard_assets_and_scope():
     app = read(APP_JS)
     js = read(STOCKTAKE_JS)
     css = read(CSS_STOCKTAKE)
-    assert "/static/css/style.stocktake.css" in html
+    assert "/static/css/4-pages/stocktake.css" in html
     assert "'stocktake': 'stocktake-content'" in app
     for token in (
         "stocktake-page-header", "stocktake-kpi-grid", "stocktake-info-panel",
@@ -3658,7 +3659,7 @@ def test_stocktake_desktop_dashboard_assets_and_scope():
         assert token in js or token in css, f"盤點頁缺少 {token}"
     assert "stk-pane-kit" in js and "stk-pane-single" in js
     assert ".stocktake-content" in css
-    # stocktake-status-extra 透過共用 status-list CSS（style.inventory.css）提供
+    # stocktake-status-extra 透過共用 status-list CSS（4-pages/inventory.css）提供
     inv_css = read(CSS_INVENTORY)
     assert ".status-list-table .stocktake-status-extra" in inv_css or "stocktake-status-extra" in inv_css
     assert ".stocktake-content .stocktake-status-item .stocktake-status-extra" not in css
@@ -3694,7 +3695,7 @@ def test_stockout_desktop_dashboard_assets_and_scope():
     app = read(APP_JS)
     js = read(STOCKOUT_RENDER_JS)
     css = read(CSS_STOCKOUT)
-    assert "/static/css/style.stockout.css" in html
+    assert "/static/css/4-pages/stockout.css" in html
     assert "'stockout': 'stockout-content'" in app
     for token in (
         "stockout-page-header", "stockout-filter-bar", "stockout-kpi-grid",
@@ -3744,7 +3745,7 @@ def test_prepared_stock_badge_uses_explicit_current_stock_label():
 
 def test_stockout_dashboard_uses_fixed_photo_and_equal_data_columns():
     """已領出桌面列的照片固定 80px，其餘欄位與操作欄固定均分。"""
-    css = read(os.path.join(STATIC, 'css', 'style.stockout.css'))
+    css = read(os.path.join(STATIC, 'css', '4-pages', 'stockout.css'))
     assert 'table-layout: fixed;' in css
     assert '.stockout-col-photo { width: 80px; }' in css
     assert 'stockout-col-photo' in read(os.path.join(STATIC, 'js', 'render', 'stockout.js'))
@@ -3960,7 +3961,7 @@ def test_qty_merge_preserves_both_contracts():
     assert "qtyInputOrToast(_el" in edit
 
     settings_js = read(os.path.join(STATIC, "js", "settings.js"))
-    settings_html = read(SETTINGS_HTML)
+    settings_html = read_page_with_css(SETTINGS_HTML)
     for qty_type in ("integer", "decimal", "fraction"):
         assert 'value="%s"' % qty_type in settings_js
     assert 'style="text-align:right"' in settings_js
@@ -3981,7 +3982,7 @@ def test_btn_sm_canonical_shared_owner_and_consumers():
     exact_primary = ".btn-sm.btn-primary { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }"
     assert exact_base in core, "shared .btn-sm base values must remain unchanged"
     assert exact_primary in core, "shared .btn-sm primary values must remain unchanged"
-    assert index.index("style.core.css") < index.index("style.calendar.css") < index.index("style.inventory.css"), "shared owner must load before feature CSS"
+    assert index.index("legacy/core.css") < index.index("4-pages/calendar.css") < index.index("4-pages/inventory.css"), "shared owner must load before feature CSS"
 
     assert re.search(r"(?m)^\s*\.btn-sm\s*\{", core), "shared core must own .btn-sm base"
     assert re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", core), "shared core must own .btn-sm primary variant"
@@ -4196,7 +4197,7 @@ def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
     js = read(os.path.join(STATIC, "js", "modals", "inventory-export.js"))
-    css = read(os.path.join(STATIC, "css", "style.inventory.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "inventory.css"))
     assert "openInventoryExportDialog" in js
     assert "submitInventoryExport" in js
     assert "closeInventoryExportDialog" in js
@@ -4358,11 +4359,11 @@ def test_work_progress_frontend_is_independent_and_mounted():
     api = read(API_JS)
     globals_js = read(GLOBALS_JS)
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     assert 'id="sb-nav-work-progress"' in index
     assert "switchTab('work-progress')" in index
     assert 'src="/static/js/render/work-progress.js"' in index
-    assert 'href="/static/css/style.work-progress.css"' in index
+    assert 'href="/static/css/4-pages/work-progress.css"' in index
     assert "'work-progress':'每日工作進度回報'" in app
     assert "renderWorkProgress" in app
     assert "'work-progress': 'wpr-content'" in app
@@ -4386,7 +4387,7 @@ def test_work_progress_frontend_is_independent_and_mounted():
 def test_work_progress_frontend_permission_and_workflow_contract():
     """工作進度 UI 以 view/edit/delete flags 與 appointment 狀態驅動。"""
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     auth = read(os.path.join(STATIC, "js", "auth.js"))
     assert "perms['work-progress-view']" in auth
     assert "can_edit" in js and "can_delete" in js
@@ -4507,7 +4508,7 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
 
 def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
         "async function wprBatchDeletePhotos", 1
     )[0]
@@ -4533,7 +4534,7 @@ def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
 
 def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_readonly_contract():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     select_block = js.split("async function wprSelectJob(id)", 1)[1].split("function wprUpdateNoteCount", 1)[0]
@@ -4582,7 +4583,7 @@ def test_work_progress_frontend_create_section_order_and_field_grouping():
 
 def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     app = read(APP_JS)
     submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi", 1)[0]
@@ -4750,7 +4751,7 @@ def test_work_progress_uploads_report_progress():
 def test_page_scope_contract():
     """CSS 架構重構 P1：body[data-page] 是頁面樣式範圍；tokens.css 最先載入並宣告 layer 順序。"""
     tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
-    assert "@layer tokens, base, layout, components, pages, utilities;" in tokens
+    assert "@layer tokens, base, layout, components, pages, utilities, legacy;" in tokens
     for page in ("index.html", "settings.html", "permissions.html", "login.html"):
         html = read(os.path.join(STATIC, page))
         first_css = html.index('<link rel="stylesheet"')

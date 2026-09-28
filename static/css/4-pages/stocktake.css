@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* 盤點頁專用 desktop dashboard（僅 stocktake-content scope） */
 .stocktake-content {
   width: 100%;
@@ -166,4 +169,5 @@
   .stocktake-content .stocktake-table .stocktake-col-item { width: 42%; }
   .stocktake-content .stocktake-table .stocktake-col-system, .stocktake-content .stocktake-table .stocktake-col-actual, .stocktake-content .stocktake-table .stocktake-col-diff { width: 19.333%; }
   .stocktake-content .stocktake-input { width: 100%; max-width: 86px; box-sizing: border-box; }
+}
 }

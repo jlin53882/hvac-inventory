@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* Engineering petty cash feature layer: hierarchy, detail view and editor. */
 /* 工程零用金：沿一般零用金的兩步 editor，分類與明細採左右分欄 */
 .eng-editor { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; align-items: start; }
@@ -207,4 +210,5 @@
   .eng-editor .eng-editor-receipt-actions > button { flex:1 1 120px; min-width:0; }
   /* 固定手機 modal 高度，讓細項在 footer 上方可捲動；發票欄位改直排避免互相擠壓。 */
   .eng-editor .eng-receipt-grid { grid-template-columns:minmax(0,1fr); }
+}
 }

@@ -111,7 +111,7 @@ def test_window_resize_listener_recalculates():
 
 def test_filter_panel_css_hidden_rule_exists():
     """CSS 應該有 #fp-brand-toggle.hidden 和 #fp-cat-toggle.hidden 隱藏規則"""
-    css = read(os.path.join('static', 'css', 'style.core.css'))
+    css = read(os.path.join('static', 'css', 'legacy', 'core.css'))
     
     # 驗證：CSS 隱藏規則
     assert '#fp-brand-toggle.hidden' in css or 'fp-brand-toggle' in css and 'hidden' in css, \

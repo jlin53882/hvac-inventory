@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* 振佳空調管理系統 - 全域樣式 */
 /* 從 index.html 拆分出來 (2026-08-08 v8) */
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1077,3 +1080,4 @@ tr.row-danger td{background:#fff5f5}
 .chip-bar .chip{padding:4px 12px;border-radius:14px;border:1px solid #e5e7eb;background:#fff;font-size:12px;cursor:pointer;transition:all .12s;white-space:nowrap}
 .chip-bar .chip.on{background:#2d5a8e;color:#fff;border-color:#2d5a8e}
 .chip-bar .chip:hover{border-color:#2d5a8e}
+}

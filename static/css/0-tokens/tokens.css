@@ -6,5 +6,6 @@
      components  跨頁共用元件（每個 class 只在一個元件檔定義）
      pages       [data-page="…"] 範圍內的頁面樣式
      utilities   .hidden 等工具 class、列印
-   尚未包進 layer 的舊樣式一律勝過所有 layer，因此搬遷期間畫面不會改變。 */
-@layer tokens, base, layout, components, pages, utilities;
+     legacy      重構過渡層：尚未歸位的舊樣式（保持原 cascade），重構完成時必須清空並刪除
+   未包進任何 layer 的樣式（HTML style 屬性以外不應存在）一律勝過所有 layer。 */
+@layer tokens, base, layout, components, pages, utilities, legacy;

@@ -7,7 +7,7 @@ import subprocess
 BASE_DIR = Path(__file__).resolve().parents[1]
 STATIC = BASE_DIR / "static"
 INDEX = STATIC / "index.html"
-CORE_CSS = STATIC / "css" / "style.core.css"
+CORE_CSS = STATIC / "css" / "legacy/core.css"
 STATUS_LIST_JS = STATIC / "js" / "render" / "status-list.js"
 NOTIFICATIONS_JS = STATIC / "js" / "notifications.js"
 
@@ -159,7 +159,7 @@ def test_notification_css_has_desktop_popover_and_mobile_bottom_sheet():
 
 
 # ===== status-list.js 核心函式測試 =====
-INVENTORY_CSS = BASE_DIR / "static" / "css" / "style.inventory.css"
+INVENTORY_CSS = BASE_DIR / "static" / "css" / "4-pages/inventory.css"
 
 
 def test_status_list_format_quantity_handles_zero_and_whole():

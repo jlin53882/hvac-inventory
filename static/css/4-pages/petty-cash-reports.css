@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* Petty Cash reports feature layer: report list, cards, menu and general detail. */
 /* Report list owns its table behavior; base .pc-table/.pc-num contracts remain unchanged. */
 /* 報表查詢列表：等寬欄位與置中掃描，mobile 改用既有 cards */
@@ -129,4 +132,5 @@
 @media (min-width:768px) {
   .pc-general-detail-table-wrap { display:block; }
   .pc-general-mobile-list { display:none; }
+}
 }

@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* ========== 報價單上傳（qup-） — 與 demo.html 1:1 的版面責任分層 ========== */
 
 /* #content 原本最大 640px；QUP 是唯一需要 1100px 兩欄的分頁。 */
@@ -321,3 +324,4 @@
 .qup-edit-modal .qup-modal__hd .qup-btn-sm { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
 .qup-edit-modal .qup-modal__bd { padding: 16px; background: #fff; }
 .qup-edit-modal .qup-field label { color: #334155; font-size: 13px; }
+}

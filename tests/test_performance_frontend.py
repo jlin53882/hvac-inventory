@@ -61,8 +61,8 @@ def test_inventory_page_load_and_startup_skip_full_items():
 
 def test_performance_stylesheet_is_mounted():
     index = (ROOT / "static/index.html").read_text(encoding="utf-8")
-    css = (ROOT / "static/css/style.performance.css").read_text(encoding="utf-8")
-    assert "/static/css/style.performance.css" in index
+    css = (ROOT / "static/css/5-utilities/performance.css").read_text(encoding="utf-8")
+    assert "/static/css/5-utilities/performance.css" in index
     assert ".inventory-pagination" in css
 
 

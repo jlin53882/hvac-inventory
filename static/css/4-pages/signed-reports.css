@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* ========== 每日簽名報表（dsr-） — 與 demo.html 1:1 的版面責任分層 ========== */
 
 /* #content 原本最大 640px；DSR 是唯一需要 1100px 兩欄的分頁。 */
@@ -325,3 +328,4 @@
 .dsr-edit-modal .dsr-hint { margin-top: 8px; }
 .dsr-modal__note { color: #64748b; font-size: 12px; }
 .dsr-modal__actions { display: flex; gap: 8px; }
+}

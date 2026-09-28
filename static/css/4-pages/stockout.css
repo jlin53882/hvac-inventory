@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* 已領出頁專用 outbound dashboard（僅 stockout-content scope） */
 .stockout-content {
   width: 100%;
@@ -110,3 +113,4 @@
 .stockout-content .stockout-returned-badge.revoked { background: #e2e8f0; color: #64748b; }
 .stockout-content .stockout-qty.is-revoked { color: #64748b; text-decoration: line-through; }
 .stockout-content .stockout-loading { min-height: 180px; display: grid; place-items: center; color: #64748b; font-size: 14px; }
+}

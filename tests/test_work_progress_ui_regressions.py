@@ -10,15 +10,15 @@ from app.services.report import build_daily_report
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK_PROGRESS_JS = ROOT / "static/js/render/work-progress.js"
-WORK_PROGRESS_CSS = ROOT / "static/css/style.work-progress.css"
+WORK_PROGRESS_CSS = ROOT / "static/css/4-pages/work-progress.css"
 GALLERY_LIFECYCLE_TEST = ROOT / "tests/work_progress_gallery_lifecycle.test.js"
 DETAIL_TARGET_LIFECYCLE_TEST = ROOT / "tests/work_progress_detail_target_lifecycle.test.js"
 UPLOAD_PROGRESS_TEST = ROOT / "tests/work_progress_upload_progress.test.js"
 CALENDAR_JS = ROOT / "static/js/render/calendar.js"
-CALENDAR_CSS = ROOT / "static/css/style.calendar.css"
+CALENDAR_CSS = ROOT / "static/css/4-pages/calendar.css"
 APP_JS = ROOT / "static/js/app.js"
-CORE_CSS = ROOT / "static/css/style.core.css"
-STOCKOUT_CSS = ROOT / "static/css/style.stockout.css"
+CORE_CSS = ROOT / "static/css/legacy/core.css"
+STOCKOUT_CSS = ROOT / "static/css/4-pages/stockout.css"
 
 
 def _read(path: Path) -> str:

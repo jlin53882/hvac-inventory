@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* 每日工作進度回報專用樣式：所有 selector 以 wpr- / wpr-content 限定。 */
 #content.wpr-content { max-width: none; padding: 16px 0 20px; background: #f5f7fb; min-height: calc(100vh - 72px); }
 #content.wpr-content .wpr-wrap { width: 100%; margin: 0; padding: 0 16px 90px; box-sizing: border-box; color: #172033; }
@@ -237,4 +240,5 @@
   .wpr-edit-footer { padding: 10px 13px; }
   .wpr-edit-footer button { min-height: 42px; }
   #content.wpr-content .wpr-readonly-permission { padding: 34px 16px; }
+}
 }

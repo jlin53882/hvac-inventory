@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* ========== 零用金月報（pc-） — 沿每日簽名日報表責任分層 ========== */
 
 /* #content 原本最大 640px；零用金是全寬分頁 */
@@ -474,4 +477,5 @@
   .pc-items-header span:nth-child(5) { grid-area: del; }
   .pc-item-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
   .pc-item-row input { min-width: 0; }
+}
 }

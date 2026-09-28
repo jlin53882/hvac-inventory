@@ -1,3 +1,6 @@
+/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
+   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+@layer legacy {
 /* 報價單頁：沿用 DSR 卡片語言，所有新增樣式以 quote- scope。 */
 #content.quotation-content { max-width: none; padding: 16px 0 20px; }
 .quote-wrap { width: 100%; margin: 0; padding: 0 16px; box-sizing: border-box; }
@@ -72,4 +75,5 @@
   .quote-card { margin-bottom: 14px; box-shadow: none; }
   .quote-items-table { min-width: 0; }
   .quote-line-input { border: 0; padding: 0; }
+}
 }

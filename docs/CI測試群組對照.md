@@ -17,6 +17,7 @@
 | `test_appointments.py` | `regression` | `full-only` | calendar / sync regression |
 | `test_backup_db.py` | `core` | `full-only` | 每日資料庫備份腳本 / monitor 整合 |
 | `test_config.py` | `core` | `full-only` | config contract |
+| `test_css_architecture.py` | `frontend` | `CI / Frontend + Security` | CSS 分層目錄 / 每檔包在所屬 @layer / HTML 無內嵌 <style>（規則隨重構階段逐步啟用） |
 | `test_database_migrations.py` | `database`, `inventory` | `CI / Inventory + Database` | migration / seed rollback |
 | `test_deadvar_verify.py` | `regression` | `full-only` | dead variable regression |
 | `test_engineering_petty_cash.py` | `petty_cash`, `reports` | `CI / Reports` | engineering petty cash / Excel |

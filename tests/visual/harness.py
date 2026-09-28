@@ -211,24 +211,13 @@ def open_tab(page, server: LiveServer, tab: str) -> None:
 
 
 # ---------- CSS 檔案歸屬（外洩偵測用） ----------
-# 值為允許使用該檔規則的頁面集合；None 代表全域檔（base / layout / components）。
-# 重構期間檔名會變動，新結構一律以目錄判斷：4-pages/<page>.css 屬於 <page>。
-LEGACY_CSS_OWNERS = {
-    "style.core.css": None,
-    "style.performance.css": None,
-    "style.calendar.css": ["calendar"],
-    "style.signed-reports.css": ["signed-reports"],
-    "style.work-progress.css": ["work-progress"],
-    "style.quotation.css": ["quotation", "quotation-upload"],
-    "style.quotation-upload.css": ["quotation-upload"],
-    "style.petty-cash.css": ["petty-cash"],
-    "style.petty-cash-reports.css": ["petty-cash"],
-    "style.petty-cash-engineering.css": ["petty-cash"],
-    "style.inventory.css": ["inventory"],
-    "style.inventory-locations.css": ["inventory"],
-    "style.kit.css": ["kit"],
-    "style.stocktake.css": ["stocktake"],
-    "style.stockout.css": ["stockout"],
+# 值為允許使用該檔規則的頁面清單；None 代表全域檔（base / layout / components / utilities / legacy/core）。
+# 4-pages/<name>.css 預設屬於 <name> 頁；一個檔服務多個畫面時列在 PAGE_CSS_OWNERS。
+PAGE_CSS_OWNERS = {
+    "quotation": ["quotation", "quotation-upload"],
+    "petty-cash-reports": ["petty-cash"],
+    "petty-cash-engineering": ["petty-cash"],
+    "inventory-locations": ["inventory"],
 }
 
 
@@ -236,10 +225,9 @@ def css_owners(css_files):
     """把 /static/css/ 下的相對路徑對應到允許頁面清單（None = 全域）。"""
     owners = {}
     for rel in css_files:
-        if rel in LEGACY_CSS_OWNERS:
-            owners[rel] = LEGACY_CSS_OWNERS[rel]
-        elif rel.startswith("4-pages/"):
-            owners[rel] = [os.path.basename(rel)[: -len(".css")]]
+        if rel.startswith("4-pages/"):
+            name = os.path.basename(rel)[: -len(".css")]
+            owners[rel] = PAGE_CSS_OWNERS.get(name, [name])
         else:
             owners[rel] = None
     return owners

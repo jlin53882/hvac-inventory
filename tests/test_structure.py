@@ -105,16 +105,16 @@ def test_calendar_state_in_globals():
 
 
 def test_style_css_split_two_files():
-    """A1：style.css 拆 style.core.css + style.calendar.css；舊檔已刪除"""
+    """A1：style.css 拆 legacy/core.css + 4-pages/calendar.css；舊檔已刪除"""
     assert not os.path.exists(os.path.join(STATIC, "css", "style.css")), "style.css 應已刪除"
-    core = read(os.path.join(STATIC, "css", "style.core.css"))
-    cal = read(os.path.join(STATIC, "css", "style.calendar.css"))
+    core = read(os.path.join(STATIC, "css", "legacy", "core.css"))
+    cal = read(os.path.join(STATIC, "css", "4-pages", "calendar.css"))
     assert ".topbar" in core and ".btn-primary" in core
     assert "/* ========== 行事曆派工" in cal and ".cal-grid" in cal
     # 三頁 link 正確
     idx = read(os.path.join(STATIC, "index.html"))
-    assert '/static/css/style.core.css' in idx and '/static/css/style.calendar.css' in idx
+    assert '/static/css/legacy/core.css' in idx and '/static/css/4-pages/calendar.css' in idx
     assert '/static/css/style.css"' not in idx
     for page in ("permissions.html", "settings.html"):
         html = read(os.path.join(STATIC, page))
-        assert '/static/css/style.core.css' in html, f"{page} 未改 link core"
+        assert '/static/css/legacy/core.css' in html, f"{page} 未改 link core"
