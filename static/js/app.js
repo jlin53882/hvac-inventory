@@ -103,11 +103,39 @@ function updateBreadcrumb(tab) {
 
 function renderNoAccessiblePage() {
   currentTab = '';
+  setPageScope('');
   var content = document.getElementById('content');
   if (content) content.innerHTML = '<div class="empty">目前沒有可用的頁面</div>';
 
   updateBreadcrumb('');
   syncViewUrl();
+}
+
+// 頁面範圍（CSS 架構重構 P1）：body[data-page] 是頁面樣式的唯一範圍，modal 也在 body 內。
+// 過渡期同時維護 #content 上的舊 *-content class；每次都先全部移除，避免上一頁的 class 殘留
+// （例：報價單上傳的 quotation-upload-content 曾在切回庫存後殘留，改掉庫存頁內距）。
+var PAGE_CONTENT_CLASS = {
+  'signed-reports': 'dsr-content',
+  'calendar': 'cal-content',
+  'quotation': 'quotation-content',
+  'quotation-upload': 'quotation-upload-content',
+  'petty-cash': 'pc-content',
+  'inventory': 'inventory-content',
+  'prepared': 'prepared-content',
+  'kit': 'kit-content',
+  'stocktake': 'stocktake-content',
+  'stockout': 'stockout-content',
+  'work-progress': 'wpr-content'
+};
+
+function setPageScope(page) {
+  if (page) document.body.dataset.page = page;
+  else delete document.body.dataset.page;
+  var content = document.getElementById('content');
+  if (!content) return;
+  Object.keys(PAGE_CONTENT_CLASS).forEach(function(key) {
+    content.classList.toggle(PAGE_CONTENT_CLASS[key], key === page);
+  });
 }
 
 function switchTab(tab) {
@@ -129,17 +157,7 @@ function switchTab(tab) {
   syncViewUrl();
   checkReminder();
   updateNotifications();
-  var content = document.getElementById('content');
-  if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
-  if (content) content.classList.toggle('cal-content', tab === 'calendar');
-  if (content) content.classList.toggle('quotation-content', tab === 'quotation');
-  if (content) content.classList.toggle('pc-content', tab === 'petty-cash');
-  if (content) content.classList.toggle('inventory-content', tab === 'inventory');
-  if (content) content.classList.toggle('prepared-content', tab === 'prepared');
-  if (content) content.classList.toggle('kit-content', tab === 'kit');
-  if (content) content.classList.toggle('stocktake-content', tab === 'stocktake');
-  if (content) content.classList.toggle('stockout-content', tab === 'stockout');
-  if (content) content.classList.toggle('wpr-content', tab === 'work-progress');
+  setPageScope(tab);
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
   var nav = document.getElementById('nav-' + tab);
@@ -300,8 +318,7 @@ function mountPreservedTabAfterBootstrap() {
     var sbNav = document.getElementById('sb-nav-' + currentTab);
     document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
     if (sbNav) sbNav.classList.add('active');
-    var content = document.getElementById('content');
-    if (content) content.classList.toggle('inventory-content', currentTab === 'inventory');
+    setPageScope(currentTab);
     loadData();
     // loadData 不重繪保留 mount 的頁面；F5 直接開啟時由 bootstrap 建立一次頁面。
     mountPreservedTabAfterBootstrap();

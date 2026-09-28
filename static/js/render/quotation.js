@@ -41,11 +41,7 @@ function quoteModeTabs(active) {
   return `<div class="quote-mode-tabs" role="tablist"><button type="button" class="quote-mode-tab ${active === 'quotation' ? 'active' : ''}" onclick="quoteSwitchMode('quotation')">🧾 報價單</button><button type="button" class="quote-mode-tab ${active === 'upload' ? 'active' : ''}" onclick="quoteSwitchMode('upload')">📤 報價單上傳</button></div>`;
 }
 function quoteSwitchMode(mode) {
-  var content = document.getElementById('content');
-  if (content) {
-    content.classList.toggle('quotation-content', mode === 'quotation');
-    content.classList.toggle('quotation-upload-content', mode === 'upload');
-  }
+  setPageScope(mode === 'upload' ? 'quotation-upload' : 'quotation');
   if (mode === 'upload') renderQuotationUploads();
   else renderQuotation();
 }

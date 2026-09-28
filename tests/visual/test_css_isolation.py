@@ -67,3 +67,30 @@ def test_modal_overlay_stacks_above_shell(page, live_server):
     overlay = int(_computed(page, "#add-modal", "z-index"))
     assert overlay > int(_computed(page, ".header", "z-index"))
     assert overlay > int(_computed(page, ".sidebar", "z-index"))
+
+
+_SCOPE_JS = """() => {
+  const c = document.getElementById('content'); const cs = getComputedStyle(c);
+  return {page: document.body.dataset.page || '', cls: [...c.classList].sort().join(' '),
+          padding: cs.padding, maxWidth: cs.maxWidth, background: cs.backgroundColor};
+}"""
+_TABS = ["inventory", "prepared", "stockout", "stocktake", "kit", "calendar",
+         "work-progress", "signed-reports", "quotation", "petty-cash"]
+
+
+@pytest.mark.parametrize("tab", _TABS)
+def test_tab_switch_leaves_no_page_scope_behind(page, live_server, tab):
+    """切到每一頁（含報價單上傳模式）再切回來，頁面範圍與 #content 樣式必須和直接開啟時相同。"""
+    harness.open_tab(page, live_server, tab)
+    direct = page.evaluate(_SCOPE_JS)
+    assert direct["page"] == tab
+    for other in _TABS:
+        page.evaluate("t => switchTab(t)", other)
+        page.wait_for_load_state("networkidle")
+        if other == "quotation":
+            harness.run_action(page, "quoteSwitchMode('upload')")
+            assert page.evaluate(_SCOPE_JS)["page"] == "quotation-upload"
+    page.evaluate("t => switchTab(t)", tab)
+    page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(200)
+    assert page.evaluate(_SCOPE_JS) == direct

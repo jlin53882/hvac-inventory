@@ -197,6 +197,8 @@ async function renderCalendar() {
   calSetLoadState('loading');
   const applied = await calLoadData();
   if (applied === null) return;
+  // 載入期間已切到別的頁籤：月曆 DOM 已被取代，不可再寫入（否則 cal-month-title 為 null 拋錯）
+  if (currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;
   if (calLoadError) {
     calSetLoadState('error', calLoadError);
   } else {

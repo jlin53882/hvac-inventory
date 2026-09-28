@@ -102,8 +102,8 @@ def test_app_boot_clears_default_calendar_active_before_selected_tab():
     boot = js[boot_start:boot_end]
     assert "querySelectorAll('.sb-nav-link').forEach" in boot
     assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('active')")
-    assert "content.classList.toggle('inventory-content', currentTab === 'inventory')" in boot
-    assert boot.index("content.classList.toggle('inventory-content', currentTab === 'inventory')") < boot.index("loadData();")
+    assert "setPageScope(currentTab);" in boot
+    assert boot.index("setPageScope(currentTab);") < boot.index("loadData();")
 
 def test_index_loads_calendar_js():
     """index.html 載入 render/calendar.js + modals/calendar.js + modals/calendar-settings.js（2026-08-16 拆檔）"""
@@ -529,8 +529,8 @@ def test_calendar_cal_content_full_width():
     """
     app = read(APP_JS)
     css = read(CSS_CAL)
-    # app.js：switchTab 必須 toggle cal-content class
-    assert "content.classList.toggle('cal-content', tab === 'calendar')" in app, \
+    # app.js：switchTab → setPageScope 必須對應 cal-content class
+    assert "'calendar': 'cal-content'" in app, \
         'app.js switchTab 缺 cal-content class toggle'
     # style.calendar.css：必須有 #content.cal-content 覆寫 max-width
     assert '#content.cal-content' in css, \
@@ -710,3 +710,10 @@ def test_settings_html_gcal_mobile_css():
     assert ".gcal-detail-head" in html
     assert ".gcal-settings-row" in html
     assert ".gcal-sync-interval-hint" in html
+
+
+def test_render_calendar_stops_when_tab_left_during_load():
+    """行事曆載入期間切到別頁：await 回來後不得再寫入已被取代的月曆 DOM（visual 測試快速切頁時曾拋 null.innerText）。"""
+    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    body = js[js.index("const applied = await calLoadData();"):js.index("calRenderMonth();", js.index("const applied = await calLoadData();"))]
+    assert "if (currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;" in body

@@ -215,7 +215,7 @@ def test_signed_reports_demo_layout_contract():
     assert '.dsr-layout { grid-template-columns: 1.05fr .95fr; }' in css
     assert '.dsr-wrap { display: grid;' not in css
     assert 'max-width: 1100px;' not in css
-    assert "content.classList.toggle('dsr-content', tab === 'signed-reports')" in app
+    assert "'signed-reports': 'dsr-content'" in app
 
 
 def test_signed_reports_actions_and_editable_note_contract():
@@ -410,7 +410,7 @@ def test_petty_cash_frontend_contract():
     assert "'petty-cash':'零用金月報'" in app
     assert "'petty-cash':'🪙'" in app
     assert "renderPettyCash" in app
-    assert "content.classList.toggle('pc-content', tab === 'petty-cash')" in app
+    assert "'petty-cash': 'pc-content'" in app
     assert "'petty-cash'" in app  # _TABS / F5 / isCal（含搜尋框隱藏）
     api = read(API_JS)
     globals_js = read(GLOBALS_JS)
@@ -3395,8 +3395,8 @@ def test_desktop_inventory_and_prepared_styles_are_loaded():
     app = read(APP_JS)
     css = read(CSS_INVENTORY)
     assert "/static/css/style.inventory.css" in html
-    assert "content.classList.toggle('inventory-content', tab === 'inventory')" in app
-    assert "content.classList.toggle('prepared-content', tab === 'prepared')" in app
+    assert "'inventory': 'inventory-content'" in app
+    assert "'prepared': 'prepared-content'" in app
     assert ".content.inventory-content" in css
     assert ".content.prepared-content" in css
     assert 'class="filter-panel inventory-filter-panel"' in html
@@ -3608,7 +3608,7 @@ def test_kit_desktop_dashboard_assets_and_existing_actions():
     js = read(KITS_RENDER_JS)
     css = read(CSS_KIT)
     assert "/static/css/style.kit.css" in html
-    assert "content.classList.toggle('kit-content', tab === 'kit')" in app
+    assert "'kit': 'kit-content'" in app
     for token in (
         "kit-page-header", "kit-kpi-grid", "kit-toolbar", "kit-assembly-card",
         "kit-component-table", "kit-status-badge", "kit-empty-state",
@@ -3650,7 +3650,7 @@ def test_stocktake_desktop_dashboard_assets_and_scope():
     js = read(STOCKTAKE_JS)
     css = read(CSS_STOCKTAKE)
     assert "/static/css/style.stocktake.css" in html
-    assert "content.classList.toggle('stocktake-content', tab === 'stocktake')" in app
+    assert "'stocktake': 'stocktake-content'" in app
     for token in (
         "stocktake-page-header", "stocktake-kpi-grid", "stocktake-info-panel",
         "stocktake-summary-card", "stocktake-tabs", "stocktake-table",
@@ -3695,7 +3695,7 @@ def test_stockout_desktop_dashboard_assets_and_scope():
     js = read(STOCKOUT_RENDER_JS)
     css = read(CSS_STOCKOUT)
     assert "/static/css/style.stockout.css" in html
-    assert "content.classList.toggle('stockout-content', tab === 'stockout')" in app
+    assert "'stockout': 'stockout-content'" in app
     for token in (
         "stockout-page-header", "stockout-filter-bar", "stockout-kpi-grid",
         "stockout-date-group", "stockout-record-row", "stockout-empty-state",
@@ -4365,7 +4365,7 @@ def test_work_progress_frontend_is_independent_and_mounted():
     assert 'href="/static/css/style.work-progress.css"' in index
     assert "'work-progress':'每日工作進度回報'" in app
     assert "renderWorkProgress" in app
-    assert "content.classList.toggle('wpr-content', tab === 'work-progress')" in app
+    assert "'work-progress': 'wpr-content'" in app
     assert "ITEMLESS_TABS" in globals_js
     assert "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals_js
     assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)" in api
@@ -4745,3 +4745,28 @@ def test_work_progress_uploads_report_progress():
     existing_block = js.split("function wprAddExistingPhotos", 1)[1].split("async function wprDeleteReport", 1)[0]
     assert "wprUploadWithProgress('/api/work-progress/' + id + '/photos', form" in existing_block
     assert "{method:'POST', body:form}" not in existing_block
+
+
+def test_page_scope_contract():
+    """CSS 架構重構 P1：body[data-page] 是頁面樣式範圍；tokens.css 最先載入並宣告 layer 順序。"""
+    tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
+    assert "@layer tokens, base, layout, components, pages, utilities;" in tokens
+    for page in ("index.html", "settings.html", "permissions.html", "login.html"):
+        html = read(os.path.join(STATIC, page))
+        first_css = html.index('<link rel="stylesheet"')
+        assert html.index("/static/css/0-tokens/tokens.css") == html.index("/static/css/", first_css), f"{page} 必須最先載入 tokens.css"
+    for page, scope in (("settings.html", "settings"), ("permissions.html", "permissions"), ("login.html", "login")):
+        assert f'<body data-page="{scope}">' in read(os.path.join(STATIC, page))
+
+    app = read(os.path.join(STATIC, "js", "app.js"))
+    fn = app[app.index("function setPageScope(page)"):app.index("function switchTab(tab)")]
+    assert "document.body.dataset.page = page" in fn
+    # 每次都依對照表重設全部舊 class（不能只 toggle 部分 → 上一頁殘留）
+    assert "Object.keys(PAGE_CONTENT_CLASS).forEach" in fn and "key === page" in fn
+    assert "'quotation-upload': 'quotation-upload-content'" in app
+    switch = app[app.index("function switchTab(tab)"):app.index("function switchTab(tab)") + 3000]
+    assert "setPageScope(tab);" in switch
+    assert "content.classList.toggle(" not in switch, "頁面 class 只能由 setPageScope 管理"
+    quote = read(os.path.join(STATIC, "js", "render", "quotation.js"))
+    assert "setPageScope(mode === 'upload' ? 'quotation-upload' : 'quotation');" in quote
+    assert "quotation-upload-content" not in quote

@@ -1,0 +1,10 @@
+/* 振佳空調管理系統 — CSS 分層順序（CSS 架構重構 P1，見 docs/CSS架構重構設計.md）
+   每個 HTML 必須最先載入本檔。後面的 layer 勝過前面的 layer，與選擇器特異度、載入順序無關：
+     tokens      :root 設計變數（顏色、字級、間距、圓角、z-index）
+     base        reset、字型
+     layout      sidebar / header / 底部導覽
+     components  跨頁共用元件（每個 class 只在一個元件檔定義）
+     pages       [data-page="…"] 範圍內的頁面樣式
+     utilities   .hidden 等工具 class、列印
+   尚未包進 layer 的舊樣式一律勝過所有 layer，因此搬遷期間畫面不會改變。 */
+@layer tokens, base, layout, components, pages, utilities;
