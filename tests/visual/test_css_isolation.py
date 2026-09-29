@@ -257,3 +257,37 @@ def test_prepared_kit_subitems_are_styled(page, live_server):
     }""")
     assert _computed(page, "#t-sub", "display") == "flex"
     assert _computed(page, "#t-sub", "font-size") == "12px"
+
+
+def test_prepared_mobile_card_viewer_has_no_actions(page, live_server, viewport):
+    """唯讀（無 stockout 權限）：手機卡片不出現「已領出」與 ⋯，但庫存資訊與數量徽章仍在。"""
+    if viewport[0] != "mobile":
+        pytest.skip("只適用手機卡片")
+    harness.open_tab(page, live_server, "prepared")
+    page.evaluate("window.hasPerm = p => p !== 'stockout'; renderPrepared()")
+    page.wait_for_selector(".prepared-mobile-card .prepared-mobile-stock")
+    assert page.locator(".prepared-mobile-meta .btn").count() == 0
+    assert page.locator(".prepared-mobile-card .prepared-mobile-qty").count() >= 1
+    assert page.locator(".prepared-mobile-card .more-btn").count() == 0
+
+
+def test_prepared_mobile_kit_subitems_toggle_and_long_unit(page, live_server, viewport):
+    """整組子品項可展開 / 收合且樣式正確；超長單位不造成橫向捲動。"""
+    if viewport[0] != "mobile":
+        pytest.skip("只適用手機卡片")
+    harness.open_tab(page, live_server, "prepared")
+    page.evaluate("""() => {
+      const holder = document.createElement('div');
+      holder.id = 't-kit';
+      holder.innerHTML = renderKitSubItemsMobile({is_kit: true, components: [
+        {item_id: 1, brand: '大金', name: '遙控器', code: 'ARC-480', need_qty: 2, unit: '個', has_photo: false}]});
+      document.querySelector('.prepared-mobile-list').appendChild(holder);
+      document.querySelector('.prepared-mobile-qty small').textContent = '待領出 ' + '超長單位'.repeat(6);
+    }""")
+    assert _computed(page, "#t-kit .kit-subitems-list", "display") == "none"
+    page.click("#t-kit .kit-subitems-toggle")
+    assert _computed(page, "#t-kit .kit-subitems-list", "display") == "block"
+    assert _computed(page, "#t-kit .kit-subitem", "display") == "flex"
+    page.click("#t-kit .kit-subitems-toggle")
+    assert _computed(page, "#t-kit .kit-subitems-list", "display") == "none"
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "超長單位造成橫向捲動"

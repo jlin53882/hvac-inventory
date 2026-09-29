@@ -150,9 +150,8 @@ async function renderPrepared() {
     if (isM) {
       html += '<div class="prepared-mobile-list">';
       items.forEach(function(item) {
-        const qtyText = (typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty);
-        const stockText = (typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty);
-        const footActions = isViewer ? '' : `<button class="btn btn--out btn--sm" onclick="openPreparedOutModal(${item.id})">🚚 已領出</button><button class="btn btn--secondary btn--sm" onclick="openPreparedSheet(${item.id})" aria-label="更多操作">⋯</button>`;
+        const qtyText = String((typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty));
+        const stockText = String((typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty));
         html += mobileCardShell({
           reverted: false,
           cardClass: 'prepared-mobile-card',
@@ -161,8 +160,8 @@ async function renderPrepared() {
           nameHTML: `<span class="prepared-mobile-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}</span>${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
           subHTML: `<span class="prepared-mobile-model">${kitModelHTML(item)}</span>`,
           extraHTML: `<div class="prepared-mobile-location">📍 ${esc(item.location || '未標示')}</div>${item.destination ? '<div class="prepared-card-dest">📋 ' + esc(item.destination) + '</div>' : ''}`,
-          qtyHTML: `<div class="prepared-mobile-qty"><b>${qtyText}</b><small>待領出 ${esc(item.unit)}</small></div>`,
-          actionsHTML: renderKitSubItemsMobile(item) + `<div class="prepared-mobile-meta"><span class="prepared-mobile-stock">庫存 ${stockText} ${esc(item.unit)}</span>${footActions}</div>`
+          qtyHTML: `<div class="prepared-mobile-qty"><b>${esc(qtyText)}</b><small>待領出 ${esc(item.unit)}</small></div>`,
+          actionsHTML: renderKitSubItemsMobile(item) + `<div class="prepared-mobile-meta"><span class="prepared-mobile-stock">庫存 ${esc(stockText)} ${esc(item.unit)}</span>${isViewer ? '' : `<button class="btn btn--out btn--sm" onclick="openPreparedOutModal(${item.id})">🚚 已領出</button><button class="btn btn--secondary btn--sm" onclick="openPreparedSheet(${item.id})" aria-label="更多操作">⋯</button>`}</div>`
         });
       });
       html += '</div>';
