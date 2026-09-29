@@ -1,10 +1,7 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const vm = require('node:vm');
-const { installApiClient, mockResponse } = require('./support/frontend-runtime');
+const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
-const root = path.join(__dirname, '..');
 const box = { innerHTML: '' };
 const elements = Object.fromEntries(
   ['k-name', 'k-note', 'k-brand', 'k-code', 'k-site'].map((id) => [id, { value: '' }]),
@@ -55,9 +52,7 @@ class TestFormData {
 
 const context = vm.createContext({
   console,
-  ALL_ITEMS: [unrelatedItem, { id: 42, has_photo: true }],
-  currentKitItems: [kit],
-  currentSite: 'office',
+  appState: { ALL_ITEMS: [unrelatedItem, { id: 42, has_photo: true }], currentKitItems: [kit], currentSite: 'office', globalCabinetList: [] },
   document: {
     addEventListener() {},
     getElementById,
@@ -98,21 +93,10 @@ const context = vm.createContext({
   renderKitCompRows() {},
   renderKitLocationRows() {},
   _cabinetOptions: () => '',
-  globalCabinetList: [],
-  kitModalCompRows: [],
-  kitLocationRows: [],
 });
 
 installApiClient(context);
-for (const relative of [
-  'static/js/modals/photo.js',
-  'static/js/modals/kit.js',
-  'static/js/render/kits.js',
-]) {
-  vm.runInContext(fs.readFileSync(path.join(root, relative), 'utf8'), context, {
-    filename: relative,
-  });
-}
+loadModules(context, 'features/inventory/photo.js', 'features/kits/state.js', 'features/kits/kit-modal.js', 'features/kits/page.js');
 context.renderKitCompRows = () => {};
 context.renderKitLocationRows = () => {};
 
@@ -152,7 +136,7 @@ async function verifyCreatePreviewContract() {
   elements['k-name'].value = '新整組';
   elements['k-brand'].value = '品牌';
   elements['k-code'].value = 'K-7';
-  context.kitModalCompRows = [{ item_id: 1, qty: 1 }];
+  context.kitsState.kitModalCompRows = [{ item_id: 1, qty: 1 }];
   await context.submitKit();
   await new Promise((resolve) => setImmediate(resolve));
 

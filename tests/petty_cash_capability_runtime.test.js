@@ -1,13 +1,10 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
+const { extractFunction, read } = require('./support/frontend-runtime');
 
-const source = fs.readFileSync('static/js/render/petty-cash.js', 'utf8');
-const start = source.indexOf('function pcReportActionEntries');
-const end = source.indexOf('\n}\r\n', start) + 3;
-if (start < 0 || end < 2) throw new Error('pcReportActionEntries not found');
+const source = read('static/js/features/petty-cash/page.js');
 const context = {};
-vm.runInNewContext(source.slice(start, end), context);
+vm.runInNewContext(extractFunction(source, 'pcReportActionEntries'), context);
 
 function labels(report) {
   return context.pcReportActionEntries(report, false).map(action => action.label);

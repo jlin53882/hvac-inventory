@@ -1,7 +1,6 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const { installApiClient } = require('./support/frontend-runtime');
+const { installApiClient, loadModules } = require('./support/frontend-runtime');
 
 class FakeClassList {
   constructor(owner) { this.owner = owner; }
@@ -201,7 +200,8 @@ async function setup() {
   context.window = context;
   vm.createContext(context);
   installApiClient(context);
-  vm.runInContext(fs.readFileSync('static/js/perms.js', 'utf8'), context, { filename: 'static/js/perms.js' });
+  loadModules(context, 'features/permissions/page.js');
+  context.initPermissionsPage();
   await document.dispatchReady();
   await new Promise(resolve => setTimeout(resolve, 20));
   return { context, document };

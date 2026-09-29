@@ -1,13 +1,9 @@
 'use strict';
 
 const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
 const vm = require('vm');
-const { installApiClient, mockResponse } = require('./support/frontend-runtime');
+const { installApiClient, loadWorkProgress, mockResponse } = require('./support/frontend-runtime');
 
-const sourcePath = path.join(__dirname, '..', 'static', 'js', 'render', 'work-progress.js');
-const source = fs.readFileSync(sourcePath, 'utf8');
 
 /**
  * Build a minimal DOM harness for the production selected-detail lifecycle.
@@ -45,7 +41,7 @@ function createHarness() {
   const sandbox = {
     document,
     window: { confirm: () => true },
-    currentTab: 'work-progress',
+    appState: { currentTab: 'work-progress' },
     toast() {},
     esc(value) { return String(value); },
     jsStr(value) { return String(value); },
@@ -61,14 +57,10 @@ function createHarness() {
       requests.push({ resolve, reject, url, options });
       return promise;
     },
-    wprDetailRequestTokens: {},
-    wprHistoryRequestToken: 0,
     wprHistoryPageSize: 10,
-    wprHistoryPage: 1,
-    wprSelectRequestToken: 0,
   };
   installApiClient(vm.createContext(sandbox));
-  vm.runInNewContext(source, sandbox, { filename: sourcePath });
+  loadWorkProgress(sandbox);
   return { sandbox, elements, requests };
 }
 
@@ -288,7 +280,7 @@ async function testDeleteReportFailurePreservesPhotoManagementState() {
   state.manage = true;
   state.selected['asset-42'] = true;
   const cached = report('cached-before-delete');
-  h.sandbox.wprPhotoManageReports[key] = cached;
+  h.sandbox.workProgressState.wprPhotoManageReports[key] = cached;
   h.sandbox.wprLoadHistory = async () => {};
   h.sandbox.wprLoadDay = async () => {};
   h.sandbox.wprLoadKpi = async () => {};
@@ -299,7 +291,7 @@ async function testDeleteReportFailurePreservesPhotoManagementState() {
   await flush();
   assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).manage, true);
   assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).selected['asset-42'], true);
-  assert.strictEqual(h.sandbox.wprPhotoManageReports[key], cached);
+  assert.strictEqual(h.sandbox.workProgressState.wprPhotoManageReports[key], cached);
 }
 
 /**
@@ -313,17 +305,17 @@ async function testDeleteReportSuccessClearsPhotoManagementState() {
   const state = h.sandbox.wprPhotoManageState(42, targetId);
   state.manage = true;
   state.selected['asset-42'] = true;
-  h.sandbox.wprPhotoManageReports[key] = report('deleted');
+  h.sandbox.workProgressState.wprPhotoManageReports[key] = report('deleted');
   h.sandbox.wprLoadHistory = async () => {};
   h.sandbox.wprLoadDay = async () => {};
   h.sandbox.wprLoadKpi = async () => {};
   h.sandbox.wprDeleteReport(42);
   assert.strictEqual(h.requests.length, 1);
-  assert.strictEqual(h.sandbox.wprPhotoManageStates[key].manage, true);
+  assert.strictEqual(h.sandbox.workProgressState.wprPhotoManageStates[key].manage, true);
   h.requests[0].resolve(mockResponse(({ ok: true })));
   await flush();
-  assert.strictEqual(h.sandbox.wprPhotoManageStates[key], undefined);
-  assert.strictEqual(h.sandbox.wprPhotoManageReports[key], undefined);
+  assert.strictEqual(h.sandbox.workProgressState.wprPhotoManageStates[key], undefined);
+  assert.strictEqual(h.sandbox.workProgressState.wprPhotoManageReports[key], undefined);
 }
 
 /**
@@ -337,9 +329,9 @@ async function testSelectedReportSwitchFailurePreservesPreviousManagementState()
   oldState.manage = true;
   oldState.selected['asset-42'] = true;
   const oldReport = { id: 42, appointment_id: 1 };
-  h.sandbox.wprCurrentReport = oldReport;
-  h.sandbox.wprAppointments = [{ id: 1 }, { id: 2 }];
-  h.sandbox.wprReportsByAppointment = { 2: { id: 43, note: 'B' } };
+  h.sandbox.workProgressState.wprCurrentReport = oldReport;
+  h.sandbox.workProgressState.wprAppointments = [{ id: 1 }, { id: 2 }];
+  h.sandbox.workProgressState.wprReportsByAppointment = { 2: { id: 43, note: 'B' } };
   h.sandbox.wprHasUnsavedChanges = () => false;
   h.sandbox.wprRenderJobs = () => {};
   h.sandbox.wprSelectJob(2);
@@ -347,7 +339,7 @@ async function testSelectedReportSwitchFailurePreservesPreviousManagementState()
   assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).manage, true);
   h.requests[0].reject(new Error('switch failed'));
   await flush();
-  assert.strictEqual(h.sandbox.wprCurrentReport, oldReport);
+  assert.strictEqual(h.sandbox.workProgressState.wprCurrentReport, oldReport);
   assert.strictEqual(h.sandbox.wprPhotoManageState(42, targetId).selected['asset-42'], true);
 }
 
@@ -362,19 +354,19 @@ async function testSelectedReportSwitchSuccessClearsPreviousManagementState() {
   const oldState = h.sandbox.wprPhotoManageState(42, targetId);
   oldState.manage = true;
   oldState.selected['asset-42'] = true;
-  h.sandbox.wprPhotoManageReports[key] = report('old');
-  h.sandbox.wprCurrentReport = { id: 42, appointment_id: 1 };
-  h.sandbox.wprAppointments = [{ id: 1 }, { id: 2 }];
-  h.sandbox.wprReportsByAppointment = { 2: { id: 43, note: 'B' } };
+  h.sandbox.workProgressState.wprPhotoManageReports[key] = report('old');
+  h.sandbox.workProgressState.wprCurrentReport = { id: 42, appointment_id: 1 };
+  h.sandbox.workProgressState.wprAppointments = [{ id: 1 }, { id: 2 }];
+  h.sandbox.workProgressState.wprReportsByAppointment = { 2: { id: 43, note: 'B' } };
   h.sandbox.wprHasUnsavedChanges = () => false;
   h.sandbox.wprRenderJobs = () => {};
   h.sandbox.wprSelectJob(2);
   assert.strictEqual(h.requests.length, 1);
-  assert.strictEqual(h.sandbox.wprPhotoManageStates[key].manage, true);
+  assert.strictEqual(h.sandbox.workProgressState.wprPhotoManageStates[key].manage, true);
   h.requests[0].resolve(mockResponse(({ id: 43, appointment_id: 2, photos: [] })));
   await flush();
-  assert.strictEqual(h.sandbox.wprPhotoManageStates[key], undefined);
-  assert.strictEqual(h.sandbox.wprCurrentReport.id, 43);
+  assert.strictEqual(h.sandbox.workProgressState.wprPhotoManageStates[key], undefined);
+  assert.strictEqual(h.sandbox.workProgressState.wprCurrentReport.id, 43);
 }
 Promise.resolve()
   .then(testDeleteReportFailurePreservesPhotoManagementState)

@@ -1,9 +1,8 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const path = require('path');
+const { loadModules } = require('./support/frontend-runtime');
 
-// 報價單上傳 列表的編輯 / 刪除按鈕只跟隨後端 capability（共用 render/upload-list.js + 本頁設定 quotation-upload.js）
+// 報價單上傳 列表的編輯 / 刪除按鈕只跟隨後端 capability（共用 features/upload-list/upload-list.js + 本頁設定 quotation-upload.js）
 const elements = new Map([
   ['upl-tbody', { innerHTML: '' }],
   ['upl-empty', { style: { display: '' } }],
@@ -14,10 +13,8 @@ const context = {
   document: { getElementById: (id) => elements.get(id) },
   esc: (value) => String(value ?? ''),
 };
-for (const file of ['upload-list.js', 'quotation-upload.js']) {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'render', file), 'utf8');
-  vm.runInNewContext(source, context, { filename: file });
-}
+vm.createContext(context);
+loadModules(context, 'features/upload-list/upload-list.js', 'features/upload-list/quotation-upload.js');
 const page = context.QuotationUploads;
 
 function render(capabilities) {

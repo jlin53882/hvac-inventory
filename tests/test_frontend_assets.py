@@ -23,6 +23,8 @@ from pathlib import Path
 import pytest
 
 from frontend_test_support import (
+    page_modules,
+    js_modules,
     read_page_with_css,
     ADD_JS,
     API_JS,
@@ -288,11 +290,12 @@ def test_upload_list_actions_and_editable_note_contract():
 
 
 def test_upload_list_pages_only_pass_configuration():
-    """issue #39 第 2 項：兩頁只帶設定，共用元件先載入；舊的 dsr / qup 各自實作不可殘留。"""
+    """issue #39 第 2 項：兩頁只帶設定，共用元件先載入（ES module：由兩頁 import 共用元件）；舊的 dsr / qup 各自實作不可殘留。"""
     html = read(os.path.join(STATIC, "index.html"))
-    component = html.index('<script src="/static/js/render/upload-list.js" defer></script>')
-    assert component < html.index('<script src="/static/js/render/signed-reports.js" defer></script>')
-    assert component < html.index('<script src="/static/js/render/quotation-upload.js" defer></script>')
+    assert {"features/upload-list/upload-list.js", "features/upload-list/signed-reports.js",
+            "features/upload-list/quotation-upload.js"} <= page_modules(INDEX)
+    for path in (SIGNED_REPORTS_RENDER_JS, QUOTATION_UPLOAD_RENDER_JS):
+        assert "import { createUploadListPage } from './upload-list.js';" in read(path)
     assert '<link rel="stylesheet" href="/static/css/3-components/upload-list.css">' in html
     for path, ctl in ((SIGNED_REPORTS_RENDER_JS, "SignedReports"), (QUOTATION_UPLOAD_RENDER_JS, "QuotationUploads")):
         js = read(path)
@@ -423,8 +426,7 @@ def test_petty_cash_frontend_contract():
     index = read(INDEX)
     assert 'id="sb-nav-petty-cash"' in index
     assert "switchTab('petty-cash')" in index
-    assert 'src="/static/js/render/petty-cash.js"' in index
-    assert 'src="/static/js/modals/petty-cash.js"' in index
+    assert {"features/petty-cash/page.js", "features/petty-cash/report-modal.js"} <= page_modules(INDEX)
     assert 'href="/static/css/4-pages/petty-cash.css"' in index
     assert 'href="/static/css/4-pages/petty-cash-reports.css"' in index
     assert 'href="/static/css/4-pages/petty-cash-engineering.css"' in index
@@ -438,7 +440,7 @@ def test_petty_cash_frontend_contract():
     api = read(API_JS)
     globals_js = read(GLOBALS_JS)
     assert "ITEMLESS_TABS" in globals_js and "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals_js
-    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)" in api  # 背景刷新不重新 mount
+    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)" in api  # 背景刷新不重新 mount
     js = read(PETTY_CASH_RENDER_JS)
     assert 'function renderPettyCash' in js
     assert '/api/petty-cash-reports' in js and '/api/petty-cash/kpi' in js
@@ -458,8 +460,8 @@ def test_petty_cash_frontend_contract():
     assert 'function pcOpenReportModal' in modal
     assert 'function pcEntrySave' in modal
     assert "pcModalSave('draft')" in modal and "pcModalSave('completed')" in modal
-    assert 'id="pc-step-1-tab" onclick="pcModalGotoStep(1)"' in modal
-    assert 'id="pc-step-2-tab" onclick="pcModalGotoStep(2)"' in modal
+    assert 'id="pc-step-1-tab" onclick="PettyCash.pcModalGotoStep(1)"' in modal
+    assert 'id="pc-step-2-tab" onclick="PettyCash.pcModalGotoStep(2)"' in modal
     assert 'function pcModalGotoStep' in modal
     assert 'id="pc-m-prepared" type="text" maxlength="50"' in modal
     assert 'validate: () => pcValidateBasic(false)' in modal
@@ -484,8 +486,8 @@ def test_petty_cash_modal_step_contracts():
         (engineering, 'engGotoStep', 'eng-step-1-tab', 'eng-step-2-tab'),
     ]
     for js, goto, tab1, tab2 in contracts:
-        assert f'id="{tab1}" onclick="{goto}(1)"' in js
-        assert f'id="{tab2}" onclick="{goto}(2)"' in js
+        assert f'id="{tab1}" onclick="PettyCash.{goto}(1)"' in js
+        assert f'id="{tab2}" onclick="PettyCash.{goto}(2)"' in js
         assert f'function {goto}' in js
         assert 'pcSwitchModalStep' in js
     assert 'validate: () => pcValidateBasic(false)' in general
@@ -495,7 +497,7 @@ def test_petty_cash_modal_step_contracts():
 def test_petty_cash_detail_renderers_keep_separate_business_bodies():
     """共用 shell 可抽取，但一般／工程明細 renderer 必須保持分離。"""
     js = read(PETTY_CASH_RENDER_JS)
-    assert "if (pcDetail.report_type === 'engineering') return engRenderDetail();" in js
+    assert "if (pettyCashState.pcDetail.report_type === 'engineering') return engRenderDetail();" in js
     assert 'function pcGeneralEntryRowsHtml' in js
     assert 'function engGroupHtml' in js
     assert 'function pcDetailSubtableHtml(rows)' in js
@@ -831,7 +833,7 @@ def test_api_fetch_migrated_callers_keep_requests_and_messages():
 
 
 # 只有 API client 本身與 auth.js 的 401 攔截器可以直接呼叫 fetch；其餘一律經 apiFetch / apiDownload（issue #39）
-DIRECT_FETCH_ALLOWED_JS = {"api-client.js", "auth.js"}
+DIRECT_FETCH_ALLOWED_JS = {"core/api-client.js", "core/session.js"}
 
 
 def test_frontend_calls_api_through_api_client():
@@ -911,13 +913,13 @@ def test_petty_cash_more_actions_and_aligned_engineering_table():
     assert '#content .pc-kpi-row {\n  display: flex;' in read(PETTY_CASH_CSS)
     assert '.eng-detail-table td:nth-child(4) { text-align:center; }' in read(PETTY_CASH_ENGINEERING_CSS)
     assert '.eng-receipt-toggle' in css
-    assert 'engToggle(engExpandedReceipts' in js
+    assert "engToggle('receipts'" in js
     assert '.pc-kpi-card .ui-kpi-value' in css
     assert 'overflow-wrap:anywhere' in css
     assert 'clamp(14px, 4.5vw, 24px)' in read(PETTY_CASH_CSS)
     assert '.eng-category-head .eng-subtotal' in css
     assert 'pc-entry-card--clickable' in modal_js
-    assert 'event.stopPropagation();pcOpenEntryModal(${i})' in modal_js
+    assert 'event.stopPropagation();PettyCash.pcOpenEntryModal(${i})' in modal_js
     assert 'function pcDetailSubtableHtml(rows)' in js
     assert '<span>項次</span><span>細項</span></div>' in js
     assert 'grid-template-columns: 48px minmax(0, 1fr);' in css
@@ -1008,8 +1010,8 @@ def test_perms_js_close_methods():
 def test_perms_js_work_progress_dependency_contract():
     """權限頁關閉 view 會同步關閉 dependent，開 dependent 會同步開 view。"""
     js = read(PERMS_JS)
-    toggle = js.split("window.permToggle = function permToggle", 1)[1].split("window.permSave", 1)[0]
-    hint = js.split("function refreshPermissionSaveHint()", 1)[1].split("window.permToggle", 1)[0]
+    toggle = js.split("export function permToggle", 1)[1].split("export async function permSave", 1)[0]
+    hint = js.split("function refreshPermissionSaveHint()", 1)[1].split("export function permToggle", 1)[0]
     for key in (
         "work-progress-create", "work-progress-edit", "work-progress-edit-all",
         "work-progress-delete", "work-progress-delete-all",
@@ -1077,8 +1079,8 @@ def test_permissions_html_btn_ghost_white_fix():
     html = read_page_with_css(PERMISSIONS_HTML)
     js = read(PERMS_JS)
     # CSS 架構重構 P7.5：白底容器的次要按鈕改用 .btn--secondary，不再需要逐處覆寫
-    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="window.openResetPermModal()"' in js
-    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="closeAddUserModal()"' in html
+    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="Perms.openResetPermModal()"' in js
+    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="Perms.closeAddUserModal()"' in html
     assert ".modal .btn-ghost" not in html
 
 
@@ -1087,8 +1089,8 @@ def test_perms_js_reset_perm_modal_structure():
     js = read(PERMS_JS)
     assert "save-bar-inner" in js
     assert "save-btns" in js
-    assert "window.openResetPermModal()" in js
-    assert "window.permSave()" in js
+    assert "Perms.openResetPermModal()" in js
+    assert "Perms.permSave()" in js
 
 
 def test_perms_js_batch_create():
@@ -1099,10 +1101,10 @@ def test_perms_js_batch_create():
 
 
 # 待測：permissions.html / perms.js（RBAC 權限頁，2026-08-13）
-PERMS_JS = os.path.join(STATIC, "js", "perms.js")
+PERMS_JS = os.path.join(STATIC, "js", "features", "permissions", "page.js")
 PERMISSIONS_HTML = os.path.join(STATIC, "permissions.html")
 SETTINGS_HTML = os.path.join(STATIC, "settings.html")  # 2026-08-16 設定中心
-SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")  # 2026-08-16 設定中心
+SETTINGS_JS = js_modules("features/settings/units.js", "features/settings/petty-options.js", "features/settings/gcal.js", "features/settings/page.js", "features/settings/cabinets.js")  # 2026-08-16 設定中心
 
 
 def test_settings_js_orphan_group_ui():
@@ -1136,10 +1138,11 @@ def test_settings_js_no_old_batch_ui():
 
 
 def test_permissions_html_loads_perms_js():
-    """permissions.html 有載入 perms.js（無手動版本號）"""
+    """permissions.html 有載入權限頁模組（無手動版本號）"""
     html = read(PERMISSIONS_HTML)
-    assert 'src="/static/js/perms.js"' in html
-    assert "perms.js?v=" not in html  # 版本號由後端自動注入
+    assert 'src="/static/js/pages/permissions.js"' in html
+    assert "features/permissions/page.js" in page_modules(PERMISSIONS_HTML)
+    assert "permissions.js?v=" not in html  # 版本號由後端自動注入
 
 
 def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
@@ -1211,7 +1214,7 @@ def test_perms_js_account_edit_uses_shared_modal_and_update_api():
     """Account settings must expose one shared edit flow for editable fields."""
     js = read(PERMS_JS)
     html = read(PERMISSIONS_HTML)
-    assert "window.permEditAccount" in js
+    assert "Perms.permEditAccount" in js
     assert "if (!u || me.id === uid) return;" in js
     assert "submitAccountEdit" in js
     assert "accountEditOverlay" in html
@@ -1251,9 +1254,9 @@ def test_perms_js_has_viewer_role_option():
 
 
 def test_perms_js_auto_select_no_old_name():
-    """2026-08-14 修：initPermPage 自動選中必須呼叫 window.permSelect（舊名 selectUser 未定義→右側空白）"""
+    """2026-08-14 修：initPermPage 自動選中必須呼叫 permSelect（舊名 selectUser 未定義→右側空白）"""
     js = read(PERMS_JS)
-    assert "window.permSelect(permUsers[0].id)" in js  # 自動選中第一位
+    assert "  permSelect(permUsers[0].id);" in js  # 自動選中第一位
     assert "selectUser(permUsers[0].id)" not in js     # 防舊名回歸（selectUser is not defined）
 
 
@@ -1282,7 +1285,7 @@ def test_css_has_btn_primary():
     assert ".btn--primary {" in css
     assert ".btn--on-dark {" in css
     perms = read(PERMISSIONS_HTML)
-    assert re.search(r'class="btn btn--on-dark btn--sm[^"]*" onclick="openAddUserModal\(\)"', perms)
+    assert re.search(r'class="btn btn--on-dark btn--sm[^"]*" onclick="Perms\.openAddUserModal\(\)"', perms)
 
 
 def test_perms_js_perm_toggle_updates_source_label():
@@ -1358,16 +1361,16 @@ def test_kit_edit_rerenders_directly_after_save():
     assert ("await loadData({ full: true });" in body or 
             "loadData({ full: true })" in body), "submitKitEdit must call loadData({ full: true })"
     assert "await renderKits();" not in body
-    render = read(os.path.join(STATIC, "js", "render", "kits.js"))
+    render = read(os.path.join(STATIC, "js", "features", "kits", "page.js"))
     assert "kitRenderRequestSeq" in render
     assert "renderRequestId !== kitRenderRequestSeq" in render
     assert "'${esc(jsStr(k.name))}'" in render
-    assert "siteAtRequest !== currentSite" in render
+    assert "siteAtRequest !== appState.currentSite" in render
     prepared = read(PREPARED_RENDER_JS)
     assert "preparedRenderRequestSeq" in prepared
     assert "renderRequestId !== preparedRenderRequestSeq" in prepared
-    assert "siteAtRequest !== currentSite" in prepared
-    render = read(os.path.join(STATIC, "js", "render", "kits.js"))
+    assert "siteAtRequest !== appState.currentSite" in prepared
+    render = read(os.path.join(STATIC, "js", "features", "kits", "page.js"))
     assert "kit-code" in render                                      # 新結構用 kit-code
     assert "esc(k.code)" in render
     assert "[kit.name, kit.brand, kit.code, kit.note" in render
@@ -1377,7 +1380,7 @@ def test_kit_edit_rerenders_directly_after_save():
 def test_qty_parser_accepts_prepared_fractions():
     script = (
         "const fs=require('fs');"
-        "eval(fs.readFileSync('static/js/qty.js','utf8'));"
+        "eval(require('./tests/support/frontend-runtime').moduleScript('core/qty.js'));"
         "const a=Qty.validFor('3/4','fraction');"
         "const b=Qty.validFor('1 1/2','fraction');"
         "if(!a.ok || a.value !== 0.75 || !b.ok || b.value !== 1.5) process.exit(1);"
@@ -1550,7 +1553,7 @@ def test_format_location_display_normalizes_edge_cases():
     probe = r"""
 const fs = require('fs');
 function esc(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\"/g, '&quot;').replace(/'/g, '&#39;'); }
-eval(fs.readFileSync(process.argv[1], 'utf8'));
+eval(require('./tests/support/frontend-runtime').moduleScript(process.argv[1]));
 const cases = ['', '   ', 'A', 'A | B', 'A|B', 'A | ', ' | A', 'A || B', ' A | B ', '<script>alert(1)</script>', '<b>A</b> | <img src=x onerror=alert(1)>'];
 process.stdout.write(JSON.stringify(cases.map(formatLocationDisplay)));
 """
@@ -1581,7 +1584,7 @@ def test_mobile_card_shell_runtime_keeps_note_and_quantity_slots():
     card_js = read(CARD_JS)
     probe = r"""
 const fs = require('fs');
-eval(fs.readFileSync(process.argv[1], 'utf8'));
+eval(require('./tests/support/frontend-runtime').moduleScript(process.argv[1]));
 function render(noteHTML) { return mobileCardShell({thumb: 'PHOTO', nameHTML: 'NAME', subHTML: 'MODEL', extraHTML: 'LOC', qtyHTML: 'QTY', noteHTML, actionsHTML: 'ACTIONS'}); }
 const withoutNote = render('');
 const withNote = render('<div class=\"item-note\">NOTE</div>');
@@ -1601,7 +1604,7 @@ process.stdout.write(JSON.stringify({withoutNote, withNote}));
 
 def test_stockout_mobile_note_uses_inline_label():
     """Regression: stockout record notes must use the shared inline label format."""
-    stockout_js = read(os.path.join(BASE_DIR, "static", "js", "render", "stockout.js"))
+    stockout_js = read(os.path.join(BASE_DIR, "static", "js", "features", "stockout", "page.js"))
     assert '<span class="item-note-label">📝 註解: </span>' in stockout_js
 
 
@@ -1626,7 +1629,7 @@ def test_all_mobile_card_callers_cover_no_note_contract():
     """Regression: Inventory/Prepared/Stockout all use the shared optional note contract."""
     inventory = read(INVENTORY_RENDER_JS)
     prepared = read(PREPARED_RENDER_JS)
-    stockout = read(os.path.join(BASE_DIR, "static", "js", "render", "stockout.js"))
+    stockout = read(os.path.join(BASE_DIR, "static", "js", "features", "stockout", "page.js"))
     assert "noteHTML: noteStr" in inventory
     assert "mobileCardShell({" in prepared and "noteHTML:" not in prepared[prepared.index("mobileCardShell({"):prepared.index("});", prepared.index("mobileCardShell({"))]
     assert "noteHTML:" in stockout
@@ -1634,7 +1637,7 @@ def test_all_mobile_card_callers_cover_no_note_contract():
 
 def test_shared_mobile_note_slot_used_by_stockout():
     """已領出手機卡片的長註解也移出主資訊列，維持共用卡片格式。"""
-    stockout_js = read(os.path.join(BASE_DIR, "static", "js", "render", "stockout.js"))
+    stockout_js = read(os.path.join(BASE_DIR, "static", "js", "features", "stockout", "page.js"))
     assert "noteHTML:" in stockout_js
     assert "class=\"item-note\"" in stockout_js
     assert "${o.note ? `<div class=\"stockout-note\">📝 ${esc(o.note)}</div>`}" not in stockout_js
@@ -1646,7 +1649,7 @@ def test_inventory_note_preserves_multi_location_context():
     probe = r"""
 const fs = require('fs');
 function esc(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\"/g, '&quot;').replace(/'/g, '&#39;'); }
-eval(fs.readFileSync(process.argv[1], 'utf8'));
+eval(require('./tests/support/frontend-runtime').moduleScript(process.argv[1]));
 const stocks = [
   {location: '櫃子 | 位置 A', note: 'Note A'},
   {location: '倉庫 B', note: 'Note B'},
@@ -1817,8 +1820,8 @@ def test_login_input_icons_and_style():
 
 
 def test_login_remember_and_forgot():
-    """記住帳號 checkbox + 忘記密碼連結"""
-    html = read(LOGIN)
+    """記住帳號 checkbox + 忘記密碼連結（issue #39：登入頁 script 由 login.html 內嵌搬到 pages/login.js）"""
+    html = read(LOGIN) + read(os.path.join(STATIC, "js", "pages", "login.js"))
     assert 'id="remember"' in html
     assert "localStorage" in html
     assert "inv_username" in html
@@ -1878,11 +1881,11 @@ def test_unit_search_and_duplicate_guard():
     for sid in ('f-unit-search', 'e-unit-search', 'ns-unit-search', 'nsp-unit-search'):
         assert f'id="{sid}"' in html, f"搜尋框 {sid} 不存在"
     assert html.count('filterUnitSelect(this, ') == 4
-    units = read(os.path.join(STATIC, "js", "units.js"))
+    units = read(js_modules("core/units.js", "core/state.js"))
     assert "function filterUnitSelect" in units
     assert "已存在" in units and "unitList.some" in units  # 重複提示檢查
     css = read_shared_css()
-    assert "cancel.className = 'btn btn--secondary btn--sm';" in read(os.path.join(STATIC, "js", "units.js"))  # 取消按鈕改用白底次要按鈕（不再隱形）
+    assert "cancel.className = 'btn btn--secondary btn--sm';" in read(js_modules("core/units.js", "core/state.js"))  # 取消按鈕改用白底次要按鈕（不再隱形）
     assert ".unit-search" in css
 
 
@@ -1920,7 +1923,7 @@ def test_xss_escapes_present():
     assert "function esc(" not in ps   # L1：esc 單一來源（統一用 utils.js）
 
     # Phase 1（2026-08-11）：已領出 modal 位置選項顯示文字 + topbar 帳號名 escape
-    so = read(os.path.join(STATIC, "js", "modals", "stockout.js"))
+    so = read(os.path.join(STATIC, "js", "features", "stockout", "modals.js"))
     assert "esc(s.location || '未標示')" in so  # H1：option 顯示文字也走 esc
     # Shell v2: avatar dropdown is static HTML (textContent safe, no esc needed)
     # Shell v2: avatar dropdown is static HTML
@@ -1933,10 +1936,9 @@ def test_changepw_expiry_ui_present():
     idx = read(os.path.join(STATIC, "index.html"))
     assert 'id="changepw-modal"' in idx
     assert 'id="expiry-modal"' in idx
-    assert 'id="cpw-new"' in idx and 'oninput="cpwCheckStrength()"' in idx  # 變體 B 強度打勾
+    assert 'id="cpw-new"' in idx and 'oninput="Account.cpwCheckStrength()"' in idx  # 變體 B 強度打勾
     assert 'id="cpw-mismatch"' in idx
-    assert "/static/js/modals/changepw.js" in idx
-    assert "/static/js/modals/expiry.js" in idx
+    assert {"features/account/change-password.js", "features/account/password-expiry.js"} <= page_modules(INDEX)
     au = read(AUTH_JS)
     # 2026-08-16 家豪定案：改密碼收進設定中心 → topbar 改密碼按鈕移除（openChangePwModal
     # 仍在 changepw.js 定義 / expiry.js 呼叫 / index.html onclick，勿誤傷）
@@ -1957,15 +1959,15 @@ def test_changepw_expiry_ui_present():
     assert "openTopMenu" not in bs
     assert "label: '匯出報表'" not in bs
     assert "label: '登出'" not in bs
-    cpw = read(os.path.join(STATIC, "js", "modals", "changepw.js"))
+    cpw = read(os.path.join(STATIC, "js", "features", "account", "change-password.js"))
     assert "function cpwCheckStrength" in cpw
     assert "function submitChangePw" in cpw
-    exp = read(os.path.join(STATIC, "js", "modals", "expiry.js"))
+    exp = read(os.path.join(STATIC, "js", "features", "account", "password-expiry.js"))
     assert "function openExpiryModal" in exp
     assert "function ackPasswordExpiry" in exp
     assert "change-own-password" in exp  # RBAC：有自行改密碼權限才顯示過期提示按鈕（R2）
     assert "expiry-admin-only" in idx  # 非 admin 過期提醒文字（B4 2026-08-13）
-    pm = read(os.path.join(STATIC, "js", "perms.js"))
+    pm = read(os.path.join(STATIC, "js", "features", "permissions", "page.js"))
     assert "tech: '🔧 工程師'" in pm  # B1：ROLE_LABELS 有 tech（權限頁顯示）
 
 
@@ -1973,7 +1975,7 @@ def test_resetpw_modal_ui_present():
     """v11.2：重設密碼 modal（同變體 B 樣式）+ z-order 修正 + ghost 取消鈕資產"""
     idx = read(os.path.join(STATIC, "index.html"))
     assert 'id="resetpw-modal"' in idx
-    assert 'id="rpw-new"' in idx and 'oninput="pwStrengthCheck(\'rpw-new\')"' in idx
+    assert 'id="rpw-new"' in idx and 'oninput="Account.pwStrengthCheck(\'rpw-new\')"' in idx
     assert 'id="rpw-confirm"' in idx
     assert 'id="rpw-mismatch"' in idx
     assert "btn btn--secondary btn--md btn-cancel-ghost" in idx  # 取消按鈕：白底次要按鈕（與儲存並排）
@@ -1995,8 +1997,8 @@ def test_unsaved_changes_guard_present():
     assert "有未儲存的變更" in ut  # confirm 文案
     assert "delete __modalSnapshots[id]" in ut
     # submit 成功路徑用 force（不彈確認）
-    for f in ("add.js", "edit.js", "kit.js", "stockout.js", "photo.js"):
-        src = read(os.path.join(STATIC, "js", "modals", f))
+    for f in ("inventory/add-modal.js", "inventory/edit-modal.js", "kits/kit-modal.js", "stockout/modals.js", "inventory/photo.js"):
+        src = read(os.path.join(STATIC, "js", "features", *f.split("/")))
         assert "closeModalForce(" in src, f"{f} 應使用 closeModalForce"
 
 
@@ -2013,7 +2015,7 @@ def test_401_redirect_guard_present():
 
 def test_switchsite_pending_guard_present():
     """M15（2026-08-11 補漏）：切分片 pending 確認 + beforeunload 資產"""
-    app_js = read(os.path.join(STATIC, "js", "app.js"))
+    app_js = read(os.path.join(STATIC, "js", "features", "shell", "app.js"))
     assert "function hasPending" in app_js
     assert "Object.keys(pending)" in app_js
     assert "切換分片將遺失" in app_js  # switchSite confirm 文案
@@ -2114,8 +2116,8 @@ def test_index_has_no_topbar_export():
     assert 'id="btn-add"' not in idx  # 新增按鈕也移出 topbar
     inv = read(INVENTORY_RENDER_JS)
     assert "loc-export-bar" in inv
-    assert "onclick=\"openInventoryExportDialog()\"" in inv
-    assert "onclick=\"openAddModal()\"" in inv  # 庫存清單頂部新增按鈕
+    assert "onclick=\"Inventory.openInventoryExportDialog()\"" in inv
+    assert "onclick=\"Inventory.openAddModal()\"" in inv  # 庫存清單頂部新增按鈕
     css = read_css_all()
     assert "justify-content: flex-end" in css  # 匯出列靠右（2026-08-13 Sarah 選項）
 
@@ -2127,7 +2129,7 @@ def test_index_has_no_topbar_export():
 def test_stocktake_totalqty_used():
     """totalQty 不得淪為 dead code：計算保留且 totalQtyStr 有進模板渲染（防退回「算了沒顯示」）"""
     js = read(STOCKTAKE_JS)
-    assert "const totalQty = ALL_ITEMS.reduce((s, i) => s + i.qty, 0);" in js  # 計算行保留
+    assert "const totalQty = appState.ALL_ITEMS.reduce((s, i) => s + i.qty, 0);" in js  # 計算行保留
     assert "${totalQtyStr}" in js                                               # 千分位結果有進模板
     assert js.count("totalQty") >= 3  # 定義 + totalQtyStr 定義/使用（若只剩定義 1 次 = dead code 回歸）
 
@@ -2241,9 +2243,9 @@ def test_stocktake_kit_tab_expands_components():
     assert "stocktakeInput(materialKey, materialSystemQty, c.unit)" in js
     assert "markChanged(this, '${jsStr(key)}')" in js
     assert 'placeholder="實際' in js  # 2026-09-12：提示加註可輸分數
-    # 全域宣告（globals.js，var 跨檔共享）
+    # 跨模組共用狀態（issue #39：原 globals.js 的全域 var → features/stocktake/state.js 的 stocktakeState）
     gl = read(GLOBALS_JS)
-    assert "var stocktakeKits = []" in gl
+    assert "  stocktakeKits: []," in gl
 
 
 def test_stocktake_submit_includes_equal_qty():
@@ -2253,8 +2255,8 @@ def test_stocktake_submit_includes_equal_qty():
     js = read(STOCKTAKE_JS)
     # 移除 v !== stock.qty 過濾（舊版有，新版無）
     assert "v !== stock.qty" not in js, "v !== stock.qty 過濾應已移除"
-    # 空白 fallback 到系統數量
-    assert "if (isNaN(v))" in js
+    # 空白 fallback 到系統數量；非空白一律經 Qty.validFor 驗證（issue #39：無 Qty 的 parseFloat 退路已移除）
+    assert "if (!_valid.ok)" in js
     assert "v = stock ? stock.qty : 0" in js
     # 只要 item 和 stock 存在就 push（不限 diff）
     assert "if (item && stock) {" in js
@@ -2263,7 +2265,7 @@ def test_stocktake_submit_includes_equal_qty():
     assert "const _unitType = (typeof Qty.inputTypeOf === 'function')" in js
     assert "Qty.inputTypeOf(item ? item.unit : '')" in js
     for caller in (
-        os.path.join(STATIC, "js", "modals", "qty.js"),
+        os.path.join(STATIC, "js", "features", "inventory", "qty-dialog.js"),
         INVENTORY_RENDER_JS,
         KITS_RENDER_JS,
     ):
@@ -2312,12 +2314,13 @@ def test_css_stat_cards_dead_css_removed():
 # 註：photo.js 的 photoImgClick 為 dead code，已於 2026-08-12 清理（未列入斷言）。
 
 def test_all_js_loaded_by_index():
-    """static/js 下每個 .js 都必須被 index.html 或 permissions.html 引用（防新增 JS 忘掛載 = 整支 dead file）"""
-    html = read(INDEX) + read(PERMISSIONS_HTML) + read(SETTINGS_HTML)
+    """static/js 下每個 .js 都必須被 index / settings / permissions 頁載入（防新增 JS 忘掛載 = 整支 dead file）。
+    issue #39 起各頁只有一個 ES module 進入點，「被載入」＝在進入點的 import 關係裡。"""
+    loaded = page_modules(INDEX) | page_modules(PERMISSIONS_HTML) | page_modules(SETTINGS_HTML) | page_modules(LOGIN)
     missing = []
     for js_path in ALL_JS_FILES:
-        rel = "/static/" + os.path.relpath(js_path, STATIC).replace("\\", "/")
-        if f'src="{rel}"' not in html:
+        rel = os.path.relpath(js_path, os.path.join(STATIC, "js")).replace("\\", "/")
+        if rel not in loaded:
             missing.append(rel)
     assert not missing, f"以下 JS 存在但未被 index/permissions.html 載入（dead file）: {missing}"
 
@@ -2327,7 +2330,7 @@ def test_api_js_core_functions():
     js = read(API_JS)
     for fn in ("loadData", "loadPreparedBadge", "saveAll"):
         assert fn in js, f"api.js 缺 {fn}"
-    export_js = read(os.path.join(STATIC, "js", "modals", "inventory-export.js"))
+    export_js = read(os.path.join(STATIC, "js", "features", "inventory", "export-dialog.js"))
     assert "exportExcel" in export_js
 
 
@@ -2484,7 +2487,7 @@ def test_edit_stock_rows_mobile_grid_layout():
     html = read(INDEX)
     assert 'class="col-headers edit-stock-headers"' in html
     assert 'href="/static/css/3-components/location-editor.css"' in html
-    assert 'src="/static/js/location-adjustments.js"' in html
+    assert "features/inventory/location-adjustments.js" in page_modules(INDEX)
     assert 'id="stock-location-modal"' in html
     modal_attributes = html.split('id="stock-location-modal"', 1)[1].split('>', 1)[0]
     assert 'aria-hidden="true"' not in modal_attributes, "openModal does not clear a static aria-hidden state"
@@ -2590,7 +2593,7 @@ def test_return_stockout_modal_present():
     # 送出時帶 body（JSON），不再是空 POST
     assert "json: body" in js, "退回送出應帶 JSON body"
     # json: 由 apiFetch 自動帶 JSON Content-Type（issue #39）
-    assert "'Content-Type': 'application/json'" in read(os.path.join(STATIC, "js", "api-client.js")), "退回送出應帶 Content-Type header"
+    assert "'Content-Type': 'application/json'" in read(os.path.join(STATIC, "js", "core", "api-client.js")), "退回送出應帶 Content-Type header"
 
 
 def test_stocktake_view_for_all_roles():
@@ -2631,7 +2634,7 @@ def test_prepared_nonstock_add_ui():
     assert "apiFetch('/api/prepare/nonstock'" in js, "submitNonStockPrepare 沒打新端點"
 
     pjs = read(PREPARED_RENDER_JS)
-    assert "onclick=\"openNonStockPrepareModal()\"" in pjs, "待領出頁缺新增按鈕入口"
+    assert "onclick=\"Stockout.openNonStockPrepareModal()\"" in pjs, "待領出頁缺新增按鈕入口"
     assert "tag-nonstock" in pjs, "待領出頁非庫存標籤缺失"
     assert "renderPreparedPageHeader" in pjs, "待領出頁 header/toolbar 渲染函式缺失"
 
@@ -2652,7 +2655,7 @@ def test_stockout_nonstock_add_ui():
     assert "apiFetch('/api/stockout/nonstock'" in js, "submitNonStockOut 沒打新端點"
 
     rjs = read(STOCKOUT_RENDER_JS)
-    assert "onclick=\"openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
+    assert "onclick=\"Stockout.openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
     assert "encodeURIComponent(siteAtRequest)" in rjs, "已領出頁 fetch 應隨 site 快照過濾（倉庫 0 就不能顯示內容）"
     assert "getStockoutKpis(filteredOuts)" in rjs, "已領出頁 KPI 必須取 filtered result"
     assert "tag-nonstock" in rjs, "非庫存標籤 class 缺失"
@@ -2696,7 +2699,7 @@ def test_kit_js_optimistic_lock_snapshot():
     """kit.js：編輯整組帶 updated_at 快照（submitKitEdit body）"""
     js = read(KIT_MODAL_JS)
     assert "kitUpdatedAt" in js, "kit.js 缺 kitUpdatedAt 快照變數"
-    assert "updated_at: kitUpdatedAt" in js, "kit.js submitKitEdit 未帶 updated_at"
+    assert "updated_at: kitsState.kitUpdatedAt" in js, "kit.js submitKitEdit 未帶 updated_at"
 
 
 # ---------- Phase 3：前端即時性與狀態持久化（2026-08-14） ----------
@@ -2879,6 +2882,35 @@ def test_batch_bar_only_inventory_tab():
     assert "batch-cabinet" in js and "batch-sub" in js, "app.js switchTab 清理需重置 batch-cabinet/batch-sub"
 
 
+def test_esm_pages_link():
+    """issue #39：三個頁面進入點的 ES module import 圖必須能完整連結（名稱 / 路徑打錯即失敗），且沒有孤兒模組。"""
+    result = subprocess.run(
+        ["node", "--experimental-vm-modules", os.path.join(BASE_DIR, "tests", "esm_link.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, f"ESM 連結失敗：\n{result.stdout}\n{result.stderr}"
+
+
+def test_vite_build_covers_every_page_entry():
+    """issue #39：已提交的 static/dist 必須包含四個頁面進入點（辦公室電腦不需 Node）；
+    內容是否與原始碼一致由 CI / Quality 重新建置後 git diff 檢查。"""
+    manifest = json.loads(read(os.path.join(STATIC, "dist", ".vite", "manifest.json")))
+    for page, html in (("main", INDEX), ("settings", SETTINGS_HTML), ("permissions", PERMISSIONS_HTML), ("login", LOGIN)):
+        assert f'<script type="module" src="/static/js/pages/{page}.js"></script>' in read(html)
+        entry = manifest[f"static/js/pages/{page}.js"]
+        assert entry.get("isEntry") is True
+        for name in [f"static/js/pages/{page}.js", *entry.get("imports", [])]:
+            assert os.path.exists(os.path.join(STATIC, "dist", manifest[name]["file"])), name
+
+
+def test_debug_module_registry_is_only_defined_by_page_entries():
+    """window.__hvac 只給瀏覽器 console / Playwright 使用：由頁面進入點建立，其他模組不得讀寫。"""
+    for js_path in ALL_JS_FILES:
+        rel = os.path.relpath(js_path, os.path.join(STATIC, "js")).replace("\\", "/")
+        if "__hvac" in read(js_path):
+            assert rel.startswith("pages/"), f"{rel} 不可依賴 window.__hvac"
+
+
 def test_all_js_syntax_valid():
     """所有關鍵 JS 檔案語法正確（node --check）"""
     js_files = [
@@ -2886,7 +2918,7 @@ def test_all_js_syntax_valid():
         STOCKTAKE_JS, KITS_RENDER_JS, APP_JS, API_JS, GLOBALS_JS,
         ADD_JS, EDIT_JS,
     ]
-    for f in js_files:
+    for f in [part for group in js_files for part in (group if isinstance(group, tuple) else (group,))]:
         result = subprocess.run(
             ["node", "--check", f],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60
@@ -2903,7 +2935,7 @@ def test_brand_filter_normalizes_no_brand():
     assert "currentBrands.includes(i.brand || '無廠牌')" in js, \
         "renderInventory/getFilteredItems 品牌過濾須正規化空品牌為『無廠牌』"
     # 不得退回原始空值比對（會讓無廠牌 chip 篩選失效）
-    assert "currentBrands.includes(i.brand);" not in js, \
+    assert "appState.currentBrands.includes(i.brand);" not in js, \
         "品牌過濾不得用原始 i.brand（空品牌會對不上『無廠牌』chip）"
 
 def test_stockout_date_display_only_date():
@@ -2926,7 +2958,7 @@ def test_add_modal_has_cabinet_and_sub_inputs():
     html = read(INDEX)
     add_modal = html[html.index('id="add-modal"'):html.index('id="edit-modal"')]
     assert 'id="add-stock-rows"' in add_modal, "新增品項需有多位置清單容器"
-    assert 'onclick="addAddStockRow()"' in add_modal, "新增品項需有「新增位置」按鈕"
+    assert 'onclick="Inventory.addAddStockRow()"' in add_modal, "新增品項需有「新增位置」按鈕"
     assert '<span class="ch-qty">數量</span>' in add_modal, "新增品項位置清單需有數量欄"
     # 舊的單一位置欄位不應存在
     for old_id in ("f-location", "f-cabinet", "f-sub", "f-qty", "f-note"):
@@ -3101,7 +3133,7 @@ def test_update_notifications_function():
     assert "updateNotifications()" in notif, "updateNotifications 未被呼叫"
     # 低庫存通知透過共用 status-list renderer（renderSharedProductStatusItem）顯示
     # 該 renderer 使用 esc() 防 XSS
-    sl = read(os.path.join(STATIC, "js", "render", "status-list.js"))
+    sl = read(os.path.join(STATIC, "js", "components", "status-list.js"))
     assert "esc(item.brand" in sl or "esc(item.name" in sl, \
         "共用 status-list renderer 應使用 esc() 轉義品項名稱"
 
@@ -3109,8 +3141,8 @@ def test_update_notifications_function():
 
 def test_update_notifications_refreshes_after_kit_data_load():
     """Kit notifications must refresh after currentKitItems is populated."""
-    js = read(os.path.join(STATIC, "js", "render", "kits.js"))
-    assignment = "const filteredKits = currentKitItems;"
+    js = read(os.path.join(STATIC, "js", "features", "kits", "page.js"))
+    assignment = "const filteredKits = appState.currentKitItems;"
     start = js.index(assignment) + len(assignment)
     assert "updateNotifications();" in js[start:start + 80]
 
@@ -3122,7 +3154,7 @@ def test_update_notifications_is_page_scoped_but_stocktake_reminder_is_global():
     assert "function updateNotifications" in notif
     assert "renderNotificationSummary" in notif
     # getNotificationSummary 控制 page-scoped stock alerts
-    assert "currentTab === 'inventory' || currentTab === 'stocktake'" in notif
+    assert "appState.currentTab === 'inventory' || appState.currentTab === 'stocktake'" in notif
     # Kit items checked via getKitStatus
     assert "getKitStatus(kit).status" in notif
     assert "整組缺料" in notif
@@ -3312,8 +3344,8 @@ def test_camera_button_exists():
 
 def test_stockout_return_tracks_source_and_return_locations():
     html = read("static/index.html")
-    modal = read("static/js/modals/stockout.js")
-    render = read("static/js/render/stockout.js")
+    modal = read("static/js/features/stockout/modals.js")
+    render = read("static/js/features/stockout/page.js")
     assert 'id="rs-source-location"' in html
     assert 'id="rs-location"' in html
     assert 'return_stock_id' in modal
@@ -3342,13 +3374,13 @@ def test_toggle_sidebar_function():
 def test_hamburger_uses_toggle_sidebar():
     """hamburger 按鈕使用 toggleSidebar"""
     html = read(INDEX)
-    assert 'onclick="toggleSidebar()"' in html, "hamburger 應呼叫 toggleSidebar()"
+    assert 'onclick="App.toggleSidebar()"' in html, "hamburger 應呼叫 toggleSidebar()"
 
 # ========== 行事曆搜尋 ==========
 # ========== GCal 刪除反饋 ==========
 def test_toast_duration_increased():
     """toast 顯示時間 >= 3 秒"""
-    js = read(os.path.join(STATIC, "js/utils.js"))
+    js = read(UTILS_JS)
     # 找 toast timer 設定
     assert "3500" in js or "3000" in js, "toast 時間應 >= 3000ms"
 
@@ -3361,14 +3393,14 @@ def test_more_actions_dropdown_exists():
 
 def test_more_actions_functions_exist():
     """toggleMoreActions/closeMoreActions 函式存在"""
-    js = read(os.path.join(STATIC, "js/render/inventory.js"))
+    js = read(INVENTORY_RENDER_JS)
     assert "function toggleMoreActions" in js, "toggleMoreActions 缺失"
     assert "function closeMoreActions" in js, "closeMoreActions 缺失"
 
 # ========== 表格圖片欄 ==========
 def test_table_photo_column():
     """表格 view 包含圖片欄"""
-    js = read(os.path.join(STATIC, "js/render/inventory.js"))
+    js = read(INVENTORY_RENDER_JS)
     assert "photo-cell" in js, "表格缺 photo-cell 欄位"
     assert "openPhotoLightbox" in js, "表格缺 openPhotoLightbox 呼叫"
 
@@ -3409,7 +3441,7 @@ def test_inventory_mobile_stockout_actions_match_desktop_permission_gate():
     assert "buildInventoryStockoutActions(i, canStockout, false)" in js
     assert 'renderInventoryCard(list, isViewer, canStockout, isM)' in js
     assert "if (!canStockout) return '';" in js
-    card = read(os.path.join(STATIC, 'js/render/card.js'))
+    card = read(CARD_JS)
     assert "${p.actionsHTML || ''}" in card
     assert 'openPrepareModal' in js and 'openOutModal' in js
 
@@ -3444,16 +3476,16 @@ def test_mobile_inventory_card_does_not_inherit_desktop_flex_row_layout():
 def test_inventory_stockout_actions_permission_matrix_runtime():
     """以 Node VM 執行真正的卡片／表格 render，守護 stockout 權限與手機布局。"""
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const context = {
   document: { addEventListener() {}, querySelectorAll() { return []; } },
   localStorage: { getItem() { return '[]'; } },
-  pending: {}, batchMode: false, selectedStockIds: new Set(), currentSite: 'office',
+  pending: {}, selectedStockIds: new Set(), unitList: [], appState: { batchMode: false, currentSite: 'office' },
 };
 vm.createContext(context);
-for (const file of ['static/js/utils.js', 'static/js/render/card.js', 'static/js/render/inventory.js']) {
-  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+for (const file of ['static/js/core/qty.js', 'static/js/core/utils.js', 'static/js/components/card.js', 'static/js/features/inventory/state.js', 'static/js/features/inventory/filters.js', 'static/js/core/search.js', 'static/js/features/inventory/list.js', 'static/js/features/inventory/status.js', 'static/js/features/inventory/actions.js', 'static/js/features/inventory/adjust.js', 'static/js/features/inventory/batch-location.js']) {
+  vm.runInContext(moduleScript(file), context);
 }
 const item = {
   id: 42, name: '測試材料', brand: '測試廠牌', code: 'T-42', unit: '個', qty: 10,
@@ -3531,17 +3563,18 @@ def test_inventory_toolbar_places_select_toggle_before_more_menu():
 
 def test_inventory_table_action_menu_runtime_is_permission_gated():
     # Node VM 驗證表格保留出庫主操作，品項管理選單依權限顯示。
-    script = r'''const fs = require('fs');
-const vm = require('vm');
+    script = r'''const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const context = {
   document: { addEventListener() {}, querySelectorAll() { return []; } },
   localStorage: { getItem() { return 'table'; } },
-  pending: {}, batchMode: false, selectedStockIds: new Set(), currentSite: 'office',
+  pending: {}, selectedStockIds: new Set(), unitList: [], appState: { batchMode: false, currentSite: 'office' },
   hasPerm(key) { return key === 'stockout' || key === 'item-mgmt'; },
+  currentUser: null,  // core/utils.js 載入後以正式 hasPerm 取代上面的替身（與原本相同）；未登入 → 無權限
 };
 vm.createContext(context);
-for (const file of ['static/js/utils.js', 'static/js/render/card.js', 'static/js/render/inventory.js']) {
-  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+for (const file of ['static/js/core/qty.js', 'static/js/core/utils.js', 'static/js/components/card.js', 'static/js/features/inventory/state.js', 'static/js/features/inventory/filters.js', 'static/js/core/search.js', 'static/js/features/inventory/list.js', 'static/js/features/inventory/status.js', 'static/js/features/inventory/actions.js', 'static/js/features/inventory/adjust.js', 'static/js/features/inventory/batch-location.js']) {
+  vm.runInContext(moduleScript(file), context);
 }
 const item = {
   id: 42, name: '測試材料', brand: '測試廠牌', code: 'T-42', unit: '個', qty: 10,
@@ -3615,16 +3648,16 @@ def test_inventory_status_kpis_and_detail_share_filtered_status_source():
 def test_inventory_status_detail_runtime_uses_filtered_items_and_priority():
     """Node VM：缺貨優先於低庫存，KPI/清單入口存在且使用相同資料。"""
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const context = {
   document: { addEventListener() {}, querySelectorAll() { return []; }, getElementById() { return null; } },
   localStorage: { getItem() { return 'card'; } },
-  pending: {}, currentSite: 'office', currentBrands: [], currentCategories: [], ALL_ITEMS: [],
+  pending: {}, unitList: [], appState: { currentSite: 'office', currentBrands: [], currentCategories: [], ALL_ITEMS: [] },
 };
 vm.createContext(context);
-for (const file of ['static/js/utils.js', 'static/js/render/status-list.js', 'static/js/render/inventory.js']) {
-  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+for (const file of ['static/js/core/qty.js', 'static/js/core/utils.js', 'static/js/components/status-list.js', 'static/js/features/inventory/state.js', 'static/js/features/inventory/filters.js', 'static/js/core/search.js', 'static/js/features/inventory/list.js', 'static/js/features/inventory/status.js', 'static/js/features/inventory/actions.js', 'static/js/features/inventory/adjust.js', 'static/js/features/inventory/batch-location.js']) {
+  vm.runInContext(moduleScript(file), context);
 }
 const low = { id: 1, qty: 2, low_stock: 3, is_kit: false };
 const zero = { id: 2, qty: 0, low_stock: 3, is_kit: false };
@@ -3644,9 +3677,8 @@ if (!html.includes("showInventoryStatusList('low')") || !html.includes("showInve
 def test_inventory_dashboard_uses_full_filtered_stats_for_kpi_and_status_list():
     """分頁只載入當頁時，KPI 與缺貨清單仍須使用同一篩選條件的全量統計。"""
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
-const { mockResponse } = require('./tests/support/frontend-runtime');
+const { moduleScript, mockResponse } = require('./tests/support/frontend-runtime');
 const searchInput = { value: '' };
 const modalClasses = new Set();
 const statusModal = { classList: { add(name) { modalClasses.add(name); }, remove(name) { modalClasses.delete(name); }, contains(name) { return modalClasses.has(name); } }, setAttribute() {} };
@@ -3665,11 +3697,10 @@ const context = {
   localStorage: { getItem() { return 'card'; } },
   hasPerm() { return true; }, buildThumb() { return ''; },
   currentUser: { permissions: { 'item-mgmt': true } },
-  fetch: null, URLSearchParams,
-  inventoryStatusRequestSeq: 0, inventoryStatusModalType: '',
+  fetch: null, URLSearchParams, unitList: [], INVENTORY_ALERT_ITEMS: {},
   pending: {},
   INVENTORY_PENDING_ITEMS: { 3: { id: 3, name: '頁二缺貨', brand: '測試', code: 'C', unit: '個', qty: 0, low_stock: 0, is_kit: false, stocks: [] } },
-  currentSite: 'office', currentBrands: [], currentCategories: [],
+  appState: { currentSite: 'office', currentBrands: [], currentCategories: [],
   ALL_ITEMS: [
     { id: 1, name: '頁一缺貨', brand: '測試', code: 'A', unit: '個', qty: 0, low_stock: 0, is_kit: false, stocks: [] },
     { id: 2, name: '頁一正常', brand: '測試', code: 'B', unit: '個', qty: 8, low_stock: 0, is_kit: false, stocks: [] },
@@ -3686,15 +3717,15 @@ const context = {
         { id: 4, name: '頁二低庫存', brand: '測試', code: 'D', unit: '個', qty: 2, low_stock: 5, location: 'B' },
       ],
     },
-  },
+  } },
 };
 vm.createContext(context);
-for (const file of ['static/js/utils.js', 'static/js/api-client.js', 'static/js/render/status-list.js', 'static/js/render/inventory.js']) {
-  vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+for (const file of ['static/js/core/qty.js', 'static/js/core/utils.js', 'static/js/core/api-client.js', 'static/js/components/status-list.js', 'static/js/features/inventory/state.js', 'static/js/features/inventory/filters.js', 'static/js/core/search.js', 'static/js/features/inventory/list.js', 'static/js/features/inventory/status.js', 'static/js/features/inventory/actions.js', 'static/js/features/inventory/adjust.js', 'static/js/features/inventory/batch-location.js']) {
+  vm.runInContext(moduleScript(file), context);
 }
 const fractionalStatus = context.getInventoryStatusForQty({ is_kit: false, low_stock: 1 }, 0.0004);
 if (!fractionalStatus.isOutOfStock || fractionalStatus.isLowStock) throw new Error('fractional frontend status precision mismatch');
-const html = context.renderInventoryDashboard(context.ALL_ITEMS, context.INVENTORY_META.stats);
+const html = context.renderInventoryDashboard(context.appState.ALL_ITEMS, context.appState.INVENTORY_META.stats);
 const itemKpi = html.slice(html.indexOf('ui-kpi-card--blue'));
 if (!itemKpi.includes('inventory-kpi-number ui-kpi-value">4</div>')) throw new Error('full item KPI missing');
 const outKpi = html.slice(html.indexOf('inventory-kpi-out'));
@@ -3706,21 +3737,21 @@ if (!loadedStatusHtml.includes('openEditModal(1)')) throw new Error('loaded stat
 const crossPageStatusHtml = context.renderInventoryStatusItem(zeroItems[1], 'out');
 // 共用 status-list renderer 允許所有 alert items 編輯（含跨頁 items）
 context.pending[2] = -8;
-const pendingHtml = context.renderInventoryDashboard(context.ALL_ITEMS, context.INVENTORY_META.stats);
+const pendingHtml = context.renderInventoryDashboard(context.appState.ALL_ITEMS, context.appState.INVENTORY_META.stats);
 const pendingOutKpi = pendingHtml.slice(pendingHtml.indexOf('inventory-kpi-out'));
 if (!pendingOutKpi.includes('inventory-kpi-number ui-kpi-value">3</div>')) throw new Error('pending zero KPI adjustment missing');
 const pendingZeroItems = context.getInventoryStatusItems('zero');
 if (pendingZeroItems.length !== 3 || !pendingZeroItems.some(item => item.id === 2)) throw new Error('pending zero status adjustment missing');
 context.pending = { 3: 8 };
-const crossPageDashboard = context.getInventoryDashboardStats(context.ALL_ITEMS, context.INVENTORY_META.stats);
+const crossPageDashboard = context.getInventoryDashboardStats(context.appState.ALL_ITEMS, context.appState.INVENTORY_META.stats);
 if (crossPageDashboard.totalQty !== 18 || crossPageDashboard.zeroCount !== 1) throw new Error('cross-page pending aggregate adjustment missing');
 const crossPageZeroItems = context.getInventoryStatusItems('zero');
 if (crossPageZeroItems.length !== 1 || crossPageZeroItems.some(item => item.id === 3)) throw new Error('cross-page pending status adjustment missing');
 context.pending = {};
-context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+context.appState.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
 context.lastAlertUrl = '';
 context.pending[2] = -8;
-context.INVENTORY_PENDING_ITEMS[2] = context.ALL_ITEMS[1];
+context.INVENTORY_PENDING_ITEMS[2] = context.appState.ALL_ITEMS[1];
 context.fetch = function(url) {
   context.lastAlertUrl = url;
   return Promise.resolve(mockResponse({ stats: {
@@ -3733,10 +3764,10 @@ context.fetch = function(url) {
   await context.showInventoryStatusList('out');
   if (!context.lastAlertUrl.includes('include_alert_items=1') || !context.lastAlertUrl.includes('page_size=1')) throw new Error('lazy alert query missing');
   if (!statusModalBody.innerHTML.includes('共 3 項') || !statusModalBody.innerHTML.includes('頁一正常')) throw new Error('lazy alert modal pending count missing');
-  if (!Array.isArray(context.INVENTORY_META.stats.zero_items)) throw new Error('lazy alert cache missing');
+  if (!Array.isArray(context.appState.INVENTORY_META.stats.zero_items)) throw new Error('lazy alert cache missing');
 context.pending = {};
 delete context.INVENTORY_PENDING_ITEMS[2];
-  context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+  context.appState.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
   const closedResolvers = [];
   context.fetch = function() { return new Promise(resolve => closedResolvers.push(resolve)); };
   const closedRequest = context.showInventoryStatusList('out');
@@ -3746,7 +3777,7 @@ delete context.INVENTORY_PENDING_ITEMS[2];
   closedResolvers[0](mockResponse({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }));
   await closedRequest;
   if (modalClasses.has('is-open')) throw new Error('closed modal was reopened by stale response');
-  context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+  context.appState.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
   modalClasses.clear();
   const rapidResolvers = [];
   context.fetch = function() { return new Promise(resolve => rapidResolvers.push(resolve)); };
@@ -3760,7 +3791,7 @@ delete context.INVENTORY_PENDING_ITEMS[2];
   rapidResolvers[0](mockResponse({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }));
   await oldRequest;
   if (!statusModalBody.innerHTML.includes('共 1 項') || !statusModalBody.innerHTML.includes('低庫存')) throw new Error('stale alert response replaced newer modal');
-context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
+context.appState.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
 modalClasses.clear();
 context.fetch = function() { return Promise.resolve({ ok: false, status: 503 }); };
 await context.showInventoryStatusList('out');
@@ -3817,11 +3848,11 @@ def test_kit_desktop_dashboard_assets_and_existing_actions():
 def test_kit_dashboard_stats_runtime_uses_component_data():
     """Node VM：KPI 由實際整組/材料資料計算，缺料與庫存不足分開。"""
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const context = { document: { addEventListener() {} } };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/render/kits.js', 'utf8'), context);
+vm.runInContext(moduleScript('features/kits/page.js'), context);
 const kits = [
   { id: 1, components: [{ item_id: 11, stock: 0, need_qty: 1 }, { item_id: 12, stock: 2, need_qty: 1 }] },
   { id: 2, components: [{ item_id: 12, stock: 1, need_qty: 2 }] },
@@ -3942,7 +3973,7 @@ def test_stockout_dashboard_uses_fixed_photo_and_equal_data_columns():
     css = read(os.path.join(STATIC, 'css', '4-pages', 'stockout.css'))
     assert 'table-layout: fixed;' in css
     assert '.stockout-col-photo { width: 80px; }' in css
-    assert 'stockout-col-photo' in read(os.path.join(STATIC, 'js', 'render', 'stockout.js'))
+    assert 'stockout-col-photo' in read(os.path.join(STATIC, 'js', 'features', 'stockout', 'page.js'))
     assert '.stockout-actions button { flex: 1 1 0; min-width: 0;' in css
 
 
@@ -3962,13 +3993,13 @@ def test_stocktake_kit_rows_have_independent_actual_and_diff_columns():
 def test_stocktake_submission_deduplicates_shared_material_key():
     """同一材料出現在多個整組時，提交仍以 item_id:location 唯一 key 去重。"""
     js = read(STOCKTAKE_JS)
-    assert 'submittedKeys = new Set(Object.keys(stocktakeValues))' in js
+    assert 'submittedKeys = new Set(Object.keys(stocktakeState.stocktakeValues))' in js
     assert 'for (const key of submittedKeys)' in js
     assert 'material.stocks.find(s => s.location === stock.location)' in js
 
 def test_kit_component_table_has_fixed_photo_and_equal_remaining_columns():
     """整組庫存組成材料表使用 Excel 式固定欄寬，操作列按鈕等寬。"""
-    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    js = read(os.path.join(STATIC, 'js', 'features', 'kits', 'page.js'))
     css = read(CSS_KIT)
     assert 'kit-col-photo' in js
     assert 'kit-col-info' in js
@@ -3982,7 +4013,7 @@ def test_kit_component_table_has_fixed_photo_and_equal_remaining_columns():
 
 def test_kit_status_kpis_are_clickable_and_use_existing_status_selector():
     """整組庫存異常 KPI 必須用既有 getKitStatus selector 開啟明細。"""
-    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    js = read(os.path.join(STATIC, 'js', 'features', 'kits', 'page.js'))
     assert "showKitStatusList('${card[4]}')" in js
     assert 'function showKitStatusList(type)' in js
     assert "getKitStatus(k).status === validType" in js
@@ -4028,7 +4059,7 @@ def test_stockout_kpi_total_quantity_uses_item_unit_label():
 
 def test_kit_mobile_actions_stay_on_one_row_in_requested_order():
     """整組手機操作必須同列且順序為待領出、已領出、更多。"""
-    js = read(os.path.join(STATIC, 'js', 'render', 'kits.js'))
+    js = read(os.path.join(STATIC, 'js', 'features', 'kits', 'page.js'))
     css = read(CSS_KIT)
     assert 'kit-mobile-actions' in js
     assert 'renderKitActionButtons(k, isViewer, isM, status)' in js
@@ -4077,21 +4108,21 @@ def test_inventory_table_stockout_actions_do_not_wrap_on_mobile():
 def test_prepared_desktop_item_info_matches_mobile_hierarchy():
     """待領出桌面資訊與手機一致：品牌品名第一行、型號第二行。
     2026-09-16：型號改由 kitModelHTML() 輔助函式統一處理（整組+單品）"""
-    js = read(os.path.join(STATIC, "js", "render", "prepared.js"))
+    js = read(os.path.join(STATIC, "js", "features", "prepared", "page.js"))
     assert "${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}" in js
     assert "kitModelHTML(item)" in js
 
 
 def test_inventory_card_info_uses_brand_name_then_labeled_model():
     """單一庫存卡片桌面與手機都統一品牌品名／型號階層。"""
-    js = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    js = read(js_modules("features/inventory/filters.js", "core/search.js", "features/inventory/list.js", "features/inventory/status.js", "features/inventory/actions.js", "features/inventory/adjust.js", "features/inventory/batch-location.js", "core/state.js"))
     assert "nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名')" in js
     assert 'inventory-mobile-model">型號： ' in js
 
 
 def test_inventory_table_model_has_explicit_label():
     """單一庫存表格型號顯示型號前綴，避免品牌跑到型號行。"""
-    js = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    js = read(js_modules("features/inventory/filters.js", "core/search.js", "features/inventory/list.js", "features/inventory/status.js", "features/inventory/actions.js", "features/inventory/adjust.js", "features/inventory/batch-location.js", "core/state.js"))
     assert "型號： " in js
     assert "esc(i.code) + '</small>'" in js
 
@@ -4099,12 +4130,11 @@ def test_inventory_table_model_has_explicit_label():
 def test_qty_domain_mounted_and_wired():
     """2026-09-12 數量系統：qty.js 共用 domain 掛載 + 關鍵接線存在。"""
     idx = read(INDEX)
-    assert 'src="/static/js/qty.js"' in idx, "index.html 未掛載 qty.js"
-    st = read(os.path.join(STATIC, "settings.html"))
-    assert 'src="/static/js/qty.js"' in st, "settings.html 未掛載 qty.js"
-    assert 'src="/static/js/modals/qty.js"' in idx, "index.html 未掛載 modals/qty.js"
+    assert "core/qty.js" in page_modules(INDEX), "index.html 未掛載 qty.js"
+    assert "core/qty.js" in page_modules(os.path.join(STATIC, "settings.html")), "settings.html 未掛載 qty.js"
+    assert "features/inventory/qty-dialog.js" in page_modules(INDEX), "index.html 未掛載 modals/qty.js"
     assert 'id="qty-dialog"' in idx, "index.html 缺增減 dialog"
-    qty = read(os.path.join(STATIC, "js", "qty.js"))
+    qty = read(os.path.join(STATIC, "js", "core", "qty.js"))
     for fn in ("function parse", "function validFor", "function format",
                "function qtyInputOrToast", "function disp", "function signed"):
         assert fn in qty, f"qty.js 缺 {fn}"
@@ -4113,7 +4143,7 @@ def test_qty_domain_mounted_and_wired():
     assert "openQtyDialog" in inv, "changeQty 未接 dialog"
     assert "item.stocks.length > 1" in inv and "openQtyDialog(id, 'choose')" in inv, "多位置點數量未開方向選擇 Dialog"
     assert 'id="qtyd-direction"' in idx, "qty-dialog 缺少 +／− 方向選擇器"
-    qty_modal = read(os.path.join(STATIC, "js", "modals", "qty.js"))
+    qty_modal = read(os.path.join(STATIC, "js", "features", "inventory", "qty-dialog.js"))
     assert "function setQtyDialogMode(mode)" in qty_modal, "qty-dialog 缺少方向切換 handler"
     qty_css = read(CSS_INVENTORY)
     assert ".qtyd-direction[hidden] { display: none; }" in qty_css, "方向選擇控制必須遵守 hidden 狀態"
@@ -4125,7 +4155,7 @@ def test_qty_domain_mounted_and_wired():
     stk = read(STOCKTAKE_JS)
     assert 'placeholder="實際（可輸 1/4）' in stk, "盤點輸入提示遺失"
     assert "Qty.format(_d, Qty.unitTypeOf(_unit))" in stk, "盤點差異分數顯示遺失"
-    st_js = read(os.path.join(STATIC, "js", "settings.js"))
+    st_js = read(js_modules("features/settings/units.js", "features/settings/petty-options.js", "features/settings/gcal.js", "features/settings/page.js", "features/settings/cabinets.js"))
     assert "setUnitQtyType" in st_js, "單位類型切換遺失"
     # 2026-09-12：分數輸入框必須是 text+inputmode（type=number 打不出 / 也顯示不了 1/3）
     for qid in ("o-qty", "ns-qty", "nsp-qty", "p-qty", "po-qty", "es-qty", "rs-qty"):
@@ -4140,7 +4170,7 @@ def test_qty_domain_mounted_and_wired():
 
 def test_qty_merge_preserves_both_contracts():
     """QTY rebase merge：保留兩邊有效能力並以一套 contract 對外。"""
-    qty = read(os.path.join(STATIC, "js", "qty.js"))
+    qty = read(os.path.join(STATIC, "js", "core", "qty.js"))
     # base 的 §8 顯示策略與 PR8 的嚴格 validFor 都必須存在。
     assert "function matchFrac(av, eps, maxDen)" in qty
     assert "function decPlaces(r3)" in qty
@@ -4154,7 +4184,7 @@ def test_qty_merge_preserves_both_contracts():
     assert 'input type="text" inputmode="decimal" class="stock-qty"' in edit
     assert "qtyInputOrToast(_el" in edit
 
-    settings_js = read(os.path.join(STATIC, "js", "settings.js"))
+    settings_js = read(js_modules("features/settings/units.js", "features/settings/petty-options.js", "features/settings/gcal.js", "features/settings/page.js", "features/settings/cabinets.js"))
     settings_html = read_page_with_css(SETTINGS_HTML)
     for qty_type in ("integer", "decimal", "fraction"):
         assert 'value="%s"' % qty_type in settings_js
@@ -4264,7 +4294,7 @@ def test_prepared_edit_uses_unified_patch_contract():
     assert "prepared_qty" in js
     assert "updated_at" in js
     assert "qtyInputOrToast('pe-qty', unit)" in js
-    assert "api/prepared/${editItemId}/destination" not in js
+    assert "api/prepared/${appState.editItemId}/destination" not in js
     html = read(INDEX)
     assert 'id="pe-note"' not in html
 
@@ -4311,10 +4341,10 @@ def test_vehicle_inventory_sites_are_wired_in_frontend():
 
 def test_inventory_transfer_ui_is_mounted_and_wired():
     index = read(INDEX)
-    transfer = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    transfer = read(os.path.join(STATIC, "js", "features", "inventory", "transfer-modal.js"))
     inventory = read(INVENTORY_RENDER_JS)
     kits = read(KITS_RENDER_JS)
-    assert '/static/js/modals/transfer.js' in index
+    assert "features/inventory/transfer-modal.js" in page_modules(INDEX)
     assert 'id="transfer-modal"' in index
     assert 'function openTransferModal' in transfer
     assert '/api/inventory/transfers' in transfer
@@ -4323,14 +4353,14 @@ def test_inventory_transfer_ui_is_mounted_and_wired():
 
 
 def test_stocktake_frontend_sends_current_site():
-    stocktake = read(os.path.join(STATIC, "js", "render", "stocktake.js"))
-    assert "site: currentSite" in stocktake
+    stocktake = read(os.path.join(STATIC, "js", "features", "stocktake", "page.js"))
+    assert "site: appState.currentSite" in stocktake
     assert "/api/stocktake/dates?site=${encodeURIComponent(siteAtRequest)}" in stocktake
 def test_submit_kit_sends_current_site():
     js = read(KIT_MODAL_JS)
-    assert "site: currentSite" in js
+    assert "site: appState.currentSite" in js
     assert "name: name, brand: brand, code: code" in js
-    assert "json: { name: name, brand: brand, code: code, site: currentSite" in js
+    assert "json: { name: name, brand: brand, code: code, site: appState.currentSite" in js
 
 
 def test_url_restore_uses_all_inventory_sites():
@@ -4347,7 +4377,7 @@ def test_existing_item_edit_cannot_change_site():
 
 
 def test_transfer_empty_location_is_not_serialized_as_all_locations():
-    js = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    js = read(os.path.join(STATIC, "js", "features", "inventory", "transfer-modal.js"))
     assert "sourceLocationValue === '__ALL__' ? null : sourceLocationValue" in js
     assert "value || null" not in js
 
@@ -4357,7 +4387,7 @@ def test_batch_location_only_sends_location():
     assert "new_site: site" not in js
     assert "new_location: target" in js
 def test_transfer_submit_has_single_flight_guard():
-    js = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    js = read(os.path.join(STATIC, "js", "features", "inventory", "transfer-modal.js"))
     index = read(INDEX)
     assert "var transferSubmitting = false" in js
     assert "if (!transferItemId || transferSubmitting) return" in js
@@ -4369,7 +4399,7 @@ def test_transfer_submit_has_single_flight_guard():
 
 
 def test_transfer_uses_shared_qty_contract():
-    js = read(os.path.join(STATIC, "js", "modals", "transfer.js"))
+    js = read(os.path.join(STATIC, "js", "features", "inventory", "transfer-modal.js"))
     assert "Qty.validFor" in js
     assert "Qty.inputTypeOf" in js
     assert "Number(document.getElementById('transfer-qty').value)" not in js
@@ -4385,7 +4415,7 @@ def test_mobile_site_tab_2x2_layout():
 def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
-    js = read(os.path.join(STATIC, "js", "modals", "inventory-export.js"))
+    js = read(os.path.join(STATIC, "js", "features", "inventory", "export-dialog.js"))
     # 匯出對話框庫存 / 整組 / 已領出三頁共用 → 樣式屬於共用元件，不可限定在庫存頁
     css = read(os.path.join(STATIC, "css", "3-components", "export-dialog.css"))
     assert "openInventoryExportDialog" in js
@@ -4406,19 +4436,19 @@ def test_inventory_export_dialog_contract():
     assert 'data-section="overview" checked' not in index
     assert 'data-section="stats" checked' not in index
     assert 'id="inventory-export-content"' in index
-    assert 'src="/static/js/site-label.js"' in index
-    assert "onclick=\"switchSite('office')\">🏢 公司" in index
+    assert "core/site-label.js" in page_modules(INDEX)
+    assert "onclick=\"App.switchSite('office')\">🏢 公司" in index
     # 下載與檔名（Content-Disposition）由共用 apiDownload 處理（issue #39），runtime 見 api_fetch_runtime.test.js
     assert "apiDownload(`/api/export?${params.toString()}`, { filename: '庫存報表.xlsx'" in js
-    assert "Content-Disposition" in read(os.path.join(STATIC, "js", "api-client.js"))
+    assert "Content-Disposition" in read(os.path.join(STATIC, "js", "core", "api-client.js"))
     assert 'id="inventory-export-dialog"' in index
-    assert 'src="/static/js/modals/inventory-export.js"' in index
+    assert "features/inventory/export-dialog.js" in page_modules(INDEX)
     assert ".inventory-export-dialog" in css and '[data-page=' not in css
     assert "@media (max-width: 767px)" in css
     assert 'href="/static/css/3-components/export-dialog.css"' in index
     inventory = read(INVENTORY_RENDER_JS)
-    assert "openInventoryExportDialog();closeMoreActions()" in inventory
-    assert "onclick=\"openInventoryExportDialog()\"" in inventory
+    assert "Inventory.openInventoryExportDialog();Inventory.closeMoreActions()" in inventory
+    assert "onclick=\"Inventory.openInventoryExportDialog()\"" in inventory
 
 
 def test_inventory_export_dialog_runtime():
@@ -4441,10 +4471,10 @@ def test_quotation_upload_capability_runtime():
 
 def test_page_visibility_frontend_contract():
     html = read(Path(STATIC) / "index.html")
-    auth = read(Path(STATIC) / "js" / "auth.js")
-    app = read(Path(STATIC) / "js" / "app.js")
-    perms = read(Path(STATIC) / "js" / "perms.js")
-    settings = read(Path(STATIC) / "js" / "settings.js")
+    auth = read(js_modules("core/session.js", "features/shell/app.js"))
+    app = read(Path(STATIC) / "js" / "features" / "shell" / "app.js")
+    perms = read(Path(STATIC) / "js" / "features" / "permissions" / "page.js")
+    settings = read(js_modules("features/settings/units.js", "features/settings/petty-options.js", "features/settings/gcal.js", "features/settings/page.js", "features/settings/cabinets.js"))
     page_keys = (
         "calendar", "work-progress", "signed-reports", "quotation", "petty-cash", "inventory",
         "prepared", "stockout", "stocktake", "kit", "perms", "settings",
@@ -4466,8 +4496,9 @@ def test_page_visibility_frontend_contract():
     assert "permissionsSaved" in perms
     assert "pageVisibilitySaved" in perms
     assert "權限已儲存，但頁面顯示設定儲存失敗" in perms
-    assert "visible_pages" in settings
-    assert "includes('settings')" in settings
+    # issue #39：設定頁一律經 core/session.js 的 canAccessPage（內部以 visible_pages ∩ RBAC 判斷）
+    assert "if (!canAccessPage('settings'))" in settings
+    assert "currentUser.visible_pages.indexOf(pageKey)" in auth
     assert "canChangePassword" in settings
     assert "p !== 'pw' || canChangePassword" in settings
     assert "disabled" in perms
@@ -4477,8 +4508,8 @@ def test_page_visibility_frontend_contract():
 def test_page_availability_runtime_contract():
     """Node VM：Visibility 與 RBAC 交集決定入口與 deterministic fallback。"""
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { extractFunction, moduleScript, read } = require('./tests/support/frontend-runtime');
 const elements = {
   stocktake: { style: {}, dataset: { pageKey: 'stocktake' } },
   inventory: { style: {}, dataset: { pageKey: 'inventory' } },
@@ -4492,15 +4523,17 @@ const context = {
     getElementById(id) { return id === 'sb-nav-stocktake' ? elements.stocktake : id === 'save-bar' ? elements.save : null; },
   },
   currentUser: null,
-  currentTab: 'stocktake',
+  appState: { currentTab: 'stocktake' },
   renderSidebarUser() {},
   checkReminder() {},
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/auth.js', 'utf8'), context);
+// 頁面可用性在 core/session.js；applyRoleView / applyPageVisibility 由 auth.js 搬到 features/shell/app.js（issue #39）
+vm.runInContext(moduleScript('core/session.js'), context);
+for (const name of ['applyPageVisibility', 'applyRoleView']) vm.runInContext(extractFunction(read('static/js/features/shell/app.js'), name), context);
 function apply(visible, permissions) {
   context.currentUser = { visible_pages: visible, permissions };
-  context.currentTab = 'stocktake';
+  context.appState.currentTab = 'stocktake';
   Object.values(elements).forEach((el) => { el.style.display = ''; });
   context.applyRoleView(context.currentUser);
 }
@@ -4511,13 +4544,14 @@ if (context.canAccessPage('stocktake')) throw new Error('hidden stocktake report
 // F2/F3: visible but unauthorized stocktake must not be selected as fallback.
 apply(['stocktake', 'calendar'], { view: false, stocktake: false, 'cal-mgmt': true });
 if (context.resolveAccessiblePageTab('stocktake') !== 'calendar') throw new Error('fallback did not choose calendar');
-if (context.currentTab !== 'calendar') throw new Error('currentTab did not fallback to calendar');
+if (context.appState.currentTab !== 'calendar') throw new Error('currentTab did not fallback to calendar');
 // F3: when inventory is the first accessible tab, hidden stocktake falls back there.
 apply(['stocktake', 'inventory'], { view: true, stocktake: false });
-if (context.currentTab !== 'inventory') throw new Error('fallback did not choose inventory');
+if (context.appState.currentTab !== 'inventory') throw new Error('fallback did not choose inventory');
 // F2: reminder is hidden when stocktake operation is unavailable, even after the date threshold.
 context.localStorage = { getItem() { return null; } };
-vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
+{ const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
+vm.runInContext(moduleScript('core/notifications.js'), context);
 if (context.getStocktakeReminderState().visible) throw new Error('inaccessible stocktake reminder remained visible');
 """
 
@@ -4551,18 +4585,19 @@ def test_work_progress_frontend_is_independent_and_mounted():
     app = read(APP_JS)
     api = read(API_JS)
     globals_js = read(GLOBALS_JS)
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     assert 'id="sb-nav-work-progress"' in index
     assert "switchTab('work-progress')" in index
-    assert 'src="/static/js/render/work-progress.js"' in index
+    assert {"features/work-progress/page.js", "features/work-progress/upload.js", "features/work-progress/history.js",
+            "features/work-progress/detail.js", "features/work-progress/gallery.js"} <= page_modules(INDEX)
     assert 'href="/static/css/4-pages/work-progress.css"' in index
     assert "'work-progress':'每日工作進度回報'" in app
     assert "renderWorkProgress" in app
     assert "'work-progress': 'wpr-content'" in app
     assert "ITEMLESS_TABS" in globals_js
     assert "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals_js
-    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)" in api
+    assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)" in api
     assert "function mountPreservedTabAfterBootstrap()" in app and "mountPreservedTabAfterBootstrap();" in app
     assert "/api/work-progress" in js
     assert "wprSelectedFiles = []" in js
@@ -4579,9 +4614,9 @@ def test_work_progress_frontend_is_independent_and_mounted():
 
 def test_work_progress_frontend_permission_and_workflow_contract():
     """工作進度 UI 以 view/edit/delete flags 與 appointment 狀態驅動。"""
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
-    auth = read(os.path.join(STATIC, "js", "auth.js"))
+    auth = read(js_modules("core/session.js", "features/shell/app.js"))
     assert "perms['work-progress-view']" in auth
     assert "can_edit" in js and "can_delete" in js
     assert "已回報" in js and "查看工作進度" in js
@@ -4626,7 +4661,7 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "method:'POST'" in js
     assert "確定刪除選取的" in js
     assert "async function wprReloadAndReopenDetail(id, page, targetId)" in js
-    assert "await wprReloadAndReopenDetail(id, wprHistoryPage, targetId)" in js
+    assert "await wprReloadAndReopenDetail(id, workProgressState.wprHistoryPage, targetId)" in js
     assert "await wprReloadAndReopenDetail(id, 1, targetId)" in js
     assert "wprEditReport" in js
     assert "uploader_name" in js
@@ -4655,7 +4690,7 @@ def test_work_progress_frontend_permission_and_workflow_contract():
 
 def test_work_progress_frontend_create_permission_gates_form_but_preserves_view():
     """view 可用但 create 不可用時只顯示檢視提示，history/KPI 流程仍保留。"""
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     assert "work-progress-create" in js
@@ -4669,7 +4704,7 @@ def test_work_progress_frontend_create_permission_gates_form_but_preserves_view(
 
 
 def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity():
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     assert "async function wprReloadAndReopenDetail(id, page, targetId)" in js
     helper = js.split("async function wprReloadAndReopenDetail(id, page, targetId)", 1)[1].split(
         "function wprHistoryCard", 1
@@ -4679,7 +4714,7 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
     assert "item.open = true" in helper
     assert "wprSuppressHistoryToggle[id] = true" in helper
     assert "await wprOpenHistoryDetail(id, resolvedTargetId)" in helper
-    assert "!wprSuppressHistoryToggle[" in js
+    assert "!workProgressState.wprSuppressHistoryToggle[" in js
 
     edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
         "async function wprBatchDeletePhotos", 1
@@ -4700,10 +4735,12 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
 
 
 def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
+    # issue #39：原檔中 wprBatchDeletePhotos 位於 wprEditReport 之前，舊切法實際取到「檔案其餘部分」；
+    # 拆檔後改以 detail.js 中緊接的 wprAddExistingPhotos 為界，只檢查編輯 dialog 本身
     edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
-        "async function wprBatchDeletePhotos", 1
+        "function wprAddExistingPhotos", 1
     )[0]
     assert "wpr-edit-readonly-section" in edit_block
     for label in ("工作日期", "時間", "客戶 / 案場", "地址", "指定服務", "行事曆備註"):
@@ -4726,7 +4763,7 @@ def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
 
 
 def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_readonly_contract():
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
@@ -4748,7 +4785,7 @@ def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_reado
 
 
 def test_work_progress_frontend_create_section_order_and_field_grouping():
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     positions = {
         "date": render_block.index('id="wpr-date"'),
@@ -4775,19 +4812,20 @@ def test_work_progress_frontend_create_section_order_and_field_grouping():
 
 
 def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     app = read(APP_JS)
     submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi", 1)[0]
     select_block = js.split("async function wprSelectJob(id)", 1)[1].split("function wprUpdateNoteCount", 1)[0]
     photo_block = js.split("function wprValidatePhotoBatch", 1)[1].split("function wprUpdatePendingPhotoControls", 1)[0]
-    pending_gallery_block = js.split("function wprOpenPendingGallery", 1)[1].split("function wprRequestLeave", 1)[0]
+    # 待上傳照片檢視器 4 個函式（issue #39 拆到 gallery.js，原檔緊接其後的 wprRequestLeave 已移到 draft.js）
+    pending_gallery_block = js.split("function wprOpenPendingGallery", 1)[1].split("function wprCreateGalleryPreloadState", 1)[0]
     existing_block = js.split("function wprAddExistingPhotos", 1)[1].split("async function wprDeleteReport", 1)[0]
     dirty_block = js.split("function wprHasUnsavedChanges", 1)[1].split("function wprInstallBeforeUnload", 1)[0]
 
     assert "wprOpenSubmitConfirmation(snapshot)" in submit_block
-    assert "!wprSelectedFiles.length" not in submit_block
+    assert "!workProgressState.wprSelectedFiles.length" not in submit_block
     assert "save.disabled = false;" in select_block
     assert "apiFetch('/api/work-progress'" not in submit_block
     assert "form.append('uploader_name', snapshot.uploaderName)" in confirm_block
@@ -4811,10 +4849,11 @@ def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
     assert "report.photo_count" in existing_block
     assert '施工照片 <b>*</b>' not in js
     assert "首次回報至少 1 張照片" not in js
-    assert "wprSelectedFiles.length === 0" not in js
+    assert "workProgressState.wprSelectedFiles.length === 0" not in js
     assert "image/*" not in js
 
-    for marker in ("wprCurrentReport && !wprCurrentReport.id && wprCurrentReport.appointment_id", "note.value.trim()", "wprInitialUploaderName", "wprSelectedFiles.length"):
+    for marker in ("workProgressState.wprCurrentReport && !workProgressState.wprCurrentReport.id && workProgressState.wprCurrentReport.appointment_id",
+                   "note.value.trim()", "wprInitialUploaderName", "wprSelectedFiles.length"):
         assert marker in dirty_block
     assert "wprHandleDateChange" in js
     assert "wprRequestDraftReset(function() { wprSelectJob(id); })" in js
@@ -4832,7 +4871,7 @@ def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
 
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     """工作進度前端鎖定 report identity、分頁、Object URL lifecycle 與 loader freshness。"""
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     globals_js = read(GLOBALS_JS)
     select_block = js.split("async function wprSelectJob(id)", 1)[1].split(
         "function wprUpdateNoteCount", 1
@@ -4845,8 +4884,8 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "wprHistoryTotal" in globals_js
     assert "page_size: String(wprHistoryPageSize)" in js
     assert "wprRenderHistoryPagination" in js
-    assert "wprLoadHistory(wprHistoryPage - 1)" in js
-    assert "wprLoadHistory(wprHistoryPage + 1)" in js
+    assert "WorkProgress.wprLoadHistory(' + (workProgressState.wprHistoryPage - 1) + ')" in js
+    assert "WorkProgress.wprLoadHistory(' + (workProgressState.wprHistoryPage + 1) + ')" in js
     assert "wprLoadHistory(1)" in js
 
     add_block = js.split("function wprAddPendingFiles", 1)[1].split(
@@ -4865,12 +4904,12 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "wprKpiRequestToken" in globals_js
     assert "wprDetailRequestTokens" in globals_js
     assert "wprSelectRequestToken" in globals_js
-    assert "++wprSelectRequestToken" in js
-    assert "token !== wprSelectRequestToken" in js
+    assert "++workProgressState.wprSelectRequestToken" in js
+    assert "token !== workProgressState.wprSelectRequestToken" in js
     assert "var report =" in select_block
     assert "wprCurrentReport = report;" in select_block
-    assert "wprCurrentReport = await apiFetch('/api/work-progress/' + existing.id)" not in select_block
-    guard_pos = select_block.index("if (token !== wprSelectRequestToken) return;")
+    assert "workProgressState.wprCurrentReport = await apiFetch('/api/work-progress/' + existing.id)" not in select_block
+    guard_pos = select_block.index("if (token !== workProgressState.wprSelectRequestToken) return;")
     assignment_pos = select_block.index("wprCurrentReport = report;")
     assert guard_pos < assignment_pos
 
@@ -4878,7 +4917,7 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     switch_block = app_js.split("function switchTab(tab)", 1)[1].split(
         "function checkReminder", 1
     )[0]
-    assert "var previousTab = currentTab;" in switch_block
+    assert "var previousTab = appState.currentTab;" in switch_block
     assert "previousTab === 'work-progress'" in switch_block
     assert "tab !== 'work-progress'" in switch_block
     assert "wprClearPendingFiles" in switch_block
@@ -4890,7 +4929,7 @@ def test_frontend_async_lifecycle_contracts():
     stockout = read(STOCKOUT_RENDER_JS)
     stockout_render = stockout.split("async function renderStockOuts()", 1)[1].split("// 分組：按日", 1)[0]
     assert "var stockoutRenderRequestSeq" in stockout
-    assert "const siteAtRequest = currentSite" in stockout_render
+    assert "const siteAtRequest = appState.currentSite" in stockout_render
     assert "currentTab === 'stockout'" in stockout_render
     assert "encodeURIComponent(siteAtRequest)" in stockout_render
     assert stockout_render.count("if (!isCurrent()) return;") >= 3
@@ -4898,9 +4937,9 @@ def test_frontend_async_lifecycle_contracts():
     stocktake = read(STOCKTAKE_JS)
     stocktake_render = stocktake.split("async function renderStocktake()", 1)[1].split("// ========== 盤點輸入表", 1)[0]
     assert "var stocktakeRenderRequestSeq" in stocktake
-    assert "const siteAtRequest = currentSite" in stocktake_render
+    assert "const siteAtRequest = appState.currentSite" in stocktake_render
     assert stocktake_render.count("encodeURIComponent(siteAtRequest)") == 2
-    assert "currentSite)}`" not in stocktake_render
+    assert "appState.currentSite)}`" not in stocktake_render
     assert stocktake_render.count("if (!isCurrent()) return;") >= 6
 
     # 簽名報表 / 報價單上傳共用 upload-list.js（issue #39）：掛載世代與請求序號在元件 state，頁面只提供 isActive / api
@@ -4931,7 +4970,7 @@ def test_frontend_async_lifecycle_contracts():
 def test_work_progress_uploads_report_progress():
     """2026-09 A5：新增工作進度與追加照片都走 wprUploadWithProgress（XHR upload.onprogress），
     不再用 fetch 一次送出而只顯示「儲存中…」。runtime 行為見 work_progress_upload_progress.test.js。"""
-    js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
     helper = js.split("function wprUploadWithProgress", 1)[1].split("function wprCurrentUserName", 1)[0]
     assert "xhr.upload.onprogress" in helper
     assert "xhr.upload.onload" in helper
@@ -4955,7 +4994,7 @@ def test_page_scope_contract():
     for page, scope in (("settings.html", "settings"), ("permissions.html", "permissions"), ("login.html", "login")):
         assert f'<body data-page="{scope}">' in read(os.path.join(STATIC, page))
 
-    app = read(os.path.join(STATIC, "js", "app.js"))
+    app = read(os.path.join(STATIC, "js", "features", "shell", "app.js"))
     fn = app[app.index("function setPageScope(page)"):app.index("function switchTab(tab)")]
     assert "document.body.dataset.page = page" in fn
     # 每次都依對照表重設全部舊 class（不能只 toggle 部分 → 上一頁殘留）
@@ -4964,7 +5003,7 @@ def test_page_scope_contract():
     switch = app[app.index("function switchTab(tab)"):app.index("function switchTab(tab)") + 3000]
     assert "setPageScope(tab);" in switch
     assert "content.classList.toggle(" not in switch, "頁面 class 只能由 setPageScope 管理"
-    quote = read(os.path.join(STATIC, "js", "render", "quotation.js"))
+    quote = read(os.path.join(STATIC, "js", "features", "quotation", "page.js"))
     assert "setPageScope(mode === 'upload' ? 'quotation-upload' : 'quotation');" in quote
     assert "quotation-upload-content" not in quote
 
@@ -4975,8 +5014,8 @@ def test_full_load_completion_does_not_remount_preserved_tabs():
     api = read(API_JS)
     start = api.index("const items = await apiFetch(")
     body = api[start:api.index("loadPreparedBadge();", start)]
-    assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)) switchTab(currentTab);" in body
-    assert "\n    switchTab(currentTab);" not in body
+    assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) switchTab(appState.currentTab);" in body
+    assert "\n    switchTab(appState.currentTab);" not in body
 
 
 def test_inventory_page_load_does_not_render_after_tab_left():
@@ -4985,4 +5024,4 @@ def test_inventory_page_load_does_not_render_after_tab_left():
     api = read(API_JS)
     body = api[api.index("async function loadInventoryPageImpl"):]
     body = body[body.index("await updateSubInfo();"):body.index("renderInventory();")]
-    assert "if (requestId !== inventoryRequestSeq || currentTab !== 'inventory') return;" in body
+    assert "if (requestId !== appState.inventoryRequestSeq || appState.currentTab !== 'inventory') return;" in body

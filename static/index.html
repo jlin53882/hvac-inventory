@@ -50,7 +50,7 @@
 <body>
 
 <!-- Sidebar Overlay (mobile) -->
-<div class="sidebar-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
+<div class="sidebar-overlay" id="sbOverlay" onclick="App.closeSidebar()"></div>
 
 <!-- Left Sidebar (desktop fixed / mobile drawer) -->
 <div class="sidebar" id="sidebar">
@@ -65,16 +65,16 @@
   </div>
   <div class="sidebar-nav">
     <div class="nav-section">主要功能</div>
-    <a class="sb-nav-link is-active" data-role="sidebar-nav-link" id="sb-nav-calendar" data-page-key="calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-work-progress" data-page-key="work-progress" onclick="switchTab('work-progress')"><span class="ic">📸</span>每日工作進度回報</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-signed-reports" data-page-key="signed-reports" onclick="switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-quotation" data-page-key="quotation" onclick="switchTab('quotation')"><span class="ic">🧾</span>報價單</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-petty-cash" data-page-key="petty-cash" onclick="switchTab('petty-cash')"><span class="ic">🪙</span>零用金月報</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-inventory" data-page-key="inventory" onclick="switchTab('inventory')"><span class="ic">📦</span>單一庫存</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-prepared" data-page-key="prepared" onclick="switchTab('prepared')"><span class="ic">📤</span>待領出<span class="badge" id="sb-prepared-badge" style="display:none">0</span></a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-stockout" data-page-key="stockout" onclick="switchTab('stockout')"><span class="ic">🚚</span>已領出</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-stocktake" data-page-key="stocktake" onclick="switchTab('stocktake')"><span class="ic">📋</span>盤點</a>
-    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-kit" data-page-key="kit" onclick="switchTab('kit')"><span class="ic">🔧</span>整組庫存</a>
+    <a class="sb-nav-link is-active" data-role="sidebar-nav-link" id="sb-nav-calendar" data-page-key="calendar" onclick="App.switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-work-progress" data-page-key="work-progress" onclick="App.switchTab('work-progress')"><span class="ic">📸</span>每日工作進度回報</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-signed-reports" data-page-key="signed-reports" onclick="App.switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-quotation" data-page-key="quotation" onclick="App.switchTab('quotation')"><span class="ic">🧾</span>報價單</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-petty-cash" data-page-key="petty-cash" onclick="App.switchTab('petty-cash')"><span class="ic">🪙</span>零用金月報</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-inventory" data-page-key="inventory" onclick="App.switchTab('inventory')"><span class="ic">📦</span>單一庫存</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-prepared" data-page-key="prepared" onclick="App.switchTab('prepared')"><span class="ic">📤</span>待領出<span class="badge" id="sb-prepared-badge" style="display:none">0</span></a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-stockout" data-page-key="stockout" onclick="App.switchTab('stockout')"><span class="ic">🚚</span>已領出</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-stocktake" data-page-key="stocktake" onclick="App.switchTab('stocktake')"><span class="ic">📋</span>盤點</a>
+    <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-kit" data-page-key="kit" onclick="App.switchTab('kit')"><span class="ic">🔧</span>整組庫存</a>
     <div class="nav-section">管理</div>
     <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-perms" data-page-key="perms" href="/permissions.html"><span class="ic">👥</span>帳號與權限</a>
     <a class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-settings" data-page-key="settings" href="/settings.html"><span class="ic">⚙️</span>系統設定</a>
@@ -91,29 +91,29 @@
 <div class="main" data-role="app-main">
   <!-- Header -->
   <div class="header">
-    <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="選單">☰</button>
+    <button class="hamburger" id="hamburger" onclick="App.toggleSidebar()" aria-label="選單">☰</button>
     <div class="breadcrumb" id="breadcrumb">📅 <b>行事曆</b></div>
     <div class="h-search" data-role="header-search">
       <input type="search" id="search-input" placeholder="搜尋品項、品牌、位置" autocomplete="new-password" autocapitalize="off" spellcheck="false">
     </div>
     <div class="h-right">
       <div class="h-site" data-role="header-site">
-        <button class="chip chip--seg is-active" id="site-office" onclick="switchSite('office')">🏢 公司</button>
-        <button class="chip chip--seg" id="site-warehouse" onclick="switchSite('warehouse')">🏭 倉庫</button>
-        <button class="chip chip--seg" id="site-van" onclick="switchSite('van')">🚐 廂型車</button>
-        <button class="chip chip--seg" id="site-truck" onclick="switchSite('truck')">🚚 貨車</button>
+        <button class="chip chip--seg is-active" id="site-office" onclick="App.switchSite('office')">🏢 公司</button>
+        <button class="chip chip--seg" id="site-warehouse" onclick="App.switchSite('warehouse')">🏭 倉庫</button>
+        <button class="chip chip--seg" id="site-van" onclick="App.switchSite('van')">🚐 廂型車</button>
+        <button class="chip chip--seg" id="site-truck" onclick="App.switchSite('truck')">🚚 貨車</button>
       </div>
       <div class="user-menu" id="userMenu" style="display:none"></div>
-      <button type="button" class="notif" data-role="notif" id="notif-bell" onclick="toggleNotif()" aria-label="通知" aria-expanded="false" aria-controls="notifPanel">🔔<span class="cnt" data-role="notif-count" id="notif-badge" aria-hidden="true">0</span></button>
+      <button type="button" class="notif" data-role="notif" id="notif-bell" onclick="Notifications.toggleNotif()" aria-label="通知" aria-expanded="false" aria-controls="notifPanel">🔔<span class="cnt" data-role="notif-count" id="notif-badge" aria-hidden="true">0</span></button>
       <div class="avatar-dropdown" id="avatarDropdown">
-        <div class="h-av" id="h-av" onclick="toggleAvatarMenu()">—</div>
+        <div class="h-av" id="h-av" onclick="App.toggleAvatarMenu()">—</div>
         <div class="avatar-menu" id="avatarMenu">
           <div class="avatar-menu-header" id="avatarMenuHeader">👤 —</div>
           <a class="avatar-menu-item" data-page-key="perms" href="/permissions.html">👥 帳號與權限</a>
           <a class="avatar-menu-item" data-page-key="settings" href="/settings.html">⚙️ 設定</a>
-          <a class="avatar-menu-item" data-page-key="change-password" onclick="openChangePwModal()">🔑 修改密碼</a>
+          <a class="avatar-menu-item" data-page-key="change-password" onclick="Account.openChangePwModal()">🔑 修改密碼</a>
           <div class="avatar-menu-divider"></div>
-          <a class="avatar-menu-item" onclick="logout()">🚪 登出</a>
+          <a class="avatar-menu-item" onclick="Auth.logout()">🚪 登出</a>
         </div>
       </div>
     </div>
@@ -130,7 +130,7 @@
   <div class="notif-panel" data-role="notif-panel" id="notifPanel" role="dialog" aria-labelledby="notif-title" aria-hidden="true">
     <div class="notif-panel-header">
       <div><h2 id="notif-title">🔔 通知</h2><p id="notif-summary">目前沒有需要注意的事項</p></div>
-      <button type="button" class="notif-close" onclick="closeNotif()" aria-label="關閉通知">✕</button>
+      <button type="button" class="notif-close" onclick="Notifications.closeNotif()" aria-label="關閉通知">✕</button>
     </div>
     <div id="notif-list" class="notif-list" aria-live="polite"></div>
   </div>
@@ -139,7 +139,7 @@
   <!-- 每月25日盤點提醒 -->
   <div class="reminder" id="reminder" style="display:none">
     <span>📋 今天是 <b id="today-str"></b>，每月盤點日！請完成庫存盤點</span>
-    <button class="btn btn--primary btn--sm" onclick="switchTab('stocktake')">開始盤點</button>
+    <button class="btn btn--primary btn--sm" onclick="App.switchTab('stocktake')">開始盤點</button>
   </div>
 
   <!-- 篩選面板（品牌+分類 chips） -->
@@ -148,19 +148,19 @@
     <div class="filter-section">
       <div class="filter-label">
         <div class="left">🏷️ 品牌 <span class="count" id="fp-brand-count"></span></div>
-        <button class="toggle-btn" id="fp-brand-toggle" onclick="toggleFilterCollapse('fp-brand-chips','fp-brand-toggle')">展開 ▼</button>
+        <button class="toggle-btn" id="fp-brand-toggle" onclick="Inventory.toggleFilterCollapse('fp-brand-chips','fp-brand-toggle')">展開 ▼</button>
       </div>
       <div class="filter-chips is-collapsed" id="fp-brand-chips"></div>
     </div>
     <div class="filter-section">
       <div class="filter-label">
         <div class="left">📦 項目分類 <span class="count" id="fp-cat-count"></span></div>
-        <button class="toggle-btn" id="fp-cat-toggle" onclick="toggleFilterCollapse('fp-cat-chips','fp-cat-toggle')">展開 ▼</button>
+        <button class="toggle-btn" id="fp-cat-toggle" onclick="Inventory.toggleFilterCollapse('fp-cat-chips','fp-cat-toggle')">展開 ▼</button>
       </div>
       <div class="filter-chips is-collapsed" id="fp-cat-chips"></div>
     </div>
     <div class="u-d-flex u-jc-space-between u-ai-center u-mt-8">
-      <button class="btn btn--secondary btn--sm" onclick="clearFilterPanel()">清除篩選</button>
+      <button class="btn btn--secondary btn--sm" onclick="Inventory.clearFilterPanel()">清除篩選</button>
       <div class="filter-summary" id="fp-summary"></div>
     </div>
   </div>
@@ -171,7 +171,7 @@
 </div>
 
 <!-- 單一庫存低庫存 / 缺貨清單 Modal（資料由目前篩選結果動態產生） -->
-<div class="modal-overlay inventory-status-modal" data-role="modal" id="inventory-status-modal" aria-hidden="true" onclick="if(event.target===this) closeInventoryStatusModal()">
+<div class="modal-overlay inventory-status-modal" data-role="modal" id="inventory-status-modal" aria-hidden="true" onclick="if(event.target===this) Inventory.closeInventoryStatusModal()">
   <div class="inventory-status-dialog" role="dialog" aria-modal="true" aria-labelledby="inventory-status-modal-title">
     <div id="inventory-status-modal-body"></div>
   </div>
@@ -180,7 +180,7 @@
 <!-- 儲存列 -->
 <div class="save-bar" id="save-bar">
   <div class="stat">修改 <b id="pending-count">0</b> 項</div>
-  <button class="btn btn--primary btn--md btn-save" id="btn-save" onclick="saveAll()">💾 全部儲存</button>
+  <button class="btn btn--primary btn--md btn-save" id="btn-save" onclick="Inventory.saveAll()">💾 全部儲存</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -198,8 +198,8 @@
     <input type="text" class="batch-sub-input" id="batch-sub" placeholder="位置（選填）" list="location-list">
   </div>
   <div class="batch-bar-btns">
-    <button class="btn btn--secondary btn--md btn-cancel" onclick="cancelBatch()">取消</button>
-    <button class="btn btn--primary btn--md btn-confirm" id="batch-confirm" disabled onclick="showBatchConfirm()">確認修改</button>
+    <button class="btn btn--secondary btn--md btn-cancel" onclick="Inventory.cancelBatch()">取消</button>
+    <button class="btn btn--primary btn--md btn-confirm" id="batch-confirm" disabled onclick="Inventory.showBatchConfirm()">確認修改</button>
   </div>
 </div>
 
@@ -212,8 +212,8 @@
     </p>
     <div class="modal-items u-bg-surface-2 u-r-md u-p-10 u-maxh-200 u-oy-auto u-mb-12" id="batch-confirm-items"></div>
     <div class="modal-actions u-d-flex u-gap-8">
-      <button class="btn btn--secondary btn--md btn-cancel u-flex-1" onclick="closeBatchConfirm()">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm u-flex-1" onclick="submitBatchLocation()">✅ 確認修改</button>
+      <button class="btn btn--secondary btn--md btn-cancel u-flex-1" onclick="Inventory.closeBatchConfirm()">取消</button>
+      <button class="btn btn--primary btn--md btn-confirm u-flex-1" onclick="Inventory.submitBatchLocation()">✅ 確認修改</button>
     </div>
   </div>
 </div>
@@ -259,9 +259,9 @@
       </div>
       <div class="form-row">
         <label>單位</label>
-        <input type="search" id="f-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'f-unit')">
+        <input type="search" id="f-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="Core.filterUnitSelect(this, 'f-unit')">
         <select id="f-unit"></select>
-        <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="f-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('f-unit'), this)">＋ 新增單位</button>
+        <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="f-unit-add" style="display:none" onclick="Core.openUnitQuickAdd(document.getElementById('f-unit'), this)">＋ 新增單位</button>
       </div>
     </div>
     <div class="form-row">
@@ -274,7 +274,7 @@
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="add-stock-rows"></div>
-      <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="addAddStockRow()">＋ 新增位置</button>
+      <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="Inventory.addAddStockRow()">＋ 新增位置</button>
     </div>
     <div class="form-row">
       <label>分類（選填）</label>
@@ -295,8 +295,8 @@
       <div class="photo-box" id="f-photo-box"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('add-modal')">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm" onclick="submitAdd()">確認新增</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('add-modal')">取消</button>
+      <button class="btn btn--primary btn--md btn-confirm" onclick="Inventory.submitAdd()">確認新增</button>
     </div>
   </div>
 </div>
@@ -327,9 +327,9 @@
     <div class="form-2col">
       <div class="form-row">
         <label>單位</label>
-        <input type="search" id="e-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'e-unit')">
+        <input type="search" id="e-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="Core.filterUnitSelect(this, 'e-unit')">
         <select id="e-unit"></select>
-        <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="e-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('e-unit'), this)">＋ 新增單位</button>
+        <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="e-unit-add" style="display:none" onclick="Core.openUnitQuickAdd(document.getElementById('e-unit'), this)">＋ 新增單位</button>
       </div>
       <div class="form-row">
         <label>低庫存警示值</label>
@@ -372,11 +372,11 @@
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="edit-stock-rows"></div>
-      <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="addEditStockRow()">＋ 新增位置</button>
+      <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="Inventory.addEditStockRow()">＋ 新增位置</button>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('edit-modal')">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm" onclick="submitEdit()">💾 儲存</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('edit-modal')">取消</button>
+      <button class="btn btn--primary btn--md btn-confirm" onclick="Inventory.submitEdit()">💾 儲存</button>
     </div>
   </div>
 </div>
@@ -388,7 +388,7 @@
     <p id="stock-location-description" class="stock-adjust-description"></p>
     <div id="stock-location-options" class="stock-adjust-location-list"></div>
     <div class="modal-actions">
-      <button type="button" class="btn btn--secondary btn--md btn-cancel" onclick="cancelStockLocationPicker()">取消</button>
+      <button type="button" class="btn btn--secondary btn--md btn-cancel" onclick="Inventory.cancelStockLocationPicker()">取消</button>
     </div>
   </div>
 </div>
@@ -404,16 +404,16 @@
       <input type="text" id="kit-prepare-note" placeholder="準備說明（選填）">
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('kit-prepare-modal')">取消</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('kit-prepare-modal')">取消</button>
       <button class="btn btn--primary btn--md btn-confirm" id="kit-prepare-submit">📤 確認領出整組</button>
     </div>
   </div>
 </div>
 
 <!-- 整組庫存 Excel 匯出 Dialog (2026-09-27) -->
-<div class="modal-overlay inventory-export-dialog" data-role="modal" id="kit-export-dialog" aria-hidden="true" onclick="if(event.target===this) closeKitExportDialog()">
+<div class="modal-overlay inventory-export-dialog" data-role="modal" id="kit-export-dialog" aria-hidden="true" onclick="if(event.target===this) Kits.closeKitExportDialog()">
   <div class="modal inventory-export-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="kit-export-title">
-    <div class="inventory-export-dialog__header"><h3 id="kit-export-title">📊 匯出整組報表</h3><button type="button" class="inventory-export-dialog__close" onclick="closeKitExportDialog()" aria-label="關閉">✕</button></div>
+    <div class="inventory-export-dialog__header"><h3 id="kit-export-title">📊 匯出整組報表</h3><button type="button" class="inventory-export-dialog__close" onclick="Kits.closeKitExportDialog()" aria-label="關閉">✕</button></div>
     <div class="inventory-export-section"><strong>報表期間</strong>
       <label class="inventory-export-period-choice"><input type="radio" id="kit-export-month-mode" name="kit-export-period" onchange="document.getElementById('kit-export-month-fields').hidden=false;document.getElementById('kit-export-custom-fields').hidden=true">月份</label>
       <div class="inventory-export-period-fields" id="kit-export-month-fields"><input id="kit-export-year" type="number" min="2000" max="2100" aria-label="年份"> 年 <select id="kit-export-month" aria-label="月份"></select> 月</div>
@@ -421,21 +421,21 @@
       <div class="inventory-export-period-fields" id="kit-export-custom-fields" hidden><input id="kit-export-start" type="date" aria-label="開始日期"> ～ <input id="kit-export-end" type="date" aria-label="結束日期"></div>
     </div>
     <div class="inventory-export-section"><strong>匯出內容</strong><div class="inventory-export-content-list" id="kit-export-content"><label><input type="checkbox" data-section="overview">總覽</label><label><input type="checkbox" data-section="inventory" checked>庫存總表</label><label><input type="checkbox" data-section="positions" checked>位置明細</label><label><input type="checkbox" data-section="components">組成材料</label><label><input type="checkbox" data-section="alerts">庫存警示</label><label><input type="checkbox" data-section="movements" checked>異動紀錄</label></div><p class="inventory-export-note">ℹ️ 位置明細含庫存位置與建議存放位置；整組報表只含組裝/拆解異動。</p></div>
-    <div class="modal-actions inventory-export-dialog__footer"><button class="btn btn--secondary btn--md btn-cancel" onclick="closeKitExportDialog()">取消</button><button class="btn btn--primary btn--md btn-confirm" id="kit-export-submit" onclick="submitKitExport()">匯出報表</button></div>
+    <div class="modal-actions inventory-export-dialog__footer"><button class="btn btn--secondary btn--md btn-cancel" onclick="Kits.closeKitExportDialog()">取消</button><button class="btn btn--primary btn--md btn-confirm" id="kit-export-submit" onclick="Kits.submitKitExport()">匯出報表</button></div>
   </div>
 </div>
 
 <!-- 已領出 Excel 匯出 Dialog (2026-09-27) -->
-<div class="modal-overlay inventory-export-dialog" data-role="modal" id="stockout-export-dialog" aria-hidden="true" onclick="if(event.target===this) closeStockoutExportDialog()">
+<div class="modal-overlay inventory-export-dialog" data-role="modal" id="stockout-export-dialog" aria-hidden="true" onclick="if(event.target===this) Stockout.closeStockoutExportDialog()">
   <div class="modal inventory-export-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="stockout-export-title">
-    <div class="inventory-export-dialog__header"><h3 id="stockout-export-title">📊 匯出已領出報表</h3><button type="button" class="inventory-export-dialog__close" onclick="closeStockoutExportDialog()" aria-label="關閉">✕</button></div>
+    <div class="inventory-export-dialog__header"><h3 id="stockout-export-title">📊 匯出已領出報表</h3><button type="button" class="inventory-export-dialog__close" onclick="Stockout.closeStockoutExportDialog()" aria-label="關閉">✕</button></div>
     <div class="inventory-export-section"><strong>報表期間</strong>
       <label class="inventory-export-period-choice"><input type="radio" id="stockout-export-month-mode" name="stockout-export-period" onchange="document.getElementById('stockout-export-month-fields').hidden=false;document.getElementById('stockout-export-custom-fields').hidden=true">月份</label>
       <div class="inventory-export-period-fields" id="stockout-export-month-fields"><input id="stockout-export-year" type="number" min="2000" max="2100" aria-label="年份"> 年 <select id="stockout-export-month" aria-label="月份"></select> 月</div>
       <label class="inventory-export-period-choice"><input type="radio" id="stockout-export-custom-mode" name="stockout-export-period" onchange="document.getElementById('stockout-export-month-fields').hidden=true;document.getElementById('stockout-export-custom-fields').hidden=false">自訂日期</label>
       <div class="inventory-export-period-fields" id="stockout-export-custom-fields" hidden><input id="stockout-export-start" type="date" aria-label="開始日期"> ～ <input id="stockout-export-end" type="date" aria-label="結束日期"></div>
     </div>
-    <div class="modal-actions inventory-export-dialog__footer"><button class="btn btn--secondary btn--md btn-cancel" onclick="closeStockoutExportDialog()">取消</button><button class="btn btn--primary btn--md btn-confirm" id="stockout-export-submit" onclick="submitStockoutExport()">匯出報表</button></div>
+    <div class="modal-actions inventory-export-dialog__footer"><button class="btn btn--secondary btn--md btn-cancel" onclick="Stockout.closeStockoutExportDialog()">取消</button><button class="btn btn--primary btn--md btn-confirm" id="stockout-export-submit" onclick="Stockout.submitStockoutExport()">匯出報表</button></div>
   </div>
 </div>
 
@@ -472,8 +472,8 @@
       <input type="text" id="pe-dest" placeholder="領出準備說明（選填）">
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('prepared-edit-modal')">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm" id="prepared-edit-submit" onclick="submitPreparedEdit()">💾 儲存</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('prepared-edit-modal')">取消</button>
+      <button class="btn btn--primary btn--md btn-confirm" id="prepared-edit-submit" onclick="Stockout.submitPreparedEdit()">💾 儲存</button>
     </div>
   </div>
 </div>
@@ -509,8 +509,8 @@
       <textarea id="o-note" placeholder="例如：安裝、維修、報廢…"></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('out-modal')">取消</button>
-      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="submitStockOut()">🚚 確認已領出</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('out-modal')">取消</button>
+      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="Stockout.submitStockOut()">🚚 確認已領出</button>
     </div>
   </div>
 </div>
@@ -530,9 +530,9 @@
     </div>
     <div class="form-row">
       <label>單位</label>
-      <input type="search" id="ns-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'ns-unit')">
+      <input type="search" id="ns-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="Core.filterUnitSelect(this, 'ns-unit')">
       <select id="ns-unit"></select>
-      <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="ns-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('ns-unit'), this)">＋ 新增單位</button>
+      <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="ns-unit-add" style="display:none" onclick="Core.openUnitQuickAdd(document.getElementById('ns-unit'), this)">＋ 新增單位</button>
     </div>
     <div class="form-row">
       <label>領出數量 *</label>
@@ -547,8 +547,8 @@
       <textarea id="ns-note" placeholder="例如：安裝、維修…"></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('nonstock-out-modal')">取消</button>
-      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="submitNonStockOut()">🚚 確認已領出</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('nonstock-out-modal')">取消</button>
+      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="Stockout.submitNonStockOut()">🚚 確認已領出</button>
     </div>
   </div>
 </div>
@@ -568,9 +568,9 @@
     </div>
     <div class="form-row">
       <label>單位</label>
-      <input type="search" id="nsp-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'nsp-unit')">
+      <input type="search" id="nsp-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="Core.filterUnitSelect(this, 'nsp-unit')">
       <select id="nsp-unit"></select>
-      <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="nsp-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('nsp-unit'), this)">＋ 新增單位</button>
+      <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="nsp-unit-add" style="display:none" onclick="Core.openUnitQuickAdd(document.getElementById('nsp-unit'), this)">＋ 新增單位</button>
     </div>
     <div class="form-row">
       <label>待領出數量 *</label>
@@ -581,8 +581,8 @@
       <textarea id="nsp-note" placeholder="例如：安裝、維修…"></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('nonstock-prepare-modal')">取消</button>
-      <button class="btn btn--prepare btn--solid btn--md btn-confirm" onclick="submitNonStockPrepare()">📤 確認待領出</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('nonstock-prepare-modal')">取消</button>
+      <button class="btn btn--prepare btn--solid btn--md btn-confirm" onclick="Stockout.submitNonStockPrepare()">📤 確認待領出</button>
     </div>
   </div>
 </div>
@@ -608,8 +608,8 @@
       <textarea id="p-note" placeholder="例如：今天要去維修要帶的"></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('prepare-modal')">取消</button>
-      <button class="btn btn--prepare btn--solid btn--md btn-confirm" onclick="submitPrepare()">📤 確認待領出</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('prepare-modal')">取消</button>
+      <button class="btn btn--prepare btn--solid btn--md btn-confirm" onclick="Stockout.submitPrepare()">📤 確認待領出</button>
     </div>
   </div>
 </div>
@@ -635,8 +635,8 @@
       <input type="text" id="po-dest" list="dest-list" placeholder="例如：王先生-中山路案場">
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('prepared-out-modal')">取消</button>
-      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="submitPreparedOut()">🚚 確認已領出</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('prepared-out-modal')">取消</button>
+      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="Stockout.submitPreparedOut()">🚚 確認已領出</button>
     </div>
   </div>
 </div>
@@ -677,7 +677,7 @@
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="kit-location-rows"></div>
-      <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="addKitLocationRow()">＋ 新增位置</button>
+      <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="Kits.addKitLocationRow()">＋ 新增位置</button>
     </div>
     <div class="form-row">
       <label>整組照片（選填，可手機直接拍照）</label>
@@ -686,15 +686,15 @@
     <div class="form-row">
       <label>組成材料（每組需要的數量）</label>
       <div id="kit-comps"></div>
-      <button class="btn btn--ghost btn--sm btn-add-row u-mt-0" onclick="addKitCompRow()">＋ 加入另一材料</button>
+      <button class="btn btn--ghost btn--sm btn-add-row u-mt-0" onclick="Kits.addKitCompRow()">＋ 加入另一材料</button>
     </div>
     <div class="form-row">
       <label>備註（選填）</label>
       <input type="text" id="k-note" placeholder="例如：常用於維修">
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('kit-modal')">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm" id="kit-submit" onclick="submitKit()">✅ 建立整組</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('kit-modal')">取消</button>
+      <button class="btn btn--primary btn--md btn-confirm" id="kit-submit" onclick="Kits.submitKit()">✅ 建立整組</button>
     </div>
   </div>
 </div>
@@ -720,8 +720,8 @@
       <input type="date" id="es-datetime">
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('edit-stockout-modal')">取消</button>
-      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="submitEditStockout()">💾 儲存</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('edit-stockout-modal')">取消</button>
+      <button class="btn btn--out btn--solid btn--md btn-confirm" onclick="Stockout.submitEditStockout()">💾 儲存</button>
     </div>
   </div>
 </div>
@@ -759,8 +759,8 @@
       <input type="date" id="rs-datetime">
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('return-stockout-modal')">取消</button>
-      <button class="btn btn--out btn--solid btn--md btn-confirm" id="rs-submit" onclick="submitReturnStockout()">↩️ 退回</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('return-stockout-modal')">取消</button>
+      <button class="btn btn--out btn--solid btn--md btn-confirm" id="rs-submit" onclick="Stockout.submitReturnStockout()">↩️ 退回</button>
     </div>
   </div>
 </div>
@@ -775,7 +775,7 @@
     </div>
     <div class="form-row">
       <label>新密碼</label>
-      <input type="password" id="cpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="cpwCheckStrength()">
+      <input type="password" id="cpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="Account.cpwCheckStrength()">
       <div class="pw-checks" id="cpw-checks">
         <span class="pw-check" id="cpw-len">⬜ 8 碼以上</span>
         <span class="pw-check" id="cpw-up">⬜ 含大寫</span>
@@ -785,12 +785,12 @@
     </div>
     <div class="form-row">
       <label>確認新密碼</label>
-      <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()">
+      <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="Account.cpwCheckMatch()">
       <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
     </div>
     <div class="u-d-flex u-gap-10 u-mt-6">
-      <button class="btn btn--primary btn--md btn-save u-flex-2 u-mt-0" onclick="submitChangePw()">💾 儲存新密碼</button>
-      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1 u-mt-0" onclick="closeModal('changepw-modal')">取消</button>
+      <button class="btn btn--primary btn--md btn-save u-flex-2 u-mt-0" onclick="Account.submitChangePw()">💾 儲存新密碼</button>
+      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1 u-mt-0" onclick="UI.closeModal('changepw-modal')">取消</button>
     </div>
   </div>
 </div>
@@ -802,8 +802,8 @@
     <h3 class="u-mb-8">密碼已超過 6 個月未更換</h3>
     <p class="u-fs-13 u-text-muted u-lh-1_6 u-mb-18">為了帳號安全，建議更換密碼。<br>也可以選擇繼續使用目前的密碼。</p>
     <div class="u-d-flex u-gap-10">
-      <button class="btn btn--primary btn--md btn-save u-flex-1 u-mt-0" id="expiry-change-pw" onclick="expiryGoChangePw()">🔑 立即改密碼</button>
-      <button class="btn btn--secondary btn--md btn-cancel u-flex-1 u-mt-0" id="expiry-ack" onclick="ackPasswordExpiry()">繼續使用原密碼</button>
+      <button class="btn btn--primary btn--md btn-save u-flex-1 u-mt-0" id="expiry-change-pw" onclick="Account.expiryGoChangePw()">🔑 立即改密碼</button>
+      <button class="btn btn--secondary btn--md btn-cancel u-flex-1 u-mt-0" id="expiry-ack" onclick="Account.ackPasswordExpiry()">繼續使用原密碼</button>
     </div>
     <div class="u-fs-13 u-text-danger u-lh-1_6" id="expiry-admin-only" style="display:none">密碼已過期，請聯絡管理員重設密碼。</div>
     <div class="u-fs-11 u-text-subtle u-mt-12">選擇任一選項後，將再延長 6 個月</div>
@@ -816,7 +816,7 @@
     <h3>🔑 重設密碼</h3>
     <div class="form-row">
       <label>新密碼</label>
-      <input type="password" id="rpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="pwStrengthCheck('rpw-new')">
+      <input type="password" id="rpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="Account.pwStrengthCheck('rpw-new')">
       <div class="pw-checks" id="rpw-checks">
         <span class="pw-check" id="rpw-len">⬜ 8 碼以上</span>
         <span class="pw-check" id="rpw-up">⬜ 含大寫</span>
@@ -826,12 +826,12 @@
     </div>
     <div class="form-row">
       <label>確認新密碼</label>
-      <input type="password" id="rpw-confirm" placeholder="再輸入一次新密碼" oninput="pwMatchCheck('rpw-new','rpw-confirm','rpw-mismatch')">
+      <input type="password" id="rpw-confirm" placeholder="再輸入一次新密碼" oninput="Account.pwMatchCheck('rpw-new','rpw-confirm','rpw-mismatch')">
       <div class="cpw-mismatch" id="rpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
     </div>
     <div class="u-d-flex u-gap-10 u-mt-6">
       <button class="btn btn--primary btn--md btn-save u-flex-2 u-mt-0" onclick="submitResetPw()">💾 儲存新密碼</button>
-      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1 u-mt-0" onclick="closeModal('resetpw-modal')">取消</button>
+      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1 u-mt-0" onclick="UI.closeModal('resetpw-modal')">取消</button>
     </div>
   </div>
 </div>
@@ -849,93 +849,50 @@
       <input type="text" id="qtyd-cur" disabled>
     </div>
     <div class="qtyd-direction" id="qtyd-direction" role="group" aria-label="調整方向" hidden>
-      <button type="button" class="chip chip--seg is-active" id="qtyd-mode-add" aria-pressed="true" onclick="setQtyDialogMode('add')">＋ 增加</button>
-      <button type="button" class="chip chip--seg" id="qtyd-mode-sub" aria-pressed="false" onclick="setQtyDialogMode('sub')">− 減少</button>
+      <button type="button" class="chip chip--seg is-active" id="qtyd-mode-add" aria-pressed="true" onclick="Inventory.setQtyDialogMode('add')">＋ 增加</button>
+      <button type="button" class="chip chip--seg" id="qtyd-mode-sub" aria-pressed="false" onclick="Inventory.setQtyDialogMode('sub')">− 減少</button>
     </div>
     <div class="form-row">
       <label>數量 *</label>
       <input type="text" id="qtyd-input" inputmode="decimal" placeholder="例如 1/4、1/3、0.5、1" autocomplete="off">
     </div>
     <div class="qtyd-quick">
-      <button type="button" class="chip" onclick="qtydQuick('1/4')">1/4</button>
-      <button type="button" class="chip" onclick="qtydQuick('1/2')">1/2</button>
-      <button type="button" class="chip" onclick="qtydQuick('1')">1</button>
+      <button type="button" class="chip" onclick="Inventory.qtydQuick('1/4')">1/4</button>
+      <button type="button" class="chip" onclick="Inventory.qtydQuick('1/2')">1/2</button>
+      <button type="button" class="chip" onclick="Inventory.qtydQuick('1')">1</button>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('qty-dialog')">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm" onclick="submitQtyDialog()">確認</button>
+      <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('qty-dialog')">取消</button>
+      <button class="btn btn--primary btn--md btn-confirm" onclick="Inventory.submitQtyDialog()">確認</button>
     </div>
   </div>
 </div>
 
 <!-- 庫存 Excel 匯出 Dialog -->
-<div class="modal-overlay inventory-export-dialog" data-role="modal" id="inventory-export-dialog" aria-hidden="true" onclick="if(event.target===this) closeInventoryExportDialog()">
+<div class="modal-overlay inventory-export-dialog" data-role="modal" id="inventory-export-dialog" aria-hidden="true" onclick="if(event.target===this) Inventory.closeInventoryExportDialog()">
   <div class="modal inventory-export-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="inventory-export-title">
-    <div class="inventory-export-dialog__header"><h3 id="inventory-export-title">📊 匯出庫存報表</h3><button type="button" class="inventory-export-dialog__close" onclick="closeInventoryExportDialog()" aria-label="關閉">✕</button></div>
+    <div class="inventory-export-dialog__header"><h3 id="inventory-export-title">📊 匯出庫存報表</h3><button type="button" class="inventory-export-dialog__close" onclick="Inventory.closeInventoryExportDialog()" aria-label="關閉">✕</button></div>
     <div class="inventory-export-section"><strong>報表期間</strong>
       <label class="inventory-export-period-choice"><input type="radio" id="inventory-export-month-mode" name="inventory-export-period" onchange="document.getElementById('inventory-export-month-fields').hidden=false;document.getElementById('inventory-export-custom-fields').hidden=true">月份</label>
       <div class="inventory-export-period-fields" id="inventory-export-month-fields"><input id="inventory-export-year" type="number" min="2000" max="2100" aria-label="年份"> 年 <select id="inventory-export-month" aria-label="月份"></select> 月</div>
       <label class="inventory-export-period-choice"><input type="radio" id="inventory-export-custom-mode" name="inventory-export-period" onchange="document.getElementById('inventory-export-month-fields').hidden=true;document.getElementById('inventory-export-custom-fields').hidden=false">自訂日期</label>
       <div class="inventory-export-period-fields" id="inventory-export-custom-fields" hidden><input id="inventory-export-start" type="date" aria-label="開始日期"> ～ <input id="inventory-export-end" type="date" aria-label="結束日期"></div>
     </div>
-    <div class="inventory-export-section"><strong>庫存區</strong><label class="inventory-export-check"><input type="checkbox" id="inventory-export-all-sites" checked onchange="toggleInventoryExportSites(this)">全部</label><div class="inventory-export-sites" id="inventory-export-sites">
-      <label><input type="checkbox" data-site="office" checked onchange="syncInventoryExportAllSites()">公司</label><label><input type="checkbox" data-site="warehouse" checked onchange="syncInventoryExportAllSites()">倉庫</label><label><input type="checkbox" data-site="van" checked onchange="syncInventoryExportAllSites()">廂型車</label><label><input type="checkbox" data-site="truck" checked onchange="syncInventoryExportAllSites()">貨車</label>
+    <div class="inventory-export-section"><strong>庫存區</strong><label class="inventory-export-check"><input type="checkbox" id="inventory-export-all-sites" checked onchange="Inventory.toggleInventoryExportSites(this)">全部</label><div class="inventory-export-sites" id="inventory-export-sites">
+      <label><input type="checkbox" data-site="office" checked onchange="Inventory.syncInventoryExportAllSites()">公司</label><label><input type="checkbox" data-site="warehouse" checked onchange="Inventory.syncInventoryExportAllSites()">倉庫</label><label><input type="checkbox" data-site="van" checked onchange="Inventory.syncInventoryExportAllSites()">廂型車</label><label><input type="checkbox" data-site="truck" checked onchange="Inventory.syncInventoryExportAllSites()">貨車</label>
     </div></div>
     <div class="inventory-export-section"><strong>匯出內容</strong><div class="inventory-export-content-list" id="inventory-export-content"><label><input type="checkbox" data-section="overview">總覽</label><label><input type="checkbox" data-section="inventory" checked>庫存總表</label><label><input type="checkbox" data-section="positions" checked>位置明細</label><label><input type="checkbox" data-section="alerts">庫存警示</label><label><input type="checkbox" data-section="movements" checked>異動紀錄</label><label><input type="checkbox" data-section="stats">統計</label></div><p class="inventory-export-note">ℹ️ 衍生數值會保留為 Excel 公式；「統計」中的分類摘要依匯出當下快照計算。</p></div>
-    <div class="modal-actions inventory-export-dialog__footer"><button class="btn btn--secondary btn--md btn-cancel" onclick="closeInventoryExportDialog()">取消</button><button class="btn btn--primary btn--md btn-confirm" id="inventory-export-submit" onclick="submitInventoryExport()">匯出報表</button></div>
+    <div class="modal-actions inventory-export-dialog__footer"><button class="btn btn--secondary btn--md btn-cancel" onclick="Inventory.closeInventoryExportDialog()">取消</button><button class="btn btn--primary btn--md btn-confirm" id="inventory-export-submit" onclick="Inventory.submitInventoryExport()">匯出報表</button></div>
   </div>
 </div>
 <datalist id="brand-list"></datalist>
 <datalist id="location-list"></datalist>
 <datalist id="dest-list"></datalist>
 
-<script src="/static/js/globals.js" defer></script>
-<script src="/static/js/site-label.js" defer></script>
-<script src="/static/js/auth.js" defer></script>
-<script src="/static/js/utils.js" defer></script>
-<script src="/static/js/api-client.js" defer></script>
-<script src="/static/js/qty.js" defer></script>
-<script src="/static/js/api.js" defer></script>
-<script src="/static/js/modals/inventory-export.js" defer></script>
-<script src="/static/js/modals/kit-export.js" defer></script>
-<script src="/static/js/modals/stockout-export.js" defer></script>
-<script src="/static/js/units.js" defer></script>
-<script src="/static/js/render/card.js" defer></script>
-<script src="/static/js/render/status-list.js" defer></script>
-<script src="/static/js/render/inventory.js" defer></script>
-<script src="/static/js/location-adjustments.js" defer></script>
-<script src="/static/js/render/prepared.js" defer></script>
-<script src="/static/js/render/stockout.js" defer></script>
-<script src="/static/js/render/stocktake.js" defer></script>
-<script src="/static/js/render/kits.js" defer></script>
-<script src="/static/js/render/calendar.js" defer></script>
-<!-- 檔案上傳清單共用元件：signed-reports.js 與 quotation-upload.js 的設定依賴它，需先載入 -->
-<script src="/static/js/render/upload-list.js" defer></script>
-<script src="/static/js/render/signed-reports.js" defer></script>
-<!-- Work Progress renderer; depends on globals.js and utils.js loaded earlier. -->
-<script src="/static/js/render/work-progress.js" defer></script>
-<script src="/static/js/render/quotation.js" defer></script>
-<script src="/static/js/render/quotation-upload.js" defer></script>
-<script src="/static/js/render/petty-cash.js" defer></script>
-<script src="/static/js/modals/calendar.js" defer></script>
-<script src="/static/js/modals/calendar-settings.js" defer></script>
-<script src="/static/js/modals/edit.js" defer></script>
-<script src="/static/js/modals/photo.js" defer></script>
-<script src="/static/js/modals/add.js" defer></script>
-<script src="/static/js/modals/stockout.js" defer></script>
-<script src="/static/js/modals/kit.js" defer></script>
-<script src="/static/js/modals/qty.js" defer></script>
-<script src="/static/js/modals/changepw.js" defer></script>
-<script src="/static/js/modals/expiry.js" defer></script>
-<script src="/static/js/modals/petty-cash.js" defer></script>
-  <script src="/static/js/modals/engineering-petty-cash.js" defer></script>
-<script src="/static/js/bottomsheet.js" defer></script>
-<script src="/static/js/notifications.js" defer></script>
-<script src="/static/js/modals/transfer.js" defer></script>
-<script src="/static/js/app.js" defer></script>
+<script type="module" src="/static/js/pages/main.js"></script>
 
 <!-- 庫存區調撥 Modal -->
-<div class="modal-overlay" data-role="modal" id="transfer-modal" aria-hidden="true" onclick="if(event.target===this) closeTransferModal()">
+<div class="modal-overlay" data-role="modal" id="transfer-modal" aria-hidden="true" onclick="if(event.target===this) Inventory.closeTransferModal()">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
     <h3 id="transfer-title">🔄 庫存調撥</h3>
     <div class="form-row"><label>品項</label><b id="transfer-item-name"></b><small id="transfer-item-meta"></small></div>
@@ -944,7 +901,7 @@
     <div class="form-row"><label for="transfer-target-site">目標庫存區</label><select id="transfer-target-site"></select></div>
     <div class="form-row"><label for="transfer-target-location">目標位置</label><input type="text" id="transfer-target-location" maxlength="100" placeholder="車內工具櫃｜左側"></div>
     <div class="u-text-danger-strong u-minh-20" id="transfer-error" role="alert"></div>
-    <div class="modal-actions"><button class="btn btn--secondary btn--md btn-cancel" onclick="closeTransferModal()">取消</button><button type="button" class="btn btn--primary btn--md btn-confirm" id="transfer-submit" onclick="submitTransfer()">✅ 確認調撥</button></div>
+    <div class="modal-actions"><button class="btn btn--secondary btn--md btn-cancel" onclick="Inventory.closeTransferModal()">取消</button><button type="button" class="btn btn--primary btn--md btn-confirm" id="transfer-submit" onclick="Inventory.submitTransfer()">✅ 確認調撥</button></div>
   </div>
 </div>
 </body>

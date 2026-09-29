@@ -2,12 +2,9 @@
 // 舊版 quoteLoadHistory 只抓第一頁，第 21 筆後永遠看不到。字串斷言抓不到這種錯，
 // 必須實際執行翻頁邏輯驗證。由 tests/test_frontend_assets.py 包裝執行。
 // 舊版跑此測試必紅（25 筆只渲染 20 列）。
-const fs = require('fs');
-const path = require('path');
 const vm = require('vm');
-const { installApiClient, mockResponse } = require('./support/frontend-runtime');
+const { extractFunction, installApiClient, moduleScript, mockResponse } = require('./support/frontend-runtime');
 
-const ROOT = path.resolve(__dirname, '..');
 let failures = 0;
 
 function check(cond, msg) {
@@ -15,24 +12,9 @@ function check(cond, msg) {
   else console.log('ok:', msg);
 }
 
-function loadFunction(renderFile, fnName) {
-  const src = fs.readFileSync(path.join(ROOT, 'static', 'js', 'render', renderFile), 'utf8');
-  let start = src.indexOf('function ' + fnName);
-  if (start === -1) throw new Error('找不到 ' + fnName + ' in ' + renderFile);
-  if (src.slice(start - 6, start) === 'async ') start -= 6; // 保留 async 前綴
-  let depth = 0, end = -1;
-  for (let i = src.indexOf('{', start); i < src.length; i++) {
-    if (src[i] === '{') depth++;
-    if (src[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
-  }
-  if (end === -1) throw new Error('函式結尾定位失敗: ' + fnName);
-  return src.slice(start, end);
-}
-
-const HEAD = fs.readFileSync(
-  path.join(ROOT, 'static', 'js', 'render', 'quotation.js'), 'utf8'
-).split('function quoteMoney')[0];
-const FN = loadFunction('quotation.js', 'quoteLoadHistory');
+const PAGE = moduleScript('features/quotation/page.js');
+const HEAD = PAGE.split('function quoteMoney')[0];
+const FN = extractFunction(PAGE, 'quoteLoadHistory');
 
 // quoteLoadHistory 經正式 apiFetch（api-client.js）呼叫下方的 global.fetch 替身
 const apiContext = installApiClient(vm.createContext({ fetch: (...args) => global.fetch(...args) }));

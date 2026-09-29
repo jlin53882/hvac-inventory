@@ -3,13 +3,15 @@
 from pathlib import Path
 import subprocess
 
+from frontend_test_support import page_modules
+
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 STATIC = BASE_DIR / "static"
 INDEX = STATIC / "index.html"
 CORE_CSS = STATIC / "css" / "3-components/notif-panel.css"
-STATUS_LIST_JS = STATIC / "js" / "render" / "status-list.js"
-NOTIFICATIONS_JS = STATIC / "js" / "notifications.js"
+STATUS_LIST_JS = STATIC / "js" / "components" / "status-list.js"
+NOTIFICATIONS_JS = STATIC / "js" / "core" / "notifications.js"
 
 
 def read(path: Path) -> str:
@@ -20,7 +22,7 @@ def test_notification_summary_center_shell_and_reuses_existing_dialogs():
     """通知只呈現摘要，分類點擊必須導向既有詳細清單流程。"""
     html = read(INDEX)
     js = read(NOTIFICATIONS_JS)
-    assert '/static/js/notifications.js' in html
+    assert "core/notifications.js" in page_modules(INDEX)
     assert 'id="notifPanel"' in html
     assert 'id="notifBackdrop"' in html
     assert 'id="notif-list"' in html
@@ -40,8 +42,8 @@ def test_notification_summary_center_shell_and_reuses_existing_dialogs():
 def test_notification_summary_runtime_has_no_item_rows_and_caps_badge():
     """Node VM：badge 使用異常摘要總數，popover 不列出商品名稱，99 以上顯示 99+。"""
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 function classes() {
   const set = new Set();
   return { add(v) { set.add(v); }, remove(v) { set.delete(v); }, contains(v) { return set.has(v); }, _set: set };
@@ -73,14 +75,16 @@ const context = {
   },
   localStorage: { getItem() { return '2026-09'; } },
   currentUser: { permissions: { stocktake: true } },
-  currentTab: 'inventory', currentSite: 'office',
-  inventoryLoadedSite: 'office', fullItemsLoadedSite: '',
-  INVENTORY_META: { stats: {
-    item_count: 5, total_qty: 10, low_stock: 3, zero_stock: 14,
-    zero_items: Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `商品${i + 1}`, qty: 0 })),
-    low_items: [{ id: 50, name: '低庫存商品', qty: 2 }],
-  } },
-  ALL_ITEMS: [], currentKitItems: [], ALERTS_BY_SITE: {},
+  appState: {
+    currentTab: 'inventory', currentSite: 'office',
+    inventoryLoadedSite: 'office', fullItemsLoadedSite: '',
+    INVENTORY_META: { stats: {
+      item_count: 5, total_qty: 10, low_stock: 3, zero_stock: 14,
+      zero_items: Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `商品${i + 1}`, qty: 0 })),
+      low_items: [{ id: 50, name: '低庫存商品', qty: 2 }],
+    } },
+    ALL_ITEMS: [], currentKitItems: [], ALERTS_BY_SITE: {},
+  },
   getFilteredInventoryItems() { return []; },
   getInventoryDashboardStats(_items, stats) { return {
     zeroCount: stats.zero_items.length, lowCount: stats.low_items.length,
@@ -90,18 +94,19 @@ const context = {
   showInventoryStatusList() {}, showStocktakeList() {}, showKitStatusList() {}, switchTab() {},
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
+{ const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
+vm.runInContext(moduleScript('core/notifications.js'), context);
 context.updateNotifications();
 if (!elements.notifList.innerHTML.includes('缺貨商品')) throw new Error('out summary missing');
 if (!elements.notifList.innerHTML.includes('低庫存商品')) throw new Error('low summary missing');
 if (elements.notifList.innerHTML.includes('商品1')) throw new Error('notification leaked item rows');
 if (elements.notifBadge.textContent !== '15') throw new Error(`badge mismatch: ${elements.notifBadge.textContent}`);
-context.INVENTORY_META.stats.zero_items = Array.from({ length: 120 }, () => ({ qty: 0 }));
-context.INVENTORY_META.stats.low_items = [];
+context.appState.INVENTORY_META.stats.zero_items = Array.from({ length: 120 }, () => ({ qty: 0 }));
+context.appState.INVENTORY_META.stats.low_items = [];
 context.updateNotifications();
 if (elements.notifBadge.textContent !== '99+') throw new Error('badge cap missing');
-context.INVENTORY_META.stats.zero_items = [];
-context.INVENTORY_META.stats.low_items = [];
+context.appState.INVENTORY_META.stats.zero_items = [];
+context.appState.INVENTORY_META.stats.low_items = [];
 context.updateNotifications();
 if (!elements.notifList.innerHTML.includes('目前沒有庫存異常')) throw new Error('normal empty state missing');
 if (elements.notifBadge.style.display !== 'none') throw new Error('zero badge should be hidden');
@@ -113,13 +118,13 @@ if (elements.notifBadge.style.display !== 'none') throw new Error('zero badge sh
 def test_notification_detail_flow_closes_summary_before_existing_dialog():
     """Node VM：分類點擊先關閉摘要，再呼叫目前頁面既有 Dialog。"""
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const calls = [];
 const context = {
   window: { innerWidth: 1024, addEventListener() {} },
   document: { body: { classList: { add() {}, remove() {} } }, getElementById() { return null; }, querySelector() { return null; }, addEventListener() {} },
-  currentTab: 'inventory', closeNotif() { calls.push('close'); },
+  appState: { currentTab: 'inventory' }, closeNotif() { calls.push('close'); },
   showInventoryStatusList(type) { calls.push(`inventory:${type}`); },
   showStocktakeList(type) { calls.push(`stocktake:${type}`); },
   showKitStatusList(type) { calls.push(`kit:${type}`); },
@@ -127,11 +132,12 @@ const context = {
   esc(value) { return String(value); }, localStorage: { getItem() { return null; } },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
+{ const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
+vm.runInContext(moduleScript('core/notifications.js'), context);
 context.closeNotif = function() { calls.push('close'); };
 context.openNotificationDetail('out');
-context.currentTab = 'stocktake'; context.openNotificationDetail('low');
-context.currentTab = 'kit'; context.openNotificationDetail('shortage');
+context.appState.currentTab = 'stocktake'; context.openNotificationDetail('low');
+context.appState.currentTab = 'kit'; context.openNotificationDetail('shortage');
 context.openNotificationDetail('reminder');
 if (calls.join('|') !== 'close|inventory:out|close|stocktake:low|close|kit:shortage|close|tab:stocktake') throw new Error(calls.join('|'));
 """
@@ -168,11 +174,11 @@ def test_status_list_format_quantity_handles_zero_and_whole():
     assert "function statusListFormatQuantity" in js
     # Node VM 驗證實際行為
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const context = { Number, Math };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/render/status-list.js', 'utf8'), context);
+vm.runInContext(moduleScript('components/status-list.js'), context);
 const fmt = context.statusListFormatQuantity;
 if (fmt(0) !== '0') throw new Error('zero: ' + fmt(0));
 if (fmt(5) !== '5') throw new Error('whole: ' + fmt(5));
@@ -189,12 +195,12 @@ def test_status_list_locations_joins_multiple_stocks():
     js = read(STATUS_LIST_JS)
     assert "function statusListLocations" in js
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const el = { classList: { add(){}, remove(){}, contains(){ return false; } }, style: {}, setAttribute(){}, getAttribute(){ return ''; }, addEventListener(){} };
-const context = { document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } }, window: { innerWidth: 1024, addEventListener(){} }, localStorage: { getItem(){ return null; } }, currentUser: { permissions: {} }, currentTab: 'inventory', currentSite: '', INVENTORY_META: { stats: null }, ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '' };
+const context = { document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } }, window: { innerWidth: 1024, addEventListener(){} }, localStorage: { getItem(){ return null; } }, currentUser: { permissions: {} }, appState: { currentTab: 'inventory', currentSite: '', INVENTORY_META: { stats: null }, ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '' } };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/render/status-list.js', 'utf8'), context);
+vm.runInContext(moduleScript('components/status-list.js'), context);
 const locs = context.statusListLocations;
 const r1 = locs({ stocks: [{ location: 'A' }, { location: 'B' }] });
 if (JSON.stringify(r1) !== '["A","B"]') throw new Error('multi: ' + JSON.stringify(r1));
@@ -236,8 +242,8 @@ def test_get_stocktake_reminder_state_respects_permissions():
     js = read(NOTIFICATIONS_JS)
     assert "function getStocktakeReminderState" in js
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const el = { classList: { add(){}, remove(){}, contains(){ return false; } }, style: {}, setAttribute(){}, getAttribute(){ return ''; }, addEventListener(){} };
 const context = {
   currentUser: { permissions: {} },
@@ -245,10 +251,11 @@ const context = {
   Date: Date,
   document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } },
   window: { innerWidth: 1024, addEventListener(){} },
-  currentTab: 'inventory', currentSite: '', INVENTORY_META: { stats: null }, ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '',
+  appState: { currentTab: 'inventory', currentSite: '', INVENTORY_META: { stats: null }, ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '' },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
+{ const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
+vm.runInContext(moduleScript('core/notifications.js'), context);
 const state = context.getStocktakeReminderState();
 if (state.visible !== false) throw new Error('no perm should be invisible');
 if (state.count !== 0) throw new Error('no perm count should be 0');
@@ -262,20 +269,23 @@ def test_get_notification_summary_scope_gating():
     js = read(NOTIFICATIONS_JS)
     assert "function getNotificationSummary" in js
     script = r"""
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
 const el = { classList: { add(){}, remove(){}, contains(){ return false; } }, style: {}, setAttribute(){}, getAttribute(){ return ''; }, addEventListener(){} };
 const context = {
-  currentTab: 'calendar',
+  appState: {
+    currentTab: 'calendar',
+    INVENTORY_META: { stats: { zero_items: [{id:1}], low_items: [] } },
+    ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '',
+  },
   currentUser: { permissions: { stocktake: true } },
   localStorage: { getItem() { return '2026-09'; } },
-  INVENTORY_META: { stats: { zero_items: [{id:1}], low_items: [] } },
-  ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '',
   document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } },
   window: { innerWidth: 1024, addEventListener(){} },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('static/js/notifications.js', 'utf8'), context);
+{ const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
+vm.runInContext(moduleScript('core/notifications.js'), context);
 const summary = context.getNotificationSummary();
 if (summary.categories.length !== 0) throw new Error('calendar tab should have no categories');
 if (summary.total !== 0) throw new Error('calendar tab total should be 0');

@@ -40,7 +40,7 @@
     <span class="vb-crumb"><a href="/">庫存</a><span class="sep">›</span><span class="vb-crumb-current">⚙️ 設定</span></span>
   </div>
   <div class="top-actions u-d-flex u-ai-center u-gap-8 u-pr-12">
-    <button class="btn btn--on-dark btn--sm btn-ghost" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>
+    <button class="btn btn--on-dark btn--sm btn-ghost" onclick="Auth.logout()">🚪<span class="logout-direct-text"> 登出</span></button>
   </div>
 </div>
 
@@ -53,11 +53,11 @@
 
 <div class="perm-layout">
   <aside class="side-list" id="settingsSideList">
-    <div class="side-item is-active" data-role="settings-side-item" data-panel="units" onclick="settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
-    <div class="side-item" data-role="settings-side-item" data-panel="cabinets" onclick="settingsSwitch('cabinets')"><span class="ic">📦</span><div>櫃子<span class="desc">位置備註/同步庫存</span></div></div>
-    <div class="side-item" data-role="settings-side-item" data-panel="gcal" onclick="settingsSwitch('gcal')"><span class="ic">📅</span><div>行事曆同步<span class="desc">Google 行事曆同步</span></div></div>
-    <div class="side-item" data-role="settings-side-item" data-panel="petty-cash" onclick="settingsSwitch('petty-cash')"><span class="ic">🪙</span><div>零用金選單<span class="desc">一般／工程分開管理</span></div></div>
-    <div class="side-item" data-role="settings-side-item" data-panel="pw" onclick="settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
+    <div class="side-item is-active" data-role="settings-side-item" data-panel="units" onclick="Settings.settingsSwitch('units')"><span class="ic">📦</span><div>單位管理<span class="desc">新增/停用/排序/收編</span></div></div>
+    <div class="side-item" data-role="settings-side-item" data-panel="cabinets" onclick="Settings.settingsSwitch('cabinets')"><span class="ic">📦</span><div>櫃子<span class="desc">位置備註/同步庫存</span></div></div>
+    <div class="side-item" data-role="settings-side-item" data-panel="gcal" onclick="Settings.settingsSwitch('gcal')"><span class="ic">📅</span><div>行事曆同步<span class="desc">Google 行事曆同步</span></div></div>
+    <div class="side-item" data-role="settings-side-item" data-panel="petty-cash" onclick="Settings.settingsSwitch('petty-cash')"><span class="ic">🪙</span><div>零用金選單<span class="desc">一般／工程分開管理</span></div></div>
+    <div class="side-item" data-role="settings-side-item" data-panel="pw" onclick="Settings.settingsSwitch('pw')"><span class="ic">🔑</span><div>修改密碼<span class="desc">180 天到期</span></div></div>
   </aside>
   <main class="side-main">
     <div id="panel-units"></div>
@@ -71,7 +71,7 @@
           <input type="text" id="cabinet-name" placeholder="例：編號A、倉庫1" maxlength="50"></label>
         <label class="cab-field" for="cabinet-note"><span class="cab-field-label">位置說明（選填）</span>
           <input type="text" id="cabinet-note" placeholder="例：二樓東側、倉庫 A 區" maxlength="100"></label>
-        <button class="btn btn--primary btn--md btn-primary cab-add-btn" onclick="addCabinet()">＋ 新增</button>
+        <button class="btn btn--primary btn--md btn-primary cab-add-btn" onclick="Settings.addCabinet()">＋ 新增</button>
       </div>
       <table class="u-table" id="cabinetTable">
         <thead>
@@ -92,7 +92,7 @@
       </div>
       <div class="form-row">
         <label>新密碼</label>
-        <input type="password" id="cpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="cpwCheckStrength()" autocomplete="new-password">
+        <input type="password" id="cpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="Account.cpwCheckStrength()" autocomplete="new-password">
         <div class="pw-checks" id="cpw-checks">
           <span class="pw-check" id="cpw-len">⬜ 8 碼以上</span>
           <span class="pw-check" id="cpw-up">⬜ 含大寫</span>
@@ -102,12 +102,12 @@
       </div>
       <div class="form-row">
         <label>確認新密碼</label>
-        <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()" autocomplete="new-password">
+        <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="Account.cpwCheckMatch()" autocomplete="new-password">
         <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
       </div>
       <div class="u-d-flex u-gap-10 u-mt-6 u-maxw-420">
-        <button class="btn btn--primary btn--md btn-save u-flex-2 u-mt-0" onclick="settingsSubmitPw()">💾 儲存新密碼</button>
-        <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1 u-mt-0" onclick="clearPwForm()">清除</button>
+        <button class="btn btn--primary btn--md btn-save u-flex-2 u-mt-0" onclick="Settings.settingsSubmitPw()">💾 儲存新密碼</button>
+        <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1 u-mt-0" onclick="Settings.clearPwForm()">清除</button>
       </div>
     </div>
   </main>
@@ -126,10 +126,10 @@
     </div>
     <div class="form-row">
       <label>Service Account JSON 檔案（可直接上傳）</label>
-      <input type="file" id="gk-file" accept=".json,application/json" onchange="gcalFileSelected(this)">
+      <input type="file" id="gk-file" accept=".json,application/json" onchange="Settings.gcalFileSelected(this)">
       <div class="u-ai-center u-gap-8 u-mt-6" id="gk-file-meta" style="display:none">
         <span class="u-flex-1 u-minw-0 u-o-hidden u-to-ellipsis u-ws-nowrap u-text-primary u-fs-12" id="gk-file-name"></span>
-        <button type="button" class="btn btn--secondary btn--sm btn-cancel-ghost" onclick="clearGcalFile()">移除檔案</button>
+        <button type="button" class="btn btn--secondary btn--sm btn-cancel-ghost" onclick="Settings.clearGcalFile()">移除檔案</button>
       </div>
       <div id="gk-file-hint" class="hint u-fs-11 u-text-subtle u-mt-3">上傳後由伺服器固定儲存檔名；只會顯示 client_email，不會顯示 private_key。</div>
     </div>
@@ -145,36 +145,18 @@
       <div class="hint u-fs-11 u-text-subtle u-mt-3">要同步到的 Google 行事曆 ID（行事曆設定頁 → 整合日曆 → 行事曆 ID）</div>
     </div>
     <div class="u-d-flex u-gap-10 u-mt-18">
-      <button class="btn btn--primary btn--md btn-save u-flex-2" onclick="submitGcalKey()">💾 儲存</button>
-      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1" onclick="closeGcalKeyModal()">取消</button>
+      <button class="btn btn--primary btn--md btn-save u-flex-2" onclick="Settings.submitGcalKey()">💾 儲存</button>
+      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1" onclick="Settings.closeGcalKeyModal()">取消</button>
     </div>
   </div>
 </div>
 
-<script defer>
-// 2026-09-27 頁面初始化：載入預設資料
-document.addEventListener('DOMContentLoaded', async () => {
-  // 先載入 Units（全域依賴）
-  if (typeof loadUnits === 'function') {
-    await loadUnits();
-  }
-  // 預設顯示 Units Panel
-  if (typeof renderUnitsPanel === 'function') {
-    renderUnitsPanel();
-  }
-  // 預先載入 Cabinets（Settings 初始化時）
-  if (typeof loadCabinets === 'function') {
-    await loadCabinets();
-  }
-});
-</script>
-
 <!-- 2026-09-27 編輯櫃子 Modal -->
-<div class="modal-overlay" data-role="modal" id="edit-cabinet-modal" onclick="if(event.target===this) closeModalForce('edit-cabinet-modal')">
+<div class="modal-overlay" data-role="modal" id="edit-cabinet-modal" onclick="if(event.target===this) UI.closeModalForce('edit-cabinet-modal')">
   <div class="modal-box">
     <div class="u-d-flex u-jc-space-between u-ai-center u-mb-16">
       <h3 class="u-m-0">編輯櫃子</h3>
-      <button class="btn-close" onclick="closeModalForce('edit-cabinet-modal')">✕</button>
+      <button class="btn-close" onclick="UI.closeModalForce('edit-cabinet-modal')">✕</button>
     </div>
     <div class="cab-add-row cab-edit-row">
       <label class="cab-field" for="edit-cabinet-name"><span class="cab-field-label">櫃子編號 / 名稱 *</span>
@@ -183,38 +165,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         <input type="text" id="edit-cabinet-note" placeholder="例：二樓東側" maxlength="100"></label>
     </div>
     <div class="u-d-flex u-gap-10 u-mt-18">
-      <button class="btn btn--primary btn--md btn-save u-flex-2" onclick="submitCabinetEdit()">💾 儲存</button>
-      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1" onclick="closeModalForce('edit-cabinet-modal')">取消</button>
+      <button class="btn btn--primary btn--md btn-save u-flex-2" onclick="Settings.submitCabinetEdit()">💾 儲存</button>
+      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1" onclick="UI.closeModalForce('edit-cabinet-modal')">取消</button>
     </div>
   </div>
 </div>
 
-<script src="/static/js/globals.js" defer></script>
-<script src="/static/js/auth.js" defer></script>
-<script src="/static/js/utils.js" defer></script>
-<script src="/static/js/api-client.js" defer></script>
-<script src="/static/js/qty.js" defer></script>
-<script src="/static/js/api.js" defer></script>
-<script src="/static/js/units.js" defer></script>
-<script src="/static/js/modals/changepw.js" defer></script>
-<script src="/static/js/modals/gcal-key.js" defer></script>
-<script src="/static/js/settings.js" defer></script>
-<script defer>
-// 2026-09-27 Settings 頁面初始化（settings.js 載入完後）
-window.addEventListener('load', async () => {
-  // 先載入 Units（全域依賴）
-  if (typeof loadUnits === 'function') {
-    await loadUnits();
-  }
-  // 預設顯示 Units Panel
-  if (typeof renderUnitsPanel === 'function') {
-    renderUnitsPanel();
-  }
-  // 預先載入 Cabinets（Settings 初始化時）
-  if (typeof loadCabinets === 'function') {
-    await loadCabinets();
-  }
-});
-</script>
+<script type="module" src="/static/js/pages/settings.js"></script>
 </body>
 </html>

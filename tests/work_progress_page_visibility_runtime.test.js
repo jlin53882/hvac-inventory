@@ -1,8 +1,10 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
+const { extractFunction, moduleScript, read } = require('./support/frontend-runtime');
 
-const authSource = fs.readFileSync('static/js/auth.js', 'utf8');
+// 頁面可用性判斷在 core/session.js；套用到側欄與目前頁籤的 applyRoleView 由 auth.js 搬到 features/shell/app.js（issue #39）
+const sessionSource = moduleScript('core/session.js');
+const appSource = read('static/js/features/shell/app.js');
 
 function createContext() {
   const elements = {
@@ -27,19 +29,20 @@ function createContext() {
       },
     },
     currentUser: null,
-    currentTab: 'work-progress',
+    appState: { currentTab: 'work-progress' },
     checkReminder() {},
-    switchTab(tab) { this.currentTab = tab; },
+    switchTab(tab) { this.appState.currentTab = tab; },
   };
   vm.createContext(context);
-  vm.runInContext(authSource, context);
+  vm.runInContext(sessionSource, context);
+  for (const name of ['applyPageVisibility', 'applyRoleView']) vm.runInContext(extractFunction(appSource, name), context);
   return { context, elements };
 }
 
 function assertMatrix(visiblePages, permissions, expectedAccessible, label) {
   const { context, elements } = createContext();
   context.currentUser = { visible_pages: visiblePages, permissions };
-  context.currentTab = 'work-progress';
+  context.appState.currentTab = 'work-progress';
   context.applyRoleView(context.currentUser);
   assert.strictEqual(
     context.canAccessPage('work-progress'),
@@ -52,7 +55,7 @@ function assertMatrix(visiblePages, permissions, expectedAccessible, label) {
     `${label}: sidebar display mismatch`,
   );
   assert.strictEqual(
-    context.currentTab,
+    context.appState.currentTab,
     expectedAccessible ? 'work-progress' : 'calendar',
     `${label}: direct tab fallback mismatch`,
   );

@@ -195,8 +195,9 @@ REVIEWED_SAFE_BODIES = {
     "rowClass", "item.is_kit ? 'assembly' : 'single'", "displayLoc",
     "stock.note ? ' · 📝 ' + esc(stock.note) : ''",
     "stocktakeInput(key, systemQty)",
-    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'",
-    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'",
+    # issue #39：盤點輸入值由全域 stocktakeValues 收進 stocktakeState（同一運算式，只改狀態來源）
+    "stocktakeState.stocktakeValues[key] === undefined || stocktakeState.stocktakeValues[key] === '' ? 'pending' : 'zero'",
+    "stocktakeState.stocktakeValues[key] === undefined || stocktakeState.stocktakeValues[key] === '' ? '—' : '0'",
     "materials",
     # edit.js 兩段式位置（2026-09-06）：_cabinetOptions 從固定清單產生 select options，
     # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
@@ -236,9 +237,10 @@ REVIEWED_SAFE_BODIES = {
     "missingHTML", "statusListFormatQuantity(stock)", "statusListFormatQuantity(status.qty)",
     # 2026-09-12 數量系統：Qty.disp 輸出僅數字/分數字元（0-9 . / - 空格），無 HTML metachars；
     # stocktakeInput 內部對 key/value/sysqty/unit 全 esc()/jsStr()（stocktake.js）
-    "(typeof Qty !== 'undefined') ? Qty.disp(s.qty, item.unit) : s.qty",
-    "(typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty)",
-    "(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)",
+    # issue #39：ES module 後 Qty 一定已載入，原本 typeof Qty 的退路已移除
+    "Qty.disp(s.qty, item.unit)",
+    "Qty.disp(item.prepared_qty, item.unit)",
+    "Qty.disp(item.qty, item.unit)",
     "stocktakeInput(materialKey, materialSystemQty, c.unit)",
     "stocktakeInput(key, systemQty, item.unit)",
     # 零用金月報（2026-09-12）：以下皆為內部已 esc 的 HTML fragment、固定映射或常數三元——
@@ -260,7 +262,7 @@ REVIEWED_SAFE_BODIES = {
 
 def test_kit_photo_preview_uses_dom_property_for_file_reader_data():
     """Keep FileReader output out of HTML parsing sinks."""
-    photo_js = Path(BASE_DIR, "static", "js", "modals", "photo.js").read_text(encoding="utf-8")
+    photo_js = Path(BASE_DIR, "static", "js", "features", "inventory", "photo.js").read_text(encoding="utf-8")
     assert "image.src = e.target.result;" in photo_js
     assert "${e.target.result}" not in photo_js
 

@@ -1,9 +1,7 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const vm = require('node:vm');
+const { loadModules } = require('./support/frontend-runtime');
 
-const root = path.join(__dirname, '..');
 /**
  * Escape test data using the same HTML context needed by stocktake model labels.
  * @param {*} value - Untrusted model value supplied to the production renderer.
@@ -16,14 +14,13 @@ const htmlEscape = value => String(value)
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;');
 const sandbox = {
-  ALL_ITEMS: [],
+  appState: { ALL_ITEMS: [] },
   Qty: {
     /** Format a value deterministically for the renderer fixture. @param {number} value @returns {string} */
     format: value => String(value),
     /** Return the fixture's single canonical unit type. @returns {string} */
     unitTypeOf: () => 'integer',
   },
-  stocktakeValues: {},
   esc: htmlEscape,
   /** Convert test quantities to numbers. @param {*} value @returns {number} */
   absNum: value => Number(value),
@@ -34,11 +31,7 @@ const sandbox = {
 };
 
 vm.createContext(sandbox);
-vm.runInContext(
-  fs.readFileSync(path.join(root, 'static/js/render/stocktake.js'), 'utf8'),
-  sandbox,
-  { filename: 'stocktake.js' },
-);
+loadModules(sandbox, 'features/stocktake/state.js', 'features/stocktake/page.js');
 
 /**
  * Build a stocktake item fixture while keeping identical display names across model cases.

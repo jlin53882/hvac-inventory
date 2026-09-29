@@ -7,9 +7,10 @@ const { installApiClient, extractFunction } = require('./support/frontend-runtim
 
 
 const read = path => fs.readFileSync(path, 'utf8');
-const settings = read('static/js/settings.js');
-const units = read('static/js/units.js');
-const gcalKey = read('static/js/modals/gcal-key.js');
+// 設定頁原本的 settings.js 已依職責拆成多個模組（issue #39）
+const settings = ['page', 'petty-options', 'units', 'gcal', 'cabinets'].map(name => read(`static/js/features/settings/${name}.js`)).join('\n');
+const units = read('static/js/core/units.js');
+const gcalKey = read('static/js/features/settings/gcal-key-modal.js');
 
 const jsonResponse = (payload, status = 200) => new Response(JSON.stringify(payload), {
   status, headers: { 'Content-Type': 'application/json' },
@@ -39,7 +40,7 @@ function makeContext() {
     loadGcalKeys: async () => {},
     closeGcalKeyModal: () => {},
     closeModalForce: () => {},
-    unitList: [], unitListActive: [], orphanItems: [], gcalKeys: [], gcalUsers: [], gcalSettings: {},
+    unitList: [], appState: { unitListActive: [] }, orphanItems: [], gcalKeys: [], gcalUsers: [], gcalSettings: {},
     cabinetList: [], selectedKeyId: null, currentEditCabinetId: 3, _gcalEditingId: null,
     next: null,
   };
@@ -201,7 +202,7 @@ async function run(context, call) {
   ctx = makeContext();
   ctx.next = () => jsonResponse([{ id: 1, name: '個', is_active: true }, { id: 2, name: '舊', is_active: false }]);
   await run(ctx, 'loadUnits()');
-  assert.deepStrictEqual(value(ctx, 'unitListActive.map(u => u.name)'), ['個']);
+  assert.deepStrictEqual(value(ctx, 'appState.unitListActive.map(u => u.name)'), ['個']);
   ctx.next = htmlError;
   await run(ctx, 'loadUnits()');
   assert.strictEqual(vm.runInContext('unitList.length', ctx), 2, 'failed reload keeps the previous unit list');

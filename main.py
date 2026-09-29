@@ -15,6 +15,7 @@
 啟動：.venv/Scripts/python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000
 """
 import datetime
+import json
 import os
 import re
 from contextlib import asynccontextmanager
@@ -90,6 +91,41 @@ for _r in (items.router, movements.router, transfers.router, stockout.router, ki
 # static 資源 URL regex（_versioned_html 版本化用）
 _STATIC_RE = re.compile(r'(/static/[^"\'? >]+?)(\?v=[^"\' >]*)?(?=["\' >])')
 
+# 前端 JS 建置結果（Vite，issue #39）：各頁 HTML 只寫原始進入點 /static/js/pages/<page>.js，
+# 送出時依 static/dist/.vite/manifest.json 換成打包後的檔案；沒有建置結果或設定
+# HVAC_FRONTEND_SOURCE=1（開發時不想每次重建）時，直接載入原始 ES modules。
+_PAGE_ENTRY_RE = re.compile(r'<script type="module" src="/static/js/(pages/[\w-]+\.js)"></script>')
+_dist_manifest_cache: dict = {}
+
+def _dist_manifest() -> dict:
+    """讀取 Vite manifest（依 mtime 快取）；不存在或指定使用原始碼時回傳空 dict"""
+    if os.environ.get("HVAC_FRONTEND_SOURCE") == "1":
+        return {}
+    path = os.path.join(STATIC_DIR, "dist", ".vite", "manifest.json")
+    try:
+        mtime = os.stat(path).st_mtime_ns
+    except OSError:
+        return {}
+    if _dist_manifest_cache.get("key") != (path, mtime):
+        with open(path, encoding="utf-8") as fh:
+            _dist_manifest_cache.update(key=(path, mtime), manifest=json.load(fh))
+    return _dist_manifest_cache["manifest"]
+
+def _use_dist_entries(html: str) -> str:
+    """把頁面進入點換成建置後的檔案，並預先載入它 import 的共用 chunk"""
+    manifest = _dist_manifest()
+
+    def _swap_entry(m):
+        """re.sub 替換 callback：manifest 有這個進入點才替換，否則保留原始 ES module"""
+        entry = manifest.get(f"static/js/{m.group(1)}")
+        if not entry:
+            return m.group(0)
+        preloads = "".join(f'<link rel="modulepreload" href="/static/dist/{manifest[name]["file"]}">'
+                           for name in entry.get("imports", []))
+        return f'{preloads}<script type="module" src="/static/dist/{entry["file"]}"></script>'
+
+    return _PAGE_ENTRY_RE.sub(_swap_entry, html)
+
 def _versioned_html(path: str) -> Response:
     """回傳 HTML，並把 static 資源的 ?v=N 版本參數動態換成「檔案 mtime」。
 
@@ -108,7 +144,7 @@ def _versioned_html(path: str) -> Response:
             return f"{url}?v={os.stat(fp).st_mtime_ns}"
         return m.group(0)                     # 檔案不存在（不該發生）→ 原樣保留
 
-    html = _STATIC_RE.sub(_swap, html)
+    html = _STATIC_RE.sub(_swap, _use_dist_entries(html))
     return Response(html, media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/")

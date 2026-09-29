@@ -1,15 +1,13 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const { installApiClient } = require('./support/frontend-runtime');
+const { installApiClient, moduleScript } = require('./support/frontend-runtime');
 
-const ROOT = process.cwd();
-const stockoutSource = fs.readFileSync('static/js/render/stockout.js', 'utf8');
-const stocktakeSource = fs.readFileSync('static/js/render/stocktake.js', 'utf8');
-// 簽名報表 / 報價單上傳共用 render/upload-list.js（issue #39），各頁只帶設定
-const uploadListSource = fs.readFileSync('static/js/render/upload-list.js', 'utf8');
-const signedSource = uploadListSource + '\n' + fs.readFileSync('static/js/render/signed-reports.js', 'utf8');
-const quotationSource = uploadListSource + '\n' + fs.readFileSync('static/js/render/quotation-upload.js', 'utf8');
+const stockoutSource = moduleScript('features/stockout/page.js');
+const stocktakeSource = moduleScript('features/stocktake/page.js');
+// 簽名報表 / 報價單上傳共用 features/upload-list/upload-list.js（issue #39），各頁只帶設定
+const uploadListSource = moduleScript('features/upload-list/upload-list.js');
+const signedSource = uploadListSource + '\n' + moduleScript('features/upload-list/signed-reports.js');
+const quotationSource = uploadListSource + '\n' + moduleScript('features/upload-list/quotation-upload.js');
 
 
 function deferred() {
@@ -40,22 +38,18 @@ function element(id) {
   };
 }
 
-function baseContext(overrides = {}) {
+function baseContext({ currentTab = 'stockout', ...overrides } = {}) {
   const elements = new Map();
   const content = element('content');
   elements.set('content', content);
   const context = {
     console: { error() {}, log() {} },
     URLSearchParams,
-    currentTab: 'stockout',
-    currentSite: 'office',
+    // 跨模組狀態（issue #39：原本是全域變數）
+    appState: { currentTab, currentSite: 'office', ALL_ITEMS: [] },
+    stocktakeState: { stocktakeKits: [], stocktakeValues: {} },
+    stockoutState: { stockoutRecords: [], stockoutDateFrom: '', stockoutDateTo: '', stockoutPageSearch: '' },
     currentUser: { permissions: { stocktake: false } },
-    ALL_ITEMS: [],
-    stocktakeKits: [],
-    stockoutRecords: [],
-    stockoutDateFrom: '',
-    stockoutDateTo: '',
-    stockoutPageSearch: '',
     document: {
       body: { dataset: { page: 'quotation-upload' } },
       getElementById(id) {
@@ -105,20 +99,20 @@ async function testStockoutTabLeaveAndLatestWins() {
 
   context.renderStockOuts();
   const loading = context._elements.get('content').innerHTML;
-  context.currentTab = 'inventory';
+  context.appState.currentTab = 'inventory';
   requests[0].request.resolve(response([{ id: 1 }]));
   await flush();
   assert.strictEqual(context._elements.get('content').innerHTML, loading,
     'stockout response rendered after leaving the tab');
 
-  context.currentTab = 'stockout';
+  context.appState.currentTab = 'stockout';
   context.renderStockOuts();
   context.renderStockOuts();
   requests[2].request.resolve(response([{ id: 'new' }]));
   await flush();
   requests[1].request.resolve(response([{ id: 'old' }]));
   await flush();
-  assert.strictEqual(context.stockoutRecords[0].id, 'new', 'stockout latest render did not win');
+  assert.strictEqual(context.stockoutState.stockoutRecords[0].id, 'new', 'stockout latest render did not win');
 }
 
 async function testStocktakeTabLeaveAndSiteSnapshot() {
@@ -135,7 +129,7 @@ async function testStocktakeTabLeaveAndSiteSnapshot() {
 
   context.renderStocktake();
   const loading = context._elements.get('content').innerHTML;
-  context.currentTab = 'inventory';
+  context.appState.currentTab = 'inventory';
   requests[0].request.resolve(response([]));
   await flush();
   assert.strictEqual(context._elements.get('content').innerHTML, loading,
@@ -153,7 +147,7 @@ async function testStocktakeTabLeaveAndSiteSnapshot() {
   vm.runInContext(stocktakeSource, siteContext);
   siteContext.renderStocktake();
   assert(siteRequests[0].url.includes('site=office'), 'stocktake dates did not snapshot office site');
-  siteContext.currentSite = 'warehouse';
+  siteContext.appState.currentSite = 'warehouse';
   siteRequests[0].request.resolve(response([]));
   await flush();
   assert.strictEqual(siteRequests.length, 1, 'stale stocktake render continued into the next site');
@@ -177,12 +171,12 @@ async function testStocktakeStaleKitsResponseDoesNotMutateSharedState() {
   assert.strictEqual(requests.length, 2, 'stocktake did not issue the kits request after dates succeeded');
   assert(requests[1].url.includes('site=office'), 'kits request did not keep the original site snapshot');
 
-  context.stocktakeKits = [{ id: 'warehouse-current' }];
-  context.currentSite = 'warehouse';
+  context.stocktakeState.stocktakeKits = [{ id: 'warehouse-current' }];
+  context.appState.currentSite = 'warehouse';
   requests[1].request.resolve(response([{ id: 'office-stale' }]));
   await flush();
 
-  assert.deepStrictEqual(context.stocktakeKits, [{ id: 'warehouse-current' }],
+  assert.deepStrictEqual(context.stocktakeState.stocktakeKits, [{ id: 'warehouse-current' }],
     'stale kits response polluted shared stocktakeKits state');
   assert.strictEqual(context._elements.get('content').innerHTML,
     '<div class="stocktake-loading">載入盤點資料…</div>',
@@ -233,8 +227,8 @@ async function testSignedReportsAbaAndHistoryRace() {
   });
   vm.runInContext(signedSource, context);
   context.renderSignedReports();
-  context.currentTab = 'inventory';
-  context.currentTab = 'signed-reports';
+  context.appState.currentTab = 'inventory';
+  context.appState.currentTab = 'signed-reports';
   context.renderSignedReports();
   authA.resolve(response({ user: { display_name: 'A', permissions: {} } }));
   await flush();
@@ -273,8 +267,8 @@ async function testQuotationAbaAndHistoryRace() {
   });
   vm.runInContext(quotationSource, context);
   context.renderQuotationUploads();
-  context.currentTab = 'inventory';
-  context.currentTab = 'quotation';
+  context.appState.currentTab = 'inventory';
+  context.appState.currentTab = 'quotation';
   context.renderQuotationUploads();
   authA.resolve(response({ user: { display_name: 'A' } }));
   await flush();

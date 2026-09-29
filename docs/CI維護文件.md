@@ -203,7 +203,11 @@ Quality 至少涵蓋：
 uv lock --check
 python -m compileall -q app tests main.py
 git diff --check
+npm ci && npm run build          # Node 22（actions/setup-node）
+git diff --exit-code -- static/dist
 ```
+
+前端 JS 以 Vite 打包（issue #39），建置結果 `static/dist/` 提交進 repo，辦公室電腦不需安裝 Node。Quality 重新建置後若 `static/dist` 與提交內容不同（含新增檔案），代表有人改了 `static/js` 卻沒重建，job 失敗；修正方式是本機執行 `npm run build` 並提交結果。`.gitattributes` 把 `static/js/**`、`static/dist/**` 固定為 LF，Windows 與 Linux 建置出相同 hash。
 
 若 workflow 已採用 actionlint 或其他等價工具，修改 workflow 時也必須執行；新增 quality check 後要同步更新本文件。修改 workflow 後仍要人工 review GitHub expression 與 `needs` graph，即使 YAML parser 通過也不能省略。
 

@@ -782,16 +782,50 @@ def test_document_routes_reject_stored_path_traversal(media_env):
 
 def test_versioned_static_url_uses_subsecond_mtime(media_env):
     _client, static_dir, _upload_dir = media_env
-    js = static_dir / "js" / "app.js"
+    js = static_dir / "js" / "features" / "shell" / "app.js"
     js.parent.mkdir(parents=True)
     js.write_text("console.log('fixture');", encoding="utf-8")
     index = static_dir / "index.html"
-    index.write_text('<script src="/static/js/app.js"></script>', encoding="utf-8")
+    index.write_text('<script src="/static/js/features/shell/app.js"></script>', encoding="utf-8")
     timestamp_ns = 1700000000123456789
     os.utime(js, ns=(timestamp_ns, timestamp_ns))
 
     response = app_main._versioned_html(str(index))
-    assert f"/static/js/app.js?v={js.stat().st_mtime_ns}" in response.body.decode("utf-8")
+    assert f"/static/js/features/shell/app.js?v={js.stat().st_mtime_ns}" in response.body.decode("utf-8")
+
+
+def test_versioned_html_serves_vite_build_when_manifest_exists(media_env, monkeypatch):
+    """issue #39：HTML 寫原始進入點，送出時依 Vite manifest 換成建置檔並預載共用 chunk；
+    沒有建置結果或 HVAC_FRONTEND_SOURCE=1 時維持原始 ES module。"""
+    _client, static_dir, _upload_dir = media_env
+    index = static_dir / "index.html"
+    index.write_text('<script type="module" src="/static/js/pages/main.js"></script>', encoding="utf-8")
+    source_entry = static_dir / "js" / "pages" / "main.js"
+    source_entry.parent.mkdir(parents=True)
+    source_entry.write_text("import './x.js';", encoding="utf-8")
+
+    html = app_main._versioned_html(str(index)).body.decode("utf-8")
+    assert f'src="/static/js/pages/main.js?v={source_entry.stat().st_mtime_ns}"' in html  # 尚未建置
+
+    assets = static_dir / "dist" / "assets"
+    assets.mkdir(parents=True)
+    (assets / "main-abc.js").write_text("import './shared-def.js';", encoding="utf-8")
+    (assets / "shared-def.js").write_text("export const x = 1;", encoding="utf-8")
+    manifest = static_dir / "dist" / ".vite" / "manifest.json"
+    manifest.parent.mkdir()
+    manifest.write_text(json.dumps({
+        "static/js/pages/main.js": {"file": "assets/main-abc.js", "isEntry": True, "imports": ["_shared-def.js"]},
+        "_shared-def.js": {"file": "assets/shared-def.js"},
+    }), encoding="utf-8")
+    html = app_main._versioned_html(str(index)).body.decode("utf-8")
+    assert '<link rel="modulepreload" href="/static/dist/assets/shared-def.js?v=' in html
+    assert '<script type="module" src="/static/dist/assets/main-abc.js?v=' in html
+    assert "/static/js/pages/main.js" not in html
+
+    monkeypatch.setenv("HVAC_FRONTEND_SOURCE", "1")
+    html = app_main._versioned_html(str(index)).body.decode("utf-8")
+    assert '<script type="module" src="/static/js/pages/main.js?v=' in html
+    assert "/static/dist/" not in html
 
 
 def test_appointment_batch_formatter_chunks_large_id_lists(media_env):

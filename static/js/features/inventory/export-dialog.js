@@ -1,0 +1,103 @@
+// 庫存 Excel 匯出對話框：期間、庫存區與可選工作表。
+
+import { apiDownload } from '../../core/api-client.js';
+import { esc, toast } from '../../core/utils.js';
+
+var exportInFlight = false;
+function exportPad(value) { return String(value).padStart(2, '0'); }
+
+/**
+ * 將匯出對話框重設為標準的期間、庫存區與工作表預設值。
+ * @returns {void}
+ */
+export function openInventoryExportDialog() {
+  const modal = document.getElementById('inventory-export-dialog');
+  if (!modal) return;
+  const now = new Date();
+  const monthSelect = document.getElementById('inventory-export-month');
+  if (!monthSelect.options.length) {
+    for (let month = 1; month <= 12; month += 1) {
+      const option = document.createElement('option'); option.value = exportPad(month); option.textContent = `${exportPad(month)} 月`; monthSelect.appendChild(option);
+    }
+  }
+  document.getElementById('inventory-export-year').value = now.getFullYear();
+  monthSelect.value = exportPad(now.getMonth() + 1);
+  document.getElementById('inventory-export-start').value = `${now.getFullYear()}-${exportPad(now.getMonth() + 1)}-01`;
+  document.getElementById('inventory-export-end').value = `${now.getFullYear()}-${exportPad(now.getMonth() + 1)}-${exportPad(now.getDate())}`;
+  document.getElementById('inventory-export-month-mode').checked = true;
+  document.getElementById('inventory-export-custom-mode').checked = false;
+  syncInventoryExportPeriodMode();
+  document.getElementById('inventory-export-all-sites').checked = true;
+  document.querySelectorAll('#inventory-export-sites input[data-site]').forEach(input => { input.checked = true; });
+  const defaultSections = ['inventory', 'positions', 'movements'];
+  document.querySelectorAll('#inventory-export-content input[data-section]').forEach(input => { input.checked = defaultSections.includes(input.dataset.section); });
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+export function closeInventoryExportDialog() {
+  const modal = document.getElementById('inventory-export-dialog');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function syncInventoryExportPeriodMode() {
+  const custom = document.getElementById('inventory-export-custom-mode').checked;
+  document.getElementById('inventory-export-month-fields').hidden = custom;
+  document.getElementById('inventory-export-custom-fields').hidden = !custom;
+}
+
+export function toggleInventoryExportSites(source) {
+  document.querySelectorAll('#inventory-export-sites input[data-site]').forEach(input => { input.checked = source.checked; });
+}
+
+export function syncInventoryExportAllSites() {
+  const inputs = [...document.querySelectorAll('#inventory-export-sites input[data-site]')];
+  document.getElementById('inventory-export-all-sites').checked = inputs.every(input => input.checked);
+}
+
+function exportExcel() { openInventoryExportDialog(); }
+
+/**
+ * 驗證所選篩選條件，並下載指定的活頁簿工作表。
+ * @returns {Promise<void>} 完成請求並清理介面後結束。
+ */
+export async function submitInventoryExport() {
+  if (exportInFlight) return;
+  const button = document.getElementById('inventory-export-submit');
+  const custom = document.getElementById('inventory-export-custom-mode').checked;
+  const params = new URLSearchParams();
+  if (custom) {
+    const start = document.getElementById('inventory-export-start').value;
+    const end = document.getElementById('inventory-export-end').value;
+    if (!start || !end || start > end) { toast('匯出失敗：日期範圍無效', 'error'); return; }
+    params.set('start_date', start); params.set('end_date', end);
+  } else {
+    params.set('month', `${document.getElementById('inventory-export-year').value}-${document.getElementById('inventory-export-month').value}`);
+  }
+  const sites = [...document.querySelectorAll('#inventory-export-sites input[data-site]:checked')].map(input => input.dataset.site);
+  if (!sites.length) { toast('匯出失敗：至少選擇一個庫存區', 'error'); return; }
+  params.set('sites', sites.join(','));
+  const sections = [...document.querySelectorAll('#inventory-export-content input[data-section]:checked')].map(input => input.dataset.section);
+  if (!sections.length) { toast('匯出失敗：至少選擇一種匯出內容', 'error'); return; }
+  params.set('sections', sections.join(','));
+  exportInFlight = true;
+  if (button) { button.disabled = true; button.textContent = '產生報表中…'; }
+  try {
+    await apiDownload(`/api/export?${params.toString()}`, { filename: '庫存報表.xlsx', fallback: '請稍後再試' });
+    closeInventoryExportDialog();
+    toast('✅ 報表已下載', 'success');
+  } catch (error) {
+    toast(`匯出失敗：${esc(error.message || '請稍後再試')}`, 'error');
+  } finally {
+    exportInFlight = false;
+    if (button) { button.disabled = false; button.textContent = '匯出報表'; }
+  }
+}
+
+// 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）
+export function initInventoryExportDialog() {
+  document.getElementById('inventory-export-month-mode').addEventListener('change', syncInventoryExportPeriodMode);
+  document.getElementById('inventory-export-custom-mode').addEventListener('change', syncInventoryExportPeriodMode);
+}

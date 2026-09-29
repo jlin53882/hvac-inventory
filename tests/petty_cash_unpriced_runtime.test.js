@@ -1,15 +1,8 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
+const { extractFunction: productionFunction, read } = require('./support/frontend-runtime');
 
-const source = fs.readFileSync('static/js/render/petty-cash.js', 'utf8');
-function productionFunction(fileSource, name) {
-  const start = fileSource.indexOf(`function ${name}(`);
-  if (start < 0) throw new Error(`${name} not found`);
-  const end = fileSource.indexOf('\n}\r\n', start);
-  if (end < 0) throw new Error(`${name} end not found`);
-  return fileSource.slice(start, end + 2);
-}
+const source = read('static/js/features/petty-cash/page.js');
 
 const renderContext = {
   esc: value => String(value),
@@ -65,7 +58,7 @@ assert.ok(matchedHtml.includes('明細合計'));
 assert.ok(matchedHtml.includes('差額'));
 assert.ok(matchedHtml.includes('+$0'));
 
-const modalSource = fs.readFileSync('static/js/modals/petty-cash.js', 'utf8');
+const modalSource = read('static/js/features/petty-cash/report-modal.js');
 function saveEntryAtViewport(isMobile) {
   const values = {
     'pc-e-date': '2026-09-10',

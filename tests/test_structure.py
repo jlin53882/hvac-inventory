@@ -11,6 +11,8 @@ middleware 抽取 / calendar.js 拆 3 檔 / style.css 拆 2 檔）——現有�
 """
 import os
 
+from frontend_test_support import js_modules, read as read_js
+
 STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,30 +80,31 @@ def test_middleware_extracted():
 
 def test_calendar_js_split_three_files():
     """A2：calendar.js 拆 3 檔——render 不殘留 modal/settings 函式，新檔各司其職"""
-    render = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    render = read_js(js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/view.js", "features/calendar/sync-status.js", "features/calendar/state.js"))
     for gone in ("function calModalHtml", "function calOpenAppt", "function calSubmitAppt",
                  "function calDeleteAppt", "function closeCalModal",
                  "function calSettingsHtml", "function calOpenSettings", "function calRenderSvcRows",
                  "function calSetTab", "function calSetColor"):
         assert gone not in render, f"render/calendar.js 殘留 {gone}（拆檔回退？）"
-    modal = read(os.path.join(STATIC, "js", "modals", "calendar.js"))
+    modal = read(os.path.join(STATIC, "js", "features", "calendar", "appt-modal.js"))
     for keep in ("function calModalHtml", "function calOpenAppt", "function calSubmitAppt",
                  "function closeCalModal", "let calApptUpdatedAt"):
         assert keep in modal, f"modals/calendar.js 缺 {keep}"
-    settings = read(os.path.join(STATIC, "js", "modals", "calendar-settings.js"))
+    settings = read(os.path.join(STATIC, "js", "features", "calendar", "settings-modal.js"))
     for keep in ("function calSettingsHtml", "function calOpenSettings", "function calRenderSvcRows",
                  "function calRenderPplRows", "function calSetColor"):
         assert keep in settings, f"modals/calendar-settings.js 缺 {keep}"
 
 
 def test_calendar_state_in_globals():
-    """A2：行事曆狀態 8 var 在 globals.js（let/const 不跨檔）"""
-    g = read(os.path.join(STATIC, "js", "globals.js"))
-    for v in ("var _calM", "var calMonth", "var calSelected", "var calEvents",
-              "var calSvc", "var calAssignable", "var CAL_PALETTE", "var CAL_WEEK"):
-        assert v in g, f"globals.js 缺 {v}"
-    render = read(os.path.join(STATIC, "js", "render", "calendar.js"))
-    assert "let calMonth" not in render and "let calEvents" not in render  # 舊宣告不殘留
+    """A2：行事曆狀態 8 項集中在共用狀態模組（issue #39：原 globals.js → core/state.js 與 features/calendar/state.js）"""
+    g = read_js(js_modules("core/state.js", "features/calendar/state.js"))
+    for v in ("var _calM", "  calMonth: ", "  calSelected: ", "  calEvents: ",
+              "  calSvc: ", "  calAssignable: ", "export var CAL_PALETTE", "export var CAL_WEEK"):
+        assert v in g, f"共用狀態缺 {v.strip()}"
+    render = read_js(js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/view.js", "features/calendar/sync-status.js"))
+    for gone in ("let calMonth", "let calEvents", "var calMonth", "var calEvents"):
+        assert gone not in render  # 舊宣告不殘留
 
 
 def test_style_css_split_two_files():

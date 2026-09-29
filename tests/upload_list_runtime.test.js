@@ -1,22 +1,18 @@
-// 檔案上傳清單（render/upload-list.js）runtime 契約：以正式設定檔（signed-reports.js / quotation-upload.js）
+// 檔案上傳清單（features/upload-list/upload-list.js）runtime 契約：以正式設定檔（signed-reports.js / quotation-upload.js）
 // 實際執行兩頁，驗證畫面標記、上傳權限、上傳後重設、編輯 PATCH、刪除與錯誤訊息（issue #39 第 2 項合併前後行為一致）。
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const { installApiClient } = require('./support/frontend-runtime');
+const { installApiClient, loadModules } = require('./support/frontend-runtime');
 
-
-const read = path => fs.readFileSync(path, 'utf8');
-const component = read('static/js/render/upload-list.js');
 
 const PAGES = {
   signed: {
-    file: 'static/js/render/signed-reports.js', ctl: 'SignedReports', render: 'renderSignedReports', tab: 'signed-reports',
+    file: 'features/upload-list/signed-reports.js', ctl: 'SignedReports', render: 'renderSignedReports', tab: 'signed-reports',
     api: '/api/signed-reports', title: '🗂 每日簽名報表', upload: '＋ 上傳每日簽名日報表', uploadTitle: '⬆️ 上傳每日簽名日報表',
     editTitle: '✏️ 編輯每日簽名日報表', icons: ['🗂', '📈'], gated: true, modeTabs: false,
   },
   quotation: {
-    file: 'static/js/render/quotation-upload.js', ctl: 'QuotationUploads', render: 'renderQuotationUploads', tab: 'quotation',
+    file: 'features/upload-list/quotation-upload.js', ctl: 'QuotationUploads', render: 'renderQuotationUploads', tab: 'quotation',
     api: '/api/quotation-uploads', title: '🗂 報價單上傳', upload: '＋ 上傳報價單', uploadTitle: '⬆️ 上傳報價單',
     editTitle: '✏️ 編輯報價單上傳', icons: ['🧾', '📊'], gated: false, modeTabs: true,
   },
@@ -47,7 +43,7 @@ function setup(pageKey, { me, fetch } = {}) {
   const calls = { fetch: [], toast: [], appended: [] };
   const context = {
     console, URLSearchParams, FormData, File, Blob,
-    currentTab: page.tab,
+    appState: { currentTab: page.tab },
     calls,
     confirm: () => true,
     setTimeout: fn => { fn(); return 0; },
@@ -55,6 +51,7 @@ function setup(pageKey, { me, fetch } = {}) {
     esc: value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
     quoteModeTabs: mode => `<div class="quote-mode-tabs" data-mode="${mode}"></div>`,
     window: { open: url => calls.opened = url },
+    isMobileView: () => false,
     document: {
       body: { dataset: { page: pageKey === 'quotation' ? 'quotation-upload' : 'signed-reports' }, appendChild: node => calls.appended.push(node) },
       getElementById(id) {
@@ -74,8 +71,7 @@ function setup(pageKey, { me, fetch } = {}) {
   };
   vm.createContext(context);
   installApiClient(context);
-  vm.runInContext(component, context, { filename: 'upload-list.js' });
-  vm.runInContext(read(page.file), context, { filename: page.file });
+  loadModules(context, 'features/upload-list/upload-list.js', page.file);
   return { page, context, elements, surfaces, calls, ctl: context[page.ctl] };
 }
 

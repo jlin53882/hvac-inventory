@@ -1,0 +1,51 @@
+{
+  "_api-client-B1TI8v5U.js": {
+    "file": "assets/api-client-B1TI8v5U.js",
+    "name": "api-client"
+  },
+  "_change-password-Cn7RHmra.js": {
+    "file": "assets/change-password-Cn7RHmra.js",
+    "name": "change-password",
+    "imports": [
+      "_api-client-B1TI8v5U.js"
+    ]
+  },
+  "static/js/pages/login.js": {
+    "file": "assets/login-DcjjiaUo.js",
+    "name": "login",
+    "src": "static/js/pages/login.js",
+    "isEntry": true,
+    "imports": [
+      "_api-client-B1TI8v5U.js"
+    ]
+  },
+  "static/js/pages/main.js": {
+    "file": "assets/main-Cushy6gs.js",
+    "name": "main",
+    "src": "static/js/pages/main.js",
+    "isEntry": true,
+    "imports": [
+      "_api-client-B1TI8v5U.js",
+      "_change-password-Cn7RHmra.js"
+    ]
+  },
+  "static/js/pages/permissions.js": {
+    "file": "assets/permissions-BJPYND0u.js",
+    "name": "permissions",
+    "src": "static/js/pages/permissions.js",
+    "isEntry": true,
+    "imports": [
+      "_api-client-B1TI8v5U.js"
+    ]
+  },
+  "static/js/pages/settings.js": {
+    "file": "assets/settings-CmYb7EzS.js",
+    "name": "settings",
+    "src": "static/js/pages/settings.js",
+    "isEntry": true,
+    "imports": [
+      "_api-client-B1TI8v5U.js",
+      "_change-password-Cn7RHmra.js"
+    ]
+  }
+}

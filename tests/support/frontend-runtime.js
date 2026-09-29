@@ -18,11 +18,49 @@ function extractFunction(source, name) {
   throw new Error(`${name} is not closed`);
 }
 
+/**
+ * ES module 原始碼轉成可在 vm context 執行的 script：去掉 import 行與 export 關鍵字，
+ * export 的 const/let 改成 var，讓測試能像以前一樣用 context 全域注入替身、以 context.X 讀取狀態。
+ * 模組之間的 import/export 是否真的對得上，由 tests/esm_link.test.js 用正式的 ESM linker 檢查。
+ */
+function moduleScript(relative) {
+  // 接受 static/js 之下的相對路徑，也接受 'static/js/...' 或絕對路徑（Python 測試內嵌的 node 腳本會傳完整路徑）
+  const file = path.isAbsolute(relative) ? relative : path.join(ROOT, relative.startsWith('static/') ? relative : `static/js/${relative}`);
+  return fs.readFileSync(file, 'utf8')
+    .replace(/^import [^;]+;\n/gm, '')
+    .replace(/^export (const|let) /gm, 'var ')
+    .replace(/^export (?=(async )?function|var |class )/gm, '');
+}
+
+/** 依序把模組（static/js 之下的相對路徑）載入 vm context。 */
+function loadModules(context, ...relatives) {
+  for (const relative of relatives) vm.runInContext(moduleScript(relative), context, { filename: relative });
+  return context;
+}
+
+/**
+ * 讓 inline handler 字串（例如 onclick="Stockout.deleteStockoutReturn(7)"）能在 vm context 執行：
+ * 正式環境由 pages/*.js 把命名空間掛到 window；測試中模組函式都在 context 全域，命名空間直接指向 context。
+ */
+function installNamespaces(context, ...namespaces) {
+  for (const name of namespaces) context[name] = context;
+  return context;
+}
+
+/** 工作進度頁（原 render/work-progress.js）拆分後的模組，依原檔順序載入，並執行模組載入時的副作用。 */
+function loadWorkProgress(context) {
+  vm.createContext(context);
+  loadModules(context, 'features/work-progress/state.js', 'features/work-progress/format.js', 'features/work-progress/upload.js',
+    'features/work-progress/draft.js', 'features/work-progress/history.js', 'features/work-progress/detail.js',
+    'features/work-progress/gallery.js', 'features/work-progress/page.js');
+  context.initWorkProgressGallery();
+  return context;
+}
+
 /** 把正式的 apiErrorMessage 與 api-client.js 載入 vm context（取代各測試自寫的 fetch 解析替身）。 */
 function installApiClient(context) {
-  vm.runInContext(extractFunction(read('static/js/utils.js'), 'apiErrorMessage'), context);
-  vm.runInContext(read('static/js/api-client.js'), context, { filename: 'api-client.js' });
-  return context;
+  vm.runInContext(extractFunction(read('static/js/core/utils.js'), 'apiErrorMessage'), context);
+  return loadModules(context, 'core/api-client.js');
 }
 
 /** 測試用回應：ok / status / text() / json() 與瀏覽器 Response 相同；payload 為 undefined 代表沒有內容。 */
@@ -38,4 +76,4 @@ function mockResponse(payload, status = 200) {
   };
 }
 
-module.exports = { ROOT, read, extractFunction, installApiClient, mockResponse };
+module.exports = { ROOT, read, extractFunction, moduleScript, loadModules, loadWorkProgress, installNamespaces, installApiClient, mockResponse };

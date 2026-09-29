@@ -1,5 +1,5 @@
-const fs = require('fs');
 const vm = require('vm');
+const { loadModules } = require('./support/frontend-runtime');
 
 function element(initial = {}) {
   return {
@@ -28,8 +28,9 @@ const documentStub = {
   createElement() { return element(); },
 };
 const context = { document: documentStub, Date, URLSearchParams, console, setTimeout };
-vm.runInNewContext(fs.readFileSync('static/js/modals/inventory-export.js', 'utf8'), context);
-vm.runInNewContext(fs.readFileSync('static/js/site-label.js', 'utf8'), context);
+vm.createContext(context);
+loadModules(context, 'features/inventory/export-dialog.js', 'core/site-label.js');
+context.initInventoryExportDialog();
 if (context.inventorySiteLabel('office') !== '公司') throw new Error('office UI label mismatch');
 if (context.inventorySiteLabel('warehouse') !== '倉庫') throw new Error('warehouse UI label mismatch');
 if (context.inventorySiteLabel('custom location') !== 'custom location') throw new Error('custom location must remain unchanged');

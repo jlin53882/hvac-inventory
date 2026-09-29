@@ -1,11 +1,6 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const { installApiClient, mockResponse } = require('./support/frontend-runtime');
-
-const globalsSource = fs.readFileSync('static/js/globals.js', 'utf8');
-const calendarRenderSource = fs.readFileSync('static/js/render/calendar.js', 'utf8');
-const calendarModalSource = fs.readFileSync('static/js/modals/calendar.js', 'utf8');
+const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
 /**
  * Provide the minimum DOM surface required by the production Calendar handlers.
@@ -151,11 +146,11 @@ function createContext() {
   };
   vm.createContext(context);
   installApiClient(context);
-  vm.runInContext(globalsSource, context);
-  context.calMonth = month;
-  context.calSelected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  vm.runInContext(calendarRenderSource, context);
-  vm.runInContext(calendarModalSource, context);
+  loadModules(context, 'core/state.js', 'features/calendar/state.js');
+  context.appState.calMonth = month;
+  context.calendarState.calSelected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  loadModules(context, 'features/calendar/format.js', 'features/calendar/sync-status.js', 'features/calendar/search.js',
+    'features/calendar/view.js', 'features/calendar/appt-modal.js');
 
   // Page-entry dependencies outside this finding are kept minimal: the actual
   // renderCalendar/calLoadData/page-shell path remains production code.
@@ -182,9 +177,9 @@ async function assertCalendarLoad(context, state) {
   assert.strictEqual(applied, true, 'Calendar load should apply the API response');
   // 回應經 JSON 解析（與瀏覽器相同，是新物件），以值比較
   const plain = value => JSON.parse(JSON.stringify(value));
-  assert.deepStrictEqual(plain(context.calEvents), state.events);
-  assert.deepStrictEqual(plain(context.calSvc), state.services);
-  assert.deepStrictEqual(plain(context.calAssignable), state.assignable);
+  assert.deepStrictEqual(plain(context.calendarState.calEvents), state.events);
+  assert.deepStrictEqual(plain(context.calendarState.calSvc), state.services);
+  assert.deepStrictEqual(plain(context.calendarState.calAssignable), state.assignable);
 }
 
 (async () => {
@@ -192,10 +187,10 @@ async function assertCalendarLoad(context, state) {
   const get = id => dom.elements.get(id) || dom.document.getElementById(id);
 
   // Execute the actual month renderer across every supported week-count shape.
-  context.calEvents = [];
-  context.calLoadError = null;
+  context.calendarState.calEvents = [];
+  context.calendarState.calLoadError = null;
   for (const [month, weeks, cellCount] of [[1, 4, 35], [8, 5, 42], [7, 6, 49]]) {
-    context.calMonth = new Date(2026, month, 1);
+    context.appState.calMonth = new Date(2026, month, 1);
     context.calRenderMonthProduction();
     assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
     assert.strictEqual(get('cal-grid').children.length, cellCount);
@@ -206,14 +201,14 @@ async function assertCalendarLoad(context, state) {
   }
   // Loading skeleton must follow the month being loaded, not the previous month's row count.
   for (const [month, weeks] of [[1, 4], [7, 6]]) {
-    context.calMonth = new Date(2026, month, 1);
+    context.appState.calMonth = new Date(2026, month, 1);
     context.calRenderLoadingUi();
     const html = get('cal-grid').innerHTML;
     assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
     assert.strictEqual((html.match(/cal-skeleton-cell/g) || []).length, weeks * 7);
     assert.strictEqual((html.match(/class="cal-weekday/g) || []).length, 7);
   }
-  context.calMonth = new Date();
+  context.appState.calMonth = new Date();
 
 
   // F1: execute the production page entry instead of jumping directly to calLoadData.

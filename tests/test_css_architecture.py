@@ -209,12 +209,14 @@ APPEARANCE_PROP = re.compile(
 with open(os.path.join(ROOT, "tests", "button_contract.json"), encoding="utf-8") as _fh:
     NON_STANDARD_BUTTON_CLASSES = set(json.load(_fh)["specialized_button_classes"])
 # 沒有 class 的 <button>：下拉選單項目、照片圖卡、燈箱上一張 / 下一張（各檔數量固定，新增按鈕必須套標準 class）
-UNCLASSED_BUTTONS = {"js/render/inventory.js": 2, "js/render/petty-cash.js": 1, "js/render/work-progress.js": 5}
+UNCLASSED_BUTTONS = {"js/features/inventory/list.js": 2, "js/features/petty-cash/page.js": 1,
+                     "js/features/work-progress/detail.js": 1, "js/features/work-progress/gallery.js": 4}
 
 
 def _markup_sources():
     base = os.path.join(ROOT, "static")
-    for dirpath, _dirs, files in os.walk(base):
+    for dirpath, dirs, files in os.walk(base):
+        dirs[:] = [d for d in dirs if d != "dist"]  # Vite 建置產物（issue #39）：只檢查原始碼
         for name in files:
             if name.endswith((".js", ".html")):
                 path = os.path.join(dirpath, name)
@@ -430,7 +432,7 @@ def test_every_utility_is_used():
 
 # ---------- JS 產生的畫面：外觀一律交給 CSS class + token ----------
 # 使用者自訂的行事曆人員顏色屬於資料（存在資料庫），不是設計色票
-JS_COLOR_DATA = {"js/globals.js": ("var CAL_PALETTE = [",)}
+JS_COLOR_DATA = {"js/core/state.js": ("export var CAL_PALETTE = [",)}
 JS_RUNTIME_STYLE_PROPS = {"display", "width", "position", "top", "left", "right", "zIndex"}  # 顯示切換、進度條、下拉定位
 # 只能用 setProperty 設定、且屬於「執行期版面狀態」的 CSS 變數；不可用 "--" 前綴整批放行，否則等於繞過 token
 JS_RUNTIME_CUSTOM_PROPERTIES = {"--cal-week-count"}  # 月曆每月 4 / 5 / 6 週的列數

@@ -26,28 +26,28 @@ def _click_range(page, role: str, value: str) -> None:
 def test_kit_submit_button_follows_create_and_edit_mode(page, live_server):
     """整組 modal 的送出按鈕：新增 / 編輯模式各自換文字與動作；忙碌時鎖住，避免重複送出。"""
     harness.open_tab(page, live_server, "kit")
-    harness.run_action(page, "openKitModal()")
+    harness.run_action(page, "Kits.openKitModal()")
     button = page.locator("#kit-modal #kit-submit")
     assert button.inner_text().strip() == "✅ 建立整組"
-    assert button.get_attribute("onclick") == "submitKit()"
-    page.evaluate("setKitSubmitBusy(true)")
+    assert button.get_attribute("onclick") == "Kits.submitKit()"
+    page.evaluate("hvac('features/kits/kit-modal.js').setKitSubmitBusy(true)")
     assert button.is_disabled() and button.get_attribute("aria-busy") == "true"
-    page.evaluate("setKitSubmitBusy(false)")
+    page.evaluate("hvac('features/kits/kit-modal.js').setKitSubmitBusy(false)")
     assert button.is_enabled() and button.get_attribute("aria-busy") == "false"
-    page.evaluate("closeModalForce('kit-modal')")
-    harness.run_action(page, "editKit(currentKitItems[0].id)")
+    page.evaluate("hvac('core/utils.js').closeModalForce('kit-modal')")
+    harness.run_action(page, "Kits.editKit(hvac('core/state.js').appState.currentKitItems[0].id)")
     assert button.inner_text().strip() == "💾 儲存整組"
-    assert button.get_attribute("onclick") == "submitKitEdit()"
+    assert button.get_attribute("onclick") == "Kits.submitKitEdit()"
 
 
 def test_expiry_modal_buttons_follow_self_service_permission(page, live_server):
     """密碼過期提示：可自行改密碼的帳號看到兩顆按鈕；其他帳號只看到「請聯絡管理員」。"""
     harness.open_tab(page, live_server, "inventory")
-    page.evaluate("currentUser.permissions['change-own-password'] = false; openExpiryModal();")
+    page.evaluate("hvac('core/session.js').currentUser.permissions['change-own-password'] = false; hvac('features/account/password-expiry.js').openExpiryModal();")
     assert not page.locator("#expiry-change-pw").is_visible()
     assert not page.locator("#expiry-ack").is_visible()
     assert page.locator("#expiry-admin-only").is_visible()
-    page.evaluate("closeModalForce('expiry-modal'); currentUser.permissions['change-own-password'] = true; openExpiryModal();")
+    page.evaluate("hvac('core/utils.js').closeModalForce('expiry-modal'); hvac('core/session.js').currentUser.permissions['change-own-password'] = true; hvac('features/account/password-expiry.js').openExpiryModal();")
     assert page.locator("#expiry-change-pw").is_visible()
     assert page.locator("#expiry-ack").is_visible()
     assert not page.locator("#expiry-admin-only").is_visible()
@@ -56,14 +56,14 @@ def test_expiry_modal_buttons_follow_self_service_permission(page, live_server):
 def test_prepared_edit_submit_is_single_flight(page, live_server):
     """待領出修改：送出按鈕忙碌中再按不會送第二次；完成後解鎖並關閉 modal。"""
     harness.open_tab(page, live_server, "prepared")
-    harness.run_action(page, "openPreparedEditModal(preparedItems[0].id)")
+    harness.run_action(page, "Stockout.openPreparedEditModal(hvac('core/state.js').appState.preparedItems[0].id)")
     patches = []
     page.on("request", lambda req: patches.append(req.url) if req.method == "PATCH" else None)
     page.evaluate("document.getElementById('prepared-edit-submit').disabled = true")
-    harness.run_action(page, "submitPreparedEdit()")
+    harness.run_action(page, "Stockout.submitPreparedEdit()")
     assert patches == [], "忙碌中的送出按鈕不應再送出"
     page.evaluate("document.getElementById('prepared-edit-submit').disabled = false")
-    harness.run_action(page, "submitPreparedEdit()")
+    harness.run_action(page, "Stockout.submitPreparedEdit()")
     assert len(patches) == 1 and "/api/prepared/" in patches[0]
     assert page.locator("#prepared-edit-submit").is_enabled()
     assert not page.locator("#prepared-edit-modal").is_visible()
@@ -72,10 +72,10 @@ def test_prepared_edit_submit_is_single_flight(page, live_server):
 def test_quick_range_chips_track_selection_and_reset(page, live_server):
     """各頁快捷期間 chip：點選後只有該 chip 選取；重設後回到預設期間。"""
     cases = [
-        ("petty-cash", None, "pc-range", "all", "prev", "pcResetFilter()"),
-        ("work-progress", None, "wpr-range", "month", "today", "wprResetFilter()"),
+        ("petty-cash", None, "pc-range", "all", "prev", "PettyCash.pcResetFilter()"),
+        ("work-progress", None, "wpr-range", "month", "today", "WorkProgress.wprResetFilter()"),
         ("signed-reports", None, "upl-range", "month", "week", "SignedReports.resetFilter()"),
-        ("quotation", "quoteSwitchMode('upload')", "upl-range", "month", "all", "QuotationUploads.resetFilter()"),
+        ("quotation", "Quotation.quoteSwitchMode('upload')", "upl-range", "month", "all", "QuotationUploads.resetFilter()"),
     ]
     for tab, action, role, default, other, reset in cases:
         harness.open_tab(page, live_server, tab)
@@ -103,7 +103,7 @@ def test_settings_chip_bar_follows_panel(page, live_server):
     """設定頁（手機 chip 列）切換面板後，只有目前面板的 chip 呈現選取狀態。"""
     _open_settings(page, live_server)
     for panel in ("cabinets", "gcal", "units"):
-        page.evaluate("p => settingsSwitch(p)", panel)
+        page.evaluate("p => Settings.settingsSwitch(p)", panel)
         page.wait_for_load_state("networkidle")
         active = page.evaluate(
             "() => [...document.querySelectorAll('#settingsChipBar [data-panel]')]"
@@ -113,6 +113,11 @@ def test_settings_chip_bar_follows_panel(page, live_server):
 
 def test_settings_unit_consolidation_reads_row_controls(page, live_server):
     """單位收編：逐筆「改為」讀同一列的目標單位與新總量；整組套用讀同一組的目標單位。"""
+    # 孤兒單位清單由 /api/units/orphans 提供（issue #39：模組內狀態無法從外部改寫，改由 API 替身給資料）
+    orphans = [{"item_id": 101, "name": "舊冷媒", "unit": "罐裝", "total_qty": 3, "is_deleted": 0},
+               {"item_id": 102, "name": "新冷媒", "unit": "罐裝", "total_qty": 1, "is_deleted": 0}]
+    page.route("**/api/units/orphans*", lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps(orphans)))
     _open_settings(page, live_server)
     bodies = []
 
@@ -123,12 +128,9 @@ def test_settings_unit_consolidation_reads_row_controls(page, live_server):
     page.route("**/api/units/consolidate*", capture)
     page.evaluate("""() => {
         window.confirm = () => true;
-        orphanItems = [{ item_id: 101, name: '舊冷媒', unit: '罐裝', total_qty: 3, is_deleted: 0 },
-                       { item_id: 102, name: '新冷媒', unit: '罐裝', total_qty: 1, is_deleted: 0 }];
-        settingsSwitch('units');
+        Settings.settingsSwitch('units');
     }""")
-    page.evaluate("() => loadOrphans = async () => {}")
-    target = page.evaluate("() => unitListActive[0].name")
+    target = page.evaluate("() => hvac('core/state.js').appState.unitListActive[0].name")
     page.locator(".grp-head").first.click()
     row = page.locator("tr", has=page.locator("td.p-name", has_text="舊冷媒"))
     row.locator("select").select_option(target)
@@ -137,9 +139,11 @@ def test_settings_unit_consolidation_reads_row_controls(page, live_server):
     _wait_toast(page, "✅ 已改為")
     assert bodies[-1] == (live_server.base_url + "/api/units/consolidate-item",
                           {"item_id": 101, "to_unit": target, "new_qty": 0.75})
-    page.evaluate("""() => {
-        orphanItems = [{ item_id: 101, name: '舊冷媒', unit: '罐裝', total_qty: 3, is_deleted: 0 }];
-        renderUnitsPanel();
+    del orphans[1:]
+    page.evaluate("""async () => {
+        const units = hvac('features/settings/units.js');
+        await units.loadOrphans();
+        units.renderUnitsPanel();
     }""")
     page.locator(".grp-head").first.click()
     group = page.locator(".grp-fast").first

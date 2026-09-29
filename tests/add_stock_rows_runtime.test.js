@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { extractFunction, installApiClient, mockResponse } = require('./support/frontend-runtime');
+const { extractFunction, installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
 const root = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -12,7 +12,7 @@ const escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<
 
 // ---- 1. buildAddStocks：多位置驗證與 location 組合 ----
 const addContext = vm.createContext({});
-vm.runInContext(extractFunction(read('static/js/modals/add.js'), 'buildAddStocks'), addContext);
+vm.runInContext(extractFunction(read('static/js/features/inventory/add-modal.js'), 'buildAddStocks'), addContext);
 const build = rows => JSON.parse(JSON.stringify(addContext.buildAddStocks(rows)));
 
 assert.deepEqual(build([
@@ -37,18 +37,18 @@ assert.match(build([
 assert.match(build([{ cabinet: '', sub: '', qty: 0, note: '' }]).error, /位置必填/, '至少需一個位置');
 
 // ---- 2. _cabinetOptions：清單外（未載入/已改名）的既有櫃子不可被靜默清空 ----
-const editContext = vm.createContext({ esc: escapeHtml, globalCabinetList: [] });
-vm.runInContext(extractFunction(read('static/js/modals/edit.js'), '_cabinetOptions'), editContext);
+const editContext = vm.createContext({ esc: escapeHtml, appState: { globalCabinetList: [] } });
+vm.runInContext(extractFunction(read('static/js/features/inventory/edit-modal.js'), '_cabinetOptions'), editContext);
 const unloaded = editContext._cabinetOptions('編號B');
 assert.match(unloaded, /<option value="編號B" selected>/, '櫃子清單未載入時仍需保留已存櫃子並選取');
-editContext.globalCabinetList = [{ name: '編號B', note: '二樓' }];
+editContext.appState.globalCabinetList = [{ name: '編號B', note: '二樓' }];
 const loaded = editContext._cabinetOptions('編號B');
 assert.equal((loaded.match(/value="編號B"/g) || []).length, 1, '櫃子已在清單內時不得重複');
 assert.ok(!editContext._cabinetOptions('').includes('不在櫃子清單'), '空值不得新增額外選項');
 
 // ---- 3. kitLocationEntries / renderKitLocationList：每個位置一行，備註接在該位置後面 ----
 const kitsContext = vm.createContext({ esc: escapeHtml });
-const kitsSource = read('static/js/render/kits.js');
+const kitsSource = read('static/js/features/kits/page.js');
 vm.runInContext(extractFunction(kitsSource, 'kitLocationEntries'), kitsContext);
 vm.runInContext(extractFunction(kitsSource, 'renderKitLocationList'), kitsContext);
 const entries = JSON.parse(JSON.stringify(kitsContext.kitLocationEntries({
@@ -97,7 +97,7 @@ function parseRows(markup) {
 const kitContext = vm.createContext({
   console,
   esc: escapeHtml,
-  globalCabinetList: [],
+  appState: { globalCabinetList: [] },
   document: {
     getElementById: id => (id === 'kit-location-rows' ? container : null),
     querySelectorAll: selector => (selector === '#kit-location-rows [data-role="kit-location-row"]' ? domRows : []),
@@ -105,8 +105,8 @@ const kitContext = vm.createContext({
   fetch: async () => mockResponse([{ name: '編號A' }, { name: '編號B' }]),
 });
 installApiClient(kitContext);
-vm.runInContext(extractFunction(read('static/js/modals/edit.js'), '_cabinetOptions'), kitContext);
-vm.runInContext(read('static/js/modals/kit.js'), kitContext, { filename: 'kit.js' });
+vm.runInContext(extractFunction(read('static/js/features/inventory/edit-modal.js'), '_cabinetOptions'), kitContext);
+loadModules(kitContext, 'features/kits/state.js', 'features/kits/kit-modal.js');
 const render = () => { kitContext.renderKitLocationRows(); domRows = parseRows(container.html); };
 kitContext.addKitLocationRow();
 domRows = parseRows(container.html);

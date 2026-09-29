@@ -1,7 +1,7 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const source = fs.readFileSync('static/js/utils.js', 'utf8');
+const { moduleScript } = require('./support/frontend-runtime');
+const source = moduleScript('core/utils.js');
 const start = source.indexOf('function apiErrorMessage(');
 const end = source.indexOf('function toast(', start);
 assert(start >= 0 && end > start, 'production formatter must exist before toast');
@@ -10,7 +10,7 @@ const context = {
   document: { getElementById: () => toastNode },
   setTimeout: () => 1,
   clearTimeout: () => {},
-  toastTimer: null,
+  appState: { toastTimer: null },
 };
 vm.createContext(context);
 vm.runInContext(source.slice(start), context);

@@ -1,11 +1,9 @@
 // PDF 手機預覽按鈕 runtime 回歸（2026-09-14）：引號轉義曾讓 previewUrl 變字面文字，
 // 按鈕看得到但點了沒反應。node --check 抓不到這種錯，必須實際執行 showPreview 驗證。
 // 由 tests/test_frontend_assets.py::test_pdf_preview_button_runtime 包裝執行。
-const fs = require('fs');
-const path = require('path');
 const vm = require('vm');
+const { loadModules } = require('./support/frontend-runtime');
 
-const ROOT = path.resolve(__dirname, '..');
 let failures = 0;
 
 function check(cond, msg) {
@@ -13,12 +11,10 @@ function check(cond, msg) {
   else console.log('ok:', msg);
 }
 
-// 兩頁共用 render/upload-list.js 的 showPreview；載入正式元件與本頁設定後呼叫該頁控制器
+// 兩頁共用 features/upload-list/upload-list.js 的 showPreview；載入正式元件與本頁設定後呼叫該頁控制器
 function loadPage(renderFile, ctl, context) {
   vm.createContext(context);
-  for (const file of ['upload-list.js', renderFile]) {
-    vm.runInContext(fs.readFileSync(path.join(ROOT, 'static', 'js', 'render', file), 'utf8'), context, { filename: file });
-  }
+  loadModules(context, 'features/upload-list/upload-list.js', `features/upload-list/${renderFile}`);
   return context[ctl];
 }
 

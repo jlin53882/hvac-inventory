@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { installApiClient, mockResponse } = require('./support/frontend-runtime');
+const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
 const ROOT = path.resolve(__dirname, '..');
 const elements = {};
@@ -131,13 +131,8 @@ const context = {
 };
 vm.createContext(context);
 installApiClient(context);
-for (const file of [
-  'static/js/render/petty-cash.js',
-  'static/js/modals/petty-cash.js',
-  'static/js/modals/engineering-petty-cash.js',
-]) {
-  vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), context, { filename: file });
-}
+loadModules(context, 'features/petty-cash/state.js', 'features/petty-cash/page.js', 'features/petty-cash/report-modal.js',
+  'features/petty-cash/engineering-modal.js');
 
 function report(id, owner = '藍先生') {
   return {
@@ -180,7 +175,7 @@ async function testDetailLatestResponseWins() {
   await flush();
   resolvePending('/api/petty-cash-reports/10', report(10));
   await flush();
-  assert.strictEqual(context.pcDetail.id, 20, 'late detail response overwrote latest selection');
+  assert.strictEqual(context.pettyCashState.pcDetail.id, 20, 'late detail response overwrote latest selection');
   assert(elements.content.innerHTML.includes('report-20.xlsx'), 'latest detail was not rendered');
 }
 
@@ -236,11 +231,11 @@ async function testModalLatestResponseWins() {
     }
     if (secondType === 'general') {
       assert.strictEqual(context.pcModalEditingId, 202, 'latest general modal report ID is not B');
-      assert.strictEqual(context.pcModalSessionType, 'general', 'latest general modal session type is wrong');
+      assert.strictEqual(context.pettyCashState.pcModalSessionType, 'general', 'latest general modal session type is wrong');
       assert(html.includes('value="B"'), 'latest general modal owner/edit state is not B');
     } else {
       assert.strictEqual(context.engEditingId, 202, 'latest engineering modal report ID is not B');
-      assert.strictEqual(context.pcModalSessionType, 'engineering', 'latest engineering modal session type is wrong');
+      assert.strictEqual(context.pettyCashState.pcModalSessionType, 'engineering', 'latest engineering modal session type is wrong');
       assert.strictEqual(context.engData.upload_person, 'B', 'latest engineering save target is not B');
       assert(html.includes('value="B"'), 'latest engineering modal owner/edit state is not B');
     }
@@ -336,9 +331,9 @@ async function testMutationRefreshesKeepLatestResponse() {
   context.pcModalEntries = [];
   context.pcModalReturnToDetail = false;
   context.pcOpeningSource = 'manual';
-  context.pcModalSessionType = 'general';
-  context.pcModalOpenSeq = 300;
-  context.pcSaveInFlight = false;
+  context.pettyCashState.pcModalSessionType = 'general';
+  context.pettyCashState.pcModalOpenSeq = 300;
+  context.pettyCashState.pcSaveInFlight = false;
   context.pcLoadHistory();
   const save = context.pcModalSave('completed');
   resolvePendingLast('/api/petty-cash-reports', { id: 401 });
@@ -364,38 +359,38 @@ async function testGeneralSaveIsSingleFlightAndRecovers() {
   context.pcModalEntries = [];
   context.pcModalReturnToDetail = false;
   context.pcOpeningSource = 'manual';
-  context.pcModalSessionType = 'general';
-  context.pcModalOpenSeq = 100;
-  context.pcSaveInFlight = false;
+  context.pettyCashState.pcModalSessionType = 'general';
+  context.pettyCashState.pcModalOpenSeq = 100;
+  context.pettyCashState.pcSaveInFlight = false;
   const first = context.pcModalSave('draft');
   const second = context.pcModalSave('completed');
   assert.strictEqual(pending.filter(x => x.url.includes('/api/petty-cash-reports')).length, 1, 'general double click sent two writes');
   rejectPending('/api/petty-cash-reports');
   await first;
   await second;
-  assert.strictEqual(context.pcSaveInFlight, false, 'general save failure left the lock enabled');
-  context.pcModalOpenSeq = 101;
-  context.pcModalSessionType = 'general';
+  assert.strictEqual(context.pettyCashState.pcSaveInFlight, false, 'general save failure left the lock enabled');
+  context.pettyCashState.pcModalOpenSeq = 101;
+  context.pettyCashState.pcModalSessionType = 'general';
   const retry = context.pcModalSave('draft');
   assert.strictEqual(pending.filter(x => x.url.includes('/api/petty-cash-reports')).length, 1, 'general retry was blocked after failure');
   resolvePending('/api/petty-cash-reports', { id: 30 });
   await retry;
   context.pcModalEditingId = 88;
-  context.pcModalOpenSeq = 102;
-  context.pcModalSessionType = 'general';
+  context.pettyCashState.pcModalOpenSeq = 102;
+  context.pettyCashState.pcModalSessionType = 'general';
   const update = context.pcModalSave('completed');
   assert(pending.some(x => x.url.includes('/api/petty-cash-reports/88')), 'general update used create endpoint');
   resolvePending('/api/petty-cash-reports/88', { id: 88 });
   await update;
   context.pcModalEditingId = null;
-  context.pcModalOpenSeq = 103;
-  context.pcModalSessionType = 'general';
+  context.pettyCashState.pcModalOpenSeq = 103;
+  context.pettyCashState.pcModalSessionType = 'general';
   const completedCreate = context.pcModalSave('completed');
   resolvePending('/api/petty-cash-reports', { id: 89 });
   await completedCreate;
   context.pcModalEditingId = 89;
-  context.pcModalOpenSeq = 104;
-  context.pcModalSessionType = 'general';
+  context.pettyCashState.pcModalOpenSeq = 104;
+  context.pettyCashState.pcModalSessionType = 'general';
   const draftUpdate = context.pcModalSave('draft');
   resolvePending('/api/petty-cash-reports/89', { id: 89 });
   await draftUpdate;
@@ -408,38 +403,38 @@ async function testEngineeringSaveIsSingleFlight() {
   context.renderPettyCash = () => {};
   context.engEditingId = null;
   context.engData = { categories: [] };
-  context.pcModalSessionType = 'engineering';
-  context.pcModalOpenSeq = 200;
-  context.pcSaveInFlight = false;
+  context.pettyCashState.pcModalSessionType = 'engineering';
+  context.pettyCashState.pcModalOpenSeq = 200;
+  context.pettyCashState.pcSaveInFlight = false;
   const first = context.engSave('completed');
   const second = context.engSave('completed');
   assert.strictEqual(pending.filter(x => x.url.includes('/api/petty-cash-reports')).length, 1, 'engineering double click sent two writes');
   resolvePending('/api/petty-cash-reports', { id: 31 });
   await first;
   await second;
-  assert.strictEqual(context.pcSaveInFlight, false, 'engineering save did not release the lock');
+  assert.strictEqual(context.pettyCashState.pcSaveInFlight, false, 'engineering save did not release the lock');
   context.engEditingId = null;
-  context.pcModalSessionType = 'engineering';
-  context.pcModalOpenSeq = 202;
+  context.pettyCashState.pcModalSessionType = 'engineering';
+  context.pettyCashState.pcModalOpenSeq = 202;
   const draftCreate = context.engSave('draft');
   resolvePending('/api/petty-cash-reports', { id: 32 });
   await draftCreate;
   context.engEditingId = 32;
-  context.pcModalSessionType = 'engineering';
-  context.pcModalOpenSeq = 203;
+  context.pettyCashState.pcModalSessionType = 'engineering';
+  context.pettyCashState.pcModalOpenSeq = 203;
   const draftUpdate = context.engSave('draft');
   resolvePending('/api/petty-cash-reports/32', { id: 32 });
   await draftUpdate;
   context.engEditingId = 77;
-  context.pcModalSessionType = 'engineering';
-  context.pcModalOpenSeq = 204;
+  context.pettyCashState.pcModalSessionType = 'engineering';
+  context.pettyCashState.pcModalOpenSeq = 204;
   const failedUpdate = context.engSave('draft');
   const duplicateUpdate = context.engSave('completed');
   assert.strictEqual(pending.filter(x => x.url.includes('/api/petty-cash-reports/77')).length, 1, 'engineering update double click sent two writes');
   rejectPending('/api/petty-cash-reports/77');
   await failedUpdate;
   await duplicateUpdate;
-  assert.strictEqual(context.pcSaveInFlight, false, 'engineering failure left the lock enabled');
+  assert.strictEqual(context.pettyCashState.pcSaveInFlight, false, 'engineering failure left the lock enabled');
   const retry = context.engSave('completed');
   resolvePending('/api/petty-cash-reports/77', { id: 77 });
   await retry;
@@ -506,9 +501,9 @@ async function testGeneralSaveSerializesOptionalAmountsAndType() {
   }];
   context.pcModalReturnToDetail = false;
   context.pcOpeningSource = 'manual';
-  context.pcModalSessionType = 'general';
-  context.pcModalOpenSeq = 500;
-  context.pcSaveInFlight = false;
+  context.pettyCashState.pcModalSessionType = 'general';
+  context.pettyCashState.pcModalOpenSeq = 500;
+  context.pettyCashState.pcSaveInFlight = false;
 
   const save = context.pcModalSave('draft');
   const request = findPending('/api/petty-cash-reports/902');
@@ -550,7 +545,7 @@ async function main() {
   await testResetFilterClearsReportTypeAndReloadsAll();
   await testGeneralSaveSerializesOptionalAmountsAndType();
   testEngineeringFilenamePreviewUsesBackendPeriodToken();
-  const render = fs.readFileSync(path.join(ROOT, 'static/js/render/petty-cash.js'), 'utf8');
+  const render = fs.readFileSync(path.join(ROOT, 'static/js/features/petty-cash/page.js'), 'utf8');
   assert(render.includes('pcPageSize * (pcPage - 1) + idx + 1'), 'engineering pagination offset contract missing');
   console.log('petty cash frontend race/single-flight regression harness: PASS');
 }
