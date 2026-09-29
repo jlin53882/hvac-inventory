@@ -15,7 +15,7 @@ from frontend_test_support import (
     CALENDAR_RUNTIME_JS,
     CALENDAR_SETTINGS_JS,
     CSS_CAL,
-    CSS_CORE,
+    read_shared_css,
     GLOBALS_JS,
     INDEX,
     SETTINGS_HTML,
@@ -541,7 +541,7 @@ def test_calendar_cal_content_full_width():
 
 def test_calendar_btn_edit_is_feature_owned():
     """Regression: Calendar must own the feature-only edit button contract."""
-    core = read(CSS_CORE)
+    core = read_shared_css()
     calendar = read(CSS_CAL)
     index = read(INDEX)
     calendar_js = read(CALENDAR_RENDER_JS)
@@ -559,7 +559,7 @@ def test_calendar_btn_edit_is_feature_owned():
     assert 'class=\"cal-icon-btn btn-edit\"' in calendar_js, (
         "Calendar edit-button producer must remain"
     )
-    assert index.index("legacy/core.css") < index.index("4-pages/calendar.css"), (
+    assert index.index("3-components/button.css") < index.index("4-pages/calendar.css"), (
         "Core must load before Calendar CSS"
     )
 

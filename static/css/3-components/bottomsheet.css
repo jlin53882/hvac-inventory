@@ -1,0 +1,31 @@
+/* 手機 ⋯ 動作選單（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+
+/* ---------- Bottom Sheet 動作選單（點 ⋯ 彈出） ---------- */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(15,18,28,.45); z-index: 3000;
+  display: none; align-items: flex-end; justify-content: center;
+}
+.sheet-overlay.show { display: flex; }
+.sheet {
+  width: 100%; max-width: 560px; background: #fff;
+  border-radius: 16px 16px 0 0; padding: 10px 12px 18px;
+  animation: sheet-up .18s ease;
+}
+@keyframes sheet-up { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+.sheet .sheet-title { font-size: 12px; color: #9ca3af; text-align: center; padding: 4px 0 8px; font-weight: 600; }
+.sheet .s-item {
+  display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; color: #111827; cursor: pointer;
+}
+.sheet .s-item:active { background: #f5f7fa; }
+.sheet .s-item .ic { font-size: 16px; width: 22px; text-align: center; }
+.sheet .s-item.out { color: #2d5a8e; }
+.sheet .s-item.back { color: #b45309; }
+.sheet .s-item.del { color: #dc2626; }
+.sheet .s-cancel {
+  display: block; width: 100%; padding: 13px; border: none; background: none;
+  font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer;
+  border-top: 1px solid #f3f4f6; margin-top: 6px; border-radius: 10px;
+}
+}

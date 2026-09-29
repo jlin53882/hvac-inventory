@@ -34,7 +34,7 @@ from frontend_test_support import (
     CARD_JS,
     CHANGEPW_JS,
     CSS_CAL,
-    CSS_CORE,
+    read_shared_css,
     CSS_INVENTORY,
     CSS_INVENTORY_LOCATIONS,
     CSS_KIT,
@@ -1314,12 +1314,14 @@ def test_kits_components_show_photo():
     assert "openPhotoLightbox(${c.item_id})" in js                 # 材料點擊放大
 
 
-def test_kit_comp_left_align():
-    """整組材料名稱/型號靠左（2026-08-12 Sarah 需求）——
-    kit-comp 用 flex-start + gap，不能用 space-between（3 元素會把名稱推到中間）"""
+def test_kit_comp_dead_css_removed():
+    """整組卡片已改用 kits.js 的 kit-* 元件，舊 .m-card .kit-comp / .cname / .cneed 沒有任何產生者；
+    CSS 架構重構 P3 依 dead code 規則刪除，不得再出現（產生者與樣式須同時存在）。"""
     css = read_css_all()
-    assert ".m-card .kit-comp { display: flex; justify-content: flex-start; align-items: center; gap: 8px;" in css
-    assert ".m-card .kit-comp .cneed { color: #6b7280; flex-shrink: 0; margin-left: auto; }" in css
+    assert not re.search(r"\.m-card \.kit-comp(?![\w-])", css) and ".cneed" not in css and ".cname" not in css
+    for js in ALL_JS_FILES:
+        src = read(js)
+        assert not re.search(r"[\"' ]kit-comp[\"' ]", src) and "cneed" not in src, f"{js} 又產生 kit-comp，需先補樣式"
 
 
 # ---------- 2026-08-11 Sarah 需求：卡片顯示格式（位置/備註/刪除/照片/型號/標題） ----------
@@ -1704,7 +1706,7 @@ def test_unit_search_and_duplicate_guard():
     units = read(os.path.join(STATIC, "js", "units.js"))
     assert "function filterUnitSelect" in units
     assert "已存在" in units and "unitList.some" in units  # 重複提示檢查
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert ".modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }" in css  # 取消按鈕隱形修復
     assert ".unit-search" in css
 
@@ -2121,12 +2123,13 @@ def test_checkreminder_uses_localstorage():
     assert "localStorage.getItem('lastStocktakeMonth')" in notif
 
 
-def test_css_stat_cards_four_columns():
-    """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
+def test_css_stat_cards_dead_css_removed():
+    """盤點統計卡已改用共用 KPI 合約（.ui-kpi-grid），舊 .stat-cards / .stat-card 沒有任何產生者；
+    CSS 架構重構 P3 依 dead code 規則刪除，不得再出現。"""
     css = read_css_all()
-    assert ".stat-cards" in css
-    assert "grid-template-columns: repeat(4, 1fr);" in css
-    assert "repeat(3, 1fr)" not in css.split(".cal-grid")[0], ".stat-cards 區域誤退回 3 欄"
+    assert ".stat-card" not in css
+    for js in ALL_JS_FILES:
+        assert "stat-card" not in read(js), f"{js} 又產生 stat-card，請改用 .ui-kpi-*"
 
 
 # ---------- 2026-08-12 全專案 JS 完整性（家豪要求「都補」） ----------
@@ -2964,7 +2967,7 @@ def test_drawer_html_structure():
 
 def test_drawer_css_exists():
     """Phase 2：Drawer CSS 樣式存在"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert '.drawer{' in css or '.drawer {' in css, "drawer CSS 缺失"
     assert '.dov{' in css or '.dov {' in css, "drawer overlay CSS 缺失"
     assert '.dh{' in css or '.dh {' in css, "drawer header CSS 缺失"
@@ -2987,7 +2990,7 @@ def test_drawer_js_functions():
 # ========== Phase 3: 庫存頁細節 ==========
 def test_all_dashboard_kpis_share_common_responsive_contract():
     """所有 dashboard KPI 使用同一組 Desktop/Mobile 呈現 contract。"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert "#content .ui-kpi-grid {" in css
     assert "#content .ui-kpi-card {" in css
     assert "#content .ui-kpi-icon {" in css
@@ -3041,14 +3044,14 @@ def test_chip_bar_filter():
 
 def test_chip_bar_css_exists():
     """Phase 3：Chip bar CSS 樣式存在"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert '.chip-bar{' in css or '.chip-bar {' in css, "chip-bar CSS 缺失"
     assert '.chip-bar .chip' in css, "chip-bar .chip CSS 缺失"
 
 
 def test_row_warn_danger_css():
     """Phase 3：row-warn/row-danger CSS 存在"""
-    css = read(CSS_CORE)
+    css = read(CSS_INVENTORY)
     assert 'row-warn' in css, "row-warn CSS 缺失"
     assert 'row-danger' in css, "row-danger CSS 缺失"
     assert '#fffbeb' in css, "row-warn 背景色缺失"
@@ -3090,7 +3093,7 @@ def test_view_toggle_function():
 
 def test_table_view_css():
     """Phase 5：table view CSS 存在"""
-    css = read(CSS_CORE)
+    css = read(CSS_INVENTORY)
     assert ".tbl-wrap" in css, "tbl-wrap CSS 缺失"
     assert ".view-toggle" in css, "view-toggle CSS 缺失"
     assert ".item-card.warn" in css, "item-card.warn CSS 缺失"
@@ -3386,8 +3389,16 @@ def test_inventory_mobile_table_does_not_force_desktop_width():
         '}'
     )
     assert desktop_width_rule in css
-    mobile_css = css[css.index('@media (max-width: 767px)'):]
-    assert 'min-width: 1040px' not in mobile_css
+    # 逐一取出每個手機版 @media 區塊內容（檔案內可能有多段，不能假設「第一段之後都是手機」）
+    mobile_blocks = []
+    for start in [m.end() for m in re.finditer(r'@media \(max-width: ?767px\)\s*\{', css)]:
+        depth, i = 1, start
+        while depth:
+            depth += {'{': 1, '}': -1}.get(css[i], 0)
+            i += 1
+        mobile_blocks.append(css[start:i])
+    assert mobile_blocks
+    assert not any('min-width: 1040px' in block for block in mobile_blocks)
 
 
 def test_desktop_inventory_and_prepared_styles_are_loaded():
@@ -3971,7 +3982,7 @@ def test_qty_merge_preserves_both_contracts():
 
 def test_btn_sm_canonical_shared_owner_and_consumers():
     """Regression: .btn-sm base must be shared, not owned by Calendar."""
-    core = read(CSS_CORE)
+    core = read_shared_css()
     calendar = read(CSS_CAL)
     inventory = read(CSS_INVENTORY)
     calendar_js = read(CALENDAR_RENDER_JS)
@@ -3982,7 +3993,7 @@ def test_btn_sm_canonical_shared_owner_and_consumers():
     exact_primary = ".btn-sm.btn-primary { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }"
     assert exact_base in core, "shared .btn-sm base values must remain unchanged"
     assert exact_primary in core, "shared .btn-sm primary values must remain unchanged"
-    assert index.index("legacy/core.css") < index.index("4-pages/calendar.css") < index.index("4-pages/inventory.css"), "shared owner must load before feature CSS"
+    assert index.index("3-components/button.css") < index.index("4-pages/calendar.css") < index.index("4-pages/inventory.css"), "shared owner must load before feature CSS"
 
     assert re.search(r"(?m)^\s*\.btn-sm\s*\{", core), "shared core must own .btn-sm base"
     assert re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", core), "shared core must own .btn-sm primary variant"
@@ -4188,7 +4199,7 @@ def test_transfer_uses_shared_qty_contract():
 
 def test_mobile_site_tab_2x2_layout():
     """手機版 .h-site 使用 flex-wrap:wrap 讓 4 個 tab 排成 2×2。"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
 
 

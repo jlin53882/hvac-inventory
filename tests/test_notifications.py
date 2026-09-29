@@ -7,7 +7,7 @@ import subprocess
 BASE_DIR = Path(__file__).resolve().parents[1]
 STATIC = BASE_DIR / "static"
 INDEX = STATIC / "index.html"
-CORE_CSS = STATIC / "css" / "legacy/core.css"
+CORE_CSS = STATIC / "css" / "3-components/notif-panel.css"
 STATUS_LIST_JS = STATIC / "js" / "render" / "status-list.js"
 NOTIFICATIONS_JS = STATIC / "js" / "notifications.js"
 

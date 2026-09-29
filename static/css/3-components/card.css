@@ -1,0 +1,38 @@
+/* 手機卡片 m-card（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+
+/* ---------- 手機版卡片（render 手機模板輸出） ---------- */
+.m-card {
+  background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  margin-bottom: 10px; overflow: hidden; border: 1px solid #f0f2f5; position: relative;
+}
+.m-card .card-main { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 0; padding: 10px 12px; align-items: start; }
+.m-card .thumb { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+.m-card .info { grid-column: 2; grid-row: 1; }
+.m-card .qty-col { grid-column: 3; grid-row: 1; }
+.m-card .note-slot { grid-column: 2 / -1; grid-row: 2; min-width: 0; }
+.m-card .thumb {
+  width: 58px; height: 58px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+  background: #eef2f7; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #b6c2cf; cursor: zoom-in; border: 1px solid #eef0f3;
+}
+.m-card .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+.m-card .info { flex: 1; min-width: 0; padding-right: 30px; }
+.m-card .nm { font-size: 13.5px; font-weight: 600; color: #111827; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card .sub { font-size: 11px; color: #6b7280; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card .loc-tag {
+  display: inline-block; font-size: 10.5px; color: #2d5a8e; background: #eef4fa;
+  border: 1px solid #cfe0f0; border-radius: 6px; padding: 1px 7px; margin-top: 4px;
+  white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.m-card .qty-col { text-align: center; flex-shrink: 0; padding-right: 34px; }
+.m-card .qty-num { font-size: 17px; font-weight: 700; color: #111827; line-height: 1.1; }
+.m-card .qty-unit { font-size: 10px; color: #9ca3af; display: block; }
+.m-card .qty-neg { color: #dc2626; }
+.m-card .qty-violet { color: #6d28d9; }
+.m-card.reverted { opacity: .55; }
+
+.m-card .kit-name { font-size: 13.5px; font-weight: 700; color: #111827; }
+.m-card .kit-stock { font-size: 11px; color: #2d5a8e; background: #eef4fa; border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+.m-card .kit-comps { padding: 6px 12px 10px; }
+}

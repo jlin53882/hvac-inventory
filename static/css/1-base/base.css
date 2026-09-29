@@ -1,0 +1,13 @@
+/* 全域 reset 與 body 字型（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer base {
+/* 振佳空調管理系統 - 全域樣式 */
+/* 從 index.html 拆分出來 (2026-08-08 v8) */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    background: #f8fafc;
+    color: #1a1a1a;
+    line-height: 1.5;
+
+  }
+}

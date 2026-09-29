@@ -17,7 +17,7 @@ UPLOAD_PROGRESS_TEST = ROOT / "tests/work_progress_upload_progress.test.js"
 CALENDAR_JS = ROOT / "static/js/render/calendar.js"
 CALENDAR_CSS = ROOT / "static/css/4-pages/calendar.css"
 APP_JS = ROOT / "static/js/app.js"
-CORE_CSS = ROOT / "static/css/legacy/core.css"
+INVENTORY_CSS = ROOT / "static/css/4-pages/inventory.css"
 STOCKOUT_CSS = ROOT / "static/css/4-pages/stockout.css"
 
 
@@ -99,14 +99,14 @@ def test_work_progress_and_calendar_notes_preserve_multiline_text():
     """Regression: escaped multiline notes must remain multiline at every affected surface."""
     wpr_css = _read(WORK_PROGRESS_CSS)
     cal_css = _read(CALENDAR_CSS)
-    core_css = _read(CORE_CSS)
+    inventory_css = _read(INVENTORY_CSS)
     stockout_css = _read(STOCKOUT_CSS)
     cal_js = _read(CALENDAR_JS)
     assert ".wpr-selected-summary span" in wpr_css
     assert ".wpr-edit-readonly-row strong" in wpr_css
     assert "white-space: pre-wrap" in wpr_css
     assert ".cal-note" in cal_css and "white-space: pre-wrap" in cal_css
-    assert ".item-note-text" in core_css and "white-space: pre-wrap" in core_css
+    assert ".item-note-text" in inventory_css and "white-space: pre-wrap" in inventory_css
     assert ".stockout-note" in stockout_css and "white-space: pre-wrap" in stockout_css
     assert "${e.note ?" in cal_js
     assert "e.note || '無備註'" not in cal_js

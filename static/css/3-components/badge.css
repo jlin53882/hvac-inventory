@@ -1,0 +1,33 @@
+/* 小標籤（非庫存 / 分片 / 待領出 / 整組 / 數量正負）（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+  .tag-nonstock { display: inline-block; background: #dcfce7; color: #15803d; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+  .site-badge {
+    display: inline-block; font-size: 9.5px; font-weight: 600;
+    background: #eef4fa; color: #2d5a8e;
+    border-radius: 5px; padding: 1px 6px; margin-left: 6px;
+    vertical-align: middle;
+  }
+  .site-badge.wh { background: #fff3e0; color: #e67e22; }
+  .prepared-tag {
+    display: inline-block;
+    background: #f5f3ff;
+    color: #6d28d9;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin-top: 4px;
+  }
+  .kit-tag {
+    display: inline-block;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin-top: 4px;
+  }
+  .qty-neg { color: #dc2626; font-weight: 700; }
+  .qty-pos { color: #16a34a; font-weight: 700; }
+}

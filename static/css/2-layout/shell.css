@@ -1,0 +1,111 @@
+/* 主框架：sidebar / header / 搜尋 / 分片切換 / 頭像選單 / #content / 盤點提醒橫幅（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer layout {
+  /* ===== Shell v2 — Sidebar + Header + Main (2026-09-06 Phase 1) ===== */
+  .sidebar {width:240px;background:#0F172A;color:#fff;position:fixed;top:0;left:0;height:100vh;z-index:100;display:flex;flex-direction:column;transition:transform .25s cubic-bezier(.4,0,.2,1)}
+  .sidebar-header {padding:20px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .sidebar-header .brand {display:flex;align-items:center;gap:10px}
+  .sidebar-header .logo {width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#2d5a8e,#1e3a5f);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0}
+  .sidebar-header .brand-text .name {font-size:14px;font-weight:700}
+  .sidebar-header .brand-text .sub {font-size:10px;opacity:.45}
+  .sidebar-nav {flex:1;padding:8px;overflow-y:auto}
+  .nav-section {font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:16px 12px 6px;opacity:.35;font-weight:600}
+  .sb-nav-link {display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:13px;color:rgba(255,255,255,.6);cursor:pointer;transition:all .12s;position:relative;text-decoration:none;user-select:none}
+  .sb-nav-link:hover {background:rgba(255,255,255,.06);color:rgba(255,255,255,.85)}
+  .sb-nav-link.active {background:rgba(45,90,142,.35);color:#fff;font-weight:600}
+  .sb-nav-link.active::before {content:"";position:absolute;left:0;top:5px;bottom:5px;width:3px;background:#60a5fa;border-radius:0 3px 3px 0}
+  .sb-nav-link .ic {font-size:15px;width:20px;text-align:center}
+  .sb-nav-link .badge {margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+  .sidebar-footer {padding:12px 16px;border-top:1px solid rgba(255,255,255,.08)}
+  .sidebar-user {display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px}
+  .sidebar-user .av {width:30px;height:30px;border-radius:50%;background:#2d5a8e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
+  .sidebar-user .info {flex:1;min-width:0}
+  .sidebar-user .info .n {font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sidebar-user .info .r {font-size:10px;opacity:.4}
+  .sidebar-overlay {position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99;opacity:0;pointer-events:none;transition:opacity .25s}
+  .sidebar-overlay.open {opacity:1;pointer-events:auto}
+
+  .main {margin-left:240px;min-height:100vh;display:flex;flex-direction:column}
+  .header {background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:90}
+  .hamburger {background:none;border:none;font-size:20px;cursor:pointer;padding:4px;color:#1a1a1a;line-height:1}
+  .breadcrumb {font-size:13px;color:#94a3b8;flex:1}
+  .breadcrumb b {color:#1a1a1a}
+  .h-search {position:relative}
+  .h-search input {padding:7px 12px 7px 30px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;width:220px;background:#f8fafc;color:#1a1a1a;outline:none}
+  .h-search input:focus {border-color:#2d5a8e;background:#fff}
+  .h-search::before {content:"🔍";position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.35}
+  .h-right {display:flex;align-items:center;gap:10px}
+  .h-site {display:flex;gap:4px}
+  .h-site button {padding:4px 12px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;font-size:11px;cursor:pointer;font-weight:500;transition:all .12s;color:#1a1a1a}
+  .h-site button.on {background:#2d5a8e;color:#fff;border-color:#2d5a8e}
+  .notif {position:relative;background:none;border:none;font-size:17px;cursor:pointer}
+  .notif .cnt {position:absolute;top:-5px;right:-7px;min-width:16px;height:16px;padding:0 4px;background:#f59e0b;color:#fff;font-size:9px;font-weight:700;border-radius:9px;display:none;align-items:center;justify-content:center}
+  .h-av {width:30px;height:30px;border-radius:50%;background:#2d5a8e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;cursor:pointer}
+  /* Avatar dropdown */
+  .avatar-dropdown {position:relative}
+  .avatar-menu {position:absolute;top:100%;right:0;margin-top:6px;width:180px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;padding:6px;display:none}
+  .avatar-menu.open {display:block}
+  .avatar-menu-header {padding:8px 12px;font-size:13px;font-weight:600;color:#1a1a1a;border-bottom:1px solid #f1f5f9;margin-bottom:4px}
+  .avatar-menu-item {display:block;padding:8px 12px;font-size:13px;color:#1a1a1a;text-decoration:none;border-radius:6px;cursor:pointer;transition:background .12s}
+  .avatar-menu-item:hover {background:#f1f5f9}
+  .avatar-menu-divider {height:1px;background:#f1f5f9;margin:4px 0}
+  /* ===== 舊 search-box 樣式已移至 .h-search（Phase 1 Shell v2） ===== */
+
+  /* 盤點提醒橫幅 */
+  .reminder {
+    background: #fff4e0;
+    border-left: 5px solid #f59e0b;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #92400e;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .reminder button {
+    background: #f59e0b;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  /* 內容區：flex child 需 width:100% 才能正確填滿 sidebar 右側空間 */
+  .content { padding: 14px 16px 20px; max-width: 640px; margin: 0 auto; width: 100%; }
+
+  /* ===== 舊分片切換已移至 .h-site（Phase 1 Shell v2） ===== */
+
+  @media (min-width: 768px) {
+    .content { max-width: 900px; }
+    /* Desktop: sidebar hidden by default, shown via toggle */
+    .sidebar {transform:translateX(-100%);width:240px}
+    .sidebar.expanded {transform:translateX(0)}
+    .main {margin-left:0}
+    .main.sidebar-expanded {margin-left:240px}
+  }
+
+/* ---------- 手機版（<768px） ---------- */
+@media (max-width: 767px) {
+  /* Shell: sidebar → overlay drawer + main 全寬 + header 精簡 */
+  .sidebar {transform:translateX(-100%)}
+  .sidebar.mob-open {transform:translateX(0)}
+  .main {margin-left:0}
+  .hamburger {display:block}
+  .header {padding:10px 14px;gap:10px}
+  .h-site {display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:8px 0}
+  .breadcrumb {font-size:12px}
+  .header { flex-wrap: wrap; }
+  .breadcrumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .h-search { flex: 1 1 100%; order: 3; }
+  .h-search input { width: 100%; }
+  .h-right { gap: 6px; min-width: 0; }
+  .h-site button { padding: 4px 7px; flex: 0 1 calc(50% - 6px); text-align:center; }
+  /* 舊 topbar 手機版規則已移除（Phase 1 Shell v2） */
+
+  /* 內容區留給底部導覽 */
+  .content { padding-bottom: 92px; }
+  }
+}

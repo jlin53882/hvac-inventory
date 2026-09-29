@@ -1,0 +1,51 @@
+/* 表單列、單位選擇、改密碼檢查、相似品項警示、照片區塊（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+
+  /* 快速新增單位連結（2026-08-16 B 變體：select 下方「＋ 新增單位」） */
+  .unit-add-link {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
+    font-size: 13px; color: #2d5a8e; cursor: pointer; background: none;
+    border: none; padding: 6px 2px; text-decoration: none;
+  }
+  .unit-add-link:hover { text-decoration: underline; }
+
+  /* 單位搜尋框（2026-08-16：單位多時用搜尋較快，輸入過濾相似單位） */
+  .unit-search {
+    width: 100%; padding: 7px 10px 7px 28px; border: 1px solid #ccc; border-radius: 8px;
+    font-size: 13px; background: #f7f8fa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 8px center;
+  }
+  .unit-search:focus { outline: 2px solid #2d5a8e33; border-color: #2d5a8e; background-color: #fff; }
+  .unit-search:focus::placeholder { opacity: 0; }        /* 家豪 08-16：聚焦後灰字消失 */
+  .unit-search:focus { background-image: none; }          /* 聚焦後 🔍 圖案消失（乾淨輸入框） */
+  .unit-search::placeholder { color: #aaa; }
+  .hint-nonstock { font-size: 12px; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 7px 10px; margin-bottom: 12px; }
+  /* v10.1：相似品項警示框（新增/編輯時浮出） */
+  .similar-warn {
+    margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: #fff8e6; border: 1px solid #f0d48a;
+    font-size: 12px; color: #8a6d1a; line-height: 1.6;
+  }
+  .similar-warn .sim-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .similar-warn .sim-row + .sim-row { margin-top: 4px; }
+  .similar-warn a { color: #2d5a8e; font-weight: 600; text-decoration: none; flex-shrink: 0; }
+  /* v10.1：編輯 modal 照片區塊 */
+  .photo-box { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .photo-box img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid #e3e8ef; }
+  .photo-box .photo-actions { display: flex; flex-direction: column; gap: 6px; }
+  .form-row { margin-bottom: 12px; }
+  .form-row label { display: block; font-size: 12.5px; font-weight: 600; color: #666; margin-bottom: 4px; }
+  .form-row input, .form-row select, .form-row textarea {
+    width: 100%; padding: 9px 12px;
+    border: 1.5px solid #d0d5dd; border-radius: 8px;
+    font-size: 14px; outline: none;
+  }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: #2d5a8e; }
+  .form-row textarea { resize: vertical; min-height: 50px; }
+  .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* v11.2 修改密碼 modal：密碼強度即時打勾 + 確認不一致警示 */
+.pw-checks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pw-check { font-size: 11px; color: #888; background: #f0f2f5; border-radius: 12px; padding: 3px 8px; display: inline-block; }
+.pw-check.ok { color: #15803d; background: #dcfce7; }
+.cpw-mismatch { font-size: 11px; color: #b45309; background: #fef3c7; padding: 6px 10px; border-radius: 6px; margin-top: 6px; }
+}

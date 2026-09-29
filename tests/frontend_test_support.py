@@ -12,8 +12,8 @@ STATIC = os.path.join(BASE_DIR, "static")
 INDEX = os.path.join(STATIC, "index.html")
 # 待測：login.html
 LOGIN = os.path.join(STATIC, "login.html")
-# 待測：style.css
-CSS_CORE = os.path.join(STATIC, "css", "legacy", "core.css")
+# 待測：共用樣式（CSS 架構重構 P3：原 style.core.css 拆成 1-base / 2-layout / 3-components）
+SHARED_CSS_DIRS = ("1-base", "2-layout", "3-components")
 CSS_CAL = os.path.join(STATIC, "css", "4-pages", "calendar.css")
 CSS_INVENTORY = os.path.join(STATIC, "css", "4-pages", "inventory.css")
 CSS_KIT = os.path.join(STATIC, "css", "4-pages", "kit.css")
@@ -91,6 +91,17 @@ def read(p: str) -> str:
         return fh.read()
 
 
+def read_shared_css() -> str:
+    """全部共用樣式（base / layout / components）依檔名順序串接。"""
+    parts = []
+    for directory in SHARED_CSS_DIRS:
+        folder = os.path.join(STATIC, "css", directory)
+        for name in sorted(os.listdir(folder)):
+            if name.endswith(".css"):
+                parts.append(read(os.path.join(folder, name)))
+    return "\n".join(parts)
+
+
 def read_page_with_css(html_path: str) -> str:
     """HTML 原文 + 它載入的頁面樣式檔（CSS 架構重構 P2：settings / permissions / login 內嵌 <style> 已搬到 css/4-pages/）"""
     html = read(html_path)
@@ -103,5 +114,11 @@ def read_petty_cash_css() -> str:
 
 
 def read_css_all() -> str:
-    """style.css 拆檔後（2026-08-16）：core + calendar 合併讀，合併順序 = 原檔順序（內容 == 原 style.css）"""
-    return read(CSS_CORE) + read(CSS_CAL)
+    """全部 CSS（原 style.css 內容已分散到共用樣式與各頁檔案；CSS 架構重構 P3）"""
+    parts = [read_shared_css()]
+    for directory in ("4-pages", "5-utilities"):
+        folder = os.path.join(STATIC, "css", directory)
+        for name in sorted(os.listdir(folder)):
+            if name.endswith(".css"):
+                parts.append(read(os.path.join(folder, name)))
+    return "\n".join(parts)

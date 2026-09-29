@@ -1,6 +1,280 @@
 /* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
    後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+/* 自 legacy/core.css 搬來的本頁規則（CSS 架構重構 P3） */
+@layer pages {
+
+  /* 底部導覽 */
+
+
+
+  /* ===== 篩選面板（品牌+分類 chips） ===== */
+  .filter-panel { background: #fff; padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
+  .filter-section { margin-bottom: 10px; }
+  .filter-section:last-child { margin-bottom: 0; }
+  .filter-label { font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .filter-label .left { display: flex; align-items: center; gap: 6px; }
+  .filter-label .count { font-weight: 400; color: #9ca3af; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; transition: max-height 0.2s ease; }
+  .filter-chips.collapsed { max-height: 32px; overflow: hidden; }
+  .filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 500; cursor: pointer; border: 1.5px solid #e0e0e0; background: #f9fafb; color: #374151; transition: all 0.15s; user-select: none; white-space: nowrap; }
+  .filter-chip:hover { border-color: #3b82f6; background: #eff6ff; }
+  .filter-chip.active { border-color: #3b82f6; background: #3b82f6; color: #fff; }
+  .filter-chip .badge { font-size: 10.5px; background: rgba(0,0,0,0.08); padding: 1px 6px; border-radius: 10px; }
+  .filter-chip.active .badge { background: rgba(255,255,255,0.25); }
+  .filter-clear { font-size: 12px; color: #6b7280; cursor: pointer; border: none; background: none; text-decoration: underline; }
+  .filter-clear:hover { color: #dc2626; }
+  .filter-summary { font-size: 12px; color: #9ca3af; }
+  .toggle-btn { font-size: 12px; color: #3b82f6; background: none; border: none; cursor: pointer; font-weight: 500; }
+  @media (max-width: 767px) {
+    .filter-chips.collapsed { max-height: 32px; }
+  }
+  /* 庫存清單頂部匯出列（2026-08-13 Sarah：匯出按鈕從 topbar 移到這裡，靠右） */
+  .loc-export-bar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: 10px 2px 4px; }
+  .loc-export-count { font-size: 12px; color: #888; }
+
+  .section-title {
+    font-size: 13px; font-weight: 700; color: #888;
+    margin: 14px 0 8px;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+  }
+  .section-title .loc { color: #2d5a8e; font-weight: 600; margin-right: auto; }
+  /* 位置折疊按鈕（最左邊箭頭） */
+  .section-title .collapse-btn {
+    background: none; border: none; padding: 0 6px 0 0; margin: 0;
+    font-size: 12px; color: #2d5a8e; cursor: pointer; line-height: 1;
+    transition: transform .15s ease;
+  }
+  .section-title.collapsed .collapse-btn { transform: rotate(-90deg); }
+  .loc-group.collapsed { display: none; }
+  /* 篩選按鈕隱藏規則（用於寬度足夠時隱藏「還有 XX 個」按鈕） */
+  #fp-brand-toggle.hidden,
+  #fp-cat-toggle.hidden {
+    display: none;
+  }
+
+  .item-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+  }
+  .item-card .edit-btn {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 11.5px;
+    color: #2d5a8e;
+    background: #eef4fa;
+    border: 1px solid #cfe0f0;
+    border-radius: 6px;
+    padding: 2px 9px;
+    cursor: pointer;
+    z-index: 5;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .item-card .edit-btn:active { transform: scale(0.92); }
+  /* v10.1：品項照片縮圖（點擊可看大圖） */
+    .item-card .item-photo {
+      width: 52px; height: 52px; object-fit: cover;
+      border-radius: 8px; flex-shrink: 0;
+      border: 1px solid #e3e8ef; background: #f7f9fc;
+      cursor: zoom-in; transition: transform .12s;
+    }
+    .item-card .item-photo:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+  .item-info { flex: 1; min-width: 0; cursor: pointer; }
+  .item-name { font-size: 14px; font-weight: 600; padding-right: 118px; }
+  .item-name .edit-hint { font-size: 10px; color: #999; font-weight: 400; margin-left: 4px; }
+  .item-code { font-size: 11px; color: #999; margin-top: 1px; }
+  .item-loc {
+      font-size: 11px; color: #2d5a8e; background: #eef4fa;
+      border-radius: 6px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+    }
+  .stock-checkbox { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+  .item-card { position: relative; }
+  .item-card > .stock-checkbox { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); z-index: 2; }
+  .m-card .stock-checkbox { position: absolute; left: 8px; top: 8px; z-index: 2; }
+
+  .qty-control { display: flex; align-items: center; flex-shrink: 0; }
+  .qty-btn {
+    width: 34px; height: 34px;
+    border: none; border-radius: 9px;
+    font-size: 18px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.1s;
+  }
+  .qty-btn:active { transform: scale(0.9); }
+  .qty-minus { background: #fee2e2; color: #dc2626; }
+  .qty-plus { background: #dcfce7; color: #16a34a; }
+  .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .qty-value {
+    width: 46px; text-align: center;
+    font-size: 15px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .qty-value .unit { font-size: 10px; color: #999; font-weight: 400; }
+
+  /* 批次改位置 */
+  .batch-bar {
+    position: fixed; bottom: 56px; left: 0; right: 0; z-index: 200;
+    background: #fff; border-top: 1px solid #e2e8f0; padding: 12px 16px;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1); display: none;
+  }
+  .batch-bar.show { display: block; }
+  .batch-bar-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .batch-count { font-size: 13px; color: #666; flex: 1; }
+  .batch-count b { color: #2d5a8e; }
+  .batch-loc-sel { padding: 7px 8px; border: 1.5px solid #d0d5dd; border-radius: 8px; font-size: 13px; }
+  .batch-sub-input { padding: 7px 8px; border: 1.5px solid #d0d5dd; border-radius: 8px; font-size: 13px; flex: 1; }
+  .batch-loc-sel:focus, .batch-sub-input:focus { outline: none; border-color: #2d5a8e; }
+  .batch-bar-btns { display: flex; gap: 8px; }
+  .btn-batch { background: #f0f5ff; color: #2d5a8e; border: 1.5px solid #2d5a8e; }
+  .btn-batch.active { background: #2d5a8e; color: #fff; }
+  .btn-select-all, .btn-deselect-all { background: #fff; color: #555; border: 1.5px solid #d0d5dd; font-size: 12px; }
+  .btn-select-all:hover, .btn-deselect-all:hover { border-color: #2d5a8e; color: #2d5a8e; }
+  @media (min-width: 768px) {
+    .batch-bar { max-width: 480px; left: 50%; transform: translateX(-50%); display: none; }
+    .batch-bar.show { display: block; }
+  }
+
+  /* ===== 舊分片切換已移至 .h-site（Phase 1 Shell v2） ===== */
+
+  @media (min-width: 768px) {
+    .item-card { padding: 14px 18px; }
+  }
+
+/* ===== v1.1 庫存頁 卡片 ✕ 刪除材料（2026-08-11 Sarah 需求） ===== */
+  .item-card .del-btn {
+    position: absolute;
+    top: 8px;
+    right: 66px;
+    font-size: 11.5px;
+    color: #d33;
+    background: #fff;
+    border: 1px solid #f3c1c1;
+    border-radius: 6px;
+    padding: 2px 9px;
+    cursor: pointer;
+    z-index: 5;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .item-card .del-btn:hover { background: #fee2e2; }
+  .item-card .del-btn:active { transform: scale(0.92); }
+.m-card .chip { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 8px; margin-left: 0; margin-right: 4px; }  /* V1b 2026-08-16：chip 移出 nameHTML 後改右邊距 */
+.m-card .chip.green { background: #dcfce7; color: #15803d; }
+
+/* 手機庫存卡：底部 待領出/已領出 按鈕列（還原顯示） */
+.m-card-actions {
+  display: flex; gap: 8px; padding: 0 12px 12px;
+}
+
+/* 長註解獨立於主資訊列，避免推擠照片、數量與操作區。 */
+.m-card .item-note {
+  display: flex; flex-direction: row; gap: 2px; margin: 0 12px 10px; padding: 7px 9px;
+  border: 1px solid #e5e7eb; border-radius: 7px; background: #f8fafc;
+  color: #475569; font-size: 11px; line-height: 1.45;
+  min-width: 0; overflow-wrap: anywhere; word-break: break-word;
+}
+.m-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
+.m-card .item-note-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.m-card .note-slot .item-note { margin: 6px 0 0; }
+
+/* 表格／桌面卡片使用同一組位置與註解語意；桌面不截斷內容。 */
+.item-card .item-note {
+  display: flex; flex-direction: row; gap: 2px; margin-top: 6px; padding: 5px 7px;
+  border: 1px solid #e5e7eb; border-radius: 6px; background: #f8fafc;
+  color: #475569; font-size: 11px; line-height: 1.4;
+  min-width: 0; overflow-wrap: anywhere; word-break: break-word;
+}
+.item-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
+.item-card .item-note-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+
+/* 表格模式也保留完整文字入口；手機橫向表格捲動後不會只剩不明圖示。 */
+.inventory-stockout-actions { display: flex; flex-direction: column; gap: 4px; min-width: 82px; }
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare {
+  background: #fff; border: 1.5px solid #7c3aed; color: #6d28d9; display: inline-flex; justify-content: center;
+}
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-out {
+  background: #fff; border: 1.5px solid #f59e0b; color: #b45309; display: inline-flex; justify-content: center;
+}
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare:hover { background: #f5f3ff; }
+.tbl-wrap .col-actions .inventory-stockout-actions .btn-out:hover { background: #fff7ed; }
+
+/* ---------- 手機版（<768px） ---------- */
+@media (max-width: 767px) {
+
+  /* 注意：盤點頁仍用 data-table（手機不修改），故不隱藏 table */
+
+  /* 手機庫存卡：qty-control 縮小（配合 qty-col padding-right 避開 ⋯） */
+  .m-card .qty-control .qty-btn { width: 30px; height: 30px; font-size: 16px; border-radius: 8px; }
+  .m-card .qty-control .qty-value { width: 40px; font-size: 14px; }
+  }
+
+/* ===== row-warn / row-danger ===== */
+tr.row-warn td {background:#fffbeb}
+tr.row-danger td {background:#fff5f5}
+
+/* ===== Table View (Phase 5) ===== */
+.tbl-wrap {overflow-x:auto;border:1px solid #e5e7eb;border-radius:10px;background:#fff;margin-top:12px}
+.tbl-wrap table.data-table {width:100%;border-collapse:collapse;font-size:13px}
+.tbl-wrap table.data-table th {background:#f8fafc;padding:10px 12px;text-align:left;font-weight:600;color:#64748b;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+.tbl-wrap table.data-table td {padding:10px 12px;border-bottom:1px solid #f1f5f9}
+.tbl-wrap table.data-table tr:last-child td {border-bottom:none}
+.tbl-wrap table.data-table tr.row-warn td {background:#fffbeb}
+.tbl-wrap table.data-table tr.row-danger td {background:#fff5f5}
+.tbl-wrap .col-name {font-weight:600}
+.tbl-wrap .col-qty {text-align:center;font-weight:700}
+.tbl-wrap .col-loc {color:#64748b;font-size:12px}
+.tbl-wrap .col-status {text-align:center}
+.tbl-wrap .col-actions {text-align:right;white-space:nowrap}
+.tbl-wrap .col-actions button {background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px}
+.tbl-wrap .inventory-action-menu {display:inline-flex;position:relative;vertical-align:middle;margin-left:4px}
+.tbl-wrap .status-ok {color:#16a34a;font-size:11px}
+.tbl-wrap .status-warn {color:#d97706;font-size:11px;font-weight:600}
+.tbl-wrap .status-danger {color:#dc2626;font-size:11px;font-weight:600}
+
+/* ===== View Toggle ===== */
+.view-toggle {display:inline-flex;gap:4px;margin-left:8px}
+.view-toggle button {padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:6px;font-size:11px;cursor:pointer}
+.view-toggle button.active {background:#2d5a8e;color:#fff;border-color:#2d5a8e}
+.more-actions-wrap {position:relative}
+.btn-more-actions {background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:4px 10px;font-size:16px;cursor:pointer;line-height:1}
+.more-actions-dropdown {display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;min-width:140px}
+.more-actions-dropdown.open {display:block}
+.more-actions-dropdown button {display:block;width:100%;padding:10px 14px;border:none;background:none;font-size:13px;text-align:left;cursor:pointer;white-space:nowrap}
+.more-actions-dropdown button:hover {background:#f1f5f9}
+
+/* ===== Card warn/danger (Phase 5) ===== */
+.item-card.warn, .m-card.warn {background:#fffbeb;border:1px solid #f59e0b}
+.item-card.danger, .m-card.danger {background:#fff5f5;border:1px solid #ef4444}
+}
+
 @layer legacy {
+/* 自 legacy/core.css 搬來、含 !important 的本頁規則：P5 移除 !important 後再歸入 pages layer */
+.m-card-actions .btn-prepare, .m-card-actions .btn-out {
+  flex: 1; margin: 0 !important; padding: 10px 4px !important; font-size: 12.5px;
+  border-radius: 9px;
+}
+.inventory-stockout-actions .btn-prepare, .inventory-stockout-actions .btn-out {
+  margin: 0 !important; padding: 5px 7px !important; font-size: 11px; white-space: nowrap;
+}
+.tbl-wrap .inventory-action-trigger {border:1px solid #dbe3ec !important;border-radius:6px;background:#fff !important;font-size:18px !important;line-height:1;padding:1px 7px !important;color:#475569}
+.tbl-wrap .inventory-action-trigger:hover {background:#f1f5f9 !important;color:#1e3a5f}
+.tbl-wrap .inventory-action-dropdown {display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:132px;padding:4px;background:#fff;border:1px solid #dbe3ec;border-radius:8px;box-shadow:0 6px 18px rgba(15,23,42,.16);z-index:300}
+.tbl-wrap .inventory-action-dropdown.open {display:block}
+.tbl-wrap .inventory-action-dropdown .inventory-action-item {display:block;width:100%;padding:8px 10px !important;border-radius:5px;text-align:left;font-size:12px !important;white-space:nowrap;color:#334155}
+.tbl-wrap .inventory-action-dropdown .inventory-action-item:hover {background:#f1f5f9}
+.tbl-wrap .inventory-action-dropdown .inventory-action-item.del {color:#dc2626}
+
 /* 振佳空調管理系統 — 單一庫存 / 待領出 desktop content redesign
    只作用於本檔新增的 page-scoped classes，不改 Sidebar / Navbar / 其他頁面。 */
 
@@ -102,30 +376,13 @@
 
 /* ===== Inventory KPI ===== */
 .inventory-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.inventory-kpi-card {
-  min-height: 100px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 18px 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
-  text-align: left;
-}
+  grid-template-columns: repeat(4, minmax(0, 1fr));}
+
 button.inventory-kpi-card {
   width: 100%;
-  color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: border-color .15s, background .15s, box-shadow .15s;
-}
+  transition: border-color .15s, background .15s, box-shadow .15s;}
 button.inventory-kpi-card:hover {
   border-color: #cbd5e1;
   box-shadow: 0 4px 12px rgba(15, 23, 42, .06);
@@ -136,28 +393,9 @@ button.inventory-kpi-card:focus-visible,
   outline: 3px solid rgba(37, 99, 235, .24);
   outline-offset: 2px;
 }
-.inventory-kpi-icon {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 38px;
-  border-radius: 10px;
-  background: #eff6ff;
-  font-size: 18px;
-}
-.inventory-kpi-number {
-  color: #0f172a;
-  font-size: 27px;
-  font-weight: 700;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.inventory-kpi-label {
-  margin-top: 5px;
-  color: #64748b;
-  font-size: 13px;
-}
+
+
+
 .inventory-kpi-action {
   margin-left: 4px;
   color: currentColor;
@@ -174,24 +412,14 @@ button.inventory-kpi-card:focus-visible,
 .inventory-kpi-purple .inventory-kpi-number {
   color: #6d28d9;
 }
-.inventory-kpi-low {
-  border-color: #fde68a;
-  background: #fffbeb;
-}
-.inventory-kpi-low .inventory-kpi-icon {
-  background: #fef3c7;
-}
+
+
 .inventory-kpi-low .inventory-kpi-number,
 .inventory-kpi-low .inventory-kpi-action {
   color: #d97706;
 }
-.inventory-kpi-out {
-  border-color: #fca5a5;
-  background: #fef2f2;
-}
-.inventory-kpi-out .inventory-kpi-icon {
-  background: #fee2e2;
-}
+
+
 .inventory-kpi-out .inventory-kpi-number,
 .inventory-kpi-out .inventory-kpi-action {
   color: #dc2626;
@@ -764,40 +992,14 @@ button.inventory-kpi-card:focus-visible,
   flex-wrap: wrap;
 }
 .prepared-summary-card {
-  min-width: 142px;
-  min-height: 82px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 12px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #fff;
-}
-.prepared-summary-card strong {
-  font-size: 25px;
-  font-weight: 700;
-  line-height: 1.1;
-}
+  justify-content: center;}
+
 .prepared-summary-card span {
-  margin-top: 5px;
-  color: #64748b;
-  font-size: 12px;
-}
-.prepared-summary-purple {
-  border-color: #ddd6fe;
-  background: #faf8ff;
-}
-.prepared-summary-purple strong {
-  color: #6d28d9;
-}
-.prepared-summary-blue {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-}
-.prepared-summary-blue strong {
-  color: #2563eb;
-}
+  color: #64748b;}
+
+
+
+
 .prepared-page-header .btn-add-inv {
   min-height: 42px;
   padding: 0 20px;
@@ -988,12 +1190,8 @@ button.inventory-kpi-card:focus-visible,
     padding-left: 24px;
     padding-right: 24px;
   }
-  .inventory-kpi-grid {
-    gap: 12px;
-  }
-  .inventory-kpi-card {
-    padding: 16px;
-  }
+
+
   .inventory-content .loc-group .item-card {
     gap: 14px;
     padding-left: 16px;
@@ -1034,27 +1232,11 @@ button.inventory-kpi-card:focus-visible,
   .content.prepared-content {
     padding: 16px 14px 92px;
   }
-  .inventory-kpi-grid {
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-  .inventory-kpi-card {
-    min-height: 82px;
-    gap: 8px;
-    padding: 12px;
-  }
-  .inventory-kpi-icon {
-    width: 32px;
-    height: 32px;
-    flex-basis: 32px;
-    font-size: 15px;
-  }
-  .inventory-kpi-number {
-    font-size: 21px;
-  }
-  .inventory-kpi-label {
-    font-size: 11px;
-  }
+
+
+
+
+
   .inventory-content .loc-export-bar {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -1136,10 +1318,7 @@ button.inventory-kpi-card:focus-visible,
     grid-template-columns: 1fr 1fr;
     width: 100%;
   }
-  .prepared-summary-card {
-    min-width: 0;
-    min-height: 72px;
-  }
+
   .prepared-page-header .btn-add-inv {
     grid-column: 1 / -1;
   }

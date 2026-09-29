@@ -1,5 +1,72 @@
 /* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
    後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
+/* 自 legacy/core.css 搬來的本頁規則（CSS 架構重構 P3） */
+@layer pages {
+  /* 可搜尋材料選擇（整組 Modal） */
+  .kit-empty { font-size: 12.5px; color: #999; padding: 4px 0 8px; }
+  .kit-dropdown {
+    display: none; position: absolute; left: 0; right: 0; top: calc(100% + 3px);
+    background: #fff; border: 1.5px solid #d0d5dd; border-radius: 8px;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.14);
+    max-height: 240px; overflow-y: auto; z-index: 60;
+  }
+  .kit-dropdown.open { display: block; }
+  .kit-drop-opt {
+    padding: 9px 10px; cursor: pointer; display: flex;
+    justify-content: space-between; align-items: center; gap: 8px;
+    border-bottom: 1px solid #f2f4f8;
+  }
+  .kit-drop-opt:active { background: #e8f2ff; }
+  .kit-drop-opt .nm { font-size: 13px; color: #1a1a1a; }
+  .kit-drop-opt .bd { font-size: 11px; color: #888; margin-top: 1px; }
+  .kit-drop-opt .stk { flex: none; font-size: 12px; color: #16a34a; font-weight: 700; white-space: nowrap; }
+  .kit-drop-empty { padding: 12px 10px; font-size: 12.5px; color: #999; text-align: center; }
+
+  /* ===== 新增整組・材料選擇（demo 樣式移植：selected-row / mat-search / btn-add-row） ===== */
+  .kit-empty { font-size: 12.5px; color: #94a3b8; padding: 4px 0 8px; }
+  .selected-row {
+    display: flex; align-items: center; gap: 8px;
+    background: #f4f7fb; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 9px 12px; margin-bottom: 8px;
+  }
+  .selected-row .info { flex: 1; min-width: 0; }
+  .selected-row .info .nm {
+    font-size: 13.5px; font-weight: 600; color: #16283f;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .selected-row .info .bd { font-size: 11.5px; color: #6b7a90; }
+  .selected-row input {
+    width: 58px; height: 36px; text-align: center;
+    border: 1.5px solid #d8dee9; border-radius: 8px; font-size: 14px; outline: none;
+  }
+  .selected-row .rm {
+    width: 28px; height: 28px; border: none; background: #fee2e2; color: #dc2626;
+    border-radius: 8px; font-size: 13px; cursor: pointer; flex: none;
+  }
+  .mat-search { position: relative; }
+  .mat-search .input-wrap { position: relative; }
+  .mat-search input {
+    width: 100%; height: 46px; padding: 0 34px 0 12px;
+    border: 1.5px solid #d8dee9; border-radius: 10px;
+    font-size: 14px; background: #fafbfc; outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .mat-search input:focus { border-color: #1890FF; box-shadow: 0 0 0 3px rgba(24,144,255,0.18); }
+  .mat-search .caret {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; color: #94a3b8; pointer-events: none;
+  }
+  .btn-add-row {
+    width: 100%; height: 42px; margin-top: 2px;
+    background: #fff; border: 1.5px dashed #1890FF; color: #1890FF;
+    border-radius: 10px; font-size: 13.5px; font-weight: 700; cursor: pointer;
+  }
+  .btn-add-row:hover { background: #f0f7ff; }
+  #kit-modal .btn-confirm { background: linear-gradient(135deg, #1890FF, #36a3ff); }
+.selected-row .info .bd .model,
+.kit-drop-opt .bd .model { color: #1890FF; font-weight: 600; }
+}
+
 @layer legacy {
 /* 整組庫存頁專用 desktop dashboard（僅 kit-content scope） */
 .kit-content {
@@ -61,40 +128,17 @@
 }
 .kit-content .kit-add-button:hover { background: #1d4ed8; border-color: #1d4ed8; }
 .kit-content .kit-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
-}
-.kit-content .kit-kpi-card {
-  min-height: 94px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 18px 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15,23,42,.04);
-}
-.kit-content .kit-kpi-card.is-warning { background: #fffbeb; border-color: #fde68a; }
-.kit-content .kit-kpi-card.is-danger { background: #fef2f2; border-color: #fecaca; }
-.kit-content .kit-kpi-icon {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #eff6ff;
-  font-size: 18px;
-}
-.kit-content .kit-kpi-card.is-warning .kit-kpi-icon { background: #fef3c7; }
-.kit-content .kit-kpi-card.is-danger .kit-kpi-icon { background: #fee2e2; }
-.kit-content .kit-kpi-number { color: #0f172a; font-size: 28px; line-height: 1; font-weight: 700; }
-.kit-content .kit-kpi-card.is-warning .kit-kpi-number { color: #d97706; }
-.kit-content .kit-kpi-card.is-danger .kit-kpi-number { color: #dc2626; }
-.kit-content .kit-kpi-label { margin-top: 6px; color: #64748b; font-size: 13px; }
+  grid-template-columns: repeat(4, minmax(0, 1fr));}
+
+
+
+
+
+
+
+
+
+
 .kit-content .kit-toolbar {
   min-height: 48px;
   display: flex;
@@ -331,11 +375,11 @@
   .kit-content .kit-page-header { gap: 14px; margin-bottom: 16px; }
   .kit-content .kit-page-header h1 { font-size: 22px; }
   .kit-content .kit-page-header p { font-size: 12px; }
-  .kit-content .kit-kpi-grid { gap: 8px; margin-bottom: 14px; }
-  .kit-content .kit-kpi-card { min-height: 78px; gap: 8px; padding: 12px; }
-  .kit-content .kit-kpi-icon { width: 30px; height: 30px; flex-basis: 30px; font-size: 14px; }
-  .kit-content .kit-kpi-number { font-size: 21px; }
-  .kit-content .kit-kpi-label { font-size: 11px; }
+
+
+
+
+
   .kit-content .kit-toolbar { align-items: flex-start; flex-direction: column; gap: 4px; min-height: 44px; }
   /* 手機版：與單一庫存卡片一致——照片縮圖在名稱左邊，操作按鈕換到下一列 */
   .kit-content .kit-assembly-header {

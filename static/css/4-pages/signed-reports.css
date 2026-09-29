@@ -213,10 +213,10 @@
 .dsr-info li { display: flex; gap: 8px; }
 .dsr-info-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .dsr-info .dsr-badge { padding: 3px 7px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: rgba(255,255,255,.18); color: #fff; font-size: 11px; font-weight: 800; }
-.dsr-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
-.dsr-kpi__card { padding: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; text-align: center; }
-.dsr-kpi__num { color: #1e3a5f; font-size: 18px; font-weight: 900; }
-.dsr-kpi__label { margin-top: 2px; color: #64748b; font-size: 11px; font-weight: 700; }
+.dsr-kpi { grid-template-columns: repeat(3, 1fr);}
+
+
+
 
 /* 歷史查詢 */
 .dsr-history .dsr-card__hd { flex-direction: column; align-items: stretch; gap: 12px; }

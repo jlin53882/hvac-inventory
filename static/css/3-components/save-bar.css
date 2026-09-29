@@ -1,0 +1,19 @@
+/* 底部「全部儲存」列（庫存數量調整 / 權限頁）（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+
+  /* 儲存列 */
+  .save-bar {
+    position: fixed;
+    bottom: 54px; left: 0; right: 0;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
+    padding: 10px 20px;
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 95;
+  }
+  .save-bar.show { display: flex; }
+  .save-bar .stat { font-size: 12px; color: #666; }
+  .save-bar .stat b { font-size: 15px; color: #1a1a1a; }
+}

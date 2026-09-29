@@ -1,0 +1,31 @@
+/* 共用 modal 疊層與按鈕列（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+  .modal-item-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+  .modal-item-row:last-child { border-bottom: none; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    z-index: 950; display: none; align-items: flex-end; justify-content: center;  /* 950: 須高於 header z-900，低於 sheet 3000/lightbox 9999（2026-08-25 截圖實證），須高於 900；低於 sheet 3000/lightbox 9999 */
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff; width: 100%; max-width: 520px;
+    border-radius: 16px 16px 0 0;
+    padding: 20px 20px 0;  /* 底部 0：sticky 按鈕自帶 padding，避免縫隙露出滾動內容 */
+    max-height: 88vh;   /* fallback 舊瀏覽器 */
+    max-height: 88dvh;  /* 手機實際可視高度（vh 含網址列會超出） */
+    overflow-y: auto;
+  }
+  .modal h3 { font-size: 17px; margin-bottom: 14px; color: #1e3a5f; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 16px;
+    position: sticky; bottom: 0; background: #fff; padding: 12px 0 14px; z-index: 10; }
+  .modal-actions button { flex: 1; padding: 11px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; }
+
+  /* ===== 舊分片切換已移至 .h-site（Phase 1 Shell v2） ===== */
+
+  @media (min-width: 768px) {
+    .modal { border-radius: 16px; margin-bottom: 20px; }
+    .modal-overlay { align-items: center; }
+  }
+}
