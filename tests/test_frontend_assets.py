@@ -80,6 +80,9 @@ from frontend_test_support import (
     STOCKTAKE_JS,
     TAB_ASYNC_LIFECYCLE_RUNTIME_JS,
     TAB_LIFECYCLE_RUNTIME_JS,
+    UPLOAD_LIST_CSS,
+    UPLOAD_LIST_RENDER_JS,
+    UPLOAD_LIST_RUNTIME_JS,
     UTILS_JS,
     WORK_PROGRESS_PAGE_VISIBILITY_RUNTIME_JS,
     read,
@@ -212,98 +215,112 @@ def test_signed_reports_demo_layout_contract():
 
     2026-09-07 bug：誤把 .dsr-wrap 改為兩欄 Grid，標題與卡片被分到左右欄。
     """
-    js = read(SIGNED_REPORTS_RENDER_JS)
-    css = read(SIGNED_REPORTS_CSS)
+    # issue #39：版面由兩頁共用的 render/upload-list.js + 3-components/upload-list.css 提供，
+    # #content 寬度留在頁面 CSS；畫面實際輸出由 upload_list_runtime.test.js 驗證。
+    js = read(UPLOAD_LIST_RENDER_JS)
+    css = read(UPLOAD_LIST_CSS)
+    page_css = read(SIGNED_REPORTS_CSS)
     app = read(APP_JS)
     assert 'class="dsr-page-header"' in js
-    assert js.index('class="dsr-page-header"') < js.index('class="dsr-layout"')
-    assert '#content.dsr-content' in css
-    assert '.dsr-layout { grid-template-columns: 1.05fr .95fr; }' in css
-    assert '.dsr-wrap { display: grid;' not in css
-    assert 'max-width: 1100px;' not in css
+    assert js.index('class="dsr-page-header"') < js.index('class="upl-layout"')
+    assert '#content.dsr-content' in page_css
+    assert '.upl-layout { grid-template-columns: 1.05fr .95fr; }' in css
+    assert '.upl-wrap { display: grid;' not in css
+    assert 'max-width: 1100px;' not in css + page_css
     assert "'signed-reports': 'dsr-content'" in app
 
 
-def test_signed_reports_actions_and_editable_note_contract():
-    """DSR：圖片直接預覽；下載/刪除/編輯日期、檔案、上傳人與備註均為圖示加文字操作。"""
-    js = read(SIGNED_REPORTS_RENDER_JS)
-    css = read(SIGNED_REPORTS_CSS) + read(CSS_PANEL)  # P4：與報價單共用的外殼（按鈕 / 卡片 / 欄位）在 panel.css
-    assert "onclick=\"dsrPreview(${r.id})\"" in js
+def test_upload_list_actions_and_editable_note_contract():
+    """簽名報表 / 報價單上傳（共用 upload-list.js）：圖片直接預覽；下載/刪除/編輯日期、檔案、上傳人與備註均為圖示加文字操作。
+
+    issue #39 第 2 項：兩頁原本各自一份（dsr- / qup-），合併後斷言改對共用元件；兩頁實際輸出由
+    upload_list_runtime.test.js 以正式設定逐頁執行驗證。
+    """
+    js = read(UPLOAD_LIST_RENDER_JS)
+    css = read(UPLOAD_LIST_CSS) + read(CSS_PANEL)  # P4：與報價單共用的外殼（按鈕 / 卡片 / 欄位）在 panel.css
+    assert "onclick=\"${esc(ctl)}.preview(${r.id})\"" in js
     assert "!isImage" in js
-    assert "class=\"dsr-report-thumb\"" in js
-    assert "dsrEdit(${r.id})" in js
-    assert "function dsrEdit(id)" in js
-    assert "data-dsr-edit-save" in js
-    assert "data-dsr-edit-cancel" in js
-    assert "id=\"dsr-edit-date\"" in js
-    assert "id=\"dsr-edit-uploader\"" in js
-    assert "id=\"dsr-edit-note\"" in js
-    assert "id=\"dsr-edit-file\"" in js
+    assert "class=\"upl-report-thumb\"" in js
+    assert "${esc(ctl)}.edit(${r.id})" in js
+    assert "async function edit(id)" in js
+    assert "data-upl-edit-save" in js
+    assert "data-upl-edit-cancel" in js
+    assert "id=\"upl-edit-date\"" in js
+    assert "id=\"upl-edit-uploader\"" in js
+    assert "id=\"upl-edit-note\"" in js
+    assert "id=\"upl-edit-file\"" in js
     assert "prompt('編輯報表日期" not in js
     assert "prompt('編輯上傳人姓名" not in js
     assert "prompt('編輯備註" not in js
+    assert "EditNote" not in js
     assert "report_date" in js and "uploader_name" in js
     assert "✏️ 編輯" in js
-    assert "${r.can_edit ? `<button class=\"btn btn--secondary btn--sm dsr-action-btn\" onclick=\"dsrEdit(${r.id})\">" in js
-    assert "${r.can_delete ? `<button class=\"btn btn--danger btn--sm dsr-action-btn dsr-action-btn--danger\" onclick=\"dsrDelete(${r.id})\">" in js
-    assert "function _dsrDateOnly" in js
-    assert "_dsrDateOnly(r.upload_time)" in js
+    assert "${r.can_edit ? `<button class=\"btn btn--secondary btn--sm\" onclick=\"${esc(ctl)}.edit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"btn btn--danger btn--sm\" onclick=\"${esc(ctl)}.remove(${r.id})\">" in js
+    assert "function _uplDateOnly" in js
+    assert "_uplDateOnly(r.upload_time)" in js
     assert "esc(r.upload_time)" not in js
-    assert "fetch('/api/auth/me')" in js
-    assert "class=\"dsr-report-card\"" in js
+    assert "apiFetch('/api/auth/me')" in js
+    assert "class=\"upl-report-card\"" in js
     assert "<summary" in js
-    assert "dsr-report-summary__date" in js
-    assert "dsr-report-summary__uploader" in js
+    assert "upl-report-summary__date" in js
+    assert "upl-report-summary__uploader" in js
     assert "<details" in js
     assert "⬇️ 下載" in js
     assert "🗑 刪除" in js
     assert "PATCH" in js
     assert "FormData" in js
-    assert "await dsrLoadHistory()" in js
-    assert "function dsrKeepUploaderOnly" in js
-    assert "dsrKeepUploaderOnly();" in js
+    assert "await loadHistory()" in js
+    assert "function keepUploaderOnly" in js
+    assert "keepUploaderOnly();" in js
     assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
-    assert "/api/signed-reports/" in js and "note" in js
-    assert ".dsr-report-thumb" in css
-    assert "btn btn--secondary btn--sm dsr-action-btn" in js
+    assert "api + '/' + id" in js and "note" in js
+    assert "api: '/api/signed-reports'" in read(SIGNED_REPORTS_RENDER_JS)
+    assert "api: '/api/quotation-uploads'" in read(QUOTATION_UPLOAD_RENDER_JS)
+    assert ".upl-report-thumb" in css
+    assert "class=\"btn btn--secondary btn--sm\" onclick=\"${esc(ctl)}.download(${r.id})\"" in js
     assert "border: 1px solid var(--c-text)" in css
-    assert ".dsr-note-cell" in css and "background: var(--c-warning-soft)" in css
-    assert ".dsr-edit-modal .dsr-modal__hd h3" in css and "color: var(--c-white)" in css
+    assert ".upl-note-cell" in css and "background: var(--c-warning-soft)" in css and "white-space: pre-wrap" in css
+    assert ".upl-edit-modal .dsr-modal__hd h3" in css and "color: var(--c-white)" in css
+    assert ".upl-edit-modal .dsr-modal__bd" in css and "background: var(--c-white)" in css
     assert "isMobileView" in js and "開啟 PDF" in js
     assert "data-pdf-url" in js
+
+
+def test_upload_list_pages_only_pass_configuration():
+    """issue #39 第 2 項：兩頁只帶設定，共用元件先載入；舊的 dsr / qup 各自實作不可殘留。"""
+    html = read(os.path.join(STATIC, "index.html"))
+    component = html.index('<script src="/static/js/render/upload-list.js" defer></script>')
+    assert component < html.index('<script src="/static/js/render/signed-reports.js" defer></script>')
+    assert component < html.index('<script src="/static/js/render/quotation-upload.js" defer></script>')
+    assert '<link rel="stylesheet" href="/static/css/3-components/upload-list.css">' in html
+    for path, ctl in ((SIGNED_REPORTS_RENDER_JS, "SignedReports"), (QUOTATION_UPLOAD_RENDER_JS, "QuotationUploads")):
+        js = read(path)
+        assert f"var {ctl} = createUploadListPage({{" in js
+        assert f"global: '{ctl}'," in js
+        assert js.count("function ") == 1, f"{path} 應只剩頁面入口，行為放在 upload-list.js"
+        assert "fetch(" not in js and "innerHTML" not in js
+    for path in (SIGNED_REPORTS_CSS, QUOTATION_UPLOAD_CSS):
+        assert "dsr-" not in read(path).replace("#content.dsr-content", "") and "qup-" not in read(path)
+    for path in Path(STATIC, "js").rglob("*.js"):
+        assert not re.search(r"\b(dsr|qup)[A-Z]\w*\(", read(path)), f"{path} 仍呼叫舊的 dsr*/qup* 函式"
+
+
+def test_upload_list_runtime_contract():
+    """實際執行兩頁（正式設定）：畫面、上傳權限、上傳後重設、編輯 PATCH、刪除、錯誤訊息、切頁後停止。"""
+    r = subprocess.run(["node", UPLOAD_LIST_RUNTIME_JS], capture_output=True, text=True, encoding="utf-8", timeout=120, cwd=BASE_DIR)
+    assert r.returncode == 0, f"upload_list_runtime.test.js 失敗：\n{r.stdout}\n{r.stderr}"
 
 
 def test_quotation_upload_actions_and_edit_modal_contract():
-    """報價單上傳：同窗 modal 編輯（日期/檔案/上傳人/備註）+ 上傳後清理對齊 DSR。"""
+    """報價單上傳：與簽名報表共用同窗 modal 編輯與上傳後清理（upload-list.js）；本頁只設定 API、文字與報價單分頁。"""
     js = read(QUOTATION_UPLOAD_RENDER_JS)
-    css = read(QUOTATION_UPLOAD_CSS)
-    assert "qupEdit(${r.id})" in js
-    assert "function qupEdit(id)" in js
-    assert "data-qup-edit-save" in js
-    assert "data-qup-edit-cancel" in js
-    assert 'id="qup-edit-date"' in js
-    assert 'id="qup-edit-uploader"' in js
-    assert 'id="qup-edit-note"' in js
-    assert 'id="qup-edit-file"' in js
-    assert "prompt('編輯報表日期" not in js
-    assert "prompt('編輯上傳人姓名" not in js
-    assert "prompt('編輯備註" not in js
-    assert "qupEditNote" not in js
-    assert "✏️ 編輯" in js
-    assert "${r.can_edit ? `<button class=\"btn btn--secondary btn--sm qup-action-btn\" onclick=\"qupEdit(${r.id})\">" in js
-    assert "${r.can_delete ? `<button class=\"btn btn--danger btn--sm qup-action-btn qup-action-btn--danger\" onclick=\"qupDelete(${r.id})\">" in js
-    assert "function qupKeepUploaderOnly" in js
-    assert "qupKeepUploaderOnly();" in js
-    assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
-    assert "await qupLoadHistory()" in js
-    assert "PATCH" in js
-    assert "FormData" in js
-    assert ".qup-note-cell" in css and "white-space: pre-wrap" in css
-    assert ".qup-edit-modal" in css
-    assert ".qup-edit-modal .qup-modal__hd h3" in css and "color: var(--c-white)" in css
-    assert ".qup-edit-modal .qup-modal__bd" in css and "background: var(--c-white)" in css
-    assert "isMobileView" in js and "開啟 PDF" in js
-    assert "data-pdf-url" in js
+    assert "var QuotationUploads = createUploadListPage({" in js
+    assert "api: '/api/quotation-uploads'," in js
+    assert "editTitle: '編輯報價單上傳'," in js
+    assert "headerHtml: () => quoteModeTabs('upload')," in js
+    assert "uploadPermission: null," in js
+    assert "return QuotationUploads.render();" in js
 
 
 def test_quotation_history_loads_all_pages():
@@ -389,7 +406,7 @@ def test_stocktake_table_has_diff_column():
 
 def test_signed_reports_accept_no_docx():
     """簽名報表前端 accept 不含 .docx/.xlsx（與後端白名單對齊）"""
-    js = read(SIGNED_REPORTS_RENDER_JS)
+    js = read(UPLOAD_LIST_RENDER_JS) + read(SIGNED_REPORTS_RENDER_JS)
     assert '.docx' not in js
     assert '.xlsx' not in js
     assert 'PDF / PNG / JPG' in js or 'PDF' in js
@@ -1165,9 +1182,11 @@ def test_permissions_pagination_runtime():
 def test_signed_report_upload_is_permission_gated():
     """Signed report page hides upload surface without changing report viewing."""
     js = read(SIGNED_REPORTS_RENDER_JS)
-    assert "signed-report-upload" in js
-    assert "data-signed-upload" in js
-    assert "node.hidden = !canUpload" in js
+    component = read(UPLOAD_LIST_RENDER_JS)
+    assert "uploadPermission: 'signed-report-upload'," in js
+    assert 'data-role="upl-upload-surface"' in component
+    assert "node.hidden = !canUpload" in component
+    # 實際顯示 / 隱藏由 upload_list_runtime.test.js 以有 / 無權限的登入者驗證
 
 
 def test_perms_js_has_roles_and_groups():
@@ -3159,8 +3178,7 @@ def test_all_dashboard_kpis_share_common_responsive_contract():
     sources = (
         CALENDAR_RENDER_JS, INVENTORY_RENDER_JS, PREPARED_RENDER_JS,
         STOCKOUT_RENDER_JS, STOCKTAKE_JS, KITS_RENDER_JS,
-        SIGNED_REPORTS_RENDER_JS,
-        os.path.join(STATIC, "js", "render", "quotation-upload.js"),
+        UPLOAD_LIST_RENDER_JS,  # 簽名報表與報價單上傳共用的 KPI（issue #39）
         PETTY_CASH_RENDER_JS,
     )
     for source in sources:
@@ -3282,8 +3300,8 @@ def test_tab_label_includes_signed_reports():
 
 def test_camera_button_exists():
     """簽名報表有相機拍攝按鈕"""
-    js = read(os.path.join(STATIC, 'js', 'render', 'signed-reports.js'))
-    assert 'dsr-camera-input' in js, "相機 input 缺失"
+    js = read(UPLOAD_LIST_RENDER_JS)  # 簽名報表與報價單上傳共用（issue #39）
+    assert 'upl-camera-input' in js, "相機 input 缺失"
     assert 'capture="environment"' in js or "capture='environment'" in js, "capture 屬性缺失"
     assert '相機拍攝' in js, "相機拍攝按鈕文字缺失"
 
@@ -4878,18 +4896,21 @@ def test_frontend_async_lifecycle_contracts():
     assert "currentSite)}`" not in stocktake_render
     assert stocktake_render.count("if (!isCurrent()) return;") >= 6
 
-    for path, prefix, tab, endpoint in (
-        (SIGNED_REPORTS_RENDER_JS, "dsr", "signed-reports", "/api/signed-reports?"),
-        (QUOTATION_UPLOAD_RENDER_JS, "qup", "quotation", "/api/quotation-uploads?"),
+    # 簽名報表 / 報價單上傳共用 upload-list.js（issue #39）：掛載世代與請求序號在元件 state，頁面只提供 isActive / api
+    component = read(UPLOAD_LIST_RENDER_JS)
+    assert "renderSeq: 0," in component
+    assert "historyRequestSeq: 0," in component
+    assert "const isCurrent = renderSeq => renderSeq === state.renderSeq && config.isActive();" in component
+    assert "requestSeq !== state.historyRequestSeq" in component
+    assert "apiFetch(api + '?' + p)" in component
+    assert "updateKPI(renderSeq)" in component
+    for path, tab, endpoint in (
+        (SIGNED_REPORTS_RENDER_JS, "signed-reports", "/api/signed-reports"),
+        (QUOTATION_UPLOAD_RENDER_JS, "quotation", "/api/quotation-uploads"),
     ):
         source = read(path)
-        assert f"var {prefix}RenderSeq" in source
-        assert f"var {prefix}HistoryRequestSeq" in source
-        assert f"function {prefix}RenderIsCurrent" in source
         assert f"currentTab === '{tab}'" in source
-        assert f"requestSeq !== {prefix}HistoryRequestSeq" in source
-        assert endpoint in source
-        assert f"{prefix}UpdateKPI(renderSeq)" in source
+        assert f"api: '{endpoint}'," in source
 
     result = subprocess.run(
         ["node", TAB_ASYNC_LIFECYCLE_RUNTIME_JS],

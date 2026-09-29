@@ -142,10 +142,10 @@ static/
 │   │   ├── stocktake.css             # [data-page="stocktake"]  前綴 stk-
 │   │   ├── kit.css                   # [data-page="kit"]        前綴 kit-
 │   │   ├── calendar.css              # [data-page="calendar"]   前綴 cal-
-│   │   ├── signed-reports.css        # [data-page="signed-reports"] 前綴 dsr-
+│   │   ├── signed-reports.css        # [data-page="signed-reports"] 只剩 #content 寬度；共用元件見 3-components/upload-list.css（upl-，issue #39）
 │   │   ├── work-progress.css         # [data-page="work-progress"]  前綴 wpr-（移除 #content 前綴）
 │   │   ├── quotation.css             # [data-page="quotation"]  前綴 quote-
-│   │   ├── quotation-upload.css      # [data-page="quotation-upload"] 前綴 qup-
+│   │   ├── quotation-upload.css      # [data-page="quotation-upload"] 只剩 #content 寬度；共用元件見 3-components/upload-list.css
 │   │   ├── petty-cash.css            # [data-page="petty-cash"] 前綴 pc-（一般）
 │   │   ├── petty-cash-engineering.css# 前綴 pce-（與一般零用金 modal 分離）
 │   │   ├── petty-cash-reports.css    # 前綴 pcr-

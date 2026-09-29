@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="/static/css/3-components/save-bar.css">
 <link rel="stylesheet" href="/static/css/3-components/status-list.css">
 <link rel="stylesheet" href="/static/css/3-components/table.css">
+<link rel="stylesheet" href="/static/css/3-components/upload-list.css">
 <!-- 放在元件最後：同為 components 層時需晚於 modal.css 才能覆蓋 .modal 的內距 -->
 <link rel="stylesheet" href="/static/css/3-components/export-dialog.css">
 <link rel="stylesheet" href="/static/css/4-pages/calendar.css">
@@ -907,6 +908,8 @@
 <script src="/static/js/render/stocktake.js" defer></script>
 <script src="/static/js/render/kits.js" defer></script>
 <script src="/static/js/render/calendar.js" defer></script>
+<!-- 檔案上傳清單共用元件：signed-reports.js 與 quotation-upload.js 的設定依賴它，需先載入 -->
+<script src="/static/js/render/upload-list.js" defer></script>
 <script src="/static/js/render/signed-reports.js" defer></script>
 <!-- Work Progress renderer; depends on globals.js and utils.js loaded earlier. -->
 <script src="/static/js/render/work-progress.js" defer></script>

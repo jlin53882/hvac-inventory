@@ -730,4 +730,5 @@ def test_bootstrap_does_not_remount_when_user_switched_tab_during_boot():
     assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
     assert "if (!tabChangedDuringBoot) mountPreservedTabAfterBootstrap();" in boot
     qup = read(os.path.join(STATIC, "js", "render", "quotation-upload.js"))
-    assert "document.body.dataset.page === 'quotation-upload'" in qup[qup.index("function qupRenderIsCurrent"):]
+    # issue #39：報價單上傳改由共用 upload-list.js 渲染，本頁以 isActive 設定判斷；runtime 見 upload_list_runtime.test.js
+    assert "isActive: () => currentTab === 'quotation' && document.body.dataset.page === 'quotation-upload'," in qup

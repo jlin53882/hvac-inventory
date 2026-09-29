@@ -62,6 +62,10 @@ SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "4-pages", "signed-reports.css")
 QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
 QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "4-pages", "quotation-upload.css")
+# 待測：兩頁共用的檔案上傳清單元件（issue #39 第 2 項合併）
+UPLOAD_LIST_RENDER_JS = os.path.join(STATIC, "js", "render", "upload-list.js")
+UPLOAD_LIST_CSS = os.path.join(STATIC, "css", "3-components", "upload-list.css")
+UPLOAD_LIST_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "upload_list_runtime.test.js")
 # 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
 QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation.js")
 QUOTATION_HISTORY_PAGINATION_JS = os.path.join(BASE_DIR, "tests", "quotation_history_pagination.test.js")

@@ -74,8 +74,8 @@ def test_quick_range_chips_track_selection_and_reset(page, live_server):
     cases = [
         ("petty-cash", None, "pc-range", "all", "prev", "pcResetFilter()"),
         ("work-progress", None, "wpr-range", "month", "today", "wprResetFilter()"),
-        ("signed-reports", None, "dsr-range", "month", "week", "dsrResetFilter()"),
-        ("quotation", "quoteSwitchMode('upload')", "qup-range", "month", "all", "qupResetFilter()"),
+        ("signed-reports", None, "upl-range", "month", "week", "SignedReports.resetFilter()"),
+        ("quotation", "quoteSwitchMode('upload')", "upl-range", "month", "all", "QuotationUploads.resetFilter()"),
     ]
     for tab, action, role, default, other, reset in cases:
         harness.open_tab(page, live_server, tab)
@@ -85,6 +85,13 @@ def test_quick_range_chips_track_selection_and_reset(page, live_server):
         assert _active_ranges(page, role) == [other], tab
         harness.run_action(page, reset)
         assert _active_ranges(page, role) == [default], tab
+
+
+def _wait_toast(page, prefix: str) -> None:
+    """等到 toast 顯示指定開頭的訊息（動作完成、畫面已重繪）。"""
+    page.wait_for_function(
+        "p => { const el = document.getElementById('toast'); return el.className.includes('is-open') && el.textContent.startsWith(p); }",
+        arg=prefix)
 
 
 def _open_settings(page, live_server):
@@ -127,7 +134,7 @@ def test_settings_unit_consolidation_reads_row_controls(page, live_server):
     row.locator("select").select_option(target)
     row.locator("input").fill("0.75")
     row.get_by_role("button", name="改為").click()
-    page.wait_for_load_state("networkidle")
+    _wait_toast(page, "✅ 已改為")
     assert bodies[-1] == (live_server.base_url + "/api/units/consolidate-item",
                           {"item_id": 101, "to_unit": target, "new_qty": 0.75})
     page.evaluate("""() => {
@@ -138,5 +145,5 @@ def test_settings_unit_consolidation_reads_row_controls(page, live_server):
     group = page.locator(".grp-fast").first
     group.locator("select").select_option(target)
     group.get_by_role("button", name="套用全部").click()
-    page.wait_for_load_state("networkidle")
+    _wait_toast(page, "✅ 已收編")
     assert bodies[-1] == (live_server.base_url + "/api/units/consolidate", {"from_unit": "罐裝", "to_unit": target})

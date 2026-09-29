@@ -68,7 +68,9 @@ def client(tmp_path, monkeypatch):
 # - 新檔案/新內插若不在清單 → 測試紅 → 人工審核（安全則加這裡，否則補 esc()）
 REVIEWED_SAFE_BODIES = {
     # 報價單內部分頁（2026-09-09）：active 只由固定模式傳入，輸出皆為固定 class/文字。
-    "active === 'quotation' ? 'is-active' : ''", "active === 'upload' ? 'is-active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
+    "active === 'quotation' ? 'is-active' : ''", "active === 'upload' ? 'is-active' : ''", "quoteModeTabs('quotation')",
+    # 檔案上傳清單（issue #39）：headerHtml 只由頁面設定傳入固定 HTML（報價單上傳為 quoteModeTabs('upload')）。
+    "config.headerHtml ? config.headerHtml() : ''",
     # inventory card note context: formatter returns escaped display HTML; label uses it plus fixed text.
     "formatLocationDisplay(s.location)", "buildStockNoteLabelHTML(s, showLocationContext)",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
@@ -172,7 +174,7 @@ REVIEWED_SAFE_BODIES = {
     "s.note ? ' · 📝 ' + esc(s.note) : ''",
     # stocktake.js 多行三元提示文字（isLow ? '常數提示' : '常數提示'）
     "isLow\n        ? '💡 庫存數量已低於（或等於）警示值，建議盡快補貨。點品項可直接編輯警示值。'\n        : '💡 庫存為 0 或以下的品項，需要補貨或盤點確認。'",
-    # 每日簽名報表（2026-09-07）：ic.* 只由 _dsrIconFor 固定映射產生；note 已在同一行以 esc(r.note) 處理，空值是固定 HTML。
+    # 檔案上傳清單（每日簽名報表 / 報價單上傳，2026-09-07）：ic.* 只由 _uplIconFor 固定映射產生；note 已在同一行以 esc(r.note) 處理，空值是固定 HTML。
     "ic.icon", "note", "fileVisual",
     # stocktake.js 整組盤點展開組成材料（2026-08-16）：c.item_id 為 DB 數字主鍵（同 k.item_id/o.item_id）、
     # c.has_photo 為布林控制縮圖/佔位三元、kitCompsHTML 為內部已 esc 的組裝 HTML（同 pPhoto/soPhoto 模式）
