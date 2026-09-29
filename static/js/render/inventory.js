@@ -121,8 +121,8 @@ function renderInventoryPageHeading() {
 function renderInventoryEmptyState(isViewer) {
   const search = document.getElementById('search-input');
   const hasFilter = currentBrands.length > 0 || currentCategories.length > 0 || (search && search.value.trim());
-  const clearButton = hasFilter ? '<button class="inventory-empty-secondary" onclick="clearFilterPanel()">清除篩選</button>' : '';
-  const addButton = isViewer ? '' : '<button class="btn-add-inv" onclick="openAddModal()">＋ 新增品項</button>';
+  const clearButton = hasFilter ? '<button class="btn btn--secondary btn--md" onclick="clearFilterPanel()">清除篩選</button>' : '';
+  const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="openAddModal()">＋ 新增品項</button>';
   return `<div class="inventory-empty-state">
     <div class="inventory-empty-icon" aria-hidden="true">📦</div>
     <h2>${hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'}</h2>
@@ -407,19 +407,19 @@ function renderInventoryToolbar(list, isViewer) {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = (typeof isMobileView === 'function') && isMobileView();
   let h = '<div class="loc-export-bar">';
-  if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
+  if (batchMode) h += '<button class="btn btn--secondary btn--md btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
   h += '<span class="loc-export-count">共 ' + (INVENTORY_META.total || list.length) + ' 項</span>';
-  h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'is-active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'is-active' : '') + '">🃏 卡片</button></div>';
-  if (!isViewer) h += '<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
+  h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="chip chip--seg' + (viewMode === 'table' ? ' is-active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="chip chip--seg' + (viewMode === 'card' ? ' is-active' : '') + '">🃏 卡片</button></div>';
+  if (!isViewer) h += '<button class="btn btn--primary btn--md btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
   if (isM) {
-    h += '<div class="more-actions-wrap"><button class="btn-sm btn-more-actions" onclick="toggleMoreActions()">⋮</button>';
+    h += '<div class="more-actions-wrap"><button class="btn btn--secondary btn--md btn--icon" onclick="toggleMoreActions()">⋮</button>';
     h += '<div class="more-actions-dropdown" id="moreActionsDropdown">';
     if (hasPerm('batch-loc-mgmt')) h += '<button onclick="toggleBatchMode();closeMoreActions()">📦 批次改位置</button>';
     h += '<button onclick="openInventoryExportDialog();closeMoreActions()">⬇️ 匯出庫存</button>';
     h += '</div></div>';
   } else {
-    if (hasPerm('batch-loc-mgmt')) h += '<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
-    h += '<button class="btn-sm btn-export" onclick="openInventoryExportDialog()">⬇️ 匯出庫存</button>';
+    if (hasPerm('batch-loc-mgmt')) h += '<button class="btn btn--secondary btn--md btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
+    h += '<button class="btn btn--secondary btn--md btn-export" onclick="openInventoryExportDialog()">⬇️ 匯出庫存</button>';
   }
   h += '</div>';
   return h;
@@ -469,8 +469,8 @@ function renderInventoryTable(list, isViewer, canStockout) {
 // 單一庫存的待領出／已領出入口：卡片與表格共用，避免手機與桌面分支漂移。
 function buildInventoryStockoutActions(i, canStockout, mobile) {
   if (!canStockout) return '';
-  const prepare = i.is_kit ? '' : '<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>';
-  const out = '<button class="btn-out" style="margin:0" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button>';
+  const prepare = i.is_kit ? '' : '<button class="btn btn--prepare btn--sm btn-prepare" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>';
+  const out = '<button class="btn btn--out btn--sm btn-out" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button>';
   return '<div class="' + (mobile ? 'm-card-actions' : 'inventory-stockout-actions') + '">' + prepare + out + '</div>';
 }
 
@@ -515,7 +515,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           checkboxHTML: batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">' : '',
           thumb: buildThumb(i.id, i.has_photo, i.name, '📦', i.thumbnail_url),
           nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名') + (i.site === 'warehouse' ? ' 🏭' : ''),
-          subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
+          subHTML: (prepared > 0 ? '<span class="m-tag green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
           extraHTML: locStr,
           noteHTML: noteStr,
           qtyHTML: buildQtyControl({id: i.id, display: displayStr, unit: i.unit, isZero, delta, viewer: isViewer}),
@@ -538,7 +538,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + ((typeof Qty !== 'undefined') ? Qty.format(prepared, Qty.unitTypeOf(i.unit)) : prepared) + ' ' + esc(i.unit) + '</div>';
         h += '</div>';
         h += buildInventoryStockoutActions(i, canStockout, false);
-        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
+        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="btn btn--secondary btn--sm edit-btn" onclick="openEditModal(' + i.id + ')" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="btn btn--danger btn--sm del-btn" onclick="deleteItem(' + i.id + ')" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
         if (isViewer) {
           h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
         } else {
@@ -557,9 +557,9 @@ function renderInventoryPagination() {
   if (totalPages <= 1) return '';
   const current = INVENTORY_META.page || 1;
   let h = '<div class="inventory-pagination">';
-  h += '<button type="button" onclick="changeInventoryPage(' + (current - 1) + ')"' + (current <= 1 ? ' disabled' : '') + '>上一頁</button>';
+  h += '<button type="button" class="btn btn--secondary btn--sm" onclick="changeInventoryPage(' + (current - 1) + ')"' + (current <= 1 ? ' disabled' : '') + '>上一頁</button>';
   h += '<span>第 ' + current + ' / ' + totalPages + ' 頁</span>';
-  h += '<button type="button" onclick="changeInventoryPage(' + (current + 1) + ')"' + (current >= totalPages ? ' disabled' : '') + '>下一頁</button>';
+  h += '<button type="button" class="btn btn--secondary btn--sm" onclick="changeInventoryPage(' + (current + 1) + ')"' + (current >= totalPages ? ' disabled' : '') + '>下一頁</button>';
   return h + '</div>';
 }
 
@@ -822,7 +822,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
   var allChip = document.createElement('span');
 
-  allChip.className = 'filter-chip' + (selectedArr.length === 0 ? ' is-active' : '');
+  allChip.className = 'chip filter-chip' + (selectedArr.length === 0 ? ' is-active' : '');
 
   allChip.textContent = '全部';
 
@@ -850,7 +850,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
     var isSelected = selectedArr.includes(name);
 
-    chip.className = 'filter-chip' + (isSelected ? ' is-active' : '');
+    chip.className = 'chip filter-chip' + (isSelected ? ' is-active' : '');
 
     chip.innerHTML = esc(name) + ' <span class="badge">' + count + '</span>';
 

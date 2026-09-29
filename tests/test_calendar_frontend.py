@@ -552,11 +552,11 @@ def test_calendar_btn_edit_is_feature_owned():
     assert not re.search(r"(?m)^\s*\.btn-edit:hover\s*\{", core), (
         "Core must not own the Calendar-only .btn-edit hover"
     )
-    assert (
-        ".cal-card-actions .cal-icon-btn.btn-edit "
-        "{ margin-top: 5px; transition: background 0.15s; }"
-    ) in calendar, "Calendar must preserve the former effective edit-button contract"
-    assert 'class=\"cal-icon-btn btn-edit\"' in calendar_js, (
+    # CSS 架構重構 P7.5：外觀改由 button.css 的 .btn 系統負責，頁面只保留位置
+    assert ".cal-card-actions .cal-icon-btn.btn-edit { margin-top: 5px; }" in calendar, (
+        "Calendar keeps only the edit-button layout offset"
+    )
+    assert 'class=\"btn btn--secondary btn--sm cal-icon-btn btn-edit\"' in calendar_js, (
         "Calendar edit-button producer must remain"
     )
     assert index.index("3-components/button.css") < index.index("4-pages/calendar.css"), (

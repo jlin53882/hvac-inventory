@@ -1,0 +1,24 @@
+/* 選取型元件：篩選 chip、頁籤、分段切換（CSS 架構重構 P7.5）。
+   .chip 膠囊（篩選、快速區間）；.chip--seg 方角分段（頁籤、模式切換、公司 / 倉庫）；選取中加 .is-active。 */
+@layer components {
+  .chip {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    box-sizing: border-box; height: 30px; padding: 0 12px;
+    border: 1px solid var(--c-border-strong); border-radius: var(--r-pill);
+    background: var(--c-surface); color: var(--c-text-2);
+    font: inherit; font-size: var(--fs-12); font-weight: var(--fw-medium); line-height: 1;
+    white-space: nowrap; cursor: pointer; user-select: none;
+    transition: background-color .12s, border-color .12s, color .12s;
+  }
+  .chip:hover { border-color: var(--c-primary); color: var(--c-primary); }
+  .chip:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+  .chip--seg { height: var(--h-sm); border-radius: var(--r-md); }
+  .chip.is-active, .chip.is-active:hover { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
+  /* 語意選取色：收入 / 支出這類「選了什麼很重要」的二選一 */
+  .chip--success.is-active, .chip--success.is-active:hover { background: var(--c-success-soft); border-color: var(--c-success); color: #15803d; }
+  .chip--danger.is-active, .chip--danger.is-active:hover { background: var(--c-danger-soft); border-color: var(--c-danger); color: #b91c1c; }
+  .chip .badge { font-size: var(--fs-11); font-weight: var(--fw-regular); opacity: .8; }
+
+  /* chip 橫列（設定 / 權限頁手機版分類列） */
+  .chip-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+}

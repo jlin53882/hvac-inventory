@@ -16,25 +16,25 @@ function renderPhotoBox(itemId, hasPhoto) {
       <img src="${photoSrc(itemId, 'thumbnail')}" alt="品項照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${itemId})"
            style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
       ${canPhoto ? `<div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+        <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+        <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
           <input type="file" accept="image/*" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
-        <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteItemPhoto(${itemId})">🗑 刪除</button>
+        <button class="btn btn--danger btn--md btn-prepare" onclick="deleteItemPhoto(${itemId})">🗑 刪除</button>
       </div>` : ''}`;
   } else {
     box.innerHTML = canPhoto
       ? `<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
       <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+        <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+        <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
           <input type="file" accept="image/*" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
@@ -203,10 +203,10 @@ function renderKitPhotoBox(kitId, itemId, hasPhoto) {
     box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">建立後可立即上傳照片</div>
       <div id="k-photo-preview" style="margin:8px 0"></div>
       <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+        <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
         </label>
-        <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+        <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
           <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="_previewKitPhoto(this)">
         </label>
       </div>`;
@@ -221,22 +221,22 @@ function renderKitPhotoBox(kitId, itemId, hasPhoto) {
       box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${itemId})" style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
         <div id="k-photo-preview" style="margin:8px 0"></div>
         <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
-          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+          <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
             <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
-          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+          <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
             <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
-          <button class="btn-prepare" style="margin:0;color:#dc2626" onclick="deleteKitPhoto(${kitId}, ${itemId})">🗑 刪除</button>
+          <button class="btn btn--danger btn--md btn-prepare" onclick="deleteKitPhoto(${kitId}, ${itemId})">🗑 刪除</button>
         </div>`;
     } else {
       box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
         <div id="k-photo-preview" style="margin:8px 0"></div>
         <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
-          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+          <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
             <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
-          <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+          <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
             <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
         </div>`;

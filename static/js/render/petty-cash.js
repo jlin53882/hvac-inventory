@@ -128,7 +128,7 @@ async function renderPettyCash() {
           <p>記錄每月零用金收支，可建立多人員報表並匯出 Excel 交付主管。</p>
         </div>
         <div class="pc-page-actions">
-          <button class="pc-btn pc-btn--primary" onclick="pcChooseReportType()">＋ 新增零用金月報</button>
+          <button class="btn btn--primary btn--md pc-btn" onclick="pcChooseReportType()">＋ 新增零用金月報</button>
         </div>
       </div>
 
@@ -153,15 +153,15 @@ async function renderPettyCash() {
             <div class="pc-field"><label>報表類型</label><select id="pc-f-type"><option value="">全部</option><option value="general">一般零用金</option><option value="engineering">工程零用金</option></select></div><div class="pc-field"><label>狀態</label><select id="pc-f-status"><option value="">全部</option><option value="draft">草稿</option><option value="completed">已完成</option></select></div>
             <div class="pc-field pc-field--search"><label>檔名關鍵字</label><input id="pc-f-q" type="text" placeholder="檔名 / 歸屬人 / 製表人"></div>
             <div class="pc-filter-actions">
-              <button class="pc-btn pc-btn--primary" onclick="pcLoadHistory(true)">搜尋</button>
-              <button class="pc-btn pc-btn--ghost" onclick="pcResetFilter()">清除</button>
+              <button class="btn btn--primary btn--md pc-btn" onclick="pcLoadHistory(true)">搜尋</button>
+              <button class="btn btn--secondary btn--md pc-btn" onclick="pcResetFilter()">清除</button>
             </div>
           </div>
           <div class="pc-chips">
-            <button class="pc-chip" onclick="pcQuickRange('month',this)">本月</button>
-            <button class="pc-chip" onclick="pcQuickRange('prev',this)">上月</button>
-            <button class="pc-chip" onclick="pcQuickRange('year',this)">今年</button>
-            <button class="pc-chip is-active" onclick="pcQuickRange('all',this)">全部</button>
+            <button class="chip pc-chip" onclick="pcQuickRange('month',this)">本月</button>
+            <button class="chip pc-chip" onclick="pcQuickRange('prev',this)">上月</button>
+            <button class="chip pc-chip" onclick="pcQuickRange('year',this)">今年</button>
+            <button class="chip pc-chip is-active" onclick="pcQuickRange('all',this)">全部</button>
             <span class="pc-result-count"><span id="pc-result-count">0 筆</span></span>
           </div>
         </div>
@@ -180,8 +180,8 @@ async function renderPettyCash() {
         <div class="pc-pagination">
           <span id="pc-page-info"></span>
           <span style="display:flex;gap:6px">
-            <button class="pc-btn-sm" onclick="pcChangePage(-1)">‹ 上一頁</button>
-            <button class="pc-btn-sm pc-btn-sm--primary" onclick="pcChangePage(1)">下一頁 ›</button>
+            <button class="btn btn--secondary btn--sm" onclick="pcChangePage(-1)">‹ 上一頁</button>
+            <button class="btn btn--secondary btn--sm" onclick="pcChangePage(1)">下一頁 ›</button>
           </span>
         </div>
       </section>
@@ -499,7 +499,7 @@ function pcDetailHeaderHtml(r, engineering) {
   const ownerMeta = `報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}`;
   const edit = engineering ? `pcOpenEngineeringModal(${r.id})` : `pcOpenReportModal(${r.id})`;
   const remove = `pcDelete(${r.id}, true)`;
-  return `<div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${esc(_pcPeriodText(r))} ${titleBadge}</h1>${engineering ? `<p>${ownerMeta}</p><p class="eng-file-label">${esc(fileLabel)}</p>` : `<p>${esc(fileLabel)} · ${ownerMeta}</p>`}</div><div class="pc-page-actions"><button class="pc-btn pc-btn--ghost" onclick="renderPettyCash()">← 返回列表</button>${canEdit ? `<button class="pc-btn pc-btn--ghost" onclick="${esc(edit)}">✏️ 編輯</button>` : ''}<button class="pc-btn pc-btn--primary" onclick="pcExport(${esc(r.id)})">⬇️ ${engineering ? '匯出' : '匯出 Excel'}</button>${canDelete ? `<button class="pc-btn pc-btn--ghost" onclick="${esc(remove)}">🗑 刪除</button>` : ''}</div></div>`;
+  return `<div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${esc(_pcPeriodText(r))} ${titleBadge}</h1>${engineering ? `<p>${ownerMeta}</p><p class="eng-file-label">${esc(fileLabel)}</p>` : `<p>${esc(fileLabel)} · ${ownerMeta}</p>`}</div><div class="pc-page-actions"><button class="btn btn--secondary btn--md pc-btn" onclick="renderPettyCash()">← 返回列表</button>${canEdit ? `<button class="btn btn--secondary btn--md pc-btn" onclick="${esc(edit)}">✏️ 編輯</button>` : ''}<button class="btn btn--primary btn--md pc-btn" onclick="pcExport(${esc(r.id)})">⬇️ ${engineering ? '匯出' : '匯出 Excel'}</button>${canDelete ? `<button class="btn btn--danger btn--md pc-btn" onclick="${esc(remove)}">🗑 刪除</button>` : ''}</div></div>`;
 }
 function pcDetailKpiCardHtml(card) {
   const icon = card.icon ? `<span class="ui-kpi-icon ${esc(card.iconClass || '')}">${esc(card.icon)}</span>` : '';

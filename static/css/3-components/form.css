@@ -2,12 +2,8 @@
 @layer components {
 
   /* 快速新增單位連結（2026-08-16 B 變體：select 下方「＋ 新增單位」） */
-  .unit-add-link {
-    display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
-    font-size: 13px; color: #2d5a8e; cursor: pointer; background: none;
-    border: none; padding: 6px 2px; text-decoration: none;
+  .unit-add-link { margin-top: 6px;
   }
-  .unit-add-link:hover { text-decoration: underline; }
 
   /* 單位搜尋框（2026-08-16：單位多時用搜尋較快，輸入過濾相似單位） */
   .unit-search {
@@ -33,7 +29,7 @@
   .photo-box img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid #e3e8ef; }
   .photo-box .photo-actions { display: flex; flex-direction: column; gap: 6px; }
   .form-row { margin-bottom: 12px; }
-  .form-row label { display: block; font-size: 12.5px; font-weight: 600; color: #666; margin-bottom: 4px; }
+  .form-row label:not(.btn) { display: block; font-size: 12.5px; font-weight: 600; color: #666; margin-bottom: 4px; }
   .form-row input, .form-row select, .form-row textarea {
     width: 100%; padding: 9px 12px;
     border: 1.5px solid #d0d5dd; border-radius: 8px;

@@ -41,8 +41,8 @@ async function renderQuotationUploads() {
           <p>位置：底部導覽「行事曆」旁新增「報表」Tab。讀取需登入，刪除見下方權限規則。</p>
         </div>
         <div class="qup-page-actions">
-          <button class="qup-btn qup-btn--ghost" onclick="document.getElementById('qup-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
-          <button class="qup-btn qup-btn--primary" onclick="document.getElementById('qup-file-input').click()">＋ 上傳報價單</button>
+          <button class="btn btn--secondary btn--md" onclick="document.getElementById('qup-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
+          <button class="btn btn--primary btn--md qup-btn--primary" onclick="document.getElementById('qup-file-input').click()">＋ 上傳報價單</button>
         </div>
       </div>
 
@@ -89,11 +89,11 @@ async function renderQuotationUploads() {
                   <div id="qup-fp-sub" class="qup-file-preview__sub"></div>
                   <div class="qup-progress"><div id="qup-progress-bar" class="qup-progress__bar"></div></div>
                 </div>
-                <button class="qup-btn-sm" onclick="qupClearFile()">移除</button>
+                <button class="btn btn--secondary btn--sm" onclick="qupClearFile()">移除</button>
               </div>
               <div class="qup-upload-actions">
-                <button class="qup-btn qup-btn--primary" onclick="qupSubmitUpload()">⬆️ 確認上傳</button>
-                <button class="qup-btn qup-btn--ghost" onclick="qupOpenPreviewFile()">👁 預覽</button>
+                <button class="btn btn--primary btn--md qup-btn--primary" onclick="qupSubmitUpload()">⬆️ 確認上傳</button>
+                <button class="btn btn--secondary btn--md" onclick="qupOpenPreviewFile()">👁 預覽</button>
               </div>
             </div>
             <div class="qup-tags">
@@ -145,15 +145,15 @@ async function renderQuotationUploads() {
               <div class="qup-field"><label>迄止日</label><input id="qup-f-to" type="date"></div>
               <div class="qup-field qup-field--search"><label>關鍵字（上傳人 / 備註 / 檔名）</label><input id="qup-f-q" type="text" placeholder="例：昱豪、工安"></div>
               <div class="qup-filter-actions">
-                <button class="qup-btn qup-btn--primary" onclick="qupLoadHistory(true)">搜尋</button>
-                <button class="qup-btn qup-btn--ghost" onclick="qupResetFilter()">清除</button>
+                <button class="btn btn--primary btn--md qup-btn--primary" onclick="qupLoadHistory(true)">搜尋</button>
+                <button class="btn btn--secondary btn--md" onclick="qupResetFilter()">清除</button>
               </div>
             </div>
             <div class="qup-chips">
-              <button class="qup-chip" onclick="qupQuickRange('today',this)">今天</button>
-              <button class="qup-chip" onclick="qupQuickRange('week',this)">本週</button>
-              <button class="qup-chip is-active" onclick="qupQuickRange('month',this)">本月</button>
-              <button class="qup-chip" onclick="qupQuickRange('all',this)">全部</button>
+              <button class="chip qup-chip" onclick="qupQuickRange('today',this)">今天</button>
+              <button class="chip qup-chip" onclick="qupQuickRange('week',this)">本週</button>
+              <button class="chip qup-chip is-active" onclick="qupQuickRange('month',this)">本月</button>
+              <button class="chip qup-chip" onclick="qupQuickRange('all',this)">全部</button>
               <span class="qup-result-count"><span id="qup-result-count">0 筆</span></span>
             </div>
           </div>
@@ -168,8 +168,8 @@ async function renderQuotationUploads() {
             <div class="qup-pagination">
               <span id="qup-page-info"></span>
               <span style="display:flex;gap:6px">
-                <button class="qup-btn-sm" onclick="qupChangePage(-1)">‹ 上一頁</button>
-                <button class="qup-btn-sm qup-btn-sm--primary" onclick="qupChangePage(1)">下一頁 ›</button>
+                <button class="btn btn--secondary btn--sm" onclick="qupChangePage(-1)">‹ 上一頁</button>
+                <button class="btn btn--secondary btn--sm" onclick="qupChangePage(1)">下一頁 ›</button>
               </span>
             </div>
           </div>
@@ -180,13 +180,13 @@ async function renderQuotationUploads() {
     <!-- 預覽 Modal -->
     <div id="qup-overlay" class="qup-overlay" onclick="if(event.target===this)qupClosePreview()">
       <div class="qup-modal">
-        <div class="qup-modal__hd"><h3 id="qup-preview-title">👁 預覽</h3><button class="qup-btn-sm" onclick="qupClosePreview()">✕ 關閉</button></div>
+        <div class="qup-modal__hd"><h3 id="qup-preview-title">👁 預覽</h3><button class="btn btn--secondary btn--sm" onclick="qupClosePreview()">✕ 關閉</button></div>
         <div class="qup-modal__bd" id="qup-preview-body"></div>
         <div class="qup-modal__ft">
           <span class="qup-modal__note">若預覽失敗，請直接下載原檔</span>
           <span class="qup-modal__actions">
-            <button class="qup-btn qup-btn--ghost" onclick="qupClosePreview()">關閉</button>
-            <button class="qup-btn qup-btn--primary" id="qup-dl-btn">⬇️ 下載原檔</button>
+            <button class="btn btn--secondary btn--md" onclick="qupClosePreview()">關閉</button>
+            <button class="btn btn--primary btn--md qup-btn--primary" id="qup-dl-btn">⬇️ 下載原檔</button>
           </span>
         </div>
       </div>
@@ -362,10 +362,10 @@ function qupRenderTable() {
             <div class="qup-report-detail__note"><span class="qup-report-detail__label">備註</span><div class="qup-note-cell">${note}</div></div>
           </div>
           <div class="qup-actions-cell">
-            ${!isImage ? `<button class="qup-action-btn" onclick="qupPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_edit ? `<button class="qup-action-btn" onclick="qupEdit(${r.id})">✏️ 編輯</button>` : ''}
-            <button class="qup-action-btn" onclick="qupDownload(${r.id})">⬇️ 下載</button>
-            ${r.can_delete ? `<button class="qup-action-btn qup-action-btn--danger" onclick="qupDelete(${r.id})">🗑 刪除</button>` : ''}
+            ${!isImage ? `<button class="btn btn--secondary btn--sm qup-action-btn" onclick="qupPreview(${r.id})">👁 預覽</button>` : ''}
+            ${r.can_edit ? `<button class="btn btn--secondary btn--sm qup-action-btn" onclick="qupEdit(${r.id})">✏️ 編輯</button>` : ''}
+            <button class="btn btn--secondary btn--sm qup-action-btn" onclick="qupDownload(${r.id})">⬇️ 下載</button>
+            ${r.can_delete ? `<button class="btn btn--danger btn--sm qup-action-btn qup-action-btn--danger" onclick="qupDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>
         </div>
       </details>`;
@@ -443,7 +443,7 @@ function qupShowPreview(name, mime, previewUrl, downloadUrl) {
     // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
     // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
     if (typeof isMobileView === 'function' && isMobileView()) {
-      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="qup-btn qup-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md qup-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
       body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
     } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
   }
@@ -464,7 +464,7 @@ async function qupEdit(id) {
   overlay.className = 'qup-overlay is-open';
   overlay.innerHTML = `
     <div class="qup-modal qup-edit-modal" role="dialog" aria-modal="true" aria-labelledby="qup-edit-title">
-      <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="qup-btn-sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>
+      <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="btn btn--secondary btn--sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>
       <div class="qup-modal__bd">
         <div class="qup-field"><label for="qup-edit-date">報表日期（YYYY-MM-DD）</label><input id="qup-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
         <div class="qup-field" style="margin-top:12px"><label for="qup-edit-uploader">上傳人姓名</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
@@ -472,7 +472,7 @@ async function qupEdit(id) {
         <div class="qup-field" style="margin-top:12px"><label for="qup-edit-file">替換檔案（選填）</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
         <div class="qup-hint">不選擇新檔案會保留目前檔案。</div>
       </div>
-      <div class="qup-modal__ft"><button class="qup-btn qup-btn--ghost" type="button" data-qup-edit-cancel>取消</button><button class="qup-btn qup-btn--primary" type="button" data-qup-edit-save>儲存</button></div>
+      <div class="qup-modal__ft"><button class="btn btn--secondary btn--md" type="button" data-qup-edit-cancel>取消</button><button class="btn btn--primary btn--md qup-btn--primary" type="button" data-qup-edit-save>儲存</button></div>
     </div>`;
   document.body.appendChild(overlay);
   const close = () => overlay.remove();

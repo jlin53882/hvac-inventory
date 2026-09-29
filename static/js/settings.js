@@ -17,7 +17,7 @@ async function loadPettyOptions() {
 function pettyOptionRows(type, kind, can) {
   const items = pettyOptionCache[type][kind] || [];
   if (!items.length) return '<div class="pc-option-empty">尚未設定選項</div>';
-  return items.map((o, i) => '<div class="pc-option-row"><div><span class="pc-option-index">' + (i + 1) + '</span><strong>' + esc(o.name) + '</strong><small class="pc-option-status ' + (o.is_active ? 'is-active' : 'is-off') + '">' + (o.is_active ? '● 使用中' : '○ 已停用') + '</small></div>' + (can ? '<span class="pc-option-actions"><button type="button" class="pc-icon-action" data-petty-action="rename" data-id="' + o.id + '" data-type="' + esc(type) + '" data-kind="' + esc(kind) + '">✎ 編輯</button><button type="button" class="pc-icon-action pc-icon-action--danger" data-petty-action="delete" data-id="' + o.id + '" data-type="' + esc(type) + '" data-kind="' + esc(kind) + '">🗑 刪除</button></span>' : '') + '</div>').join('');
+  return items.map((o, i) => '<div class="pc-option-row"><div><span class="pc-option-index">' + (i + 1) + '</span><strong>' + esc(o.name) + '</strong><small class="pc-option-status ' + (o.is_active ? 'is-active' : 'is-off') + '">' + (o.is_active ? '● 使用中' : '○ 已停用') + '</small></div>' + (can ? '<span class="pc-option-actions"><button type="button" class="btn btn--secondary btn--sm pc-icon-action" data-petty-action="rename" data-id="' + o.id + '" data-type="' + esc(type) + '" data-kind="' + esc(kind) + '">✎ 編輯</button><button type="button" class="btn btn--danger btn--sm pc-icon-action" data-petty-action="delete" data-id="' + o.id + '" data-type="' + esc(type) + '" data-kind="' + esc(kind) + '">🗑 刪除</button></span>' : '') + '</div>').join('');
 }
 function renderPettyOptionsPanel() {
   const can = hasPerm('petty-cash-config');
@@ -25,14 +25,14 @@ function renderPettyOptionsPanel() {
   if (!panel) return;
   let html = '<div class="pc-settings-title"><div><h4>🪙 零用金選單</h4><p>管理零用金報表使用的科目、分類與項目，資料不與其他報表類型共用。</p></div></div>';
   html += '<section class="pc-option-settings pc-option-settings--general"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">💳</span><div><h5>一般零用金</h5><p>管理一般零用金使用的科目</p></div></div><span class="pc-settings-note">ⓘ 僅需設定科目</span></div>';
-  if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-general-category">新增科目</label><div class="pc-option-add-row"><input id="pc-opt-name-general-category" maxlength="100" placeholder="輸入科目名稱（例如：文具費）"><button class="btn-primary" onclick="createPettyOptionKind(\'general\',\'category\')">＋ 新增科目</button></div></div>';
+  if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-general-category">新增科目</label><div class="pc-option-add-row"><input id="pc-opt-name-general-category" maxlength="100" placeholder="輸入科目名稱（例如：文具費）"><button class="btn btn--primary btn--md btn-primary" onclick="createPettyOptionKind(\'general\',\'category\')">＋ 新增科目</button></div></div>';
   html += '<div class="pc-option-list-head"><span>#　科目名稱</span><span>操作</span></div><div class="pc-option-list">' + pettyOptionRows('general', 'category', can) + '</div></section>';
   html += '<section class="pc-option-settings pc-option-settings--engineering"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">👷</span><div><h5>工程零用金</h5><p>管理工程零用金使用的分類與項目</p></div></div></div><div class="pc-option-engineering-grid">';
   for (const kind of ['category', 'group']) {
     const label = kind === 'category' ? '📁 分類選項' : '📦 項目選項';
     const placeholder = kind === 'category' ? '輸入分類名稱（例如：交通費）' : '輸入項目名稱（例如：油資）';
     html += '<div class="pc-option-column"><div class="pc-option-column-head"><div><h6>' + label + '</h6><p>工程零用金' + (kind === 'category' ? '分類' : '項目') + '</p></div><b>' + (pettyOptionCache.engineering[kind] || []).length + ' 筆</b></div>';
-    if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-engineering-' + kind + '">新增' + (kind === 'category' ? '分類' : '項目') + '</label><div class="pc-option-add-row"><input id="pc-opt-name-engineering-' + kind + '" maxlength="100" placeholder="' + placeholder + '"><button class="btn-primary" onclick="createPettyOptionKind(\'engineering\',\'' + kind + '\')">＋ 新增</button></div></div>';
+    if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-engineering-' + kind + '">新增' + (kind === 'category' ? '分類' : '項目') + '</label><div class="pc-option-add-row"><input id="pc-opt-name-engineering-' + kind + '" maxlength="100" placeholder="' + placeholder + '"><button class="btn btn--primary btn--md btn-primary" onclick="createPettyOptionKind(\'engineering\',\'' + kind + '\')">＋ 新增</button></div></div>';
     html += '<div class="pc-option-list">' + pettyOptionRows('engineering', kind, can) + '</div></div>';
   }
   html += '</div></section>';
@@ -138,7 +138,7 @@ function renderUnitsPanel() {
   if (canAdd) {
     html += '<div class="u-add-row"><input id="u-new-name" placeholder="新單位名稱（例：顆）" maxlength="20">' +
             '<select id="u-new-type" title="數量輸入類型"><option value="integer">整數</option><option value="decimal">小數</option><option value="fraction">分數/小數</option></select>' +
-            '<button class="btn-primary" onclick="addUnitFromSettings()">＋ 新增</button></div>';
+            '<button class="btn btn--primary btn--md btn-primary" onclick="addUnitFromSettings()">＋ 新增</button></div>';
   }
   html += '<table class="u-table"><thead><tr><th>單位名稱</th><th>數量類型</th><th style="text-align:right">操作</th></tr></thead>';
   unitList.forEach(u => {
@@ -169,18 +169,18 @@ function renderUnitsPanel() {
         g.items.forEach(it => {
           const _sg = (typeof suggestQtyConvert === 'function') ? suggestQtyConvert(it.unit, it.total_qty) : null;
           const _sgHtml = _sg
-            ? '<div class="u-suggest">建議：' + esc(String(_sg.qty)) + ' ' + esc(_sg.unit) + ' <button class="btn-primary" onclick="applyQtySuggest(' + it.item_id + ', this)" data-qty="' + esc(String(_sg.qty)) + '" data-to="' + esc(_sg.unit) + '">套用建議</button></div>'
+            ? '<div class="u-suggest">建議：' + esc(String(_sg.qty)) + ' ' + esc(_sg.unit) + ' <button class="btn btn--primary btn--sm btn-primary" onclick="applyQtySuggest(' + it.item_id + ', this)" data-qty="' + esc(String(_sg.qty)) + '" data-to="' + esc(_sg.unit) + '">套用建議</button></div>'
             : '<div class="u-suggest u-ambiguous">⚠ 需人工確認（無法自動判讀）</div>';
           html += '<tr><td class="p-name">' + esc(it.name) + (it.is_deleted ? ' <small>（非庫存）</small>' : '') + '</td>' +
             '<td class="qty">×' + absNum(it.total_qty) + '</td>' +
             '<td>' + _sgHtml +
             '<div class="u-manual"><select class="u-ci-to" required><option value="">— 請選擇 —</option>';
           unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
-          html += '</select><input class="u-ci-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn-primary" onclick="consolidateItem(' + it.item_id + ', this)">改為</button></div></td></tr>';
+          html += '</select><input class="u-ci-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn btn--primary btn--sm btn-primary" onclick="consolidateItem(' + it.item_id + ', this)">改為</button></div></td></tr>';
         });
         html += '</table><div class="grp-fast">整組快速套用：<select class="u-ci-fast" required><option value="">— 請選擇 —</option>';
         unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
-        html += '</select><button class="btn-primary" data-from="' + esc(g.unit) + '" onclick="consolidateGroup(this)">套用全部</button></div></div></div>';
+        html += '</select><button class="btn btn--primary btn--sm btn-primary" data-from="' + esc(g.unit) + '" onclick="consolidateGroup(this)">套用全部</button></div></div></div>';
       });
       html += '</div>';
     } else if (orphanLoadFailed) {
@@ -399,7 +399,7 @@ function renderGcalHealth(canForce) {
   const lastSuccess = h.last_success_at || '尚未成功執行';
   const error = h.last_error ? '<div class="gcal-health-error">' + esc(String(h.last_error)) + '</div>' : '';
   const action = canForce
-    ? '<button type="button" class="btn-primary gcal-health-force" onclick="forceSyncNow()">立即同步全部 Key</button>'
+    ? '<button type="button" class="btn btn--primary btn--md btn-primary gcal-health-force" onclick="forceSyncNow()">立即同步全部 Key</button>'
     : '';
   return '<section class="gcal-sync-health" aria-label="Google 行事曆同步健康狀態">' +
     '<div class="gcal-health-head"><div><strong>Google 行事曆同步</strong><span class="gcal-health-running ' + runningClass + '">' + running + '</span></div>' + action + '</div>' +
@@ -424,7 +424,7 @@ function renderGcalQueueIssues(canSync) {
       '<div class="gcal-sync-issue-main"><strong>' + esc(title) + '</strong><span>' + esc(item.date || '本地行程已刪除') + '</span></div>' +
       '<div class="gcal-sync-issue-detail"><span>Key：' + esc(keyLabel) + '</span><span>操作：' + esc(opLabel) + '</span><span>嘗試：' + esc(String(item.attempts || 0)) + ' / ' + esc(String(item.max_attempts || 5)) + '</span><span class="gcal-sync-issue-status">' + esc(gcalQueueStatusLabel(item.status, item.key_active)) + '</span></div>' +
       error +
-      '<div class="gcal-sync-issue-actions">' + (canSync ? '<button type="button" class="btn-sm gcal-sync-retry" data-sync-appt="' + esc(apptId) + '" data-sync-key="' + esc(keyId) + '">重新嘗試</button>' : '') + '</div>' +
+      '<div class="gcal-sync-issue-actions">' + (canSync ? '<button type="button" class="btn btn--secondary btn--sm btn-sm gcal-sync-retry" data-sync-appt="' + esc(apptId) + '" data-sync-key="' + esc(keyId) + '">重新嘗試</button>' : '') + '</div>' +
       '</article>';
   });
   return html + '</div></section>';
@@ -458,7 +458,7 @@ function renderGcalPanel() {
         '<div style="font-size:11px;color:' + (k.is_active ? '#15803d' : '#dc2626') + ';margin-top:2px;font-weight:600">' + (k.is_active ? '帳號啟用' : '帳號停用') + '</div>' +
         '<div class="gcal-key-email" style="font-size:10px;color:#64748b;margin-top:2px;word-break:break-all" title="' + esc(k.client_email || '') + '">' + esc(k.client_email || '—') + '</div>' +
       '</div>' +
-      '<button onclick="event.stopPropagation();toggleGcalKey(' + k.id + ',' + (!k.is_active) + ')" style="flex-shrink:0;padding:4px 8px;font-size:11px;border:1px solid ' + (k.is_active ? '#fecaca' : '#bbf7d0') + ';border-radius:6px;background:' + (k.is_active ? '#fff2f0' : '#f0fdf4') + ';color:' + (k.is_active ? '#dc2626' : '#15803d') + ';cursor:pointer;white-space:nowrap">' + (k.is_active ? '停用' : '啟用') + '</button>' +
+      '<button class="btn btn--sm ' + (k.is_active ? 'btn--danger' : 'btn--secondary') + ' u-shrink-0" onclick="event.stopPropagation();toggleGcalKey(' + k.id + ',' + (!k.is_active) + ')">' + (k.is_active ? '停用' : '啟用') + '</button>' +
       '</div>';
   });
   if (canManage) {
@@ -482,16 +482,16 @@ function renderGcalPanel() {
       if (canManage) {
         html += '<div class="gcal-detail-actions" style="display:flex;gap:6px;align-items:center">' +
           '<label class="settings-switch" title="' + (key.is_active ? '點擊停用' : '點擊啟用') + '"><input type="checkbox" ' + (key.is_active ? 'checked' : '') + ' onchange="toggleGcalKey(' + key.id + ', this.checked)"><span class="slider"></span></label>' +
-          '<button onclick="openGcalKeyModal(' + key.id + ')" style="padding:6px 10px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;min-height:36px">✏️ 編輯</button>' +
-          '<button type="button" onclick="deleteGcalKey(' + key.id + ')" style="padding:6px 10px;font-size:12px;border:1px solid #fecaca;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer;min-height:36px">🗑️ 刪除</button>' +
+          '<button class="btn btn--secondary btn--sm" onclick="openGcalKeyModal(' + key.id + ')">✏️ 編輯</button>' +
+          '<button type="button" class="btn btn--danger btn--sm" onclick="deleteGcalKey(' + key.id + ')">🗑️ 刪除</button>' +
           '</div>';
       }
       html += '</div>';
 
       // Tabs
       html += '<div style="display:flex;gap:6px;margin:14px 0 4px;border-bottom:1px solid #eee">' +
-        '<button class="gcal-tab is-active" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
-        '<button class="gcal-tab" onclick="switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
+        '<button class="chip chip--seg gcal-tab is-active" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
+        '<button class="chip chip--seg gcal-tab" onclick="switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
         '</div>';
 
       // Tab 1: 同步設定
@@ -589,16 +589,16 @@ function renderGcalSyncSettings(key) {
       '<input type="number" id="gcal-reminder-val-' + key.id + '-' + index + '" value="' + display.value + '" min="0" max="40320">' +
       '<select id="gcal-reminder-unit-' + key.id + '-' + index + '">' +
       '<option value="minutes"' + (display.unit === 'minutes' ? ' selected' : '') + '>分鐘</option><option value="hours"' + (display.unit === 'hours' ? ' selected' : '') + '>小時</option><option value="days"' + (display.unit === 'days' ? ' selected' : '') + '>天</option><option value="weeks"' + (display.unit === 'weeks' ? ' selected' : '') + '>週</option></select></div>' +
-      '<button type="button" class="gcal-reminder-remove" onclick="removeGcalReminderRow(' + key.id + ',' + index + ')"' + (reminders.length <= 1 ? ' disabled' : '') + '>移除</button>' +
+      '<button type="button" class="btn btn--secondary btn--sm" onclick="removeGcalReminderRow(' + key.id + ',' + index + ')"' + (reminders.length <= 1 ? ' disabled' : '') + '>移除</button>' +
       '<span class="gcal-reminder-hint">Google Calendar Popup 提醒</span></div>';
   };
   html += '<div class="gcal-reminders-list" id="gcal-reminders-' + key.id + '">' + reminders.map(reminderRow).join('') + '</div>';
-  html += '<button type="button" class="gcal-add-reminder" onclick="addGcalReminderRow(' + key.id + ')"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
+  html += '<button type="button" class="btn btn--ghost btn--sm gcal-add-reminder" onclick="addGcalReminderRow(' + key.id + ')"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
   html += '<div style="margin-top:10px;padding:8px 12px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:6px;font-size:11.5px;color:#2d5a8e">' +
     '💡 Google Calendar API 上限：最長 4 週（40320 分鐘）= 672 小時 = 28 天 = 4 週</div>';
 
   // 儲存提醒按鈕
-  html += '<button class="btn-primary" style="margin-top:12px" onclick="saveKeyReminders(' + key.id + ')">💾 儲存提醒設定</button>';
+  html += '<button class="btn btn--primary btn--md btn-primary u-mt-12" onclick="saveKeyReminders(' + key.id + ')">💾 儲存提醒設定</button>';
   html += '</div>';
 
   return html;
@@ -683,7 +683,7 @@ function addGcalReminderRow(keyId) {
   const row = document.createElement('div');
   row.className = 'gcal-reminder-row';
   row.dataset.reminderIndex = index;
-  row.innerHTML = '<div class="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div><div class="gcal-reminder-control"><input type="number" id="gcal-reminder-val-' + keyId + '-' + index + '" value="30" min="0" max="40320"><select id="gcal-reminder-unit-' + keyId + '-' + index + '"><option value="minutes" selected>分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div><button type="button" class="gcal-reminder-remove" onclick="removeGcalReminderRow(' + keyId + ',' + index + ')">移除</button><span class="gcal-reminder-hint">Google Calendar Popup 提醒</span>';
+  row.innerHTML = '<div class="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div><div class="gcal-reminder-control"><input type="number" id="gcal-reminder-val-' + keyId + '-' + index + '" value="30" min="0" max="40320"><select id="gcal-reminder-unit-' + keyId + '-' + index + '"><option value="minutes" selected>分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div><button type="button" class="btn btn--secondary btn--sm" onclick="removeGcalReminderRow(' + keyId + ',' + index + ')">移除</button><span class="gcal-reminder-hint">Google Calendar Popup 提醒</span>';
   container.appendChild(row);
   const add = document.querySelector('.gcal-add-reminder[onclick="addGcalReminderRow(' + keyId + ')"]');
   if (add && container.children.length >= 5) add.disabled = true;
@@ -869,8 +869,8 @@ function renderCabinetTable() {
       <td><strong>${esc(c.name)}</strong></td>
       <td>${esc(c.note || '（無備註）')}</td>
       <td style="text-align: right; display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
-        <button class="btn-save" style="flex-shrink: 0; padding: 6px 12px; min-height: 32px; font-size: 12px;" onclick="editCabinet(${c.id})">✎ 編輯</button>
-        <button class="btn-cancel-ghost" style="flex-shrink: 0; padding: 6px 12px; min-height: 32px; font-size: 12px; color: #dc2626;" onclick="deleteCabinet(${c.id})">🗑 刪除</button>
+        <button class="btn btn--secondary btn--sm btn-save u-shrink-0" onclick="editCabinet(${c.id})">✎ 編輯</button>
+        <button class="btn btn--danger btn--sm btn-cancel-ghost u-shrink-0" onclick="deleteCabinet(${c.id})">🗑 刪除</button>
       </td>
     </tr>
   `).join('');

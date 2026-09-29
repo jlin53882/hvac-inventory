@@ -54,12 +54,8 @@
     font-size: 12px; color: #94a3b8; pointer-events: none;
   }
   [data-page="kit"] .btn-add-row {
-    width: 100%; height: 42px; margin-top: 2px;
-    background: #fff; border: 1.5px dashed #1890FF; color: #1890FF;
-    border-radius: 10px; font-size: 13.5px; font-weight: 700; cursor: pointer;
+    width: 100%; margin-top: 2px;
   }
-  [data-page="kit"] .btn-add-row:hover { background: #f0f7ff; }
-  [data-page="kit"] #kit-modal .btn-confirm { background: linear-gradient(135deg, #1890FF, #36a3ff); }
 [data-page="kit"] .selected-row .info .bd .model, [data-page="kit"] .kit-drop-opt .bd .model { color: #1890FF; font-weight: 600; }
 /* 整組庫存頁專用 desktop dashboard（僅 kit-content scope） */
 [data-page="kit"] .kit-content {
@@ -108,29 +104,9 @@
 }
 [data-page="kit"] .kit-content .kit-add-button {
   flex: none;
-  min-height: 42px;
-  padding: 0 20px;
-  border: 1px solid #2563eb;
-  border-radius: 9px;
-  background: #2563eb;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background .15s, border-color .15s;
 }
-[data-page="kit"] .kit-content .kit-add-button:hover { background: #1d4ed8; border-color: #1d4ed8; }
 [data-page="kit"] .kit-content .kit-kpi-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));}
-
-
-
-
-
-
-
-
-
 
 [data-page="kit"] .kit-content .kit-toolbar {
   min-height: 48px;
@@ -286,29 +262,6 @@
   flex: none;
 }
 [data-page="kit"] .kit-content .kit-assembly-actions .kit-action { flex: 1 1 0; min-width: 0; }
-[data-page="kit"] .kit-content .kit-action {
-  min-height: 34px;
-  padding: 0 11px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background .15s, border-color .15s;
-}
-[data-page="kit"] .kit-content .kit-action:hover { background: #f8fafc; border-color: #94a3b8; }
-[data-page="kit"] .kit-content .kit-action:disabled { cursor: not-allowed; opacity: .48; }
-[data-page="kit"] .kit-content .kit-action.is-prepare { border-color: #a78bfa; color: #7c3aed; }
-[data-page="kit"] .kit-content .kit-action.is-prepare:hover { background: #f5f3ff; }
-[data-page="kit"] .kit-content .kit-action.is-out { border-color: #fbbf24; color: #d97706; }
-[data-page="kit"] .kit-content .kit-action.is-out:hover { background: #fffbeb; }
-[data-page="kit"] .kit-content .kit-action.is-edit { border-color: #93c5fd; color: #2563eb; }
-[data-page="kit"] .kit-content .kit-action.is-delete { border-color: #fca5a5; color: #dc2626; }
-[data-page="kit"] .kit-content .kit-action.is-delete:hover { background: #fef2f2; }
-[data-page="kit"] .kit-content .kit-action.is-assemble { border-color: #c4b5fd; color: #7c3aed; }
-[data-page="kit"] .kit-content .kit-action.is-disassemble { border-color: #fdba74; color: #d97706; }
 [data-page="kit"] .kit-content .kit-component-wrap { overflow-x: auto; }
 [data-page="kit"] .kit-content .kit-component-table { width: 100%; min-width: 900px; border-collapse: collapse; table-layout: fixed; }
 [data-page="kit"] .kit-content .kit-component-table .kit-col-photo { width: 80px; }
@@ -363,10 +316,6 @@
   [data-page="kit"] .kit-content .kit-page-header h1 { font-size: 22px; }
   [data-page="kit"] .kit-content .kit-page-header p { font-size: 12px; }
 
-
-
-
-
   [data-page="kit"] .kit-content .kit-toolbar { align-items: flex-start; flex-direction: column; gap: 4px; min-height: 44px; }
   /* 手機版：與單一庫存卡片一致——照片縮圖在名稱左邊，操作按鈕換到下一列 */
   [data-page="kit"] .kit-content .kit-assembly-header {
@@ -395,13 +344,11 @@
 [data-page="kit"] .kit-content .kit-kpi-card.is-clickable:focus-visible { outline: 3px solid rgba(37,99,235,.28); outline-offset: 2px; }
 [data-page="kit"] .kit-content .kit-kpi-arrow { margin-left: auto; color: #64748b; font-size: 26px; line-height: 1; }
 
-
 [data-page="kit"] .kit-content .kit-mobile-actions { display: flex; align-items: center; gap: 8px; width: 100%; }
 [data-page="kit"] .kit-content .kit-mobile-actions .kit-action { flex: 1 1 0; min-width: 0; }
 [data-page="kit"] .kit-content .kit-mobile-actions .kit-more { flex: 0 0 38px; }
 @media (max-width: 390px) {
   [data-page="kit"] .kit-content .kit-mobile-actions { gap: 6px; }
-  [data-page="kit"] .kit-content .kit-mobile-actions .kit-action { padding-left: 6px; padding-right: 6px; font-size: 11px; }
   [data-page="kit"] .kit-content .kit-mobile-actions .kit-more { flex-basis: 34px; }
 }
 

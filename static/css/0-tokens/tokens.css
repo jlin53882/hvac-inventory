@@ -9,3 +9,44 @@
    頁面樣式一律寫成 [data-page="<page>"] 開頭（body 由 app.js setPageScope 設定），modal 也在範圍內。
    未包進任何 layer 的樣式（HTML style 屬性以外不應存在）一律勝過所有 layer。 */
 @layer tokens, base, layout, components, pages, utilities;
+
+/* 設計系統標準（CSS 架構重構 P7.5；使用者 2026-09-29 確認主色 A 品牌深藍、按鈕規格第 3 版）。
+   新樣式一律使用這些變數；架構測試禁止在 tokens.css 以外寫色碼。 */
+@layer tokens {
+  :root {
+    /* 顏色：12 個語意 token */
+    --c-primary: #2d5a8e;
+    --c-primary-strong: #1e3a5f;
+    --c-primary-soft: #eef4fa;
+    --c-text: #0f172a;
+    --c-text-2: #334155;
+    --c-muted: #64748b;
+    --c-border: #e2e8f0;
+    --c-border-strong: #94a3b8;
+    --c-surface: #ffffff;
+    --c-surface-2: #f8fafc;
+    --c-success: #16a34a;
+    --c-success-soft: #dcfce7;
+    --c-warning: #d97706;
+    --c-warning-soft: #fef3c7;
+    --c-danger: #dc2626;
+    --c-danger-border: #f87171;
+    --c-danger-soft: #fee2e2;
+    --c-prepare: #6d28d9;
+    --c-prepare-solid: #7c3aed;
+    --c-prepare-border: #a78bfa;
+    --c-prepare-soft: #f5f3ff;
+    --c-out: #b45309;
+    --c-out-solid: #f59e0b;
+    --c-out-border: #f59e0b;
+    --c-out-soft: #fffbeb;
+    /* 字級 7 級 */
+    --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-28: 28px;
+    /* 字重 3 級 */
+    --fw-regular: 400; --fw-medium: 600; --fw-bold: 700;
+    /* 圓角 4 級 */
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+    /* 控制項高度 */
+    --h-sm: 32px; --h-md: 38px; --h-touch: 44px;
+  }
+}

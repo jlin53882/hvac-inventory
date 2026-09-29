@@ -20,12 +20,6 @@
 
 /* 頁面標題永遠位於卡片上方，與 demo 的 header 結構一致。 */
 
-
-
-
-
-
-
 /* demo 的 .layout：只有這一層在桌面切成左右欄。 */
 [data-page="signed-reports"] .dsr-layout { display: grid; gap: 16px; }
 @media (min-width: 960px) {
@@ -33,32 +27,12 @@
   [data-page="signed-reports"] .dsr-history { grid-column: 1 / -1; }
 }
 
-/* 卡片 */
-
-
-
-
-
-
-
 /* 上傳表單 */
-
-
-
-
-
-
 
 [data-page="signed-reports"] .dsr-hint { margin-top: 6px; color: #94a3b8; font-size: 11.5px; }
 
 /* 本模組按鈕完全 scoped，避免沿用主站 .btn 的視覺差異。 */
-[data-page="signed-reports"] .dsr-icon-btn, [data-page="signed-reports"] .dsr-chip { font-family: inherit; cursor: pointer; }
-
-
-
-
-
-
+[data-page="signed-reports"] .dsr-icon-btn { font-family: inherit; cursor: pointer; }
 
 /* 拖曳區 */
 [data-page="signed-reports"] .dsr-drop {
@@ -107,15 +81,7 @@
 /* 右側資訊與 KPI：完全使用 demo 的深藍資訊卡與白色 KPI 卡。 */
 [data-page="signed-reports"] .dsr-side { display: grid; gap: 16px; }
 
-
-
-
-
-
 [data-page="signed-reports"] .dsr-kpi { grid-template-columns: repeat(3, 1fr);}
-
-
-
 
 /* 歷史查詢 */
 [data-page="signed-reports"] .dsr-history .dsr-card__hd { flex-direction: column; align-items: stretch; gap: 12px; }
@@ -126,8 +92,6 @@
 [data-page="signed-reports"] .dsr-filter-bar .dsr-field.dsr-field--search { flex: 1.4; min-width: 180px; }
 [data-page="signed-reports"] .dsr-filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
 [data-page="signed-reports"] .dsr-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-[data-page="signed-reports"] .dsr-chip { padding: 5px 9px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; font-size: 11px; font-weight: 800; }
-[data-page="signed-reports"] .dsr-chip.is-active { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
 [data-page="signed-reports"] .dsr-result-count { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #94a3b8; font-size: 11px; }
 [data-page="signed-reports"] .dsr-report-list { display: grid; gap: 10px; margin-top: 12px; }
 [data-page="signed-reports"] .dsr-report-card { overflow: hidden; border: 1px solid #111827; border-radius: 10px; background: #fff; }
@@ -164,8 +128,6 @@
 [data-page="signed-reports"] .dsr-report-thumb:hover { border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(45,90,142,.15); }
 [data-page="signed-reports"] .dsr-note-empty { color: #cbd5e1; }
 
-
-
 [data-page="signed-reports"] .dsr-file-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 [data-page="signed-reports"] .dsr-file-icon { display: grid; flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; place-items: center; font-size: 13px; }
 [data-page="signed-reports"] .dsr-ellipsis { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
@@ -173,7 +135,6 @@
 [data-page="signed-reports"] .dsr-icon-btn { display: grid; width: 28px; height: 28px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; place-items: center; font-size: 13px; }
 [data-page="signed-reports"] .dsr-icon-btn:hover { border-color: #2d5a8e; }
 [data-page="signed-reports"] .dsr-icon-btn.dsr-icon-btn--danger:hover { border-color: #dc2626; color: #dc2626; }
-
 
 [data-page="signed-reports"] .dsr-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 2px 0; color: #64748b; font-size: 12.5px; }
 
@@ -201,7 +162,6 @@
 [data-page="signed-reports"] .dsr-edit-modal { max-width: 560px; }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-modal__hd { background: #1e3a5f; border-bottom: none; }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-modal__hd h3 { color: #fff; }
-[data-page="signed-reports"] .dsr-edit-modal .dsr-modal__hd .dsr-btn-sm { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-modal__bd { padding: 16px; background: #fff; }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-field + .dsr-field { margin-top: 14px; }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-field label { margin-bottom: 6px; color: #334155; font-size: 13px; }

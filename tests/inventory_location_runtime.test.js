@@ -41,6 +41,7 @@ const sandbox = {
     getElementById: id => elements[id] || (elements[id] = {
       innerHTML: '', textContent: '', disabled: false, hidden: false, attributes: {},
       setAttribute(name, value) { this.attributes[name] = value; },
+      classList: (() => { const set = new Set(); return { toggle(c, on) { if (on) set.add(c); else set.delete(c); }, contains: c => set.has(c) }; })(),
     }),
     addEventListener: () => {},
   },
@@ -150,6 +151,8 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   assert.equal(elements['qtyd-title'].textContent, '➖ 減少庫存');
   assert.equal(elements['qtyd-mode-add'].attributes['aria-pressed'], 'false');
   assert.equal(elements['qtyd-mode-sub'].attributes['aria-pressed'], 'true');
+  assert.equal(elements['qtyd-mode-add'].classList.contains('is-active'), false);
+  assert.equal(elements['qtyd-mode-sub'].classList.contains('is-active'), true);
   elements['qtyd-input'].value = '2';
   sandbox.submitQtyDialog();
   assert.equal(sandbox.pending['1'], -2, '減少模式應排入 aggregate 負向 delta');
@@ -165,6 +168,8 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   assert.equal(elements['qtyd-title'].textContent, '➕ 增加庫存');
   assert.equal(elements['qtyd-mode-add'].attributes['aria-pressed'], 'true');
   assert.equal(elements['qtyd-mode-sub'].attributes['aria-pressed'], 'false');
+  assert.equal(elements['qtyd-mode-add'].classList.contains('is-active'), true);
+  assert.equal(elements['qtyd-mode-sub'].classList.contains('is-active'), false);
   elements['qtyd-input'].value = '1';
   sandbox.submitQtyDialog();
   assert.equal(openedModals.at(-1), 'stock-location-modal', '多位置 Dialog 加量後仍須選儲位');

@@ -37,6 +37,21 @@ SCENARIOS = [(sid, tab, action) for sid, _owner, tab, action in harness.LEAK_SCE
     ("page-settings", "/settings.html", None),
     ("page-permissions", "/permissions.html", None),
     ("page-login", "/login.html", None),
+    # P7.5 按鈕 / chip 統一：多開幾個 modal / 設定面板，讓截圖涵蓋更多按鈕
+    ("modal-qty", "inventory", "openQtyDialog(1, 'add')"),
+    ("modal-expiry", "inventory", "openExpiryModal()"),
+    ("modal-inventory-export", "inventory", "openInventoryExportDialog()"),
+    ("modal-prepared-nonstock", "prepared", "openNonStockPrepareModal()"),
+    ("modal-stockout-nonstock", "stockout", "openNonStockOutModal()"),
+    ("modal-calendar-appt", "calendar", "calOpenAppt()"),
+    ("modal-calendar-settings", "calendar", "calOpenSettings()"),
+    ("modal-petty-cash-entry", "petty-cash", "pcOpenReportModal().then(() => pcOpenEntryModal())"),
+    ("page-settings-cabinets", "/settings.html", "settingsSwitch('cabinets')"),
+    ("page-settings-gcal", "/settings.html", "settingsSwitch('gcal')"),
+    ("page-settings-petty-cash", "/settings.html", "settingsSwitch('petty-cash')"),
+    ("page-settings-pw", "/settings.html", "settingsSwitch('pw')"),
+    ("page-permissions-add-user", "/permissions.html", "openAddUserModal()"),
+    ("page-permissions-account", "/permissions.html", "switchTab('account')"),
 ]
 VIEWPORTS = {"desktop": harness.DESKTOP, "mobile": harness.MOBILE}
 

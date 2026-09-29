@@ -2,8 +2,6 @@
 
   /* 底部導覽 */
 
-
-
   /* ===== 篩選面板（品牌+分類 chips） ===== */
   [data-page="inventory"] .filter-panel { background: #fff; padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
   [data-page="inventory"] .filter-section { margin-bottom: 10px; }
@@ -13,13 +11,8 @@
   [data-page="inventory"] .filter-label .count { font-weight: 400; color: #9ca3af; }
   [data-page="inventory"] .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; transition: max-height 0.2s ease; }
   [data-page="inventory"] .filter-chips.is-collapsed { max-height: 32px; overflow: hidden; }
-  [data-page="inventory"] .filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 500; cursor: pointer; border: 1.5px solid #e0e0e0; background: #f9fafb; color: #374151; transition: all 0.15s; user-select: none; white-space: nowrap; }
-  [data-page="inventory"] .filter-chip:hover { border-color: #3b82f6; background: #eff6ff; }
-  [data-page="inventory"] .filter-chip.is-active { border-color: #3b82f6; background: #3b82f6; color: #fff; }
   [data-page="inventory"] .filter-chip .badge { font-size: 10.5px; background: rgba(0,0,0,0.08); padding: 1px 6px; border-radius: 10px; }
   [data-page="inventory"] .filter-chip.is-active .badge { background: rgba(255,255,255,0.25); }
-  [data-page="inventory"] .filter-clear { font-size: 12px; color: #6b7280; cursor: pointer; border: none; background: none; text-decoration: underline; }
-  [data-page="inventory"] .filter-clear:hover { color: #dc2626; }
   [data-page="inventory"] .filter-summary { font-size: 12px; color: #9ca3af; }
   [data-page="inventory"] .toggle-btn { font-size: 12px; color: #3b82f6; background: none; border: none; cursor: pointer; font-weight: 500; }
   @media (max-width: 767px) {
@@ -64,18 +57,8 @@
     position: absolute;
     top: 8px;
     right: 10px;
-    font-size: 11.5px;
-    color: #2d5a8e;
-    background: #eef4fa;
-    border: 1px solid #cfe0f0;
-    border-radius: 6px;
-    padding: 2px 9px;
-    cursor: pointer;
     z-index: 5;
-    font-weight: 600;
-    transition: all 0.15s;
   }
-  [data-page="inventory"] .item-card .edit-btn:active { transform: scale(0.92); }
   /* v10.1：品項照片縮圖（點擊可看大圖） */
     [data-page="inventory"] .item-card .item-photo {
       width: 52px; height: 52px; object-fit: cover;
@@ -117,10 +100,8 @@
     cursor: pointer;
   }
   [data-page="inventory"] .qty-value .unit { font-size: 10px; color: #999; font-weight: 400; }
-  [data-page="inventory"] .btn-batch { background: #f0f5ff; color: #2d5a8e; border: 1.5px solid #2d5a8e; }
-  [data-page="inventory"] .btn-batch.is-active { background: #2d5a8e; color: #fff; }
-  [data-page="inventory"] .btn-select-all, [data-page="inventory"] .btn-deselect-all { background: #fff; color: #555; border: 1.5px solid #d0d5dd; font-size: 12px; }
-  [data-page="inventory"] .btn-select-all:hover, [data-page="inventory"] .btn-deselect-all:hover { border-color: #2d5a8e; color: #2d5a8e; }
+  [data-page="inventory"] .btn-deselect-all { background: #fff; color: #555; border: 1.5px solid #d0d5dd; font-size: 12px; }
+  [data-page="inventory"] .btn-deselect-all:hover { border-color: #2d5a8e; color: #2d5a8e; }
 
   /* ===== 舊分片切換已移至 .h-site（Phase 1 Shell v2） ===== */
 
@@ -133,21 +114,10 @@
     position: absolute;
     top: 8px;
     right: 66px;
-    font-size: 11.5px;
-    color: #d33;
-    background: #fff;
-    border: 1px solid #f3c1c1;
-    border-radius: 6px;
-    padding: 2px 9px;
-    cursor: pointer;
     z-index: 5;
-    font-weight: 600;
-    transition: all 0.15s;
   }
-  [data-page="inventory"] .item-card .del-btn:hover { background: #fee2e2; }
-  [data-page="inventory"] .item-card .del-btn:active { transform: scale(0.92); }
-[data-page="inventory"] .m-card .chip { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 8px; margin-left: 0; margin-right: 4px; }  /* V1b 2026-08-16：chip 移出 nameHTML 後改右邊距 */
-[data-page="inventory"] .m-card .chip.green { background: #dcfce7; color: #15803d; }
+[data-page="inventory"] .m-card .m-tag { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 8px; margin-left: 0; margin-right: 4px; }  /* V1b 2026-08-16：chip 移出 nameHTML 後改右邊距 */
+[data-page="inventory"] .m-card .m-tag.green { background: #dcfce7; color: #15803d; }
 
 /* 手機庫存卡：底部 待領出/已領出 按鈕列（還原顯示） */
 [data-page="inventory"] .m-card-actions {
@@ -177,14 +147,6 @@
 
 /* 表格模式也保留完整文字入口；手機橫向表格捲動後不會只剩不明圖示。 */
 [data-page="inventory"] .inventory-stockout-actions { display: flex; flex-direction: column; gap: 4px; min-width: 82px; }
-[data-page="inventory"] .tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare {
-  background: #fff; border: 1.5px solid #7c3aed; color: #6d28d9; display: inline-flex; justify-content: center;
-}
-[data-page="inventory"] .tbl-wrap .col-actions .inventory-stockout-actions .btn-out {
-  background: #fff; border: 1.5px solid #f59e0b; color: #b45309; display: inline-flex; justify-content: center;
-}
-[data-page="inventory"] .tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare:hover { background: #f5f3ff; }
-[data-page="inventory"] .tbl-wrap .col-actions .inventory-stockout-actions .btn-out:hover { background: #fff7ed; }
 
 /* ---------- 手機版（<768px） ---------- */
 @media (max-width: 767px) {
@@ -213,7 +175,7 @@
 [data-page="inventory"] .tbl-wrap .col-loc {color:#64748b;font-size:12px}
 [data-page="inventory"] .tbl-wrap .col-status {text-align:center}
 [data-page="inventory"] .tbl-wrap .col-actions {text-align:right;white-space:nowrap}
-[data-page="inventory"] .tbl-wrap .col-actions button {background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px}
+[data-page="inventory"] .tbl-wrap .col-actions button:not(.btn) {background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px}
 [data-page="inventory"] .tbl-wrap .inventory-action-menu {display:inline-flex;position:relative;vertical-align:middle;margin-left:4px}
 [data-page="inventory"] .tbl-wrap .status-ok {color:#16a34a;font-size:11px}
 [data-page="inventory"] .tbl-wrap .status-warn {color:#d97706;font-size:11px;font-weight:600}
@@ -221,10 +183,7 @@
 
 /* ===== View Toggle ===== */
 [data-page="inventory"] .view-toggle {display:inline-flex;gap:4px;margin-left:8px}
-[data-page="inventory"] .view-toggle button {padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:6px;font-size:11px;cursor:pointer}
-[data-page="inventory"] .view-toggle button.is-active {background:#2d5a8e;color:#fff;border-color:#2d5a8e}
 [data-page="inventory"] .more-actions-wrap {position:relative}
-[data-page="inventory"] .btn-more-actions {background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:4px 10px;font-size:16px;cursor:pointer;line-height:1}
 [data-page="inventory"] .more-actions-dropdown {display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;min-width:140px}
 [data-page="inventory"] .more-actions-dropdown.is-open {display:block}
 [data-page="inventory"] .more-actions-dropdown button {display:block;width:100%;padding:10px 14px;border:none;background:none;font-size:13px;text-align:left;cursor:pointer;white-space:nowrap}
@@ -235,11 +194,10 @@
 [data-page="inventory"] .item-card.danger, [data-page="inventory"] .m-card.danger {background:#fff5f5;border:1px solid #ef4444}
 /* 自 legacy/core.css 搬來的本頁規則（原含 !important，P5 以選擇器特異度取代） */
 [data-page="inventory"] .m-card-actions .btn-prepare, [data-page="inventory"] .m-card-actions .btn-out {
-  flex: 1; margin: 0; padding: 10px 4px; font-size: 12.5px;
-  border-radius: 9px;
+  flex: 1; margin: 0;
 }
 [data-page="inventory"] .inventory-stockout-actions .btn-prepare, [data-page="inventory"] .inventory-stockout-actions .btn-out {
-  margin: 0; padding: 5px 7px; font-size: 11px; white-space: nowrap;
+  margin: 0;
 }
 [data-page="inventory"] .tbl-wrap .col-actions button.inventory-action-trigger {border:1px solid #dbe3ec;border-radius:6px;background:#fff;font-size:18px;line-height:1;padding:1px 7px;color:#475569}
 [data-page="inventory"] .tbl-wrap .col-actions button.inventory-action-trigger:hover {background:#f1f5f9;color:#1e3a5f}
@@ -307,39 +265,12 @@
 [data-page="inventory"] .filter-panel.inventory-filter-panel .filter-chips {
   gap: 8px;
 }
-[data-page="inventory"] .filter-panel.inventory-filter-panel .filter-chip {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  background: #fff;
-  color: #475569;
-  font-size: 12px;
-  transition: background .15s, border-color .15s, color .15s;
-}
-[data-page="inventory"] .filter-panel.inventory-filter-panel .filter-chip:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-}
-[data-page="inventory"] .filter-panel.inventory-filter-panel .filter-chip.is-active {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #fff;
-}
 [data-page="inventory"] .filter-panel.inventory-filter-panel .filter-chip .badge {
   padding: 0;
   background: transparent;
   color: inherit;
   opacity: .7;
   font-size: 11px;
-}
-[data-page="inventory"] .filter-panel.inventory-filter-panel .filter-clear {
-  color: #64748b;
-  text-decoration: none;
-  transition: color .15s;
-}
-[data-page="inventory"] .filter-panel.inventory-filter-panel .filter-clear:hover {
-  color: #2563eb;
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .filter-summary {
   color: #94a3b8;
@@ -363,8 +294,6 @@
   outline-offset: 2px;
 }
 
-
-
 [data-page="inventory"] .inventory-kpi-action {
   margin-left: 4px;
   color: currentColor;
@@ -382,11 +311,9 @@
   color: #6d28d9;
 }
 
-
 [data-page="inventory"] .inventory-kpi-low .inventory-kpi-number, [data-page="inventory"] .inventory-kpi-low .inventory-kpi-action {
   color: #d97706;
 }
-
 
 [data-page="inventory"] .inventory-kpi-out .inventory-kpi-number, [data-page="inventory"] .inventory-kpi-out .inventory-kpi-action {
   color: #dc2626;
@@ -412,27 +339,6 @@
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #f8fafc;
-}
-[data-page="inventory"] .inventory-content .view-toggle button {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 6px;
-  color: #64748b;
-  font-size: 13px;
-}
-[data-page="inventory"] .inventory-content .view-toggle button.is-active {
-  background: #2563eb;
-  color: #fff;
-}
-[data-page="inventory"] .inventory-content .btn-sm, [data-page="inventory"] .inventory-content .btn-add-inv {
-  min-height: 38px;
-  padding: 0 15px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-[data-page="inventory"] .inventory-content .btn-add-inv {
-  background: #16a34a;
 }
 [data-page="inventory"] .inventory-content .tbl-wrap {
   margin-top: 0;
@@ -489,12 +395,6 @@
   flex-direction: row;
   min-width: 0;
   gap: 6px;
-}
-[data-page="inventory"] .inventory-content .tbl-wrap .inventory-stockout-actions .btn-prepare, [data-page="inventory"] .inventory-content .tbl-wrap .inventory-stockout-actions .btn-out {
-  min-height: 34px;
-  padding: 0 10px;
-  border-radius: 8px;
-  font-size: 12px;
 }
 [data-page="inventory"] .inventory-content .tbl-wrap .inventory-action-trigger {
   min-height: 34px;
@@ -597,11 +497,7 @@
     position: static;
     inset: auto;
     z-index: auto;
-    min-height: 34px;
     margin: 0;
-    padding: 0 10px;
-    border-radius: 8px;
-    font-size: 12px;
   }
   [data-page="inventory"] .inventory-content .loc-group .item-card > .item-card-admin-actions .edit-btn {
     order: 2;
@@ -731,37 +627,6 @@
   flex-wrap: wrap;
   justify-content: center;
 }
-[data-page="inventory"] .inventory-empty-secondary {
-  min-height: 38px;
-  padding: 0 15px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #475569;
-  cursor: pointer;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 [data-page="inventory"] .inventory-card-status.status-low {
   background: #fef3c7;
@@ -772,57 +637,6 @@
   color: #dc2626;
 }
 
-
-
-
-
-/* ===== Pending/prepared page ===== */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* ===== Responsive targets ===== */
 @media (max-width: 1440px) {
   [data-page="inventory"] .content.inventory-content {
@@ -832,7 +646,6 @@
     padding-left: 24px;
     padding-right: 24px;
   }
-
 
   [data-page="inventory"] .inventory-content .loc-group .item-card {
     gap: 14px;
@@ -863,10 +676,6 @@
   [data-page="inventory"] .content.inventory-content {
     padding: 16px 14px 92px;
   }
-
-
-
-
 
   [data-page="inventory"] .inventory-content .loc-export-bar {
     align-items: flex-start;
@@ -901,10 +710,9 @@
   }
   [data-page="inventory"] .inventory-content .loc-export-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   [data-page="inventory"] .inventory-content .loc-export-count { flex: 1 1 auto; min-width: 0; }
-  [data-page="inventory"] .inventory-content .loc-export-bar .btn-add-inv { flex: 0 0 auto; order: 2; border: 1px solid #2563eb; background: #fff; color: #2563eb; }
+  [data-page="inventory"] .inventory-content .loc-export-bar .btn-add-inv { flex: 0 0 auto; order: 2; }
   [data-page="inventory"] .inventory-content .more-actions-wrap { order: 3; flex: 0 0 auto; position: relative; }
   [data-page="inventory"] .inventory-content .view-toggle { order: 4; flex: 0 0 100%; }
-  [data-page="inventory"] .inventory-content .btn-add-inv { min-height: 36px; padding: 0 10px; }
   [data-page="inventory"] .inventory-content .tbl-wrap .col-actions { white-space: nowrap; }
   [data-page="inventory"] .inventory-content .tbl-wrap .inventory-stockout-actions { display: inline-flex; flex-direction: row; align-items: center; flex-wrap: nowrap; vertical-align: middle; white-space: nowrap; }
   [data-page="inventory"] .inventory-content .tbl-wrap .inventory-action-menu { display: inline-flex; vertical-align: middle; }
@@ -915,51 +723,12 @@
 [data-page="inventory"] .inventory-content .m-card .item-loc, [data-page="inventory"] .inventory-content .item-card .item-loc { display: block; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
 [data-page="inventory"] .inventory-content .item-loc-label { font-weight: 700; }
 
-/* 共用商品/庫存異常清單：Desktop compact list + Mobile compact product row */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[data-page="inventory"] .inventory-content .loc-export-bar .btn-add-inv {
-  border: 1px solid #2563eb;
-  background: #fff;
-  color: #2563eb;
-}
-[data-page="inventory"] .inventory-content .loc-export-bar .btn-add-inv:hover { background: #eff6ff; }
-
-
-
 /* 增減庫存 dialog 快捷列（2026-09-12 分數/小數單位；modal 本體沿用全域 .modal 樣式） */
 [data-page="inventory"] .qtyd-quick { display: flex; gap: 8px; margin: 2px 0 10px; }
-[data-page="inventory"] .qtyd-quick .btn-ghost { flex: 1; min-height: 40px; font-size: 15px; }
+[data-page="inventory"] .qtyd-quick .chip { flex: 1; }
 [data-page="inventory"] .qtyd-direction { display: flex; gap: 8px; margin: 2px 0 10px; }
 [data-page="inventory"] .qtyd-direction[hidden] { display: none; }
-[data-page="inventory"] .qtyd-direction .btn-ghost { flex: 1; min-height: 44px; font-size: 15px; }
-[data-page="inventory"] .qtyd-direction .btn-ghost[aria-pressed="true"] { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }
+[data-page="inventory"] .qtyd-direction .chip { flex: 1; }
 @media (max-width: 767px) {
   [data-page="inventory"] #qty-dialog .modal { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
   [data-page="inventory"] #qtyd-input { font-size: 17px; min-height: 46px; }
@@ -986,10 +755,6 @@
 [data-page="inventory"] .kit-subitem-name { flex: 1; font-weight: 500; }
 [data-page="inventory"] .kit-subitem-code { color: #888; font-size: 11px; }
 [data-page="inventory"] .kit-subitem-qty { font-weight: 600; color: #334155; white-space: nowrap; }
-
-/* ========== 待領出準備說明 ========== */
-
-
 
 /* ========== 手機版整組子品項 ========== */
 [data-page="inventory"] .kit-subitems-mobile-wrap { padding: 0 12px 8px; }

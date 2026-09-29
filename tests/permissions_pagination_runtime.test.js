@@ -76,7 +76,7 @@ class FakeDocument {
       const input = this.make(parent, 'input', 'permission-search');
       input.value = decodeHtml((search[0].match(/value="([^"]*)"/) || ['', ''])[1]);
     }
-    const filterRe = /<button class="perm-filter ([^"]*)" data-module="([^"]+)"[^>]*>([^<]*)<\/button>/g;
+    const filterRe = /<button class="chip perm-filter ([^"]*)" data-module="([^"]+)"[^>]*>([^<]*)<\/button>/g;
     let match;
     while ((match = filterRe.exec(html))) {
       const button = this.make(parent, 'button');

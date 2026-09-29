@@ -1,125 +1,58 @@
-/* 共用按鈕（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+/* 按鈕：全系統唯一的按鈕外觀（CSS 架構重構 P7.5，規格見 docs/CSS架構重構設計.md §7.2）。
+   用途用變體表示：--primary（每區最多一個）/ --secondary / --ghost / --danger / --prepare / --out / --on-dark；
+   尺寸：--sm 32px、--md 38px（手機 44px）；--icon 方形圖示鈕；--solid 用於 modal 的流程確認鈕。
+   頁面 CSS 只能調整位置與寬度（margin / width / flex / position），不得改按鈕外觀。 */
 @layer components {
-  /* Header user menu（黑字，白底 header 專用） */
-  .h-right .btn-ghost {background:#f1f5f9;border:1px solid #e5e7eb;color:#1a1a1a;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap}
-  .h-right .btn-ghost:hover {background:#e2e8f0}
-  .btn-ghost {
-    background: rgba(255,255,255,0.15);
-    border: 1.5px solid rgba(255,255,255,0.4);
-    color: #fff;
-    border-radius: 10px;
-    padding: 7px 13px;
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.15s;
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    box-sizing: border-box; height: var(--h-md); padding: 0 14px;
+    border: 1px solid transparent; border-radius: var(--r-md);
+    background: var(--c-surface); color: var(--c-text-2);
+    font: inherit; font-size: var(--fs-13); font-weight: var(--fw-bold); line-height: 1;
+    white-space: nowrap; cursor: pointer; text-decoration: none;
+    transition: background-color .12s, border-color .12s, color .12s;
   }
-  .btn-ghost:hover { background: rgba(255,255,255,0.28); }
+  .btn:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+  .btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 
-  /* 2026-08-16：.btn-ghost 是 topbar 深藍底專用（白字半透明白底）——白底 modal 內取消按鈕會隱形
-     （openUnitQuickAdd 快速新增行的取消按鈕，家豪實測看不到）。全域覆寫白底深字灰邊
-     （permissions.html 08-15 已內嵌同款修法，此處提升為全域，index.html 的 modal 一併生效） */
-  .modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }
-  .modal .btn-ghost:hover { background: #f5f7fa; }
+  .btn--sm { height: var(--h-sm); padding: 0 12px; font-size: var(--fs-12); }
+  .btn--md { height: var(--h-md); padding: 0 14px; font-size: var(--fs-13); }
+  .btn--icon { width: var(--h-sm); padding: 0; }
+  .btn--md.btn--icon { width: var(--h-md); }
 
-  /* Shared compact button base.
-     Feature styles may add scoped layout/state deltas. */
-  .btn-sm { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #333; }
-  .btn-sm.btn-primary { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }
+  .btn--primary { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
+  .btn--primary:hover:not(:disabled) { background: var(--c-primary-strong); border-color: var(--c-primary-strong); }
+  .btn--secondary { background: var(--c-surface); border-color: var(--c-border-strong); color: var(--c-text-2); }
+  .btn--secondary:hover:not(:disabled) { background: var(--c-surface-2); border-color: var(--c-muted); }
+  /* 切換型按鈕（如「批次改位置」開啟中）用 .is-active 表示按下狀態 */
+  .btn--secondary.is-active { background: var(--c-primary-soft); border-color: var(--c-primary); color: var(--c-primary); }
+  .btn--ghost { background: var(--c-primary-soft); border-color: transparent; color: var(--c-primary); }
+  .btn--ghost:hover:not(:disabled) { background: #dfe9f5; }
+  .btn--danger { background: var(--c-surface); border-color: var(--c-danger-border); color: var(--c-danger); }
+  .btn--danger:hover:not(:disabled) { background: var(--c-danger-soft); }
+  .btn--prepare { background: var(--c-surface); border-color: var(--c-prepare-border); color: var(--c-prepare); }
+  .btn--prepare:hover:not(:disabled) { background: var(--c-prepare-soft); }
+  .btn--out { background: var(--c-surface); border-color: var(--c-out-border); color: var(--c-out); }
+  .btn--out:hover:not(:disabled) { background: var(--c-out-soft); }
+  .btn--prepare.btn--solid { background: var(--c-prepare-solid); border-color: var(--c-prepare-solid); color: #fff; }
+  .btn--prepare.btn--solid:hover:not(:disabled) { background: var(--c-prepare); }
+  .btn--out.btn--solid { background: var(--c-out-solid); border-color: var(--c-out-solid); color: #fff; }
+  .btn--out.btn--solid:hover:not(:disabled) { background: #d97706; }
+  .btn--on-dark { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.45); color: #fff; }
+  .btn--on-dark:hover:not(:disabled) { background: rgba(255,255,255,.28); }
 
-  /* 主按鈕（2026-08-14 補定義——原本無 .btn-primary 樣式，權限頁「新增帳號/儲存變更」掉成瀏覽器預設方形按鈕） */
-  .btn-primary {
-    background: #2d5a8e;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    padding: 7px 14px;
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.15s;
+  /* ---------- 專用控制項（不屬於 .btn 系統）：手機卡片右上角 ⋯ 更多按鈕 ---------- */
+  .more-btn {
+    position: absolute; top: 6px; right: 6px; width: 32px; height: 32px;
+    border-radius: 50%; border: none; background: #f0f2f5; color: #4b5563;
+    font-size: 17px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; z-index: 5;
+    transition: background .12s;
   }
-  .btn-primary:hover { background: #1e3a5f; }
-  .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
-  /* topbar（深藍底）上的主按鈕反白：白底深藍字才看得清楚 */
-  .topbar .btn-primary { background: #fff; color: #1e3a5f; border: 1.5px solid rgba(255,255,255,0.4); }
-  .topbar .btn-primary:hover { background: #f0f4f8; }
-  .btn-export { background: #1a73e8; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  /* 2026-08-13 Sarah：庫存清單頂部新增按鈕（與匯出並排） */
-  .btn-add-inv { background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .btn-add-inv:hover { background: #15803d; }
-  .btn-export:hover { background: #1557b0; }
+  .more-btn:active { background: #e0e4ea; }
 
-  /* 出庫按鈕 */
-  .btn-out {
-    background: #fff;
-    border: 1.5px solid #f59e0b;
-    color: #b45309;
-    border-radius: 8px;
-    padding: 5px 10px;
-    font-size: 11.5px;
-    font-weight: 700;
-    cursor: pointer;
-    margin-top: 5px;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    transition: background 0.15s;
+  @media (max-width: 767px) {
+    .btn--md { height: var(--h-touch); }
+    .btn--md.btn--icon { width: var(--h-touch); }
   }
-  .btn-out:hover { background: #fff7ed; }
-  .btn-prepare {
-    background: #fff;
-    border: 1.5px solid #7c3aed;
-    color: #6d28d9;
-    border-radius: 8px;
-    padding: 5px 10px;
-    font-size: 11.5px;
-    font-weight: 700;
-    cursor: pointer;
-    margin-top: 5px;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    transition: background 0.15s;
-  }
-  .btn-prepare:hover { background: #f5f3ff; }
-  .btn-save {
-    background: #2d5a8e; color: #fff; border: none;
-    border-radius: 10px; padding: 10px 24px;
-    font-size: 14px; font-weight: 700; cursor: pointer;
-  }
-  .btn-cancel { background: #f0f0f0; color: #555; border-radius: 20px; padding: 8px 20px; }
-  .btn-confirm { background: #2d5a8e; color: #fff; border-radius: 20px; padding: 8px 20px; }
-  .btn-confirm.orange { background: #f59e0b; }
-
-  .btn-del {
-    background: #fff; border: 1.5px solid #dc2626; color: #dc2626;
-    border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 700;
-    cursor: pointer; margin-top: 5px; display: inline-flex; align-items: center; gap: 3px;
-    transition: background 0.15s;
-  }
-  .btn-del:hover { background: #fee2e2; }
-  .btn-del:active { transform: scale(0.96); }
-
-/* v11.2 改密碼 modal：取消按鈕 ghost 樣式（與儲存並排） */
-.btn-cancel-ghost {
-  background: #f0f2f5; border: none; color: #555;
-  border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer;
-}
-.btn-cancel-ghost:hover { background: #e5e8ec; color: #1e3a5f; }
-
-/* ☰ 按鈕：桌面隱藏（手機 media query 顯示） */
-
-
-/* ===== v1.2 手機版卡片式 UI + ⋯ 動作選單（2026-08-11 家豪需求） ===== */
-
-/* ---------- ⋯ 更多按鈕（卡片右上角） ---------- */
-.more-btn {
-  position: absolute; top: 6px; right: 6px; width: 32px; height: 32px;
-  border-radius: 50%; border: none; background: #f0f2f5; color: #4b5563;
-  font-size: 17px; font-weight: 700; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; z-index: 5;
-  transition: background .12s;
-}
-.more-btn:active { background: #e0e4ea; }
 }

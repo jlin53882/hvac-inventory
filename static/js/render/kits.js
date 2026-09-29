@@ -33,7 +33,7 @@ async function renderKits() {
         <div class="kit-empty-icon" aria-hidden="true">🔧</div>
         <h2>${esc(hasSearch ? '沒有符合搜尋條件的整組' : '目前沒有整組資料') }</h2>
         <p>${esc(hasSearch ? '可以清除搜尋或調整關鍵字。' : '可以建立整組並加入組成材料。') }</p>
-        ${hasSearch ? '<button class="kit-action kit-action-clear" onclick="clearSearchAutofill();renderKits()">清除搜尋</button>' : (isViewer ? '' : '<button class="kit-add-button" onclick="openKitModal()">＋ 新增整組</button>')}
+        ${hasSearch ? '<button class="btn btn--secondary btn--sm kit-action" onclick="clearSearchAutofill();renderKits()">清除搜尋</button>' : (isViewer ? '' : '<button class="btn btn--primary btn--md kit-add-button" onclick="openKitModal()">＋ 新增整組</button>')}
       </div>`;
     } else {
       html += filteredKits.map(function(k) { return renderKitCard(k, isViewer, isM); }).join('');
@@ -41,7 +41,7 @@ async function renderKits() {
     content.innerHTML = html;
   } catch (e) {
     if (renderRequestId !== kitRenderRequestSeq || currentTab !== 'kit' || siteAtRequest !== currentSite) return;
-    content.innerHTML = `<div class="kit-empty-state"><div class="kit-empty-icon" aria-hidden="true">⚠️</div><h2>載入整組庫存失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="kit-action" onclick="renderKits()">重新載入</button></div>`;
+    content.innerHTML = `<div class="kit-empty-state"><div class="kit-empty-icon" aria-hidden="true">⚠️</div><h2>載入整組庫存失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--sm kit-action" onclick="renderKits()">重新載入</button></div>`;
   }
 }
 
@@ -94,7 +94,7 @@ function renderKitPageHeader(isViewer) {
       <div class="kit-heading-icon" aria-hidden="true">🔧</div>
       <div><h1>整組庫存</h1><p>管理設備整組與其組成材料，查看庫存狀態與需求數量。</p></div>
     </div>
-    ${isViewer ? '' : '<button class="kit-add-button" onclick="openKitModal()">＋ 新增整組</button>'}
+    ${isViewer ? '' : '<button class="btn btn--primary btn--md kit-add-button" onclick="openKitModal()">＋ 新增整組</button>'}
   </section>`;
 }
 
@@ -116,7 +116,7 @@ function renderKitToolbar(count) {
   const now = new Date();
   const month_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const month_end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn-sm btn-export" onclick="openKitExportDialog()">📊 匯出報表</button></div>`;
+  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn btn--secondary btn--md btn-export" onclick="openKitExportDialog()">📊 匯出報表</button></div>`;
 }
 
 function renderKitStatusBadge(status) {
@@ -127,15 +127,15 @@ function renderKitStatusBadge(status) {
 
 function renderKitActionButtons(k, isViewer, isM, status) {
   if (isViewer) return '';
-  const transfer = hasPerm('stock-mgmt') ? `<button class="kit-action" onclick="openTransferModal(${k.item_id})">🔄 調撥</button>` : '';
-  if (isM) return `<div class="kit-mobile-actions"><button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button><button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>${transfer}<button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
+  const transfer = hasPerm('stock-mgmt') ? `<button class="btn btn--secondary btn--sm kit-action" onclick="openTransferModal(${k.item_id})">🔄 調撥</button>` : '';
+  if (isM) return `<div class="kit-mobile-actions"><button class="btn btn--prepare btn--sm kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button><button class="btn btn--out btn--sm kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>${transfer}<button class="kit-more" type="button" onclick="openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
   return `<div class="kit-assembly-actions">
-    <button class="kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button>
-    <button class="kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>
-    <button class="kit-action is-edit" onclick="editKit(${k.id})">✏️ 編輯</button>
-    <button class="kit-action is-delete" onclick="deleteKit(${k.id})">🗑 刪除</button>
-    <button class="kit-action is-assemble" onclick="assembleKit(${k.id})" ${esc(status.canAssemble ? '' : 'disabled title="材料不足"')}>🛠️ 組裝</button>
-    <button class="kit-action is-disassemble" onclick="disassembleKit(${k.id})" ${Number(k.stock_qty || 0) > 0 ? '' : 'disabled title="整組庫存為 0"'}>✂️ 拆解</button>
+    <button class="btn btn--prepare btn--sm kit-action is-prepare" onclick="openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button>
+    <button class="btn btn--out btn--sm kit-action is-out" onclick="openOutModal(${k.item_id}, event)">🚚 已領出</button>
+    <button class="btn btn--secondary btn--sm kit-action is-edit" onclick="editKit(${k.id})">✏️ 編輯</button>
+    <button class="btn btn--danger btn--sm kit-action is-delete" onclick="deleteKit(${k.id})">🗑 刪除</button>
+    <button class="btn btn--secondary btn--sm kit-action is-assemble" onclick="assembleKit(${k.id})" ${esc(status.canAssemble ? '' : 'disabled title="材料不足"')}>🛠️ 組裝</button>
+    <button class="btn btn--secondary btn--sm kit-action is-disassemble" onclick="disassembleKit(${k.id})" ${Number(k.stock_qty || 0) > 0 ? '' : 'disabled title="整組庫存為 0"'}>✂️ 拆解</button>
   </div>` + transfer;
 }
 
@@ -645,7 +645,7 @@ function renderKitStatusItem(kit, type) {
     ? `<div class="kit-status-missing">${esc(missingLabel)} ${missing.length} 項：${missing.map(function(c) { return `<span>${esc(c.name || '未命名材料')}</span>`; }).join('')}</div>`
     : '';
   const editAction = hasPerm('kit-mgmt') && Number.isInteger(Number(kit.id))
-    ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();editKit(${esc(String(Number(kit.id)))})">編輯</button>`
+    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" onclick="closeInventoryStatusModal();editKit(${esc(String(Number(kit.id)))})">編輯</button>`
     : '';
   return `<article class="inventory-status-item status-list-mobile-row kit-status-item ${esc(statusClass)}">
     <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!kit.has_photo, kit.name, '🔧', kit.thumbnail_url)}</div>

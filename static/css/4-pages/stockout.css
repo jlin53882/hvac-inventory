@@ -19,18 +19,7 @@
 [data-page="stockout"] .stockout-content .stockout-filter-field input { width: 132px; height: 40px; padding: 0 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #0f172a; font-size: 13px; }
 [data-page="stockout"] .stockout-content .stockout-filter-field input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
 [data-page="stockout"] .stockout-content .stockout-filter-field.search input { width: 265px; }
-[data-page="stockout"] .stockout-content .stockout-filter-action { height: 40px; padding: 0 13px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #475569; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
-[data-page="stockout"] .stockout-content .stockout-filter-action:hover { border-color: #94a3b8; background: #f8fafc; }
-[data-page="stockout"] .stockout-content .stockout-filter-action.primary { border-color: #16a34a; background: #16a34a; color: #fff; }
-[data-page="stockout"] .stockout-content .stockout-filter-action.primary:hover { background: #15803d; }
 [data-page="stockout"] .stockout-content .stockout-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr));}
-
-
-
-
-
-
-
 
 [data-page="stockout"] .stockout-content .stockout-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #64748b; font-size: 13px; }
 [data-page="stockout"] .stockout-content .stockout-toolbar strong { color: #334155; }
@@ -59,12 +48,7 @@
 [data-page="stockout"] .stockout-content .stockout-destination-badge.return-location { background: #fff7ed; color: #c2410c; }
 [data-page="stockout"] .stockout-content .stockout-returned-badge { display: inline-flex; margin-left: 6px; padding: 3px 8px; border-radius: 999px; background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; }
 [data-page="stockout"] .stockout-content .stockout-actions { display: flex; flex-wrap: wrap; gap: 7px; min-width: 280px; }
-[data-page="stockout"] .stockout-content .stockout-actions button { flex: 1 1 0; min-width: 0; min-height: 34px; padding: 0 10px; border: 1px solid #c4b5fd; border-radius: 8px; background: #fff; color: #7c3aed; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
-[data-page="stockout"] .stockout-content .stockout-actions button:hover { background: #f5f3ff; }
-[data-page="stockout"] .stockout-content .stockout-actions button.return { border-color: #fdba74; color: #d97706; }
-[data-page="stockout"] .stockout-content .stockout-actions button.return:hover { background: #fffbeb; }
-[data-page="stockout"] .stockout-content .stockout-actions button.danger { border-color: #fca5a5; color: #ef4444; }
-[data-page="stockout"] .stockout-content .stockout-actions button.danger:hover { background: #fef2f2; }
+[data-page="stockout"] .stockout-content .stockout-actions button { flex: 1 1 0; min-width: 0; }
 [data-page="stockout"] .stockout-content .stockout-empty-state { padding: 64px 20px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #fff; color: #64748b; text-align: center; }
 [data-page="stockout"] .stockout-content .stockout-empty-state .empty-icon { display: block; margin-bottom: 10px; font-size: 34px; }
 [data-page="stockout"] .stockout-content .stockout-empty-state strong { display: block; color: #334155; font-size: 16px; }
@@ -89,10 +73,6 @@
   [data-page="stockout"] .stockout-content .stockout-filter-field input, [data-page="stockout"] .stockout-content .stockout-filter-field.search input { width: 100%; }
   [data-page="stockout"] .stockout-content .stockout-filter-field.search { grid-column: 1 / -1; }
   [data-page="stockout"] .stockout-content .stockout-filter-action { width: 100%; }
-
-
-
-
 
   [data-page="stockout"] .stockout-content .stockout-toolbar { align-items: flex-start; flex-direction: column; }
   [data-page="stockout"] .stockout-content .stockout-date-header { align-items: flex-start; flex-direction: column; gap: 4px; padding: 10px 14px; }

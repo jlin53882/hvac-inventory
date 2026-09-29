@@ -196,3 +196,90 @@ def test_state_classes_use_is_prefix(rel):
     pattern = re.compile(r"\.(" + "|".join(LEGACY_STATE_CLASSES) + r")(?![\w-])")
     for _media, selector, _body in _style_rules(_read(rel)):
         assert not pattern.search(selector), f"{rel} 使用舊狀態 class：{selector}"
+
+
+# ---------- P7.5 設計系統：按鈕 / chip 外觀只有一個來源 ----------
+COMPONENT_OWNERS = {"3-components/button.css", "3-components/chip.css"}
+APPEARANCE_PROP = re.compile(
+    r"^(background(-color)?|border(-(top|right|bottom|left))?(-(color|width|style))?|border-radius|color|"
+    r"font-size|font-weight|padding(-(top|right|bottom|left))?|height|min-height|box-shadow)$"
+)
+# 不屬於 .btn / .chip 的專用控制項（數量 ±、KPI 卡、關閉 ✕、選單項目、開關、圖卡…），各自有元件樣式
+NON_STANDARD_BUTTON_CLASSES = {
+    "hamburger", "notif", "notif-close", "notif-category", "x", "toggle-btn", "collapse-btn", "more-btn",
+    "kit-more", "qty-btn", "inventory-kpi-card", "stocktake-kpi-card", "inventory-action-trigger",
+    "inventory-action-item", "inventory-export-dialog__close", "inventory-status-close", "stock-remove",
+    "btn-remove", "rm", "s-cancel", "stock-adjust-location-option", "quote-inventory-row", "switch",
+    "cal-sync-status", "btn-close", "login-btn", "password-toggle", "eng-category-head", "eng-group-head",
+    "eng-receipt-toggle", "eng-editor-receipt-toggle", "pc-general-detail-toggle", "pc-inline-expand",
+    "pc-mobile-action", "wpr-confirm-close", "wpr-edit-close", "wpr-gallery-close", "wpr-pending-gallery-close",
+    "wpr-job-card", "wpr-add-tile", "wpr-pending-preview", "wpr-photo-remove",
+}
+# 沒有 class 的 <button>：下拉選單項目、照片圖卡、燈箱上一張 / 下一張（各檔數量固定，新增按鈕必須套標準 class）
+UNCLASSED_BUTTONS = {"js/render/inventory.js": 2, "js/render/petty-cash.js": 1, "js/render/work-progress.js": 5}
+
+
+def _markup_sources():
+    base = os.path.join(ROOT, "static")
+    for dirpath, _dirs, files in os.walk(base):
+        for name in files:
+            if name.endswith((".js", ".html")):
+                path = os.path.join(dirpath, name)
+                with open(path, encoding="utf-8") as fh:
+                    yield os.path.relpath(path, base).replace(os.sep, "/"), fh.read()
+
+
+def _static_tokens(value):
+    """class 字串去掉 JS 內插（${...} 與 ' + ... + '）後的 token。"""
+    return set(re.sub(r"\$\{.*?\}|' \+ .*? \+ '", " ", value).split())
+
+
+def _button_hook_classes():
+    """和 .btn / .chip 一起出現在標記上的舊 class（現在只當 JS / 排版掛鉤）。"""
+    hooks = set()
+    for _rel, text in _markup_sources():
+        for match in re.finditer(r"class(?:Name)?\s*=\s*([\"'])(.*?)\1", text):
+            tokens = _static_tokens(match.group(2))
+            if tokens & {"btn", "chip"}:
+                hooks |= {t for t in tokens if re.match(r"^[a-z][\w-]*$", t) and not re.match(r"^(btn|chip)(--|$)|^is-|^u-", t)}
+    return hooks
+
+
+def _subject(selector):
+    selector = re.sub(r":not\((?:[^()]|\([^()]*\))*\)", "", selector)
+    return re.split(r"\s*[>+~]\s*|\s+", selector.strip())[-1]
+
+
+@pytest.mark.parametrize("rel", [r for r in _css_files() if r not in COMPONENT_OWNERS])
+def test_button_appearance_only_in_button_and_chip_css(rel):
+    """按鈕與 chip 的外觀（顏色、框線、圓角、字級、高度、內距）只能由 button.css / chip.css 定義；
+    頁面 CSS 對按鈕只能調位置與寬度。這樣改一個按鈕樣式，全站同步，不會 A 頁改了 B 頁沒改。"""
+    hooks = _button_hook_classes()
+    target = re.compile(r"\.(btn|chip)(--[\w-]+)?(?![\w-])|\.(" + "|".join(map(re.escape, sorted(hooks))) + r")(?![\w-])")
+    for _media, selector, body in _style_rules(_read(rel)):
+        for part in _split_selectors(selector):
+            subject = _subject(part)
+            if "::" in subject or not target.search(subject):
+                continue
+            props = [d.split(":", 1)[0].strip().lower() for d in body.split(";") if ":" in d]
+            bad = [p for p in props if APPEARANCE_PROP.match(p)]
+            assert not bad, f"{rel} 的 {part} 改了按鈕外觀 {bad}；請改用 .btn / .chip 的變體"
+
+
+def test_every_button_uses_the_standard_classes():
+    """新按鈕一律套 .btn（動作）或 .chip（選取 / 篩選 / 頁籤）；專用控制項需列入 NON_STANDARD_BUTTON_CLASSES。"""
+    unclassed = {}
+    for rel, text in _markup_sources():
+        for match in re.finditer(r"<button\b((?:[^>`]|`[^`]*`|\$\{[^}]*\})*)>", text):
+            cls = re.search(r"class=([\"'])(.*?)\1", match.group(1))
+            if not cls:
+                unclassed[rel] = unclassed.get(rel, 0) + 1
+                continue
+            tokens = _static_tokens(cls.group(2))
+            if not tokens:  # 只有動態 class（如選單項目的危險色）
+                unclassed[rel] = unclassed.get(rel, 0) + 1
+                continue
+            if tokens & {"btn", "chip"} or tokens & NON_STANDARD_BUTTON_CLASSES:
+                continue
+            raise AssertionError(f"{rel} 的按鈕沒有套 .btn / .chip：class=\"{cls.group(2)}\"")
+    assert unclassed == UNCLASSED_BUTTONS, f"沒有 class 的按鈕數量改變：{unclassed}"

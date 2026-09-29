@@ -2,8 +2,7 @@
 
   /* 盤點輸入表 tab 切換（2026-08-13：整組 / 單一材料分開） */
   [data-page="stocktake"] .stk-tabs { display: flex; gap: 8px; background: #f1f5f9; border-radius: 12px; padding: 4px; margin: 12px 0; }
-  [data-page="stocktake"] .stk-tab { flex: 1; padding: 9px 0; border: none; border-radius: 9px; font-size: 13.5px; font-weight: 600; cursor: pointer; background: transparent; color: #64748b; transition: all 0.2s; line-height: 1.3; }
-  [data-page="stocktake"] .stk-tab.is-active { background: #fff; color: #1e3a5f; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+  [data-page="stocktake"] .stk-tab { flex: 1; }
   [data-page="stocktake"] .stk-tab span { display: block; font-size: 10.5px; font-weight: 400; opacity: 0.7; margin-top: 1px; }
   [data-page="stocktake"] .stk-tab.is-active span { opacity: 0.85; }
   [data-page="stocktake"] .st-diff { font-size: 13px; font-weight: 600; text-align: center; }
@@ -45,14 +44,6 @@
 [data-page="stocktake"] .stocktake-content button.stocktake-kpi-card { width: 100%; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; }
 [data-page="stocktake"] .stocktake-content button.stocktake-kpi-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(15,23,42,.06); }
 
-
-
-
-
-
-
-
-
 [data-page="stocktake"] .stocktake-content .stocktake-loading { min-height: 180px; display: grid; place-items: center; color: #64748b; font-size: 14px; }
 [data-page="stocktake"] .stocktake-content .stocktake-summary-card, [data-page="stocktake"] .stocktake-content .stocktake-info-panel, [data-page="stocktake"] .stocktake-content .stocktake-readonly-panel {
   margin-bottom: 16px;
@@ -78,8 +69,7 @@
 [data-page="stocktake"] .stocktake-content .stocktake-history th { background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; }
 [data-page="stocktake"] .stocktake-content .stocktake-history tr:last-child td { border-bottom: none; }
 [data-page="stocktake"] .stocktake-content .stocktake-tabs, [data-page="stocktake"] .stocktake-content .stk-tabs { display: flex; gap: 6px; margin: 12px 0 14px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
-[data-page="stocktake"] .stocktake-content .stocktake-tab, [data-page="stocktake"] .stocktake-content .stk-tab { flex: 1; min-height: 42px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; }
-[data-page="stocktake"] .stocktake-content .stocktake-tab.is-active, [data-page="stocktake"] .stocktake-content .stk-tab.is-active { border-color: #bfdbfe; background: #fff; color: #2563eb; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+[data-page="stocktake"] .stocktake-content .stocktake-tab, [data-page="stocktake"] .stocktake-content .stk-tab { flex: 1; }
 [data-page="stocktake"] .stocktake-content .stocktake-tab span, [data-page="stocktake"] .stocktake-content .stk-tab span { margin-left: 6px; color: #94a3b8; font-size: 11px; font-weight: 500; }
 [data-page="stocktake"] .stocktake-content .stocktake-location-group { margin-bottom: 14px; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
 [data-page="stocktake"] .stocktake-content .stocktake-location-header { display: flex; justify-content: space-between; align-items: center; min-height: 42px; padding: 0 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; color: #334155; font-size: 13px; font-weight: 600; }
@@ -103,8 +93,7 @@
 [data-page="stocktake"] .stocktake-content .st-diff.pos { color: #16a34a; }
 [data-page="stocktake"] .stocktake-content .st-diff.neg { color: #dc2626; }
 [data-page="stocktake"] .stocktake-content .st-diff.zero { color: #64748b; }
-[data-page="stocktake"] .stocktake-content .stocktake-submit { width: 100%; min-height: 46px; margin-top: 16px; border: 0; border-radius: 9px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
-[data-page="stocktake"] .stocktake-content .stocktake-submit:hover { background: #1d4ed8; }
+[data-page="stocktake"] .stocktake-content .stocktake-submit { width: 100%; margin-top: 16px; }
 [data-page="stocktake"] .stocktake-content .stocktake-item-cell { display: flex; align-items: center; gap: 12px; min-width: 300px; }
 [data-page="stocktake"] .stocktake-content .stocktake-item-cell > span:last-child { min-width: 0; }
 [data-page="stocktake"] .stocktake-content .stocktake-item-cell b { display: block; color: #0f172a; font-size: 14px; }
@@ -126,10 +115,6 @@
   [data-page="stocktake"] .stocktake-content .stocktake-page-header h1 { font-size: 22px; }
   [data-page="stocktake"] .stocktake-content .stocktake-page-header p { font-size: 12px; }
   [data-page="stocktake"] .stocktake-content .stocktake-date { align-self: flex-start; }
-
-
-
-
 
   [data-page="stocktake"] .stocktake-content .stocktake-summary-metrics { gap: 12px 18px; }
   [data-page="stocktake"] .stocktake-content table.stocktake-table th, [data-page="stocktake"] .stocktake-content table.stocktake-table td { padding-left: 10px; padding-right: 10px; }

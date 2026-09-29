@@ -48,38 +48,6 @@
   margin-left: auto;
 }
 
-/* 按鈕（沿 dsr-btn 語意） */
-[data-page="petty-cash"] .pc-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  text-decoration: none;
-  box-sizing: border-box;
-}
-[data-page="petty-cash"] .pc-btn--primary { background: #1d4ed8; color: #fff; }
-[data-page="petty-cash"] .pc-btn--ghost { background: #fff; border-color: #cbd5e1; color: #1e3a5f; }
-[data-page="petty-cash"] .pc-btn-sm {
-  min-height: 44px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #1e3a5f;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-[data-page="petty-cash"] .pc-btn-sm--primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
-[data-page="petty-cash"] .pc-btn-sm--danger { color: #b91c1c; border-color: #fecaca; }
-
 /* 卡片 */
 [data-page="petty-cash"] .pc-card {
   background: #fff;
@@ -117,18 +85,6 @@
 [data-page="petty-cash"] .pc-field--search { flex: 1 1 200px; }
 [data-page="petty-cash"] .pc-filter-actions { display: flex; gap: 8px; }
 [data-page="petty-cash"] .pc-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
-[data-page="petty-cash"] .pc-chip {
-  min-height: 44px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-[data-page="petty-cash"] .pc-chip.is-active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
 [data-page="petty-cash"] .pc-result-count { margin-left: auto; font-size: 12.5px; color: #64748b; }
 
 /* KPI canonical contract: three equal-width cards always stay in one row. */
@@ -262,14 +218,7 @@
 [data-page="petty-cash"] .pc-step {
   flex: 1;
   text-align: center;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 10px 6px;
-  border-radius: 10px;
-  background: #f1f5f9;
-  color: #64748b;
 }
-[data-page="petty-cash"] .pc-step.is-active { background: #dbeafe; color: #1d4ed8; }
 [data-page="petty-cash"] .pc-form-grid { display: grid; gap: 10px; }
 @media (min-width: 720px) {
   [data-page="petty-cash"] .pc-form-grid--two { grid-template-columns: 1fr 1fr; }
@@ -379,11 +328,6 @@
   [data-page="petty-cash"] #content .pc-kpi-card__foot { font-size: 9px; }
 }
 
-/* 收入/支出按鈕 active 色彩區分 */
-[data-page="petty-cash"] #content .pc-step.pc-step--income.is-active { background: #dcfce7; border: 2px solid #16a34a; color: #15803d; }
-[data-page="petty-cash"] #content .pc-step.pc-step--expense.is-active { background: #fee2e2; border: 2px solid #dc2626; color: #b91c1c; }
-
-
 /* === 明細項目欄位標題 === */
 [data-page="petty-cash"] .pc-items-header {
   display: grid;
@@ -429,14 +373,12 @@
 }
 [data-page="petty-cash"] .pc-entry-date-group.is-collapsed .pc-entry-date-body { display: none; }
 
-
-
 /* 一般零用金細項：卡片化輸入，與工程階層編輯保持同一視覺語言 */
 [data-page="petty-cash"] .pc-item-row { padding: 7px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .15s; }
 [data-page="petty-cash"] .pc-item-row:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,.10); }
 [data-page="petty-cash"] .pc-item-row input, [data-page="petty-cash"] .pc-item-row select { border-color: #dbe3ee; border-radius: 7px; background: #f8fafc; }
 [data-page="petty-cash"] .pc-item-row input:focus, [data-page="petty-cash"] .pc-item-row select:focus { background:#fff; border-color:#60a5fa; outline:0; }
-[data-page="petty-cash"] .pc-item-row .pc-btn-sm--danger { width:32px; height:32px; padding:0; border-radius:50%; justify-self:center; }
+[data-page="petty-cash"] .pc-item-row .pc-btn-sm--danger { width:32px; justify-self:center; }
 @media (max-width: 767px) { [data-page="petty-cash"] .pc-item-row { grid-template-columns: minmax(0,1fr) 70px 44px; grid-template-areas: "name name del" "qty unit amount"; gap:6px; } [data-page="petty-cash"] .pc-item-row input[data-k="item_name"] { grid-area:name; } [data-page="petty-cash"] .pc-item-row input[data-k="qty"] { grid-area:qty; } [data-page="petty-cash"] .pc-item-row input[data-k="unit"] { grid-area:unit; } [data-page="petty-cash"] .pc-item-row input[data-k="amount"] { grid-area:amount; } [data-page="petty-cash"] .pc-item-row .pc-btn-sm--danger { grid-area:del; }
 }
 

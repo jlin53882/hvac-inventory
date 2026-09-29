@@ -137,17 +137,6 @@
   background: #fee2e2;
   color: #dc2626;
 }
-.inventory-status-edit {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #2563eb;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-}
 .inventory-status-empty {
   padding: 60px 20px;
   color: #64748b;
@@ -349,7 +338,6 @@
     bottom: 10px;
     grid-column: auto;
     justify-self: auto;
-    min-height: 30px;
   }
 .status-list-table .kit-status-missing { grid-column: 2; }
 }

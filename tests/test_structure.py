@@ -111,7 +111,7 @@ def test_style_css_split_two_files():
     topbar = read(os.path.join(STATIC, "css", "2-layout", "topbar.css"))
     button = read(os.path.join(STATIC, "css", "3-components", "button.css"))
     cal = read(os.path.join(STATIC, "css", "4-pages", "calendar.css"))
-    assert ".topbar" in topbar and ".btn-primary" in button
+    assert ".topbar" in topbar and ".btn--primary" in button
     assert "/* ========== 行事曆派工" in cal and ".cal-grid" in cal
     # 三頁 link 正確：共用樣式先於頁面樣式
     idx = read(os.path.join(STATIC, "index.html"))

@@ -39,8 +39,8 @@ async function renderSignedReports() {
           <p>位置：底部導覽「行事曆」旁新增「報表」Tab。讀取需登入，刪除見下方權限規則。</p>
         </div>
         <div class="dsr-page-actions">
-          <button class="dsr-btn dsr-btn--ghost" onclick="document.getElementById('dsr-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
-          <button hidden data-signed-upload class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳每日簽名日報表</button>
+          <button class="btn btn--secondary btn--md dsr-btn" onclick="document.getElementById('dsr-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
+          <button hidden data-signed-upload class="btn btn--primary btn--md dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳每日簽名日報表</button>
         </div>
       </div>
 
@@ -87,11 +87,11 @@ async function renderSignedReports() {
                   <div id="dsr-fp-sub" class="dsr-file-preview__sub"></div>
                   <div class="dsr-progress"><div id="dsr-progress-bar" class="dsr-progress__bar"></div></div>
                 </div>
-                <button class="dsr-btn-sm" onclick="dsrClearFile()">移除</button>
+                <button class="btn btn--secondary btn--sm" onclick="dsrClearFile()">移除</button>
               </div>
               <div class="dsr-upload-actions">
-                <button class="dsr-btn dsr-btn--primary" onclick="dsrSubmitUpload()">⬆️ 確認上傳</button>
-                <button class="dsr-btn dsr-btn--ghost" onclick="dsrOpenPreviewFile()">👁 預覽</button>
+                <button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" onclick="dsrSubmitUpload()">⬆️ 確認上傳</button>
+                <button class="btn btn--secondary btn--md dsr-btn" onclick="dsrOpenPreviewFile()">👁 預覽</button>
               </div>
             </div>
             <div class="dsr-tags">
@@ -143,15 +143,15 @@ async function renderSignedReports() {
               <div class="dsr-field"><label>迄止日</label><input id="dsr-f-to" type="date"></div>
               <div class="dsr-field dsr-field--search"><label>關鍵字（上傳人 / 備註 / 檔名）</label><input id="dsr-f-q" type="text" placeholder="例：昱豪、工安"></div>
               <div class="dsr-filter-actions">
-                <button class="dsr-btn dsr-btn--primary" onclick="dsrLoadHistory(true)">搜尋</button>
-                <button class="dsr-btn dsr-btn--ghost" onclick="dsrResetFilter()">清除</button>
+                <button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" onclick="dsrLoadHistory(true)">搜尋</button>
+                <button class="btn btn--secondary btn--md dsr-btn" onclick="dsrResetFilter()">清除</button>
               </div>
             </div>
             <div class="dsr-chips">
-              <button class="dsr-chip" onclick="dsrQuickRange('today',this)">今天</button>
-              <button class="dsr-chip" onclick="dsrQuickRange('week',this)">本週</button>
-              <button class="dsr-chip is-active" onclick="dsrQuickRange('month',this)">本月</button>
-              <button class="dsr-chip" onclick="dsrQuickRange('all',this)">全部</button>
+              <button class="chip dsr-chip" onclick="dsrQuickRange('today',this)">今天</button>
+              <button class="chip dsr-chip" onclick="dsrQuickRange('week',this)">本週</button>
+              <button class="chip dsr-chip is-active" onclick="dsrQuickRange('month',this)">本月</button>
+              <button class="chip dsr-chip" onclick="dsrQuickRange('all',this)">全部</button>
               <span class="dsr-result-count"><span id="dsr-result-count">0 筆</span></span>
             </div>
           </div>
@@ -166,8 +166,8 @@ async function renderSignedReports() {
             <div class="dsr-pagination">
               <span id="dsr-page-info"></span>
               <span style="display:flex;gap:6px">
-                <button class="dsr-btn-sm" onclick="dsrChangePage(-1)">‹ 上一頁</button>
-                <button class="dsr-btn-sm dsr-btn-sm--primary" onclick="dsrChangePage(1)">下一頁 ›</button>
+                <button class="btn btn--secondary btn--sm" onclick="dsrChangePage(-1)">‹ 上一頁</button>
+                <button class="btn btn--secondary btn--sm" onclick="dsrChangePage(1)">下一頁 ›</button>
               </span>
             </div>
           </div>
@@ -178,13 +178,13 @@ async function renderSignedReports() {
     <!-- 預覽 Modal -->
     <div id="dsr-overlay" class="dsr-overlay" onclick="if(event.target===this)dsrClosePreview()">
       <div class="dsr-modal">
-        <div class="dsr-modal__hd"><h3 id="dsr-preview-title">👁 預覽</h3><button class="dsr-btn-sm" onclick="dsrClosePreview()">✕ 關閉</button></div>
+        <div class="dsr-modal__hd"><h3 id="dsr-preview-title">👁 預覽</h3><button class="btn btn--secondary btn--sm" onclick="dsrClosePreview()">✕ 關閉</button></div>
         <div class="dsr-modal__bd" id="dsr-preview-body"></div>
         <div class="dsr-modal__ft">
           <span class="dsr-modal__note">若預覽失敗，請直接下載原檔</span>
           <span class="dsr-modal__actions">
-            <button class="dsr-btn dsr-btn--ghost" onclick="dsrClosePreview()">關閉</button>
-            <button class="dsr-btn dsr-btn--primary" id="dsr-dl-btn">⬇️ 下載原檔</button>
+            <button class="btn btn--secondary btn--md dsr-btn" onclick="dsrClosePreview()">關閉</button>
+            <button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" id="dsr-dl-btn">⬇️ 下載原檔</button>
           </span>
         </div>
       </div>
@@ -363,10 +363,10 @@ function dsrRenderTable() {
             <div class="dsr-report-detail__note"><span class="dsr-report-detail__label">備註</span><div class="dsr-note-cell">${note}</div></div>
           </div>
           <div class="dsr-actions-cell">
-            ${!isImage ? `<button class="dsr-action-btn" onclick="dsrPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_edit ? `<button class="dsr-action-btn" onclick="dsrEdit(${r.id})">✏️ 編輯</button>` : ''}
-            <button class="dsr-action-btn" onclick="dsrDownload(${r.id})">⬇️ 下載</button>
-            ${r.can_delete ? `<button class="dsr-action-btn dsr-action-btn--danger" onclick="dsrDelete(${r.id})">🗑 刪除</button>` : ''}
+            ${!isImage ? `<button class="btn btn--secondary btn--sm dsr-action-btn" onclick="dsrPreview(${r.id})">👁 預覽</button>` : ''}
+            ${r.can_edit ? `<button class="btn btn--secondary btn--sm dsr-action-btn" onclick="dsrEdit(${r.id})">✏️ 編輯</button>` : ''}
+            <button class="btn btn--secondary btn--sm dsr-action-btn" onclick="dsrDownload(${r.id})">⬇️ 下載</button>
+            ${r.can_delete ? `<button class="btn btn--danger btn--sm dsr-action-btn dsr-action-btn--danger" onclick="dsrDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>
         </div>
       </details>`;
@@ -444,7 +444,7 @@ function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
     // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
     // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
     if (typeof isMobileView === 'function' && isMobileView()) {
-      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="dsr-btn dsr-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
       body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
     } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
   }
@@ -465,7 +465,7 @@ async function dsrEdit(id) {
   overlay.className = 'dsr-overlay is-open';
   overlay.innerHTML = `
     <div class="dsr-modal dsr-edit-modal" role="dialog" aria-modal="true" aria-labelledby="dsr-edit-title">
-      <div class="dsr-modal__hd"><h3 id="dsr-edit-title">✏️ 編輯每日簽名日報表</h3><button class="dsr-btn-sm" type="button" data-dsr-edit-cancel>✕ 關閉</button></div>
+      <div class="dsr-modal__hd"><h3 id="dsr-edit-title">✏️ 編輯每日簽名日報表</h3><button class="btn btn--secondary btn--sm" type="button" data-dsr-edit-cancel>✕ 關閉</button></div>
       <div class="dsr-modal__bd">
         <div class="dsr-field"><label for="dsr-edit-date">報表日期（YYYY-MM-DD）</label><input id="dsr-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
         <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-uploader">上傳人姓名</label><input id="dsr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
@@ -473,7 +473,7 @@ async function dsrEdit(id) {
         <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-file">替換檔案（選填）</label><input id="dsr-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
         <div class="dsr-hint">不選擇新檔案會保留目前檔案。</div>
       </div>
-      <div class="dsr-modal__ft"><button class="dsr-btn dsr-btn--ghost" type="button" data-dsr-edit-cancel>取消</button><button class="dsr-btn dsr-btn--primary" type="button" data-dsr-edit-save>儲存</button></div>
+      <div class="dsr-modal__ft"><button class="btn btn--secondary btn--md dsr-btn" type="button" data-dsr-edit-cancel>取消</button><button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" type="button" data-dsr-edit-save>儲存</button></div>
     </div>`;
   document.body.appendChild(overlay);
   const close = () => overlay.remove();

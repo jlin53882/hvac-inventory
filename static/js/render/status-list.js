@@ -119,7 +119,7 @@ function renderSharedProductStatusItem(item, options) {
   const itemId = Number(item.id);
   const canEdit = config.editable && Number.isInteger(itemId) && typeof hasPerm === 'function' && hasPerm('item-mgmt');
   const editAction = canEdit
-    ? `<button type="button" class="inventory-status-edit" onclick="closeInventoryStatusModal();openEditModal(${itemId})">編輯</button>`
+    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" onclick="closeInventoryStatusModal();openEditModal(${itemId})">編輯</button>`
     : '';
   const locations = statusListLocations(item).join('、');
   const threshold = !isOut && item.low_stock > 0

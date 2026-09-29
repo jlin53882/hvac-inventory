@@ -6,8 +6,7 @@
 
 /* 覆寫全域 .topbar：權限頁改麵包屑式（display flex + 較矮 padding） */
 [data-page="permissions"] .topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; }
-[data-page="permissions"] .vb-back { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.35); color: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; flex-shrink: 0; }
-[data-page="permissions"] .vb-back:hover { background: rgba(255,255,255,0.25); }
+[data-page="permissions"] .vb-back { flex-shrink: 0; }
 [data-page="permissions"] .vb-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.85); margin-left: 12px; }
 [data-page="permissions"] .vb-crumb a { color: rgba(255,255,255,0.75); text-decoration: none; }
 [data-page="permissions"] .vb-crumb a:hover { text-decoration: underline; }
@@ -41,8 +40,6 @@
 [data-page="permissions"] .panel-sub { font-size: 12px; color: #888; margin-top: 2px; }
 
 [data-page="permissions"] .tabs { display: flex; gap: 6px; margin: 14px 0 4px; border-bottom: 1px solid #eee; }
-[data-page="permissions"] .tab { padding: 9px 16px; border: none; background: none; font-size: 14px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
-[data-page="permissions"] .tab.is-active { color: #1890ff; border-bottom-color: #1890ff; font-weight: 600; }
 
 [data-page="permissions"] .perm-group { margin-top: 12px; }
 [data-page="permissions"] .perm-group-title { font-size: 12px; color: #999; font-weight: 600; margin-bottom: 6px; padding-left: 2px; }
@@ -85,34 +82,17 @@
 [data-page="permissions"] .save-hint { font-size: 12.5px; color: #999; }
 [data-page="permissions"] .save-hint.is-changed { color: #fa8c16; font-weight: 600; }
 [data-page="permissions"] .save-btns { display: flex; gap: 8px; }
-[data-page="permissions"] .save-btns .btn-primary, [data-page="permissions"] .save-btns .btn-ghost { padding: 8px 16px; }
-/* 2026-08-15 根因修復：.btn-ghost 全域樣式是 topbar 專用（白字半透明白底），
-   用在白底 save-bar 上會「白字白底隱形」——重設按鈕因此看不見。
-   這裡覆寫成白底深字版（灰邊框），桌面+手機共用 */
-[data-page="permissions"] .save-btns .btn-ghost {
-  background: #fff;
-  border: 1.5px solid #d0d5dd;
-  color: #555;
-}
-[data-page="permissions"] .save-btns .btn-ghost:hover { background: #f5f7fa; }
-[data-page="permissions"] .save-btns .btn-ghost:disabled { opacity: .55; cursor: not-allowed; }
 
 /* Permission feature sub-tabs, filters, and pagination */
 [data-page="permissions"] .perm-subtabs { display:flex; gap:6px; margin:14px 0 12px; border-bottom:1px solid #eee; }
-[data-page="permissions"] .perm-subtab { padding:8px 14px; border:0; background:none; color:#666; cursor:pointer; border-bottom:2px solid transparent; font-size:13px; }
-[data-page="permissions"] .perm-subtab.is-active { color:#1890ff; border-bottom-color:#1890ff; font-weight:600; }
 [data-page="permissions"] .perm-toolbar { display:grid; gap:10px; margin-bottom:10px; }
 [data-page="permissions"] .perm-search-label { font-size:12px; color:#666; }
 [data-page="permissions"] .perm-search { width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid #d9d9d9; border-radius:7px; font-size:14px; }
 [data-page="permissions"] .perm-module-filter { display:flex; flex-wrap:wrap; gap:6px; }
-[data-page="permissions"] .perm-filter { border:1px solid #d9d9d9; background:#fff; color:#666; border-radius:16px; padding:6px 11px; font-size:12px; cursor:pointer; }
-[data-page="permissions"] .perm-filter.is-active { color:#1890ff; border-color:#1890ff; background:#e6f4ff; }
 [data-page="permissions"] .perm-list { display:grid; gap:8px; }
 [data-page="permissions"] .perm-empty { padding:24px 12px; text-align:center; color:#999; border:1px dashed #d9d9d9; border-radius:8px; }
 [data-page="permissions"] .perm-pagination { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:12px; color:#777; font-size:12px; }
 [data-page="permissions"] .perm-page-buttons { display:flex; align-items:center; gap:8px; }
-[data-page="permissions"] .perm-page-btn { border:1px solid #d9d9d9; background:#fff; border-radius:6px; padding:6px 9px; cursor:pointer; font-size:12px; }
-[data-page="permissions"] .perm-page-btn:disabled { opacity:.45; cursor:not-allowed; }
 
 /* 帳號設定 tab */
 [data-page="permissions"] .account-card { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 14px; }
@@ -123,26 +103,14 @@
 [data-page="permissions"] .account-edit-field { margin-bottom: 12px; }
 [data-page="permissions"] .account-edit-field label { display: block; font-size: 12.5px; color: #555; }
 [data-page="permissions"] .account-edit-input, [data-page="permissions"] .account-edit-select { width: 100%; padding: 9px 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; margin-top: 4px; box-sizing: border-box; }
-[data-page="permissions"] .account-actions .btn-danger { background: #ff4d4f; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-[data-page="permissions"] .account-actions .btn-danger:hover { background: #d9363e; }
-/* 2026-08-15：重設確認 modal 的紅色確定鈕（modal 內獨立定義，非 .account-actions 子層） */
-[data-page="permissions"] .modal .btn-danger { background: #ff4d4f; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-[data-page="permissions"] .modal .btn-danger:hover { background: #d9363e; }
-/* 2026-08-15：modal 內「取消」也是 .btn-ghost（topbar 白字樣式），白底 modal 上看不見——覆寫白底深字 */
-[data-page="permissions"] .modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }
-[data-page="permissions"] .modal .btn-ghost:hover { background: #f5f7fa; }
-[data-page="permissions"] .btn-warn { background: #faad14; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-[data-page="permissions"] .btn-warn:hover { background: #d48806; }
+
 [data-page="permissions"] .warn-box { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #fff7e6; border: 1px solid #ffd591; font-size: 12.5px; color: #ad6800; }
 
 /* 手機：chip 列（M1）取代左列表 */
 [data-page="permissions"] .chip-bar { display: none; overflow-x: auto; gap: 8px; padding: 12px 16px 2px; scrollbar-width: none; }
 [data-page="permissions"] .chip-bar::-webkit-scrollbar { display: none; }
-[data-page="permissions"] .chip { display: flex; align-items: center; gap: 6px; border-top-color: rgb(224, 224, 224); border-right-color: rgb(224, 224, 224); border-bottom-color: rgb(224, 224, 224); border-left-color: rgb(224, 224, 224); background: #fff;}
-[data-page="permissions"] .chip.is-active { background: #1890ff; color: #fff; border-color: #1890ff; }
 [data-page="permissions"] .chip .status-dot { width: 7px; height: 7px; }
 [data-page="permissions"] .chip.is-inactive { opacity: .6; }
-
 
 @media (max-width: 768px) {
   [data-page="permissions"] .perm-layout { padding: 0 0 110px; }
@@ -152,8 +120,7 @@
   [data-page="permissions"] .perm-grid { grid-template-columns: 1fr; }
   [data-page="permissions"] .perm-pagination { align-items:stretch; flex-direction:column; }
   [data-page="permissions"] .perm-page-buttons { justify-content:space-between; }
-  [data-page="permissions"] .perm-page-btn { min-height:36px; }
-  [data-page="permissions"] .perm-subtab { flex:1; padding-inline:6px; }
+  [data-page="permissions"] .perm-subtab { flex:1; }
   /* 2026-08-15 變體 B：手機 topbar 只留「← + 帳號與權限」，麵包屑「庫存 ›」隱藏；內容區大標題隱藏（topbar 已顯示，避免重複） */
   [data-page="permissions"] .topbar { padding: 10px 14px; }
   [data-page="permissions"] .vb-crumb { margin-left: 10px; font-size: 15px; }
@@ -164,7 +131,7 @@
   [data-page="permissions"] .save-bar-inner { flex-direction: column; gap: 6px; }
   [data-page="permissions"] .save-hint { font-size: 11.5px; text-align: center; width: 100%; }
   [data-page="permissions"] .save-btns { width: 100%; display: flex; gap: 8px; }
-  [data-page="permissions"] .save-btns .btn-primary, [data-page="permissions"] .save-btns .btn-ghost { flex: 1; padding: 10px 0; text-align: center; }
+  [data-page="permissions"] .save-btns .btn-primary, [data-page="permissions"] .save-btns .btn-ghost { flex: 1; text-align: center; }
 }
 
 /* 新增帳號 modal（權限頁內嵌，沿用既有 modal 樣式） */

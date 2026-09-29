@@ -297,7 +297,7 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 | **P5** | 頁面檔全改 `[data-page]` 範圍；移除 `#content.xxx` 前綴與 `!important`；斷點統一 | 不變 | 架構測試規則 1–5 |
 | **P6** | settings / permissions / login 內嵌 `<style>` 搬檔；靜態 inline style → utility | 不變 | 三頁截圖比對 |
 | **P7** | 狀態 class 統一 `is-*`，一個元件一個 commit（見 §7.1） | 不變 | 互動測試先行（改前改後皆綠） |
-| **P7.5** | 設計系統統一：標準色票 / 字級 / 間距 / 圓角；按鈕收斂為單一 `.btn`；輸入框、卡片、徽章、表格各一套（見 §7.2） | **會變** | 每個元件輸出前後對照截圖，使用者確認後才進下一個 |
+| **P7.5** | 設計系統統一：token（色票 / 字級 / 圓角）；按鈕收斂為單一 `.btn`、選取型收斂為 `.chip`（見 §7.2） | **會變** | 提案經使用者確認；前後對照截圖、按鈕 computed-style 契約測試 |
 | **P8** | 顏色 / z-index / 字級 / 圓角全部改用 token；架構測試全開；移除過渡程式碼；更新文件 SOP | 不變 | 全部測試 |
 
 每階段依 `CLAUDE.md`：Dead Code 4 步自查（被取代的舊檔同 commit 刪除）、前端行為改動補測試、GitNexus `detect_changes`（本雲端環境無法建立索引時於 commit 訊息註明）。
@@ -316,12 +316,42 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 
 完成後靜態測試禁止 CSS 出現裸的 `.active` / `.open` / `.show` / `.on`。
 
-### 7.2 設計系統標準（P7.5）
+### 7.2 設計系統標準（P7.5，2026-09-29 使用者確認第 3 版提案）
 
-- 標準值以「目前出現次數最多」為起點提出（現況：按鈕 class 48 種、圓角 22 種、字級 45 種、色碼 163 種），先產出一頁色票與元件樣張給使用者確認。
-- 目標規模：顏色約 12 個語意 token、字級約 6 級、間距約 6 級、圓角 3 級；按鈕 `.btn` + 變體（primary / secondary / ghost / danger）× 尺寸（sm / md）。
-- `.dsr-btn*`、`.pc-btn*`、`.qup-btn*`、`.btn-save`、`.btn-confirm` 等改用 `.btn`，同 commit 刪除舊定義。
-- 防回歸：`tokens.css` 以外禁止 hex；字級 / 圓角 / z-index 只能用變數；`button.css` 以外禁止定義 `*-btn` / `btn-*` class。
+**Token**（`0-tokens/tokens.css` 的 `:root`）
+
+| 類別 | 值 |
+|---|---|
+| 主色 | `--c-primary #2d5a8e`（品牌深藍）、hover `--c-primary-strong #1e3a5f`、淺底 `--c-primary-soft #eef4fa` |
+| 文字 / 框線 | `--c-text #0f172a`、`--c-text-2 #334155`、`--c-muted #64748b`、`--c-border #e2e8f0`、`--c-border-strong #94a3b8` |
+| 語意色 | success `#16a34a`、warning `#d97706`、danger `#dc2626`、待領出 `#7c3aed` 系、已領出 `#f59e0b` 系（各有淺底） |
+| 字級 | 11 / 12 / 13 / 14 / 16 / 20 / 28 |
+| 字重 | 400 / 600 / 700 |
+| 圓角 | 6 / 8 / 12 / 999（圓形 50% 保留） |
+| 控制項高度 | sm 32、md 38、手機觸控 44 |
+
+**按鈕**（`3-components/button.css`，唯一來源）
+
+- `.btn` + 變體：`--primary`（每區最多一個）、`--secondary`（白底 `#94a3b8` 框）、`--ghost`（`#eef4fa` 淺藍底，不會只剩文字）、`--danger`（白底紅框，刪除一律有框不實心）、`--prepare` / `--out`（待領出 / 已領出流程色）、`--on-dark`（深藍 topbar 專用）。
+- 尺寸：`--sm` 32px / 12px、`--md` 38px / 13px（手機 ≤767px 自動 44px）；`--icon` 方形圖示鈕；`--solid` 只用在 modal 的流程確認鈕（確認待領出 / 已領出）。
+- 圓角 8、字重 700、圖示在文字前（gap 6）；hover 變深或加淺底、disabled 透明度 .5、鍵盤焦點 2px 深藍外框；切換型按鈕按下時加 `.is-active`。
+- 使用者確認的 5 點：綠色「＋ 新增」改深藍主要鈕；匯出改次要鈕；借用待領出紫色的「拍照 / 新增位置」改中性；桌機按鈕高 38px；刪除維持白底紅框。
+
+**選取型元件**（`3-components/chip.css`）
+
+- `.chip` 膠囊（篩選、快速區間）、`.chip--seg` 方角分段（頁籤、模式切換、公司 / 倉庫）；選取中 `.is-active` 深藍實心。
+- 「選了什麼很重要」的二選一用語意色：`.chip--success`（收入）、`.chip--danger`（支出）。
+
+**不納入**（各自維持專用元件）：數量 − / ＋、KPI 卡、側欄導覽、關閉 ✕、下拉選單項目、開關、照片圖卡 / 燈箱、登入鈕（只換主色）。
+
+**舊 class 的去向**：`.dsr-btn*`、`.pc-btn*`、`.qup-btn*`、`.btn-save`、`.btn-confirm`、`.kit-action` 等的外觀宣告全部刪除；仍被 JS / 排版使用的名稱留在標記上當掛鉤，其餘同 commit 移除。
+
+**防回歸**（`tests/test_css_architecture.py`、`tests/visual/test_button_contract.py`）
+
+- `button.css` / `chip.css` 以外，任何以 `.btn` / `.chip` 或其掛鉤 class 為主體的規則，不得設定顏色、框線、圓角、字級、字重、內距、高度。
+- 每個 `<button>` 都要套 `.btn` 或 `.chip`；專用控制項需列入白名單。
+- 瀏覽器契約測試：所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須等於其變體與尺寸的規格。
+- `tokens.css` 以外禁止 hex、字級 / 圓角只能用變數（P8 啟用）。
 
 ## 8. 改完之後的「改樣式 SOP」
 

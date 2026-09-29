@@ -130,29 +130,7 @@
 [data-page="quotation-upload"] .qup-hint { margin-top: 6px; color: #94a3b8; font-size: 11.5px; }
 
 /* 本模組按鈕完全 scoped，避免沿用主站 .btn 的視覺差異。 */
-[data-page="quotation-upload"] .qup-btn, [data-page="quotation-upload"] .qup-btn-sm, [data-page="quotation-upload"] .qup-icon-btn, [data-page="quotation-upload"] .qup-chip { font-family: inherit; cursor: pointer; }
-[data-page="quotation-upload"] .qup-btn {
-  padding: 9px 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: #fff;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 800;
-}
-[data-page="quotation-upload"] .qup-btn--primary { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
-[data-page="quotation-upload"] .qup-btn--primary:hover { background: #172a44; }
-[data-page="quotation-upload"] .qup-btn--ghost { background: #fff; color: #334155; }
-[data-page="quotation-upload"] .qup-btn-sm {
-  padding: 6px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
-}
-[data-page="quotation-upload"] .qup-btn-sm--primary { border-color: #2d5a8e; background: #2d5a8e; color: #fff; }
+[data-page="quotation-upload"] .qup-icon-btn { font-family: inherit; cursor: pointer; }
 
 /* 拖曳區 */
 [data-page="quotation-upload"] .qup-drop {
@@ -208,9 +186,6 @@
 [data-page="quotation-upload"] .qup-info .qup-badge { padding: 3px 7px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: rgba(255,255,255,.18); color: #fff; font-size: 11px; font-weight: 800; }
 [data-page="quotation-upload"] .qup-kpi { grid-template-columns: repeat(3, 1fr);}
 
-
-
-
 /* 歷史查詢 */
 [data-page="quotation-upload"] .qup-history .qup-card__hd { flex-direction: column; align-items: stretch; gap: 12px; }
 [data-page="quotation-upload"] .qup-history-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
@@ -220,8 +195,6 @@
 [data-page="quotation-upload"] .qup-filter-bar .qup-field.qup-field--search { flex: 1.4; min-width: 180px; }
 [data-page="quotation-upload"] .qup-filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
 [data-page="quotation-upload"] .qup-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-[data-page="quotation-upload"] .qup-chip { padding: 5px 9px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; font-size: 11px; font-weight: 800; }
-[data-page="quotation-upload"] .qup-chip.is-active { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
 [data-page="quotation-upload"] .qup-result-count { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #94a3b8; font-size: 11px; }
 [data-page="quotation-upload"] .qup-report-list { display: grid; gap: 10px; margin-top: 12px; }
 [data-page="quotation-upload"] .qup-report-card { overflow: hidden; border: 1px solid #111827; border-radius: 10px; background: #fff; }
@@ -257,19 +230,6 @@
 }
 [data-page="quotation-upload"] .qup-report-thumb:hover { border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(45,90,142,.15); }
 [data-page="quotation-upload"] .qup-note-empty { color: #cbd5e1; }
-[data-page="quotation-upload"] .qup-action-btn {
-  padding: 6px 9px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #334155;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-[data-page="quotation-upload"] .qup-action-btn:hover { border-color: #2d5a8e; color: #1e3a5f; }
-[data-page="quotation-upload"] .qup-action-btn--danger:hover { border-color: #dc2626; color: #dc2626; }
 [data-page="quotation-upload"] .qup-file-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 [data-page="quotation-upload"] .qup-file-icon { display: grid; flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; place-items: center; font-size: 13px; }
 [data-page="quotation-upload"] .qup-ellipsis { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
@@ -314,7 +274,6 @@
 [data-page="quotation-upload"] .qup-edit-modal { max-width: 560px; }
 [data-page="quotation-upload"] .qup-edit-modal .qup-modal__hd { background: #1e3a5f; border-bottom: none; }
 [data-page="quotation-upload"] .qup-edit-modal .qup-modal__hd h3 { color: #fff; }
-[data-page="quotation-upload"] .qup-edit-modal .qup-modal__hd .qup-btn-sm { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
 [data-page="quotation-upload"] .qup-edit-modal .qup-modal__bd { padding: 16px; background: #fff; }
 [data-page="quotation-upload"] .qup-edit-modal .qup-field label { color: #334155; font-size: 13px; }
 }

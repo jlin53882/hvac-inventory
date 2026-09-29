@@ -174,16 +174,16 @@
       ? '<div class="warn-box">⚠️ 不能修改自己的權限（系統保護）——你的權限由另一位管理員管理。</div>'
       : '';
     html += `<div class="perm-subtabs" role="tablist">
-      <button class="perm-subtab ${esc(featureActive)}" onclick="window.permSubTab('features')">🔐 功能權限</button>
-      <button class="perm-subtab ${esc(pageActive)}" onclick="window.permSubTab('pages')">🖥 頁面顯示</button>
+      <button class="chip chip--seg perm-subtab ${esc(featureActive)}" onclick="window.permSubTab('features')">🔐 功能權限</button>
+      <button class="chip chip--seg perm-subtab ${esc(pageActive)}" onclick="window.permSubTab('pages')">🖥 頁面顯示</button>
     </div><div id="permission-view"><div id="permission-toolbar"></div><div id="permission-results"></div></div>`;
     const pendingCount = Object.keys(permChanges).length + Object.keys(pageChanges).length;
     html += `<div class="save-bar">
       <div class="save-bar-inner">
         <span class="save-hint" id="saveHint">${pendingCount ? `有 ${pendingCount} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
         <div class="save-btns">
-          <button class="btn-ghost" onclick="window.openResetPermModal()" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
-          <button class="btn-primary" onclick="window.permSave()" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
+          <button class="btn btn--secondary btn--md btn-ghost" onclick="window.openResetPermModal()" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
+          <button class="btn btn--primary btn--md btn-primary" onclick="window.permSave()" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
         </div>
       </div>
     </div>`;
@@ -201,8 +201,8 @@
     let html = `<label class="perm-search-label" for="permission-search">搜尋權限名稱或 key</label>
       <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" oninput="window.permSearch(this.value)">
       <div class="perm-module-filter" role="group" aria-label="權限分類">
-        <button class="perm-filter ${esc(permissionModule === 'all' ? 'is-active' : '')}" data-module="all" onclick="window.permFilter('all')">全部</button>
-        ${modules.map(mod => `<button class="perm-filter ${esc(permissionModule === mod ? 'is-active' : '')}" data-module="${esc(mod)}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
+        <button class="chip perm-filter ${esc(permissionModule === 'all' ? 'is-active' : '')}" data-module="all" onclick="window.permFilter('all')">全部</button>
+        ${modules.map(mod => `<button class="chip perm-filter ${esc(permissionModule === mod ? 'is-active' : '')}" data-module="${esc(mod)}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
       </div>`;
     toolbar.innerHTML = html;
   }
@@ -275,9 +275,9 @@
     html += `<div class="perm-pagination">
       <span>顯示 ${esc(from)}–${esc(to)} / 共 ${esc(filtered.length)} 項</span>
       <div class="perm-page-buttons">
-        <button class="perm-page-btn" onclick="window.permPage(-1)" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
+        <button class="btn btn--secondary btn--sm perm-page-btn" onclick="window.permPage(-1)" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
         <span>第 ${esc(permissionPage)} / ${esc(pageCount)} 頁</span>
-        <button class="perm-page-btn" onclick="window.permPage(1)" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
+        <button class="btn btn--secondary btn--sm perm-page-btn" onclick="window.permPage(1)" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
       </div>
     </div>`;
     host.innerHTML = html;
@@ -448,10 +448,10 @@
       html += `<div class="warn-box">⚠️ 不能停用、刪除或修改自己的帳號（系統保護）。</div>`;
     } else {
       html += `<div class="account-actions">
-        <button class="btn-primary" onclick="window.permEditAccount(${u.id})">✏️ 編輯帳號</button>
-        <button class="btn-primary" onclick="window.permResetPw(${u.id})">🔑 重設密碼</button>
-        <button class="btn-warn" onclick="window.permToggleActive(${u.id}, ${u.is_active ? 0 : 1})">${u.is_active ? '⏸ 停用帳號' : '▶️ 啟用帳號'}</button>
-        <button class="btn-danger" onclick="window.permDelete(${u.id})">🗑 刪除帳號</button>
+        <button class="btn btn--secondary btn--md" onclick="window.permEditAccount(${u.id})">✏️ 編輯帳號</button>
+        <button class="btn btn--secondary btn--md" onclick="window.permResetPw(${u.id})">🔑 重設密碼</button>
+        <button class="btn btn--secondary btn--md" onclick="window.permToggleActive(${u.id}, ${u.is_active ? 0 : 1})">${u.is_active ? '⏸ 停用帳號' : '▶️ 啟用帳號'}</button>
+        <button class="btn btn--danger btn--md" onclick="window.permDelete(${u.id})">🗑 刪除帳號</button>
       </div>`;
       if (u.is_active) {
         html += `<div class="warn-box">💡 停用後該帳號立即無法登入（既有 session 也會失效）。離職員工請用「停用」而非「刪除」。</div>`;

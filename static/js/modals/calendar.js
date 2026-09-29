@@ -42,8 +42,8 @@ function calModalHtml(isAdmin) {
         <textarea id="cal-f-note" rows="2" placeholder="例：車馬費 800 元"></textarea>
       </div>
       <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeCalModal()">取消</button>
-        <button class="btn-confirm" onclick="calSubmitAppt()">檢查並寫入</button>
+        <button class="btn btn--secondary btn--md btn-cancel" onclick="closeCalModal()">取消</button>
+        <button class="btn btn--primary btn--md btn-confirm" onclick="calSubmitAppt()">檢查並寫入</button>
       </div>
     </div>
   </div>
@@ -61,7 +61,7 @@ function calModalHtml(isAdmin) {
         <div class="cal-sync-err-suggestion" id="cal-sync-err-suggestion"></div>
       </div>
       <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeModal('cal-sync-error-modal')">關閉</button>
+        <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('cal-sync-error-modal')">關閉</button>
       </div>
     </div>
   </div>
@@ -69,10 +69,10 @@ function calModalHtml(isAdmin) {
     <div class="modal">
       <h3>👥 全員同步細節</h3>
       <div id="cal-team-sync-summary"></div>
-      <div class="cal-sync-team-actions"><button id="cal-team-sync-retry-all" type="button" class="btn-sm btn-primary" onclick="calRetryTeamSync()">重試全體</button></div>
+      <div class="cal-sync-team-actions"><button id="cal-team-sync-retry-all" type="button" class="btn btn--primary btn--sm btn-sm btn-primary" onclick="calRetryTeamSync()">重試全體</button></div>
       <div id="cal-team-sync-details" class="cal-sync-team-details"></div>
       <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeModal('cal-team-sync-modal')">關閉</button>
+        <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('cal-team-sync-modal')">關閉</button>
       </div>
     </div>
   </div>`;
@@ -244,7 +244,7 @@ function calShowTeamSyncDetails(apptId) {
     const status = `${calSyncStatusLabel(person.status)}${person.migration_pending ? '（行事曆切換中）' : ''}`;
     const error = person.error ? `：${person.error}` : '';
     const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)
-      ? `<button type="button" class="btn-sm" onclick="calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button>` : '';
+      ? `<button type="button" class="btn btn--secondary btn--sm btn-sm" onclick="calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button>` : '';
     return `<div class="cal-sync-team-row"><strong>${esc(person.display_name)}</strong><span>${esc(status)}${esc(error)}</span>${retry}</div>`;
   }).join('') || '<div class="cal-sync-team-row">目前沒有可用的 Google 行事曆，請先新增或啟用 Calendar Key</div>';
   const excluded = [];

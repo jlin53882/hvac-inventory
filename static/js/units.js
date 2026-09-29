@@ -57,10 +57,10 @@ function openUnitQuickAdd(sel, addBtn) {
   input.maxLength = 20;
   const ok = document.createElement('button');
   ok.textContent = '新增';
-  ok.className = 'btn-save';
+  ok.className = 'btn btn--primary btn--sm';
   const cancel = document.createElement('button');
   cancel.textContent = '取消';
-  cancel.className = 'btn-ghost';
+  cancel.className = 'btn btn--secondary btn--sm';
   sel.style.display = 'none'; if (addBtn) addBtn.style.display = 'none';
   const box = document.createElement('div');
   box.className = 'unit-quick-add';

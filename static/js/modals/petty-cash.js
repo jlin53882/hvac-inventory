@@ -75,11 +75,11 @@ async function pcOpenReportModal(id) {
   el.insertAdjacentHTML('beforeend', `
     <div id="pc-report-overlay" class="pc-overlay is-open" onclick="if(event.target===this)pcCloseReportModal()">
       <div class="pc-modal" role="dialog" aria-label="零用金月報">
-        <div class="pc-modal__hd"><h3 id="pc-modal-title">${id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'}</h3><button class="pc-btn-sm" onclick="pcCloseReportModal()">✕</button></div>
+        <div class="pc-modal__hd"><h3 id="pc-modal-title">${id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'}</h3><button class="btn btn--secondary btn--sm btn--icon" onclick="pcCloseReportModal()">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <button type="button" class="pc-step is-active" id="pc-step-1-tab" onclick="pcModalGotoStep(1)">① 基本資料</button>
-            <button type="button" class="pc-step" id="pc-step-2-tab" onclick="pcModalGotoStep(2)">② 收支明細</button>
+            <button type="button" class="chip chip--seg pc-step is-active" id="pc-step-1-tab" onclick="pcModalGotoStep(1)">① 基本資料</button>
+            <button type="button" class="chip chip--seg pc-step" id="pc-step-2-tab" onclick="pcModalGotoStep(2)">② 收支明細</button>
           </div>
           <div id="pc-step-1">
             <div class="pc-form-grid pc-form-grid--two">
@@ -94,12 +94,12 @@ async function pcOpenReportModal(id) {
             <div class="pc-filename-preview" id="pc-filename-preview"></div>
             <div class="pc-balance-hint" id="pc-opening-hint"></div>
             <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-              <button class="pc-btn-sm" onclick="pcFetchPreviousBalance()">🔍 帶入上一期餘額</button>
+              <button class="btn btn--secondary btn--sm" onclick="pcFetchPreviousBalance()">🔍 帶入上一期餘額</button>
             </div>
           </div>
           <div id="pc-step-2" style="display:none">
             <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-              <button class="pc-btn-sm pc-btn-sm--primary" onclick="pcOpenEntryModal()">＋ 新增紀錄</button>
+              <button class="btn btn--primary btn--sm" onclick="pcOpenEntryModal()">＋ 新增紀錄</button>
             </div>
             <div id="pc-modal-entries"></div>
             <div class="pc-summary-bar">
@@ -111,14 +111,14 @@ async function pcOpenReportModal(id) {
         </div>
         <div class="pc-modal__ft">
           <span id="pc-modal-step-ops-1">
-            <button class="pc-btn pc-btn--ghost" onclick="pcCloseReportModal()">取消</button>
-            <button class="pc-btn pc-btn--primary" onclick="pcModalGotoStep(2)">下一步：填寫明細 →</button>
+            <button class="btn btn--secondary btn--md pc-btn" onclick="pcCloseReportModal()">取消</button>
+            <button class="btn btn--primary btn--md pc-btn" onclick="pcModalGotoStep(2)">下一步：填寫明細 →</button>
           </span>
           <span id="pc-modal-step-ops-2" style="display:none">
-            <button class="pc-btn pc-btn--ghost" onclick="pcModalGotoStep(1)">← 上一步</button>
-            <button class="pc-btn pc-btn--ghost" onclick="pcCloseReportModal()">取消</button>
-            <button class="pc-btn pc-btn--ghost" onclick="pcModalSave('draft')">儲存草稿</button>
-            <button class="pc-btn pc-btn--primary" onclick="pcModalSave('completed')">儲存完成</button>
+            <button class="btn btn--secondary btn--md pc-btn" onclick="pcModalGotoStep(1)">← 上一步</button>
+            <button class="btn btn--secondary btn--md pc-btn" onclick="pcCloseReportModal()">取消</button>
+            <button class="btn btn--secondary btn--md pc-btn" onclick="pcModalSave('draft')">儲存草稿</button>
+            <button class="btn btn--primary btn--md pc-btn" onclick="pcModalSave('completed')">儲存完成</button>
           </span>
         </div>
       </div>
@@ -289,8 +289,8 @@ function pcModalEntryCardHtml(e, i) {
     </div>
     ${itemsHtml}
     <div class="pc-entry-card__ops">
-      <button class="pc-btn-sm" onclick="event.stopPropagation();pcOpenEntryModal(${i})">✏️ 編輯</button>
-      <button class="pc-btn-sm pc-btn-sm--danger" onclick="event.stopPropagation();pcEntryDelete(${i})">🗑 刪除</button>
+      <button class="btn btn--secondary btn--sm" onclick="event.stopPropagation();pcOpenEntryModal(${i})">✏️ 編輯</button>
+      <button class="btn btn--danger btn--sm pc-btn-sm--danger" onclick="event.stopPropagation();pcEntryDelete(${i})">🗑 刪除</button>
     </div>
   </div>`;
 }
@@ -309,11 +309,11 @@ function pcOpenEntryModal(idx) {
   document.getElementById('content').insertAdjacentHTML('beforeend', `
     <div id="pc-entry-overlay" class="pc-overlay is-open" onclick="if(event.target===this)pcCloseEntryModal()">
       <div class="pc-modal" role="dialog" aria-label="收支紀錄" style="max-width:640px">
-        <div class="pc-modal__hd"><h3>${pcEntryEditIndex >= 0 ? '✏️ 編輯紀錄' : '＋ 新增紀錄'}</h3><button class="pc-btn-sm" onclick="pcCloseEntryModal()">✕</button></div>
+        <div class="pc-modal__hd"><h3>${pcEntryEditIndex >= 0 ? '✏️ 編輯紀錄' : '＋ 新增紀錄'}</h3><button class="btn btn--secondary btn--sm btn--icon" onclick="pcCloseEntryModal()">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <button class="pc-step pc-step--income${pcEntryType === 'income' ? ' is-active' : ''}" id="pc-type-income" onclick="pcEntrySetType('income')">💰 收入</button>
-            <button class="pc-step pc-step--expense${pcEntryType === 'expense' ? ' is-active' : ''}" id="pc-type-expense" onclick="pcEntrySetType('expense')">💸 支出</button>
+            <button class="chip chip--seg chip--success pc-step pc-step--income${pcEntryType === 'income' ? ' is-active' : ''}" id="pc-type-income" onclick="pcEntrySetType('income')">💰 收入</button>
+            <button class="chip chip--seg chip--danger pc-step pc-step--expense${pcEntryType === 'expense' ? ' is-active' : ''}" id="pc-type-expense" onclick="pcEntrySetType('expense')">💸 支出</button>
           </div>
           <div class="pc-form-grid pc-form-grid--two">
             <div class="pc-field"><label>日期 <span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
@@ -324,7 +324,7 @@ function pcOpenEntryModal(idx) {
           <div id="pc-entry-items-wrap" style="margin-top:10px;${pcEntryType === 'income' ? 'display:none' : ''}">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
               <strong>明細項目</strong>
-              <button class="pc-btn-sm" onclick="pcEntryAddItemRow()">＋ 新增項目</button>
+              <button class="btn btn--secondary btn--sm" onclick="pcEntryAddItemRow()">＋ 新增項目</button>
             </div>
             <div class="pc-items-header"><span>項目名稱</span><span>數量</span><span>單位</span><span>金額<span class="pc-required pc-item-amount-required">*</span><span class="pc-item-amount-optional">（選填）</span></span><span>刪除</span></div>
             <div id="pc-entry-items"></div>
@@ -332,8 +332,8 @@ function pcOpenEntryModal(idx) {
           </div>
         </div>
         <div class="pc-modal__ft">
-          <button class="pc-btn pc-btn--ghost" onclick="pcCloseEntryModal()">取消</button>
-          <button class="pc-btn pc-btn--primary" onclick="pcEntrySave()">確定</button>
+          <button class="btn btn--secondary btn--md pc-btn" onclick="pcCloseEntryModal()">取消</button>
+          <button class="btn btn--primary btn--md pc-btn" onclick="pcEntrySave()">確定</button>
         </div>
       </div>
     </div>`);
@@ -362,7 +362,7 @@ function pcEntryRenderItems() {
       <input data-k="qty" data-i="${i}" type="number" min="0.01" step="0.01" placeholder="數量" value="${esc(it.qty ?? '')}">
       <input data-k="unit" data-i="${i}" placeholder="單位" value="${esc(it.unit || '')}">
       <input data-k="amount" data-i="${i}" type="number" min="0.01" step="0.01" placeholder="金額" value="${esc(it.amount ?? '')}">
-      <button class="pc-btn-sm pc-btn-sm--danger" onclick="pcEntryRemoveItem(${i})">✕</button>
+      <button class="btn btn--danger btn--sm btn--icon pc-btn-sm--danger" onclick="pcEntryRemoveItem(${i})">✕</button>
     </div>`).join('');
   box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
     const row = pcEntryItemDraft[Number(inp.dataset.i)];

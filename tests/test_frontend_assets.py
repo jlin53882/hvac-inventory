@@ -242,8 +242,8 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "prompt('編輯備註" not in js
     assert "report_date" in js and "uploader_name" in js
     assert "✏️ 編輯" in js
-    assert "${r.can_edit ? `<button class=\"dsr-action-btn\" onclick=\"dsrEdit(${r.id})\">" in js
-    assert "${r.can_delete ? `<button class=\"dsr-action-btn dsr-action-btn--danger\" onclick=\"dsrDelete(${r.id})\">" in js
+    assert "${r.can_edit ? `<button class=\"btn btn--secondary btn--sm dsr-action-btn\" onclick=\"dsrEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"btn btn--danger btn--sm dsr-action-btn dsr-action-btn--danger\" onclick=\"dsrDelete(${r.id})\">" in js
     assert "function _dsrDateOnly" in js
     assert "_dsrDateOnly(r.upload_time)" in js
     assert "esc(r.upload_time)" not in js
@@ -263,7 +263,7 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
     assert "/api/signed-reports/" in js and "note" in js
     assert ".dsr-report-thumb" in css
-    assert ".dsr-action-btn" in css
+    assert "btn btn--secondary btn--sm dsr-action-btn" in js
     assert "border: 1px solid #111827" in css
     assert ".dsr-note-cell" in css and "background: #fff7ed" in css
     assert ".dsr-edit-modal .dsr-modal__hd h3" in css and "color: #fff" in css
@@ -288,8 +288,8 @@ def test_quotation_upload_actions_and_edit_modal_contract():
     assert "prompt('編輯備註" not in js
     assert "qupEditNote" not in js
     assert "✏️ 編輯" in js
-    assert "${r.can_edit ? `<button class=\"qup-action-btn\" onclick=\"qupEdit(${r.id})\">" in js
-    assert "${r.can_delete ? `<button class=\"qup-action-btn qup-action-btn--danger\" onclick=\"qupDelete(${r.id})\">" in js
+    assert "${r.can_edit ? `<button class=\"btn btn--secondary btn--sm qup-action-btn\" onclick=\"qupEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"btn btn--danger btn--sm qup-action-btn qup-action-btn--danger\" onclick=\"qupDelete(${r.id})\">" in js
     assert "function qupKeepUploaderOnly" in js
     assert "qupKeepUploaderOnly();" in js
     assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
@@ -587,9 +587,11 @@ def test_petty_cash_income_expense_button_styling():
     assert 'pc-step--expense' in js
     assert '💰' in js
     assert '💸' in js
-    css = read_petty_cash_css()
-    assert 'pc-step--income.is-active' in css
-    assert 'pc-step--expense.is-active' in css
+    # CSS 架構重構 P7.5：收入 / 支出選取色改由 chip 元件的語意 modifier 提供
+    assert 'chip chip--seg chip--success pc-step pc-step--income' in js
+    assert 'chip chip--seg chip--danger pc-step pc-step--expense' in js
+    chip_css = read(os.path.join(STATIC, "css", "3-components", "chip.css"))
+    assert '.chip--success.is-active' in chip_css and '.chip--danger.is-active' in chip_css
 
 
 def test_petty_cash_items_header_columns():
@@ -694,7 +696,7 @@ def test_petty_cash_settings_options_domain_layout():
     assert "option_type:kind" in js
     assert "createPettyOptionKind(\\'general\\',\\'category\\')" in js
     assert 'async function createPettyOption(type)' not in js
-    assert 'type="button" class="pc-icon-action"' in js
+    assert 'type="button" class="btn btn--secondary btn--sm pc-icon-action"' in js
     assert 'data-petty-action="rename"' in js and 'data-petty-action="delete"' in js
     assert "panel.querySelectorAll('[data-petty-action]')" in js
     assert 'grid-template-columns:minmax(0,1fr) auto' in html
@@ -887,7 +889,7 @@ def test_permissions_html_has_reset_perm_overlay():
 def test_permissions_html_breadcrumb_topbar():
     """2026-08-15 變體 B 麵包屑頂欄：vb-back 圓鈕 + 麵包屑 + 內容區大標題"""
     html = read_page_with_css(PERMISSIONS_HTML)
-    assert 'class="vb-back"' in html
+    assert 'class="btn btn--on-dark btn--sm btn--icon vb-back"' in html
     assert 'class="vb-crumb"' in html
     assert "庫存" in html and "vb-crumb-current" in html  # 麵包屑「庫存 › 帳號與權限」
     assert 'class="vb-content-title"' in html  # 大標題下移內容區
@@ -911,8 +913,11 @@ def test_permissions_html_btn_ghost_white_fix():
     """2026-08-15 根因修復：.btn-ghost 全域白字樣式（topbar 專用）用於白底容器會隱形——
        save-bar / modal 內必須覆寫白底深字版"""
     html = read_page_with_css(PERMISSIONS_HTML)
-    assert ".save-btns .btn-ghost" in html and "color: #555" in html  # save-bar 重設鈕覆寫
-    assert ".modal .btn-ghost" in html and "color: #555" in html  # modal 取消鈕覆寫
+    js = read(PERMS_JS)
+    # CSS 架構重構 P7.5：白底容器的次要按鈕改用 .btn--secondary，不再需要逐處覆寫
+    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="window.openResetPermModal()"' in js
+    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="closeAddUserModal()"' in html
+    assert ".modal .btn-ghost" not in html
 
 
 def test_perms_js_reset_perm_modal_structure():
@@ -983,7 +988,7 @@ def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
     assert 'PERMISSIONS_PAGE_SIZE = 10' in js
     assert 'permSearch' in js and 'permFilter' in js and 'permPage' in js
     assert 'permSubTab' in js and 'page-visibility-group' in js
-    assert 'perm-pagination' in js and 'perm-page-btn' in html
+    assert 'perm-pagination' in js and 'perm-page-btn' in js
 
 
 def test_permissions_ui_keeps_search_toolbar_and_pending_source_contract():
@@ -1109,8 +1114,11 @@ def test_css_has_btn_primary():
     """2026-08-14 修：style.css 必須定義 .btn-primary（權限頁「新增帳號/儲存變更」）
     ——原本全站無定義 → 瀏覽器預設方形按鈕（家豪「不要這樣方形很醜」）"""
     css = read_css_all()
-    assert ".btn-primary {" in css
-    assert ".topbar .btn-primary {" in css  # topbar 深藍底上的反白
+    # CSS 架構重構 P7.5：主按鈕改為 .btn--primary；深藍 topbar 上改用 .btn--on-dark
+    assert ".btn--primary {" in css
+    assert ".btn--on-dark {" in css
+    perms = read(PERMISSIONS_HTML)
+    assert re.search(r'class="btn btn--on-dark btn--sm[^"]*" onclick="openAddUserModal\(\)"', perms)
 
 
 def test_perms_js_perm_toggle_updates_source_label():
@@ -1710,7 +1718,7 @@ def test_unit_search_and_duplicate_guard():
     assert "function filterUnitSelect" in units
     assert "已存在" in units and "unitList.some" in units  # 重複提示檢查
     css = read_shared_css()
-    assert ".modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }" in css  # 取消按鈕隱形修復
+    assert "cancel.className = 'btn btn--secondary btn--sm';" in read(os.path.join(STATIC, "js", "units.js"))  # 取消按鈕改用白底次要按鈕（不再隱形）
     assert ".unit-search" in css
 
 
@@ -1804,9 +1812,9 @@ def test_resetpw_modal_ui_present():
     assert 'id="rpw-new"' in idx and 'oninput="pwStrengthCheck(\'rpw-new\')"' in idx
     assert 'id="rpw-confirm"' in idx
     assert 'id="rpw-mismatch"' in idx
-    assert "btn-cancel-ghost" in idx  # 取消按鈕 ghost 樣式（與儲存並排）
+    assert "btn btn--secondary btn--md btn-cancel-ghost" in idx  # 取消按鈕：白底次要按鈕（與儲存並排）
     css = read_css_all()
-    assert ".btn-cancel-ghost" in css
+    assert ".btn--secondary {" in css
     us = read(PERMS_JS)
     assert "permResetPw" in us         # 重設改用 modal（不再用瀏覽器 prompt）
     assert "prompt(" not in us         # 回歸防護：不得改回 prompt
@@ -2037,7 +2045,7 @@ def test_stocktake_tabs_kit_single_split():
     # CSS 樣式
     css = read_css_all()
     assert ".stk-tabs {" in css
-    assert ".stk-tab.is-active {" in css
+    assert "stk-tab stocktake-tab" in js and "chip chip--seg stk-tab" in js
 
 
 def test_stocktake_table_photo_thumb():
@@ -2795,7 +2803,8 @@ def test_settings_cabinets_labels_and_mobile_chip():
     assert '<span class="cab-field-label">位置說明（選填）</span>' in panel
     modal = html[html.index('id="edit-cabinet-modal"'):]
     assert modal.count('class="cab-field-label"') == 2, "編輯櫃子 modal 也需有小標"
-    assert ".cab-add-btn { flex: none; white-space: nowrap;" in html, "新增按鈕文字不得被擠成直排"
+    assert ".cab-add-btn { flex: none; }" in html, "新增按鈕不得被擠壓"
+    assert "white-space: nowrap" in read(os.path.join(STATIC, "css", "3-components", "button.css")), "按鈕文字不得被擠成直排"
     assert "['cabinets', '📦 櫃子']" in read(SETTINGS_JS), "手機 chip 列缺櫃子入口"
 
 
@@ -3049,7 +3058,7 @@ def test_chip_bar_css_exists():
     """Phase 3：Chip bar CSS 樣式存在"""
     css = read_shared_css()
     assert '.chip-bar{' in css or '.chip-bar {' in css, "chip-bar CSS 缺失"
-    assert '.chip-bar .chip' in css, "chip-bar .chip CSS 缺失"
+    assert '.chip.is-active' in css, "chip 選取狀態 CSS 缺失"
 
 
 def test_row_warn_danger_css():
@@ -3249,8 +3258,10 @@ def test_inventory_stockout_actions_are_shared_and_labeled_in_card_and_table():
     assert '📤 待領出</button>' in js and '🚚 已領出</button>' in js
     assert "mobile ? 'm-card-actions' : 'inventory-stockout-actions'" in js
     assert '.inventory-stockout-actions { display: flex; flex-direction: column;' in css
-    assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare {' in css
-    assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-out {' in css
+    assert 'class="btn btn--prepare btn--sm btn-prepare"' in js
+    assert 'class="btn btn--out btn--sm btn-out"' in js
+    # 表格操作欄的通用 button 規則不得蓋掉標準按鈕外觀
+    assert '.tbl-wrap .col-actions button:not(.btn) {' in css
 
 
 def test_mobile_inventory_card_does_not_inherit_desktop_flex_row_layout():
@@ -3839,8 +3850,7 @@ def test_inventory_mobile_toolbar_groups_count_add_and_more():
     assert '.inventory-content .loc-export-bar .btn-add-inv' in css
     assert '.inventory-content .more-actions-wrap' in css
     assert '.inventory-content .view-toggle { order: 4;' in css
-    assert '.inventory-content .btn-add-inv {' in css
-    assert 'background: #fff;' in css
+    assert 'class="btn btn--primary btn--md btn-add-inv"' in js
 
 
 def test_stockout_kpi_total_quantity_uses_item_unit_label():
@@ -3939,7 +3949,8 @@ def test_qty_domain_mounted_and_wired():
     assert "function setQtyDialogMode(mode)" in qty_modal, "qty-dialog 缺少方向切換 handler"
     qty_css = read(CSS_INVENTORY)
     assert ".qtyd-direction[hidden] { display: none; }" in qty_css, "方向選擇控制必須遵守 hidden 狀態"
-    assert '.qtyd-direction .btn-ghost[aria-pressed="true"]' in qty_css, "方向按鈕缺少目前選取狀態樣式"
+    assert 'class="chip chip--seg is-active" id="qtyd-mode-add"' in idx, "方向按鈕缺少目前選取狀態"
+    assert "addButton.classList.toggle('is-active', __qtyMode === 'add')" in qty_modal, "方向切換未同步選取狀態"
     kits = read(KITS_RENDER_JS)
     assert "kitCompQtyChanged" in kits, "kit 材料需求量分數輸入遺失"
     assert "組裝組數必須為正整數" in kits and "拆解組數必須為正整數" in kits, "組裝/拆解整數檢查遺失"
@@ -3985,27 +3996,22 @@ def test_qty_merge_preserves_both_contracts():
 
 
 def test_btn_sm_canonical_shared_owner_and_consumers():
-    """Regression: .btn-sm base must be shared, not owned by Calendar."""
-    core = read_shared_css()
+    """CSS 架構重構 P7.5：按鈕尺寸由 button.css 的 .btn--sm / .btn--md 統一定義，頁面不得自訂。"""
+    button = read(os.path.join(STATIC, "css", "3-components", "button.css"))
     calendar = read(CSS_CAL)
     inventory = read(CSS_INVENTORY)
     calendar_js = read(CALENDAR_RENDER_JS)
     inventory_js = read(INVENTORY_RENDER_JS)
     index = read(INDEX)
 
-    exact_base = ".btn-sm { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #333; }"
-    exact_primary = ".btn-sm.btn-primary { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }"
-    assert exact_base in core, "shared .btn-sm base values must remain unchanged"
-    assert exact_primary in core, "shared .btn-sm primary values must remain unchanged"
+    assert ".btn--sm { height: var(--h-sm);" in button, "shared .btn--sm size must live in button.css"
+    assert ".btn--md { height: var(--h-md);" in button, "shared .btn--md size must live in button.css"
     assert index.index("3-components/button.css") < index.index("4-pages/calendar.css") < index.index("4-pages/inventory.css"), "shared owner must load before feature CSS"
-
-    assert re.search(r"(?m)^\s*\.btn-sm\s*\{", core), "shared core must own .btn-sm base"
-    assert re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", core), "shared core must own .btn-sm primary variant"
-    assert not re.search(r"(?m)^\s*\.btn-sm\s*\{", calendar), "Calendar must not own .btn-sm base"
-    assert not re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", calendar), "Calendar must not own .btn-sm primary variant"
-    assert ".inventory-content .btn-sm" in inventory, "Inventory-specific .btn-sm delta must remain"
-    assert 'class=\"btn-sm' in calendar_js, "Calendar .btn-sm consumers must remain"
-    assert 'class=\"btn-sm' in inventory_js, "Inventory .btn-sm consumers must remain"
+    for css in (calendar, inventory):
+        assert not re.search(r"\.btn-sm\b", css), "pages must not restyle legacy .btn-sm"
+        assert not re.search(r"\.btn--(sm|md)\b", css), "pages must not override standard button sizes"
+    assert 'class=\"btn btn--secondary btn--sm\"' in calendar_js, "Calendar small buttons use the standard size"
+    assert 'class="btn btn--secondary btn--md btn-export"' in inventory_js, "Inventory toolbar buttons use the standard size"
 
 
 # ---------- Prepared／庫存調撥／報表與工作進度前端回歸 ----------
