@@ -19,6 +19,7 @@ function loadSandbox(xhrScript) {
   }
   const sandbox = {
     XMLHttpRequest: FakeXHR,
+    apiErrorMessage: value => value,
     document: { getElementById() { return null; }, addEventListener() {}, querySelector() { return null; } },
     window: { addEventListener() {} },
     setTimeout, clearTimeout, console,

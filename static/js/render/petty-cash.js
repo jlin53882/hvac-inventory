@@ -612,7 +612,7 @@ async function pcDelete(id, backToList) {
     toast('🗑 已刪除');
     if (backToList) renderPettyCash();
     else pcLoadHistory();
-  } else toast('⚠️ ' + (data.detail || '刪除失敗'));
+  } else toast('⚠️ ' + (apiErrorMessage(data.detail) || '刪除失敗'));
 }
 
 function engDesktopRowHtml(r, idx) {

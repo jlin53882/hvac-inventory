@@ -106,6 +106,7 @@ async function testReturnDeleteFailureDoesNotRefresh() {
     console,
     confirm: () => true,
     toast: (message, type) => { toasts.push({ message, type }); },
+    apiErrorMessage: value => value,
     renderStockOuts: () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });

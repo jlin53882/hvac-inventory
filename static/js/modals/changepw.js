@@ -63,7 +63,7 @@ async function submitChangePw() {
       body: JSON.stringify({ old_password: oldPw, new_password: newPw })
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { toast('⚠️ ' + (data.detail || '修改失敗'), 'error'); return; }
+    if (!res.ok) { toast('⚠️ ' + (apiErrorMessage(data.detail) || '修改失敗'), 'error'); return; }
     closeModalForce('changepw-modal');
     closeModalForce('expiry-modal');  // 從過期提示進來的也一起關
     toast('✅ 密碼已更新', 'success');

@@ -215,7 +215,7 @@ async function clearPrepared(itemId, qty) {
 
       const e = await res.json().catch(() => ({}));
 
-      throw new Error(e.detail || '刪除失敗');
+      throw new Error(apiErrorMessage(e.detail) || '刪除失敗');
 
     }
 

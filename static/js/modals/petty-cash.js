@@ -504,8 +504,8 @@ async function pcModalSave(status) {
     const data = await res.json().catch(() => ({}));
     if (saveToken !== pcModalOpenSeq) return;
     if (!res.ok) {
-      if (res.status === 409 && data.detail) return toast('⚠️ ' + data.detail);
-      return toast('⚠️ ' + (data.detail || '儲存失敗'));
+      if (res.status === 409 && data.detail) return toast('⚠️ ' + apiErrorMessage(data.detail));
+      return toast('⚠️ ' + (apiErrorMessage(data.detail) || '儲存失敗'));
     }
     toast(status === 'completed' ? '✅ 已儲存完成' : '✅ 草稿已儲存');
     const savedId = data.id || editingId;

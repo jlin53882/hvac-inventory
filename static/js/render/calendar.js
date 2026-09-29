@@ -550,7 +550,7 @@ async function calExport() {
     const res = await fetch(`/api/appointments/export?date=${date}`);
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
-      toast('❌ ' + (d.detail || '匯出失敗'));
+      toast('❌ ' + (apiErrorMessage(d.detail) || '匯出失敗'));
       return;
     }
     const blob = await res.blob();

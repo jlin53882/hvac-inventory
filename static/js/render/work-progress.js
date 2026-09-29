@@ -47,7 +47,7 @@ function wprTimeText(job) {
  */
 function wprApiError(response) {
   return response.json().catch(function() { return {}; }).then(function(body) {
-    throw new Error(body.detail || ('API 錯誤：' + response.status));
+    throw new Error(apiErrorMessage(body.detail) || ('API 錯誤：' + response.status));
   });
 }
 /**
@@ -74,7 +74,7 @@ function wprUploadProgressText(phase, percent) {
 }
 /**
  * POST multipart data with upload progress (fetch cannot report request-body progress).
- * Error semantics match wprFetch: rejects with the API detail message.
+ * Error semantics match wprFetch; structured API validation details use the shared readable formatter.
  * @param {string} url - Endpoint.
  * @param {FormData} form - Multipart body.
  * @param {function(string, number): void} onProgress - Receives ('upload', percent) then ('processing', 100).
@@ -93,7 +93,7 @@ function wprUploadWithProgress(url, form, onProgress) {
       var body = {};
       try { body = JSON.parse(xhr.responseText || '{}'); } catch (error) { body = {}; }
       if (xhr.status >= 200 && xhr.status < 300) resolve(body);
-      else reject(new Error(body.detail || ('API 錯誤：' + xhr.status)));
+      else reject(new Error(apiErrorMessage(body.detail) || ('API 錯誤：' + xhr.status)));
     };
     xhr.onerror = function() { reject(new Error('網路連線中斷，上傳失敗，請重試')); };
     xhr.onabort = function() { reject(new Error('上傳已中止')); };

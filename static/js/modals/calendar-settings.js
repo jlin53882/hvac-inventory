@@ -103,7 +103,7 @@ async function calAddSvc() {
     body: JSON.stringify({ name: v, sort_order: calSvc.length + 1, is_active: 1 }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) { toast('❌ ' + (data.detail || '新增失敗')); return; }
+  if (!res.ok) { toast('❌ ' + (apiErrorMessage(data.detail) || '新增失敗')); return; }
   document.getElementById('cal-svc-new').value = '';
   calSvc.push(data);
   calRenderSvcRows();

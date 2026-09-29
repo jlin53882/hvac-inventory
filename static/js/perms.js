@@ -52,7 +52,7 @@
     if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
     if (!r.ok) {
       const body = await r.json().catch(() => ({}));
-      throw new Error(body.detail || r.statusText);
+      throw new Error(apiErrorMessage(body.detail) || r.statusText);
     }
     return r.json();
   }
@@ -66,7 +66,7 @@
     if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      throw new Error(j.detail || r.statusText);
+      throw new Error(apiErrorMessage(j.detail) || r.statusText);
     }
     return r.json();
   }

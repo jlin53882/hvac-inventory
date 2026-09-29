@@ -679,6 +679,28 @@ def test_petty_cash_unpriced_details_runtime():
     )
 
 
+def test_prefixed_api_errors_are_formatted_before_toast_concatenation():
+    """字串前綴不可先把結構化 detail 強制轉成 [object Object]。"""
+    pattern = re.compile(r"toast\(\s*['\"][^'\"]*['\"]\s*\+\s*\(?\s*[A-Za-z_$][\w$]*\.detail")
+    js_root = Path(BASE_DIR) / "static" / "js"
+    unsafe = [
+        f"{path}:{line_number}:{line.strip()}"
+        for path in js_root.rglob("*.js")
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if pattern.search(line)
+    ]
+    assert not unsafe, "結構化錯誤應在字串串接前格式化：\n" + "\n".join(unsafe)
+
+
+def test_structured_api_error_messages_render_readably():
+    """結構化 API 驗證錯誤需轉成明確欄位與限制訊息。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "api_error_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert result.returncode == 0, f"API 錯誤訊息測試失敗：\n{result.stdout}\n{result.stderr}"
+
+
 def test_petty_cash_settings_options_domain_layout():
     """零用金設定 domain：一般只有科目，工程分開管理分類與項目（2026-09-13）。"""
     html = read(SETTINGS_HTML)
@@ -2811,7 +2833,7 @@ def test_settings_cabinet_single_edit_and_delete_reason():
     assert js.count("function editCabinet(") == 1
     assert "prompt('編輯櫃子編號/名稱'" not in js
     delete_fn = js[js.index("async function deleteCabinet("):js.index("async function initCabinetsTab(")]
-    assert "err.detail || '刪除失敗'" in delete_fn
+    assert "apiErrorMessage(err.detail) || '刪除失敗'" in delete_fn
 
 
 def test_every_item_photo_thumbnail_opens_lightbox():

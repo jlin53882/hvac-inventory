@@ -87,7 +87,7 @@ async function submitInventoryExport() {
     const response = await fetch(`/api/export?${params.toString()}`);
     if (!response.ok) {
       let message = `HTTP ${response.status}`;
-      try { const body = await response.json(); message = body.detail || body.message || message; } catch (e) { /* 非 JSON 錯誤 */ }
+      try { const body = await response.json(); message = apiErrorMessage(body.detail) || body.message || message; } catch (e) { /* 非 JSON 錯誤 */ }
       throw new Error(message);
     }
     const blob = await response.blob();
