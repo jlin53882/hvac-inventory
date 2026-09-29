@@ -387,6 +387,12 @@ class PettyCashEntryItemIn(BaseModel):
     unit: str = Field("", max_length=20)
     amount: Optional[float] = Field(None, gt=0)
 
+    @field_validator("amount", mode="before")
+    @classmethod
+    def blank_amount_is_unset(cls, value: Any) -> Any:
+        """將選填金額的空白字串轉成資料庫可代表未填的 None。"""
+        return None if isinstance(value, str) and not value.strip() else value
+
     @field_validator("item_name")
     @classmethod
     def non_blank_name(cls, value: str) -> str:
@@ -545,6 +551,19 @@ class EngineeringReportIn(BaseModel):
         return self
 
 
+def _default_general_petty_cash_type(value: Any) -> Any:
+    """維持舊的一般月報請求省略 report_type 時的相容性。"""
+    if isinstance(value, dict) and "report_type" not in value:
+        return {**value, "report_type": "general"}
+    return value
+
+
+# 先補舊請求的預設類型，再以 discriminator 只驗證正確的報表 schema。
+PettyCashReportPayload = Annotated[
+    PettyCashReportIn | EngineeringReportIn,
+    Field(discriminator="report_type"),
+    BeforeValidator(_default_general_petty_cash_type),
+]
 
 
 # ---------- 櫃子（Settings 設定） ----------

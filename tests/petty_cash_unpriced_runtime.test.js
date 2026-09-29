@@ -30,7 +30,7 @@ const unpriced = {
   detail_total: 0,
   difference: -100,
 };
-assert.strictEqual(renderContext.pcEntryStatus(unpriced), '');
+assert.ok(renderContext.pcEntryStatus(unpriced).includes('正常'));
 const unpricedHtml = renderContext.pcGeneralDetailsHtml(unpriced);
 assert.ok(!unpricedHtml.includes('pc-entry-status'));
 assert.ok(!unpricedHtml.includes('pc-general-discrepancy'));
@@ -47,12 +47,10 @@ const partiallyPriced = {
   detail_total: 40,
   difference: -60,
 };
-assert.ok(renderContext.pcEntryStatus(partiallyPriced).includes('金額不一致'));
+assert.ok(renderContext.pcEntryStatus(partiallyPriced).includes('正常'));
 const partialHtml = renderContext.pcGeneralDetailsHtml(partiallyPriced);
-assert.ok(partialHtml.includes('明細合計'));
-assert.ok(partialHtml.includes('差額'));
-assert.ok(partialHtml.includes('$40'));
-assert.ok(partialHtml.includes('-$60'));
+assert.ok(!partialHtml.includes('明細合計'));
+assert.ok(!partialHtml.includes('差額'));
 
 const matched = {
   items: [{ item_name: '已標價品項', amount: 100 }],
@@ -114,9 +112,13 @@ for (const [platform, isMobile] of [['desktop', false], ['mobile', true]]) {
   hintContext.pcEntryAmountHint();
   assert.strictEqual(hint.textContent, '', `${platform} hides totals when all amounts are blank`);
 
-  hintContext.pcEntryItemDraft = [{ amount: 40 }];
+  hintContext.pcEntryItemDraft = [{ amount: 40 }, { amount: '' }];
   hintContext.pcEntryAmountHint();
-  assert.ok(hint.textContent.includes('明細合計 $40'), `${platform} shows totals once an amount is entered`);
+  assert.strictEqual(hint.textContent, '', `${platform} hides incomplete subtotals`);
+
+  hintContext.pcEntryItemDraft = [{ amount: 40 }, { amount: 60 }];
+  hintContext.pcEntryAmountHint();
+  assert.ok(hint.textContent.includes('明細合計 $100'), `${platform} shows totals once every amount is entered`);
 }
 
 console.log('petty cash optional detail runtime: PASS (blank, partial, matched, desktop/mobile save and hint)');

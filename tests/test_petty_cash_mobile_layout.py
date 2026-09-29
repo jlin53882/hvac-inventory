@@ -45,8 +45,8 @@ def test_mobile_engineering_receipt_grid_stacks_and_body_scrolls():
 
 
 def test_unpriced_item_amount_hides_false_zero_mismatch_on_every_device():
-    """Hide comparison until one detail has a price, independently of viewport width."""
+    """Hide comparison until every optional detail amount is filled."""
     assert "window.matchMedia" not in AMOUNT_HINT_JS
-    assert "const hasPricedItem = pcEntryItemDraft.some(it => Number(it.amount) > 0);" in AMOUNT_HINT_JS
-    assert "if (!hasPricedItem)" in AMOUNT_HINT_JS
+    assert "const allItemsPriced = pcEntryItemDraft.every(it => Number(it.amount) > 0);" in AMOUNT_HINT_JS
+    assert "if (!allItemsPriced)" in AMOUNT_HINT_JS
     assert "hint.textContent = '';" in AMOUNT_HINT_JS

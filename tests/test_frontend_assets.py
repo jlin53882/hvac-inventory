@@ -438,6 +438,8 @@ def test_petty_cash_frontend_contract():
     assert 'id="pc-step-1-tab" onclick="pcModalGotoStep(1)"' in modal
     assert 'id="pc-step-2-tab" onclick="pcModalGotoStep(2)"' in modal
     assert 'function pcModalGotoStep' in modal
+    assert 'id="pc-m-prepared" type="text" maxlength="50"' in modal
+    assert 'validate: () => pcValidateBasic(false)' in modal
     assert '/api/petty-cash-reports/previous-balance' in modal
     assert 'function esc(' not in modal  # esc 單一來源（統一用 utils.js）
     css = read_petty_cash_css()
@@ -463,7 +465,7 @@ def test_petty_cash_modal_step_contracts():
         assert f'id="{tab2}" onclick="{goto}(2)"' in js
         assert f'function {goto}' in js
         assert 'pcSwitchModalStep' in js
-    assert 'validate: () => pcValidateBasic(true)' in general
+    assert 'validate: () => pcValidateBasic(false)' in general
     assert 'validate:engValidateBasic' in engineering
 
 
@@ -653,15 +655,15 @@ def test_petty_cash_detail_table_mobile():
     assert '11.11%' not in css
 
 
-def test_petty_cash_unpriced_details_hide_comparison_until_priced():
-    """未填金額時隱藏狀態與差額；有金額時才顯示比較摘要。"""
+def test_petty_cash_unpriced_details_show_normal_without_comparison():
+    """未填或部分填寫明細金額時顯示正常且不比較。"""
     js = read(PETTY_CASH_RENDER_JS)
     status_fn = js.split("function pcEntryStatus(e)", 1)[1].split("\n}", 1)[0]
     details_fn = js.split("function pcGeneralDetailsHtml(e)", 1)[1].split("\n}", 1)[0]
-    assert "items.some(item => Number(item.amount) > 0)" in status_fn
-    assert "items.length && !hasPricedItems) return ''" in status_fn
-    assert "e.items.some(item => Number(item.amount) > 0)" in details_fn
-    assert "${hasPricedAmount ?" in details_fn
+    assert "items.length && !allItemsPriced) return '<span" in status_fn
+    assert "items.every(item => Number(item.amount) > 0)" in status_fn
+    assert "e.items.every(item => Number(item.amount) > 0)" in details_fn
+    assert "${allItemsPriced ?" in details_fn
     assert "${e.amount_warning ?" not in details_fn
 
 
