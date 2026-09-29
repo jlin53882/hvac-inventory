@@ -554,9 +554,11 @@ def test_calendar_btn_edit_is_feature_owned():
     assert not re.search(r"(?m)^\s*\.btn-edit:hover\s*\{", core), (
         "Core must not own the Calendar-only .btn-edit hover"
     )
-    # CSS 架構重構 P7.5：外觀改由 button.css 的 .btn 系統負責，頁面只保留位置
-    assert ".cal-card-actions .cal-icon-btn.btn-edit { margin-top: 5px; }" in calendar, (
-        "Calendar keeps only the edit-button layout offset"
+    # CSS 架構重構 P7.5：外觀改由 button.css 的 .btn 系統負責；編輯鈕與刪除鈕同一基準線，
+    # 不再位移（使用者要求與每月零用金「✏️ 編輯」相同格式）
+    assert "btn-edit { margin-top" not in calendar, "Calendar edit button must align with delete (no offset)"
+    assert '<span class="cal-action-icon">✏️</span><span class="cal-action-label">編輯</span>' in calendar_js, (
+        "Calendar edit button uses the same ✏️ 編輯 label as petty cash"
     )
     assert 'class=\"btn btn--secondary btn--sm cal-icon-btn btn-edit\"' in calendar_js, (
         "Calendar edit-button producer must remain"

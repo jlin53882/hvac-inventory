@@ -516,7 +516,7 @@ function calRenderDay() {
         <div class="cal-event-footer">
           <div class="cal-created-meta"><span>建立：${esc(e.created_by_name || '系統')} · ${esc(calFmtCreatedAt(e.created_at))}</span>${updated}</div>
           ${isViewer ? '' : `<div class="cal-card-actions">
-            <button class="btn btn--secondary btn--sm cal-icon-btn btn-edit" onclick="calOpenAppt(${e.id})" aria-label="編輯派工" title="編輯派工"><span class="cal-action-icon">✎</span><span class="cal-action-label">編輯</span></button>
+            <button class="btn btn--secondary btn--sm cal-icon-btn btn-edit" onclick="calOpenAppt(${e.id})" aria-label="編輯派工" title="編輯派工"><span class="cal-action-icon">✏️</span><span class="cal-action-label">編輯</span></button>
             <button class="btn btn--danger btn--sm cal-icon-btn btn-delete" onclick="calDeleteAppt(${e.id})" aria-label="刪除派工" title="刪除派工"><span class="cal-action-icon">🗑</span><span class="cal-action-label">刪除</span></button>
           </div>`}
         </div>
