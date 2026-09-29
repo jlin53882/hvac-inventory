@@ -179,11 +179,15 @@ def test_css_cal_evt_b_variant_and_no_overflow():
 
 
 def test_css_cal_selected_highlight():
-    """2026-09-09：Today 與 Selected 依設計文件同時可見。"""
+    """選取日期只顯示外框；今天仍保留圓形日期標記。"""
     css = read_css_all()
     assert ".cal-cell.cal-selected {" in css and "border: 1px solid var(--c-primary)" in css
-    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: var(--c-primary)" in css
-    assert ".cal-cell.cal-today .cal-day-num" in css
+    assert ".cal-cell.cal-selected .cal-day-num {" not in css, "selected date should show the cell outline without a number badge"
+    today_selector = ".cal-cell.cal-today .cal-day-num"
+    assert today_selector in css
+    today_rule = css[css.index(today_selector):].split("}", 1)[0]
+    assert "background: var(--c-primary);" in today_rule
+    assert "color: var(--c-white);" in today_rule
 
 
 def test_calendar_desktop_dispatch_layout():
