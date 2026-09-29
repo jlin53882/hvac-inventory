@@ -3,12 +3,13 @@
 
 async function loadData(options) {
   const full = Boolean(options && options.full);
+  const refreshDestinations = Boolean(options && options.refreshDestinations);
   const requestId = ++dataRequestSeq;
   if (dataAbortController) dataAbortController.abort();
   // P1-D：mutation 後的 loadData 預設刷新 global summary；搜尋/換頁/filter 走 wrapper（不刷）。
   const refreshSummary = !options || options.refreshSummary !== false;
   if (!full && currentTab === 'inventory') {
-    await loadInventoryPageImpl(INVENTORY_META.page || 1, refreshSummary);
+    await loadInventoryPageImpl(INVENTORY_META.page || 1, refreshSummary, true, refreshDestinations);
     return;
   }
   const controller = new AbortController();
@@ -26,14 +27,27 @@ async function loadData(options) {
       loadPreparedBadge();
       return;
     }
-    const res = await fetch(`/api/items?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal });
+    const refreshFacets = currentTab === 'inventory';
+    const [res, facetsRes] = await Promise.all([
+      fetch(`/api/items?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal }),
+      refreshFacets
+        ? fetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
+        : Promise.resolve(null),
+    ]);
     if (!res.ok) throw new Error('API 錯誤: ' + res.status);
     const items = await res.json();
     if (requestId !== dataRequestSeq || siteAtRequest !== currentSite) return;
+    const facets = facetsRes && facetsRes.ok ? await facetsRes.json() : null;
     ALL_ITEMS = items;
     fullItemsLoadedSite = siteAtRequest;
     inventoryLoadedSite = '';
-    buildDatalists();
+    if (facets) {
+      INVENTORY_FACETS = facets;
+      inventoryFacetsLoadedSite = siteAtRequest;
+      reconcileInventoryFilters(facets);
+    }
+    if (refreshDestinations) await refreshDestinationsAfterMutation();
+    buildDatalists(refreshDestinations);
     if (typeof buildFilterPanel === 'function') buildFilterPanel();
     checkReminder();
     updateNotifications();
@@ -56,8 +70,21 @@ async function loadInventoryPage(page) {
   return loadInventoryPageImpl(page, false);
 }
 
+function reconcileInventoryFilters(facets) {
+  let changed = false;
+  const validBrands = new Set(Object.keys((facets && facets.brands) || {}));
+  const validCategories = new Set(Object.keys((facets && facets.categories) || {}));
+  for (let i = currentBrands.length - 1; i >= 0; i--) {
+    if (!validBrands.has(currentBrands[i])) { currentBrands.splice(i, 1); changed = true; }
+  }
+  for (let i = currentCategories.length - 1; i >= 0; i--) {
+    if (!validCategories.has(currentCategories[i])) { currentCategories.splice(i, 1); changed = true; }
+  }
+  return changed;
+}
+
 // refreshSummary=true：mutation 成功後，global summary cache 已過期才重刷。
-async function loadInventoryPageImpl(page, refreshSummary) {
+async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refreshDestinations) {
   dataRequestSeq++;
   if (dataAbortController) dataAbortController.abort();
   const requestId = ++inventoryRequestSeq;
@@ -77,7 +104,7 @@ async function loadInventoryPageImpl(page, refreshSummary) {
     if (search && search.value.trim()) params.set('search', search.value.trim());
     if (currentBrands.length) params.set('brands', currentBrands.join(','));
     if (currentCategories.length) params.set('categories', currentCategories.join(','));
-    const shouldLoadFacets = inventoryFacetsLoadedSite !== siteAtRequest;
+    const shouldLoadFacets = Boolean(refreshFacets) || inventoryFacetsLoadedSite !== siteAtRequest;
     const facetsRequest = shouldLoadFacets
       ? fetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
       : Promise.resolve(null);
@@ -86,9 +113,19 @@ async function loadInventoryPageImpl(page, refreshSummary) {
       facetsRequest,
     ]);
     if (!res.ok) throw new Error('庫存列表 API 錯誤: ' + res.status);
-    const body = await res.json();
+    let body = await res.json();
     const facets = facetsRes && facetsRes.ok ? await facetsRes.json() : null;
     if (requestId !== inventoryRequestSeq || siteAtRequest !== currentSite) return;
+    if (facets && reconcileInventoryFilters(facets)) {
+      if (currentBrands.length) params.set('brands', currentBrands.join(','));
+      else params.delete('brands');
+      if (currentCategories.length) params.set('categories', currentCategories.join(','));
+      else params.delete('categories');
+      const refreshedRes = await fetch(`/api/items?${params}`, { signal: controller.signal });
+      if (!refreshedRes.ok) throw new Error('庫存列表 API 錯誤: ' + refreshedRes.status);
+      body = await refreshedRes.json();
+      if (requestId !== inventoryRequestSeq || siteAtRequest !== currentSite) return;
+    }
     ALL_ITEMS = body.items || [];
     INVENTORY_META = {
       page: body.page || pageAtRequest,
@@ -99,10 +136,12 @@ async function loadInventoryPageImpl(page, refreshSummary) {
     if (facets) {
       INVENTORY_FACETS = facets;
       inventoryFacetsLoadedSite = siteAtRequest;
+      reconcileInventoryFilters(facets);
     }
     inventoryLoadedSite = siteAtRequest;
     fullItemsLoadedSite = '';
-    buildDatalists();
+    if (refreshDestinations) await refreshDestinationsAfterMutation();
+    buildDatalists(refreshDestinations);
     buildFilterPanel();
     checkReminder();
     updateNotifications();
@@ -208,6 +247,15 @@ async function loadDestinations() {
     document.getElementById('dest-list').innerHTML =
       DESTINATIONS.map(d => `<option value="${esc(d)}">`).join('');
   } catch (e) { if (e.name !== 'AbortError') console.error('[loadDestinations] 網路錯誤', e); }
+}
+
+// Mutation-triggered item reloads must discard the per-site suggestion cache before rendering forms again.
+async function refreshDestinationsAfterMutation() {
+  destinationsLoadedSite = '';
+  DESTINATIONS = [];
+  const list = document.getElementById('dest-list');
+  if (list) list.innerHTML = '';
+  await loadDestinations();
 }
 
 /**

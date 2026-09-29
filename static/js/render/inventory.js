@@ -54,7 +54,7 @@ function filterBySearch(items, matchFn) {
 
 // 從 ALL_ITEMS 建立廠牌與位置的 datalist 建議清單，並載入去向建議
 
-function buildDatalists() {
+function buildDatalists(skipDestinationLoad) {
   const facetReady = inventoryLoadedSite === currentSite && INVENTORY_FACETS;
   const brands = facetReady && Object.keys(INVENTORY_FACETS.brands || {}).length
     ? Object.keys(INVENTORY_FACETS.brands).sort()
@@ -64,7 +64,7 @@ function buildDatalists() {
     : [...new Set(ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
   document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
   document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${esc(l)}">`).join('');
-  if (destinationsLoadedSite !== currentSite) loadDestinations();
+  if (!skipDestinationLoad && destinationsLoadedSite !== currentSite) loadDestinations();
 }
 
 

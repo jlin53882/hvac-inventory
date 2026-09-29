@@ -186,6 +186,7 @@ async function deleteStockoutRecord(movementId) {
 
     toast('✅ 已刪除紀錄', 'success');
 
+    await refreshDestinationsAfterMutation();
     renderStockOuts();
 
   } catch (e) {

@@ -2421,6 +2421,30 @@ def test_inventory_location_adjustment_runtime():
     )
 
 
+def test_inventory_and_stockout_option_caches_refresh_after_mutation():
+    """真正執行 API loader，驗證 mutation 更新 facets 與出庫去向建議快取。"""
+    script = os.path.join(BASE_DIR, "tests", "inventory_cache_refresh_runtime.test.js")
+    result = subprocess.run(
+        ["node", script], cwd=BASE_DIR, capture_output=True, text=True,
+        encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"inventory cache refresh runtime regression 失敗：\n{result.stdout}\n{result.stderr}"
+    )
+    stockout = read(STOCKOUT_MODAL_JS)
+    for function_name, next_function in (
+        ("submitStockOut", "submitNonStockOut"),
+        ("submitNonStockOut", "submitNonStockPrepare"),
+        ("submitPreparedOut", "returnPrepared"),
+        ("submitReturnStockout", "submitEditStockout"),
+        ("submitEditStockout", "deleteStockoutReturn"),
+    ):
+        start = stockout.index("async function " + function_name)
+        end = stockout.index("async function " + next_function, start)
+        assert "refreshDestinations: true" in stockout[start:end], f"{function_name} 未刷新去向建議"
+    assert "await refreshDestinationsAfterMutation();" in read(STOCKOUT_RENDER_JS)
+
+
 def test_edit_stock_rows_mobile_grid_layout():
     """編輯位置列在手機改為兩列網格，刪除控制不會擠壓四個輸入欄位。"""
     css = read(CSS_INVENTORY_LOCATIONS)

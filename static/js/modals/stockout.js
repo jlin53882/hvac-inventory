@@ -45,7 +45,7 @@ async function submitStockOut() {
     }
     closeModalForce('out-modal');
     toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}`, 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -91,7 +91,7 @@ async function submitNonStockOut() {
     }
     closeModalForce('nonstock-out-modal');
     toast(`✅ 已領出 ${qty} ${unit} → ${dest}`, 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -214,7 +214,7 @@ async function submitPreparedOut() {
     }
     closeModalForce('prepared-out-modal');
     toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}（庫存已扣）`, 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -334,7 +334,7 @@ async function submitReturnStockout() {
       editStockoutReturnId = null;
       closeModalForce('return-stockout-modal');
       toast('✅ 已更新退回紀錄', 'success');
-      await loadData();
+      await loadData({ refreshDestinations: true });
     } catch (e) { toast('⚠️ ' + e.message, 'error'); }
     return;
   }
@@ -359,7 +359,7 @@ async function submitReturnStockout() {
     }
     closeModalForce('return-stockout-modal');
     toast('↩️ 已退回，數量已加回庫存', 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -410,7 +410,7 @@ async function submitEditStockout() {
     }
     closeModalForce('edit-stockout-modal');
     toast('✅ 已更新已領出記錄', 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -491,6 +491,7 @@ async function deleteStockoutReturn(movementId) {
     const res = await fetch(`/api/stockout-returns/${movementId}`, { method: 'DELETE' });
     if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(apiErrorMessage(err.detail) || '刪除退回紀錄失敗'); }
     toast('✅ 已刪除退回紀錄', 'success');
+    await refreshDestinationsAfterMutation();
     await renderStockOuts();
   } catch (e) { toast('⚠️ ' + e.message, 'error'); }
 }
