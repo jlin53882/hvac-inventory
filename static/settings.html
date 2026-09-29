@@ -30,15 +30,16 @@
 <link rel="stylesheet" href="/static/css/3-components/status-list.css">
 <link rel="stylesheet" href="/static/css/3-components/table.css">
 <link rel="stylesheet" href="/static/css/4-pages/settings.css">
+<link rel="stylesheet" href="/static/css/5-utilities/utilities.css">
 </head>
 <body data-page="settings">
 
 <div class="topbar">
-  <div class="topbar-left" style="display:flex;align-items:center">
+  <div class="topbar-left u-d-flex u-ai-center">
     <button class="vb-back" onclick="location.href='/'" title="返回庫存">←</button>
     <span class="vb-crumb"><a href="/">庫存</a><span class="sep">›</span><span class="vb-crumb-current">⚙️ 設定</span></span>
   </div>
-  <div class="top-actions" style="display:flex;align-items:center;gap:8px;padding-right:12px">
+  <div class="top-actions u-d-flex u-ai-center u-gap-8 u-pr-12">
     <button class="btn-ghost" onclick="logout()">🚪<span class="logout-direct-text"> 登出</span></button>
   </div>
 </div>
@@ -64,7 +65,7 @@
     <div id="panel-petty-cash" style="display:none"></div>
     <div id="panel-cabinets" style="display:none">
       <h4>📦 櫃子</h4>
-      <p style="font-size: 13px; color: #666; margin-bottom: 16px;">全站共用的櫃子清單（單一庫存與整組庫存同步）。</p>
+      <p class="u-fs-13 u-c-666 u-mb-16">全站共用的櫃子清單（單一庫存與整組庫存同步）。</p>
       <div class="cab-add-row">
         <label class="cab-field" for="cabinet-name"><span class="cab-field-label">櫃子編號 / 名稱 *</span>
           <input type="text" id="cabinet-name" placeholder="例：編號A、倉庫1" maxlength="50"></label>
@@ -75,9 +76,9 @@
       <table class="u-table" id="cabinetTable">
         <thead>
           <tr>
-            <th style="width: 30%;">編號/名稱</th>
-            <th style="width: 50%;">位置說明</th>
-            <th style="width: 20%;">操作</th>
+            <th class="u-w-30pct">編號/名稱</th>
+            <th class="u-w-50pct">位置說明</th>
+            <th class="u-w-20pct">操作</th>
           </tr>
         </thead>
         <tbody id="cabinetList"></tbody>
@@ -104,9 +105,9 @@
         <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()" autocomplete="new-password">
         <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
       </div>
-      <div style="display:flex;gap:10px;margin-top:6px;max-width:420px">
-        <button class="btn-save" style="flex:2;margin-top:0" onclick="settingsSubmitPw()">💾 儲存新密碼</button>
-        <button class="btn-cancel-ghost" style="flex:1;margin-top:0" onclick="clearPwForm()">清除</button>
+      <div class="u-d-flex u-gap-10 u-mt-6 u-maxw-420">
+        <button class="btn-save u-flex-2 u-mt-0" onclick="settingsSubmitPw()">💾 儲存新密碼</button>
+        <button class="btn-cancel-ghost u-flex-1 u-mt-0" onclick="clearPwForm()">清除</button>
       </div>
     </div>
   </main>
@@ -121,31 +122,31 @@
     <div class="form-row">
       <label>Key 名稱</label>
       <input type="text" id="gk-name" placeholder="例：廠商A、小陳帳號" maxlength="50">
-      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">自訂名稱，方便辨識是哪個廠商/帳號的 Key</div>
+      <div class="hint u-fs-11 u-c-999 u-mt-3">自訂名稱，方便辨識是哪個廠商/帳號的 Key</div>
     </div>
     <div class="form-row">
       <label>Service Account JSON 檔案（可直接上傳）</label>
       <input type="file" id="gk-file" accept=".json,application/json" onchange="gcalFileSelected(this)">
-      <div id="gk-file-meta" style="display:none;align-items:center;gap:8px;margin-top:6px">
-        <span id="gk-file-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#2563eb;font-size:12px"></span>
-        <button type="button" class="btn-cancel-ghost" style="padding:4px 8px;font-size:12px" onclick="clearGcalFile()">移除檔案</button>
+      <div class="u-ai-center u-gap-8 u-mt-6" id="gk-file-meta" style="display:none">
+        <span class="u-flex-1 u-minw-0 u-o-hidden u-to-ellipsis u-ws-nowrap u-c-2563eb u-fs-12" id="gk-file-name"></span>
+        <button type="button" class="btn-cancel-ghost u-p-4-8 u-fs-12" onclick="clearGcalFile()">移除檔案</button>
       </div>
-      <div id="gk-file-hint" class="hint" style="font-size:11px;color:#999;margin-top:3px">上傳後由伺服器固定儲存檔名；只會顯示 client_email，不會顯示 private_key。</div>
+      <div id="gk-file-hint" class="hint u-fs-11 u-c-999 u-mt-3">上傳後由伺服器固定儲存檔名；只會顯示 client_email，不會顯示 private_key。</div>
     </div>
     <div class="form-row">
       <label>或手動輸入 JSON 檔路徑</label>
       <input type="text" id="gk-cred" placeholder="例：secrets/hvac-sync-a.json">
-      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">若不上傳檔案，改填伺服器上的 Service Account JSON 路徑。</div>
-      <div class="hint" style="font-size:11px;color:#2563eb;margin-top:5px">使用規則：上傳檔案與路徑同時存在時，以上傳檔案為準；刪除 Key 時，只會一併刪除透過本頁上傳的 JSON，手動輸入路徑的原檔不會刪除。</div>
+      <div class="hint u-fs-11 u-c-999 u-mt-3">若不上傳檔案，改填伺服器上的 Service Account JSON 路徑。</div>
+      <div class="hint u-fs-11 u-c-2563eb u-mt-5">使用規則：上傳檔案與路徑同時存在時，以上傳檔案為準；刪除 Key 時，只會一併刪除透過本頁上傳的 JSON，手動輸入路徑的原檔不會刪除。</div>
     </div>
     <div class="form-row">
       <label>Calendar ID</label>
       <input type="text" id="gk-cal" placeholder="例：abc123@group.calendar.google.com">
-      <div class="hint" style="font-size:11px;color:#999;margin-top:3px">要同步到的 Google 行事曆 ID（行事曆設定頁 → 整合日曆 → 行事曆 ID）</div>
+      <div class="hint u-fs-11 u-c-999 u-mt-3">要同步到的 Google 行事曆 ID（行事曆設定頁 → 整合日曆 → 行事曆 ID）</div>
     </div>
-    <div style="display:flex;gap:10px;margin-top:18px">
-      <button class="btn-save" style="flex:2" onclick="submitGcalKey()">💾 儲存</button>
-      <button class="btn-cancel-ghost" style="flex:1" onclick="closeGcalKeyModal()">取消</button>
+    <div class="u-d-flex u-gap-10 u-mt-18">
+      <button class="btn-save u-flex-2" onclick="submitGcalKey()">💾 儲存</button>
+      <button class="btn-cancel-ghost u-flex-1" onclick="closeGcalKeyModal()">取消</button>
     </div>
   </div>
 </div>
@@ -171,8 +172,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 <!-- 2026-09-27 編輯櫃子 Modal -->
 <div class="modal-overlay" id="edit-cabinet-modal" onclick="if(event.target===this) closeModalForce('edit-cabinet-modal')">
   <div class="modal-box">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <h3 style="margin: 0;">編輯櫃子</h3>
+    <div class="u-d-flex u-jc-space-between u-ai-center u-mb-16">
+      <h3 class="u-m-0">編輯櫃子</h3>
       <button class="btn-close" onclick="closeModalForce('edit-cabinet-modal')">✕</button>
     </div>
     <div class="cab-add-row cab-edit-row">
@@ -181,9 +182,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       <label class="cab-field" for="edit-cabinet-note"><span class="cab-field-label">位置說明（選填）</span>
         <input type="text" id="edit-cabinet-note" placeholder="例：二樓東側" maxlength="100"></label>
     </div>
-    <div style="display: flex; gap: 10px; margin-top: 18px;">
-      <button class="btn-save" style="flex: 2;" onclick="submitCabinetEdit()">💾 儲存</button>
-      <button class="btn-cancel-ghost" style="flex: 1;" onclick="closeModalForce('edit-cabinet-modal')">取消</button>
+    <div class="u-d-flex u-gap-10 u-mt-18">
+      <button class="btn-save u-flex-2" onclick="submitCabinetEdit()">💾 儲存</button>
+      <button class="btn-cancel-ghost u-flex-1" onclick="closeModalForce('edit-cabinet-modal')">取消</button>
     </div>
   </div>
 </div>

@@ -42,6 +42,7 @@
 <link rel="stylesheet" href="/static/css/4-pages/kit.css">
 <link rel="stylesheet" href="/static/css/4-pages/stocktake.css">
 <link rel="stylesheet" href="/static/css/4-pages/stockout.css">
+<link rel="stylesheet" href="/static/css/5-utilities/utilities.css">
 </head>
 <body>
 
@@ -155,7 +156,7 @@
       </div>
       <div class="filter-chips collapsed" id="fp-cat-chips"></div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+    <div class="u-d-flex u-jc-space-between u-ai-center u-mt-8">
       <button class="filter-clear" onclick="clearFilterPanel()">清除篩選</button>
       <div class="filter-summary" id="fp-summary"></div>
     </div>
@@ -203,13 +204,13 @@
 <div class="modal-overlay" id="batch-confirm-modal">
   <div class="modal-sheet">
     <div class="modal-title">📦 確認批量修改位置</div>
-    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+    <p class="u-fs-13 u-c-666 u-mb-8">
       以下 <b id="batch-confirm-count">0</b> 筆庫存位置將改為 <b id="batch-confirm-loc">—</b>：
     </p>
-    <div class="modal-items" id="batch-confirm-items" style="background:#f9fafb;border-radius:10px;padding:10px;max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
-    <div class="modal-actions" style="display:flex;gap:8px;">
-      <button class="btn-cancel" onclick="closeBatchConfirm()" style="flex:1">取消</button>
-      <button class="btn-confirm" onclick="submitBatchLocation()" style="flex:1">✅ 確認修改</button>
+    <div class="modal-items u-bg-f9fafb u-r-10 u-p-10 u-maxh-200 u-oy-auto u-mb-12" id="batch-confirm-items"></div>
+    <div class="modal-actions u-d-flex u-gap-8">
+      <button class="btn-cancel u-flex-1" onclick="closeBatchConfirm()">取消</button>
+      <button class="btn-confirm u-flex-1" onclick="submitBatchLocation()">✅ 確認修改</button>
     </div>
   </div>
 </div>
@@ -270,7 +271,7 @@
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="add-stock-rows"></div>
-      <button type="button" class="btn-prepare" style="margin-top:0" onclick="addAddStockRow()">＋ 新增位置</button>
+      <button type="button" class="btn-prepare u-mt-0" onclick="addAddStockRow()">＋ 新增位置</button>
     </div>
     <div class="form-row">
       <label>分類（選填）</label>
@@ -368,7 +369,7 @@
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="edit-stock-rows"></div>
-      <button type="button" class="btn-prepare" style="margin-top:0" onclick="addEditStockRow()">＋ 新增位置</button>
+      <button type="button" class="btn-prepare u-mt-0" onclick="addEditStockRow()">＋ 新增位置</button>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('edit-modal')">取消</button>
@@ -392,11 +393,11 @@
 
 <!-- 整組待領出 BOM Modal -->
 <div class="modal-overlay" id="kit-prepare-modal">
-  <div class="modal" style="max-width:520px">
+  <div class="modal u-maxw-520">
     <h3 id="kit-prepare-title">📤 整組待領出</h3>
-    <p style="font-size:12px;color:#666;margin-bottom:12px" id="kit-prepare-desc">整組包含以下品項，按「確認領出」一次領出整組。</p>
-    <div id="kit-prepare-list" style="max-height:400px;overflow-y:auto"></div>
-    <div class="form-row" style="margin-top:12px">
+    <p class="u-fs-12 u-c-666 u-mb-12" id="kit-prepare-desc">整組包含以下品項，按「確認領出」一次領出整組。</p>
+    <div class="u-maxh-400 u-oy-auto" id="kit-prepare-list"></div>
+    <div class="form-row u-mt-12">
       <label>備註</label>
       <input type="text" id="kit-prepare-note" placeholder="準備說明（選填）">
     </div>
@@ -438,7 +439,7 @@
 
 <!-- 待領出編輯 Modal -->
 <div class="modal-overlay" id="prepared-edit-modal">
-  <div class="modal" style="max-width:440px">
+  <div class="modal u-maxw-440">
     <h3>✏️ 編輯待領出品項</h3>
     <div class="form-row">
       <label>品項名稱</label>
@@ -606,7 +607,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('prepare-modal')">取消</button>
-      <button class="btn-confirm" style="background:#7c3aed" onclick="submitPrepare()">📤 確認待領出</button>
+      <button class="btn-confirm u-bg-7c3aed" onclick="submitPrepare()">📤 確認待領出</button>
     </div>
   </div>
 </div>
@@ -674,7 +675,7 @@
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="kit-location-rows"></div>
-      <button type="button" class="btn-prepare" style="margin-top:0" onclick="addKitLocationRow()">＋ 新增位置</button>
+      <button type="button" class="btn-prepare u-mt-0" onclick="addKitLocationRow()">＋ 新增位置</button>
     </div>
     <div class="form-row">
       <label>整組照片（選填，可手機直接拍照）</label>
@@ -683,7 +684,7 @@
     <div class="form-row">
       <label>組成材料（每組需要的數量）</label>
       <div id="kit-comps"></div>
-      <button class="btn-add-row" style="margin-top:0" onclick="addKitCompRow()">＋ 加入另一材料</button>
+      <button class="btn-add-row u-mt-0" onclick="addKitCompRow()">＋ 加入另一材料</button>
     </div>
     <div class="form-row">
       <label>備註（選填）</label>
@@ -785,25 +786,25 @@
       <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()">
       <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
     </div>
-    <div style="display:flex;gap:10px;margin-top:6px">
-      <button class="btn-save" style="flex:2;margin-top:0" onclick="submitChangePw()">💾 儲存新密碼</button>
-      <button class="btn-cancel-ghost" style="flex:1;margin-top:0" onclick="closeModal('changepw-modal')">取消</button>
+    <div class="u-d-flex u-gap-10 u-mt-6">
+      <button class="btn-save u-flex-2 u-mt-0" onclick="submitChangePw()">💾 儲存新密碼</button>
+      <button class="btn-cancel-ghost u-flex-1 u-mt-0" onclick="closeModal('changepw-modal')">取消</button>
     </div>
   </div>
 </div>
 
 <!-- 密碼過期提示 modal -->
 <div class="modal-overlay" id="expiry-modal">
-  <div class="modal" style="text-align:center">
-    <div style="font-size:44px;margin-bottom:10px">🔒</div>
-    <h3 style="margin-bottom:8px">密碼已超過 6 個月未更換</h3>
-    <p style="font-size:13px;color:#666;line-height:1.6;margin-bottom:18px">為了帳號安全，建議更換密碼。<br>也可以選擇繼續使用目前的密碼。</p>
-    <div style="display:flex;gap:10px">
-      <button class="btn-save" style="flex:1;margin-top:0" onclick="expiryGoChangePw()">🔑 立即改密碼</button>
-      <button class="btn-cancel" style="flex:1;margin-top:0" onclick="ackPasswordExpiry()">繼續使用原密碼</button>
+  <div class="modal u-ta-center">
+    <div class="u-fs-44 u-mb-10">🔒</div>
+    <h3 class="u-mb-8">密碼已超過 6 個月未更換</h3>
+    <p class="u-fs-13 u-c-666 u-lh-1_6 u-mb-18">為了帳號安全，建議更換密碼。<br>也可以選擇繼續使用目前的密碼。</p>
+    <div class="u-d-flex u-gap-10">
+      <button class="btn-save u-flex-1 u-mt-0" onclick="expiryGoChangePw()">🔑 立即改密碼</button>
+      <button class="btn-cancel u-flex-1 u-mt-0" onclick="ackPasswordExpiry()">繼續使用原密碼</button>
     </div>
-    <div id="expiry-admin-only" style="display:none;font-size:13px;color:#dc2626;line-height:1.6">密碼已過期，請聯絡管理員重設密碼。</div>
-    <div style="font-size:11px;color:#aaa;margin-top:12px">選擇任一選項後，將再延長 6 個月</div>
+    <div class="u-fs-13 u-c-dc2626 u-lh-1_6" id="expiry-admin-only" style="display:none">密碼已過期，請聯絡管理員重設密碼。</div>
+    <div class="u-fs-11 u-c-aaa u-mt-12">選擇任一選項後，將再延長 6 個月</div>
   </div>
 </div>
 
@@ -826,9 +827,9 @@
       <input type="password" id="rpw-confirm" placeholder="再輸入一次新密碼" oninput="pwMatchCheck('rpw-new','rpw-confirm','rpw-mismatch')">
       <div class="cpw-mismatch" id="rpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
     </div>
-    <div style="display:flex;gap:10px;margin-top:6px">
-      <button class="btn-save" style="flex:2;margin-top:0" onclick="submitResetPw()">💾 儲存新密碼</button>
-      <button class="btn-cancel-ghost" style="flex:1;margin-top:0" onclick="closeModal('resetpw-modal')">取消</button>
+    <div class="u-d-flex u-gap-10 u-mt-6">
+      <button class="btn-save u-flex-2 u-mt-0" onclick="submitResetPw()">💾 儲存新密碼</button>
+      <button class="btn-cancel-ghost u-flex-1 u-mt-0" onclick="closeModal('resetpw-modal')">取消</button>
     </div>
   </div>
 </div>
@@ -937,7 +938,7 @@
     <div class="form-row"><label for="transfer-qty">調撥數量</label><input type="text" inputmode="decimal" id="transfer-qty"></div>
     <div class="form-row"><label for="transfer-target-site">目標庫存區</label><select id="transfer-target-site"></select></div>
     <div class="form-row"><label for="transfer-target-location">目標位置</label><input type="text" id="transfer-target-location" maxlength="100" placeholder="車內工具櫃｜左側"></div>
-    <div id="transfer-error" role="alert" style="color:#b91c1c;min-height:20px"></div>
+    <div class="u-c-b91c1c u-minh-20" id="transfer-error" role="alert"></div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeTransferModal()">取消</button><button type="button" class="btn-confirm" id="transfer-submit" onclick="submitTransfer()">✅ 確認調撥</button></div>
   </div>
 </div>

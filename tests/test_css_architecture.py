@@ -175,3 +175,12 @@ def test_media_queries_use_whitelisted_breakpoints(rel):
     """斷點只能用白名單內的寫法（同一斷點不同寫法會讓規則散落、難以預測）。"""
     for media in re.findall(r"@media\s+([^{]+)\{", re.sub(r"/\*.*?\*/", "", _read(rel), flags=re.S)):
         assert media.strip() in MEDIA_WHITELIST, f"{rel} 使用非白名單斷點：{media.strip()}"
+
+
+def test_html_inline_styles_only_toggle_visibility():
+    """HTML 的 style="" 只允許 display:none（JS 以 el.style.display 切換顯示）；
+    其他靜態排版一律用 5-utilities/utilities.css 的 class，否則 inline 會蓋過所有分層樣式。"""
+    for page in HTML_PAGES:
+        with open(os.path.join(ROOT, "static", page), encoding="utf-8") as fh:
+            for style in re.findall(r'\sstyle="([^"]*)"', fh.read()):
+                assert style.replace(" ", "").rstrip(";") == "display:none", f"{page} 有靜態 inline style：{style}"
