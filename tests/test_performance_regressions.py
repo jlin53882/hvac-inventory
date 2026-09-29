@@ -142,6 +142,7 @@ def test_list_kits_and_prepared_batch_payloads(client):
 import io
 import threading
 import time
+from dataclasses import dataclass
 
 from PIL import Image
 
@@ -149,6 +150,13 @@ from app.routes import signed_reports, work_progress
 from app.services import file_storage
 
 SLOW_VARIANT_SECONDS = 0.8
+
+
+@dataclass
+class SlowMedia:
+    item_id: int | None
+    processing_started: threading.Event
+    finished: int = 0  # 已處理完的圖片張數
 
 
 def _png(color="red") -> bytes:
@@ -159,17 +167,26 @@ def _png(color="red") -> bytes:
 
 @pytest.fixture()
 def slow_media(client, tmp_path, monkeypatch):
-    """讓每張圖的縮圖處理慢 SLOW_VARIANT_SECONDS 秒，放大「處理期間是否卡住別人」的差異。"""
+    """讓每張圖的縮圖處理慢 SLOW_VARIANT_SECONDS 秒，放大「處理期間是否卡住別人」的差異。
+
+    回傳 SlowMedia：item_id 為已備妥庫存的品項；processing_started 在第一張圖進入處理時 set，
+    finished 記錄已處理完的張數。測試用它們取代「固定 sleep 猜上傳進度」的做法。
+    """
     static_dir = tmp_path / "static"
     (static_dir / "uploads").mkdir(parents=True)
     monkeypatch.setattr(app_config, "STATIC_DIR", str(static_dir))
     monkeypatch.setattr(work_progress, "STATIC_DIR", str(static_dir))
     monkeypatch.setattr(signed_reports, "STATIC_DIR", str(static_dir))
     real = file_storage._image_variants
+    media = SlowMedia(item_id=None, processing_started=threading.Event())
 
     def slow(*args, **kwargs):
+        media.processing_started.set()
         time.sleep(SLOW_VARIANT_SECONDS)
-        return real(*args, **kwargs)
+        try:
+            return real(*args, **kwargs)
+        finally:
+            media.finished += 1
 
     monkeypatch.setattr(file_storage, "_image_variants", slow)
     conn = app_db.get_db()
@@ -183,14 +200,18 @@ def slow_media(client, tmp_path, monkeypatch):
         conn.commit()
     finally:
         conn.close()
-    return item_id
+    media.item_id = item_id
+    return media
 
 
-def _run_in_background(fn):
+def _run_in_background(fn, media):
+    """背景執行 fn，並等到第一張圖確實進入處理階段才返回（事件同步，不靠固定 sleep 猜進度）。"""
     result = {}
+    media.processing_started.clear()
+    media.finished = 0
     thread = threading.Thread(target=lambda: result.setdefault("response", fn()))
     thread.start()
-    time.sleep(0.2)
+    assert media.processing_started.wait(timeout=10), "上傳未進入影像處理階段"
     return thread, result
 
 
@@ -198,16 +219,22 @@ def test_multi_photo_upload_does_not_block_other_writers(client, slow_media):
     """多張照片處理期間，其他人的庫存調整不可被 SQLite 寫鎖卡住（原本會等到整批處理完，超過 10 秒回 500）。"""
     files = [("files", (f"p{i}.png", _png(), "image/png")) for i in range(2)]
     thread, result = _run_in_background(
-        lambda: client.post("/api/work-progress", data={"appointment_id": "1", "note": "x"}, files=files)
+        lambda: client.post("/api/work-progress", data={"appointment_id": "1", "note": "x"}, files=files),
+        slow_media,
     )
     started = time.perf_counter()
-    adjust = client.post(f"/api/items/{slow_media}/adjust", json={"delta": 1})
-    elapsed = time.perf_counter() - started
+    adjust = client.post(f"/api/items/{slow_media.item_id}/adjust", json={"delta": 1})
+    elapsed = time.perf_counter() - started  # 僅供失敗訊息診斷，不作為 pass/fail 條件
+    finished_when_adjust_returned = slow_media.finished
     thread.join()
     assert adjust.status_code == 200
     assert result["response"].status_code == 201, result["response"].text
     assert len(result["response"].json()["photos"]) == 2
-    assert elapsed < SLOW_VARIANT_SECONDS * 0.5, f"庫存調整被上傳卡住 {elapsed:.2f}s"
+    # 契約 = 因果順序：第一張圖處理中 → adjust 完成 → 圖片尚未處理完。
+    # 不設牆鐘門檻：repo 無 adjust 延遲 SLA，固定秒數在 CI 排程抖動下會誤判（issue #38）。
+    assert finished_when_adjust_returned == 0, (
+        f"庫存調整等到影像處理結束才完成（被上傳卡住）；adjust 耗時 {elapsed:.2f}s"
+    )
 
 
 def test_signed_report_file_replace_does_not_block_event_loop(client, slow_media):
@@ -221,7 +248,8 @@ def test_signed_report_file_replace_does_not_block_event_loop(client, slow_media
     rid = created.json()["id"]
     thread, result = _run_in_background(
         lambda: client.patch(f"/api/signed-reports/{rid}", data={"note": "換檔"},
-                             files={"file": ("b.png", _png("blue"), "image/png")})
+                             files={"file": ("b.png", _png("blue"), "image/png")}),
+        slow_media,
     )
     started = time.perf_counter()
     health = client.get("/health")
