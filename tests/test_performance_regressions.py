@@ -237,8 +237,8 @@ def test_multi_photo_upload_does_not_block_other_writers(client, slow_media):
     )
 
 
-def test_signed_report_file_replace_does_not_block_event_loop(client, slow_media):
-    """async 編輯端點替換檔案時，其他請求（/health）不可被卡住。"""
+def test_signed_report_file_replace_keeps_health_responsive_during_media_processing(client, slow_media):
+    """替換檔案進行 media preparation 時，/health 應可在 media processing 完成前回應。"""
     created = client.post(
         "/api/signed-reports",
         data={"report_date": "2026-09-18", "uploader_name": "王", "note": ""},
@@ -253,15 +253,20 @@ def test_signed_report_file_replace_does_not_block_event_loop(client, slow_media
     )
     started = time.perf_counter()
     health = client.get("/health")
-    elapsed = time.perf_counter() - started  # 僅供失敗訊息診斷，不作為 pass/fail 條件
+    elapsed = time.perf_counter() - started  # 僅供失敗診斷；本測試刻意不建立 /health latency SLA
     finished_when_health_returned = slow_media.finished
     thread.join()
     assert health.status_code == 200
     assert result["response"].status_code == 200, result["response"].text
-    # 契約 = 因果順序：換檔處理中 → /health 回應 → 圖片尚未處理完。
-    # 不設牆鐘門檻：repo 無 /health 延遲 SLA，固定秒數在 CI 排程抖動下會誤判（issue #38）。
+    # Regression contract：
+    # media preparation 已開始 → /health 完成 → media preparation 尚未完成。
+    #
+    # 此測試驗證的是「/health 不必等待整段 media processing 完成」，
+    # 並不建立 /health latency SLA（固定秒數在 CI 排程抖動下會誤判，見 issue #38），
+    # 也不保證不存在較短時間的 scheduler delay 或其他 synchronous blocking。
     assert finished_when_health_returned == 0, (
-        f"event loop 被卡住：/health 等到影像處理結束才回應；耗時 {elapsed:.2f}s"
+        "signed-report media processing 阻止 /health 在處理完成前回應；"
+        f"health 耗時 {elapsed:.2f}s"
     )
 
 
