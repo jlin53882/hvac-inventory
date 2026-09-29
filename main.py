@@ -98,7 +98,7 @@ _PAGE_ENTRY_RE = re.compile(r'<script type="module" src="/static/js/(pages/[\w-]
 _dist_manifest_cache: dict = {}
 
 def _dist_manifest() -> dict:
-    """讀取 Vite manifest（依 mtime 快取）；不存在或指定使用原始碼時回傳空 dict"""
+    """讀取 Vite manifest（依 mtime 快取）；不存在、損毀或指定使用原始碼時回傳空 dict（頁面改載原始 ES modules）"""
     if os.environ.get("HVAC_FRONTEND_SOURCE") == "1":
         return {}
     path = os.path.join(STATIC_DIR, "dist", ".vite", "manifest.json")
@@ -107,22 +107,42 @@ def _dist_manifest() -> dict:
     except OSError:
         return {}
     if _dist_manifest_cache.get("key") != (path, mtime):
-        with open(path, encoding="utf-8") as fh:
-            _dist_manifest_cache.update(key=(path, mtime), manifest=json.load(fh))
+        try:
+            with open(path, encoding="utf-8") as fh:
+                manifest = json.load(fh)
+            if not isinstance(manifest, dict):
+                raise ValueError("manifest 不是 JSON 物件")
+        except (OSError, ValueError) as exc:
+            # 同一個 mtime 只警告一次；首頁照常以原始 ES modules 回應，不因建置結果損毀而 500
+            logger.warning("frontend dist manifest unusable, serving source modules: %s (%s)", path, exc)
+            manifest = {}
+        _dist_manifest_cache.update(key=(path, mtime), manifest=manifest)
     return _dist_manifest_cache["manifest"]
+
+def _dist_file(manifest: dict, name: str) -> str | None:
+    """manifest 項目對應的建置檔（相對 static/dist）；項目不完整或檔案不存在回 None"""
+    item = manifest.get(name) if isinstance(name, str) else None
+    file =item.get("file") if isinstance(item, dict) else None
+    if not isinstance(file, str) or not os.path.isfile(os.path.join(STATIC_DIR, "dist", file)):
+        return None
+    return file
 
 def _use_dist_entries(html: str) -> str:
     """把頁面進入點換成建置後的檔案，並預先載入它 import 的共用 chunk"""
     manifest = _dist_manifest()
 
     def _swap_entry(m):
-        """re.sub 替換 callback：manifest 有這個進入點才替換，否則保留原始 ES module"""
-        entry = manifest.get(f"static/js/{m.group(1)}")
-        if not entry:
+        """re.sub 替換 callback：manifest 有完整可用的進入點才替換，否則保留原始 ES module"""
+        name = f"static/js/{m.group(1)}"
+        if name not in manifest:
             return m.group(0)
-        preloads = "".join(f'<link rel="modulepreload" href="/static/dist/{manifest[name]["file"]}">'
-                           for name in entry.get("imports", []))
-        return f'{preloads}<script type="module" src="/static/dist/{entry["file"]}"></script>'
+        imports = manifest[name].get("imports", []) if isinstance(manifest[name], dict) else None
+        files = [_dist_file(manifest, n) for n in [name, *imports]] if isinstance(imports, list) else [None]
+        if not all(files):
+            logger.warning("frontend dist entry incomplete, serving source module: %s", name)
+            return m.group(0)
+        preloads = "".join(f'<link rel="modulepreload" href="/static/dist/{file}">' for file in files[1:])
+        return f'{preloads}<script type="module" src="/static/dist/{files[0]}"></script>'
 
     return _PAGE_ENTRY_RE.sub(_swap_entry, html)
 

@@ -209,6 +209,8 @@ git diff --exit-code -- static/dist
 
 前端 JS 以 Vite 打包（issue #39），建置結果 `static/dist/` 提交進 repo，辦公室電腦不需安裝 Node。Quality 重新建置後若 `static/dist` 與提交內容不同（含新增檔案），代表有人改了 `static/js` 卻沒重建，job 失敗；修正方式是本機執行 `npm run build` 並提交結果。`.gitattributes` 把 `static/js/**`、`static/dist/**` 固定為 LF，Windows 與 Linux 建置出相同 hash。
 
+`main.py` 依 `static/dist/.vite/manifest.json` 把頁面進入點換成建置檔；manifest 不存在、JSON 損毀、不是物件，或某個進入點缺 `file`、`imports` 指向不存在的項目、建置檔不存在時，記錄 warning 並讓該頁改載原始 ES modules（不回 500；`test_versioned_html_falls_back_to_source_when_manifest_unusable`）。原始模組能否在瀏覽器實際執行由 `tests/visual/test_source_modules.py` 驗證。
+
 若 workflow 已採用 actionlint 或其他等價工具，修改 workflow 時也必須執行；新增 quality check 後要同步更新本文件。修改 workflow 後仍要人工 review GitHub expression 與 `needs` graph，即使 YAML parser 通過也不能省略。
 
 Full Regression、Python 3.11 Compatibility 與 serial Deep Regression 各自產生 JUnit XML artifact，retention 為 7 days。Domain diagnostics 不必為了形式重複上傳同樣 artifact。

@@ -828,6 +828,40 @@ def test_versioned_html_serves_vite_build_when_manifest_exists(media_env, monkey
     assert "/static/dist/" not in html
 
 
+@pytest.mark.parametrize("label, content", [
+    ("invalid json", "{not json"),
+    ("not an object", "[]"),
+    ("entry without file", json.dumps({"static/js/pages/main.js": {"isEntry": True}})),
+    ("entry not an object", json.dumps({"static/js/pages/main.js": "assets/main-abc.js"})),
+    ("import key missing", json.dumps({"static/js/pages/main.js": {"file": "assets/main-abc.js", "imports": ["_gone.js"]}})),
+    ("imports not a list", json.dumps({"static/js/pages/main.js": {"file": "assets/main-abc.js", "imports": "_shared-def.js"}})),
+    ("built file missing", json.dumps({"static/js/pages/main.js": {"file": "assets/deleted.js"}})),
+])
+def test_versioned_html_falls_back_to_source_when_manifest_unusable(media_env, monkeypatch, caplog, label, content):
+    """issue #39：manifest 損毀 / 不完整 / 指向不存在的建置檔時記錄 warning 並改載原始 ES module，首頁不可 500。"""
+    client, static_dir, _upload_dir = media_env
+    monkeypatch.delenv("HVAC_FRONTEND_SOURCE", raising=False)
+    index = static_dir / "index.html"
+    index.write_text('<script type="module" src="/static/js/pages/main.js"></script>', encoding="utf-8")
+    source_entry = static_dir / "js" / "pages" / "main.js"
+    source_entry.parent.mkdir(parents=True)
+    source_entry.write_text("import './x.js';", encoding="utf-8")
+    assets = static_dir / "dist" / "assets"
+    assets.mkdir(parents=True)
+    (assets / "main-abc.js").write_text("export {};", encoding="utf-8")
+    manifest = static_dir / "dist" / ".vite" / "manifest.json"
+    manifest.parent.mkdir()
+    manifest.write_text(content, encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        response = client.get("/")
+    assert response.status_code == 200, label
+    html = response.text
+    assert '<script type="module" src="/static/js/pages/main.js?v=' in html, label
+    assert "/static/dist/" not in html, label
+    assert any("serving source module" in record.getMessage() for record in caplog.records), label
+
+
 def test_appointment_batch_formatter_chunks_large_id_lists(media_env):
     _client, _static_dir, _upload_dir = media_env
     conn = app_db.get_db()
