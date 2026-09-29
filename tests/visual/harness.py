@@ -97,8 +97,11 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def start_server(workdir: str, db_template: str | None = None) -> LiveServer:
-    """在 workdir 內建立隔離 DB 並啟動伺服器；db_template 存在時先複製它（重現同一份資料）。"""
+def start_server(workdir: str, db_template: str | None = None, extra_env: dict | None = None) -> LiveServer:
+    """在 workdir 內建立隔離 DB 並啟動伺服器；db_template 存在時先複製它（重現同一份資料）。
+
+    extra_env：額外環境變數（例：HVAC_FRONTEND_SOURCE=1 讓頁面直接載入原始 ES modules）。
+    """
     os.makedirs(workdir, exist_ok=True)
     db_path = os.path.join(workdir, "visual.db")
     uploads = os.path.join(workdir, "uploads")
@@ -109,7 +112,8 @@ def start_server(workdir: str, db_template: str | None = None) -> LiveServer:
     if db_template and os.path.exists(db_template):
         shutil.copyfile(db_template, db_path)
     port = _free_port()
-    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "HVAC_FRONTEND_SOURCE")}
+    env.update(extra_env or {})
     proc = subprocess.Popen(
         [sys.executable, SERVE_SCRIPT, "--db", db_path, "--uploads", uploads,
          "--port", str(port), "--token-file", token_file],
