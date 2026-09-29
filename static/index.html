@@ -234,22 +234,22 @@
     <h3>➕ 新增品項</h3>
     <div class="form-2col">
       <div class="form-row">
-        <label>廠牌</label>
+        <label>廠牌*</label>
         <input type="text" id="f-brand" list="brand-list" placeholder="例如：大金">
       </div>
       <div class="form-row">
-        <label>型號</label>
+        <label>型號*</label>
         <input type="text" id="f-code" placeholder="例如：K031224">
       </div>
     </div>
     <div class="form-row">
-      <label>品項名稱 *</label>
+      <label>品項名稱*</label>
       <input type="text" id="f-name" placeholder="例如：變頻控制基板">
     </div>
     <div id="f-similar-warn" class="similar-warn" style="display:none"></div>
     <div class="form-2col">
       <div class="form-row">
-        <label>分類位置</label>
+        <label>分類位置(選填)</label>
         <select id="f-site">
           <option value="office">🏢 公司</option>
           <option value="warehouse">🏭 倉庫</option>
@@ -257,26 +257,26 @@
         </select>
       </div>
       <div class="form-row">
-        <label>單位</label>
+        <label>單位(選填)</label>
         <input type="search" id="f-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'f-unit')">
         <select id="f-unit"></select>
         <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="f-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('f-unit'), this)">＋ 新增單位</button>
       </div>
     </div>
     <div class="form-row">
-      <label>位置清單（可新增多個位置）</label>
+      <label>位置清單*（至少新增一個位置，可新增多個）</label>
       <div class="col-headers edit-stock-headers">
-        <span class="ch-cabinet">櫃子</span>
-        <span class="ch-pos">位置</span>
-        <span class="ch-qty">數量</span>
-        <span class="ch-note">備註</span>
+        <span class="ch-cabinet">櫃子*</span>
+        <span class="ch-pos">位置(選填)</span>
+        <span class="ch-qty">數量(選填)</span>
+        <span class="ch-note">備註(選填)</span>
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="add-stock-rows"></div>
       <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="addAddStockRow()">＋ 新增位置</button>
     </div>
     <div class="form-row">
-      <label>分類（選填）</label>
+      <label>分類(選填)</label>
       <select id="f-category">
         <option value="">— 請選擇 —</option>
         <option value="遙控器">遙控器</option>
@@ -290,7 +290,7 @@
       </select>
     </div>
     <div class="form-row">
-      <label>品項照片（選填，手機可直接拍照）</label>
+      <label>品項照片(選填，手機可直接拍照)</label>
       <div class="photo-box" id="f-photo-box"></div>
     </div>
     <div class="modal-actions">
@@ -306,36 +306,36 @@
     <h3>✏️ 編輯品項</h3>
     <div class="form-2col">
       <div class="form-row">
-        <label>廠牌</label>
+        <label>廠牌*</label>
         <input type="text" id="e-brand">
       </div>
       <div class="form-row">
-        <label>型號</label>
+        <label>型號*</label>
         <input type="text" id="e-code">
       </div>
     </div>
     <div class="form-row">
-      <label>品項名稱</label>
+      <label>品項名稱*</label>
       <input type="text" id="e-name">
     </div>
     <div id="e-similar-warn" class="similar-warn" style="display:none"></div>
     <div class="form-row">
-      <label>品項照片（手機可直接拍照）</label>
+      <label>品項照片(選填，手機可直接拍照)</label>
       <div class="photo-box" id="e-photo-box"></div>
     </div>
     <div class="form-2col">
       <div class="form-row">
-        <label>單位</label>
+        <label>單位(選填)</label>
         <input type="search" id="e-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'e-unit')">
         <select id="e-unit"></select>
         <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="e-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('e-unit'), this)">＋ 新增單位</button>
       </div>
       <div class="form-row">
-        <label>低庫存警示值</label>
+        <label>低庫存警示值(選填)</label>
         <input type="text" inputmode="decimal" id="e-lowstock" placeholder="0 = 不警示">
       </div>
       <div class="form-row">
-        <label>分類</label>
+        <label>分類(選填)</label>
         <select id="e-category">
           <option value="">— 請選擇 —</option>
           <option value="遙控器">遙控器</option>
@@ -349,7 +349,7 @@
         </select>
       </div>
       <div class="form-row">
-        <label>分類位置</label>
+        <label>分類位置(唯讀)</label>
         <select id="e-site">
           <option value="office">🏢 公司</option>
           <option value="warehouse">🏭 倉庫</option>
@@ -358,16 +358,12 @@
       </div>
     </div>
     <div class="form-row">
-      <label>位置（放多處可之後用編輯新增）</label>
-      <input type="text" id="e-location" list="location-list" placeholder="例如：編號A">
-    </div>
-    <div class="form-row">
-      <label>位置清單（多位置管理）</label>
+      <label>位置清單*（至少保留一個位置）</label>
       <div class="col-headers edit-stock-headers">
-        <span class="ch-cabinet">櫃子</span>
-        <span class="ch-pos">位置</span>
-        <span class="ch-qty">數量</span>
-        <span class="ch-note">備註</span>
+        <span class="ch-cabinet">櫃子*</span>
+        <span class="ch-pos">位置(選填)</span>
+        <span class="ch-qty">數量(選填)</span>
+        <span class="ch-note">備註(選填)</span>
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="edit-stock-rows"></div>
@@ -399,7 +395,7 @@
     <p class="u-fs-12 u-text-muted u-mb-12" id="kit-prepare-desc">整組包含以下品項，按「確認領出」一次領出整組。</p>
     <div class="u-maxh-400 u-oy-auto" id="kit-prepare-list"></div>
     <div class="form-row u-mt-12">
-      <label>備註</label>
+      <label>備註(選填)</label>
       <input type="text" id="kit-prepare-note" placeholder="準備說明（選填）">
     </div>
     <div class="modal-actions">
@@ -443,31 +439,31 @@
   <div class="modal u-maxw-440">
     <h3>✏️ 編輯待領出品項</h3>
     <div class="form-row">
-      <label>品項名稱</label>
+      <label id="pe-name-label">品項名稱*</label>
       <input type="text" id="pe-name">
     </div>
     <div class="form-2col">
       <div class="form-row">
-        <label>廠牌</label>
+        <label>廠牌(選填)</label>
         <input type="text" id="pe-brand">
       </div>
       <div class="form-row">
-        <label>型號</label>
+        <label>型號(選填)</label>
         <input type="text" id="pe-code">
       </div>
     </div>
     <div class="form-2col">
       <div class="form-row">
-        <label>單位</label>
+        <label>單位(選填)</label>
         <select id="pe-unit"></select>
       </div>
       <div class="form-row">
-        <label>待領出數量</label>
+        <label>待領出數量*</label>
         <input type="text" id="pe-qty" inputmode="decimal" autocomplete="off" placeholder="例如 1、0.5、1/4">
       </div>
     </div>
     <div class="form-row">
-      <label>準備說明</label>
+      <label>準備說明(選填)</label>
       <input type="text" id="pe-dest" placeholder="領出準備說明（選填）">
     </div>
     <div class="modal-actions">
@@ -490,21 +486,21 @@
       <input type="text" id="o-item-stock" disabled>
     </div>
     <div class="form-row">
-      <label>從哪個位置出（選填）</label>
+      <label>從哪個位置出(選填)</label>
       <select id="o-location">
         <option value="">全部位置（自動依序扣）</option>
       </select>
     </div>
     <div class="form-row">
-      <label>領出數量 *</label>
+      <label>領出數量*</label>
       <input type="text" inputmode="decimal" id="o-qty" placeholder="要扣多少">
     </div>
     <div class="form-row">
-      <label>去哪裡（客戶 / 案場 / 工地）*</label>
+      <label>去哪裡（客戶／案場／工地）*</label>
       <input type="text" id="o-dest" list="dest-list" placeholder="例如：王先生-中山路案場">
     </div>
     <div class="form-row">
-      <label>備註（選填）</label>
+      <label>備註(選填)</label>
       <textarea id="o-note" placeholder="例如：安裝、維修、報廢…"></textarea>
     </div>
     <div class="modal-actions">
@@ -520,29 +516,29 @@
     <h3>➕ 新增已領出</h3>
     <div class="hint-nonstock">ℹ️ 此品項不在單一庫存 / 整組庫存，只記錄這次領出，不會加入庫存清單</div>
     <div class="form-row">
-      <label>品項名稱 *</label>
+      <label>品項名稱*</label>
       <input type="text" id="ns-name" placeholder="直接輸入名稱，例如：冷媒銅管 3分">
     </div>
     <div class="form-row">
-      <label>型號（選填）</label>
+      <label>型號(選填)</label>
       <input type="text" id="ns-code" placeholder="例如：3/8&quot;">
     </div>
     <div class="form-row">
-      <label>單位</label>
+      <label>單位(選填)</label>
       <input type="search" id="ns-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'ns-unit')">
       <select id="ns-unit"></select>
       <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="ns-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('ns-unit'), this)">＋ 新增單位</button>
     </div>
     <div class="form-row">
-      <label>領出數量 *</label>
+      <label>領出數量*</label>
       <input type="text" inputmode="decimal" id="ns-qty" placeholder="要領出多少">
     </div>
     <div class="form-row">
-      <label>去哪裡（客戶 / 案場 / 工地）*</label>
+      <label>去哪裡（客戶／案場／工地）*</label>
       <input type="text" id="ns-dest" list="dest-list" placeholder="例如：王先生-中山路案場">
     </div>
     <div class="form-row">
-      <label>備註（選填）</label>
+      <label>備註(選填)</label>
       <textarea id="ns-note" placeholder="例如：安裝、維修…"></textarea>
     </div>
     <div class="modal-actions">
@@ -558,25 +554,25 @@
     <h3>➕ 新增待領出</h3>
     <div class="hint-nonstock">ℹ️ 此品項不在單一庫存 / 整組庫存，只記錄這次待領出，不會加入庫存清單</div>
     <div class="form-row">
-      <label>品項名稱 *</label>
+      <label>品項名稱*</label>
       <input type="text" id="nsp-name" placeholder="直接輸入名稱，例如：冷媒銅管 3分">
     </div>
     <div class="form-row">
-      <label>型號（選填）</label>
+      <label>型號(選填)</label>
       <input type="text" id="nsp-code" placeholder="例如：3/8&quot;">
     </div>
     <div class="form-row">
-      <label>單位</label>
+      <label>單位(選填)</label>
       <input type="search" id="nsp-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" oninput="filterUnitSelect(this, 'nsp-unit')">
       <select id="nsp-unit"></select>
       <button type="button" class="btn btn--ghost btn--sm unit-add-link" id="nsp-unit-add" style="display:none" onclick="openUnitQuickAdd(document.getElementById('nsp-unit'), this)">＋ 新增單位</button>
     </div>
     <div class="form-row">
-      <label>待領出數量 *</label>
+      <label>待領出數量*</label>
       <input type="text" inputmode="decimal" id="nsp-qty" placeholder="要準備多少">
     </div>
     <div class="form-row">
-      <label>備註（選填）</label>
+      <label>備註(選填)</label>
       <textarea id="nsp-note" placeholder="例如：安裝、維修…"></textarea>
     </div>
     <div class="modal-actions">
@@ -599,11 +595,11 @@
       <input type="text" id="p-item-stock" disabled>
     </div>
     <div class="form-row">
-      <label>待領出數量 *</label>
+      <label>待領出數量*</label>
       <input type="text" inputmode="decimal" id="p-qty" placeholder="要領出多少（庫存先不扣）">
     </div>
     <div class="form-row">
-      <label>準備說明（選填）</label>
+      <label>準備說明(選填)</label>
       <textarea id="p-note" placeholder="例如：今天要去維修要帶的"></textarea>
     </div>
     <div class="modal-actions">
@@ -626,11 +622,11 @@
       <input type="text" id="po-item-prepared" disabled>
     </div>
     <div class="form-row">
-      <label>確認已領出數量 *</label>
+      <label>確認已領出數量*</label>
       <input type="text" inputmode="decimal" id="po-qty" placeholder="從待領出扣掉（此時才扣庫存）">
     </div>
     <div class="form-row">
-      <label>去哪裡（客戶 / 案場 / 工地）*</label>
+      <label>去哪裡（客戶／案場／工地）*</label>
       <input type="text" id="po-dest" list="dest-list" placeholder="例如：王先生-中山路案場">
     </div>
     <div class="modal-actions">
@@ -645,21 +641,21 @@
   <div class="modal">
     <h3>🔧 新增整組</h3>
     <div class="form-row">
-      <label>整組名稱 *</label>
+      <label>整組名稱*</label>
       <input type="text" id="k-name" placeholder="例如：電磁閥套組">
     </div>
     <div class="form-2col">
       <div class="form-row">
-        <label>品牌（選填）</label>
+        <label>品牌(選填)</label>
         <input type="text" id="k-brand" placeholder="例如：大金">
       </div>
       <div class="form-row">
-        <label>型號（選填）</label>
+        <label>型號(選填)</label>
         <input type="text" id="k-code" placeholder="例如：FXSQ50">
       </div>
     </div>
     <div class="form-row">
-      <label>分類位置</label>
+      <label>分類位置(選填)</label>
       <select id="k-site">
         <option value="office">🏢 公司</option>
         <option value="warehouse">🏭 倉庫</option>
@@ -668,27 +664,27 @@
       </select>
     </div>
     <div class="form-row">
-      <label>建議存放位置（管理備註）</label>
+      <label>建議存放位置(選填，管理備註)</label>
       <div class="col-headers edit-stock-headers">
-        <span class="ch-cabinet">櫃子</span>
-        <span class="ch-pos">位置</span>
-        <span class="ch-note">備註</span>
+        <span class="ch-cabinet">櫃子(選填)</span>
+        <span class="ch-pos">位置(選填)</span>
+        <span class="ch-note">備註(選填)</span>
         <span class="ch-remove" aria-hidden="true"></span>
       </div>
       <div id="kit-location-rows"></div>
       <button type="button" class="btn btn--ghost btn--sm btn-prepare u-mt-0" onclick="addKitLocationRow()">＋ 新增位置</button>
     </div>
     <div class="form-row">
-      <label>整組照片（選填，可手機直接拍照）</label>
+      <label>整組照片(選填，可手機直接拍照)</label>
       <div class="photo-box" id="k-photo-box"></div>
     </div>
     <div class="form-row">
-      <label>組成材料（每組需要的數量）</label>
+      <label>組成材料*（每組至少新增一項，並填寫品項與數量）</label>
       <div id="kit-comps"></div>
       <button class="btn btn--ghost btn--sm btn-add-row u-mt-0" onclick="addKitCompRow()">＋ 加入另一材料</button>
     </div>
     <div class="form-row">
-      <label>備註（選填）</label>
+      <label>備註(選填)</label>
       <input type="text" id="k-note" placeholder="例如：常用於維修">
     </div>
     <div class="modal-actions">
@@ -707,15 +703,15 @@
       <input type="text" id="es-item-name" disabled>
     </div>
     <div class="form-row">
-      <label>數量 *</label>
+      <label>數量*</label>
       <input type="text" inputmode="decimal" id="es-qty" placeholder="已領出數量">
     </div>
     <div class="form-row">
-      <label>去哪裡（客戶 / 案場 / 工地）</label>
+      <label>去哪裡（客戶／案場／工地）(選填)</label>
       <input type="text" id="es-dest" list="dest-list" placeholder="例如：王先生-中山路案場">
     </div>
     <div class="form-row">
-      <label>日期</label>
+      <label>日期(選填)</label>
       <input type="date" id="es-datetime">
     </div>
     <div class="modal-actions">
@@ -730,7 +726,7 @@
   <div class="modal">
     <h3 id="rs-title">↩️ 退回已領出</h3>
     <div class="form-row" id="rs-parent-row" style="display:none">
-      <label>原始已領出紀錄 *</label>
+      <label>原始已領出紀錄*</label>
       <select id="rs-parent-movement"><option value="">— 請選擇原始出庫 —</option></select>
     </div>
     <div class="form-row">
@@ -738,7 +734,7 @@
       <input type="text" id="rs-item-name" disabled>
     </div>
     <div class="form-row">
-      <label>退回數量 *（原領出 <span id="rs-original-qty"></span>）</label>
+      <label>退回數量*（原領出 <span id="rs-original-qty"></span>）</label>
       <input type="text" inputmode="decimal" id="rs-qty" placeholder="退回數量（預設全數）">
     </div>
     <div class="form-row">
@@ -746,15 +742,15 @@
       <input type="text" id="rs-source-location" disabled>
     </div>
     <div class="form-row">
-      <label>退回庫存位置 *</label>
+      <label>退回庫存位置*</label>
       <select id="rs-location"><option value="">— 請選擇 —</option></select>
     </div>
     <div class="form-row">
-      <label>退回去向</label>
+      <label>退回去向(選填)</label>
       <input type="text" id="rs-dest" list="dest-list" value="公司" placeholder="例如：公司">
     </div>
     <div class="form-row">
-      <label>日期</label>
+      <label>日期(選填)</label>
       <input type="date" id="rs-datetime">
     </div>
     <div class="modal-actions">
@@ -769,11 +765,11 @@
   <div class="modal">
     <h3>🔑 修改密碼</h3>
     <div class="form-row">
-      <label>目前密碼</label>
+      <label>目前密碼*</label>
       <input type="password" id="cpw-old" placeholder="輸入目前的密碼">
     </div>
     <div class="form-row">
-      <label>新密碼</label>
+      <label>新密碼*</label>
       <input type="password" id="cpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="cpwCheckStrength()">
       <div class="pw-checks" id="cpw-checks">
         <span class="pw-check" id="cpw-len">⬜ 8 碼以上</span>
@@ -783,7 +779,7 @@
       </div>
     </div>
     <div class="form-row">
-      <label>確認新密碼</label>
+      <label>確認新密碼*</label>
       <input type="password" id="cpw-confirm" placeholder="再輸入一次新密碼" oninput="cpwCheckMatch()">
       <div class="cpw-mismatch" id="cpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
     </div>
@@ -814,7 +810,7 @@
   <div class="modal">
     <h3>🔑 重設密碼</h3>
     <div class="form-row">
-      <label>新密碼</label>
+      <label>新密碼*</label>
       <input type="password" id="rpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="pwStrengthCheck('rpw-new')">
       <div class="pw-checks" id="rpw-checks">
         <span class="pw-check" id="rpw-len">⬜ 8 碼以上</span>
@@ -824,7 +820,7 @@
       </div>
     </div>
     <div class="form-row">
-      <label>確認新密碼</label>
+      <label>確認新密碼*</label>
       <input type="password" id="rpw-confirm" placeholder="再輸入一次新密碼" oninput="pwMatchCheck('rpw-new','rpw-confirm','rpw-mismatch')">
       <div class="cpw-mismatch" id="rpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
     </div>
@@ -852,7 +848,7 @@
       <button type="button" class="chip chip--seg" id="qtyd-mode-sub" aria-pressed="false" onclick="setQtyDialogMode('sub')">− 減少</button>
     </div>
     <div class="form-row">
-      <label>數量 *</label>
+      <label>數量*</label>
       <input type="text" id="qtyd-input" inputmode="decimal" placeholder="例如 1/4、1/3、0.5、1" autocomplete="off">
     </div>
     <div class="qtyd-quick">
@@ -935,10 +931,10 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
     <h3 id="transfer-title">🔄 庫存調撥</h3>
     <div class="form-row"><label>品項</label><b id="transfer-item-name"></b><small id="transfer-item-meta"></small></div>
-    <div class="form-row"><label for="transfer-source-location">來源位置</label><select id="transfer-source-location"></select></div>
-    <div class="form-row"><label for="transfer-qty">調撥數量</label><input type="text" inputmode="decimal" id="transfer-qty"></div>
-    <div class="form-row"><label for="transfer-target-site">目標庫存區</label><select id="transfer-target-site"></select></div>
-    <div class="form-row"><label for="transfer-target-location">目標位置</label><input type="text" id="transfer-target-location" maxlength="100" placeholder="車內工具櫃｜左側"></div>
+    <div class="form-row"><label for="transfer-source-location">來源位置(選填)</label><select id="transfer-source-location"></select></div>
+    <div class="form-row"><label for="transfer-qty">調撥數量*</label><input type="text" inputmode="decimal" id="transfer-qty"></div>
+    <div class="form-row"><label for="transfer-target-site">目標庫存區*</label><select id="transfer-target-site"></select></div>
+    <div class="form-row"><label for="transfer-target-location">目標位置(選填)</label><input type="text" id="transfer-target-location" maxlength="100" placeholder="車內工具櫃｜左側"></div>
     <div class="u-text-danger-strong u-minh-20" id="transfer-error" role="alert"></div>
     <div class="modal-actions"><button class="btn btn--secondary btn--md btn-cancel" onclick="closeTransferModal()">取消</button><button type="button" class="btn btn--primary btn--md btn-confirm" id="transfer-submit" onclick="submitTransfer()">✅ 確認調撥</button></div>
   </div>

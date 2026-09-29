@@ -205,13 +205,13 @@ function wprRenderCreate() {
   }
   create.innerHTML = `
     <div class="wpr-section-heading"><div><h2>建立工作進度</h2><p>選擇行事曆工作後填寫現場回報。</p></div></div>
-    <div class="wpr-field"><label for="wpr-date">工作日期 <b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" onchange="wprHandleDateChange()"></div>
-    <div class="wpr-field"><label>選擇工作內容 <b>*</b></label><div id="wpr-job-list" class="wpr-job-list"></div></div>
+    <div class="wpr-field"><label for="wpr-date">工作日期<b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" onchange="wprHandleDateChange()"></div>
+    <div class="wpr-field"><label>選擇工作內容<b>*</b></label><div id="wpr-job-list" class="wpr-job-list"></div></div>
     <div id="wpr-selected-area" hidden></div>
     <section class="wpr-create-progress-section" aria-labelledby="wpr-create-progress-title">
       <h3 id="wpr-create-progress-title">工作進度資料</h3>
-      <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱 <b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
-      <div class="wpr-field"><label for="wpr-note">工作進度</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
+      <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱<b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
+      <div class="wpr-field"><label for="wpr-note">工作進度(選填)</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
       <div class="wpr-field"><label>施工照片（選填）</label>
         <div class="wpr-photo-limit-copy">JPG、PNG、WebP · 單張最多 20MB · 每份最多 20 張</div>
         <div id="wpr-drop" class="wpr-drop">
@@ -921,11 +921,11 @@ async function wprEditReport(id, targetId) {
           </section>
           <section class="wpr-edit-form-section" aria-labelledby="wpr-edit-progress-title">
             <h4 id="wpr-edit-progress-title">工作進度資料</h4>
-            <label for="wpr-edit-uploader">回報人顯示名稱</label>
+            <label for="wpr-edit-uploader">回報人顯示名稱*</label>
             <input id="wpr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}">
             <div class="wpr-edit-creator">建立帳號：${esc(wprCreatedByText(report))}</div>
             <div class="wpr-edit-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div>
-            <label for="wpr-edit-note">工作進度</label>
+            <label for="wpr-edit-note">工作進度(選填)</label>
             <textarea id="wpr-edit-note" maxlength="1000" rows="6">${esc(report.note || '')}</textarea>
           </section>
         </div>

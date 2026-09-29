@@ -11,26 +11,26 @@ function calModalHtml(isAdmin) {
       <div class="cal-conflict" id="cal-appt-conflict"></div>
       <input type="hidden" id="cal-f-id">
       <div class="form-row" style="display:none">  <!-- 負責人員已隱藏（2026-08-12 家豪指定：明細以新增者標示即可） -->
-        <label>負責人員（可不選，可勾多位＝一起出勤）</label>
+        <label>負責人員(選填)</label>
         <div class="cal-person-list" id="cal-f-users"></div>
       </div>
       <div class="form-row">
-        <label>服務項目</label>
+        <label>服務項目(選填)</label>
         <select id="cal-f-svc"></select>
       </div>
       <div class="form-row">
-        <label>客戶姓名與戶號 / 案場</label>
+        <label>客戶姓名與戶號 / 案場*</label>
         <input type="text" id="cal-f-client" placeholder="例：林先生 (A棟 501號)">
       </div>
       <div class="form-row">
-        <label>地址（選填）</label>
+        <label>地址(選填)</label>
         <input type="text" id="cal-f-address" placeholder="例：新北市○○區○○路 ○○號">
       </div>
       <div class="form-row">
-        <label>派工日期</label><input type="date" id="cal-f-date">
+        <label>派工日期*</label><input type="date" id="cal-f-date">
       </div>
       <div class="form-row">
-        <label>派工時間</label>
+        <label>派工時間(選填)</label>
         <!-- 2026-08-13 Sarah：time input 在手機顯示 12 制（上午/下午）→ 改下拉式 24 制 -->
         <div class="cal-time-picker">
           <select id="cal-f-hour" aria-label="時"></select><span class="cal-time-colon">:</span>
@@ -38,7 +38,7 @@ function calModalHtml(isAdmin) {
         </div>
       </div>
       <div class="form-row">
-        <label>備註</label>
+        <label>備註(選填)</label>
         <textarea id="cal-f-note" rows="2" placeholder="例：車馬費 800 元"></textarea>
       </div>
       <div class="modal-actions">

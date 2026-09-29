@@ -56,11 +56,11 @@ async function renderQuotationUploads() {
           <div class="qup-card__bd">
             <div class="qup-form-grid qup-form-grid--two">
               <div class="qup-field">
-                <label>上傳人姓名 <span class="qup-required">*</span></label>
+                <label>上傳人姓名<span class="qup-required">*</span></label>
                 <input id="qup-uploader" type="text" placeholder="例：蘇昱豪">
               </div>
               <div class="qup-field">
-                <label>報表日期（業務日期） <span class="qup-required">*</span></label>
+                <label>報表日期（業務日期）<span class="qup-required">*</span></label>
                 <input id="qup-report-date" type="date" value="${esc(today)}">
               </div>
             </div>
@@ -466,10 +466,10 @@ async function qupEdit(id) {
     <div class="qup-modal qup-edit-modal" role="dialog" aria-modal="true" aria-labelledby="qup-edit-title">
       <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="btn btn--secondary btn--sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>
       <div class="qup-modal__bd">
-        <div class="qup-field"><label for="qup-edit-date">報表日期（YYYY-MM-DD）</label><input id="qup-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
-        <div class="u-mt-12 qup-field"><label for="qup-edit-uploader">上傳人姓名</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
-        <div class="u-mt-12 qup-field"><label for="qup-edit-note">備註</label><textarea id="qup-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
-        <div class="u-mt-12 qup-field"><label for="qup-edit-file">替換檔案（選填）</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+        <div class="qup-field"><label for="qup-edit-date">報表日期（YYYY-MM-DD）*</label><input id="qup-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-uploader">上傳人姓名*</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-note">備註(選填)</label><textarea id="qup-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-file">替換檔案(選填)</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
         <div class="qup-hint">不選擇新檔案會保留目前檔案。</div>
       </div>
       <div class="qup-modal__ft"><button class="btn btn--secondary btn--md" type="button" data-qup-edit-cancel>取消</button><button class="btn btn--primary btn--md qup-btn--primary" type="button" data-qup-edit-save>儲存</button></div>

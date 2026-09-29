@@ -513,6 +513,8 @@ function openPreparedEditModal(id) {
   _preparedEditContext = true;
   editItemId = id;  // 復用 editItemId 供共用流程
   const canEditMaster = canEditPreparedMaster(item);
+  const nameLabel = document.getElementById('pe-name-label');
+  if (nameLabel) nameLabel.textContent = canEditMaster ? '品項名稱*' : '品項名稱(唯讀)';
   ['pe-name', 'pe-brand', 'pe-code', 'pe-unit'].forEach(function(fieldId) {
     const field = document.getElementById(fieldId);
     if (field) field.disabled = !canEditMaster;

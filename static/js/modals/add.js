@@ -45,10 +45,10 @@ function openAddModal() {
  */
 function addStockRowHtml() {
   return `
-    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet">${_cabinetOptions('')}</select></label>
-    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" list="location-list" placeholder="例：1-1"></label>
-    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
-    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" placeholder="備註（選填）"></label>
+    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子*</span><select class="stock-cabinet">${_cabinetOptions('')}</select></label>
+    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" list="location-list" placeholder="例：1-1"></label>
+    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
+    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" placeholder="備註"></label>
     <button type="button" class="stock-remove" onclick="removeAddStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>`;
 }
 
@@ -177,7 +177,8 @@ async function submitAdd() {
   // 多位置：逐列解析（分數/小數單位可輸 1/4；非法數量 qtyInputOrToast 已 toast → 整包擋下）
   const parsedRows = [];
   for (const row of document.querySelectorAll('#add-stock-rows .stock-row')) {
-    const qty = qtyInputOrToast(row.querySelector('.stock-qty'), unit);
+    const qtyInput = row.querySelector('.stock-qty');
+    const qty = qtyInput.value.trim() === '' ? 0 : qtyInputOrToast(qtyInput, unit);
     if (typeof qty !== 'number' || !isFinite(qty)) return;
     parsedRows.push({
       cabinet: row.querySelector('.stock-cabinet').value,

@@ -142,7 +142,7 @@ function stkGroupByLoc(rows) {
   let html = '';
   Object.keys(byLoc).sort().forEach(loc => {
     const locRows = byLoc[loc];
-    html += `<section class="stocktake-location-group"><div class="stocktake-location-header"><span>📍 位置：${esc(loc)}</span><span class="stocktake-location-count">${esc(String(locRows.length))} 項</span></div><div class="stocktake-table-wrap"><table class="data-table stocktake-table"><colgroup><col class="stocktake-col-item"><col class="stocktake-col-system"><col class="stocktake-col-actual"><col class="stocktake-col-diff"></colgroup><thead><tr><th>品項</th><th>系統數量</th><th>實際數量</th><th>差異</th></tr></thead><tbody>`;
+    html += `<section class="stocktake-location-group"><div class="stocktake-location-header"><span>📍 位置：${esc(loc)}</span><span class="stocktake-location-count">${esc(String(locRows.length))} 項</span></div><div class="stocktake-table-wrap"><table class="data-table stocktake-table"><colgroup><col class="stocktake-col-item"><col class="stocktake-col-system"><col class="stocktake-col-actual"><col class="stocktake-col-diff"></colgroup><thead><tr><th>品項</th><th>系統數量</th><th>實際數量(選填)</th><th>差異</th></tr></thead><tbody>`;
     locRows.forEach(r => {
       const kitDef = r.item.is_kit ? (stocktakeKits.find(k => k.item_id === r.item.id) || null) : null;
       html += stocktakeRow(r.item, r.stock, kitDef);

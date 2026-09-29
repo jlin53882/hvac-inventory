@@ -136,7 +136,7 @@ def test_calendar_js_uses_api_endpoints():
     # 2026-08-13 Sarah：明細卡顯示編輯者（非新增者時）——esc 防 XSS
     assert "esc(e.updated_by_name)" in js and "編輯" in js
     # 2026-08-13 Sarah：備註標籤無括號提示（不要寫「（型號 / 車馬費）」）
-    assert "<label>備註</label>" in js and "備註（型號" not in js
+    assert "<label>備註(選填)</label>" in js and "備註（型號" not in js
     # 2026-09-08：桌面版操作按鈕改為 icon + aria-label（手機版保留可辨識文字）
     assert "cal-icon-btn btn-edit" in js and "aria-label=\"編輯派工\"" in js
     assert "cal-icon-btn btn-delete" in js and "aria-label=\"刪除派工\"" in js
@@ -425,6 +425,10 @@ def test_calendar_date_required_validation():
     """B3：行事曆派工日期必填"""
     js = read(CALENDAR_MODAL_JS)
     assert "!body.date" in js and "請選擇派工日期" in js, "calendar.js 缺 date 必填檢查"
+    assert "<label>客戶姓名與戶號 / 案場*</label>" in js
+    assert "<label>派工日期*</label>" in js
+    for label in ("服務項目(選填)", "地址(選填)", "派工時間(選填)", "備註(選填)"):
+        assert label in js, f"calendar modal 缺少選填標示：{label}"
 
 def test_settings_html_has_gcal_panel():
     """settings.html 包含行事曆同步 panel"""
