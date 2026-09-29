@@ -1,5 +1,5 @@
 /* 商品 / 庫存異常清單 Dialog（庫存、整組、盤點共用；CSS 架構重構 P4 自 4-pages/inventory.css 抽出） */
-@layer legacy {
+@layer components {
 .inventory-status-close:focus-visible, .inventory-status-edit:focus-visible {
   outline: 3px solid rgba(37, 99, 235, .24);
   outline-offset: 2px;

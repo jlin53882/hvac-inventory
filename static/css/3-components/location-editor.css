@@ -1,9 +1,7 @@
-/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
-   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
-@layer legacy {
+/* 位置清單編輯器（新增 / 編輯品項 modal 的位置列、位置調整；跨頁共用，CSS 架構重構 P5 自 4-pages/inventory-locations.css 改為共用元件） */
+@layer components {
 /* Inventory location editing and target-location adjustment surfaces. */
-#edit-modal .edit-stock-headers, #add-modal .edit-stock-headers,
-#edit-stock-rows .stock-row, #add-stock-rows .stock-row {
+#edit-modal .edit-stock-headers, #add-modal .edit-stock-headers, #edit-stock-rows .stock-row, #add-stock-rows .stock-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 60px minmax(0, 1fr) 40px;
   gap: 6px;
@@ -22,8 +20,7 @@
   margin: 0;
 }
 
-#edit-stock-rows .stock-field select, #add-stock-rows .stock-field select,
-#edit-stock-rows .stock-field input, #add-stock-rows .stock-field input {
+#edit-stock-rows .stock-field select, #add-stock-rows .stock-field select, #edit-stock-rows .stock-field input, #add-stock-rows .stock-field input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -83,8 +80,7 @@
   cursor: pointer;
 }
 
-.stock-adjust-location-option:hover,
-.stock-adjust-location-option:focus-visible {
+.stock-adjust-location-option:hover, .stock-adjust-location-option:focus-visible {
   border-color: #2d5a8e;
   background: #f8fbff;
 }
@@ -122,8 +118,7 @@
     font-size: 10px;
     font-weight: 600;
   }
-  #edit-stock-rows .stock-field input, #add-stock-rows .stock-field input,
-  #edit-stock-rows .stock-field select, #add-stock-rows .stock-field select {
+  #edit-stock-rows .stock-field input, #add-stock-rows .stock-field input, #edit-stock-rows .stock-field select, #add-stock-rows .stock-field select {
     padding: 8px 7px;
     font-size: 13px;
   }

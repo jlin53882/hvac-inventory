@@ -1,9 +1,11 @@
 """Regression guards for petty-cash layouts that intentionally change on mobile only."""
 from pathlib import Path
 
+from frontend_test_support import unscope_css
+
 ROOT = Path(__file__).resolve().parents[1]
-BASE_CSS = (ROOT / "static/css/4-pages/petty-cash.css").read_text(encoding="utf-8")
-ENGINEERING_CSS = (ROOT / "static/css/4-pages/petty-cash-engineering.css").read_text(encoding="utf-8")
+BASE_CSS = unscope_css((ROOT / "static/css/4-pages/petty-cash.css").read_text(encoding="utf-8"))
+ENGINEERING_CSS = unscope_css((ROOT / "static/css/4-pages/petty-cash-engineering.css").read_text(encoding="utf-8"))
 EDITOR_JS = (ROOT / "static/js/modals/petty-cash.js").read_text(encoding="utf-8")
 AMOUNT_HINT_JS = EDITOR_JS.split("function pcEntryAmountHint()", 1)[1].split("\n}", 1)[0]
 

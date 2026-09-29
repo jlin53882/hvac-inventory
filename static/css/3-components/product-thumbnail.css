@@ -1,5 +1,5 @@
 /* 商品縮圖（庫存 / 整組共用；CSS 架構重構 P4 自 4-pages/inventory.css 抽出） */
-@layer legacy {
+@layer components {
 .product-thumbnail-wrap, .product-thumbnail-placeholder {
   display: grid;
   place-items: center;
@@ -9,5 +9,4 @@
 .product-thumbnail-wrap { width: 100%; height: 100%; background: #f8fafc; }
 .product-thumbnail-placeholder { background: #f1f5f9; color: #94a3b8; font-size: 20px; }
 .product-thumbnail-placeholder[hidden] { display: none; }
-
 }

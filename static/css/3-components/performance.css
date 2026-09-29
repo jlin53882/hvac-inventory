@@ -1,6 +1,5 @@
-/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
-   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
-@layer legacy {
+/* 伺服器分頁列與圖片延遲載入（CSS 架構重構 P5 自 5-utilities 移入共用元件） */
+@layer components {
 /* 效能相關 UI：server-side 分頁與媒體載入狀態，避免污染既有頁面樣式。 */
 .inventory-pagination {
   display: flex;

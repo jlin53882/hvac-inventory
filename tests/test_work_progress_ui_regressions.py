@@ -6,6 +6,7 @@ from pathlib import Path
 from openpyxl.styles import Alignment
 
 from app.services.report import build_daily_report
+from frontend_test_support import unscope_css
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,8 +23,9 @@ STOCKOUT_CSS = ROOT / "static/css/4-pages/stockout.css"
 
 
 def _read(path: Path) -> str:
-    """Read one UTF-8 source asset for a contract assertion."""
-    return path.read_text(encoding="utf-8")
+    """Read one UTF-8 source asset for a contract assertion (CSS page-scope prefixes removed)."""
+    text = path.read_text(encoding="utf-8")
+    return unscope_css(text) if path.suffix == ".css" else text
 
 
 def test_work_progress_gallery_is_a_viewport_overlay_and_is_closed_on_tab_change():

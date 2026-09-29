@@ -19,7 +19,7 @@ CSS_INVENTORY = os.path.join(STATIC, "css", "4-pages", "inventory.css")
 CSS_KIT = os.path.join(STATIC, "css", "4-pages", "kit.css")
 CSS_STOCKTAKE = os.path.join(STATIC, "css", "4-pages", "stocktake.css")
 CSS_STOCKOUT = os.path.join(STATIC, "css", "4-pages", "stockout.css")
-CSS_INVENTORY_LOCATIONS = os.path.join(STATIC, "css", "4-pages", "inventory-locations.css")
+CSS_INVENTORY_LOCATIONS = os.path.join(STATIC, "css", "3-components", "location-editor.css")  # P5：跨頁共用的位置編輯器
 # CSS 架構重構 P4：待領出頁、異常清單 Dialog、簽名報表 / 報價單共用外殼自原檔抽出
 CSS_PREPARED = os.path.join(STATIC, "css", "4-pages", "prepared.css")
 CSS_STATUS_LIST = os.path.join(STATIC, "css", "3-components", "status-list.css")
@@ -89,10 +89,20 @@ CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
 
 
-def read(p: str) -> str:
-    """讀檔 helper（UTF-8）"""
+_PAGE_SCOPE_RE = re.compile(r'(body)?(?:\[data-page="[\w-]+"\]|:is\((?:\[data-page="[\w-]+"\],?)+\)) ?')
+
+
+def unscope_css(css: str) -> str:
+    """去掉頁面範圍前綴（[data-page="x"] / :is(...) / body[data-page="x"]），讓舊測試只比對宣告內容。
+    範圍本身由 tests/test_css_architecture.py 嚴格檢查。"""
+    return _PAGE_SCOPE_RE.sub(lambda m: m.group(1) or "", css)
+
+
+def read(p) -> str:
+    """讀檔 helper（UTF-8）；CSS 會先去掉頁面範圍前綴（見 unscope_css）"""
     with open(p, encoding="utf-8") as fh:
-        return fh.read()
+        text = fh.read()
+    return unscope_css(text) if str(p).endswith(".css") else text
 
 
 def read_shared_css() -> str:

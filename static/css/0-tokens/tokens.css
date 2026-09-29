@@ -6,6 +6,6 @@
      components  跨頁共用元件（每個 class 只在一個元件檔定義）
      pages       [data-page="…"] 範圍內的頁面樣式
      utilities   .hidden 等工具 class、列印
-     legacy      重構過渡層：尚未歸位的舊樣式（保持原 cascade），重構完成時必須清空並刪除
+   頁面樣式一律寫成 [data-page="<page>"] 開頭（body 由 app.js setPageScope 設定），modal 也在範圍內。
    未包進任何 layer 的樣式（HTML style 屬性以外不應存在）一律勝過所有 layer。 */
-@layer tokens, base, layout, components, pages, utilities, legacy;
+@layer tokens, base, layout, components, pages, utilities;

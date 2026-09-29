@@ -1,0 +1,22 @@
+/* 批次改位置列（主框架內的全域元素，平常隱藏；CSS 架構重構 P5 自 4-pages/inventory.css 改為共用元件） */
+@layer components {
+
+  /* 批次改位置 */
+  .batch-bar {
+    position: fixed; bottom: 56px; left: 0; right: 0; z-index: 200;
+    background: #fff; border-top: 1px solid #e2e8f0; padding: 12px 16px;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1); display: none;
+  }
+  .batch-bar.show { display: block; }
+  .batch-bar-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .batch-count { font-size: 13px; color: #666; flex: 1; }
+  .batch-count b { color: #2d5a8e; }
+  .batch-loc-sel { padding: 7px 8px; border: 1.5px solid #d0d5dd; border-radius: 8px; font-size: 13px; }
+  .batch-sub-input { padding: 7px 8px; border: 1.5px solid #d0d5dd; border-radius: 8px; font-size: 13px; flex: 1; }
+  .batch-loc-sel:focus, .batch-sub-input:focus { outline: none; border-color: #2d5a8e; }
+  .batch-bar-btns { display: flex; gap: 8px; }
+  @media (min-width: 768px) {
+    .batch-bar { max-width: 480px; left: 50%; transform: translateX(-50%); display: none; }
+    .batch-bar.show { display: block; }
+}
+}

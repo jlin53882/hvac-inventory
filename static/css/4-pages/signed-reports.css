@@ -1,23 +1,21 @@
-/* CSS 架構重構 P2 過渡：整檔包在 legacy layer，保持原本 cascade（同層內仍依特異度與載入順序）。
-   後續階段把規則搬到 base / layout / components / pages 後，legacy 必須清空刪除。 */
-@layer legacy {
+@layer pages {
 /* ========== 每日簽名報表（dsr-） — 與 demo.html 1:1 的版面責任分層 ========== */
 
 /* #content 原本最大 640px；DSR 是唯一需要 1100px 兩欄的分頁。 */
-#content.dsr-content {
+[data-page="signed-reports"] #content.dsr-content {
   max-width: none;
   padding: 16px 0 20px;
 }
 
 /* 版心只負責全寬與內距；不可改成 Grid，否則標題與卡片會被拆到左右欄。 */
-.dsr-wrap {
+[data-page="signed-reports"] .dsr-wrap {
   width: 100%;
   margin: 0;
   padding: 0 16px;
   box-sizing: border-box;
 }
 @media (min-width: 768px) {
-  .dsr-wrap { padding: 2px 16px 0; }
+  [data-page="signed-reports"] .dsr-wrap { padding: 2px 16px 0; }
 }
 
 /* 頁面標題永遠位於卡片上方，與 demo 的 header 結構一致。 */
@@ -29,10 +27,10 @@
 
 
 /* demo 的 .layout：只有這一層在桌面切成左右欄。 */
-.dsr-layout { display: grid; gap: 16px; }
+[data-page="signed-reports"] .dsr-layout { display: grid; gap: 16px; }
 @media (min-width: 960px) {
-  .dsr-layout { grid-template-columns: 1.05fr .95fr; }
-  .dsr-history { grid-column: 1 / -1; }
+  [data-page="signed-reports"] .dsr-layout { grid-template-columns: 1.05fr .95fr; }
+  [data-page="signed-reports"] .dsr-history { grid-column: 1 / -1; }
 }
 
 /* 卡片 */
@@ -51,10 +49,10 @@
 
 
 
-.dsr-hint { margin-top: 6px; color: #94a3b8; font-size: 11.5px; }
+[data-page="signed-reports"] .dsr-hint { margin-top: 6px; color: #94a3b8; font-size: 11.5px; }
 
 /* 本模組按鈕完全 scoped，避免沿用主站 .btn 的視覺差異。 */
-.dsr-icon-btn, .dsr-chip { font-family: inherit; cursor: pointer; }
+[data-page="signed-reports"] .dsr-icon-btn, [data-page="signed-reports"] .dsr-chip { font-family: inherit; cursor: pointer; }
 
 
 
@@ -63,7 +61,7 @@
 
 
 /* 拖曳區 */
-.dsr-drop {
+[data-page="signed-reports"] .dsr-drop {
   padding: 18px;
   border: 2px dashed #cbd5e1;
   border-radius: 12px;
@@ -72,12 +70,12 @@
   cursor: pointer;
   transition: .15s;
 }
-.dsr-drop.drag { border-color: #2d5a8e; background: #e8f0fe; }
-.dsr-drop__icon { margin-bottom: 6px; font-size: 28px; }
-.dsr-drop__title { color: #1e3a5f; font-size: 13px; font-weight: 800; }
-.dsr-drop__sub { margin-top: 4px; color: #64748b; font-size: 11.5px; }
-.dsr-drop__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-.dsr-file-preview {
+[data-page="signed-reports"] .dsr-drop.drag { border-color: #2d5a8e; background: #e8f0fe; }
+[data-page="signed-reports"] .dsr-drop__icon { margin-bottom: 6px; font-size: 28px; }
+[data-page="signed-reports"] .dsr-drop__title { color: #1e3a5f; font-size: 13px; font-weight: 800; }
+[data-page="signed-reports"] .dsr-drop__sub { margin-top: 4px; color: #64748b; font-size: 11.5px; }
+[data-page="signed-reports"] .dsr-drop__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+[data-page="signed-reports"] .dsr-file-preview {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -87,7 +85,7 @@
   border-radius: 10px;
   background: #fff;
 }
-.dsr-file-preview__icon {
+[data-page="signed-reports"] .dsr-file-preview__icon {
   display: grid;
   flex-shrink: 0;
   width: 44px;
@@ -96,64 +94,64 @@
   place-items: center;
   font-size: 20px;
 }
-.dsr-file-preview__meta { flex: 1; min-width: 0; }
-.dsr-file-preview__name { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.dsr-file-preview__sub { color: #64748b; font-size: 11.5px; }
-.dsr-progress { height: 6px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
-.dsr-progress__bar { width: 0; height: 100%; background: linear-gradient(90deg, #1e3a5f, #2d5a8e); transition: width .3s; }
-.dsr-upload-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-.dsr-upload-actions .dsr-btn--primary { flex: 1; }
-.dsr-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.dsr-tag { padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: #e8f0fe; color: #1e3a5f; font-size: 11px; font-weight: 800; }
+[data-page="signed-reports"] .dsr-file-preview__meta { flex: 1; min-width: 0; }
+[data-page="signed-reports"] .dsr-file-preview__name { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+[data-page="signed-reports"] .dsr-file-preview__sub { color: #64748b; font-size: 11.5px; }
+[data-page="signed-reports"] .dsr-progress { height: 6px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+[data-page="signed-reports"] .dsr-progress__bar { width: 0; height: 100%; background: linear-gradient(90deg, #1e3a5f, #2d5a8e); transition: width .3s; }
+[data-page="signed-reports"] .dsr-upload-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+[data-page="signed-reports"] .dsr-upload-actions .dsr-btn--primary { flex: 1; }
+[data-page="signed-reports"] .dsr-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+[data-page="signed-reports"] .dsr-tag { padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: #e8f0fe; color: #1e3a5f; font-size: 11px; font-weight: 800; }
 
 /* 右側資訊與 KPI：完全使用 demo 的深藍資訊卡與白色 KPI 卡。 */
-.dsr-side { display: grid; gap: 16px; }
+[data-page="signed-reports"] .dsr-side { display: grid; gap: 16px; }
 
 
 
 
 
 
-.dsr-kpi { grid-template-columns: repeat(3, 1fr);}
+[data-page="signed-reports"] .dsr-kpi { grid-template-columns: repeat(3, 1fr);}
 
 
 
 
 /* 歷史查詢 */
-.dsr-history .dsr-card__hd { flex-direction: column; align-items: stretch; gap: 12px; }
-.dsr-history-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
-.dsr-history-heading p { margin-left: auto; }
-.dsr-filter-bar { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; width: 100%; }
-.dsr-filter-bar .dsr-field { flex: 1; min-width: 140px; }
-.dsr-filter-bar .dsr-field.dsr-field--search { flex: 1.4; min-width: 180px; }
-.dsr-filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
-.dsr-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.dsr-chip { padding: 5px 9px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; font-size: 11px; font-weight: 800; }
-.dsr-chip.active { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
-.dsr-result-count { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #94a3b8; font-size: 11px; }
-.dsr-report-list { display: grid; gap: 10px; margin-top: 12px; }
-.dsr-report-card { overflow: hidden; border: 1px solid #111827; border-radius: 10px; background: #fff; }
-.dsr-report-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 10px 12px; cursor: pointer; list-style: none; }
-.dsr-report-summary::-webkit-details-marker { display: none; }
-.dsr-report-summary::before { content: '▸'; color: #1e3a5f; font-size: 18px; font-weight: 900; }
-.dsr-report-card[open] .dsr-report-summary::before { content: '▾'; }
-.dsr-report-summary__date { color: #1e3a5f; font-size: 18px; font-weight: 900; }
-.dsr-report-summary__uploader { flex-shrink: 0; }
-.dsr-report-summary__file { min-width: 0; overflow: hidden; color: #64748b; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.dsr-report-detail { padding: 12px; border-top: 1px solid #111827; background: #f8fafc; }
-.dsr-report-detail__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.dsr-report-detail__label { display: block; margin-bottom: 4px; color: #64748b; font-size: 11px; font-weight: 800; }
-.dsr-report-detail__grid strong { color: #1e293b; font-size: 13px; }
-.dsr-report-detail__file { grid-column: span 2; }
-.dsr-report-detail__note { grid-column: 1 / -1; }
-.dsr-report-detail__note .dsr-note-cell { min-height: 38px; padding: 8px; background: #fff7ed; white-space: pre-wrap; overflow-wrap: anywhere; }
-.dsr-table-wrap { margin-top: 12px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
-.dsr-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
-.dsr-table th { padding: 10px; border: 1px solid #111827; background: #f1f5f9; color: #475569; text-align: left; white-space: nowrap; font-weight: 800; }
-.dsr-table td { padding: 10px; border: 1px solid #111827; vertical-align: middle; }
-.dsr-table td.dsr-note-cell { background: #fff7ed; }
-.dsr-table tr:hover td { background: #f8fafc; }
-.dsr-report-thumb {
+[data-page="signed-reports"] .dsr-history .dsr-card__hd { flex-direction: column; align-items: stretch; gap: 12px; }
+[data-page="signed-reports"] .dsr-history-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
+[data-page="signed-reports"] .dsr-history-heading p { margin-left: auto; }
+[data-page="signed-reports"] .dsr-filter-bar { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; width: 100%; }
+[data-page="signed-reports"] .dsr-filter-bar .dsr-field { flex: 1; min-width: 140px; }
+[data-page="signed-reports"] .dsr-filter-bar .dsr-field.dsr-field--search { flex: 1.4; min-width: 180px; }
+[data-page="signed-reports"] .dsr-filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
+[data-page="signed-reports"] .dsr-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+[data-page="signed-reports"] .dsr-chip { padding: 5px 9px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; font-size: 11px; font-weight: 800; }
+[data-page="signed-reports"] .dsr-chip.active { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
+[data-page="signed-reports"] .dsr-result-count { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #94a3b8; font-size: 11px; }
+[data-page="signed-reports"] .dsr-report-list { display: grid; gap: 10px; margin-top: 12px; }
+[data-page="signed-reports"] .dsr-report-card { overflow: hidden; border: 1px solid #111827; border-radius: 10px; background: #fff; }
+[data-page="signed-reports"] .dsr-report-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 10px 12px; cursor: pointer; list-style: none; }
+[data-page="signed-reports"] .dsr-report-summary::-webkit-details-marker { display: none; }
+[data-page="signed-reports"] .dsr-report-summary::before { content: '▸'; color: #1e3a5f; font-size: 18px; font-weight: 900; }
+[data-page="signed-reports"] .dsr-report-card[open] .dsr-report-summary::before { content: '▾'; }
+[data-page="signed-reports"] .dsr-report-summary__date { color: #1e3a5f; font-size: 18px; font-weight: 900; }
+[data-page="signed-reports"] .dsr-report-summary__uploader { flex-shrink: 0; }
+[data-page="signed-reports"] .dsr-report-summary__file { min-width: 0; overflow: hidden; color: #64748b; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+[data-page="signed-reports"] .dsr-report-detail { padding: 12px; border-top: 1px solid #111827; background: #f8fafc; }
+[data-page="signed-reports"] .dsr-report-detail__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+[data-page="signed-reports"] .dsr-report-detail__label { display: block; margin-bottom: 4px; color: #64748b; font-size: 11px; font-weight: 800; }
+[data-page="signed-reports"] .dsr-report-detail__grid strong { color: #1e293b; font-size: 13px; }
+[data-page="signed-reports"] .dsr-report-detail__file { grid-column: span 2; }
+[data-page="signed-reports"] .dsr-report-detail__note { grid-column: 1 / -1; }
+[data-page="signed-reports"] .dsr-report-detail__note .dsr-note-cell { min-height: 38px; padding: 8px; background: #fff7ed; white-space: pre-wrap; overflow-wrap: anywhere; }
+[data-page="signed-reports"] .dsr-table-wrap { margin-top: 12px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+[data-page="signed-reports"] .dsr-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
+[data-page="signed-reports"] .dsr-table th { padding: 10px; border: 1px solid #111827; background: #f1f5f9; color: #475569; text-align: left; white-space: nowrap; font-weight: 800; }
+[data-page="signed-reports"] .dsr-table td { padding: 10px; border: 1px solid #111827; vertical-align: middle; }
+[data-page="signed-reports"] .dsr-table td.dsr-note-cell { background: #fff7ed; }
+[data-page="signed-reports"] .dsr-table tr:hover td { background: #f8fafc; }
+[data-page="signed-reports"] .dsr-report-thumb {
   display: block;
   width: 46px;
   height: 46px;
@@ -163,60 +161,50 @@
   object-fit: cover;
   cursor: pointer;
 }
-.dsr-report-thumb:hover { border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(45,90,142,.15); }
-.dsr-note-empty { color: #cbd5e1; }
+[data-page="signed-reports"] .dsr-report-thumb:hover { border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(45,90,142,.15); }
+[data-page="signed-reports"] .dsr-note-empty { color: #cbd5e1; }
 
 
 
-.dsr-file-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.dsr-file-icon { display: grid; flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; place-items: center; font-size: 13px; }
-.dsr-ellipsis { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
-.dsr-actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
-.dsr-icon-btn { display: grid; width: 28px; height: 28px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; place-items: center; font-size: 13px; }
-.dsr-icon-btn:hover { border-color: #2d5a8e; }
-.dsr-icon-btn.dsr-icon-btn--danger:hover { border-color: #dc2626; color: #dc2626; }
+[data-page="signed-reports"] .dsr-file-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+[data-page="signed-reports"] .dsr-file-icon { display: grid; flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; place-items: center; font-size: 13px; }
+[data-page="signed-reports"] .dsr-ellipsis { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
+[data-page="signed-reports"] .dsr-actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+[data-page="signed-reports"] .dsr-icon-btn { display: grid; width: 28px; height: 28px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; place-items: center; font-size: 13px; }
+[data-page="signed-reports"] .dsr-icon-btn:hover { border-color: #2d5a8e; }
+[data-page="signed-reports"] .dsr-icon-btn.dsr-icon-btn--danger:hover { border-color: #dc2626; color: #dc2626; }
 
 
-.dsr-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 2px 0; color: #64748b; font-size: 12.5px; }
+[data-page="signed-reports"] .dsr-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 2px 0; color: #64748b; font-size: 12.5px; }
 
 @media (max-width: 639px) {
-  .dsr-report-summary { flex-wrap: wrap; }
-  .dsr-report-summary__date { font-size: 16px; }
-  .dsr-report-summary__file { flex-basis: calc(100% - 28px); margin-left: 28px; }
-  .dsr-report-detail__grid { grid-template-columns: 1fr 1fr; }
-  .dsr-report-detail__file, .dsr-report-detail__note { grid-column: 1 / -1; }
-  .dsr-table { min-width: 0; }
-  .dsr-table thead { display: none; }
-  .dsr-table, .dsr-table tbody, .dsr-table tr, .dsr-table td { display: block; width: 100%; }
-  .dsr-table tr { overflow: hidden; margin: 10px 10px 0; border: 1px solid #e2e8f0; border-radius: 10px; }
-  .dsr-table td { padding: 8px 12px; border: 1px solid #111827; }
-  .dsr-table td + td { border-top: 1px solid #111827; }
-  .dsr-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: #94a3b8; font-size: 11px; font-weight: 800; }
-  .dsr-ellipsis { max-width: 100%; }
-  .dsr-table-wrap { border: none; }
+  [data-page="signed-reports"] .dsr-report-summary { flex-wrap: wrap; }
+  [data-page="signed-reports"] .dsr-report-summary__date { font-size: 16px; }
+  [data-page="signed-reports"] .dsr-report-summary__file { flex-basis: calc(100% - 28px); margin-left: 28px; }
+  [data-page="signed-reports"] .dsr-report-detail__grid { grid-template-columns: 1fr 1fr; }
+  [data-page="signed-reports"] .dsr-report-detail__file, [data-page="signed-reports"] .dsr-report-detail__note { grid-column: 1 / -1; }
+  [data-page="signed-reports"] .dsr-table { min-width: 0; }
+  [data-page="signed-reports"] .dsr-table thead { display: none; }
+  [data-page="signed-reports"] .dsr-table, [data-page="signed-reports"] .dsr-table tbody, [data-page="signed-reports"] .dsr-table tr, [data-page="signed-reports"] .dsr-table td { display: block; width: 100%; }
+  [data-page="signed-reports"] .dsr-table tr { overflow: hidden; margin: 10px 10px 0; border: 1px solid #e2e8f0; border-radius: 10px; }
+  [data-page="signed-reports"] .dsr-table td { padding: 8px 12px; border: 1px solid #111827; }
+  [data-page="signed-reports"] .dsr-table td + td { border-top: 1px solid #111827; }
+  [data-page="signed-reports"] .dsr-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: #94a3b8; font-size: 11px; font-weight: 800; }
+  [data-page="signed-reports"] .dsr-ellipsis { max-width: 100%; }
+  [data-page="signed-reports"] .dsr-table-wrap { border: none; }
 }
 
 /* 預覽 Modal */
-.dsr-overlay { position: fixed; inset: 0; z-index: 950; display: none; padding: 14px; background: rgba(15,23,42,.55); place-items: center; }
-.dsr-overlay.open { display: grid; }
-.dsr-modal { display: flex; flex-direction: column; width: 100%; max-width: 860px; max-height: 90vh; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
-.dsr-modal__hd { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #e2e8f0; }
-.dsr-modal__hd h3 { margin: 0; color: #1e3a5f; font-size: 14px; font-weight: 900; }
-.dsr-modal__bd { flex: 1; overflow: auto; padding: 0; background: #0f172a; }
-.dsr-modal__bd img { display: block; width: 100%; height: auto; }
-.dsr-modal__bd iframe { width: 100%; height: 72vh; border: 0; background: #fff; }
-.dsr-modal__ft { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid #e2e8f0; }
+[data-page="signed-reports"] .dsr-overlay { position: fixed; inset: 0; z-index: 950; display: none; padding: 14px; background: rgba(15,23,42,.55); place-items: center; }
+[data-page="signed-reports"] .dsr-overlay.open { display: grid; }
 /* 編輯視窗使用白底表單，不沿用預覽視窗的深色內容區。 */
-.dsr-edit-modal { max-width: 560px; }
-.dsr-edit-modal .dsr-modal__hd { background: #1e3a5f; border-bottom: none; }
-.dsr-edit-modal .dsr-modal__hd h3 { color: #fff; }
-.dsr-edit-modal .dsr-modal__hd .dsr-btn-sm { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
-.dsr-edit-modal .dsr-modal__bd { padding: 16px; background: #fff; }
-.dsr-edit-modal .dsr-field + .dsr-field { margin-top: 14px !important; }
-.dsr-edit-modal .dsr-field label { margin-bottom: 6px; color: #334155; font-size: 13px; }
-.dsr-edit-modal .dsr-field input,
-.dsr-edit-modal .dsr-field textarea { font-size: 14px; }
-.dsr-edit-modal .dsr-hint { margin-top: 8px; }
-.dsr-modal__note { color: #64748b; font-size: 12px; }
-.dsr-modal__actions { display: flex; gap: 8px; }
+[data-page="signed-reports"] .dsr-edit-modal { max-width: 560px; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-modal__hd { background: #1e3a5f; border-bottom: none; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-modal__hd h3 { color: #fff; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-modal__hd .dsr-btn-sm { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-modal__bd { padding: 16px; background: #fff; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-field + .dsr-field { margin-top: 14px; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-field label { margin-bottom: 6px; color: #334155; font-size: 13px; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-field input, [data-page="signed-reports"] .dsr-edit-modal .dsr-field textarea { font-size: 14px; }
+[data-page="signed-reports"] .dsr-edit-modal .dsr-hint { margin-top: 8px; }
 }

@@ -2312,7 +2312,7 @@ def test_edit_stock_rows_mobile_grid_layout():
     assert ".edit-stock-headers" in mobile_css
     html = read(INDEX)
     assert 'class="col-headers edit-stock-headers"' in html
-    assert 'href="/static/css/4-pages/inventory-locations.css"' in html
+    assert 'href="/static/css/3-components/location-editor.css"' in html
     assert 'src="/static/js/location-adjustments.js"' in html
     assert 'id="stock-location-modal"' in html
     modal_attributes = html.split('id="stock-location-modal"', 1)[1].split('>', 1)[0]
@@ -4766,7 +4766,7 @@ def test_work_progress_uploads_report_progress():
 def test_page_scope_contract():
     """CSS 架構重構 P1：body[data-page] 是頁面樣式範圍；tokens.css 最先載入並宣告 layer 順序。"""
     tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
-    assert "@layer tokens, base, layout, components, pages, utilities, legacy;" in tokens
+    assert "@layer tokens, base, layout, components, pages, utilities;" in tokens
     for page in ("index.html", "settings.html", "permissions.html", "login.html"):
         html = read(os.path.join(STATIC, page))
         first_css = html.index('<link rel="stylesheet"')
