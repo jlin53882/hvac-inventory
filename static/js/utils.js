@@ -84,11 +84,11 @@ function closeModalForce(id) {  // 儲存成功等明確動作：跳過未存變
   el.classList.remove('is-open');
   delete __modalSnapshots[id];
 }
-document.querySelectorAll('.modal-overlay').forEach(m => {
+document.querySelectorAll('[data-role="modal"]').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.is-open').forEach(m => closeModal(m.id));
+  if (e.key === 'Escape') document.querySelectorAll('[data-role="modal"].is-open').forEach(m => closeModal(m.id));
 });
 
 // ========== API 錯誤與 toast ==========

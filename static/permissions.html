@@ -58,8 +58,8 @@
     <div class="perm-panel">
       <div class="panel-head" id="panelHead"></div>
       <div class="tabs">
-        <button class="chip chip--seg tab is-active" data-tab="perms" onclick="switchTab('perms')">🔐 權限設定</button>
-        <button class="chip chip--seg tab" data-tab="account" onclick="switchTab('account')">🔑 帳號設定</button>
+        <button class="chip chip--seg tab is-active" data-role="perm-tab" data-tab="perms" onclick="switchTab('perms')">🔐 權限設定</button>
+        <button class="chip chip--seg tab" data-role="perm-tab" data-tab="account" onclick="switchTab('account')">🔑 帳號設定</button>
       </div>
       <div id="tab-perms"></div>
       <div id="tab-account" style="display:none"></div>
@@ -67,12 +67,12 @@
   </main>
 </div>
 
-<div class="modal-overlay" id="addUserOverlay">
+<div class="modal-overlay" data-role="modal" id="addUserOverlay">
   <div class="modal">
     <h3>＋ 新增帳號</h3>
     <div class="tabs u-m-0-0-12">
-      <button class="chip chip--seg tab is-active" onclick="addUserMode('single')">單一新增</button>
-      <button class="chip chip--seg tab" onclick="addUserMode('batch')">批次新增</button>
+      <button class="chip chip--seg tab is-active" data-role="add-user-mode" data-mode="single" onclick="addUserMode('single')">單一新增</button>
+      <button class="chip chip--seg tab" data-role="add-user-mode" data-mode="batch" onclick="addUserMode('batch')">批次新增</button>
     </div>
     <div id="addSingle">
       <div class="cr-field"><label>帳號</label><input class="cr-input" id="nu-username" placeholder="登入用帳號"></div>
@@ -100,7 +100,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="accountEditOverlay">
+<div class="modal-overlay" data-role="modal" id="accountEditOverlay">
   <div class="modal">
     <h3>✏️ 編輯帳號</h3>
     <div class="account-edit-field">
@@ -123,7 +123,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="resetPwOverlay">
+<div class="modal-overlay" data-role="modal" id="resetPwOverlay">
   <div class="modal">
     <h3>🔑 重設密碼</h3>
     <p class="u-fs-13 u-text-muted u-m-0-0-10" id="resetPwTarget"></p>
@@ -136,7 +136,7 @@
 </div>
 
 <!-- 2026-08-15 家豪選定：重設為角色預設 確認 modal（取代原生 confirm） -->
-<div class="modal-overlay" id="resetPermOverlay">
+<div class="modal-overlay" data-role="modal" id="resetPermOverlay">
   <div class="modal">
     <h3>⚠️ 重設為角色預設？</h3>
     <div class="warn-box">此操作會清除 <span id="resetPermTarget"></span> 的所有個人權限覆寫。</div>

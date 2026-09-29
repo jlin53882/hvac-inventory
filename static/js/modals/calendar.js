@@ -5,7 +5,7 @@
 let calApptUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯派工 modal 時的 updated_at 快照
 function calModalHtml(isAdmin) {
   return `
-  <div class="modal-overlay" id="cal-appt-modal" style="display:none">
+  <div class="modal-overlay" data-role="modal" id="cal-appt-modal" style="display:none">
     <div class="modal">
       <h3 id="cal-appt-title">➕ 新增派工</h3>
       <div class="cal-conflict" id="cal-appt-conflict"></div>
@@ -48,7 +48,7 @@ function calModalHtml(isAdmin) {
     </div>
   </div>
       <!-- 同步錯誤詳情 modal -->
-  <div class="modal-overlay" id="cal-sync-error-modal" onclick="if(event.target===this) closeModal('cal-sync-error-modal')">
+  <div class="modal-overlay" data-role="modal" id="cal-sync-error-modal" onclick="if(event.target===this) closeModal('cal-sync-error-modal')">
     <div class="modal">
       <h3>⚠️ 同步錯誤詳情</h3>
       <div class="cal-sync-err-detail">
@@ -65,7 +65,7 @@ function calModalHtml(isAdmin) {
       </div>
     </div>
   </div>
-  <div class="modal-overlay" id="cal-team-sync-modal" onclick="if(event.target===this) closeModal('cal-team-sync-modal')">
+  <div class="modal-overlay" data-role="modal" id="cal-team-sync-modal" onclick="if(event.target===this) closeModal('cal-team-sync-modal')">
     <div class="modal">
       <h3>👥 全員同步細節</h3>
       <div id="cal-team-sync-summary"></div>

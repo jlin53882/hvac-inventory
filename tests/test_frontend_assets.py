@@ -393,7 +393,7 @@ def test_stocktake_calcDiff_has_st_diff_element():
     """盤點 calcDiff() 對應的 .st-diff 元素存在於 HTML 模板中"""
     js = read(STOCKTAKE_JS)
     assert 'function calcDiff' in js
-    assert '.st-diff' in js
+    assert 'data-role="stocktake-diff"' in js and '[data-role="stocktake-diff"]' in js
     # 確認渲染的 HTML 包含 st-diff td
     assert 'class="st-diff' in js
 
@@ -935,7 +935,8 @@ def test_petty_cash_general_detail_rows_are_expandable():
     assert 'data-entry-index="${i}"' in js
     assert 'pcBindGeneralDetailEvents' in js
     assert 'pcGeneralDetailEventsBound' in js
-    assert "event.target.closest('.pc-general-entry-row--expandable" in js
+    assert "event.target.closest('[data-action=\"pc-toggle-entry\"]')" in js
+    assert js.count('data-action="pc-toggle-entry" data-entry-index=') == 3  # 桌機整列、列內 ▶ 按鈕、手機「查看明細」
     assert 'pcToggleGeneralEntry(Number(element.dataset.entryIndex));' in js
     assert '  }, true);' in js
     assert 'type="button" class="pc-inline-expand"' in js
@@ -2955,8 +2956,8 @@ def test_cabinet_options_function_exists():
 def test_add_js_composes_cabinet_sub_location():
     """防回歸：submitAdd 逐列讀取 stock-cabinet + stock-sub，並由 buildAddStocks 組成 location。"""
     js = read(ADD_JS)
-    assert "#add-stock-rows .stock-row" in js, "submitAdd 需逐列讀取新增位置"
-    assert ".stock-cabinet" in js and ".stock-sub" in js, "submitAdd 需讀取櫃子與位置"
+    assert '#add-stock-rows [data-role="stock-row"]' in js, "submitAdd 需逐列讀取新增位置"
+    assert '[data-role="stock-cabinet"]' in js and '[data-role="stock-sub"]' in js, "submitAdd 需讀取櫃子與位置"
     assert "buildAddStocks(parsedRows)" in js, "submitAdd 需透過 buildAddStocks 驗證並組合 location"
 
 

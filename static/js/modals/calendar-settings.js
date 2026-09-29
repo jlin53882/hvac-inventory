@@ -4,7 +4,7 @@
 function calSettingsHtml(isAdmin) {
   if (!isAdmin) return '';
   return `
-  <div class="modal-overlay" id="cal-set-modal" style="display:none">
+  <div class="modal-overlay" data-role="modal" id="cal-set-modal" style="display:none">
     <div class="modal">
       <h3>⚙️ 行事曆設定</h3>
       <div class="cal-set-tabs">

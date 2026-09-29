@@ -24,18 +24,18 @@ function openSheet(title, actions) {
   const items = (actions || []).map(a => {
     const cls = 's-item' + (a.cls ? ' ' + a.cls : '');
     const icon = a.icon ? `<span class="ic">${a.icon}</span>` : '';
-    return `<div class="${cls}">${icon}${a.label}</div>`;
+    return `<div class="${cls}" data-role="sheet-item">${icon}${a.label}</div>`;
   }).join('');
 
   overlay.innerHTML = `
     <div class="sheet">
       <div class="sheet-title">${esc(title)}</div>
       ${items}
-      <button class="s-cancel">取消</button>
+      <button class="s-cancel" data-role="sheet-cancel">取消</button>
     </div>`;
 
   // 綁定選項點擊
-  overlay.querySelectorAll('.s-item').forEach((el, i) => {
+  overlay.querySelectorAll('[data-role="sheet-item"]').forEach((el, i) => {
     el.addEventListener('click', () => {
       const a = actions[i];
       closeSheet();
@@ -47,7 +47,7 @@ function openSheet(title, actions) {
   overlay.addEventListener('click', e => {
     if (e.target === overlay) closeSheet();
   });
-  overlay.querySelector('.s-cancel').addEventListener('click', closeSheet);
+  overlay.querySelector('[data-role="sheet-cancel"]').addEventListener('click', closeSheet);
 
   document.body.appendChild(overlay);
   sheetEl = overlay;

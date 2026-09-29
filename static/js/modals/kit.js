@@ -147,10 +147,10 @@ function renderKitLocationRows() {
   const container = document.getElementById('kit-location-rows');
   if (!container) return;
   container.innerHTML = kitLocationRows.map((row, idx) => `
-    <div class="edit-stock-row" data-idx="${idx}">
-      <select class="kit-loc-cabinet">${_cabinetOptions(row.cabinet || '')}</select>
-      <input type="text" class="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
-      <input type="text" class="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
+    <div class="edit-stock-row" data-role="kit-location-row" data-idx="${idx}">
+      <select class="kit-loc-cabinet" data-role="kit-loc-cabinet">${_cabinetOptions(row.cabinet || '')}</select>
+      <input type="text" class="kit-loc-pos" data-role="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
+      <input type="text" class="kit-loc-note" data-role="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
       <button type="button" class="btn-remove" onclick="removeKitLocationRow(${idx})">🗑</button>
     </div>
   `).join('');
@@ -178,12 +178,12 @@ function removeKitLocationRow(idx) {
  * @returns {void}
  */
 function syncKitLocationRowsFromDom() {
-  const rows = document.querySelectorAll('#kit-location-rows .edit-stock-row');
+  const rows = document.querySelectorAll('#kit-location-rows [data-role="kit-location-row"]');
   if (!rows.length) return;
   kitLocationRows = Array.from(rows).map(row => ({
-    cabinet: row.querySelector('.kit-loc-cabinet').value.trim(),
-    position: row.querySelector('.kit-loc-pos').value.trim(),
-    note: row.querySelector('.kit-loc-note').value.trim()
+    cabinet: row.querySelector('[data-role="kit-loc-cabinet"]').value.trim(),
+    position: row.querySelector('[data-role="kit-loc-pos"]').value.trim(),
+    note: row.querySelector('[data-role="kit-loc-note"]').value.trim()
   }));
 }
 
@@ -192,10 +192,10 @@ function syncKitLocationRowsFromDom() {
  * @returns {Array<{cabinet: string, position: string, note: string}>} Non-empty metadata rows.
  */
 function getKitLocations() {
-  const rows = document.querySelectorAll('#kit-location-rows .edit-stock-row');
+  const rows = document.querySelectorAll('#kit-location-rows [data-role="kit-location-row"]');
   return Array.from(rows).map(row => ({
-    cabinet: row.querySelector('.kit-loc-cabinet').value.trim(),
-    position: row.querySelector('.kit-loc-pos').value.trim(),
-    note: row.querySelector('.kit-loc-note').value.trim()
+    cabinet: row.querySelector('[data-role="kit-loc-cabinet"]').value.trim(),
+    position: row.querySelector('[data-role="kit-loc-pos"]').value.trim(),
+    note: row.querySelector('[data-role="kit-loc-note"]').value.trim()
   })).filter(r => r.cabinet || r.position);  // 至少一個欄位填寫才算有效
 }

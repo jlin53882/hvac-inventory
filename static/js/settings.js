@@ -76,7 +76,7 @@ var selectedKeyId = null;
 
 
 function settingsSwitch(panel) {
-  document.querySelectorAll('#settingsSideList .side-item').forEach(el =>
+  document.querySelectorAll('#settingsSideList [data-role="settings-side-item"]').forEach(el =>
     el.classList.toggle('is-active', el.dataset.panel === panel));
   document.querySelectorAll('#settingsChipBar [data-panel]').forEach(el =>
     el.classList.toggle('is-active', el.dataset.panel === panel));
@@ -167,7 +167,7 @@ function renderUnitsPanel() {
           const _sgHtml = _sg
             ? '<div class="u-suggest">建議：' + esc(String(_sg.qty)) + ' ' + esc(_sg.unit) + ' <button class="btn btn--primary btn--sm btn-primary" onclick="applyQtySuggest(' + it.item_id + ', this)" data-qty="' + esc(String(_sg.qty)) + '" data-to="' + esc(_sg.unit) + '">套用建議</button></div>'
             : '<div class="u-suggest u-ambiguous">⚠ 需人工確認（無法自動判讀）</div>';
-          html += '<tr><td class="p-name">' + esc(it.name) + (it.is_deleted ? ' <small>（非庫存）</small>' : '') + '</td>' +
+          html += '<tr><td class="p-name" data-role="item-name">' + esc(it.name) + (it.is_deleted ? ' <small>（非庫存）</small>' : '') + '</td>' +
             '<td class="qty">×' + absNum(it.total_qty) + '</td>' +
             '<td>' + _sgHtml +
             '<div class="u-manual"><select class="u-ci-to" data-role="unit-consolidate-to" required><option value="">— 請選擇 —</option>';
@@ -261,7 +261,7 @@ async function consolidateItem(itemId, btn) {
       if (!isFinite(newQty) || newQty < 0) { toast('請輸入有效數量', 'error'); return; }
     }
   }
-  const nameEl = tr ? tr.querySelector('.p-name') : null;
+  const nameEl = tr ? tr.querySelector('[data-role="item-name"]') : null;
   const qtyNote = newQty === null ? '' : '，總量改為 ' + newQty;
   if (!confirm('將「' + (nameEl ? nameEl.textContent : '') + '」的單位改為「' + to + '」' + qtyNote + '？')) return;
   try {
@@ -280,7 +280,7 @@ async function applyQtySuggest(itemId, btn) {
   const to = btn.dataset.to || '';
   if (!to || !isFinite(qty) || qty < 0) { toast('建議值無效，請手填確認', 'error'); return; }
   const tr = btn.closest('tr');
-  const nameEl = tr ? tr.querySelector('.p-name') : null;
+  const nameEl = tr ? tr.querySelector('[data-role="item-name"]') : null;
   if (!confirm('套用建議：將「' + (nameEl ? nameEl.textContent : '') + '」改為 ' + qty + ' ' + to + '？')) return;
   try {
     await apiFetch('/api/units/consolidate-item', {
@@ -400,14 +400,14 @@ function renderGcalQueueIssues(canSync) {
       '<div class="gcal-sync-issue-main"><strong>' + esc(title) + '</strong><span>' + esc(item.date || '本地行程已刪除') + '</span></div>' +
       '<div class="gcal-sync-issue-detail"><span>Key：' + esc(keyLabel) + '</span><span>操作：' + esc(opLabel) + '</span><span>嘗試：' + esc(String(item.attempts || 0)) + ' / ' + esc(String(item.max_attempts || 5)) + '</span><span class="gcal-sync-issue-status">' + esc(gcalQueueStatusLabel(item.status, item.key_active)) + '</span></div>' +
       error +
-      '<div class="gcal-sync-issue-actions">' + (canSync ? '<button type="button" class="btn btn--secondary btn--sm btn-sm gcal-sync-retry" data-sync-appt="' + esc(apptId) + '" data-sync-key="' + esc(keyId) + '">重新嘗試</button>' : '') + '</div>' +
+      '<div class="gcal-sync-issue-actions">' + (canSync ? '<button type="button" class="btn btn--secondary btn--sm btn-sm gcal-sync-retry" data-role="gcal-sync-retry" data-sync-appt="' + esc(apptId) + '" data-sync-key="' + esc(keyId) + '">重新嘗試</button>' : '') + '</div>' +
       '</article>';
   });
   return html + '</div></section>';
 }
 
 function bindGcalQueueActions() {
-  document.querySelectorAll('#panel-gcal .gcal-sync-retry').forEach(button => {
+  document.querySelectorAll('#panel-gcal [data-role="gcal-sync-retry"]').forEach(button => {
     button.addEventListener('click', () => retrySyncQueue(Number(button.dataset.syncAppt), Number(button.dataset.syncKey)));
   });
 }
@@ -466,8 +466,8 @@ function renderGcalPanel() {
 
       // Tabs
       html += '<div class="gcal-tabs">' +
-        '<button class="chip chip--seg gcal-tab is-active" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
-        '<button class="chip chip--seg gcal-tab" onclick="switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
+        '<button class="chip chip--seg gcal-tab is-active" data-role="gcal-tab" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
+        '<button class="chip chip--seg gcal-tab" data-role="gcal-tab" onclick="switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
         '</div>';
 
       // Tab 1: 同步設定
@@ -560,7 +560,7 @@ function renderGcalSyncSettings(key) {
   var reminderRow = function(reminder, index) {
     var display = reminderDisplay(reminder.minutes);
     return '<div class="gcal-reminder-row" data-reminder-index="' + index + '">' +
-      '<div class="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div>' +
+      '<div class="gcal-reminder-label" data-role="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div>' +
       '<div class="gcal-reminder-control">' +
       '<input type="number" id="gcal-reminder-val-' + key.id + '-' + index + '" value="' + display.value + '" min="0" max="40320">' +
       '<select id="gcal-reminder-unit-' + key.id + '-' + index + '">' +
@@ -569,7 +569,7 @@ function renderGcalSyncSettings(key) {
       '<span class="gcal-reminder-hint">Google Calendar Popup 提醒</span></div>';
   };
   html += '<div class="gcal-reminders-list" id="gcal-reminders-' + key.id + '">' + reminders.map(reminderRow).join('') + '</div>';
-  html += '<button type="button" class="btn btn--ghost btn--sm gcal-add-reminder" onclick="addGcalReminderRow(' + key.id + ')"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
+  html += '<button type="button" class="btn btn--ghost btn--sm gcal-add-reminder" id="gcal-add-reminder-' + key.id + '" onclick="addGcalReminderRow(' + key.id + ')"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
   html += '<div class="gcal-api-note">' +
     '💡 Google Calendar API 上限：最長 4 週（40320 分鐘）= 672 小時 = 28 天 = 4 週</div>';
 
@@ -605,8 +605,8 @@ function selectGcalKey(id) {
 }
 
 function switchGcalTab(tab) {
-  document.querySelectorAll('.gcal-tab').forEach(t => t.classList.remove('is-active'));
-  document.querySelector('.gcal-tab[data-tab="' + tab + '"]').classList.add('is-active');
+  document.querySelectorAll('[data-role="gcal-tab"]').forEach(t => t.classList.remove('is-active'));
+  document.querySelector('[data-role="gcal-tab"][data-tab="' + tab + '"]').classList.add('is-active');
   document.getElementById('gcal-tab-sync').style.display = tab === 'sync' ? '' : 'none';
   document.getElementById('gcal-tab-users').style.display = tab === 'users' ? '' : 'none';
 }
@@ -624,7 +624,7 @@ async function saveGcalSetting(key, value) {
 }
 
 async function saveKeyReminders(keyId) {
-  const rows = Array.from(document.querySelectorAll('#gcal-reminders-' + keyId + ' .gcal-reminder-row'));
+  const rows = Array.from(document.querySelectorAll('#gcal-reminders-' + keyId + ' [data-reminder-index]'));
   // 儲存時重新依目前 DOM 的列順序組合；index 不是永久識別碼，刪除後由 reindexGcalReminders() 重排。
   if (!rows.length || rows.length > 5) return toast('通知數量需為 1~5 個', 'error');
   const reminders = [];
@@ -655,9 +655,9 @@ function addGcalReminderRow(keyId) {
   const row = document.createElement('div');
   row.className = 'gcal-reminder-row';
   row.dataset.reminderIndex = index;
-  row.innerHTML = '<div class="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div><div class="gcal-reminder-control"><input type="number" id="gcal-reminder-val-' + keyId + '-' + index + '" value="30" min="0" max="40320"><select id="gcal-reminder-unit-' + keyId + '-' + index + '"><option value="minutes" selected>分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div><button type="button" class="btn btn--secondary btn--sm" onclick="removeGcalReminderRow(' + keyId + ',' + index + ')">移除</button><span class="gcal-reminder-hint">Google Calendar Popup 提醒</span>';
+  row.innerHTML = '<div class="gcal-reminder-label" data-role="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div><div class="gcal-reminder-control"><input type="number" id="gcal-reminder-val-' + keyId + '-' + index + '" value="30" min="0" max="40320"><select id="gcal-reminder-unit-' + keyId + '-' + index + '"><option value="minutes" selected>分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div><button type="button" class="btn btn--secondary btn--sm" onclick="removeGcalReminderRow(' + keyId + ',' + index + ')">移除</button><span class="gcal-reminder-hint">Google Calendar Popup 提醒</span>';
   container.appendChild(row);
-  const add = document.querySelector('.gcal-add-reminder[onclick="addGcalReminderRow(' + keyId + ')"]');
+  const add = document.getElementById('gcal-add-reminder-' + keyId);
   if (add && container.children.length >= 5) add.disabled = true;
 }
 
@@ -672,10 +672,10 @@ function removeGcalReminderRow(keyId, index) {
     const unit = item.querySelector('select');
     if (value) value.id = 'gcal-reminder-val-' + keyId + '-' + i;
     if (unit) unit.id = 'gcal-reminder-unit-' + keyId + '-' + i;
-    const label = item.querySelector('.gcal-reminder-label');
+    const label = item.querySelector('[data-role="gcal-reminder-label"]');
     if (label) label.textContent = '🔔 提前通知 ' + (i + 1);
   });
-  const add = document.querySelector('.gcal-add-reminder[onclick="addGcalReminderRow(' + keyId + ')"]');
+  const add = document.getElementById('gcal-add-reminder-' + keyId);
   if (add) add.disabled = container.children.length >= 5;
 }
 
@@ -778,11 +778,11 @@ async function bindGcalUser(userId, keyName) {
     ? canAccessPage('change-password')
     : hasPerm('change-own-password');
   if (!canUnits) {
-    const item = document.querySelector('#settingsSideList .side-item[data-panel="units"]');
+    const item = document.querySelector('#settingsSideList [data-role="settings-side-item"][data-panel="units"]');
     if (item) item.style.display = 'none';
   }
   if (!canPettyOptions) {
-    const item = document.querySelector('#settingsSideList .side-item[data-panel="petty-cash"]');
+    const item = document.querySelector('#settingsSideList [data-role="settings-side-item"][data-panel="petty-cash"]');
     if (item) item.style.display = 'none';
   }
   const chipBar = document.getElementById('settingsChipBar');

@@ -85,8 +85,8 @@ def test_index_has_calendar_nav():
     i_signed = html.index('id="sb-nav-signed-reports"')
     i_inv = html.index('id="sb-nav-inventory"')
     assert i_cal < i_signed < i_inv, "sidebar 順序應為 calendar < signed-reports < inventory"
-    assert 'class="sb-nav-link is-active" id="sb-nav-calendar"' in html
-    assert 'class="sb-nav-link" id="sb-nav-inventory"' in html
+    assert 'class="sb-nav-link is-active" data-role="sidebar-nav-link" id="sb-nav-calendar"' in html
+    assert 'class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-inventory"' in html
 
 def test_default_tab_is_calendar():
     """登入一進來顯示行事曆（2026-08-13 Sarah）：globals currentTab 初始 calendar + loadData 用 switchTab 分派"""
@@ -101,8 +101,8 @@ def test_app_boot_clears_default_calendar_active_before_selected_tab():
     boot_start = js.index("var _p = new URLSearchParams(location.search);")
     boot_end = js.index("loadData();", boot_start) + len("loadData();")
     boot = js[boot_start:boot_end]
-    assert "querySelectorAll('.sb-nav-link').forEach" in boot
-    assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('is-active')")
+    assert "querySelectorAll('[data-role=\"sidebar-nav-link\"]').forEach" in boot
+    assert boot.index("querySelectorAll('[data-role=\"sidebar-nav-link\"]').forEach") < boot.index("sbNav.classList.add('is-active')")
     assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
     assert boot.index("setPageScope(currentTab);") < boot.index("loadData();")
 

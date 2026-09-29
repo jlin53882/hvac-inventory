@@ -42,10 +42,10 @@ function openAddModal() {
  */
 function addStockRowHtml() {
   return `
-    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet">${_cabinetOptions('')}</select></label>
-    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" list="location-list" placeholder="例：1-1"></label>
-    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
-    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" placeholder="備註（選填）"></label>
+    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet" data-role="stock-cabinet">${_cabinetOptions('')}</select></label>
+    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="例：1-1"></label>
+    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
+    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註（選填）"></label>
     <button type="button" class="stock-remove" onclick="removeAddStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>`;
 }
 
@@ -59,9 +59,10 @@ function addAddStockRow(focus = true) {
   if (!box) return;
   const row = document.createElement('div');
   row.className = 'stock-row';
+  row.dataset.role = 'stock-row';
   row.innerHTML = addStockRowHtml();
   box.appendChild(row);
-  if (focus) row.querySelector('.stock-cabinet').focus();
+  if (focus) row.querySelector('[data-role="stock-cabinet"]').focus();
 }
 
 /** Reset the add modal to a single blank location row. */
@@ -79,9 +80,9 @@ function resetAddStockRows() {
  */
 function removeAddStockRow(button) {
   const box = document.getElementById('add-stock-rows');
-  const row = button && button.closest('.stock-row');
+  const row = button && button.closest('[data-role="stock-row"]');
   if (!box || !row) return;
-  if (box.querySelectorAll('.stock-row').length <= 1) {
+  if (box.querySelectorAll('[data-role="stock-row"]').length <= 1) {
     toast('至少保留一個位置', 'info');
     return;
   }
@@ -90,7 +91,7 @@ function removeAddStockRow(button) {
 
 /** Rebuild cabinet options after the cabinet list loads, preserving selected values. */
 function refreshAddStockCabinetOptions() {
-  document.querySelectorAll('#add-stock-rows .stock-cabinet').forEach(select => {
+  document.querySelectorAll('#add-stock-rows [data-role="stock-cabinet"]').forEach(select => {
     select.innerHTML = _cabinetOptions(select.value);  // _cabinetOptions 會保留清單外的已選值
   });
 }
@@ -173,14 +174,14 @@ async function submitAdd() {
   const unit = document.getElementById('f-unit').value;
   // 多位置：逐列解析（分數/小數單位可輸 1/4；非法數量 qtyInputOrToast 已 toast → 整包擋下）
   const parsedRows = [];
-  for (const row of document.querySelectorAll('#add-stock-rows .stock-row')) {
-    const qty = qtyInputOrToast(row.querySelector('.stock-qty'), unit);
+  for (const row of document.querySelectorAll('#add-stock-rows [data-role="stock-row"]')) {
+    const qty = qtyInputOrToast(row.querySelector('[data-role="stock-qty"]'), unit);
     if (typeof qty !== 'number' || !isFinite(qty)) return;
     parsedRows.push({
-      cabinet: row.querySelector('.stock-cabinet').value,
-      sub: row.querySelector('.stock-sub').value,
+      cabinet: row.querySelector('[data-role="stock-cabinet"]').value,
+      sub: row.querySelector('[data-role="stock-sub"]').value,
       qty: qty,
-      note: row.querySelector('.stock-note').value,
+      note: row.querySelector('[data-role="stock-note"]').value,
     });
   }
   const built = buildAddStocks(parsedRows);

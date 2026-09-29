@@ -21,7 +21,7 @@ function switchSite(site) {
   ALL_ITEMS = [];
   ALERTS_BY_SITE = {};
   updateNotifications();
-  document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('is-active'); });
+  document.querySelectorAll('[data-role="header-site"] button').forEach(function(t){ t.classList.remove('is-active'); });
   var el = document.getElementById('site-' + site);
   if (el) el.classList.add('is-active');
   loadData();
@@ -48,7 +48,7 @@ function closeSidebar() {
 // Sidebar toggle (desktop: hidden ↔ shown, mobile: drawer)
 function toggleSidebar() {
   var sb = document.getElementById('sidebar');
-  var mn = document.querySelector('.main');
+  var mn = document.querySelector('[data-role="app-main"]');
   var isDesktop = window.innerWidth >= 768;
   if (!isDesktop) {
     // Mobile: use drawer behavior
@@ -73,7 +73,7 @@ function closeAvatarMenu() {
   if (m) m.classList.remove('is-open');
 }
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('.avatar-dropdown')) closeAvatarMenu();
+  if (!e.target.closest('#avatarDropdown')) closeAvatarMenu();
 });
 
 // Sidebar 使用者
@@ -158,8 +158,7 @@ function switchTab(tab) {
   checkReminder();
   updateNotifications();
   setPageScope(tab);
-  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('is-active'); });
-  document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('is-active'); });
+  document.querySelectorAll('[data-role="sidebar-nav-link"]').forEach(function(n){ n.classList.remove('is-active'); });
   var nav = document.getElementById('nav-' + tab);
   if (nav) nav.classList.add('is-active');
   var sbNav = document.getElementById('sb-nav-' + tab);
@@ -170,8 +169,8 @@ function switchTab(tab) {
   // 行事曆與簽名報表不需要搜尋框、公司／倉庫分片與廠牌分頁
   var isCal = tab === 'calendar' || tab === 'work-progress' || tab === 'signed-reports' || tab === 'quotation' || tab === 'petty-cash';
   var isInventory = tab === 'inventory';
-  var sb = document.querySelector('.h-search');
-  var st = document.querySelector('.h-site');
+  var sb = document.querySelector('[data-role="header-search"]');
+  var st = document.querySelector('[data-role="header-site"]');
   if (sb) sb.style.display = isCal ? 'none' : '';
   if (st) st.style.display = isCal ? 'none' : '';
   // 篩選面板只在庫存頁顯示
@@ -265,7 +264,7 @@ var _focusReloadTimer = null;
 var _lastVisibilityReloadAt = 0;
 function autoReloadOnFocus() {
   if (hasPending()) return;
-  if (document.querySelector('.modal-overlay.is-open')) return;
+  if (document.querySelector('[data-role="modal"].is-open')) return;
   if (document.visibilityState !== 'visible') return;
   // 只在 hidden → visible 時觸發；避免 window focus、手機輸入框/原生視窗反覆重畫。
   var now = Date.now();
@@ -273,7 +272,7 @@ function autoReloadOnFocus() {
   if (_focusReloadTimer) return;
   _focusReloadTimer = setTimeout(function() {
     _focusReloadTimer = null;
-    if (document.visibilityState !== 'visible' || hasPending() || document.querySelector('.modal-overlay.is-open')) return;
+    if (document.visibilityState !== 'visible' || hasPending() || document.querySelector('[data-role="modal"].is-open')) return;
     _lastVisibilityReloadAt = Date.now();
     loadData();
   }, 300);
@@ -314,12 +313,12 @@ function mountPreservedTabAfterBootstrap() {
     var tabChangedDuringBoot = currentTab !== bootTab;
     updateBreadcrumb(currentTab);
     // site active 同步
-    document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('is-active'); });
+    document.querySelectorAll('[data-role="header-site"] button').forEach(function(t){ t.classList.remove('is-active'); });
     var siteEl = document.getElementById('site-' + currentSite);
     if (siteEl) siteEl.classList.add('is-active');
     // sidebar active 同步
     var sbNav = document.getElementById('sb-nav-' + currentTab);
-    document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('is-active'); });
+    document.querySelectorAll('[data-role="sidebar-nav-link"]').forEach(function(n){ n.classList.remove('is-active'); });
     if (sbNav) sbNav.classList.add('is-active');
     if (!tabChangedDuringBoot) setPageScope(currentTab);
     loadData();

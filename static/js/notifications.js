@@ -93,7 +93,7 @@ function getNotificationSummary() {
 
 function updateNotifCount(total) {
   const count = Math.max(0, Number(total) || 0);
-  const badge = document.getElementById('notif-badge') || document.querySelector('.notif .cnt');
+  const badge = document.getElementById('notif-badge') || document.querySelector('[data-role="notif"] [data-role="notif-count"]');
   const bell = document.getElementById('notif-bell');
   if (badge) {
     badge.textContent = count > 99 ? '99+' : String(count);
@@ -196,7 +196,7 @@ function handleNotificationKeydown(event) {
   document.addEventListener('keydown', handleNotificationKeydown);
   document.addEventListener('click', function(event) {
     if (!NOTIFICATION_OPEN) return;
-    if (!event.target.closest('.notif') && !event.target.closest('.notif-panel')) closeNotif();
+    if (!event.target.closest('[data-role="notif"]') && !event.target.closest('[data-role="notif-panel"]')) closeNotif();
   });
   if (typeof window !== 'undefined') window.addEventListener('resize', function() {
     if (NOTIFICATION_OPEN && window.innerWidth >= 768) {

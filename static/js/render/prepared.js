@@ -23,7 +23,7 @@ function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
 function renderKitSubItems(item) {
   if (!item.is_kit || !item.components || !item.components.length) return '';
   let html = '<tr class="kit-subitems-row"><td colspan="6"><div class="kit-subitems-toggle" onclick="toggleKitSubItems(this)">';
-  html += '<span class="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
+  html += '<span class="kit-subitems-arrow" data-role="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
@@ -45,7 +45,7 @@ function renderKitSubItemsMobile(item) {
   if (!item.is_kit || !item.components || !item.components.length) return '';
   let html = '<div class="kit-subitems-mobile-wrap">';
   html += '<div class="kit-subitems-toggle" onclick="toggleKitSubItems(this)">';
-  html += '<span class="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
+  html += '<span class="kit-subitems-arrow" data-role="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
@@ -64,7 +64,7 @@ function renderKitSubItemsMobile(item) {
 
 function toggleKitSubItems(el) {
   const list = el.nextElementSibling;
-  const arrow = el.querySelector('.kit-subitems-arrow');
+  const arrow = el.querySelector('[data-role="kit-subitems-arrow"]');
   if (list.style.display === 'none') {
     list.style.display = 'block';
     arrow.textContent = '▼';

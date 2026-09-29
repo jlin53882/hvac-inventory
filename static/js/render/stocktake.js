@@ -93,7 +93,7 @@ async function renderStocktake() {
   const searchFiltered = function(arr) { return filterBySearch(arr, function(r) { return [r.item.name, r.item.code, r.item.brand, r.stock.location].join(' '); }); };
   const filteredKitRows = searchFiltered(kitRows);
   const filteredSingleRows = searchFiltered(singleRows);
-  html += `<div class="stk-tabs stocktake-tabs"><button class="chip chip--seg stk-tab stocktake-tab is-active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="chip chip--seg stk-tab stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
+  html += `<div class="stk-tabs stocktake-tabs"><button class="chip chip--seg stk-tab stocktake-tab is-active" data-role="stocktake-tab" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="chip chip--seg stk-tab stocktake-tab" data-role="stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
   html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div><div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;
   html += `<button type="button" class="btn btn--primary btn--md stocktake-submit btn-save" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>`;
   if (!isCurrent()) return;
@@ -124,12 +124,12 @@ function stocktakeRow(item, stock, kitDef) {
     const materialSystemQty = (typeof Qty !== 'undefined') ? Qty.format(materialStock ? materialStock.qty : c.stock, Qty.unitTypeOf(c.unit)) : (materialStock ? absNum(materialStock.qty) : absNum(c.stock));
     const materialName = `${esc(c.brand || '')} ${esc(c.name || '未命名')}`.trim();
     const materialPhoto = c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" alt="" onclick="openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
-    return `<tr class="stocktake-material-row"><td><div class="stocktake-material-cell"><span class="stocktake-material-indent" aria-hidden="true">↳</span><span class="stocktake-material-photo cphoto">${materialPhoto}</span><span><b>${materialName}</b>${c.code ? `<small class="stocktake-model">型號 ${esc(c.code)}</small>` : ''}<small class="stocktake-material-need">需 ${esc((typeof Qty !== 'undefined') ? Qty.format(c.need_qty, Qty.unitTypeOf(c.unit)) : String(c.need_qty))} ${esc(c.unit || '')}／組</small></span></div></td><td class="stocktake-material-system-qty">${esc(String(materialSystemQty))} ${esc(c.unit || '')}</td><td>${stocktakeInput(materialKey, materialSystemQty, c.unit)}</td><td class="st-diff stocktake-material-diff pending">—</td></tr>`;
+    return `<tr class="stocktake-material-row"><td><div class="stocktake-material-cell"><span class="stocktake-material-indent" aria-hidden="true">↳</span><span class="stocktake-material-photo cphoto">${materialPhoto}</span><span><b>${materialName}</b>${c.code ? `<small class="stocktake-model">型號 ${esc(c.code)}</small>` : ''}<small class="stocktake-material-need">需 ${esc((typeof Qty !== 'undefined') ? Qty.format(c.need_qty, Qty.unitTypeOf(c.unit)) : String(c.need_qty))} ${esc(c.unit || '')}／組</small></span></div></td><td class="stocktake-material-system-qty">${esc(String(materialSystemQty))} ${esc(c.unit || '')}</td><td>${stocktakeInput(materialKey, materialSystemQty, c.unit)}</td><td class="st-diff stocktake-material-diff pending" data-role="stocktake-diff">—</td></tr>`;
   }).join('') : '';
   const displayLoc = stock.location ? `位置：${esc(stock.location)}` : '未標示';
   const photo = item.has_photo ? `<img src="${photoSrc(item.id, 'thumbnail')}" alt="" onclick="openPhotoLightbox(${item.id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
   const rowClass = item.is_kit ? 'stocktake-assembly-row' : 'stocktake-single-row';
-  return `<tr class="${rowClass}"><td><div class="stocktake-item-cell"><span class="cphoto">${photo}</span><span><b>${esc(item.brand || '')} ${esc(item.name || '未命名')}</b>${!item.is_kit && item.code ? '<small class="stocktake-model">型號 ' + esc(item.code) + '</small>' : ''}<small>${displayLoc}${stock.note ? ' · 📝 ' + esc(stock.note) : ''}</small></span></div></td><td class="stocktake-system-qty">${esc(String(systemQty))} ${esc(item.unit || '')}</td><td>${stocktakeInput(key, systemQty, item.unit)}</td><td class="st-diff ${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'}">${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'}</td></tr>${materials}`;
+  return `<tr class="${rowClass}"><td><div class="stocktake-item-cell"><span class="cphoto">${photo}</span><span><b>${esc(item.brand || '')} ${esc(item.name || '未命名')}</b>${!item.is_kit && item.code ? '<small class="stocktake-model">型號 ' + esc(item.code) + '</small>' : ''}<small>${displayLoc}${stock.note ? ' · 📝 ' + esc(stock.note) : ''}</small></span></div></td><td class="stocktake-system-qty">${esc(String(systemQty))} ${esc(item.unit || '')}</td><td>${stocktakeInput(key, systemQty, item.unit)}</td><td class="st-diff ${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'}" data-role="stocktake-diff">${stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'}</td></tr>${materials}`;
 }
 
 function stkGroupByLoc(rows) {
@@ -152,9 +152,9 @@ function stkGroupByLoc(rows) {
 function switchStocktakeTab(tab) {
   document.getElementById('stk-pane-kit').style.display = tab === 'kit' ? '' : 'none';
   document.getElementById('stk-pane-single').style.display = tab === 'single' ? '' : 'none';
-  document.querySelectorAll('.stk-tab').forEach(b => b.classList.remove('is-active'));
+  document.querySelectorAll('[data-role="stocktake-tab"]').forEach(b => b.classList.remove('is-active'));
   const idx = tab === 'kit' ? 0 : 1;
-  document.querySelectorAll('.stk-tab')[idx].classList.add('is-active');
+  document.querySelectorAll('[data-role="stocktake-tab"]')[idx].classList.add('is-active');
 }
 
 // ========== 盤點：低庫存 / 缺貨清單 ==========
@@ -268,7 +268,7 @@ async function submitStocktake() {
 // ========== 內聯盤點差異計算 ==========
 function calcDiff(input) {
   const row = input.closest('tr');
-  const diffEl = row ? row.querySelector('.st-diff') : null;
+  const diffEl = row ? row.querySelector('[data-role="stocktake-diff"]') : null;
   if (!diffEl) return;
   if (input.value.trim() === '') {
     diffEl.textContent = '—';

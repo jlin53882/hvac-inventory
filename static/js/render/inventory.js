@@ -398,7 +398,7 @@ function buildInventoryItemActionMenu(itemId, isViewer) {
     const command = a.key === 'edit' ? 'openEditModal(' + itemId + ')' : (a.key === 'transfer' ? 'openTransferModal(' + itemId + ')' : 'deleteItem(' + itemId + ')');
     return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" onclick="' + command + ';closeInventoryActionMenus()">' + a.icon + ' ' + a.label + '</button>';
   }).join('');
-  return '<div class="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" onclick="openInventoryActionMenu(this, event)">⋮</button><div class="inventory-action-dropdown">' + buttons + '</div></div>';
+  return '<div class="inventory-action-menu" data-role="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" onclick="openInventoryActionMenu(this, event)">⋮</button><div class="inventory-action-dropdown" data-role="inventory-action-dropdown">' + buttons + '</div></div>';
 }
 
 function renderInventoryToolbar(list, isViewer) {
@@ -410,7 +410,7 @@ function renderInventoryToolbar(list, isViewer) {
   h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="chip chip--seg' + (viewMode === 'table' ? ' is-active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="chip chip--seg' + (viewMode === 'card' ? ' is-active' : '') + '">🃏 卡片</button></div>';
   if (!isViewer) h += '<button class="btn btn--primary btn--md btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
   if (isM) {
-    h += '<div class="more-actions-wrap"><button class="btn btn--secondary btn--md btn--icon" onclick="toggleMoreActions()">⋮</button>';
+    h += '<div class="more-actions-wrap" data-role="more-actions"><button class="btn btn--secondary btn--md btn--icon" onclick="toggleMoreActions()">⋮</button>';
     h += '<div class="more-actions-dropdown" id="moreActionsDropdown">';
     if (hasPerm('batch-loc-mgmt')) h += '<button onclick="toggleBatchMode();closeMoreActions()">📦 批次改位置</button>';
     h += '<button onclick="openInventoryExportDialog();closeMoreActions()">⬇️ 匯出庫存</button>';
@@ -489,7 +489,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
     h += '<button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>';
     h += '<span class="loc">位置：' + esc(loc) + '</span><span>' + locItems.length + ' 項</span>';
     h += '</div>';
-    h += '<div class="loc-group' + (locCollapsed ? ' is-collapsed' : '') + '" data-loc="' + esc(loc) + '">';
+    h += '<div class="loc-group' + (locCollapsed ? ' is-collapsed' : '') + '" data-role="loc-group" data-loc="' + esc(loc) + '">';
     locItems.forEach(i => {
       const status = getInventoryStatus(i);
       const display = status.qty;
@@ -713,7 +713,7 @@ function toggleLoc(titleEl, loc) {
 
   try {
 
-    const groups = document.querySelectorAll('.loc-group[data-loc="' + CSS.escape(loc) + '"]');
+    const groups = document.querySelectorAll('[data-role="loc-group"][data-loc="' + CSS.escape(loc) + '"]');
 
     groups.forEach(g => g.classList.toggle('is-collapsed', nowCollapsed));
 
@@ -1090,16 +1090,16 @@ function closeMoreActions() {
 }
 function openInventoryActionMenu(button, event) {
   if (event) event.stopPropagation();
-  document.querySelectorAll('.inventory-action-dropdown.is-open').forEach(function(el) { el.classList.remove('is-open'); });
-  var menu = button && button.parentElement ? button.parentElement.querySelector('.inventory-action-dropdown') : null;
+  document.querySelectorAll('[data-role="inventory-action-dropdown"].is-open').forEach(function(el) { el.classList.remove('is-open'); });
+  var menu = button && button.parentElement ? button.parentElement.querySelector('[data-role="inventory-action-dropdown"]') : null;
   if (menu) menu.classList.toggle('is-open');
 }
 function closeInventoryActionMenus() {
-  document.querySelectorAll('.inventory-action-dropdown.is-open').forEach(function(el) { el.classList.remove('is-open'); });
+  document.querySelectorAll('[data-role="inventory-action-dropdown"].is-open').forEach(function(el) { el.classList.remove('is-open'); });
 }
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('.more-actions-wrap')) closeMoreActions();
-  if (!e.target.closest('.inventory-action-menu')) closeInventoryActionMenus();
+  if (!e.target.closest('[data-role="more-actions"]')) closeMoreActions();
+  if (!e.target.closest('[data-role="inventory-action-menu"]')) closeInventoryActionMenus();
 });
 
 // ========== 響應式篩選面板重新計算 ==========

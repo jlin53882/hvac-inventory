@@ -70,11 +70,11 @@ function renderEditStockRows(stocks, unit) {
     const stockId = stock.id != null ? stock.id : '';
     const revision = stock.updated_at || '';
     return `
-    <div class="stock-row" data-idx="${esc(String(index))}" data-stock-id="${esc(String(stockId))}" data-stock-qty="${esc(String(stock.qty ?? 0))}" data-stock-updated-at="${esc(revision)}">
-      <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet">${_cabinetOptions(cabinet)}</select></label>
-      <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" value="${esc(subLocation)}" list="location-list" placeholder="位置"></label>
-      <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" value="${esc(quantity)}" placeholder="數量（可輸 1/4）"></label>
-      <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" value="${esc(stock.note || '')}" placeholder="備註（選填）"></label>
+    <div class="stock-row" data-role="stock-row" data-idx="${esc(String(index))}" data-stock-id="${esc(String(stockId))}" data-stock-qty="${esc(String(stock.qty ?? 0))}" data-stock-updated-at="${esc(revision)}">
+      <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet" data-role="stock-cabinet">${_cabinetOptions(cabinet)}</select></label>
+      <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" data-role="stock-sub" value="${esc(subLocation)}" list="location-list" placeholder="位置"></label>
+      <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="${esc(quantity)}" placeholder="數量（可輸 1/4）"></label>
+      <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" data-role="stock-note" value="${esc(stock.note || '')}" placeholder="備註（選填）"></label>
       <button type="button" class="stock-remove" onclick="deleteEditStockRow(this)" aria-label="移除第 ${esc(String(index + 1))} 個位置" title="移除此位置">✕</button>
     </div>`;
   }).join('');
@@ -104,19 +104,20 @@ function addEditStockRow() {
   const box = document.getElementById('edit-stock-rows');
   const row = document.createElement('div');
   row.className = 'stock-row';
+  row.dataset.role = 'stock-row';
   row.dataset.idx = box.children.length;
   row.dataset.stockId = '';
   row.dataset.stockUpdatedAt = '';
   row.dataset.stockQty = '0';
   row.innerHTML = `
-    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet">${_cabinetOptions('')}</select></label>
-    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" list="location-list" placeholder="位置"></label>
-    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
-    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" placeholder="備註（選填）"></label>
+    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet" data-role="stock-cabinet">${_cabinetOptions('')}</select></label>
+    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="位置"></label>
+    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
+    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註（選填）"></label>
     <button type="button" class="stock-remove" onclick="deleteEditStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>
   `;
   box.appendChild(row);
-  row.querySelector('.stock-sub').focus();
+  row.querySelector('[data-role="stock-sub"]').focus();
 }
 
 /**
@@ -126,9 +127,9 @@ function addEditStockRow() {
  */
 function deleteEditStockRow(button) {
   const box = document.getElementById('edit-stock-rows');
-  const row = button && button.closest('.stock-row');
+  const row = button && button.closest('[data-role="stock-row"]');
   if (!row) return;
-  if (box.querySelectorAll('.stock-row').length <= 1) {
+  if (box.querySelectorAll('[data-role="stock-row"]').length <= 1) {
     toast('至少保留一個位置列；若要清空庫存，請先確認品項資料。', 'info');
     return;
   }
@@ -169,12 +170,12 @@ async function submitEdit() {
     low_stock: isNaN(lowstockVal) ? 0 : lowstockVal,
     category: document.getElementById('e-category').value,
     // v10：完整位置清單（全量替換）
-    stocks: [...document.querySelectorAll('#edit-stock-rows .stock-row')].map(row => {
-      const cab = row.querySelector('.stock-cabinet').value;
-      const sub = row.querySelector('.stock-sub').value.trim();
+    stocks: [...document.querySelectorAll('#edit-stock-rows [data-role="stock-row"]')].map(row => {
+      const cab = row.querySelector('[data-role="stock-cabinet"]').value;
+      const sub = row.querySelector('[data-role="stock-sub"]').value.trim();
       const location = cab ? (sub ? `${cab} | ${sub}` : cab) : '';
       // 2026-09-12：分數/小數單位可輸 1/4；非法整包擋下（qtyInputOrToast 已 toast，回 NaN→null）
-      const _el = row.querySelector('.stock-qty');
+      const _el = row.querySelector('[data-role="stock-qty"]');
       const _qv = qtyInputOrToast(_el, document.getElementById('e-unit').value);
       if (typeof _qv !== 'number' || isNaN(_qv)) return null;
       const _qq = _qv;
@@ -185,7 +186,7 @@ async function submitEdit() {
         id: sid !== '' ? Number(sid) : null,
         location: location,
         qty: _qv,
-        note: row.querySelector('.stock-note').value.trim(),
+        note: row.querySelector('[data-role="stock-note"]').value.trim(),
         stock_updated_at: srev || null,
       };
     }),

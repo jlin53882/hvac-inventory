@@ -254,8 +254,8 @@
         const checkedValue = hasPending ? permChanges[p.key] : p.allowed;
         const checked = checkedValue ? 'checked' : '';
         const disabled = locked || isMe;
-        html += `<div class="perm-row ${locked ? 'locked' : ''}">
-          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${esc(srcCls)}">${srcLabel}</span></small></div>
+        html += `<div class="perm-row ${locked ? 'locked' : ''}" data-role="perm-row">
+          <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${esc(srcCls)}" data-role="perm-src">${srcLabel}</span></small></div>
           <label class="switch">
             <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} onchange="window.permToggle('${jsStr(p.key)}', this.checked)">
             <span class="slider"></span>
@@ -285,7 +285,7 @@
     let html = '<div class="perm-group page-visibility-group"><div class="perm-group-title">🖥 頁面顯示（每頁獨立設定）</div><div class="perm-grid">';
     for (const key of pageInfo.all_pages || []) {
       const checkedValue = Object.prototype.hasOwnProperty.call(pageChanges, key) ? pageChanges[key] : visiblePages.includes(key);
-      html += `<div class="perm-row">
+      html += `<div class="perm-row" data-role="perm-row">
         <div class="perm-label">${esc(PAGE_LABELS[key] || key)}<small>${esc(key)}</small></div>
         <label class="switch"><input type="checkbox" data-page-key="${esc(key)}" ${esc(checkedValue ? 'checked' : '')} ${isMe ? 'disabled' : ''} onchange="window.permPageToggle('${jsStr(key)}', this.checked)"><span class="slider"></span></label>
       </div>`;
@@ -314,8 +314,8 @@
 
   /** Mark a permission row as a local override after a user edit. */
   function markPermOverride(key) {
-    const row = document.querySelector(`input[data-key="${key}"]`)?.closest('.perm-row');
-    const src = row && row.querySelector('.perm-src');
+    const row = document.querySelector(`input[data-key="${key}"]`)?.closest('[data-role="perm-row"]');
+    const src = row && row.querySelector('[data-role="perm-src"]');
     if (src) { src.textContent = '✏️ 自訂'; src.className = 'perm-src override'; }
   }
 
@@ -495,7 +495,7 @@
 
   // ---------- tab 切換 ----------
   window.switchTab = function switchTab(tab) {
-    document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('is-active', t.dataset.tab === tab));
+    document.querySelectorAll('[data-role="perm-tab"]').forEach(t => t.classList.toggle('is-active', t.dataset.tab === tab));
     document.getElementById('tab-perms').style.display = tab === 'perms' ? '' : 'none';
     document.getElementById('tab-account').style.display = tab === 'account' ? '' : 'none';
   };
@@ -519,7 +519,7 @@
     addMode = mode;
     document.getElementById('addSingle').style.display = mode === 'single' ? '' : 'none';
     document.getElementById('addBatch').style.display = mode === 'batch' ? '' : 'none';
-    document.querySelectorAll('#addUserOverlay .tab').forEach(t => t.classList.toggle('is-active', t.textContent.includes(mode === 'single' ? '單一' : '批次')));
+    document.querySelectorAll('#addUserOverlay [data-role="add-user-mode"]').forEach(t => t.classList.toggle('is-active', t.dataset.mode === mode));
   };
 
   window.submitAddUser = async function submitAddUser() {

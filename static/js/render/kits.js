@@ -298,7 +298,7 @@ function renderKitCompRows() {
 
   // 單一可搜尋輸入框（🔍 搜尋材料想加的…）
 
-  html += `<div class="mat-search">
+  html += `<div class="mat-search" data-role="mat-search">
 
     <div class="input-wrap">
 
@@ -310,7 +310,7 @@ function renderKitCompRows() {
 
     </div>
 
-    <div class="kit-dropdown" id="kit-drop"></div>
+    <div class="kit-dropdown" data-role="kit-dropdown" id="kit-drop"></div>
 
   </div>`;
 
@@ -404,9 +404,9 @@ function pickKitItem(itemId) {
 
 document.addEventListener('click', (e) => {
 
-  const inSearch = e.target.closest('.mat-search');
+  const inSearch = e.target.closest('[data-role="mat-search"]');
 
-  document.querySelectorAll('.kit-dropdown.is-open').forEach(d => {
+  document.querySelectorAll('[data-role="kit-dropdown"].is-open').forEach(d => {
 
     if (!inSearch || !inSearch.contains(d)) d.classList.remove('is-open');
 

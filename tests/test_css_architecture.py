@@ -524,26 +524,51 @@ def test_js_inline_styles_only_carry_runtime_state():
         assert not _js_style_violations(text), f"{rel}：" + "；".join(_js_style_violations(text))
 
 
-# ── JS 行為掛鉤不得依賴樣式 class（issue #39 第 3 項）──
-# 按鈕 / chip / utility 的 class 會依 CSS 規範改名；JS 若用它們找元素，改 class 後功能會默默失效。
-# JS 找元素請用 id、data-role（元素群組）或 data-action（使用者動作），見 docs/CSS架構重構設計.md §4.3。
-JS_LOOKUP_CALL = re.compile(
-    r"\b(querySelectorAll|querySelector|closest|matches|getElementsByClassName)\(\s*(['\"`])((?:\\.|(?!\2).)*)\2", re.S)
-STYLE_CLASS_NAME = re.compile(r"^(?:btn|chip)(?:-[\w-]*)?$|^[\w-]+-chip(?:-[\w-]*)?$|^u-[\w-]+$")
+# ── JS 找元素不得依賴 class（issue #39）──
+# class 屬於 CSS：依 CSS 規範改名、合併或拆分時，JS 若用它找元素，功能會默默失效。
+# JS 找元素請用 id、data-role（元素群組）或 data-action（使用者動作），見 docs/CSS架構重構設計.md §4.3；
+# 只有 JS 自己切換的狀態 class（.is-* / .has-*）可以組進 selector（例：[data-role="modal"].is-open）。
+JS_LOOKUP_CALL = re.compile(r"\b(querySelectorAll|querySelector|closest|matches|getElementsByClassName)\(")
+STATE_CLASS_NAME = re.compile(r"^(?:is|has)-[\w-]+$")
 
 
-def _style_class_lookups(text):
-    """回傳 JS 用樣式 class（.btn / .btn-* / .chip* / .xxx-chip / .u-*）找元素的呼叫。"""
+def _call_argument(text, open_paren):
+    """回傳 lookup 呼叫括號內的原始碼（處理巢狀括號與字串）。"""
+    depth, quote, i = 0, None, open_paren
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "'\"`":
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1:i]
+        i += 1
+    return text[open_paren + 1:]
+
+
+def _class_lookups(text):
+    """回傳 JS 用 class（狀態 class 除外）找元素的呼叫；selector 以字串串接組成時逐段檢查。"""
     bad = []
     for match in JS_LOOKUP_CALL.finditer(text):
-        api, selector = match.group(1), match.group(3)
-        static = re.sub(r"\$\{[^}]*\}", " ", selector)
-        static = re.sub(r"\[[^\]]*\]", " ", static)  # data-role="u-..." 這類屬性值不是 class
+        api = match.group(1)
+        argument = _call_argument(text, match.end() - 1)
+        pieces = [m.group(2) for m in re.finditer(r"(['\"`])((?:\\.|(?!\1).)*)\1", argument, re.S)]
+        static = " ".join(re.sub(r"\$\{[^}]*\}", " ", piece) for piece in pieces)
+        static = re.sub(r"\[[^\]]*\]", " ", static)  # data-role="…" 等屬性值不是 class
         if api == "getElementsByClassName":
             names = static.split()
         else:
             names = re.findall(r"\.(-?[_a-zA-Z][\w-]*)", static)
-        bad += [f"{api}('{selector}') 使用樣式 class .{name}" for name in names if STYLE_CLASS_NAME.match(name)]
+        bad += [f"{api}({argument.strip()[:80]}) 使用 class .{name}" for name in names if not STATE_CLASS_NAME.match(name)]
     return bad
 
 
@@ -554,13 +579,16 @@ def _style_class_lookups(text):
     "document.querySelectorAll('.pc-chip')[3]",
     "tr.querySelector('.u-ci-to')",
     "btn.closest('.btn')",
+    "btn.closest('.stock-row')",
     "el.matches('.chip--seg.is-active')",
     "document.getElementsByClassName('btn btn--primary')",
     "root.querySelector(`#${id} .btn--secondary`)",
+    "document.querySelectorAll('#gcal-reminders-' + keyId + ' .gcal-reminder-row')",
+    "document.querySelector('.modal-overlay.is-open')",
 ])
-def test_style_class_lookup_guard_rejects_style_hooks(snippet):
-    """守衛本身要攔得到每一種找元素 API 搭配樣式 class 的寫法。"""
-    assert _style_class_lookups(snippet), snippet
+def test_class_lookup_guard_rejects_class_hooks(snippet):
+    """守衛本身要攔得到每一種找元素 API 搭配 class 的寫法（含字串串接）。"""
+    assert _class_lookups(snippet), snippet
 
 
 @pytest.mark.parametrize("snippet", [
@@ -568,16 +596,17 @@ def test_style_class_lookup_guard_rejects_style_hooks(snippet):
     "document.querySelectorAll('[data-role=\"pc-range\"]')",
     "tr.querySelector('[data-role=\"unit-consolidate-to\"]')",
     "document.querySelectorAll('#settingsChipBar [data-panel]')",
-    "btn.closest('.stock-row')",
+    "document.querySelector('[data-role=\"modal\"].is-open')",
+    "document.querySelectorAll('#gcal-reminders-' + keyId + ' [data-reminder-index]')",
     "document.querySelector('#kit-modal h3')",
     "el.classList.contains('btn-confirm')",
     "document.querySelector(`[data-action=\"${action}\"]`)",
 ])
-def test_style_class_lookup_guard_allows_semantic_hooks(snippet):
-    assert not _style_class_lookups(snippet), snippet
+def test_class_lookup_guard_allows_semantic_hooks(snippet):
+    assert not _class_lookups(snippet), snippet
 
 
-def test_js_does_not_find_elements_by_style_classes():
-    """static/js 與 HTML 內嵌 script 不得用樣式 class 找元素；改用 id / data-role / data-action。"""
-    bad = [f"{rel}：{item}" for rel, text in _markup_sources() for item in _style_class_lookups(text)]
+def test_js_does_not_find_elements_by_class():
+    """static/js 與 HTML 內嵌 script 不得用 class 找元素；改用 id / data-role / data-action（狀態 class 除外）。"""
+    bad = [f"{rel}：{item}" for rel, text in _markup_sources() for item in _class_lookups(text)]
     assert not bad, "\n".join(bad)

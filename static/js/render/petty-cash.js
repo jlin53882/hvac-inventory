@@ -300,7 +300,7 @@ function pcReportActionEntries(r, engineering) {
 
 function pcMoreMenuHtml(r, engineering) {
   const actions = pcReportActionEntries(r, engineering);
-  return `<span class="pc-report-actions"><details class="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();pcCloseMoreMenuFromAction(this);${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
+  return `<span class="pc-report-actions"><details class="pc-more-menu" data-role="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list" data-role="pc-more-menu-list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();pcCloseMoreMenuFromAction(this);${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
 }
 var pcMoreMenuEventsBound = false;
 function pcPositionMoreMenu(menu, list) {
@@ -336,21 +336,22 @@ function pcCloseMoreMenu(menu) {
   if (row) row.classList.remove('pc-more-menu-row--open');
 }
 function pcCloseMoreMenuFromAction(element) {
-  const list = element && element.closest('.pc-more-menu__list');
-  pcCloseMoreMenu((list && list._pcMoreMenuOwner) || (element && element.closest('.pc-more-menu')));
+  const list = element && element.closest('[data-role="pc-more-menu-list"]');
+  pcCloseMoreMenu((list && list._pcMoreMenuOwner) || (element && element.closest('[data-role="pc-more-menu"]')));
 }
 function pcCloseAllMoreMenus() {
-  document.querySelectorAll('.pc-more-menu').forEach(pcCloseMoreMenu);
-  document.querySelectorAll('.pc-more-menu__list--portal').forEach(list => {
+  document.querySelectorAll('[data-role="pc-more-menu"]').forEach(pcCloseMoreMenu);
+  document.querySelectorAll('[data-role="pc-more-menu-list"][data-portal]').forEach(list => {
     if (!list._pcMoreMenuOwner) list.remove();
   });
 }
 function pcPortalMoreMenu(menu) {
-  const list = menu.querySelector('.pc-more-menu__list');
+  const list = menu.querySelector('[data-role="pc-more-menu-list"]');
   if (!list || list.parentNode === document.body) return;
   menu._pcMoreMenuList = list;
   list._pcMoreMenuOwner = menu;
   list.classList.add('pc-more-menu__list--portal');
+  list.dataset.portal = 'true';
   document.body.appendChild(list);
   list.style.position = 'fixed';
   list.style.right = 'auto';
@@ -362,28 +363,28 @@ function pcBindMoreMenuEvents() {
   pcMoreMenuEventsBound = true;
   document.addEventListener('toggle', event => {
     const menu = event.target;
-    if (!menu.matches || !menu.matches('.pc-more-menu')) return;
+    if (!menu.matches || !menu.matches('[data-role="pc-more-menu"]')) return;
     const row = menu.closest('tr');
     if (!menu.open) {
       pcCloseMoreMenu(menu);
       return;
     }
-    document.querySelectorAll('.pc-more-menu[open]').forEach(other => {
+    document.querySelectorAll('[data-role="pc-more-menu"][open]').forEach(other => {
       if (other !== menu) pcCloseMoreMenu(other);
     });
     pcPortalMoreMenu(menu);
     if (row) row.classList.add('pc-more-menu-row--open');
   }, true);
   document.addEventListener('scroll', () => {
-    const menu = document.querySelector('.pc-more-menu[open]');
+    const menu = document.querySelector('[data-role="pc-more-menu"][open]');
     if (menu && menu._pcMoreMenuList) pcPositionMoreMenu(menu, menu._pcMoreMenuList);
   }, true);
   window.addEventListener('resize', () => {
-    const menu = document.querySelector('.pc-more-menu[open]');
+    const menu = document.querySelector('[data-role="pc-more-menu"][open]');
     if (menu && menu._pcMoreMenuList) pcPositionMoreMenu(menu, menu._pcMoreMenuList);
   });
   document.addEventListener('click', event => {
-    if (event.target.closest && event.target.closest('.pc-more-menu, .pc-more-menu__list')) return;
+    if (event.target.closest && event.target.closest('[data-role="pc-more-menu"], [data-role="pc-more-menu-list"]')) return;
     pcCloseAllMoreMenus();
   }, true);
 }
@@ -510,7 +511,7 @@ function pcBindGeneralDetailEvents() {
   if (pcGeneralDetailEventsBound) return;
   pcGeneralDetailEventsBound = true;
   document.addEventListener('click', event => {
-    const element = event.target.closest('.pc-general-entry-row--expandable[data-entry-index], .pc-inline-expand[data-entry-index], .pc-general-detail-toggle[data-entry-index]');
+    const element = event.target.closest('[data-action="pc-toggle-entry"]');
     if (!element) return;
     event.preventDefault();
     event.stopPropagation();
@@ -558,8 +559,8 @@ function pcGeneralEntryRowsHtml(entries) {
     const summary = e.description || (hasItems ? `${e.items.length} 項明細` : '—');
     const incomeText = e.entry_type === 'income' ? '+' + esc(_pcMoney(e.amount)) : '—';
     const expenseText = e.entry_type !== 'income' ? '-' + esc(_pcMoney(e.amount)) : '—';
-    const toggle = hasItems ? `<button type="button" class="pc-inline-expand" aria-expanded="${expanded}" data-entry-index="${i}">${expanded ? '▼' : '▶'}</button>` : '';
-    const row = `<tr class="${hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'}"${hasItems ? ` data-entry-index="${i}"` : ''}><td>${esc(seq)}</td><td class="pc-nowrap">${esc(_pcDate(e.entry_date))}</td><td>${toggle}<span>${esc(summary)}</span>${hasItems ? ` <small>（${esc(e.items.length)} 項）</small>` : ''}</td><td class="pc-money pc-money--income">${incomeText}</td><td class="pc-money pc-money--expense">${expenseText}</td><td>${esc(e.category || '—')}</td><td>${pcEntryStatus(e)}</td><td>—</td></tr>`;
+    const toggle = hasItems ? `<button type="button" class="pc-inline-expand" aria-expanded="${expanded}" data-action="pc-toggle-entry" data-entry-index="${i}">${expanded ? '▼' : '▶'}</button>` : '';
+    const row = `<tr class="${hasItems ? 'pc-general-entry-row pc-general-entry-row--expandable' : 'pc-general-entry-row'}"${hasItems ? ` data-action="pc-toggle-entry" data-entry-index="${i}"` : ''}><td>${esc(seq)}</td><td class="pc-nowrap">${esc(_pcDate(e.entry_date))}</td><td>${toggle}<span>${esc(summary)}</span>${hasItems ? ` <small>（${esc(e.items.length)} 項）</small>` : ''}</td><td class="pc-money pc-money--income">${incomeText}</td><td class="pc-money pc-money--expense">${expenseText}</td><td>${esc(e.category || '—')}</td><td>${pcEntryStatus(e)}</td><td>—</td></tr>`;
     const detail = expanded ? `<tr class="pc-general-detail-row"><td></td><td colspan="7">${pcGeneralDetailsHtml(e)}</td></tr>` : '';
     return row + detail;
   }).join('');
@@ -569,7 +570,7 @@ function pcGeneralMobileCardsHtml(entries) {
     const expanded = pcDetailExpanded.has(i);
     const isIncome = e.entry_type === 'income';
     const hasItems = !!(e.items && e.items.length);
-    return `<article class="pc-general-tx-card"><div class="pc-general-tx-main"><div class="pc-general-tx-top"><span class="pc-nowrap">${esc(_pcDate(e.entry_date))}</span>${e.category ? `<span class="pc-entry-card__cat">${esc(e.category)}</span>` : ''}</div><div class="pc-general-tx-desc">${esc(e.description || (hasItems ? `${e.items.length} 項明細` : '—'))}</div><div class="pc-general-tx-bottom"><span class="${isIncome ? 'pc-money--income' : 'pc-money--expense'}">${isIncome ? '收入 +' : '支出 -'}$${esc(_pcMoney(e.amount))}</span>${pcEntryStatus(e)}</div>${hasItems ? `<button type="button" class="pc-general-detail-toggle" data-entry-index="${i}">${expanded ? '收合明細 ▲' : `查看 ${e.items.length} 項明細 ▼`}</button>` : ''}</div>${expanded ? pcGeneralDetailsHtml(e) : ''}</article>`;
+    return `<article class="pc-general-tx-card"><div class="pc-general-tx-main"><div class="pc-general-tx-top"><span class="pc-nowrap">${esc(_pcDate(e.entry_date))}</span>${e.category ? `<span class="pc-entry-card__cat">${esc(e.category)}</span>` : ''}</div><div class="pc-general-tx-desc">${esc(e.description || (hasItems ? `${e.items.length} 項明細` : '—'))}</div><div class="pc-general-tx-bottom"><span class="${isIncome ? 'pc-money--income' : 'pc-money--expense'}">${isIncome ? '收入 +' : '支出 -'}$${esc(_pcMoney(e.amount))}</span>${pcEntryStatus(e)}</div>${hasItems ? `<button type="button" class="pc-general-detail-toggle" data-action="pc-toggle-entry" data-entry-index="${i}">${expanded ? '收合明細 ▲' : `查看 ${e.items.length} 項明細 ▼`}</button>` : ''}</div>${expanded ? pcGeneralDetailsHtml(e) : ''}</article>`;
   }).join('');
 }
 function pcRenderDetail() {

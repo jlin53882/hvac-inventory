@@ -213,7 +213,7 @@ document.body.dataset.page = mode === 'upload' ? 'quotation-upload' : 'quotation
 | 狀態 | `is-` / `has-` | `.is-active`, `.is-open`（逐步取代 `.active`/`.open`/`.on`/`.show` 四種寫法） |
 | JS 掛鉤 | `js-` 或 `data-*`，**不得用來上樣式** | `data-action="delete"` |
 
-JS 找元素（`querySelector` / `querySelectorAll` / `closest` / `matches` / `getElementsByClassName`）只能用 `id`、`data-role`（元素群組，例：`data-role="pc-range"`）或 `data-action`，不得用 `.btn` / `.btn-*` / `.chip*` / `.xxx-chip` / `.u-*` 等樣式 class；由 `tests/test_css_architecture.py::test_js_does_not_find_elements_by_style_classes` 守衛（issue #39）。
+JS 找元素（`querySelector` / `querySelectorAll` / `closest` / `matches` / `getElementsByClassName`）只能用 `id`、`data-role`（元素群組，例：`data-role="pc-range"`）或 `data-action`（使用者動作），不得用任何 class；只有 JS 自己切換的狀態 class（`.is-*` / `.has-*`）可以組進 selector（例：`[data-role="modal"].is-open`）。由 `tests/test_css_architecture.py::test_js_does_not_find_elements_by_class` 守衛，字串串接的 selector 也會逐段檢查（issue #39）。
 
 ---
 
