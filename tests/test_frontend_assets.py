@@ -830,19 +830,20 @@ def test_api_fetch_migrated_callers_keep_requests_and_messages():
     assert result.returncode == 0, f"apiFetch 遷移測試失敗：\n{result.stdout}\n{result.stderr}"
 
 
-# 已遷移到 apiFetch 的檔案：不可再自行呼叫 fetch 解析回應（其餘檔案列在 issue #39 後續清單，逐頁遷移後加入）
-API_FETCH_MIGRATED_JS = ("settings.js", "units.js", "modals/gcal-key.js", "perms.js")
+# 只有 API client 本身與 auth.js 的 401 攔截器可以直接呼叫 fetch；其餘一律經 apiFetch / apiDownload（issue #39）
+DIRECT_FETCH_ALLOWED_JS = {"api-client.js", "auth.js"}
 
 
-def test_api_fetch_migrated_files_do_not_call_fetch_directly():
+def test_frontend_calls_api_through_api_client():
     js_root = Path(BASE_DIR) / "static" / "js"
     raw = [
-        f"{rel}:{line_number}:{line.strip()}"
-        for rel in API_FETCH_MIGRATED_JS
-        for line_number, line in enumerate((js_root / rel).read_text(encoding="utf-8").splitlines(), 1)
-        if re.search(r"(?<![\w$.])fetch\(", line)
+        f"{path.relative_to(js_root)}:{line_number}:{line.strip()}"
+        for path in sorted(js_root.rglob("*.js"))
+        if path.relative_to(js_root).as_posix() not in DIRECT_FETCH_ALLOWED_JS
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if re.search(r"(?<![\w$.])fetch\(|\.blob\(\)", line)
     ]
-    assert not raw, "已遷移檔案請改用 apiFetch：\n" + "\n".join(raw)
+    assert not raw, "請改用 api-client.js 的 apiFetch / apiDownload：\n" + "\n".join(raw)
 
 
 def test_petty_cash_settings_options_domain_layout():
@@ -2228,8 +2229,7 @@ def test_stocktake_kit_tab_expands_components():
     fetch /api/kits 載入 stocktakeKits + 品項欄內嵌組成品項縮圖/名稱/型號/需有"""
     js = read(STOCKTAKE_JS)
     # 載入整組資料（fetch /api/kits，site 對齊 currentSite）
-    assert "fetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`)" in js
-    assert "const kits = await kitRes.json()" in js
+    assert "const kits = await apiFetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`)" in js
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
     assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
     assert 'src="${photoSrc(c.item_id, \'thumbnail\')}"' in js
@@ -2587,8 +2587,9 @@ def test_return_stockout_modal_present():
     assert "openReturnStockoutModal" in js, "JS 缺 openReturnStockoutModal"
     assert "submitReturnStockout" in js, "JS 缺 submitReturnStockout"
     # 送出時帶 body（JSON），不再是空 POST
-    assert "JSON.stringify(body)" in js, "退回送出應帶 JSON body"
-    assert "Content-Type" in js, "退回送出應帶 Content-Type header"
+    assert "json: body" in js, "退回送出應帶 JSON body"
+    # json: 由 apiFetch 自動帶 JSON Content-Type（issue #39）
+    assert "'Content-Type': 'application/json'" in read(os.path.join(STATIC, "js", "api-client.js")), "退回送出應帶 Content-Type header"
 
 
 def test_stocktake_view_for_all_roles():
@@ -2626,7 +2627,7 @@ def test_prepared_nonstock_add_ui():
     js = read(STOCKOUT_MODAL_JS)
     for fn in ("openNonStockPrepareModal", "submitNonStockPrepare"):
         assert fn in js, f"modals/stockout.js 缺 {fn}"
-    assert "fetch('/api/prepare/nonstock'" in js, "submitNonStockPrepare 沒打新端點"
+    assert "apiFetch('/api/prepare/nonstock'" in js, "submitNonStockPrepare 沒打新端點"
 
     pjs = read(PREPARED_RENDER_JS)
     assert "onclick=\"openNonStockPrepareModal()\"" in pjs, "待領出頁缺新增按鈕入口"
@@ -2647,7 +2648,7 @@ def test_stockout_nonstock_add_ui():
     js = read(STOCKOUT_MODAL_JS)
     for fn in ("openNonStockOutModal", "submitNonStockOut"):
         assert fn in js, f"modals/stockout.js 缺 {fn}"
-    assert "fetch('/api/stockout/nonstock'" in js, "submitNonStockOut 沒打新端點"
+    assert "apiFetch('/api/stockout/nonstock'" in js, "submitNonStockOut 沒打新端點"
 
     rjs = read(STOCKOUT_RENDER_JS)
     assert "onclick=\"openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
@@ -2722,7 +2723,9 @@ def test_api_js_saveall_keeps_failed_pending():
     """api.js saveAll：失敗的調整保留在 pending（不靜默丟失），成功才清空"""
     js = read(API_JS)
     assert "let fail = 0" in js, "api.js saveAll 缺 request failure tracking"
-    assert "if (!response.ok) { fail++; continue; }" in js, "失敗請求必須跳過 pending 扣除"
+    # 失敗請求由 apiFetch 丟錯，直接進 catch 計數，不會執行後面的 pending 扣除（runtime 見 inventory_location_runtime.test.js）
+    save = js[js.index("await apiFetch(operation.url"):js.index("Object.keys(pending).forEach")]
+    assert save.index("ok++;") < save.index("pending[id] = Math.round") < save.index("} catch (error) {") < save.index("fail++;"), "失敗請求必須跳過 pending 扣除"
     assert "pending[id] = Math.round" in js, "成功 request 才能扣除 pending delta"
     assert "失敗調整已保留" in js, "api.js saveAll 失敗 toast 未提示保留"
 
@@ -3642,6 +3645,7 @@ def test_inventory_dashboard_uses_full_filtered_stats_for_kpi_and_status_list():
     script = r"""
 const fs = require('fs');
 const vm = require('vm');
+const { mockResponse } = require('./tests/support/frontend-runtime');
 const searchInput = { value: '' };
 const modalClasses = new Set();
 const statusModal = { classList: { add(name) { modalClasses.add(name); }, remove(name) { modalClasses.delete(name); }, contains(name) { return modalClasses.has(name); } }, setAttribute() {} };
@@ -3684,7 +3688,7 @@ const context = {
   },
 };
 vm.createContext(context);
-for (const file of ['static/js/utils.js', 'static/js/render/status-list.js', 'static/js/render/inventory.js']) {
+for (const file of ['static/js/utils.js', 'static/js/api-client.js', 'static/js/render/status-list.js', 'static/js/render/inventory.js']) {
   vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 }
 const fractionalStatus = context.getInventoryStatusForQty({ is_kit: false, low_stock: 1 }, 0.0004);
@@ -3718,11 +3722,11 @@ context.pending[2] = -8;
 context.INVENTORY_PENDING_ITEMS[2] = context.ALL_ITEMS[1];
 context.fetch = function(url) {
   context.lastAlertUrl = url;
-  return Promise.resolve({ ok: true, json: () => Promise.resolve({ stats: {
+  return Promise.resolve(mockResponse({ stats: {
     total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2,
     zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }],
     low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }],
-  } }) });
+  } }));
 };
 (async function() {
   await context.showInventoryStatusList('out');
@@ -3738,7 +3742,7 @@ delete context.INVENTORY_PENDING_ITEMS[2];
   await Promise.resolve();
   if (closedResolvers.length !== 1) throw new Error('closed-modal request did not start');
   context.closeInventoryStatusModal();
-  closedResolvers[0]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
+  closedResolvers[0](mockResponse({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }));
   await closedRequest;
   if (modalClasses.has('is-open')) throw new Error('closed modal was reopened by stale response');
   context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
@@ -3750,9 +3754,9 @@ delete context.INVENTORY_PENDING_ITEMS[2];
   const newRequest = context.showInventoryStatusList('low');
   await Promise.resolve();
   if (rapidResolvers.length !== 2) throw new Error('rapid requests did not start');
-  rapidResolvers[1]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
+  rapidResolvers[1](mockResponse({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }));
   await newRequest;
-  rapidResolvers[0]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
+  rapidResolvers[0](mockResponse({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }));
   await oldRequest;
   if (!statusModalBody.innerHTML.includes('共 1 項') || !statusModalBody.innerHTML.includes('低庫存')) throw new Error('stale alert response replaced newer modal');
 context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
@@ -4325,7 +4329,7 @@ def test_submit_kit_sends_current_site():
     js = read(KIT_MODAL_JS)
     assert "site: currentSite" in js
     assert "name: name, brand: brand, code: code" in js
-    assert "JSON.stringify({" in js
+    assert "json: { name: name, brand: brand, code: code, site: currentSite" in js
 
 
 def test_url_restore_uses_all_inventory_sites():
@@ -4403,7 +4407,9 @@ def test_inventory_export_dialog_contract():
     assert 'id="inventory-export-content"' in index
     assert 'src="/static/js/site-label.js"' in index
     assert "onclick=\"switchSite('office')\">🏢 公司" in index
-    assert "Content-Disposition" in js
+    # 下載與檔名（Content-Disposition）由共用 apiDownload 處理（issue #39），runtime 見 api_fetch_runtime.test.js
+    assert "apiDownload(`/api/export?${params.toString()}`, { filename: '庫存報表.xlsx'" in js
+    assert "Content-Disposition" in read(os.path.join(STATIC, "js", "api-client.js"))
     assert 'id="inventory-export-dialog"' in index
     assert 'src="/static/js/modals/inventory-export.js"' in index
     assert ".inventory-export-dialog" in css and '[data-page=' not in css
@@ -4658,7 +4664,7 @@ def test_work_progress_frontend_create_permission_gates_form_but_preserves_view(
     assert "目前只有檢視權限" in render_block
     assert "wprLoadHistory" in js and "wprLoadKpi" in js
     assert "toast('沒有新增工作進度回報的權限', 'error')" in submit_block
-    assert "wprFetch('/api/work-progress'" not in render_block
+    assert "apiFetch('/api/work-progress'" not in render_block
 
 
 def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity():
@@ -4782,7 +4788,7 @@ def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
     assert "wprOpenSubmitConfirmation(snapshot)" in submit_block
     assert "!wprSelectedFiles.length" not in submit_block
     assert "save.disabled = false;" in select_block
-    assert "wprFetch('/api/work-progress'" not in submit_block
+    assert "apiFetch('/api/work-progress'" not in submit_block
     assert "form.append('uploader_name', snapshot.uploaderName)" in confirm_block
     assert "button.disabled = true" in confirm_block
     assert "wprPendingSubmit" in js
@@ -4830,8 +4836,8 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     select_block = js.split("async function wprSelectJob(id)", 1)[1].split(
         "function wprUpdateNoteCount", 1
     )[0]
-    assert "wprFetch('/api/work-progress/' + existing.id)" in select_block
-    assert "wprFetch('/api/work-progress/' + id)" not in select_block
+    assert "apiFetch('/api/work-progress/' + existing.id)" in select_block
+    assert "apiFetch('/api/work-progress/' + id)" not in select_block
 
     assert "wprHistoryPage" in globals_js
     assert "wprHistoryPageSize" in globals_js
@@ -4862,7 +4868,7 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "token !== wprSelectRequestToken" in js
     assert "var report =" in select_block
     assert "wprCurrentReport = report;" in select_block
-    assert "wprCurrentReport = await wprFetch('/api/work-progress/' + existing.id)" not in select_block
+    assert "wprCurrentReport = await apiFetch('/api/work-progress/' + existing.id)" not in select_block
     guard_pos = select_block.index("if (token !== wprSelectRequestToken) return;")
     assignment_pos = select_block.index("wprCurrentReport = report;")
     assert guard_pos < assignment_pos
@@ -4966,7 +4972,8 @@ def test_full_load_completion_does_not_remount_preserved_tabs():
     """整頁資料（/api/items）載入完成時，若使用者已切到保留掛載的頁，不可 switchTab 重掛
     （visual 快速切頁測試：整組頁觸發的 full load 回來後，把「報價單上傳」重掛成「報價單」）。"""
     api = read(API_JS)
-    body = api[api.index("const items = await res.json();"):api.index("loadPreparedBadge();", api.index("const items = await res.json();"))]
+    start = api.index("const items = await apiFetch(")
+    body = api[start:api.index("loadPreparedBadge();", start)]
     assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)) switchTab(currentTab);" in body
     assert "\n    switchTab(currentTab);" not in body
 

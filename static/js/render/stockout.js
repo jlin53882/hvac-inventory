@@ -134,9 +134,7 @@ async function renderStockOuts() {
   if (!content) return;
   content.innerHTML = '<div class="stockout-loading">載入已領出紀錄…</div>';
   try {
-    const res = await fetch(`/api/stockouts?limit=200&site=${encodeURIComponent(siteAtRequest)}`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const outs = await res.json();
+    const outs = await apiFetch(`/api/stockouts?limit=200&site=${encodeURIComponent(siteAtRequest)}`);
     if (!isCurrent()) return;
     stockoutRecords = outs;
     const filteredOuts = filterStockoutRecords(outs);
@@ -169,31 +167,14 @@ async function renderStockOuts() {
 // 刪除已領出紀錄（僅刪紀錄、不回補庫存；2026-08-11 Sarah 需求）
 
 async function deleteStockoutRecord(movementId) {
-
   if (!confirm('確定刪除這筆已領出紀錄？只刪紀錄、不會回補庫存。')) return;
-
   try {
-
-    const res = await fetch(`/api/stockouts/${movementId}`, { method: 'DELETE' });
-
-    if (!res.ok) {
-
-      const e = await res.json().catch(() => ({}));
-
-      throw new Error(apiErrorMessage(e.detail) || '刪除失敗');
-
-    }
-
+    await apiFetch(`/api/stockouts/${movementId}`, { method: 'DELETE', fallback: '刪除失敗' });
     toast('✅ 已刪除紀錄', 'success');
-
     renderStockOuts();
-
   } catch (e) {
-
     toast('⚠️ ' + e.message, 'error');
-
   }
-
 }
 
 

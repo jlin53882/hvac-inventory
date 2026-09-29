@@ -53,13 +53,6 @@ function createHarness() {
     toast(message) { errors.push(message); },
     esc(value) { return String(value); },
     jsStr(value) { return String(value); },
-    wprFetch() {
-      let resolve;
-      let reject;
-      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
-      requests.push({ resolve, reject });
-      return promise;
-    },
     console,
     Promise,
     setTimeout,
@@ -85,7 +78,7 @@ function createHarness() {
     },
   };
   vm.runInNewContext(source, sandbox, { filename: sourcePath });
-  sandbox.wprFetch = function() {
+  sandbox.apiFetch = function() {
     let resolve;
     let reject;
     const promise = new Promise((res, rej) => { resolve = res; reject = rej; });

@@ -3,9 +3,7 @@ var kitUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯整組 modal 時
 var kitLocationRows = [];  // Display metadata only; actual stock positions are item_stocks.location.
 async function loadKitCabinetOptions() {
   try {
-    const res = await fetch('/api/cabinets');
-    if (!res.ok) return;
-    globalCabinetList = await res.json();
+    globalCabinetList = await apiFetch('/api/cabinets');
     syncKitLocationRowsFromDom();  // 櫃子清單晚到時，先保留使用者已輸入的值再重繪
     renderKitLocationRows();
   } catch (e) {
@@ -65,13 +63,11 @@ async function submitKit() {
   const locations = getKitLocations();
   setKitSubmitBusy(true);
   try {
-    const res = await fetch('/api/kits', {
+    const data = await apiFetch('/api/kits', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, site: currentSite, items: items, locations: locations, note: document.getElementById('k-note').value.trim() })
+      json: { name: name, brand: brand, code: code, site: currentSite, items: items, locations: locations, note: document.getElementById('k-note').value.trim() },
+      fallback: '新增失敗'
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(apiErrorMessage(data.detail) || '新增失敗');
     const kitId = data.id;
     closeModalForce('kit-modal');
     toast(`✅ 已新增整組「${data.name || name}」｜品牌：${data.brand || '未填寫'}｜型號：${data.code || '未填寫'}`, 'success');
@@ -95,25 +91,15 @@ function _uploadKitPhotoAsync(kitId) {
   
   const fd = new FormData();
   fd.append('file', chosenFile);
-  fetch(`/api/kits/${kitId}/photo`, { method: 'POST', body: fd })
-    .then(r => {
-      if (r.ok) {
-        toast('📷 整組照片已上傳', 'info');
-        // 背景重載資料，確保照片顯示
-        setTimeout(() => loadData({ full: false }), 500);
-      } else {
-        return r.json().then(e => {
-          console.warn('整組照片上傳失敗:', e.detail || '未知錯誤');
-          toast('⚠️ 照片上傳失敗，請重試', 'error');
-        }).catch(() => {
-          console.warn('整組照片上傳失敗 (無回應)');
-          toast('⚠️ 照片上傳失敗', 'error');
-        });
-      }
+  apiFetch(`/api/kits/${kitId}/photo`, { method: 'POST', body: fd })
+    .then(() => {
+      toast('📷 整組照片已上傳', 'info');
+      // 背景重載資料，確保照片顯示
+      setTimeout(() => loadData({ full: false }), 500);
     })
     .catch(e => {
-      console.warn('整組照片上傳錯誤:', e.message);
-      toast('⚠️ 照片上傳出錯', 'error');
+      console.warn('整組照片上傳失敗:', e.message);
+      toast(e.status ? '⚠️ 照片上傳失敗，請重試' : '⚠️ 照片上傳出錯', 'error');
     });
 }
 
@@ -132,17 +118,12 @@ async function submitKitEdit() {
   const locations = getKitLocations();
   setKitSubmitBusy(true);
   try {
-    const res = await fetch(`/api/kits/${editingKitId}`, {
+    const saved = await apiFetch(`/api/kits/${editingKitId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, brand: brand, code: code, items: items, locations: locations, note: document.getElementById('k-note').value.trim(),
-                             updated_at: kitUpdatedAt })
+      json: { name: name, brand: brand, code: code, items: items, locations: locations, note: document.getElementById('k-note').value.trim(),
+              updated_at: kitUpdatedAt },
+      fallback: '儲存失敗'
     });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(e.detail) || '儲存失敗');
-    }
-    const saved = await res.json();
     closeModalForce('kit-modal');
     toast('✅ 已更新整組「' + saved.name + '」｜品牌：' + (saved.brand || '未填寫') + '｜型號：' + (saved.code || '未填寫'), 'success');
     // 背景非同步上傳照片（如果有新選檔）+ 背景重載資料

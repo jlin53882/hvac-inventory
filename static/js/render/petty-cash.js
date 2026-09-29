@@ -195,9 +195,7 @@ async function renderPettyCash() {
 // 載入上傳人下拉（歷史上傳人 + 啟用中使用者）
 async function pcLoadPersons() {
   try {
-    const res = await fetch('/api/petty-cash-persons');
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await apiFetch('/api/petty-cash-persons');
     pcPersons = data.persons || [];
     const sel = document.getElementById('pc-f-person');
     if (!sel) return;
@@ -224,9 +222,7 @@ async function pcLoadHistory(resetPage) {
     page_size: pcPageSize,
   });
   try {
-    const res = await fetch('/api/petty-cash-reports?' + p);
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await apiFetch('/api/petty-cash-reports?' + p);
     if (requestSeq !== pcHistoryRequestSeq || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
     pcReports = data.items || [];
     pcTotal = data.total || 0;
@@ -410,9 +406,7 @@ async function pcUpdateKPI(filterSnapshot) {
   const requestSeq = ++pcKpiRequestSeq;
   const p = new URLSearchParams(snapshot);
   try {
-    const res = await fetch('/api/petty-cash/kpi?' + p);
-    if (!res.ok) return;
-    const k = await res.json();
+    const k = await apiFetch('/api/petty-cash/kpi?' + p);
     if (requestSeq !== pcKpiRequestSeq || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
     document.getElementById('pc-kpi-total').textContent = k.total;
     document.getElementById('pc-kpi-done').textContent = k.completed;
@@ -468,10 +462,7 @@ async function pcOpenDetail(id) {
   pcCloseAllMoreMenus();
   const requestSeq = ++pcDetailRequestSeq;
   try {
-    const res = await fetch('/api/petty-cash-reports/' + id);
-    if (requestSeq !== pcDetailRequestSeq) return;
-    if (!res.ok) return toast('⚠️ 讀取失敗');
-    const detail = await res.json();
+    const detail = await apiFetch('/api/petty-cash-reports/' + id);
     if (requestSeq !== pcDetailRequestSeq) return;
     pcDetail = detail;
     pcDetailExpanded = new Set();
@@ -481,7 +472,7 @@ async function pcOpenDetail(id) {
     engUiInitialized = false;
     pcRenderDetail();
   } catch(e) {
-    if (requestSeq === pcDetailRequestSeq) toast('⚠️ 網路錯誤：' + e.message);
+    if (requestSeq === pcDetailRequestSeq) toast(e.status ? '⚠️ 讀取失敗' : '⚠️ 網路錯誤：' + e.message);
   }
 }
 
@@ -605,13 +596,15 @@ function pcExport(id) {
 async function pcDelete(id, backToList) {
   pcCloseAllMoreMenus();
   if (!confirm('確定刪除這份零用金月報？底下收支紀錄會一併刪除。')) return;
-  const res = await fetch('/api/petty-cash-reports/' + id, { method: 'DELETE' });
-  const data = await res.json().catch(() => ({}));
-  if (res.ok) {
-    toast('🗑 已刪除');
-    if (backToList) renderPettyCash();
-    else pcLoadHistory();
-  } else toast('⚠️ ' + (apiErrorMessage(data.detail) || '刪除失敗'));
+  try {
+    await apiFetch('/api/petty-cash-reports/' + id, { method: 'DELETE', fallback: '刪除失敗' });
+  } catch (e) {
+    toast('⚠️ ' + e.message);
+    return;
+  }
+  toast('🗑 已刪除');
+  if (backToList) renderPettyCash();
+  else pcLoadHistory();
 }
 
 function engDesktopRowHtml(r, idx) {

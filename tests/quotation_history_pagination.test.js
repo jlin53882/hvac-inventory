@@ -4,6 +4,8 @@
 // 舊版跑此測試必紅（25 筆只渲染 20 列）。
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 const ROOT = path.resolve(__dirname, '..');
 let failures = 0;
@@ -32,6 +34,10 @@ const HEAD = fs.readFileSync(
 ).split('function quoteMoney')[0];
 const FN = loadFunction('quotation.js', 'quoteLoadHistory');
 
+// quoteLoadHistory 經正式 apiFetch（api-client.js）呼叫下方的 global.fetch 替身
+const apiContext = installApiClient(vm.createContext({ fetch: (...args) => global.fetch(...args) }));
+global.apiFetch = apiContext.apiFetch;
+
 // 模擬後端：預設 page_size=20、有 total（與 app/routes/quotations.py 一致）
 function mockBackend(total) {
   const calls = [];
@@ -46,7 +52,7 @@ function mockBackend(total) {
       id: i + 1, quote_number: 'Q' + (i + 1), customer_name: '客戶',
       quote_date: '2026-09-15', tax_type: 'included', total: 100,
     });
-    return { ok: true, json: async () => ({ items, total, page, page_size: ps }) };
+    return mockResponse(({ items, total, page, page_size: ps }));
   };
   return calls;
 }

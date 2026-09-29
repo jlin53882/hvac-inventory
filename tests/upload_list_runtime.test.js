@@ -3,20 +3,10 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
+const { installApiClient } = require('./support/frontend-runtime');
 
-function extractFunction(source, name) {
-  const start = source.search(new RegExp(`(async )?function ${name}\\(`));
-  assert(start >= 0, `${name} must exist`);
-  let depth = 0;
-  for (let i = source.indexOf(') {', start) + 2; i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
-  }
-  throw new Error(`${name} is not closed`);
-}
 
 const read = path => fs.readFileSync(path, 'utf8');
-const utils = read('static/js/utils.js');
 const component = read('static/js/render/upload-list.js');
 
 const PAGES = {
@@ -83,7 +73,7 @@ function setup(pageKey, { me, fetch } = {}) {
     },
   };
   vm.createContext(context);
-  for (const name of ['apiErrorMessage', 'apiFetch']) vm.runInContext(extractFunction(utils, name), context);
+  installApiClient(context);
   vm.runInContext(component, context, { filename: 'upload-list.js' });
   vm.runInContext(read(page.file), context, { filename: page.file });
   return { page, context, elements, surfaces, calls, ctl: context[page.ctl] };

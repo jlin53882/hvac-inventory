@@ -34,15 +34,7 @@ async function submitStockOut() {
   } else if (qty > item.qty) { toast(`庫存不足！只剩 ${(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : item.qty} ${item.unit}`, 'error'); return; }
 
   try {
-    const res = await fetch('/api/stockout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: outItemId, qty: qty, destination: dest, note: note, location: location })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
-    }
+    await apiFetch('/api/stockout', { method: 'POST', json: { item_id: outItemId, qty: qty, destination: dest, note: note, location: location }, fallback: '領出失敗' });
     closeModalForce('out-modal');
     toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}`, 'success');
     await loadData();
@@ -80,15 +72,7 @@ async function submitNonStockOut() {
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
 
   try {
-    const res = await fetch('/api/stockout/nonstock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, code: code, unit: unit, qty: qty, destination: dest, note: note })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
-    }
+    await apiFetch('/api/stockout/nonstock', { method: 'POST', json: { name: name, code: code, unit: unit, qty: qty, destination: dest, note: note }, fallback: '領出失敗' });
     closeModalForce('nonstock-out-modal');
     toast(`✅ 已領出 ${qty} ${unit} → ${dest}`, 'success');
     await loadData();
@@ -123,15 +107,7 @@ async function submitNonStockPrepare() {
   if (!qty || qty <= 0) { toast('請輸入待領出數量', 'error'); return; }
 
   try {
-    const res = await fetch('/api/prepare/nonstock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, code: code, unit: unit, qty: qty, destination: '', note: note })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '新增失敗');
-    }
+    await apiFetch('/api/prepare/nonstock', { method: 'POST', json: { name: name, code: code, unit: unit, qty: qty, destination: '', note: note }, fallback: '新增失敗' });
     closeModalForce('nonstock-prepare-modal');
     toast(`✅ 已新增待領出 ${qty} ${unit}`, 'success');
     await loadData();
@@ -160,15 +136,7 @@ async function submitPrepare() {
   const note = document.getElementById('p-note').value.trim();
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   try {
-    const res = await fetch(`/api/items/${prepareItemId}/prepare`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: qty, note: note, location: note })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
-    }
+    await apiFetch(`/api/items/${prepareItemId}/prepare`, { method: 'POST', json: { qty: qty, note: note, location: note }, fallback: '領出失敗' });
     closeModalForce('prepare-modal');
     toast(`📤 已標記待領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit}（庫存未扣）`, 'success');
     await loadData();
@@ -203,15 +171,7 @@ async function submitPreparedOut() {
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
   try {
-    const res = await fetch(`/api/items/${preparedOutItemId}/prepared-out`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: qty, note: dest })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
-    }
+    await apiFetch(`/api/items/${preparedOutItemId}/prepared-out`, { method: 'POST', json: { qty: qty, note: dest }, fallback: '領出失敗' });
     closeModalForce('prepared-out-modal');
     toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}（庫存已扣）`, 'success');
     await loadData();
@@ -227,12 +187,7 @@ async function returnPrepared(id) {
   const confirmed = confirm(`退回「${item.name}」全部 ${item.prepared_qty} ${item.unit}？`);
   if (!confirmed) return;
   try {
-    const res = await fetch(`/api/items/${id}/prepared-return`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: item.prepared_qty })
-    });
-    if (!res.ok) throw new Error();
+    await apiFetch(`/api/items/${id}/prepared-return`, { method: 'POST', json: { qty: item.prepared_qty } });
     toast('↩️ 已退回', 'success');
     await loadData();
   } catch (e) {
@@ -309,11 +264,9 @@ async function submitReturnStockout() {
     const parentId = Number(document.getElementById('rs-parent-movement').value);
     if (!parentId || !returnStockId) { toast('請選擇原始出庫與退回庫存位置', 'error'); return; }
     try {
-      const res = await fetch(`/api/stockout-returns/${repairStockoutReturnId}/repair`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_movement_id: parentId, return_stock_id: returnStockId })
+      await apiFetch(`/api/stockout-returns/${repairStockoutReturnId}/repair`, {
+        method: 'POST', json: { source_movement_id: parentId, return_stock_id: returnStockId }, fallback: '修復退回資料失敗'
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(apiErrorMessage(err.detail) || '修復退回資料失敗'); }
       repairStockoutReturnId = null;
       closeModalForce('return-stockout-modal');
       toast('✅ 已補齊退回資料，現在可以編輯或撤銷', 'success');
@@ -327,10 +280,7 @@ async function submitReturnStockout() {
     if (dest) updateBody.destination = dest;
     if (dt) updateBody.created_at = dt + ' 00:00:00';
     try {
-      const res = await fetch(`/api/stockout-returns/${editStockoutReturnId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateBody)
-      });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(apiErrorMessage(err.detail) || '儲存退回紀錄失敗'); }
+      await apiFetch(`/api/stockout-returns/${editStockoutReturnId}`, { method: 'PATCH', json: updateBody, fallback: '儲存退回紀錄失敗' });
       editStockoutReturnId = null;
       closeModalForce('return-stockout-modal');
       toast('✅ 已更新退回紀錄', 'success');
@@ -348,15 +298,7 @@ async function submitReturnStockout() {
   if (dest) body.destination = dest;
   if (dt) body.created_at = dt + ' 00:00:00';
   try {
-    const res = await fetch(`/api/stockouts/${returnStockoutId}/return`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '退回失敗');
-    }
+    await apiFetch(`/api/stockouts/${returnStockoutId}/return`, { method: 'POST', json: body, fallback: '退回失敗' });
     closeModalForce('return-stockout-modal');
     toast('↩️ 已退回，數量已加回庫存', 'success');
     await loadData();
@@ -399,15 +341,7 @@ async function submitEditStockout() {
   if (dest) body.destination = dest;
   if (dt) body.created_at = dt + ' 00:00:00';
   try {
-    const res = await fetch(`/api/stockouts/${editStockoutId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '儲存失敗');
-    }
+    await apiFetch(`/api/stockouts/${editStockoutId}`, { method: 'PATCH', json: body, fallback: '儲存失敗' });
     closeModalForce('edit-stockout-modal');
     toast('✅ 已更新已領出記錄', 'success');
     await loadData();
@@ -488,8 +422,7 @@ function openEditStockoutReturnModal(movementId) {
 async function deleteStockoutReturn(movementId) {
   if (!confirm('確定刪除這筆退回紀錄？活動退回會扣回已補入庫存的數量。')) return;
   try {
-    const res = await fetch(`/api/stockout-returns/${movementId}`, { method: 'DELETE' });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(apiErrorMessage(err.detail) || '刪除退回紀錄失敗'); }
+    await apiFetch(`/api/stockout-returns/${movementId}`, { method: 'DELETE', fallback: '刪除退回紀錄失敗' });
     toast('✅ 已刪除退回紀錄', 'success');
     await renderStockOuts();
   } catch (e) { toast('⚠️ ' + e.message, 'error'); }
@@ -552,13 +485,7 @@ async function submitPreparedEdit() {
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   try {
-    const res = await fetch(`/api/prepared/${editItemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(apiErrorMessage(body.detail) || '待領出修改失敗');
+    await apiFetch(`/api/prepared/${editItemId}`, { method: 'PATCH', json: payload, fallback: '待領出修改失敗' });
     closeModalForce('prepared-edit-modal');
     toast('✅ 已儲存待領出修改', 'success');
     await renderPrepared();
@@ -607,15 +534,7 @@ async function submitKitPrepare(kitItemId) {
   if (!item) { toast('品項不存在', 'error'); return; }
   const note = document.getElementById('kit-prepare-note').value.trim();
   try {
-    const res = await fetch(`/api/items/${kitItemId}/prepare`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty: 1, note: note, location: note })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
-    }
+    await apiFetch(`/api/items/${kitItemId}/prepare`, { method: 'POST', json: { qty: 1, note: note, location: note }, fallback: '領出失敗' });
     closeModalForce('kit-prepare-modal');
     toast('📤 已標記待領出 1 ' + (item.unit || '組') + '（整組）', 'success');
     await loadData();

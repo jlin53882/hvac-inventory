@@ -1,29 +1,18 @@
-// apiFetch（utils.js）共用 API 呼叫契約：成功 JSON / 204 / 空內容、字串與結構化 detail、
+// apiFetch（api-client.js）共用 API 呼叫契約：成功 JSON / 204 / 空內容、字串與結構化 detail、
 // 非 JSON 錯誤頁、JSON 格式錯誤、網路錯誤、AbortError、401；錯誤訊息一律經 apiErrorMessage 並支援 fallback。
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
+const { installApiClient } = require('./support/frontend-runtime');
 
-function extractFunction(source, name) {
-  const start = source.search(new RegExp(`(async )?function ${name}\\(`));
-  assert(start >= 0, `${name} must exist in utils.js`);
-  let depth = 0;
-  for (let i = source.indexOf(') {', start) + 2; i < source.length; i++) {  // 函式本體（略過參數預設值的 {}）
-    if (source[i] === '{') depth++;
-    if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
-  }
-  throw new Error(`${name} is not closed`);
-}
 
-const utils = fs.readFileSync('static/js/utils.js', 'utf8');
 const calls = [];
 let nextFetch = null;
 const context = {
   fetch: async (url, init) => { calls.push({ url, init }); return nextFetch(); },
 };
 vm.createContext(context);
-vm.runInContext(extractFunction(utils, 'apiErrorMessage'), context);
-vm.runInContext(extractFunction(utils, 'apiFetch'), context);
+installApiClient(context);
 
 const json = (payload, status = 200, statusText = '') => () => new Response(JSON.stringify(payload), {
   status, statusText, headers: { 'Content-Type': 'application/json' },
@@ -137,6 +126,35 @@ async function rejects(call) {
   error = await rejects(() => context.apiFetch('/api/units'));
   assert.strictEqual(error.status, 401);
   assert.strictEqual(error.message, '未登入');
+
+  // json 選項：自動帶 Content-Type 並序列化；呼叫端自帶的 header 保留
+  nextFetch = json({ ok: true });
+  await context.apiFetch('/api/units/1', { method: 'PUT', json: { is_active: false }, headers: { 'X-Test': '1' } });
+  const jsonCall = calls[calls.length - 1];
+  assert.strictEqual(jsonCall.init.body, '{"is_active":false}');
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(jsonCall.init.headers)), { 'Content-Type': 'application/json', 'X-Test': '1' });
+  assert.ok(!('json' in jsonCall.init), 'json option must not be sent to fetch');
+
+  // apiDownload：檔名優先用伺服器 Content-Disposition；沒有時用預設檔名；錯誤與 apiFetch 相同
+  const saved = [];
+  context.URL = { createObjectURL: blob => { saved.push(blob); return 'blob:1'; }, revokeObjectURL() {} };
+  context.document = {
+    createElement: () => ({ click() { saved.push(this.download); }, remove() {} }),
+    body: { appendChild() {} },
+  };
+  nextFetch = () => new Response(new Blob(['xlsx']), {
+    status: 200, headers: { 'Content-Disposition': "attachment; filename*=UTF-8''%E5%BA%AB%E5%AD%98.xlsx" },
+  });
+  assert.strictEqual(await context.apiDownload('/api/export?x=1', { filename: '預設.xlsx' }), '庫存.xlsx');
+  assert.strictEqual(saved[saved.length - 1], '庫存.xlsx');
+  nextFetch = () => new Response(new Blob(['xlsx']), { status: 200 });
+  assert.strictEqual(await context.apiDownload('/api/export', { filename: '預設.xlsx' }), '預設.xlsx');
+  nextFetch = json({ detail: '沒有可匯出的資料' }, 400);
+  error = await rejects(() => context.apiDownload('/api/export', { filename: '預設.xlsx', fallback: '請稍後再試' }));
+  assert.strictEqual(error.message, '沒有可匯出的資料');
+  nextFetch = html('Bad Gateway');
+  error = await rejects(() => context.apiDownload('/api/export', { filename: '預設.xlsx', fallback: '請稍後再試' }));
+  assert.strictEqual(error.message, '請稍後再試');
 
   console.log('apiFetch runtime: PASS');
 })().catch(error => { console.error(error); process.exit(1); });

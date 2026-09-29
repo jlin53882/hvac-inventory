@@ -84,20 +84,7 @@ async function submitInventoryExport() {
   exportInFlight = true;
   if (button) { button.disabled = true; button.textContent = '產生報表中…'; }
   try {
-    const response = await fetch(`/api/export?${params.toString()}`);
-    if (!response.ok) {
-      let message = `HTTP ${response.status}`;
-      try { const body = await response.json(); message = apiErrorMessage(body.detail) || body.message || message; } catch (e) { /* 非 JSON 錯誤 */ }
-      throw new Error(message);
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const disposition = response.headers.get('Content-Disposition') || '';
-    const utf8Name = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-    const plainName = disposition.match(/filename="?([^";]+)"?/i);
-    link.download = utf8Name ? decodeURIComponent(utf8Name[1]) : (plainName ? plainName[1] : '庫存報表.xlsx');
-    link.href = url; link.click(); URL.revokeObjectURL(url);
+    await apiDownload(`/api/export?${params.toString()}`, { filename: '庫存報表.xlsx', fallback: '請稍後再試' });
     closeInventoryExportDialog();
     toast('✅ 報表已下載', 'success');
   } catch (error) {

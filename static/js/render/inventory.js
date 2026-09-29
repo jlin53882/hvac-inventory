@@ -271,9 +271,7 @@ function buildInventoryAlertParams() {
 async function loadInventoryAlertItems(type, requestId) {
   const siteAtRequest = currentSite;
   const filterKeyAtRequest = getInventoryFilterStateKey();
-  const res = await fetch(`/api/items?${buildInventoryAlertParams()}`);
-  if (!res.ok) throw new Error('庫存警示清單 API 錯誤: ' + res.status);
-  const body = await res.json();
+  const body = await apiFetch(`/api/items?${buildInventoryAlertParams()}`);
   if (siteAtRequest !== currentSite || filterKeyAtRequest !== getInventoryFilterStateKey()
       || (requestId !== undefined && requestId !== inventoryStatusRequestSeq)) return null;
   const stats = body.stats || {};
@@ -660,27 +658,11 @@ function updateSaveBar() {
  * @returns {Promise<void>} 刪除與清單更新流程完成後解析。
  */
 async function deleteItem(itemId) {
-
   if (!confirm('確定刪除這個材料？會一併刪除它的庫存、照片與異動紀錄，無法恢復。')) return;
-
   try {
-
-    const res = await fetch(`/api/items/${itemId}`, { method: 'DELETE' });
-
-    if (!res.ok) {
-
-      const e = await res.json().catch(() => ({}));
-
-      alert(apiErrorMessage(e.detail || '刪除失敗'));
-
-      return;
-
-    }
-
+    await apiFetch(`/api/items/${itemId}`, { method: 'DELETE', fallback: '刪除失敗' });
     await loadData();
-
-  } catch (e) { alert('刪除失敗：' + e.message); }
-
+  } catch (e) { alert(e.status ? e.message : '刪除失敗：' + e.message); }
 }
 
 
@@ -1064,15 +1046,11 @@ async function submitBatchLocation() {
   var targetDisplay = target;
   closeBatchConfirm();
   try {
-    var res = await fetch('/api/stocks/batch-location', {
+    await apiFetch('/api/stocks/batch-location', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stock_ids: Array.from(selectedStockIds), new_location: target })
+      json: { stock_ids: Array.from(selectedStockIds), new_location: target },
+      fallback: '\u6279\u6b21\u66f4\u65b0\u5931\u6557'
     });
-    if (!res.ok) {
-      var err = await res.json();
-      throw new Error(apiErrorMessage(err.detail) || '\u6279\u6b21\u66f4\u65b0\u5931\u6557');
-    }
     toast('\u2705 \u5df2\u5c07 ' + selectedStockIds.size + ' \u7b0c\u4f4d\u7f6e\u6539\u70ba\u300c' + targetDisplay + '\u300d');
     cancelBatch();
     await loadData();

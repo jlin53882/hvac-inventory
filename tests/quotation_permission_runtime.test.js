@@ -1,6 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 class FakeElement {
   constructor(id) {
@@ -48,9 +49,10 @@ function renderWithPermission(allowed) {
     esc: value => String(value),
     toast: () => {},
     confirm: () => true,
-    fetch: async () => ({ ok: true, json: async () => history }),
+    fetch: async () => (mockResponse(history)),
   };
   context.window = context;
+  installApiClient(vm.createContext(context));
   vm.runInNewContext(fs.readFileSync('static/js/render/quotation.js', 'utf8'), context, {
     filename: 'static/js/render/quotation.js',
   });

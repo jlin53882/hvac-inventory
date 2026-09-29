@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 const root = path.join(__dirname, '..');
 const box = { innerHTML: '' };
@@ -73,15 +74,15 @@ const context = vm.createContext({
     if (Object.hasOwn(options, 'body')) request.body = options.body;
     calls.fetch.push(request);
     if ((options.method || 'GET') === 'GET') {
-      return { ok: true, json: async () => [kit] };
+      return mockResponse([kit]);
     }
     if (url === '/api/kits') {
-      return { ok: true, json: async () => ({ id: 7, item_id: 42, name: '新整組' }) };
+      return mockResponse(({ id: 7, item_id: 42, name: '新整組' }));
     }
     if (options.method === 'DELETE') {
-      return { ok: true, json: async () => ({ ok: true, deleted: 7 }) };
+      return mockResponse(({ ok: true, deleted: 7 }));
     }
-    return { ok: true, json: async () => ({ ok: true }) };
+    return mockResponse(({ ok: true }));
   },
   FormData: TestFormData,
   setTimeout: () => 0,
@@ -102,6 +103,7 @@ const context = vm.createContext({
   kitLocationRows: [],
 });
 
+installApiClient(context);
 for (const relative of [
   'static/js/modals/photo.js',
   'static/js/modals/kit.js',

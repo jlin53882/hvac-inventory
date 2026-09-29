@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 const ROOT = path.resolve(__dirname, '..');
 const elements = {};
@@ -83,7 +84,7 @@ function controlledFetch(url, init) {
   return new Promise((resolve, reject) => pending.push({ url: String(url), init, resolve, reject }));
 }
 function response(payload, ok = true) {
-  return { ok, status: ok ? 200 : 500, json: async () => payload };
+  return mockResponse(payload, ok ? 200 : 500);
 }
 function findPending(fragment) {
   const item = pending.find(x => x.url.includes(fragment));
@@ -129,6 +130,7 @@ const context = {
   jsStr(value) { return String(value ?? ''); },
 };
 vm.createContext(context);
+installApiClient(context);
 for (const file of [
   'static/js/render/petty-cash.js',
   'static/js/modals/petty-cash.js',

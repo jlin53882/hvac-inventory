@@ -59,14 +59,13 @@ async function uploadItemPhoto(itemId, input) {
   const fd = new FormData();
   fd.append('file', file);
   try {
-    const res = await fetch(`/api/items/${itemId}/photo`, { method: 'POST', body: fd });
-    if (!res.ok) {
-      let msg = '上傳失敗';
-      try { const err = await res.json(); if (err.detail) msg = apiErrorMessage(err.detail); } catch {}
-      toast('⚠️ ' + msg, 'error');
+    let body;
+    try {
+      body = (await apiFetch(`/api/items/${itemId}/photo`, { method: 'POST', body: fd, fallback: '上傳失敗' })) || {};
+    } catch (e) {
+      toast('⚠️ ' + e.message, 'error');
       return;
     }
-    const body = await res.json().catch(() => ({}));
     toast('✅ 照片已更新', 'success');
     // 先更新列表狀態，再重繪編輯 modal，避免 modal 暫留舊縮圖
     const item = ALL_ITEMS.find(i => i.id === itemId);
@@ -79,8 +78,7 @@ async function uploadItemPhoto(itemId, input) {
 // 刪除照片（冪等）
 async function deleteItemPhoto(itemId) {
   try {
-    const res = await fetch(`/api/items/${itemId}/photo`, { method: 'DELETE' });
-    if (!res.ok) { toast('刪除失敗', 'error'); return; }
+    await apiFetch(`/api/items/${itemId}/photo`, { method: 'DELETE' });
     toast('🗑 照片已刪除', 'success');
     renderPhotoBox(itemId, false);
     const item = ALL_ITEMS.find(i => i.id === itemId);
@@ -150,9 +148,7 @@ async function checkSimilar(name, code, warnId, excludeId) {
   params.set('site', currentSite);
   if (excludeId) params.set('exclude_id', excludeId);
   try {
-    const res = await fetch(`/api/items/similar?${params}`);
-    if (!res.ok) return;
-    const hits = await res.json();
+    const hits = await apiFetch(`/api/items/similar?${params}`);
     if (seq !== similarReqSeq) return;  // 已有更新的輸入 → 丟棄這次結果
     renderSimilarWarn(warnId, hits);
   } catch {}
@@ -252,8 +248,7 @@ function renderKitPhotoBox(kitId, itemId, hasPhoto) {
  */
 async function deleteKitPhoto(kitId, itemId) {
   try {
-    const res = await fetch(`/api/kits/${kitId}/photo`, { method: 'DELETE' });
-    if (!res.ok) { toast('刪除失敗', 'error'); return; }
+    await apiFetch(`/api/kits/${kitId}/photo`, { method: 'DELETE' });
 
     const kit = Array.isArray(currentKitItems)
       ? currentKitItems.find(entry => Number(entry.id) === Number(kitId))

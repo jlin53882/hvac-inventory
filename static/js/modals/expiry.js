@@ -23,7 +23,7 @@ function expiryGoChangePw() {
 // 「繼續使用原密碼」→ 呼叫 ack 端點重置 180 天計時（跨裝置一致）→ 關閉
 async function ackPasswordExpiry() {
   try {
-    await fetch('/api/auth/password-ack', { method: 'POST' });
-  } catch (e) { /* 網路失敗仍關閉提示，不擋使用 */ }
+    await apiFetch('/api/auth/password-ack', { method: 'POST' });
+  } catch (e) { /* 失敗仍關閉提示，不擋使用 */ }
   closeModalForce('expiry-modal');
 }

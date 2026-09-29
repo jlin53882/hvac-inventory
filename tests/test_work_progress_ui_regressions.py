@@ -144,7 +144,7 @@ def test_daily_report_note_cells_enable_wrapping():
 
 
 def test_upload_progress_runtime_contract():
-    """2026-09：上傳改用 XHR 回報進度（上傳中 xx% → 伺服器處理中…），錯誤訊息與 wprFetch 一致。"""
+    """2026-09：上傳改用 XHR 回報進度（上傳中 xx% → 伺服器處理中…），錯誤訊息與 apiFetch 一致。"""
     result = subprocess.run(
         ["node", str(UPLOAD_PROGRESS_TEST)],
         capture_output=True,

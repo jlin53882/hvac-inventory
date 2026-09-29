@@ -2,10 +2,12 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 const ROOT = path.resolve(__dirname, '..');
 
 function load(files, context) {
+  installApiClient(context);
   for (const file of files) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), context, { filename: file });
   }
@@ -37,7 +39,7 @@ async function testDesktopInlineReturnDeleteExecutesHandler() {
     renderStockOuts: () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return { ok: true, json: async () => ({}) };
+      return mockResponse(({}));
     },
   });
   load(['static/js/modals/stockout.js', 'static/js/render/stockout.js'], context);
@@ -76,7 +78,7 @@ async function testMobileReturnDeleteExecutesHandler() {
     openSheet: (_title, actions) => { sheetActions = actions; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return { ok: true, json: async () => ({}) };
+      return mockResponse(({}));
     },
     stockoutRecords: [{ id: 7, brand: 'B', item_name: 'Returned', reason: '退回已領出', reverted_at: null }],
   });
@@ -110,10 +112,7 @@ async function testReturnDeleteFailureDoesNotRefresh() {
     renderStockOuts: () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return {
-        ok: false,
-        json: async () => ({ detail: '刪除失敗測試' }),
-      };
+      return mockResponse(({ detail: '刪除失敗測試' }), 400);
     },
   });
   load(['static/js/modals/stockout.js'], context);
@@ -149,7 +148,7 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
     loadData: async () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return { ok: true, json: async () => ({}) };
+      return mockResponse(({}));
     },
   });
   load(['static/js/modals/stockout.js'], context);

@@ -3,20 +3,10 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
+const { installApiClient, extractFunction } = require('./support/frontend-runtime');
 
-function extractFunction(source, name) {
-  const start = source.search(new RegExp(`(async )?function ${name}\\(`));
-  assert(start >= 0, `${name} must exist`);
-  let depth = 0;
-  for (let i = source.indexOf(') {', start) + 2; i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
-  }
-  throw new Error(`${name} is not closed`);
-}
 
 const read = path => fs.readFileSync(path, 'utf8');
-const utils = read('static/js/utils.js');
 const settings = read('static/js/settings.js');
 const units = read('static/js/units.js');
 const gcalKey = read('static/js/modals/gcal-key.js');
@@ -59,8 +49,7 @@ function makeContext() {
     return typeof next === 'function' ? next(url, init) : next;
   };
   vm.createContext(context);
-  vm.runInContext(extractFunction(utils, 'apiErrorMessage'), context);
-  vm.runInContext(extractFunction(utils, 'apiFetch'), context);
+  installApiClient(context);
   for (const name of ['loadUnits']) vm.runInContext(extractFunction(units, name), context);
   for (const name of ['submitGcalKey']) vm.runInContext(extractFunction(gcalKey, name), context);
   for (const name of [

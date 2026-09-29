@@ -3,17 +3,8 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
+const { extractFunction } = require('./support/frontend-runtime');
 
-function extractFunction(source, name) {
-  const start = source.search(new RegExp(`(async )?function ${name}\\(`));
-  assert(start >= 0, `${name} must exist`);
-  let depth = 0;
-  for (let i = source.indexOf(') {', start) + 2; i < source.length; i++) {  // 函式本體（略過參數預設值的 {}）
-    if (source[i] === '{') depth++;
-    if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
-  }
-  throw new Error(`${name} is not closed`);
-}
 
 const utils = fs.readFileSync('static/js/utils.js', 'utf8');
 const settings = fs.readFileSync('static/js/settings.js', 'utf8');
@@ -37,7 +28,7 @@ const context = {
 vm.createContext(context);
 vm.runInContext(extractFunction(utils, 'apiErrorMessage'), context);
 vm.runInContext(extractFunction(utils, 'toast'), context);
-vm.runInContext(extractFunction(utils, 'apiFetch'), context);
+vm.runInContext(fs.readFileSync('static/js/api-client.js', 'utf8'), context, { filename: 'api-client.js' });
 // 記錄呼叫端交給 toast 的原始參數，再交給正式的 toast 呈現
 vm.runInContext('const __realToast = toast; toast = (msg, type) => { __received.push(msg); return __realToast(msg, type); };',
   Object.assign(context, { __received: received }));

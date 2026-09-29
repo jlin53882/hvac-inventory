@@ -85,8 +85,7 @@ async function submitGcalKey() {
     // 編輯但沒選檔案 → 用 JSON（可能改名稱/calendar_id）
     options = {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, credentials_path: cred || undefined, calendar_id: cal }),
+      json: { name, credentials_path: cred || undefined, calendar_id: cal },
       fallback: '儲存失敗',
     };
   } else {

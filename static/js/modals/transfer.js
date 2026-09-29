@@ -96,13 +96,7 @@ async function submitTransfer() {
     submitBtn.textContent = '調撥中…';
   }
   try {
-    const res = await fetch('/api/inventory/transfers', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(body.detail) || `調撥失敗（${res.status}）`);
-    }
+    await apiFetch('/api/inventory/transfers', { method: 'POST', json: payload, fallback: '調撥失敗' });
     closeTransferModal(true);
     toast('庫存調撥完成', 'success');
     if (currentTab === 'inventory') await loadInventoryPage(INVENTORY_META.page || 1);

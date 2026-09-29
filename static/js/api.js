@@ -1,4 +1,4 @@
-// 庫存管理系統 - API 呼叫層（v8 拆分）
+// 庫存管理系統 - 資料載入層（v8 拆分）；HTTP 呼叫一律經 api-client.js 的 apiFetch
 // loadData / updateSubInfo / loadDestinations / saveAll
 
 async function loadData(options) {
@@ -26,9 +26,7 @@ async function loadData(options) {
       loadPreparedBadge();
       return;
     }
-    const res = await fetch(`/api/items?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal });
-    if (!res.ok) throw new Error('API 錯誤: ' + res.status);
-    const items = await res.json();
+    const items = await apiFetch(`/api/items?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal });
     if (requestId !== dataRequestSeq || siteAtRequest !== currentSite) return;
     ALL_ITEMS = items;
     fullItemsLoadedSite = siteAtRequest;
@@ -44,7 +42,7 @@ async function loadData(options) {
   } catch (e) {
     if (e.name === 'AbortError' || requestId !== dataRequestSeq || siteAtRequest !== currentSite) return;
     document.getElementById('content').innerHTML =
-      `<div class="empty">⚠️ 無法連線伺服器<br><small>${e.message}</small></div>`;
+      `<div class="empty">⚠️ 無法連線伺服器<br><small>${esc(e.message)}</small></div>`;
   } finally {
     if (dataAbortController === controller) dataAbortController = null;
   }
@@ -78,16 +76,15 @@ async function loadInventoryPageImpl(page, refreshSummary) {
     if (currentBrands.length) params.set('brands', currentBrands.join(','));
     if (currentCategories.length) params.set('categories', currentCategories.join(','));
     const shouldLoadFacets = inventoryFacetsLoadedSite !== siteAtRequest;
+    // facets 失敗（HTTP 錯誤）不擋列表，只是篩選選項沿用舊資料；網路錯誤 / 取消則照常中止
     const facetsRequest = shouldLoadFacets
-      ? fetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
+      ? apiFetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
+        .catch(e => (e.status ? null : Promise.reject(e)))
       : Promise.resolve(null);
-    const [res, facetsRes] = await Promise.all([
-      fetch(`/api/items?${params}`, { signal: controller.signal }),
+    const [body, facets] = await Promise.all([
+      apiFetch(`/api/items?${params}`, { signal: controller.signal }),
       facetsRequest,
     ]);
-    if (!res.ok) throw new Error('庫存列表 API 錯誤: ' + res.status);
-    const body = await res.json();
-    const facets = facetsRes && facetsRes.ok ? await facetsRes.json() : null;
     if (requestId !== inventoryRequestSeq || siteAtRequest !== currentSite) return;
     ALL_ITEMS = body.items || [];
     INVENTORY_META = {
@@ -117,7 +114,7 @@ async function loadInventoryPageImpl(page, refreshSummary) {
   } catch (e) {
     if (e.name === 'AbortError' || requestId !== inventoryRequestSeq || siteAtRequest !== currentSite) return;
     document.getElementById('content').innerHTML =
-      `<div class="empty">⚠️ 無法載入庫存<br><small>${e.message}</small></div>`;
+      `<div class="empty">⚠️ 無法載入庫存<br><small>${esc(e.message)}</small></div>`;
   } finally {
     if (inventoryAbortController === controller) inventoryAbortController = null;
   }
@@ -132,12 +129,10 @@ function changeInventoryPage(page) {
 async function loadPreparedBadge() {
   const siteAtRequest = currentSite;
   try {
-    const res = await fetch(`/api/prepared?site=${encodeURIComponent(siteAtRequest)}`);
-    if (!res.ok) return;
-    const items = await res.json();
+    const items = await apiFetch(`/api/prepared?site=${encodeURIComponent(siteAtRequest)}`);
     if (siteAtRequest !== currentSite) return;
     updatePreparedBadge(items.length);
-  } catch (e) { if (e.name !== 'AbortError') return; }
+  } catch (e) { /* 小標載入失敗不影響頁面 */ }
 }
 
 // P1-D：global summary 渲染只吃 cache（ALERTS_BY_SITE），body.stats 是 filter dataset，兩者語意不同不可互蓋。
@@ -173,9 +168,7 @@ async function updateSubInfo() {
   statsAbortController = controller;
   const siteAtRequest = currentSite;
   try {
-    const res = await fetch('/api/stats/summary', { signal: controller.signal });
-    if (!res.ok) { console.error('[updateSubInfo] /api/stats/summary 失敗', res.status); return; }
-    const summary = await res.json();
+    const summary = await apiFetch('/api/stats/summary', { signal: controller.signal });
     if (requestId !== statsRequestSeq || siteAtRequest !== currentSite) return;
     ALERTS_BY_SITE = {
       all: summary.all || {},
@@ -199,15 +192,13 @@ async function updateSubInfo() {
 async function loadDestinations() {
   const siteAtRequest = currentSite;
   try {
-    const res = await fetch(`/api/stockouts?limit=100&site=${encodeURIComponent(siteAtRequest)}`);
-    if (!res.ok) { console.error('[loadDestinations] /api/stockouts 失敗', res.status); return; }
-    const outs = await res.json();
+    const outs = await apiFetch(`/api/stockouts?limit=100&site=${encodeURIComponent(siteAtRequest)}`);
     if (siteAtRequest !== currentSite) return;
     DESTINATIONS = [...new Set(outs.map(o => o.destination).filter(Boolean))];
     destinationsLoadedSite = siteAtRequest;
     document.getElementById('dest-list').innerHTML =
       DESTINATIONS.map(d => `<option value="${esc(d)}">`).join('');
-  } catch (e) { if (e.name !== 'AbortError') console.error('[loadDestinations] 網路錯誤', e); }
+  } catch (e) { if (e.name !== 'AbortError') console.error('[loadDestinations] 去向清單載入失敗', e); }
 }
 
 /**
@@ -249,12 +240,7 @@ async function saveAll() {
       operations.sort((left, right) => Number(left.delta < 0) - Number(right.delta < 0));
       for (const operation of operations) {
         try {
-          const response = await fetch(operation.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delta: operation.delta, reason: '手動調整' }),
-          });
-          if (!response.ok) { fail++; continue; }
+          await apiFetch(operation.url, { method: 'POST', json: { delta: operation.delta, reason: '手動調整' } });
           ok++;
           pending[id] = Math.round(((Number(pending[id]) || 0) - operation.delta) * 1000) / 1000;
           if (operation.stockId !== null) {

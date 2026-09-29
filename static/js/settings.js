@@ -47,7 +47,7 @@ async function createPettyOptionKind(type, kind) {
   const input = document.getElementById('pc-opt-name-' + type + '-' + kind);
   const name = input.value.trim();
   if (!name) return toast('請輸入選單名稱', 'error');
-  try { await apiFetch('/api/petty-cash-options', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_type:type, option_type:kind, name:name, sort_order:pettyOptionCache[type][kind].length}), fallback:'新增失敗' }); }
+  try { await apiFetch('/api/petty-cash-options', { method:'POST', json: {report_type:type, option_type:kind, name:name, sort_order:pettyOptionCache[type][kind].length}, fallback:'新增失敗' }); }
   catch (e) { return toast(e.message, 'error'); }
   await loadPettyOptions(); renderPettyOptionsPanel(); toast('✅ 已新增', 'success');
 }
@@ -56,7 +56,7 @@ async function renamePettyOption(id, type, kind) {
   const old = (pettyOptionCache[type][kind].find(o => o.id === id) || {}).name || '';
   const name = prompt('請輸入新的選單名稱', old);
   if (name === null || !name.trim()) return;
-  try { await apiFetch('/api/petty-cash-options/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name.trim()}), fallback:'修改失敗' }); }
+  try { await apiFetch('/api/petty-cash-options/' + id, { method:'PUT', json: {name:name.trim()}, fallback:'修改失敗' }); }
   catch (e) { return toast(e.message, 'error'); }
   await loadPettyOptions(); renderPettyOptionsPanel();
 }
@@ -196,8 +196,7 @@ async function addUnitFromSettings() {
   if (!name) { toast('請輸入單位名稱', 'error'); return; }
   try {
     const data = await apiFetch('/api/units', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, qty_type: qtyType }), fallback: '新增失敗'
+      method: 'POST', json: { name: name, qty_type: qtyType }, fallback: '新增失敗'
     });
     unitList.push(data);
     unitListActive = unitList.filter(u => u.is_active);
@@ -210,8 +209,7 @@ async function addUnitFromSettings() {
 async function setUnitQtyType(id, qtyType) {
   try {
     await apiFetch('/api/units/' + id, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty_type: qtyType }), fallback: '操作失敗'
+      method: 'PUT', json: { qty_type: qtyType }, fallback: '操作失敗'
     });
     const u = unitList.find(x => x.id === id);
     if (u) u.qty_type = qtyType;
@@ -223,8 +221,7 @@ async function setUnitQtyType(id, qtyType) {
 async function toggleUnit(id, on) {
   try {
     await apiFetch('/api/units/' + id, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: on }), fallback: '操作失敗'
+      method: 'PUT', json: { is_active: on }, fallback: '操作失敗'
     });
     const u = unitList.find(x => x.id === id);
     if (u) u.is_active = on;
@@ -239,8 +236,7 @@ async function moveUnit(id, dir) {
   if (!u) return;
   try {
     await apiFetch('/api/units/' + id, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sort_order: u.sort_order + dir }), fallback: '排序失敗'
+      method: 'PUT', json: { sort_order: u.sort_order + dir }, fallback: '排序失敗'
     });
     await loadUnits();
     renderUnitsPanel();
@@ -270,8 +266,7 @@ async function consolidateItem(itemId, btn) {
   if (!confirm('將「' + (nameEl ? nameEl.textContent : '') + '」的單位改為「' + to + '」' + qtyNote + '？')) return;
   try {
     await apiFetch('/api/units/consolidate-item', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newQty === null ? { item_id: itemId, to_unit: to } : { item_id: itemId, to_unit: to, new_qty: newQty }),
+      method: 'POST', json: newQty === null ? { item_id: itemId, to_unit: to } : { item_id: itemId, to_unit: to, new_qty: newQty },
       fallback: '改單位失敗'
     });
     await Promise.all([loadUnits(), loadOrphans()]);
@@ -289,8 +284,7 @@ async function applyQtySuggest(itemId, btn) {
   if (!confirm('套用建議：將「' + (nameEl ? nameEl.textContent : '') + '」改為 ' + qty + ' ' + to + '？')) return;
   try {
     await apiFetch('/api/units/consolidate-item', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId, to_unit: to, new_qty: qty }), fallback: '轉換失敗'
+      method: 'POST', json: { item_id: itemId, to_unit: to, new_qty: qty }, fallback: '轉換失敗'
     });
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
@@ -308,8 +302,7 @@ async function consolidateGroup(btn) {
   if (!confirm('將「' + label + '」全部 ' + n + ' 筆的單位改為「' + to + '」？')) return;
   try {
     const data = await apiFetch('/api/units/consolidate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from_unit: from, to_unit: to }), fallback: '收編失敗'
+      method: 'POST', json: { from_unit: from, to_unit: to }, fallback: '收編失敗'
     });
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
@@ -621,8 +614,7 @@ function switchGcalTab(tab) {
 async function saveGcalSetting(key, value) {
   try {
     await apiFetch('/api/gcal-sync-settings', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [key]: value }), fallback: '儲存失敗'
+      method: 'PUT', json: { [key]: value }, fallback: '儲存失敗'
     });
     gcalSettings[key] = value;
     await refreshGcalSyncData(false);
@@ -646,8 +638,7 @@ async function saveKeyReminders(keyId) {
   }
   try {
     await apiFetch('/api/gcal-keys/' + keyId + '/reminders', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reminders: reminders }), fallback: '儲存失敗'
+      method: 'PUT', json: { reminders: reminders }, fallback: '儲存失敗'
     });
     const key = gcalKeys.find(k => k.id === keyId);
     if (key) key.reminders = reminders;
@@ -724,8 +715,7 @@ async function retrySyncQueue(apptId, keyId) {
 async function toggleGcalKey(id, on) {
   try {
     await apiFetch('/api/gcal-keys/' + id, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: on }), fallback: '操作失敗'
+      method: 'PUT', json: { is_active: on }, fallback: '操作失敗'
     });
     const k = gcalKeys.find(x => x.id === id);
     if (k) k.is_active = on;
@@ -762,8 +752,7 @@ async function deleteGcalKey(id) {
 async function bindGcalUser(userId, keyName) {
   try {
     await apiFetch('/api/users/' + userId, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gcal_key: keyName }), fallback: '綁定失敗'
+      method: 'PUT', json: { gcal_key: keyName }, fallback: '綁定失敗'
     });
     const u = gcalUsers.find(x => x.id === userId);
     if (u) u.gcal_key = keyName;
@@ -856,8 +845,7 @@ async function addCabinet() {
   try {
     const data = await apiFetch('/api/cabinets', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, note }),
+      json: { name, note },
       fallback: '新增失敗'
     });
     cabinetList.push(data);
@@ -910,8 +898,7 @@ async function submitCabinetEdit() {
   try {
     const data = await apiFetch(`/api/cabinets/${currentEditCabinetId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, note }),
+      json: { name, note },
       fallback: '編輯失敗'
     });
     const idx = cabinetList.findIndex(c => c.id === currentEditCabinetId);

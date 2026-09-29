@@ -148,13 +148,7 @@ async function calSubmitAppt() {
   if (!body.client_name) return showErr('⚠️ 請填客戶 / 案場');
   if (!body.date) return showErr('⚠️ 請選擇派工日期');
   try {
-    const res = await fetch(id ? `/api/appointments/${id}` : '/api/appointments', {
-      method: id ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return showErr(apiErrorMessage(data.detail) || `錯誤 ${res.status}`);
+    await apiFetch(id ? `/api/appointments/${id}` : '/api/appointments', { method: id ? 'PUT' : 'POST', json: body, fallback: '儲存失敗' });
     closeCalModal();
     toast(id ? '✅ 行程已更新' : '✅ 行程已新增');
     calSelected = new Date(body.date);
@@ -169,14 +163,15 @@ async function calSubmitAppt() {
     calRenderDay();
     if (typeof syncViewUrl === 'function') syncViewUrl();  // 2026-08-14 審查補：跳月後同步 URL（F5 停在該月）
   } catch (e) {
-    showErr('⚠️ 網路錯誤：' + e.message);
+    showErr(e.status ? e.message : '⚠️ 網路錯誤：' + e.message);
   }
 }
 
 async function calDeleteAppt(id) {
   if (!confirm('確定要刪除這筆派工紀錄嗎？')) return;
-  const res = await fetch(`/api/appointments/${id}`, { method: 'DELETE' });
-  if (!res.ok) { toast('❌ 刪除失敗'); return; }
+  try {
+    await apiFetch(`/api/appointments/${id}`, { method: 'DELETE' });
+  } catch (e) { toast('❌ 刪除失敗'); return; }
   toast('🗑 已刪除');
   const applied = await calLoadData();
   if (applied === null) return;
@@ -269,23 +264,17 @@ async function calReloadAfterSyncAction() {
 }
 
 async function calRetryMySync(apptId) {
-  const res = await fetch(`/api/gcal-sync-queue/reset-mine?appt_id=${encodeURIComponent(apptId)}`, { method: 'PUT' });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    toast('❌ ' + (apiErrorMessage(data.detail) || '重試我的同步失敗'));
-    return;
-  }
+  try {
+    await apiFetch(`/api/gcal-sync-queue/reset-mine?appt_id=${encodeURIComponent(apptId)}`, { method: 'PUT', fallback: '重試我的同步失敗' });
+  } catch (e) { toast('❌ ' + e.message); return; }
   toast('🔄 已重設你的同步 Queue');
   await calReloadAfterSyncAction();
 }
 
 async function calRetryTeamMember(apptId, userId) {
-  const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(apptId)}&scope=user&target_user_id=${encodeURIComponent(userId)}`, { method: 'PUT' });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    toast('❌ ' + (apiErrorMessage(data.detail) || '重試指定人員失敗'));
-    return;
-  }
+  try {
+    await apiFetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(apptId)}&scope=user&target_user_id=${encodeURIComponent(userId)}`, { method: 'PUT', fallback: '重試指定人員失敗' });
+  } catch (e) { toast('❌ ' + e.message); return; }
   toast('🔄 已重設指定人員的同步 Queue');
   closeModal('cal-team-sync-modal');
   await calReloadAfterSyncAction();
@@ -293,12 +282,9 @@ async function calRetryTeamMember(apptId, userId) {
 
 async function calRetryTeamSync() {
   if (!calTeamSyncApptId || !confirm('確定重試這筆行程的全部有效同步目標嗎？')) return;
-  const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(calTeamSyncApptId)}&scope=all`, { method: 'PUT' });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    toast('❌ ' + (apiErrorMessage(data.detail) || '重試全體同步失敗'));
-    return;
-  }
+  try {
+    await apiFetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(calTeamSyncApptId)}&scope=all`, { method: 'PUT', fallback: '重試全體同步失敗' });
+  } catch (e) { toast('❌ ' + e.message); return; }
   toast('🔄 已重設這筆行程全部有效同步 Queue');
   closeModal('cal-team-sync-modal');
   await calReloadAfterSyncAction();

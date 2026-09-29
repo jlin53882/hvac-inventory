@@ -57,17 +57,11 @@ async function submitChangePw() {
   if (newPw !== confirmPw) { toast('兩次輸入的新密碼不一致', 'error'); return; }
   if (newPw === oldPw) { toast('新密碼不能與原密碼相同', 'error'); return; }
   try {
-    const res = await fetch('/api/auth/password', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ old_password: oldPw, new_password: newPw })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { toast('⚠️ ' + (apiErrorMessage(data.detail) || '修改失敗'), 'error'); return; }
+    await apiFetch('/api/auth/password', { method: 'PUT', json: { old_password: oldPw, new_password: newPw }, fallback: '修改失敗' });
     closeModalForce('changepw-modal');
     closeModalForce('expiry-modal');  // 從過期提示進來的也一起關
     toast('✅ 密碼已更新', 'success');
   } catch (e) {
-    toast('⚠️ 修改失敗，請稍後再試', 'error');
+    toast(e.status ? '⚠️ ' + e.message : '⚠️ 修改失敗，請稍後再試', 'error');
   }
 }

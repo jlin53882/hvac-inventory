@@ -41,22 +41,17 @@ async function pcOpenReportModal(id) {
     status: 'draft', entries: []
   };
   try {
-    const optionRes = await fetch('/api/petty-cash-options?report_type=general&option_type=category');
-    if (optionRes.ok) {
-      const options = await optionRes.json();
-      if (!_pcIsCurrentModal(modalToken, 'general')) return;
-      pcGeneralOptions.category = options.items || [];
-    }
+    const options = await apiFetch('/api/petty-cash-options?report_type=general&option_type=category');
+    if (!_pcIsCurrentModal(modalToken, 'general')) return;
+    pcGeneralOptions.category = options.items || [];
   } catch (e) { /* 選單載入失敗仍允許輸入自訂科目 */ }
   if (!_pcIsCurrentModal(modalToken, 'general')) return;
   if (id) {
     try {
-      const res = await fetch('/api/petty-cash-reports/' + id);
+      d = await apiFetch('/api/petty-cash-reports/' + id);
       if (!_pcIsCurrentModal(modalToken, 'general')) return;
-      if (!res.ok) return toast('⚠️ 讀取失敗');
-      d = await res.json();
     } catch(e) {
-      if (_pcIsCurrentModal(modalToken, 'general')) toast('⚠️ 網路錯誤：' + e.message);
+      if (_pcIsCurrentModal(modalToken, 'general')) toast(e.status ? '⚠️ 讀取失敗' : '⚠️ 網路錯誤：' + e.message);
       return;
     }
   }
@@ -173,9 +168,7 @@ async function pcFetchPreviousBalance() {
   if (!start) return toast('⚠️ 請先選報表開始日期');
   try {
     const p = new URLSearchParams({ upload_person: uploader, before: start });
-    const res = await fetch('/api/petty-cash-reports/previous-balance?' + p);
-    if (!res.ok) return toast('⚠️ 查詢失敗');
-    const data = await res.json();
+    const data = await apiFetch('/api/petty-cash-reports/previous-balance?' + p);
     if (!data.found) {
       pcOpeningSource = 'manual';
       pcUpdateOpeningHint();
@@ -185,7 +178,7 @@ async function pcFetchPreviousBalance() {
     pcOpeningSource = 'auto';
     pcUpdateOpeningHint();
     toast(`✅ 已帶入上一期餘額 $${data.opening_balance}（${data.previous_period}）`);
-  } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
+  } catch(e) { toast(e.status ? '⚠️ 查詢失敗' : '⚠️ 網路錯誤：' + e.message); }
 }
 
 /**
@@ -512,24 +505,15 @@ async function pcModalSave(status) {
   pcSaveInFlightToken = saveToken;
   pcSetSaveButtonsDisabled('pc-report-overlay', true);
   try {
-    const res = await fetch(url, {
-      method: editingId ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json().catch(() => ({}));
+    const data = (await apiFetch(url, { method: editingId ? 'PUT' : 'POST', json: body, fallback: '儲存失敗' })) || {};
     if (saveToken !== pcModalOpenSeq) return;
-    if (!res.ok) {
-      if (res.status === 409 && data.detail) return toast('⚠️ ' + apiErrorMessage(data.detail));
-      return toast('⚠️ ' + (apiErrorMessage(data.detail) || '儲存失敗'));
-    }
     toast(status === 'completed' ? '✅ 已儲存完成' : '✅ 草稿已儲存');
     const savedId = data.id || editingId;
     pcCloseReportModal();
     if (pcModalReturnToDetail && savedId) pcOpenDetail(savedId);
     else { pcDetail = null; renderPettyCash(); }
   } catch(e) {
-    if (saveToken === pcModalOpenSeq) toast('⚠️ 網路錯誤：' + e.message);
+    if (saveToken === pcModalOpenSeq) toast(e.status ? '⚠️ ' + e.message : '⚠️ 網路錯誤：' + e.message);
   } finally {
     if (pcSaveInFlightToken === saveToken) {
       pcSaveInFlight = false;

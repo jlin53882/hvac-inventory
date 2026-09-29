@@ -17,15 +17,20 @@ async function pcOpenEngineeringModal(id) {
   engActiveCategory = 0;
   engData = {start_date:_pcIso(new Date()), end_date:_pcIso(new Date()), upload_person:'', prepared_by:'', filename_text:'', status:'draft', categories:[]};
   try {
-    await Promise.all(['category', 'group'].map(kind => fetch('/api/petty-cash-options?report_type=engineering&option_type='+kind).then(r=>r.ok ? r.json() : {items:[]}).then(d => {
+    await Promise.all(['category', 'group'].map(kind => apiFetch('/api/petty-cash-options?report_type=engineering&option_type='+kind).catch(e => (e.status ? {items:[]} : Promise.reject(e))).then(d => {
       if (_pcIsCurrentModal(modalToken, 'engineering')) engOptions[kind] = d.items || [];
     })));
     if (!_pcIsCurrentModal(modalToken, 'engineering')) return;
     if (id) {
-      const res = await fetch('/api/petty-cash-reports/'+id);
+      let d;
+      try {
+        d = await apiFetch('/api/petty-cash-reports/'+id);
+      } catch (e) {
+        if (!e.status) throw e;
+        if (_pcIsCurrentModal(modalToken, 'engineering')) toast('⚠️ 讀取失敗');
+        return;
+      }
       if (!_pcIsCurrentModal(modalToken, 'engineering')) return;
-      if (!res.ok) return toast('⚠️ 讀取失敗');
-      const d = await res.json();
       engData = JSON.parse(JSON.stringify(d));
     }
     if (_pcIsCurrentModal(modalToken, 'engineering')) engRenderModal();
@@ -113,15 +118,13 @@ async function engSave(status){
   pcSaveInFlightToken = saveToken;
   pcSetSaveButtonsDisabled('eng-report-overlay', true);
   try {
-    const res=await fetch(url,{method:engEditingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const data=await res.json().catch(()=>({}));
+    await apiFetch(url, { method: engEditingId ? 'PUT' : 'POST', json: body, fallback: '儲存失敗' });
     if (saveToken !== pcModalOpenSeq) return;
-    if (!res.ok) return toast('⚠️ '+(apiErrorMessage(data.detail)||'儲存失敗'));
     toast(status==='completed'?'✅ 已儲存完成':'✅ 草稿已儲存');
     engCloseModal();
     renderPettyCash();
   } catch(e) {
-    if (saveToken === pcModalOpenSeq) toast('⚠️ 網路錯誤：' + e.message);
+    if (saveToken === pcModalOpenSeq) toast(e.status ? '⚠️ ' + e.message : '⚠️ 網路錯誤：' + e.message);
   } finally {
     if (pcSaveInFlightToken === saveToken) {
       pcSaveInFlight = false;

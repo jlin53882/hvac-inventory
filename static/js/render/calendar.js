@@ -224,16 +224,16 @@ async function calLoadData() {
   const y = calMonth.getFullYear(), m = calMonth.getMonth() + 1;
   const today = new Date();
   const todayStr = _iso(today);
-  const monthEventsPromise = fetch(`/api/appointments?year=${y}&month=${m}`).then(r => r.ok ? r.json() : Promise.reject(new Error('appointments ' + r.status)));
+  const monthEventsPromise = apiFetch(`/api/appointments?year=${y}&month=${m}`);
   const todayEventsPromise = y === today.getFullYear() && m === today.getMonth() + 1
     ? monthEventsPromise
-    : fetch(`/api/appointments?date=${todayStr}`).then(r => r.ok ? r.json() : Promise.reject(new Error('today appointments ' + r.status)));
+    : apiFetch(`/api/appointments?date=${todayStr}`);
   calLoadError = '';
   try {
     const [ev, svc, ppl, todayEv] = await Promise.all([
       monthEventsPromise,
-      fetch('/api/service-types').then(r => r.ok ? r.json() : Promise.reject(new Error('service-types ' + r.status))),
-      fetch('/api/assignable-users').then(r => r.ok ? r.json() : Promise.reject(new Error('assignable-users ' + r.status))),
+      apiFetch('/api/service-types'),
+      apiFetch('/api/assignable-users'),
       todayEventsPromise,
     ]);
     if (requestToken !== calLoadRequestToken) return null;
@@ -565,24 +565,12 @@ function calPickDate(v) {
  */
 async function calExport() {
   const date = _iso(calSelected);
+  const mmdd = date.slice(5, 7) + date.slice(8, 10);
   try {
-    const res = await fetch(`/api/appointments/export?date=${date}`);
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      toast('❌ ' + (apiErrorMessage(d.detail) || '匯出失敗'));
-      return;
-    }
-    const blob = await res.blob();
-    const mmdd = date.slice(5, 7) + date.slice(8, 10);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `工程日報表${mmdd}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    await apiDownload(`/api/appointments/export?date=${date}`, { filename: `工程日報表${mmdd}.xlsx`, fallback: '匯出失敗' });
     toast(`📤 已匯出 工程日報表${mmdd}.xlsx`);
   } catch (e) {
-    toast('⚠️ 匯出失敗：' + e.message);
+    toast(e.status ? '❌ ' + e.message : '⚠️ 匯出失敗：' + e.message);
   }
 }
 
@@ -746,14 +734,7 @@ async function calSearch() {
   if (to) params.set('date_to', to);
   if (q) params.set('q', q);
   try {
-    const res = await fetch('/api/appointments/search?' + params);
-    if (requestToken !== calSearchRequestToken) return;
-    if (!res.ok) {
-      if (calIsDesktopViewport()) calRenderSearchError();
-      else toast('搜尋失敗', 'error');
-      return;
-    }
-    const items = await res.json();
+    const items = await apiFetch('/api/appointments/search?' + params);
     if (requestToken !== calSearchRequestToken) return;
     calSearchItems = Array.isArray(items) ? items : [];
     if (calIsDesktopViewport()) calRenderSearchResults(calSearchItems);

@@ -19,9 +19,7 @@ async function renderStocktake() {
   let takeDates = [];
   let loadError = false;
   try {
-    const res = await fetch(`/api/stocktake/dates?site=${encodeURIComponent(siteAtRequest)}`);
-    if (!res.ok) { console.error('[renderStocktake] /api/stocktake/dates 失敗', res.status); throw new Error('dates ' + res.status); }
-    takeDates = await res.json();
+    takeDates = await apiFetch(`/api/stocktake/dates?site=${encodeURIComponent(siteAtRequest)}`);
     if (!isCurrent()) return;
   } catch (e) {
     if (!isCurrent()) return;
@@ -29,9 +27,7 @@ async function renderStocktake() {
     console.error('[renderStocktake] 盤點日期載入失敗', e);
   }
   try {
-    const kitRes = await fetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`);
-    if (!kitRes.ok) { console.error('[renderStocktake] /api/kits 失敗', kitRes.status); throw new Error('kits ' + kitRes.status); }
-    const kits = await kitRes.json();
+    const kits = await apiFetch(`/api/kits?site=${encodeURIComponent(siteAtRequest)}`);
     if (!isCurrent()) return;
     stocktakeKits = kits;
   } catch (e) {
@@ -251,13 +247,7 @@ async function submitStocktake() {
   if (!confirmed) return;
 
   try {
-    const res = await fetch('/api/stocktake', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ take_date: todayStr(), site: currentSite, items: items })
-    });
-    if (!res.ok) throw new Error();
-    const r = await res.json();
+    const r = await apiFetch('/api/stocktake', { method: 'POST', json: { take_date: todayStr(), site: currentSite, items: items } });
     stocktakeValues = {};
     // 記錄本月已盤點，當月不再顯示提醒（僅 25-31日盤點才記錄）
     const now = new Date();

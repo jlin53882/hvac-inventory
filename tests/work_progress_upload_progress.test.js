@@ -1,7 +1,7 @@
 'use strict';
 
 // 工作進度上傳進度條 runtime 回歸：以 fake XMLHttpRequest 驅動正式程式碼，
-// 斷言「上傳中 xx% → 伺服器處理中…」順序、成功回傳 JSON、錯誤訊息與 wprFetch 一致。
+// 斷言「上傳中 xx% → 伺服器處理中…」順序、成功回傳 JSON、錯誤訊息與 apiFetch 一致。
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');

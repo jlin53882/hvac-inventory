@@ -62,11 +62,7 @@
   }
 
   function apiSend(url, method, body) {
-    return permRequest(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    return permRequest(url, { method, json: body || undefined });
   }
 
   // ---------- 初始化 ----------

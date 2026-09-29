@@ -69,12 +69,9 @@ function calRenderSvcRows() {
 async function calUpdSvc(id, sort) {
   const s = calSvc.find(x => x.id === id);
   if (!s) return;
-  const res = await fetch(`/api/service-types/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: s.name, sort_order: Number(sort) || 0, is_active: s.is_active }),
-  });
-  if (!res.ok) { toast('❌ 更新失敗'); return; }
+  try {
+    await apiFetch(`/api/service-types/${id}`, { method: 'PUT', json: { name: s.name, sort_order: Number(sort) || 0, is_active: s.is_active } });
+  } catch (e) { toast('❌ 更新失敗'); return; }
   s.sort_order = Number(sort) || 0;
   calRenderSvcRows();
   toast('✅ 已更新');
@@ -83,12 +80,9 @@ async function calUpdSvc(id, sort) {
 async function calUpdSvcActive(id) {
   const s = calSvc.find(x => x.id === id);
   if (!s) return;
-  const res = await fetch(`/api/service-types/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: s.name, sort_order: s.sort_order, is_active: s.is_active ? 0 : 1 }),
-  });
-  if (!res.ok) { toast('❌ 更新失敗'); return; }
+  try {
+    await apiFetch(`/api/service-types/${id}`, { method: 'PUT', json: { name: s.name, sort_order: s.sort_order, is_active: s.is_active ? 0 : 1 } });
+  } catch (e) { toast('❌ 更新失敗'); return; }
   s.is_active = s.is_active ? 0 : 1;
   calRenderSvcRows();
   toast(s.is_active ? '✅ 已啟用' : '已停用');
@@ -97,13 +91,10 @@ async function calUpdSvcActive(id) {
 async function calAddSvc() {
   const v = document.getElementById('cal-svc-new').value.trim();
   if (!v) return;
-  const res = await fetch('/api/service-types', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: v, sort_order: calSvc.length + 1, is_active: 1 }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) { toast('❌ ' + (apiErrorMessage(data.detail) || '新增失敗')); return; }
+  let data;
+  try {
+    data = await apiFetch('/api/service-types', { method: 'POST', json: { name: v, sort_order: calSvc.length + 1, is_active: 1 }, fallback: '新增失敗' });
+  } catch (e) { toast('❌ ' + e.message); return; }
   document.getElementById('cal-svc-new').value = '';
   calSvc.push(data);
   calRenderSvcRows();
@@ -112,8 +103,9 @@ async function calAddSvc() {
 
 async function calDelSvc(id) {
   if (!confirm('確定停用此服務項目嗎？（舊行程不受影響）')) return;
-  const res = await fetch(`/api/service-types/${id}`, { method: 'DELETE' });
-  if (!res.ok) { toast('❌ 停用失敗'); return; }
+  try {
+    await apiFetch(`/api/service-types/${id}`, { method: 'DELETE' });
+  } catch (e) { toast('❌ 停用失敗'); return; }
   const s = calSvc.find(x => x.id === id);
   if (s) s.is_active = 0;
   calRenderSvcRows();
@@ -135,12 +127,9 @@ function calRenderPplRows() {
 }
 
 async function calSetColor(uid, color) {
-  const res = await fetch(`/api/users/${uid}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ color }),
-  });
-  if (!res.ok) { toast('❌ 顏色更新失敗'); return; }
+  try {
+    await apiFetch(`/api/users/${uid}`, { method: 'PUT', json: { color } });
+  } catch (e) { toast('❌ 顏色更新失敗'); return; }
   const p = calAssignable.find(x => x.id === uid);
   if (p) p.color = color;
   calRenderPplRows();

@@ -1,6 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 const globalsSource = fs.readFileSync('static/js/globals.js', 'utf8');
 const calendarRenderSource = fs.readFileSync('static/js/render/calendar.js', 'utf8');
@@ -120,35 +121,36 @@ function createContext() {
 
       if (url.startsWith('/api/appointments?year=')) {
         calls.refreshes += 1;
-        return { ok: true, async json() { return state.events; } };
+        return mockResponse(state.events);
       }
       if (url.startsWith('/api/appointments?date=')) {
-        return { ok: true, async json() { return state.events; } };
+        return mockResponse(state.events);
       }
       if (url === '/api/service-types') {
-        return { ok: true, async json() { return state.services; } };
+        return mockResponse(state.services);
       }
       if (url === '/api/assignable-users') {
-        return { ok: true, async json() { return state.assignable; } };
+        return mockResponse(state.assignable);
       }
       if (method === 'POST' && url === '/api/appointments') {
         const body = JSON.parse(options.body);
         state.events.push({ ...body, id: 2, user_ids: body.user_ids || [], updated_at: 'new' });
-        return { ok: true, async json() { return { id: 2 }; } };
+        return mockResponse({ id: 2 });
       }
       if (method === 'PUT' && url === '/api/appointments/1') {
         const body = JSON.parse(options.body);
         state.events = state.events.map(event => event.id === 1 ? { ...event, ...body } : event);
-        return { ok: true, async json() { return { id: 1 }; } };
+        return mockResponse({ id: 1 });
       }
       if (method === 'DELETE' && url === '/api/appointments/2') {
         state.events = state.events.filter(event => event.id !== 2);
-        return { ok: true, async json() { return {}; } };
+        return mockResponse({});
       }
       throw new Error(`Unexpected request: ${method} ${url}`);
     },
   };
   vm.createContext(context);
+  installApiClient(context);
   vm.runInContext(globalsSource, context);
   context.calMonth = month;
   context.calSelected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -178,9 +180,11 @@ function createContext() {
 async function assertCalendarLoad(context, state) {
   const applied = await context.calLoadData();
   assert.strictEqual(applied, true, 'Calendar load should apply the API response');
-  assert.deepStrictEqual(Array.from(context.calEvents), state.events);
-  assert.deepStrictEqual(Array.from(context.calSvc), state.services);
-  assert.deepStrictEqual(Array.from(context.calAssignable), state.assignable);
+  // 回應經 JSON 解析（與瀏覽器相同，是新物件），以值比較
+  const plain = value => JSON.parse(JSON.stringify(value));
+  assert.deepStrictEqual(plain(context.calEvents), state.events);
+  assert.deepStrictEqual(plain(context.calSvc), state.services);
+  assert.deepStrictEqual(plain(context.calAssignable), state.assignable);
 }
 
 (async () => {

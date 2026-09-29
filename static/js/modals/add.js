@@ -28,11 +28,8 @@ function openAddModal() {
   // 2026-09-27：新增時也載入最新櫃子清單；載入後只更新下拉選項，保留使用者已輸入的值
   (async () => {
     try {
-      const res = await fetch('/api/cabinets');
-      if (res.ok) {
-        globalCabinetList = await res.json();
-        refreshAddStockCabinetOptions();
-      }
+      globalCabinetList = await apiFetch('/api/cabinets');
+      refreshAddStockCabinetOptions();
     } catch (e) {
       console.warn('新增 modal 載入櫃子清單失敗', e);
     }
@@ -199,22 +196,8 @@ async function submitAdd() {
     stocks: built.stocks,
   };
   try {
-    const res = await fetch('/api/items', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      // 去重：顯示後端錯誤訊息（例如「該品項已存在…用編輯→新增位置」）
-      let msg = '新增失敗';
-      try {
-        const err = await res.json();
-        if (err.detail) msg = apiErrorMessage(err.detail);
-      } catch {}
-      toast('⚠️ ' + msg, 'error');
-      return;
-    }
-    const newItem = await res.json();
+    // 去重：後端錯誤訊息會帶出原因（例如「該品項已存在…用編輯→新增位置」）
+    const newItem = await apiFetch('/api/items', { method: 'POST', json: payload, fallback: '新增失敗' });
     const newItemId = newItem.id;
     // v10.1：若有選擇照片，自動上傳（拍照或相簿擇一）
     const photoInput = document.getElementById('f-photo-input');
@@ -226,8 +209,8 @@ async function submitAdd() {
       try {
         const fd = new FormData();
         fd.append('file', chosenFile);
-        const photoRes = await fetch(`/api/items/${newItemId}/photo`, { method: 'POST', body: fd });
-        if (photoRes.ok) photoMsg = '（含照片）';
+        await apiFetch(`/api/items/${newItemId}/photo`, { method: 'POST', body: fd });
+        photoMsg = '（含照片）';
       } catch {}
     }
     toast(`✅ 已新增「${name}」${photoMsg}`, 'success');
@@ -241,6 +224,6 @@ async function submitAdd() {
     fillUnitSelect(document.getElementById('f-unit'), '個');
     await loadData();
   } catch (e) {
-    toast('新增失敗', 'error');
+    toast(e.status ? '⚠️ ' + e.message : '新增失敗', 'error');
   }
 }

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 const root = path.join(__dirname, '..');
 const inventoryRequests = [];
@@ -53,13 +54,14 @@ const sandbox = {
     inventoryRequests.push({ url, options, body: JSON.parse(options.body) });
     if (sandbox.failNextSave) {
       sandbox.failNextSave = false;
-      return { ok: false, json: async () => ({ detail: 'temporary failure' }) };
+      return mockResponse(({ detail: 'temporary failure' }), 400);
     }
-    return { ok: true, json: async () => ({}) };
+    return mockResponse(({}));
   },
   console,
 };
 vm.createContext(sandbox);
+installApiClient(sandbox);
 vm.runInContext(fs.readFileSync(path.join(root, 'static/js/qty.js'), 'utf8'), sandbox, { filename: 'qty.js' });
 sandbox.unitList = [
   { name: '個', qty_type: 'integer' },

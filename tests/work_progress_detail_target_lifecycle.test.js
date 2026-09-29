@@ -4,6 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { installApiClient, mockResponse } = require('./support/frontend-runtime');
 
 const sourcePath = path.join(__dirname, '..', 'static', 'js', 'render', 'work-progress.js');
 const source = fs.readFileSync(sourcePath, 'utf8');
@@ -48,13 +49,6 @@ function createHarness() {
     toast() {},
     esc(value) { return String(value); },
     jsStr(value) { return String(value); },
-    wprFetch(url, options) {
-      let resolve;
-      let reject;
-      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
-      requests.push({ resolve, reject, url, options });
-      return promise;
-    },
     console,
     Promise,
     URLSearchParams,
@@ -73,6 +67,7 @@ function createHarness() {
     wprHistoryPage: 1,
     wprSelectRequestToken: 0,
   };
+  installApiClient(vm.createContext(sandbox));
   vm.runInNewContext(source, sandbox, { filename: sourcePath });
   return { sandbox, elements, requests };
 }
@@ -117,14 +112,14 @@ async function testSelectedDetailManageRefreshesSelectedTarget() {
 
   h.sandbox.wprOpenHistoryDetail(42, selectedId);
   assert.strictEqual(h.requests.length, 1, 'initial selected detail must fetch the report');
-  h.requests[0].resolve({ ok: true, json: async () => report('initial') });
+  h.requests[0].resolve(mockResponse(report('initial')));
   await flush();
   assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoManage\(42/);
   assert.doesNotMatch(h.elements.get(selectedId).innerHTML, /wpr-photo-selection-badge/, 'default browsing must not render selection badges');
 
   h.sandbox.wprTogglePhotoManage(42, selectedId);
   assert.strictEqual(h.requests.length, 2, 'manage action must refresh the selected detail');
-  h.requests[1].resolve({ ok: true, json: async () => report('managed') });
+  h.requests[1].resolve(mockResponse(report('managed')));
   await flush();
   assert.match(h.elements.get(selectedId).innerHTML, /wprTogglePhotoSelection\(42/);
   assert.match(h.elements.get(selectedId).innerHTML, /wpr-photo-selection-badge/);
@@ -148,7 +143,7 @@ async function testHistoryTargetFallbackRemainsAvailable() {
 
   h.sandbox.wprOpenHistoryDetail(7);
   assert.strictEqual(h.requests.length, 1, 'history detail must use the default target');
-  h.requests[0].resolve({ ok: true, json: async () => report('history') });
+  h.requests[0].resolve(mockResponse(report('history')));
   await flush();
   assert.match(h.elements.get(historyId).innerHTML, /wpr-detail-action-edit/);
 }
@@ -164,9 +159,7 @@ async function testPhotoHeadingRemainsWhenReportHasNoPhotos() {
 
   h.sandbox.wprOpenHistoryDetail(8);
   assert.strictEqual(h.requests.length, 1);
-  h.requests[0].resolve({
-    ok: true,
-    json: async () => ({
+  h.requests[0].resolve(mockResponse(({
       id: 8,
       report_date: '2026-09-21',
       service_name: '保養',
@@ -177,8 +170,7 @@ async function testPhotoHeadingRemainsWhenReportHasNoPhotos() {
       photo_count: 0,
       can_edit: false,
       can_delete: false,
-    }),
-  });
+    })));
   await flush();
 
   const markup = h.elements.get(detailId).innerHTML;
@@ -200,7 +192,7 @@ async function testReloadHelperPreservesSelectedTarget() {
   await flush();
   assert.deepStrictEqual(pages, [3], 'selected refresh must retain the requested history page');
   assert.strictEqual(h.requests.length, 1, 'selected refresh must reopen the selected target');
-  h.requests[0].resolve({ ok: true, json: async () => report('reloaded') });
+  h.requests[0].resolve(mockResponse(report('reloaded')));
   await flush();
   assert.match(h.elements.get(selectedId).innerHTML, /reloaded/);
 }
@@ -217,8 +209,8 @@ async function testDetailTokensAreScopedPerTarget() {
   h.sandbox.wprOpenHistoryDetail(42);
   h.sandbox.wprOpenHistoryDetail(42, 'wpr-selected-report-detail-42');
   assert.strictEqual(h.requests.length, 2, 'both detail targets must fetch independently');
-  h.requests[0].resolve({ ok: true, json: async () => report('history-response') });
-  h.requests[1].resolve({ ok: true, json: async () => report('selected-response') });
+  h.requests[0].resolve(mockResponse(report('history-response')));
+  h.requests[1].resolve(mockResponse(report('selected-response')));
   await flush();
   assert.match(h.elements.get(historyId).innerHTML, /history-response/);
   assert.match(h.elements.get('wpr-selected-report-detail-42').innerHTML, /selected-response/);
@@ -233,10 +225,10 @@ async function testPhotoManagementUsesOneBatchRequest() {
   const h = createHarness();
   const selectedId = 'wpr-selected-report-detail-42';
   h.sandbox.wprOpenHistoryDetail(42, selectedId);
-  h.requests[0].resolve({ ok: true, json: async () => report('initial') });
+  h.requests[0].resolve(mockResponse(report('initial')));
   await flush();
   h.sandbox.wprTogglePhotoManage(42, selectedId);
-  h.requests[1].resolve({ ok: true, json: async () => report('managed') });
+  h.requests[1].resolve(mockResponse(report('managed')));
   await flush();
   const beforeSelectionRequests = h.requests.length;
   h.sandbox.wprTogglePhotoSelection(42, 0, selectedId);
@@ -258,7 +250,7 @@ async function testPhotoManagementUsesOneBatchRequest() {
   assert.strictEqual(h.requests[2].options.method, 'POST');
   const payload = JSON.parse(h.requests[2].options.body);
   assert.deepStrictEqual(payload.asset_ids.sort(), ['asset-42', 'asset-43']);
-  h.requests[2].resolve({ ok: true, json: async () => ({ deleted_count: 2, remaining_count: 0 }) });
+  h.requests[2].resolve(mockResponse(({ deleted_count: 2, remaining_count: 0 })));
   await flush();
   assert.strictEqual(h.requests.length, 4, 'successful mutation must refresh the same detail target');
   assert.strictEqual(h.requests[3].url, '/api/work-progress/42');
@@ -277,7 +269,7 @@ async function testHistoryReloadCleansOnlyHistoryTargets() {
   selectedState.selected['asset-43'] = true;
   h.sandbox.wprLoadHistory(1);
   assert.strictEqual(h.requests.length, 1);
-  h.requests[0].resolve({ ok: true, json: async () => ({ page: 2, total: 1, items: [{ id: 42, report_date: '2026-09-21', service_name: '保養', client_name: '三重', uploader_name: '測試', photo_count: 2 }] }) });
+  h.requests[0].resolve(mockResponse(({ page: 2, total: 1, items: [{ id: 42, report_date: '2026-09-21', service_name: '保養', client_name: '三重', uploader_name: '測試', photo_count: 2 }] })));
   await flush();
   assert.strictEqual(h.sandbox.wprPhotoManageState(42, 'wpr-detail-42').manage, false);
   assert.deepStrictEqual(Object.keys(h.sandbox.wprPhotoManageState(42, 'wpr-detail-42').selected), []);
@@ -328,7 +320,7 @@ async function testDeleteReportSuccessClearsPhotoManagementState() {
   h.sandbox.wprDeleteReport(42);
   assert.strictEqual(h.requests.length, 1);
   assert.strictEqual(h.sandbox.wprPhotoManageStates[key].manage, true);
-  h.requests[0].resolve({ ok: true, json: async () => ({ ok: true }) });
+  h.requests[0].resolve(mockResponse(({ ok: true })));
   await flush();
   assert.strictEqual(h.sandbox.wprPhotoManageStates[key], undefined);
   assert.strictEqual(h.sandbox.wprPhotoManageReports[key], undefined);
@@ -379,7 +371,7 @@ async function testSelectedReportSwitchSuccessClearsPreviousManagementState() {
   h.sandbox.wprSelectJob(2);
   assert.strictEqual(h.requests.length, 1);
   assert.strictEqual(h.sandbox.wprPhotoManageStates[key].manage, true);
-  h.requests[0].resolve({ ok: true, json: async () => ({ id: 43, appointment_id: 2, photos: [] }) });
+  h.requests[0].resolve(mockResponse(({ id: 43, appointment_id: 2, photos: [] })));
   await flush();
   assert.strictEqual(h.sandbox.wprPhotoManageStates[key], undefined);
   assert.strictEqual(h.sandbox.wprCurrentReport.id, 43);

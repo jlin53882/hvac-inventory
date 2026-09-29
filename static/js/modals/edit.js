@@ -41,12 +41,9 @@ function openEditModal(id) {
   // 2026-09-27：編輯時也載入最新櫃子清單
   (async () => {
     try {
-      const res = await fetch('/api/cabinets');
-      if (res.ok) {
-        globalCabinetList = await res.json();
-        // 重新渲染位置列表（更新櫃子選項）
-        renderEditStockRows(stocks, item.unit || '個');
-      }
+      globalCabinetList = await apiFetch('/api/cabinets');
+      // 重新渲染位置列表（更新櫃子選項）
+      renderEditStockRows(stocks, item.unit || '個');
     } catch (e) {
       console.warn('編輯 modal 載入櫃子清單失敗', e);
     }
@@ -198,48 +195,11 @@ async function submitEdit() {
   // 2026-09-12：任一位置數量非法（map 回 null，已 toast）→ 整包擋下不送
   if (payload.stocks.some(s => s === null)) return;
   try {
-    const res = await fetch(`/api/items/${editItemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      let msg = '儲存失敗';
-      try { const err = await res.json(); if (err.detail) msg = apiErrorMessage(err.detail); } catch {}
-      toast('⚠️ ' + msg, 'error');
-      return;
-    }
+    await apiFetch(`/api/items/${editItemId}`, { method: 'PATCH', json: payload, fallback: '儲存失敗' });
     closeModalForce('edit-modal');
     toast('✅ 已儲存修改', 'success');
     await loadData();
   } catch (e) {
-    toast('儲存失敗', 'error');
-  }
-}
-// 2026-09-27：編輯 modal 也要動態載入櫃子清單
-async function loadEditCabinetOptions() {
-  try {
-    const res = await fetch('/api/cabinets');
-    if (res.ok) {
-      const cabinets = await res.json();
-      const selects = document.querySelectorAll('[id*="cabinet"]');
-      selects.forEach(select => {
-        if (!select.id.includes('location')) {  // 避免位置表單欄位
-          const currentValue = select.value;
-          const firstOption = select.querySelector('option:first-child');
-          select.innerHTML = '';
-          if (firstOption) select.appendChild(firstOption);
-          cabinets.forEach(cab => {
-            const opt = document.createElement('option');
-            opt.value = cab.name;
-            opt.textContent = cab.name + (cab.note ? `(${cab.note})` : '');
-            select.appendChild(opt);
-          });
-          select.value = currentValue;
-        }
-      });
-    }
-  } catch (e) {
-    console.error('載入櫃子清單失敗', e);
+    toast(e.status ? '⚠️ ' + e.message : '儲存失敗', 'error');
   }
 }

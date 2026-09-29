@@ -118,9 +118,7 @@ async function renderPrepared() {
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入待領出清單…</div></div>';
 
   try {
-    const res = await fetch(`/api/prepared?site=${siteAtRequest}`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    let items = await res.json();
+    let items = await apiFetch(`/api/prepared?site=${siteAtRequest}`);
     if (renderRequestId !== preparedRenderRequestSeq || currentTab !== 'prepared' || siteAtRequest !== currentSite) return;
     preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
@@ -196,39 +194,14 @@ function updatePreparedBadge(n) {
 // 刪除待領出：把該品項的待領出數量全部清掉（不影響庫存；2026-08-11 Sarah 需求）
 
 async function clearPrepared(itemId, qty) {
-
   if (!confirm('確定刪除這筆待領出（' + qty + ' 件）？不會影響庫存。')) return;
-
   try {
-
-    const res = await fetch(`/api/items/${itemId}/prepared-return`, {
-
-      method: 'POST',
-
-      headers: { 'Content-Type': 'application/json' },
-
-      body: JSON.stringify({ qty: qty, location: '' })
-
-    });
-
-    if (!res.ok) {
-
-      const e = await res.json().catch(() => ({}));
-
-      throw new Error(apiErrorMessage(e.detail) || '刪除失敗');
-
-    }
-
+    await apiFetch(`/api/items/${itemId}/prepared-return`, { method: 'POST', json: { qty: qty, location: '' }, fallback: '刪除失敗' });
     toast('✅ 已刪除待領出', 'success');
-
     await loadData();
-
   } catch (e) {
-
     toast('⚠️ ' + e.message, 'error');
-
   }
-
 }
 
 

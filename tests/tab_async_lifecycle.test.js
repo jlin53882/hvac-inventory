@@ -1,6 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
+const { installApiClient } = require('./support/frontend-runtime');
 
 const ROOT = process.cwd();
 const stockoutSource = fs.readFileSync('static/js/render/stockout.js', 'utf8');
@@ -9,18 +10,7 @@ const stocktakeSource = fs.readFileSync('static/js/render/stocktake.js', 'utf8')
 const uploadListSource = fs.readFileSync('static/js/render/upload-list.js', 'utf8');
 const signedSource = uploadListSource + '\n' + fs.readFileSync('static/js/render/signed-reports.js', 'utf8');
 const quotationSource = uploadListSource + '\n' + fs.readFileSync('static/js/render/quotation-upload.js', 'utf8');
-const utilsSource = fs.readFileSync('static/js/utils.js', 'utf8');
 
-function extractFunction(source, name) {
-  const start = source.search(new RegExp(`(async )?function ${name}\\(`));
-  assert(start >= 0, `${name} must exist`);
-  let depth = 0;
-  for (let i = source.indexOf(') {', start) + 2; i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
-  }
-  throw new Error(`${name} is not closed`);
-}
 
 function deferred() {
   let resolve;
@@ -92,13 +82,14 @@ function baseContext(overrides = {}) {
     ...overrides,
   };
   vm.createContext(context);
-  for (const name of ['apiErrorMessage', 'apiFetch']) vm.runInContext(extractFunction(utilsSource, name), context);
+  installApiClient(context);
   context._elements = elements;
   return context;
 }
 
-async function flush() {
-  for (let index = 0; index < 6; index += 1) await Promise.resolve();
+// 等目前排入的 promise 全部跑完（一個 macrotask 回合），不依賴固定的 microtask 次數
+function flush() {
+  return new Promise(resolve => setImmediate(resolve));
 }
 
 async function testStockoutTabLeaveAndLatestWins() {

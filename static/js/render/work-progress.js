@@ -41,27 +41,6 @@ function wprTimeText(job) {
   return job.start_time && job.end_time ? esc(job.start_time) + '–' + esc(job.end_time) : '未指定時間';
 }
 /**
- * Convert a non-success API response into the shared promise error path.
- * @param {Response} response - Function input.
- * @returns {void} Function result.
- */
-function wprApiError(response) {
-  return response.json().catch(function() { return {}; }).then(function(body) {
-    throw new Error(apiErrorMessage(body.detail) || ('API 錯誤：' + response.status));
-  });
-}
-/**
- * Fetch and decode a JSON Work Progress response.
- * @param {string} url - Function input.
- * @param {RequestInit} options - Function input.
- * @returns {void} Function result.
- */
-async function wprFetch(url, options) {
-  var response = await fetch(url, options);
-  if (!response.ok) return wprApiError(response);
-  return response.json();
-}
-/**
  * Label for the upload phases shown on the submit button.
  * @param {string} phase - 'upload' while bytes are sent, 'processing' after the server has them.
  * @param {number} percent - Upload percentage (0-100), ignored for processing.
@@ -74,7 +53,7 @@ function wprUploadProgressText(phase, percent) {
 }
 /**
  * POST multipart data with upload progress (fetch cannot report request-body progress).
- * Error semantics match wprFetch; structured API validation details use the shared readable formatter.
+ * Error messages match apiFetch (api-client.js); structured API validation details use the shared readable formatter.
  * @param {string} url - Endpoint.
  * @param {FormData} form - Multipart body.
  * @param {function(string, number): void} onProgress - Receives ('upload', percent) then ('processing', 100).
@@ -248,9 +227,9 @@ async function wprLoadDay() {
   var dateValue = dateInput.value;
   var token = ++wprDayRequestToken;
   try {
-    var jobs = await wprFetch('/api/appointments?date=' + encodeURIComponent(dateValue));
+    var jobs = await apiFetch('/api/appointments?date=' + encodeURIComponent(dateValue));
     if (token !== wprDayRequestToken) return;
-    var reports = await wprFetch('/api/work-progress?from_date=' + encodeURIComponent(dateValue) + '&to_date=' + encodeURIComponent(dateValue) + '&page_size=100');
+    var reports = await apiFetch('/api/work-progress?from_date=' + encodeURIComponent(dateValue) + '&to_date=' + encodeURIComponent(dateValue) + '&page_size=100');
     if (token !== wprDayRequestToken) return;
     wprAppointments = jobs || [];
     wprCurrentDateValue = dateValue;
@@ -315,7 +294,7 @@ async function wprSelectJob(id) {
   var existing = wprReportsByAppointment[id];
   if (existing) {
     try {
-      var report = await wprFetch('/api/work-progress/' + existing.id);
+      var report = await apiFetch('/api/work-progress/' + existing.id);
       if (token !== wprSelectRequestToken) return;
       wprCurrentReport = report;
     } catch (error) {
@@ -592,7 +571,7 @@ async function wprSubmit() {
 async function wprLoadKpi() {
   var el = document.getElementById('wpr-kpi'); if (!el) return;
   var token = ++wprKpiRequestToken;
-  try { var data = await wprFetch('/api/work-progress/kpi?month=' + encodeURIComponent(wprMonth())); if (token !== wprKpiRequestToken) return; el.innerHTML = [{label:'已回報',value:data.reported},{label:'待回報',value:data.missing},{label:'回報率',value:data.rate === null ? '—' : data.rate + '%'}].map(function(item) { return '<div class="wpr-kpi"><span>' + item.label + '</span><strong>' + item.value + '</strong></div>'; }).join('') + '<div class="wpr-kpi-meta">本月目前 ' + data.total + ' 筆行事曆工作 · ' + data.photo_count + ' 張照片</div>'; } catch (error) { if (token === wprKpiRequestToken) el.innerHTML = ''; }
+  try { var data = await apiFetch('/api/work-progress/kpi?month=' + encodeURIComponent(wprMonth())); if (token !== wprKpiRequestToken) return; el.innerHTML = [{label:'已回報',value:data.reported},{label:'待回報',value:data.missing},{label:'回報率',value:data.rate === null ? '—' : data.rate + '%'}].map(function(item) { return '<div class="wpr-kpi"><span>' + item.label + '</span><strong>' + item.value + '</strong></div>'; }).join('') + '<div class="wpr-kpi-meta">本月目前 ' + data.total + ' 筆行事曆工作 · ' + data.photo_count + ' 張照片</div>'; } catch (error) { if (token === wprKpiRequestToken) el.innerHTML = ''; }
 }
 /**
  * Initialize history filters to the current calendar month.
@@ -670,7 +649,7 @@ async function wprLoadHistory(page) {
   var p = new URLSearchParams({ page: String(page), page_size: String(wprHistoryPageSize) }); var from = document.getElementById('wpr-from').value; var to = document.getElementById('wpr-to').value; var q = document.getElementById('wpr-query').value.trim();
   if (from) p.set('from_date', from); if (to) p.set('to_date', to); if (q) p.set('q', q);
   try {
-    var data = await wprFetch('/api/work-progress?' + p);
+    var data = await apiFetch('/api/work-progress?' + p);
     if (token !== wprHistoryRequestToken) return;
     wprHistoryTotal = Number(data.total) || 0;
     var resultCount = document.getElementById('wpr-result-count'); if (resultCount) resultCount.textContent = wprHistoryTotal + ' 筆';
@@ -800,7 +779,7 @@ async function wprOpenHistoryDetail(id, targetId, cachedReport) {
   if (cachedReport) wprPhotoManageReports[cacheKey] = cachedReport;
   if (wprLastDetailReport && wprLastDetailReport.id === id && !cachedReport) wprLastDetailReport = null;
   try {
-    var report = cachedReport || (await wprFetch('/api/work-progress/' + id));
+    var report = cachedReport || (await apiFetch('/api/work-progress/' + id));
     if (token !== wprDetailRequestTokens[tokenKey]) return;
     wprPhotoManageReports[cacheKey] = report;
     wprLastDetailReport = { id: id, report: report };
@@ -880,7 +859,7 @@ async function wprBatchDeletePhotos(id, targetId) {
   if (!window.confirm('確定刪除選取的 ' + assetIds.length + ' 張施工照片？\\n此動作無法復原。')) return;
   state.deleting = true;
   try {
-    await wprFetch('/api/work-progress/' + id + '/photos/batch-delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({asset_ids:assetIds})});
+    await apiFetch('/api/work-progress/' + id + '/photos/batch-delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({asset_ids:assetIds})});
     state.selected = Object.create(null);
     state.manage = false;
     state.deleting = false;
@@ -900,7 +879,7 @@ async function wprBatchDeletePhotos(id, targetId) {
  */
 async function wprEditReport(id, targetId) {
   try {
-    var report = await wprFetch('/api/work-progress/' + id);
+    var report = await apiFetch('/api/work-progress/' + id);
     var overlay = document.createElement('div');
     overlay.className = 'wpr-edit-overlay';
     overlay.innerHTML = `
@@ -943,7 +922,7 @@ async function wprEditReport(id, targetId) {
       if (note.length > 1000) { toast('工作進度最多 1000 字'); return; }
       var save = overlay.querySelector('[data-wpr-edit-save]'); save.disabled = true;
       try {
-        await wprFetch('/api/work-progress/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({uploader_name:uploader, note:note})});
+        await apiFetch('/api/work-progress/' + id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({uploader_name:uploader, note:note})});
         close();
         await wprReloadAndReopenDetail(id, wprHistoryPage, targetId);
         toast('工作進度已更新', 'success');
@@ -1120,7 +1099,7 @@ function wprAddExistingPhotos(id, targetId) {
   input.onchange = async function() {
     try {
       var files = Array.from(input.files || []);
-      var report = await wprFetch('/api/work-progress/' + id);
+      var report = await apiFetch('/api/work-progress/' + id);
       var validation = wprValidatePhotoBatch(files, Number(report.photo_count) || 0);
       if (!validation.ok) { toast(validation.error, 'error'); return; }
       var form = new FormData();
@@ -1139,7 +1118,7 @@ function wprAddExistingPhotos(id, targetId) {
  * @param {number} id - Function input.
  * @returns {void} Function result.
  */
-async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await wprFetch('/api/work-progress/' + id, {method:'DELETE'}); wprClearPhotoManageStates(function(targetId) { return targetId === 'wpr-detail-' + id || targetId === 'wpr-selected-report-detail-' + id; }); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
+async function wprDeleteReport(id) { if (!window.confirm('確定刪除此工作進度？\n將一併刪除備註與所有施工照片，此動作無法復原。')) return; try { await apiFetch('/api/work-progress/' + id, {method:'DELETE'}); wprClearPhotoManageStates(function(targetId) { return targetId === 'wpr-detail-' + id || targetId === 'wpr-selected-report-detail-' + id; }); toast('工作進度已刪除', 'success'); wprLoadHistory(1); wprLoadDay(); wprLoadKpi(); } catch (error) { toast(error.message, 'error'); } }
 /**
  * Create isolated preload state for one Gallery lifecycle.
  * @returns {{completed: Object, inflight: Object}} Lifecycle-owned preload state.
@@ -1226,7 +1205,7 @@ function wprOpenGallery(id, index) {
   wprCloseGallery(false);
   var reportPromise = wprLastDetailReport && wprLastDetailReport.id === id
     ? Promise.resolve(wprLastDetailReport.report)
-    : wprFetch('/api/work-progress/' + id);
+    : apiFetch('/api/work-progress/' + id);
   reportPromise.then(function(report) {
     if (token !== wprGalleryRequestToken) return;
     if (typeof currentTab !== 'undefined' && currentTab !== 'work-progress') return;

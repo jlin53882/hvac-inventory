@@ -11,9 +11,7 @@ async function renderKits() {
   const isViewer = !hasPerm('kit-mgmt');
 
   try {
-    const res = await fetch(`/api/kits?site=${siteAtRequest}`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const kits = await res.json();
+    const kits = await apiFetch(`/api/kits?site=${siteAtRequest}`);
     if (renderRequestId !== kitRenderRequestSeq || currentTab !== 'kit' || siteAtRequest !== currentSite) return;
     currentKitItems = filterBySearch(kits, function(k) {
       return [k.name, k.brand, k.code, k.note, (k.components || []).map(function(c) {
@@ -421,47 +419,19 @@ document.addEventListener('click', (e) => {
 // 組裝整組：輸入組數 → POST /api/kits/{id}/assemble 扣材料、加整組庫存
 
 async function assembleKit(kitId) {
-
   const qty = prompt('要組裝幾組？', 1);
-
   if (qty === null) return;
-
   // 2026-09-12：組數必須整數；Qty.parse 拒絕 "1.5"→1、"1/2"→1 的截斷
   const _pa = (typeof Qty !== 'undefined') ? Qty.parse(qty) : null;
   const n = _pa && !_pa.error ? _pa.value : parseInt(qty);
-
   if (!n || n <= 0 || (_pa && !_pa.error && _pa.den !== 1)) { toast('組裝組數必須為正整數', 'error'); return; }
-
   try {
-
-    const res = await fetch(`/api/kits/${kitId}/assemble`, {
-
-      method: 'POST',
-
-      headers: { 'Content-Type': 'application/json' },
-
-      body: JSON.stringify({ qty: n })
-
-    });
-
-    if (!res.ok) {
-
-      const err = await res.json();
-
-      throw new Error(apiErrorMessage(err.detail) || '組裝失敗');
-
-    }
-
+    await apiFetch(`/api/kits/${kitId}/assemble`, { method: 'POST', json: { qty: n }, fallback: '組裝失敗' });
     toast(`✅ 已組裝 ${n} 組（材料已扣）`, 'success');
-
     await loadData();
-
   } catch (e) {
-
     toast('⚠️ ' + e.message, 'error');
-
   }
-
 }
 
 
@@ -469,47 +439,19 @@ async function assembleKit(kitId) {
 // 拆解整組：輸入組數 → POST /api/kits/{id}/disassemble 還材料、扣整組庫存
 
 async function disassembleKit(kitId) {
-
   const qty = prompt('要拆解幾組？', 1);
-
   if (qty === null) return;
-
-  // 2026-09-12：組數必須整數；Qty.parse 拒絕截斷
+  // 2026-09-12：組數必須整數；Qty.parse 拒絕 "1.5"→1、"1/2"→1 的截斷
   const _pd = (typeof Qty !== 'undefined') ? Qty.parse(qty) : null;
   const n = _pd && !_pd.error ? _pd.value : parseInt(qty);
-
   if (!n || n <= 0 || (_pd && !_pd.error && _pd.den !== 1)) { toast('拆解組數必須為正整數', 'error'); return; }
-
   try {
-
-    const res = await fetch(`/api/kits/${kitId}/disassemble`, {
-
-      method: 'POST',
-
-      headers: { 'Content-Type': 'application/json' },
-
-      body: JSON.stringify({ qty: n })
-
-    });
-
-    if (!res.ok) {
-
-      const err = await res.json();
-
-      throw new Error(apiErrorMessage(err.detail) || '拆解失敗');
-
-    }
-
+    await apiFetch(`/api/kits/${kitId}/disassemble`, { method: 'POST', json: { qty: n }, fallback: '拆解失敗' });
     toast(`✅ 已拆解 ${n} 組（材料已加回）`, 'success');
-
     await loadData();
-
   } catch (e) {
-
     toast('⚠️ ' + e.message, 'error');
-
   }
-
 }
 
 
@@ -527,9 +469,7 @@ async function editKit(kitId) {
 
   try {
 
-    const res = await fetch('/api/kits?site=all');
-
-    kit = (await res.json()).find(k => k.id === kitId);
+    kit = (await apiFetch('/api/kits?site=all')).find(k => k.id === kitId);
 
   } catch (e) { /* fallthrough */ }
 
@@ -576,31 +516,14 @@ async function editKit(kitId) {
 // 刪除整組（含定義、材料關聯、整組品項與紀錄）
 
 async function deleteKit(kitId) {
-
   if (!confirm('確定刪除這個整組？它的定義、整組庫存與紀錄都會一起刪除，無法恢復。')) return;
-
   try {
-
-    const res = await fetch(`/api/kits/${kitId}`, { method: 'DELETE' });
-
-    if (!res.ok) {
-
-      const e = await res.json().catch(() => ({}));
-
-      throw new Error(apiErrorMessage(e.detail) || '刪除失敗');
-
-    }
-
+    await apiFetch(`/api/kits/${kitId}`, { method: 'DELETE', fallback: '刪除失敗' });
     toast('✅ 已刪除整組', 'success');
-
     await loadData();
-
   } catch (e) {
-
     toast('⚠️ ' + e.message, 'error');
-
   }
-
 }
 
 

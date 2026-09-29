@@ -76,8 +76,7 @@ function openUnitQuickAdd(sel, addBtn) {
     try {
       const data = await apiFetch('/api/units', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        json: { name },
         fallback: '新增失敗'
       });
       unitList.push(data);
