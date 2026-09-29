@@ -263,7 +263,15 @@ function calRenderLoadingUi() {
   if (legend) { legend.style.display = 'none'; legend.innerHTML = ''; }
   if (helper) { helper.style.display = 'none'; helper.innerHTML = ''; }
   if (kpi) kpi.innerHTML = Array.from({length: 3}, () => '<div class="cal-kpi-card ui-kpi-card ui-kpi-card--stacked cal-skeleton-card" aria-hidden="true"><span></span><strong></strong></div>').join('');
-  if (grid) grid.innerHTML = Array.from({length: 42}, () => '<div class="cal-cell cal-skeleton-cell" aria-hidden="true"></div>').join('');
+  if (grid) {
+    // 骨架列數跟著要載入的月份，避免沿用上個月的 --cal-week-count 讓格子擠在一起或留白
+    const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1).getDay();
+    const total = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+    const weeks = Math.ceil((first + total) / 7);
+    grid.style.setProperty('--cal-week-count', String(weeks));
+    grid.innerHTML = CAL_WEEK.map((w, index) => '<div class="cal-weekday' + (index === 0 || index === 6 ? ' cal-weekend' : '') + '">' + esc(w) + '</div>').join('')
+      + Array.from({length: weeks * 7}, () => '<div class="cal-cell cal-skeleton-cell" aria-hidden="true"></div>').join('');
+  }
   if (list) list.innerHTML = '<div class="cal-skeleton-detail" aria-hidden="true"><span></span><span></span><span></span><span></span></div>';
 }
 

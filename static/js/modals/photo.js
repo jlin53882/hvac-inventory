@@ -62,7 +62,7 @@ async function uploadItemPhoto(itemId, input) {
     const res = await fetch(`/api/items/${itemId}/photo`, { method: 'POST', body: fd });
     if (!res.ok) {
       let msg = '上傳失敗';
-      try { const err = await res.json(); if (err.detail) msg = err.detail; } catch {}
+      try { const err = await res.json(); if (err.detail) msg = apiErrorMessage(err.detail); } catch {}
       toast('⚠️ ' + msg, 'error');
       return;
     }

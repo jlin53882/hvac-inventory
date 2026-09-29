@@ -98,7 +98,7 @@ document.addEventListener('keydown', e => {
  * @returns {string} 可顯示的純文字錯誤訊息。
  */
 function apiErrorMessage(value) {
-  const labels = { prepared_by: '製表人', upload_person: '上傳人', filename_text: '檔名文字', start_date: '開始日期', end_date: '結束日期', opening_balance: '上期餘額' };
+  const labels = { prepared_by: '製表人', upload_person: '上傳人', filename_text: '檔名文字', start_date: '開始日期', end_date: '結束日期', opening_balance: '上期餘額', report_type: '報表類型', name: '名稱', brand: '品牌', code: '料號', unit: '單位', category: '分類', low_stock: '低庫存警示', qty: '數量', amount: '金額', item_name: '品項', description: '說明', entry_date: '日期', customer_name: '客戶名稱', quote_date: '報價日期', unit_price: '單價', note: '備註' };
   /**
    * 將單筆驗證錯誤的位置與限制轉成易讀欄位訊息。
    * @param {unknown} error FastAPI/Pydantic 回傳的驗證錯誤項目。
@@ -108,7 +108,8 @@ function apiErrorMessage(value) {
     if (typeof error === 'string') return error;
     if (!error || typeof error !== 'object') return String(error == null ? '' : error);
     const loc = Array.isArray(error.loc) ? error.loc : [];
-    const key = String(loc[loc.length - 1] || '');
+    // 欄位取最後一個具名位置；略過 body/query 與陣列索引，避免顯示「12」「body」等無意義名稱
+    const key = String([...loc].reverse().find(part => typeof part === 'string' && !['body', 'query', 'path'].includes(part)) || '');
     const field = labels[key] || key;
     const ctx = error.ctx || {};
     const messages = {
@@ -120,6 +121,8 @@ function apiErrorMessage(value) {
       less_than_equal: `不可大於 ${ctx.le}`,
       less_than: `必須小於 ${ctx.lt}`,
       value_error: String(error.msg || '格式不正確').replace(/^Value error,?\s*/i, ''),
+      json_invalid: '資料格式錯誤，請重新整理後再試',
+      union_tag_invalid: '類型不正確',
     };
     const reason = messages[error.type] || '格式不正確或不符合限制';
     return field ? `「${field}」${reason}` : reason;

@@ -702,6 +702,22 @@ def test_prefixed_api_errors_are_formatted_before_toast_concatenation():
     assert not unsafe, "結構化錯誤應在字串串接前格式化：\n" + "\n".join(unsafe)
 
 
+def test_raw_api_detail_is_not_stored_or_thrown_as_message():
+    """detail 先存進訊息變數或丟進 Error 再串接，同樣會變成 [object Object]（edit / add / photo 曾漏改）。"""
+    patterns = [
+        re.compile(r"\b[A-Za-z_$][\w$]*\s*=\s*[A-Za-z_$][\w$]*\.detail\s*;"),
+        re.compile(r"new Error\(\s*[A-Za-z_$][\w$]*\.detail\b"),
+    ]
+    js_root = Path(BASE_DIR) / "static" / "js"
+    unsafe = [
+        f"{path}:{line_number}:{line.strip()}"
+        for path in js_root.rglob("*.js")
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if any(p.search(line) for p in patterns)
+    ]
+    assert not unsafe, "API detail 需先經 apiErrorMessage 再當成訊息：\n" + "\n".join(unsafe)
+
+
 def test_structured_api_error_messages_render_readably():
     """結構化 API 驗證錯誤需轉成明確欄位與限制訊息。"""
     result = subprocess.run(

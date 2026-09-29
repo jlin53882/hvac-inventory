@@ -209,7 +209,7 @@ async function submitAdd() {
       let msg = '新增失敗';
       try {
         const err = await res.json();
-        if (err.detail) msg = err.detail;
+        if (err.detail) msg = apiErrorMessage(err.detail);
       } catch {}
       toast('⚠️ ' + msg, 'error');
       return;
