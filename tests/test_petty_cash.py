@@ -153,8 +153,8 @@ def test_optional_detail_amount_is_persisted_as_zero(pc_env):
     assert saved["entries"][0]["difference"] is None
 
 
-def test_partially_priced_items_still_show_a_comparable_total(pc_env):
-    """只要已有明細金額，仍以已填金額計算明細合計與差額。"""
+def test_partially_priced_items_are_not_compared_until_all_amounts_are_entered(pc_env):
+    """部分明細金額仍屬正常；只有全部填寫後才比較總額。"""
     c = pc_env()
     body = _scenario_a()
     body["entries"] = [_entry("2026-09-01", "expense", "", 100, items=[
@@ -163,9 +163,9 @@ def test_partially_priced_items_still_show_a_comparable_total(pc_env):
     ])]
     saved = _create(c, body)
     entry = saved["entries"][0]
-    assert entry["detail_total"] == 40
-    assert entry["difference"] == -60
-    assert "不一致" in entry["amount_warning"]
+    assert entry["amount_warning"] is None
+    assert entry["detail_total"] is None
+    assert entry["difference"] is None
 
 
 def test_fully_priced_matching_details_report_zero_difference(pc_env):
@@ -639,3 +639,47 @@ def test_non_owner_delete_requires_capability_and_global_scope(pc_env):
     assert _listed_report(non_owner, second_report_id)["can_delete"] is False
     assert non_owner.get(f"/api/petty-cash-reports/{second_report_id}").json()["can_delete"] is False
     assert non_owner.delete(f"/api/petty-cash-reports/{second_report_id}").status_code == 403
+
+
+def test_update_accepts_blank_optional_item_amount_and_legacy_general_payload(pc_env):
+    """Regression: report edit sends blank optional child amounts, while legacy clients omit report_type."""
+    client = pc_env()
+    body = _scenario_a()
+    body["entries"] = [_entry("2026-09-20", "expense", "", 481, items=[
+        _item("測溫槍", 1, "支", 219),
+        _item("文具細項", 1, "批", None),
+    ])]
+    created = _create(client, body)
+
+    updated_body = _scenario_a(prepared_by="李主任")
+    updated_body["entries"] = [_entry("2026-09-20", "expense", "", 481, items=[
+        _item("測溫槍", 1, "支", 219),
+        _item("文具細項", 1, "批", ""),
+    ])]
+    response = client.put(f"/api/petty-cash-reports/{created['id']}", json=updated_body)
+
+    assert response.status_code == 200, response.text
+    saved = response.json()
+    assert saved["report_type"] == "general"
+    assert saved["prepared_by"] == "李主任"
+    assert [item["amount"] for item in saved["entries"][0]["items"]] == [219, 0]
+    assert saved["entries"][0]["detail_total"] is None
+    assert saved["entries"][0]["amount_warning"] is None
+
+
+def test_general_report_validation_does_not_include_engineering_branch_errors(pc_env):
+    """A tagged general payload reports only general-schema failures, not engineering requirements."""
+    client = pc_env()
+    body = _scenario_a()
+    body["report_type"] = "general"
+    body["entries"] = [_entry("2026-09-26", "expense", "", 100, items=[
+        _item("錯誤金額", 1, "個", "not-a-number"),
+    ])]
+
+    response = client.post("/api/petty-cash-reports", json=body)
+
+    assert response.status_code == 422, response.text
+    details = response.json()["detail"]
+    assert any(error["loc"][-1] == "amount" for error in details)
+    assert not any("report_type" in error["loc"] for error in details)
+    assert not any("report_type" in error["msg"] for error in details)

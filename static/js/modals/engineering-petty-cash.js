@@ -116,7 +116,7 @@ async function engSave(status){
     const res=await fetch(url,{method:engEditingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const data=await res.json().catch(()=>({}));
     if (saveToken !== pcModalOpenSeq) return;
-    if (!res.ok) return toast('⚠️ '+(data.detail||'儲存失敗'));
+    if (!res.ok) return toast('⚠️ '+(apiErrorMessage(data.detail)||'儲存失敗'));
     toast(status==='completed'?'✅ 已儲存完成':'✅ 草稿已儲存');
     engCloseModal();
     renderPettyCash();

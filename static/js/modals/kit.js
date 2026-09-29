@@ -71,7 +71,7 @@ async function submitKit() {
       body: JSON.stringify({ name: name, brand: brand, code: code, site: currentSite, items: items, locations: locations, note: document.getElementById('k-note').value.trim() })
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || '新增失敗');
+    if (!res.ok) throw new Error(apiErrorMessage(data.detail) || '新增失敗');
     const kitId = data.id;
     closeModalForce('kit-modal');
     toast(`✅ 已新增整組「${data.name || name}」｜品牌：${data.brand || '未填寫'}｜型號：${data.code || '未填寫'}`, 'success');
@@ -140,7 +140,7 @@ async function submitKitEdit() {
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.detail || '儲存失敗');
+      throw new Error(apiErrorMessage(e.detail) || '儲存失敗');
     }
     const saved = await res.json();
     closeModalForce('kit-modal');

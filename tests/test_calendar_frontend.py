@@ -192,7 +192,7 @@ def test_calendar_desktop_dispatch_layout():
     js = read_calendar_js_all()
     assert "grid-template-columns: minmax(0, 1.65fr) minmax(380px, 1fr)" in css
     assert "height: calc(100vh - 118px)" in css
-    assert "grid-template-rows: auto repeat(6, minmax(100px, 1fr))" in css
+    assert "grid-template-rows: auto repeat(var(--cal-week-count), minmax(100px, 1fr))" in css
     assert ".cal-month-card { overflow-y: auto; scrollbar-width: thin; }" in css
     assert "flex: 0 0 auto" in css
     assert "min-height: 22px; height: 22px" in css
@@ -214,7 +214,9 @@ def test_calendar_desktop_dispatch_layout():
     assert "cal-today-inline" in js
     assert "calLoadRequestToken" in js
     assert "if (requestToken !== calLoadRequestToken) return null;" in js
-    assert "const trailing = 42 - first - total;" in js
+    assert "const weeks = Math.ceil((first + total) / 7);" in js
+    assert "const trailing = weeks * 7 - first - total;" in js
+    assert "setProperty('--cal-week-count', String(weeks))" in js
     modal = read(CALENDAR_MODAL_JS)
     assert "const applied = await calLoadData();" in modal
     assert "if (applied === null) return;" in modal
@@ -232,7 +234,7 @@ def test_calendar_desktop_dispatch_layout():
 def test_calendar_desktop_cells_keep_room_for_events():
     """Regression: desktop month cells must not shrink below event content."""
     css = read_css_all()
-    assert "grid-template-rows: auto repeat(6, minmax(100px, 1fr))" in css
+    assert "grid-template-rows: auto repeat(var(--cal-week-count), minmax(100px, 1fr))" in css
     assert ".cal-month-card { overflow-y: auto; scrollbar-width: thin; }" in css
     assert "flex: 0 0 auto" in css
     assert "min-height: 22px; height: 22px" in css

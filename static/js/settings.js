@@ -891,7 +891,7 @@ async function addCabinet() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || '新增失敗');
+      throw new Error(apiErrorMessage(err.detail) || '新增失敗');
     }
     const data = await res.json();
     cabinetList.push(data);
@@ -912,7 +912,7 @@ async function deleteCabinet(cabinetId) {
     if (!res.ok) {
       // 櫃子仍被單一庫存/整組位置使用時後端回 409，需顯示原因
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || '刪除失敗');
+      throw new Error(apiErrorMessage(err.detail) || '刪除失敗');
     }
     cabinetList = cabinetList.filter(c => c.id !== cabinetId);
     renderCabinetTable();
@@ -953,7 +953,7 @@ async function submitCabinetEdit() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || '編輯失敗');
+      throw new Error(apiErrorMessage(err.detail) || '編輯失敗');
     }
     const data = await res.json();
     const idx = cabinetList.findIndex(c => c.id === currentEditCabinetId);

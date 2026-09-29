@@ -91,10 +91,52 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.is-open').forEach(m => closeModal(m.id));
 });
 
-// ========== toast ==========
-function toast(msg, type) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
+// ========== API 錯誤與 toast ==========
+/**
+ * 將 FastAPI 結構化驗證錯誤轉成可直接閱讀的繁體中文訊息。
+ * @param {unknown} value API detail、錯誤物件或一般訊息。
+ * @returns {string} 可顯示的純文字錯誤訊息。
+ */
+function apiErrorMessage(value) {
+  const labels = { prepared_by: '製表人', upload_person: '上傳人', filename_text: '檔名文字', start_date: '開始日期', end_date: '結束日期', opening_balance: '上期餘額' };
+  /**
+   * 將單筆驗證錯誤的位置與限制轉成易讀欄位訊息。
+   * @param {unknown} error FastAPI/Pydantic 回傳的驗證錯誤項目。
+   * @returns {string} 單筆錯誤的繁體中文文字。
+   */
+  const describe = error => {
+    if (typeof error === 'string') return error;
+    if (!error || typeof error !== 'object') return String(error == null ? '' : error);
+    const loc = Array.isArray(error.loc) ? error.loc : [];
+    const key = String(loc[loc.length - 1] || '');
+    const field = labels[key] || key;
+    const ctx = error.ctx || {};
+    const messages = {
+      string_too_long: `不可超過 ${ctx.max_length || '限制'} 個字`,
+      string_too_short: `至少需要 ${ctx.min_length || '指定'} 個字`,
+      missing: '為必填欄位',
+      greater_than_equal: `不可小於 ${ctx.ge}`,
+      greater_than: `必須大於 ${ctx.gt}`,
+      less_than_equal: `不可大於 ${ctx.le}`,
+      less_than: `必須小於 ${ctx.lt}`,
+      value_error: String(error.msg || '格式不正確').replace(/^Value error,?\s*/i, ''),
+    };
+    const reason = messages[error.type] || '格式不正確或不符合限制';
+    return field ? `「${field}」${reason}` : reason;
+  };
+  if (Array.isArray(value)) return value.map(describe).filter(Boolean).join('；') || '輸入資料不符合規定';
+  if (value && typeof value === 'object') return describe(value);
+  return String(value == null ? '' : value);
+}
+/**
+ * 顯示一般或結構化 API 錯誤；一律以文字呈現以避免 HTML 注入。
+ * @param {unknown} msg 一般訊息或 API detail。
+ * @param {string} [type] Toast 樣式類型。
+ * @returns {void} 更新 toast 元素並啟動自動關閉計時。
+ */
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = apiErrorMessage(msg);
   t.className = 'toast is-open ' + (type || '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.className = 'toast', 3500);

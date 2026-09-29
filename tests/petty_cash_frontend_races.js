@@ -73,8 +73,14 @@ const document = {
 };
 
 const pending = [];
-function controlledFetch(url) {
-  return new Promise((resolve, reject) => pending.push({ url: String(url), resolve, reject }));
+/**
+ * 建立可由測試控制回應時機的 fetch 請求。
+ * @param {string} url - 請求 URL。
+ * @param {RequestInit} [init] - 請求方法、標頭與序列化內容。
+ * @returns {Promise<Response>} 由測試稍後完成的回應。
+ */
+function controlledFetch(url, init) {
+  return new Promise((resolve, reject) => pending.push({ url: String(url), init, resolve, reject }));
 }
 function response(payload, ok = true) {
   return { ok, status: ok ? 200 : 500, json: async () => payload };
@@ -467,6 +473,40 @@ async function testResetFilterClearsReportTypeAndReloadsAll() {
   }
 }
 
+/**
+ * 確認一般月報 PUT 明確標示類型，並將空白選填細項金額序列化為 null。
+ * @returns {Promise<void>} 儲存 payload 驗證完成後解析。
+ */
+async function testGeneralSaveSerializesOptionalAmountsAndType() {
+  context.pcValidateBasic = () => true;
+  context.pcCloseReportModal = () => {};
+  context.renderPettyCash = () => {};
+  context.pcModalEditingId = 902;
+  context.pcModalEntries = [{
+    entry_date: '2026-09-26', entry_type: 'expense', description: '', amount: 481,
+    category: '文具', items: [
+      { item_name: '測溫槍', qty: 1, unit: '支', amount: 219 },
+      { item_name: '文具細項', qty: 1, unit: '批', amount: '' },
+    ],
+  }];
+  context.pcModalReturnToDetail = false;
+  context.pcOpeningSource = 'manual';
+  context.pcModalSessionType = 'general';
+  context.pcModalOpenSeq = 500;
+  context.pcSaveInFlight = false;
+
+  const save = context.pcModalSave('draft');
+  const request = findPending('/api/petty-cash-reports/902');
+  const body = JSON.parse(request.init.body);
+  assert.strictEqual(body.report_type, 'general', 'general report_type was not sent');
+  assert.strictEqual(body.entries[0].items[0].amount, 219, 'entered item amount changed');
+  assert.strictEqual(body.entries[0].items[1].amount, null, 'blank optional amount was not normalized to null');
+  assert.strictEqual(request.init.method, 'PUT', 'report edit did not use PUT');
+
+  resolvePending('/api/petty-cash-reports/902', { id: 902 });
+  await save;
+}
+
 function testEngineeringFilenamePreviewUsesBackendPeriodToken() {
   const cases = [
     ['2026-09-04', '2026-09-04', '', '(0904)藍先生 工程零用金.xlsx'],
@@ -493,6 +533,7 @@ async function main() {
   await testGeneralSaveIsSingleFlightAndRecovers();
   await testEngineeringSaveIsSingleFlight();
   await testResetFilterClearsReportTypeAndReloadsAll();
+  await testGeneralSaveSerializesOptionalAmountsAndType();
   testEngineeringFilenamePreviewUsesBackendPeriodToken();
   const render = fs.readFileSync(path.join(ROOT, 'static/js/render/petty-cash.js'), 'utf8');
   assert(render.includes('pcPageSize * (pcPage - 1) + idx + 1'), 'engineering pagination offset contract missing');

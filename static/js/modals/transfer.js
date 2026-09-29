@@ -101,7 +101,7 @@ async function submitTransfer() {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.detail || `調撥失敗（${res.status}）`);
+      throw new Error(apiErrorMessage(body.detail) || `調撥失敗（${res.status}）`);
     }
     closeTransferModal(true);
     toast('庫存調撥完成', 'success');

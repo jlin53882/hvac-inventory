@@ -295,7 +295,7 @@ async function qupSubmitUpload() {
     const res = await fetch('/api/quotation-uploads', { method: 'POST', body: fd });
     bar.style.width = '70%';
     const data = await res.json();
-    if (!res.ok) return toast('⚠️ ' + (data.detail || '上傳失敗'));
+    if (!res.ok) return toast('⚠️ ' + (apiErrorMessage(data.detail) || '上傳失敗'));
     bar.style.width = '100%';
     setTimeout(() => toast('✅ 上傳成功'), 300);
     qupKeepUploaderOnly();
@@ -495,7 +495,7 @@ async function qupEdit(id) {
     try {
       const res = await fetch('/api/quotation-uploads/' + id, { method: 'PATCH', body: fd });
       const data = await res.json();
-      if (!res.ok) return toast('⚠️ ' + (data.detail || '報表更新失敗'));
+      if (!res.ok) return toast('⚠️ ' + (apiErrorMessage(data.detail) || '報表更新失敗'));
       close();
       Object.assign(report, data);
       await qupLoadHistory();
@@ -509,5 +509,5 @@ async function qupDelete(id) {
   if (!confirm('確定刪除？')) return;
   const res = await fetch('/api/quotation-uploads/' + id, { method: 'DELETE' });
   const data = await res.json();
-  if (res.ok) { toast('🗑 已刪除'); qupLoadHistory(); } else toast('⚠️ ' + (data.detail || '刪除失敗'));
+  if (res.ok) { toast('🗑 已刪除'); qupLoadHistory(); } else toast('⚠️ ' + (apiErrorMessage(data.detail) || '刪除失敗'));
 }

@@ -87,7 +87,7 @@ async function pcOpenReportModal(id) {
               <div class="pc-field"><label>報表期間（迄） <span class="pc-required">*</span></label><input id="pc-m-end" type="date" value="${esc(d.end_date)}"></div>
               <div class="pc-field"><label>檔名文字 <span class="pc-required">*</span></label><input id="pc-m-filetext" type="text" placeholder="例：資材" value="${esc(d.filename_text)}" oninput="pcUpdateFilenamePreview()"></div>
               <div class="pc-field"><label>上傳人姓名 <span class="pc-required">*</span></label><input id="pc-m-uploader" type="text" list="pc-persons-list" placeholder="例：王小明" value="${esc(d.upload_person)}" oninput="pcUploaderChanged()"></div>
-              <div class="pc-field"><label>製表人 <span class="pc-required">*</span></label><input id="pc-m-prepared" type="text" placeholder="預設同上傳人，可修改" value="${esc(d.prepared_by)}"></div>
+              <div class="pc-field"><label>製表人 <span class="pc-required">*</span></label><input id="pc-m-prepared" type="text" maxlength="50" placeholder="預設同上傳人，可修改" value="${esc(d.prepared_by)}"></div>
               <div class="pc-field"><label>上期餘額</label><input id="pc-m-opening" type="number" min="0" step="0.01" value="${esc(d.opening_balance)}" oninput="pcOpeningEdited()"></div>
             </div>
             <datalist id="pc-persons-list">${pcPersons.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
@@ -188,10 +188,14 @@ async function pcFetchPreviousBalance() {
   } catch(e) { toast('⚠️ 網路錯誤：' + e.message); }
 }
 
-// 步驟切換
+/**
+ * 切換一般零用金表單步驟；驗證失敗時明確提示欄位原因。
+ * @param {number} n 目標步驟編號。
+ * @returns {boolean} 驗證成功並完成切換時為 true。
+ */
 function pcModalGotoStep(n) {
   return pcSwitchModalStep(n, {
-    validate: () => pcValidateBasic(true),
+    validate: () => pcValidateBasic(false),
     stepIds: ['pc-step-1', 'pc-step-2'],
     tabIds: ['pc-step-1-tab', 'pc-step-2-tab'],
     opsIds: ['pc-modal-step-ops-1', 'pc-modal-step-ops-2'],
@@ -199,7 +203,11 @@ function pcModalGotoStep(n) {
   });
 }
 
-// 基本資料驗證（quiet 僅回傳布林）
+/**
+ * 驗證一般零用金報表基本欄位，並在非靜默模式下指出第一個錯誤。
+ * @param {boolean} quiet 是否只回傳結果而不顯示提示。
+ * @returns {boolean} 所有必填欄位與長度限制皆通過時為 true。
+ */
 function pcValidateBasic(quiet) {
   const fail = m => { if (!quiet) toast('⚠️ ' + m); return false; };
   const s = document.getElementById('pc-m-start').value;
@@ -208,7 +216,9 @@ function pcValidateBasic(quiet) {
   if (s > e) return fail('開始日期不可晚於結束日期');
   if (!document.getElementById('pc-m-filetext').value.trim()) return fail('請填檔名文字');
   if (!document.getElementById('pc-m-uploader').value.trim()) return fail('請填上傳人姓名');
-  if (!document.getElementById('pc-m-prepared').value.trim()) return fail('請填製表人');
+  const preparedBy = document.getElementById('pc-m-prepared').value.trim();
+  if (!preparedBy) return fail('請填製表人');
+  if (preparedBy.length > 50) return fail('製表人不可超過 50 個字');
   const opening = Number(document.getElementById('pc-m-opening').value);
   if (!isFinite(opening) || opening < 0) return fail('上期餘額需為 ≥0 的數字');
   return true;
@@ -394,15 +404,15 @@ function pcUpdateDescRequired() {
 }
 
 /**
- * 所有裝置皆僅在至少一項明細金額已填時顯示合計與差額。
+ * 只有所有明細金額皆填妥時才顯示合計與差額；部分填寫不作比較。
  * @returns {void} 更新提示文字。
  */
 function pcEntryAmountHint() {
   const hint = document.getElementById('pc-entry-amount-hint');
   if (!hint) return;
   if (pcEntryType !== 'expense' || !pcEntryItemDraft.length) { hint.textContent = ''; return; }
-  const hasPricedItem = pcEntryItemDraft.some(it => Number(it.amount) > 0);
-  if (!hasPricedItem) {
+  const allItemsPriced = pcEntryItemDraft.every(it => Number(it.amount) > 0);
+  if (!allItemsPriced) {
     hint.className = 'pc-balance-hint';
     hint.textContent = '';
     return;
@@ -469,12 +479,18 @@ function pcCloseEntryModal() {
 }
 
 // 月報存檔（草稿/完成皆完整驗證；後端再驗一次）
+/**
+ * 儲存一般零用金報表時明確送出類型，並將空白選填明細金額轉為 null。
+ * @param {string} status 報表狀態（草稿或完成）。
+ * @returns {Promise<void>} 儲存流程完成後解析。
+ */
 async function pcModalSave(status) {
   if (pcSaveInFlight) { toast('⚠️ 目前已有儲存作業進行中'); return; }
   if (!pcValidateBasic(false)) { pcModalGotoStep(1); return; }
   const saveToken = pcModalOpenSeq;
   const editingId = pcModalEditingId;
   const body = {
+    report_type: 'general',
     start_date: document.getElementById('pc-m-start').value,
     end_date: document.getElementById('pc-m-end').value,
     filename_text: document.getElementById('pc-m-filetext').value.trim(),
@@ -487,7 +503,7 @@ async function pcModalSave(status) {
       entry_date: e.entry_date, entry_type: e.entry_type, description: e.description,
       amount: e.amount, category: e.category || '', sort_order: i,
       items: (e.items || []).map((it, j) => ({
-        item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount, sort_order: j
+        item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount === '' || it.amount == null ? null : it.amount, sort_order: j
       }))
     }))
   };
@@ -504,8 +520,8 @@ async function pcModalSave(status) {
     const data = await res.json().catch(() => ({}));
     if (saveToken !== pcModalOpenSeq) return;
     if (!res.ok) {
-      if (res.status === 409 && data.detail) return toast('⚠️ ' + data.detail);
-      return toast('⚠️ ' + (data.detail || '儲存失敗'));
+      if (res.status === 409 && data.detail) return toast('⚠️ ' + apiErrorMessage(data.detail));
+      return toast('⚠️ ' + (apiErrorMessage(data.detail) || '儲存失敗'));
     }
     toast(status === 'completed' ? '✅ 已儲存完成' : '✅ 草稿已儲存');
     const savedId = data.id || editingId;

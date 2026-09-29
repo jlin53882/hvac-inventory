@@ -154,7 +154,7 @@ async function calSubmitAppt() {
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return showErr(data.detail || `錯誤 ${res.status}`);
+    if (!res.ok) return showErr(apiErrorMessage(data.detail) || `錯誤 ${res.status}`);
     closeCalModal();
     toast(id ? '✅ 行程已更新' : '✅ 行程已新增');
     calSelected = new Date(body.date);
@@ -272,7 +272,7 @@ async function calRetryMySync(apptId) {
   const res = await fetch(`/api/gcal-sync-queue/reset-mine?appt_id=${encodeURIComponent(apptId)}`, { method: 'PUT' });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    toast('❌ ' + (data.detail || '重試我的同步失敗'));
+    toast('❌ ' + (apiErrorMessage(data.detail) || '重試我的同步失敗'));
     return;
   }
   toast('🔄 已重設你的同步 Queue');
@@ -283,7 +283,7 @@ async function calRetryTeamMember(apptId, userId) {
   const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(apptId)}&scope=user&target_user_id=${encodeURIComponent(userId)}`, { method: 'PUT' });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    toast('❌ ' + (data.detail || '重試指定人員失敗'));
+    toast('❌ ' + (apiErrorMessage(data.detail) || '重試指定人員失敗'));
     return;
   }
   toast('🔄 已重設指定人員的同步 Queue');
@@ -296,7 +296,7 @@ async function calRetryTeamSync() {
   const res = await fetch(`/api/gcal-sync-queue/reset-scope?appt_id=${encodeURIComponent(calTeamSyncApptId)}&scope=all`, { method: 'PUT' });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    toast('❌ ' + (data.detail || '重試全體同步失敗'));
+    toast('❌ ' + (apiErrorMessage(data.detail) || '重試全體同步失敗'));
     return;
   }
   toast('🔄 已重設這筆行程全部有效同步 Queue');

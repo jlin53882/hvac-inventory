@@ -654,6 +654,11 @@ function updateSaveBar() {
 
 // ========== 刪除材料（2026-08-11 Sarah 需求：每張卡片 ✕ 刪除整筆材料） ==========
 
+/**
+ * 刪除材料；失敗時將結構化驗證內容轉為可讀訊息。
+ * @param {number} itemId 材料識別碼。
+ * @returns {Promise<void>} 刪除與清單更新流程完成後解析。
+ */
 async function deleteItem(itemId) {
 
   if (!confirm('確定刪除這個材料？會一併刪除它的庫存、照片與異動紀錄，無法恢復。')) return;
@@ -666,7 +671,7 @@ async function deleteItem(itemId) {
 
       const e = await res.json().catch(() => ({}));
 
-      alert(e.detail || '刪除失敗');
+      alert(apiErrorMessage(e.detail || '刪除失敗'));
 
       return;
 
@@ -1066,7 +1071,7 @@ async function submitBatchLocation() {
     });
     if (!res.ok) {
       var err = await res.json();
-      throw new Error(err.detail || '\u6279\u6b21\u66f4\u65b0\u5931\u6557');
+      throw new Error(apiErrorMessage(err.detail) || '\u6279\u6b21\u66f4\u65b0\u5931\u6557');
     }
     toast('\u2705 \u5df2\u5c07 ' + selectedStockIds.size + ' \u7b0c\u4f4d\u7f6e\u6539\u70ba\u300c' + targetDisplay + '\u300d');
     cancelBatch();

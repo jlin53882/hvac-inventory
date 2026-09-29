@@ -444,6 +444,8 @@ def test_petty_cash_frontend_contract():
     assert 'id="pc-step-1-tab" onclick="pcModalGotoStep(1)"' in modal
     assert 'id="pc-step-2-tab" onclick="pcModalGotoStep(2)"' in modal
     assert 'function pcModalGotoStep' in modal
+    assert 'id="pc-m-prepared" type="text" maxlength="50"' in modal
+    assert 'validate: () => pcValidateBasic(false)' in modal
     assert '/api/petty-cash-reports/previous-balance' in modal
     assert 'function esc(' not in modal  # esc 單一來源（統一用 utils.js）
     css = read_petty_cash_css()
@@ -469,7 +471,7 @@ def test_petty_cash_modal_step_contracts():
         assert f'id="{tab2}" onclick="{goto}(2)"' in js
         assert f'function {goto}' in js
         assert 'pcSwitchModalStep' in js
-    assert 'validate: () => pcValidateBasic(true)' in general
+    assert 'validate: () => pcValidateBasic(false)' in general
     assert 'validate:engValidateBasic' in engineering
 
 
@@ -661,15 +663,15 @@ def test_petty_cash_detail_table_mobile():
     assert '11.11%' not in css
 
 
-def test_petty_cash_unpriced_details_hide_comparison_until_priced():
-    """未填金額時隱藏狀態與差額；有金額時才顯示比較摘要。"""
+def test_petty_cash_unpriced_details_show_normal_without_comparison():
+    """未填或部分填寫明細金額時顯示正常且不比較。"""
     js = read(PETTY_CASH_RENDER_JS)
     status_fn = js.split("function pcEntryStatus(e)", 1)[1].split("\n}", 1)[0]
     details_fn = js.split("function pcGeneralDetailsHtml(e)", 1)[1].split("\n}", 1)[0]
-    assert "items.some(item => Number(item.amount) > 0)" in status_fn
-    assert "items.length && !hasPricedItems) return ''" in status_fn
-    assert "e.items.some(item => Number(item.amount) > 0)" in details_fn
-    assert "${hasPricedAmount ?" in details_fn
+    assert "items.length && !allItemsPriced) return '<span" in status_fn
+    assert "items.every(item => Number(item.amount) > 0)" in status_fn
+    assert "e.items.every(item => Number(item.amount) > 0)" in details_fn
+    assert "${allItemsPriced ?" in details_fn
     assert "${e.amount_warning ?" not in details_fn
 
 
@@ -685,6 +687,28 @@ def test_petty_cash_unpriced_details_runtime():
     assert result.returncode == 0, (
         f"petty_cash_unpriced_runtime.test.js 失敗：\n{result.stdout}\n{result.stderr}"
     )
+
+
+def test_prefixed_api_errors_are_formatted_before_toast_concatenation():
+    """字串前綴不可先把結構化 detail 強制轉成 [object Object]。"""
+    pattern = re.compile(r"toast\(\s*['\"][^'\"]*['\"]\s*\+\s*\(?\s*[A-Za-z_$][\w$]*\.detail")
+    js_root = Path(BASE_DIR) / "static" / "js"
+    unsafe = [
+        f"{path}:{line_number}:{line.strip()}"
+        for path in js_root.rglob("*.js")
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if pattern.search(line)
+    ]
+    assert not unsafe, "結構化錯誤應在字串串接前格式化：\n" + "\n".join(unsafe)
+
+
+def test_structured_api_error_messages_render_readably():
+    """結構化 API 驗證錯誤需轉成明確欄位與限制訊息。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "api_error_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert result.returncode == 0, f"API 錯誤訊息測試失敗：\n{result.stdout}\n{result.stderr}"
 
 
 def test_petty_cash_settings_options_domain_layout():
@@ -2829,7 +2853,7 @@ def test_settings_cabinet_single_edit_and_delete_reason():
     assert js.count("function editCabinet(") == 1
     assert "prompt('編輯櫃子編號/名稱'" not in js
     delete_fn = js[js.index("async function deleteCabinet("):js.index("async function initCabinetsTab(")]
-    assert "err.detail || '刪除失敗'" in delete_fn
+    assert "apiErrorMessage(err.detail) || '刪除失敗'" in delete_fn
 
 
 def test_every_item_photo_thumbnail_opens_lightbox():

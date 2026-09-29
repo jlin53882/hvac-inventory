@@ -97,7 +97,7 @@ async function submitStockoutExport() {
       let message = `HTTP ${response.status}`;
       try {
         const body = await response.json();
-        message = body.detail || body.message || message;
+        message = apiErrorMessage(body.detail) || body.message || message;
       } catch (e) { /* 非 JSON 錯誤 */ }
       throw new Error(message);
     }

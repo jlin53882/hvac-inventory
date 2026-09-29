@@ -41,7 +41,7 @@ async function submitStockOut() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '領出失敗');
+      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
     }
     closeModalForce('out-modal');
     toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}`, 'success');
@@ -87,7 +87,7 @@ async function submitNonStockOut() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '領出失敗');
+      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
     }
     closeModalForce('nonstock-out-modal');
     toast(`✅ 已領出 ${qty} ${unit} → ${dest}`, 'success');
@@ -130,7 +130,7 @@ async function submitNonStockPrepare() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '新增失敗');
+      throw new Error(apiErrorMessage(err.detail) || '新增失敗');
     }
     closeModalForce('nonstock-prepare-modal');
     toast(`✅ 已新增待領出 ${qty} ${unit}`, 'success');
@@ -167,7 +167,7 @@ async function submitPrepare() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '領出失敗');
+      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
     }
     closeModalForce('prepare-modal');
     toast(`📤 已標記待領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit}（庫存未扣）`, 'success');
@@ -210,7 +210,7 @@ async function submitPreparedOut() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '領出失敗');
+      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
     }
     closeModalForce('prepared-out-modal');
     toast(`✅ 已領出 ${(typeof Qty !== 'undefined') ? Qty.disp(qty, item.unit) : qty} ${item.unit} → ${dest}（庫存已扣）`, 'success');
@@ -313,7 +313,7 @@ async function submitReturnStockout() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_movement_id: parentId, return_stock_id: returnStockId })
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '修復退回資料失敗'); }
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(apiErrorMessage(err.detail) || '修復退回資料失敗'); }
       repairStockoutReturnId = null;
       closeModalForce('return-stockout-modal');
       toast('✅ 已補齊退回資料，現在可以編輯或撤銷', 'success');
@@ -330,7 +330,7 @@ async function submitReturnStockout() {
       const res = await fetch(`/api/stockout-returns/${editStockoutReturnId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateBody)
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '儲存退回紀錄失敗'); }
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(apiErrorMessage(err.detail) || '儲存退回紀錄失敗'); }
       editStockoutReturnId = null;
       closeModalForce('return-stockout-modal');
       toast('✅ 已更新退回紀錄', 'success');
@@ -355,7 +355,7 @@ async function submitReturnStockout() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '退回失敗');
+      throw new Error(apiErrorMessage(err.detail) || '退回失敗');
     }
     closeModalForce('return-stockout-modal');
     toast('↩️ 已退回，數量已加回庫存', 'success');
@@ -406,7 +406,7 @@ async function submitEditStockout() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '儲存失敗');
+      throw new Error(apiErrorMessage(err.detail) || '儲存失敗');
     }
     closeModalForce('edit-stockout-modal');
     toast('✅ 已更新已領出記錄', 'success');
@@ -489,7 +489,7 @@ async function deleteStockoutReturn(movementId) {
   if (!confirm('確定刪除這筆退回紀錄？活動退回會扣回已補入庫存的數量。')) return;
   try {
     const res = await fetch(`/api/stockout-returns/${movementId}`, { method: 'DELETE' });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '刪除退回紀錄失敗'); }
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(apiErrorMessage(err.detail) || '刪除退回紀錄失敗'); }
     toast('✅ 已刪除退回紀錄', 'success');
     await renderStockOuts();
   } catch (e) { toast('⚠️ ' + e.message, 'error'); }
@@ -558,7 +558,7 @@ async function submitPreparedEdit() {
       body: JSON.stringify(payload)
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.detail || '待領出修改失敗');
+    if (!res.ok) throw new Error(apiErrorMessage(body.detail) || '待領出修改失敗');
     closeModalForce('prepared-edit-modal');
     toast('✅ 已儲存待領出修改', 'success');
     await renderPrepared();
@@ -614,7 +614,7 @@ async function submitKitPrepare(kitItemId) {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || '領出失敗');
+      throw new Error(apiErrorMessage(err.detail) || '領出失敗');
     }
     closeModalForce('kit-prepare-modal');
     toast('📤 已標記待領出 1 ' + (item.unit || '組') + '（整組）', 'success');

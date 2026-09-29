@@ -28,7 +28,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.database import get_db
-from app.models import EngineeringReportIn, PettyCashOptionIn, PettyCashOptionUpdate, PettyCashReportIn
+from app.models import EngineeringReportIn, PettyCashOptionIn, PettyCashOptionUpdate, PettyCashReportIn, PettyCashReportPayload
 from app.services.engineering_petty_cash import (
     _engineering_row, build_engineering_report, engineering_filename, engineering_safe_filename,
     engineering_summary_totals, write_engineering,
@@ -59,13 +59,13 @@ def _entry_dict(entry_row, items: list) -> dict:
         items: 此紀錄的商品明細資料列。
 
     Returns:
-        可供 API 回傳的收支資料；全為零的明細金額視為尚未填寫。
+        可供 API 回傳的收支資料；只有全部明細金額皆已填寫才計算總額與警示。
     """
     amount = round(float(entry_row["amount"]), 2)
-    has_priced_items = any(float(item["amount"] or 0) > 0 for item in items)
+    all_items_priced = bool(items) and all(float(item["amount"] or 0) > 0 for item in items)
     item_total = (
         round(sum(float(item["amount"] or 0) for item in items), 2)
-        if has_priced_items else None
+        if all_items_priced else None
     )
     warning = None
     if item_total is not None and abs(item_total - amount) > 0.005:
@@ -537,7 +537,19 @@ def list_petty_cash_reports(
 
 
 @router.post("/api/petty-cash-reports", status_code=201)
-def create_petty_cash_report(body: PettyCashReportIn | EngineeringReportIn, user: dict = Depends(require_login)):
+def create_petty_cash_report(body: PettyCashReportPayload, user: dict = Depends(require_login)):
+    """依報表類型驗證並以單一交易建立零用金月報。
+
+    Args:
+        body: 一般或工程月報資料；舊的一般月報可省略 report_type。
+        user: 由登入依賴解析的使用者資料。
+
+    Returns:
+        已建立的完整報表資料。
+
+    Raises:
+        HTTPException: 權限不足、重複資料或業務欄位不合法時引發。
+    """
     if user is None:
         raise HTTPException(401, "未登入")
     conn = get_db()
@@ -585,8 +597,21 @@ def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
 
 @router.put("/api/petty-cash-reports/{report_id}")
 def update_petty_cash_report(
-    report_id: int, body: PettyCashReportIn | EngineeringReportIn, user: dict = Depends(require_login)
+    report_id: int, body: PettyCashReportPayload, user: dict = Depends(require_login)
 ):
+    """依既有報表類型驗證後，以單一交易全量更新月報。
+
+    Args:
+        report_id: 要更新的月報識別碼。
+        body: 一般或工程月報資料；舊的一般月報可省略 report_type。
+        user: 由登入依賴解析的使用者資料。
+
+    Returns:
+        更新後的完整報表資料。
+
+    Raises:
+        HTTPException: 權限不足、報表不存在、跨類型更新或資料不合法時引發。
+    """
     if user is None:
         raise HTTPException(401, "未登入")
     conn = get_db()

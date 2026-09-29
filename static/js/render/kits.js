@@ -448,7 +448,7 @@ async function assembleKit(kitId) {
 
       const err = await res.json();
 
-      throw new Error(err.detail || '組裝失敗');
+      throw new Error(apiErrorMessage(err.detail) || '組裝失敗');
 
     }
 
@@ -496,7 +496,7 @@ async function disassembleKit(kitId) {
 
       const err = await res.json();
 
-      throw new Error(err.detail || '拆解失敗');
+      throw new Error(apiErrorMessage(err.detail) || '拆解失敗');
 
     }
 
@@ -587,7 +587,7 @@ async function deleteKit(kitId) {
 
       const e = await res.json().catch(() => ({}));
 
-      throw new Error(e.detail || '刪除失敗');
+      throw new Error(apiErrorMessage(e.detail) || '刪除失敗');
 
     }
 

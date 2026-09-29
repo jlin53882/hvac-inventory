@@ -295,7 +295,7 @@ async function dsrSubmitUpload() {
     const res = await fetch('/api/signed-reports', { method: 'POST', body: fd });
     bar.style.width = '70%';
     const data = await res.json();
-    if (!res.ok) return toast('⚠️ ' + (data.detail || '上傳失敗'));
+    if (!res.ok) return toast('⚠️ ' + (apiErrorMessage(data.detail) || '上傳失敗'));
     bar.style.width = '100%';
     setTimeout(() => toast('✅ 上傳成功'), 300);
     dsrClearFile();
@@ -496,7 +496,7 @@ async function dsrEdit(id) {
     try {
       const res = await fetch('/api/signed-reports/' + id, { method: 'PATCH', body: fd });
       const data = await res.json();
-      if (!res.ok) return toast('⚠️ ' + (data.detail || '報表更新失敗'));
+      if (!res.ok) return toast('⚠️ ' + (apiErrorMessage(data.detail) || '報表更新失敗'));
       close();
       Object.assign(report, data);
       await dsrLoadHistory();
@@ -510,5 +510,5 @@ async function dsrDelete(id) {
   if (!confirm('確定刪除？')) return;
   const res = await fetch('/api/signed-reports/' + id, { method: 'DELETE' });
   const data = await res.json();
-  if (res.ok) { toast('🗑 已刪除'); dsrLoadHistory(); } else toast('⚠️ ' + (data.detail || '刪除失敗'));
+  if (res.ok) { toast('🗑 已刪除'); dsrLoadHistory(); } else toast('⚠️ ' + (apiErrorMessage(data.detail) || '刪除失敗'));
 }
