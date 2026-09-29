@@ -351,6 +351,10 @@ function calRenderHelper(dayEvents) {
 }
 
 // ========== 月曆 ==========
+/**
+ * 依月份實際需要的完整週數繪製月曆，避免固定六週多顯示隔月日期。
+ * @returns {void} 更新月曆格與桌面列數。
+ */
 function calRenderMonth() {
   if (calLoadError) return;
   const y = calMonth.getFullYear(), m = calMonth.getMonth();
@@ -417,8 +421,9 @@ function calRenderMonth() {
     }
     grid.appendChild(c);
   }
-  // Desktop grid keeps six complete week rows so month height never jumps.
-  const trailing = 42 - first - total;
+  const weeks = Math.ceil((first + total) / 7);
+  grid.style.setProperty('--cal-week-count', String(weeks));
+  const trailing = weeks * 7 - first - total;
   for (let i = 1; i <= trailing; i++) {
     const c = document.createElement('div');
     c.className = 'cal-cell cal-other';
@@ -544,6 +549,10 @@ function calPickDate(v) {
   if (typeof syncViewUrl === 'function') syncViewUrl();  // 2026-08-14：月份寫入 URL（F5 保留）
 }
 
+/**
+ * 匯出目前行事曆日期的 Excel；API 錯誤以可讀欄位訊息顯示。
+ * @returns {Promise<void>} 匯出成功後啟動下載，失敗時顯示提示。
+ */
 async function calExport() {
   const date = _iso(calSelected);
   try {

@@ -22,13 +22,14 @@ function createDocument() {
         get: () => this._innerHTML,
         set: value => {
           this._innerHTML = String(value);
+          if (this._innerHTML === "") this.children = [];
           const selected = this._innerHTML.match(/<option value="([^"]+)"[^>]*selected/);
           if (selected) this.value = selected[1];
         },
       });
       this.innerText = '';
       this.textContent = '';
-      this.style = { display: '' };
+      this.style = { display: '', setProperty(name, value) { this[name] = value; } };
       this.children = [];
       this.className = '';
       this.hidden = false;
@@ -163,6 +164,7 @@ function createContext() {
 
   // The production renderers may be replaced only for non-target visual details;
   // renderCalendar and calLoadData themselves remain untouched and executable.
+  context.calRenderMonthProduction = context.calRenderMonth;
   context.calRenderMonth = () => {};
   context.calRenderDay = () => {};
   return { context, calls, dom, state };
@@ -184,6 +186,22 @@ async function assertCalendarLoad(context, state) {
 (async () => {
   const { context, calls, dom, state } = createContext();
   const get = id => dom.elements.get(id) || dom.document.getElementById(id);
+
+  // Execute the actual month renderer across every supported week-count shape.
+  context.calEvents = [];
+  context.calLoadError = null;
+  for (const [month, weeks, cellCount] of [[1, 4, 35], [8, 5, 42], [7, 6, 49]]) {
+    context.calMonth = new Date(2026, month, 1);
+    context.calRenderMonthProduction();
+    assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
+    assert.strictEqual(get('cal-grid').children.length, cellCount);
+    if (month === 8) {
+      assert.strictEqual(get('cal-grid').children.at(-1).innerHTML, '<span class="cal-day-num">3</span>',
+        'September 2026 must end on October 3');
+    }
+  }
+  context.calMonth = new Date();
+
 
   // F1: execute the production page entry instead of jumping directly to calLoadData.
   assert.strictEqual(typeof context.renderCalendar, 'function', 'renderCalendar must be production-loaded');

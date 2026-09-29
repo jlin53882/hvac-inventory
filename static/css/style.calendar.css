@@ -30,8 +30,8 @@
   .cal-month-card .cal-grid {
     flex: 0 0 auto;
     min-height: 0;
-    /* Keep each desktop week tall enough for date and event rows. */
-    grid-template-rows: auto repeat(6, minmax(100px, 1fr));
+    /* 每列保留事件內容高度，列數由 calRenderMonth 依月份設定。 */
+    grid-template-rows: auto repeat(var(--cal-week-count), minmax(100px, 1fr));
   }
   .cal-month-card .cal-cell { min-height: 0; overflow: hidden; }
   .cal-day-card { overflow: auto; }
