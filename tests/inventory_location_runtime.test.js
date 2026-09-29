@@ -254,6 +254,31 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   stockRow.qty = '2';
   editContext.deleteEditStockRow(button);
   assert.equal(removed, true, '已存數量歸零的位置可以移除');
+
+  const editFields = {
+    'e-name': { value: '測試品項' },
+    'e-brand': { value: '測試廠牌' },
+    'e-code': { value: 'TEST-01' },
+    'e-lowstock': { value: '' },
+    'e-unit': { value: '個' },
+    'e-category': { value: '其他' },
+  };
+  editContext.document.getElementById = id => editFields[id] || null;
+  editContext.document.querySelectorAll = () => [];
+  editContext.editItemId = 1;
+  editContext.editUpdatedAt = '2026-09-29T00:00:00';
+  let patchRequests = 0;
+  editContext.fetch = async () => { patchRequests += 1; return { ok: true }; };
+  for (const [field, label] of [['e-brand', '廠牌'], ['e-code', '型號'], ['e-name', '品項名稱']]) {
+    editFields[field].value = '   ';
+    await editContext.submitEdit();
+    assert.match(editContext.lastToast, new RegExp(`${label}必填`), `${label}空白需顯示必填錯誤`);
+    assert.equal(patchRequests, 0, `${label}空白時不得送出 PATCH`);
+    editFields[field].value = field === 'e-brand' ? '測試廠牌' : field === 'e-code' ? 'TEST-01' : '測試品項';
+  }
+  await editContext.submitEdit();
+  assert.match(editContext.lastToast, /位置必填/, '缺少庫存位置需顯示必填錯誤');
+  assert.equal(patchRequests, 0, '缺少庫存位置時不得送出 PATCH');
   console.log('inventory location runtime contracts passed');
 })().catch(error => {
   console.error(error);
