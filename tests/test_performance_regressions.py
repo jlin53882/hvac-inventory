@@ -253,11 +253,16 @@ def test_signed_report_file_replace_does_not_block_event_loop(client, slow_media
     )
     started = time.perf_counter()
     health = client.get("/health")
-    elapsed = time.perf_counter() - started
+    elapsed = time.perf_counter() - started  # 僅供失敗訊息診斷，不作為 pass/fail 條件
+    finished_when_health_returned = slow_media.finished
     thread.join()
     assert health.status_code == 200
     assert result["response"].status_code == 200, result["response"].text
-    assert elapsed < SLOW_VARIANT_SECONDS * 0.5, f"event loop 被卡住 {elapsed:.2f}s"
+    # 契約 = 因果順序：換檔處理中 → /health 回應 → 圖片尚未處理完。
+    # 不設牆鐘門檻：repo 無 /health 延遲 SLA，固定秒數在 CI 排程抖動下會誤判（issue #38）。
+    assert finished_when_health_returned == 0, (
+        f"event loop 被卡住：/health 等到影像處理結束才回應；耗時 {elapsed:.2f}s"
+    )
 
 
 def test_prepare_media_batch_keeps_order_and_reports_errors():
