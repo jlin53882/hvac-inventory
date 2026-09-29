@@ -718,6 +718,74 @@ def test_raw_api_detail_is_not_stored_or_thrown_as_message():
     assert not unsafe, "API detail 需先經 apiErrorMessage 再當成訊息：\n" + "\n".join(unsafe)
 
 
+# 使用者看得到的訊息出口：API detail 進到這些地方前必須先經 apiErrorMessage
+API_DETAIL_SINK = re.compile(
+    r"\b(?:toast|alert|showErr|esc)\(|new Error\(|\.(?:textContent|innerText|innerHTML)\s*\+?=(?!=)"
+)
+API_DETAIL_REF = re.compile(r"(?:[\w$\]]|\))\.detail\b")
+API_DETAIL_FORMATTED = re.compile(r"apiErrorMessage\(\s*(?:\(await [^()]*\(\)\)|[\w$.\[\]]+)\.detail\b")
+
+
+def _api_detail_sink_violations(text):
+    """回傳把 API detail 直接交給使用者可見出口（未經 apiErrorMessage）的行。"""
+    bad = []
+    for line_number, line in enumerate(text.splitlines(), 1):
+        for sink in API_DETAIL_SINK.finditer(line):
+            segment = API_DETAIL_FORMATTED.sub("apiErrorMessage(X", line[sink.start():])
+            if API_DETAIL_REF.search(segment):
+                bad.append(f"{line_number}:{line.strip()}")
+                break
+    return bad
+
+
+@pytest.mark.parametrize("snippet", [
+    "toast(data.detail)",
+    "toast(data.detail || '新增失敗', 'error');",
+    "toast(err.detail || '失敗')",
+    "if (!r.ok) return toast(payload.detail, 'error');",
+    "toast((await res.json()).detail || '操作失敗', 'error');",
+    "alert(e.detail || '刪除失敗');",
+    "throw new Error(body.detail);",
+    "el.textContent = result.detail;",
+    "list.innerHTML = `<div>${esc(x.detail)}</div>`;",
+])
+def test_api_detail_sink_guard_rejects_raw_detail(snippet):
+    """守衛本身要抓得到各種變數名與寫法（不可只認 data / err）。"""
+    assert _api_detail_sink_violations(snippet), snippet
+
+
+@pytest.mark.parametrize("snippet", [
+    "toast(apiErrorMessage(data.detail) || '新增失敗', 'error');",
+    "toast(apiErrorMessage((await res.json()).detail) || '操作失敗', 'error');",
+    "throw new Error(apiErrorMessage(err.detail) || '儲存失敗');",
+    "list.innerHTML = `<div>${esc(apiErrorMessage(x.detail))}</div>`;",
+    "console.warn('整組照片上傳失敗:', e.detail || '未知錯誤');",
+    "if (data.detail === '已存在') retry();",
+])
+def test_api_detail_sink_guard_allows_formatted_or_internal_use(snippet):
+    assert not _api_detail_sink_violations(snippet), snippet
+
+
+def test_api_detail_is_formatted_before_user_visible_messages():
+    """所有使用者看得到的 API detail（toast / alert / Error / 畫面文字）都必須先經 apiErrorMessage。"""
+    unsafe = [
+        f"{path.relative_to(BASE_DIR)}:{hit}"
+        for path in (Path(BASE_DIR) / "static" / "js").rglob("*.js")
+        if path.name != "utils.js"  # apiErrorMessage 本身
+        for hit in _api_detail_sink_violations(path.read_text(encoding="utf-8"))
+    ]
+    assert not unsafe, "API detail 需先經 apiErrorMessage 再顯示：\n" + "\n".join(unsafe)
+
+
+def test_settings_api_errors_render_readably_at_runtime():
+    """設定頁零用金選單新增 / 改名 / 刪除遇到結構化 422 時顯示可讀訊息。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "settings_api_error_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,
+    )
+    assert result.returncode == 0, f"設定頁 API 錯誤訊息測試失敗：\n{result.stdout}\n{result.stderr}"
+
+
 def test_structured_api_error_messages_render_readably():
     """結構化 API 驗證錯誤需轉成明確欄位與限制訊息。"""
     result = subprocess.run(

@@ -560,7 +560,7 @@
         const res = await apiSend('/api/users/batch', 'POST', { users });
         const box = document.getElementById('nu-batch-result');
         box.innerHTML = res.results.map(x =>
-          `<div class="${x.status === 'ok' ? 'ok' : 'err'}">${x.status === 'ok' ? '✔' : '✘'} ${esc(x.username)} — ${esc(x.detail)}</div>`
+          `<div class="${x.status === 'ok' ? 'ok' : 'err'}">${x.status === 'ok' ? '✔' : '✘'} ${esc(x.username)} — ${esc(apiErrorMessage(x.detail))}</div>`
         ).join('');
         if (res.created) {
           toast(`已建立 ${res.created} 筆`, 'success');

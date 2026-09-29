@@ -82,7 +82,7 @@ function openUnitQuickAdd(sel, addBtn) {
         body: JSON.stringify({ name })
       });
       const data = await res.json();
-      if (!res.ok) { toast(data.detail || '新增失敗', 'error'); return; }
+      if (!res.ok) { toast(apiErrorMessage(data.detail) || '新增失敗', 'error'); return; }
       unitList.push(data);
       unitListActive = unitList.filter(u => u.is_active);
       box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = '';

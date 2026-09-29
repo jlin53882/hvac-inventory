@@ -345,6 +345,53 @@ def test_every_used_token_is_defined():
             assert name in defined or name in local, f"{rel} 使用未定義的 {name}"
 
 
+# --fs-9 是唯一低於 11px 的字級，只為手機月曆格高密度顯示存在（4–6 字客戶名兩行內完整顯示）
+FS9_FILE = "4-pages/calendar.css"
+FS9_MEDIA = "(max-width: 767px)"
+FS9_SELECTORS = {
+    '[data-page="calendar"] .cal-evt',
+    '[data-page="calendar"] .cal-evt .cal-evt-time',
+    '[data-page="calendar"] .cal-evt .cal-evt-body',
+}
+
+
+def _fs9_violations(rel, css):
+    """回傳違反「--fs-9 只能用於手機月曆事件格」的規則。"""
+    bad = []
+    for media, selector, body in _style_rules(css):
+        if "var(--fs-9)" not in body:
+            continue
+        where = f"{rel} {' '.join(media)} {selector}"
+        if rel != FS9_FILE:
+            bad.append(f"{where}：--fs-9 只能用在 {FS9_FILE}")
+        elif media != [FS9_MEDIA]:
+            bad.append(f"{where}：--fs-9 只能用在 @media {FS9_MEDIA}")
+        else:
+            outside = [s.strip() for s in selector.split(",") if " ".join(s.split()) not in FS9_SELECTORS]
+            if outside:
+                bad.append(f"{where}：--fs-9 只能用於月曆事件格 {sorted(FS9_SELECTORS)}")
+    return bad
+
+
+@pytest.mark.parametrize("rel,css", [
+    ("4-pages/inventory.css", '[data-page="inventory"] .qty { font-size: var(--fs-9); }'),
+    (FS9_FILE, '[data-page="calendar"] .cal-evt { font-size: var(--fs-9); }'),
+    (FS9_FILE, '@media (min-width: 768px) { [data-page="calendar"] .cal-evt { font-size: var(--fs-9); } }'),
+    (FS9_FILE, '@media (max-width: 767px) { [data-page="calendar"] .cal-page-subtitle { font-size: var(--fs-9); } }'),
+    (FS9_FILE, '@media (max-width: 767px) { [data-page="calendar"] .cal-evt, .cal-title { font-size: var(--fs-9); } }'),
+])
+def test_fs9_guard_rejects_other_uses(rel, css):
+    """守衛本身要擋下：其他檔案、非手機、月曆頁其他元素、夾帶其他 selector。"""
+    assert _fs9_violations(rel, css), css
+
+
+def test_fs9_is_calendar_mobile_only():
+    """--fs-9 只能用於手機版（≤767px）月曆事件格；其他地方的小字請用 --fs-11 以上。"""
+    bad = [v for rel in _css_files() if rel != TOKEN_FILE for v in _fs9_violations(rel, _read(rel))]
+    assert not bad, "\n".join(bad)
+    assert _fs9_violations(FS9_FILE, '@media (max-width: 767px) { [data-page="calendar"] .cal-evt .cal-evt-body { font-size: var(--fs-9); } }') == []
+
+
 # ---------- utility 命名：名稱描述語意，不寫原始色碼 / 舊數值 ----------
 UTILITIES = "5-utilities/utilities.css"
 TOKEN_UTILITY_PREFIX = {"c": ("u-text-", "u-bg-"), "fs": ("u-fs-",), "r": ("u-r-",)}
@@ -385,6 +432,8 @@ def test_every_utility_is_used():
 # 使用者自訂的行事曆人員顏色屬於資料（存在資料庫），不是設計色票
 JS_COLOR_DATA = {"js/globals.js": ("var CAL_PALETTE = [",)}
 JS_RUNTIME_STYLE_PROPS = {"display", "width", "position", "top", "left", "right", "zIndex"}  # 顯示切換、進度條、下拉定位
+# 只能用 setProperty 設定、且屬於「執行期版面狀態」的 CSS 變數；不可用 "--" 前綴整批放行，否則等於繞過 token
+JS_RUNTIME_CUSTOM_PROPERTIES = {"--cal-week-count"}  # 月曆每月 4 / 5 / 6 週的列數
 
 
 def _js_sources():
@@ -405,17 +454,71 @@ def test_js_has_no_hardcoded_colors():
                     raise AssertionError(f"{rel}:{lineno} 寫死色碼 {match.group(0)}")
 
 
+def _js_style_violations(text):
+    """回傳 JS 以 inline style 寫外觀的地方；每一種能寫 style 的入口都要檢查，不能只看 el.style.x = 。"""
+    bad = []
+    if "style.cssText" in text:
+        bad.append("style.cssText，請改用 class")
+    for prop in re.findall(r"\.style\.([a-zA-Z]+)\s*\+?=(?!=)", text):
+        if prop not in JS_RUNTIME_STYLE_PROPS:
+            bad.append(f"style.{prop}，請改用 class")
+    if re.search(r"\.style\s*=(?!=)", text):
+        bad.append("整個指派 el.style = ...（等同 cssText），請改用 class")
+    if re.search(r"\.style\s*\[", text):
+        bad.append("style[...] 中括號寫法（會繞過屬性檢查），請改用 class 或 el.style.<允許的屬性>")
+    if re.search(r"setAttribute\(\s*['\"`]style['\"`]", text):
+        bad.append("setAttribute('style', ...)，請改用 class")
+    if re.search(r"Object\.assign\(\s*[\w$.\[\]]*\bstyle\b", text):
+        bad.append("Object.assign(el.style, ...)，請改用 class")
+    for call in re.finditer(r"\.style\.setProperty\(\s*(?:(['\"`])(.*?)\1)?", text):
+        name = call.group(2)
+        if name is None:
+            bad.append("style.setProperty 的屬性名稱必須是字串常值，才能檢查")
+        elif name not in JS_RUNTIME_CUSTOM_PROPERTIES:
+            bad.append(f"style.setProperty('{name}')，不在執行期 CSS 變數白名單")
+    for match in re.finditer(r"style=\\?([\"'])(.*?)\\?\1", text):
+        static = re.sub(r"\$\{.*?\}|' \+ .*? \+ '", "", match.group(2))
+        for decl in filter(None, (d.strip() for d in static.split(";"))):
+            prop, _, value = decl.partition(":")
+            if prop.strip() == "display" and value.strip() == "none":
+                continue
+            if value.strip():
+                bad.append(f"inline style 寫死外觀：{match.group(2)[:80]}")
+    return bad
+
+
+@pytest.mark.parametrize("snippet", [
+    "el.style.setProperty('color', '#ff0000');",
+    "el.style.setProperty('--button-color', '#f00');",
+    "el.style.setProperty(name, value);",
+    "el.setAttribute('style', 'color:red');",
+    "el.style['fontSize'] = '13px';",
+    'el.style["color"] = "red";',
+    "Object.assign(el.style, { color: 'red' });",
+    "el.style = 'color:red';",
+    "el.style.fontSize = '13px';",
+    "el.style.cssText = 'color:red';",
+    '<div style="color:red">',
+])
+def test_js_style_guard_rejects_appearance_bypasses(snippet):
+    """守衛本身要攔得到所有寫 inline 外觀的入口。"""
+    assert _js_style_violations(snippet), snippet
+
+
+@pytest.mark.parametrize("snippet", [
+    "grid.style.setProperty('--cal-week-count', String(weeks));",
+    "el.style.display = 'none';",
+    "bar.style.width = pct + '%';",
+    "if (el.style.display === 'none') show();",
+    '<div style="display:none">',
+    '<span style="background:${esc(color)}">',
+])
+def test_js_style_guard_allows_runtime_state(snippet):
+    assert not _js_style_violations(snippet), snippet
+
+
 def test_js_inline_styles_only_carry_runtime_state():
-    """JS 樣板的 style="" 只能放執行期狀態（display 切換）或資料值（${...}）；
+    """JS 只能用 inline style 放執行期狀態（顯示切換、進度條寬度、下拉定位、月曆週數）或資料值；
     字級、顏色、間距、圓角等外觀寫在 CSS，否則會蓋過分層樣式、讓手機版規則失效。"""
     for rel, text in _js_sources():
-        assert "style.cssText" not in text, f"{rel} 使用 style.cssText，請改用 class"
-        for prop in re.findall(r"\.style\.([a-zA-Z]+)\s*=", text):
-            assert prop in JS_RUNTIME_STYLE_PROPS, f"{rel} 以 JS 設定外觀 style.{prop}，請改用 class"
-        for match in re.finditer(r"style=\\?([\"'])(.*?)\\?\1", text):
-            static = re.sub(r"\$\{.*?\}|' \+ .*? \+ '", "", match.group(2))
-            for decl in filter(None, (d.strip() for d in static.split(";"))):
-                prop, _, value = decl.partition(":")
-                if prop.strip() == "display" and value.strip() == "none":
-                    continue
-                assert not value.strip(), f"{rel} 的 inline style 寫死外觀：{match.group(2)[:80]}"
+        assert not _js_style_violations(text), f"{rel}：" + "；".join(_js_style_violations(text))
