@@ -2,7 +2,7 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { openSheet } from '../../core/bottomsheet.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
 import { hasPerm } from '../../core/utils.js';
 import { openEditModal } from './edit-modal.js';

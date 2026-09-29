@@ -75,10 +75,10 @@ const context = {
 };
 vm.createContext(context);
 installApiClient(context);
-// 原 render/inventory.js 依職責拆成多個模組；原 api.js 的資料載入在 core/data.js（issue #39）
+// 原 render/inventory.js 依職責拆成多個模組；原 api.js 的資料載入在 features/shell/data-refresh.js，去向清單 primitive 在 core/data.js（issue #39）
 loadModules(context, 'core/qty.js', 'features/inventory/state.js', 'features/inventory/filters.js', 'core/search.js',
   'features/inventory/list.js', 'features/inventory/status.js', 'features/inventory/actions.js', 'features/inventory/adjust.js',
-  'features/inventory/batch-location.js', 'core/data.js');
+  'features/inventory/batch-location.js', 'core/data.js', 'features/shell/data-refresh.js');
 context.updateSubInfo = async () => {};
 
 (async () => {

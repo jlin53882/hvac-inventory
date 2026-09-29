@@ -4,13 +4,13 @@
 import { photoSrc } from '../../components/card.js';
 import { openSharedStatusListModal, renderSharedProductStatusItem, statusListLocations } from '../../components/status-list.js';
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { filterBySearch } from '../../core/search.js';
 import { currentUser } from '../../core/session.js';
 import { appState } from '../../core/state.js';
 import { esc, jsStr, toast, todayStr } from '../../core/utils.js';
-import { getInventoryStatus } from '../inventory/status.js';
+import { getInventoryStatus, rememberInventoryAlertItem } from '../inventory/status.js';
 import { stocktakeState } from './state.js';
 
 var stocktakeRenderRequestSeq = 0;
@@ -174,6 +174,8 @@ function renderStocktakeStatusItem(item, isLow) {
   const extra = item.in_kits && item.in_kits.length
     ? `<div class="stocktake-status-extra">🔧 屬於整組：${esc(item.in_kits.join('、'))}</div>`
     : '';
+  // 編輯按鈕走 Inventory.openEditModal：先放進警示清單的編輯快取（原由共用元件代做）
+  rememberInventoryAlertItem(item);
   return renderSharedProductStatusItem(item, {
     status: status,
     statusType: isLow ? 'low' : 'out',

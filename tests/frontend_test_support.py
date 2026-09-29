@@ -48,11 +48,11 @@ STOCKTAKE_JS = os.path.join(STATIC, "js", "features", "stocktake", "page.js")
 # 待測：core/utils.js
 UTILS_JS = os.path.join(STATIC, "js", "core", "utils.js")
 # 待測：原 api.js / app.js / bottomsheet.js / globals.js（2026-08-12 全專案 JS 完整性補強；issue #39 後為下列模組）
-API_JS = js_modules("core/data.js", "features/inventory/adjust.js")
+API_JS = js_modules("features/shell/data-refresh.js", "core/data.js", "features/inventory/adjust.js")
 APP_JS = os.path.join(STATIC, "js", "features", "shell", "app.js")
 BOTTOMSHEET_JS = os.path.join(STATIC, "js", "core", "bottomsheet.js")
 GLOBALS_JS = js_modules("core/state.js", "features/inventory/state.js", "features/stockout/state.js", "features/stocktake/state.js", "features/kits/state.js", "features/calendar/state.js", "features/work-progress/state.js")
-NOTIFICATIONS_JS = os.path.join(STATIC, "js", "core", "notifications.js")
+NOTIFICATIONS_JS = os.path.join(STATIC, "js", "features", "notifications", "center.js")
 # 待測：modals/*（2026-08-12 全專案 JS 完整性補強）
 ADD_JS = os.path.join(STATIC, "js", "features", "inventory", "add-modal.js")
 CHANGEPW_JS = os.path.join(STATIC, "js", "features", "account", "change-password.js")

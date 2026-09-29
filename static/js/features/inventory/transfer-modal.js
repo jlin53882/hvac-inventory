@@ -1,7 +1,7 @@
 // 庫存區調撥 modal（固定 DOM 建構，避免把品項資料插入 HTML）
 
 import { apiFetch } from '../../core/api-client.js';
-import { loadData, loadInventoryPage } from '../../core/data.js';
+import { loadData, loadInventoryPage } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { INVENTORY_SITES, appState } from '../../core/state.js';

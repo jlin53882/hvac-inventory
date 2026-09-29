@@ -5,7 +5,7 @@
 
 import { photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
 import { closeModalForce, esc, hasPerm, toast } from '../../core/utils.js';

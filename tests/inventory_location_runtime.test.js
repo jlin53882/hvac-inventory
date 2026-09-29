@@ -67,7 +67,7 @@ sandbox.unitList = [
 loadModules(sandbox, 'features/inventory/state.js', 'features/inventory/filters.js', 'core/search.js', 'features/inventory/list.js',
   'features/inventory/status.js', 'features/inventory/actions.js', 'features/inventory/adjust.js', 'features/inventory/batch-location.js');
 sandbox.renderInventory = () => {};
-loadModules(sandbox, 'features/inventory/location-adjustments.js', 'core/data.js');
+loadModules(sandbox, 'features/inventory/location-adjustments.js', 'core/data.js', 'features/shell/data-refresh.js');
 sandbox.loadData = async () => {};
 loadModules(sandbox, 'features/inventory/qty-dialog.js');
 

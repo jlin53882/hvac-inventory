@@ -5,7 +5,6 @@ import { buildThumb } from './card.js';
 import { Qty } from '../core/qty.js';
 import { appState } from '../core/state.js';
 import { esc, hasPerm } from '../core/utils.js';
-import { getInventoryStatus, rememberInventoryAlertItem } from '../features/inventory/status.js';
 
 // 2026-09-12：有 Qty 且知單位時依單位類型顯示（分數單位顯示 3/4 而非 0.75）；缺時維持舊行為
 export function statusListFormatQuantity(value, unit) {
@@ -113,9 +112,11 @@ export function clearSharedStatusListModal() {
   appState.STATUS_LIST_CONTEXT = null;
 }
 
+// options.status 由呼叫端依自己的庫存規則算好（{ qty, isOutOfStock }）；元件不認識 inventory 的判定實作。
+// editable 的列會呼叫 Inventory.openEditModal(id)：呼叫端需先把品項放進編輯快取（見 inventory/status.js rememberInventoryAlertItem）。
 export function renderSharedProductStatusItem(item, options) {
   const config = options || {};
-  const status = config.status || (getInventoryStatus(item));
+  const status = config.status;
   const statusType = config.statusType || (status.isOutOfStock ? 'out' : 'low');
   const isOut = statusType === 'out' || status.isOutOfStock;
   const badgeClass = isOut ? 'status-out' : 'status-low';
@@ -129,7 +130,6 @@ export function renderSharedProductStatusItem(item, options) {
   const threshold = !isOut && item.low_stock > 0
     ? `<span class="inventory-status-meta">警示值 ${esc(statusListFormatQuantity(item.low_stock, item.unit))}</span>`
     : '';
-  rememberInventoryAlertItem(item);
   return `<article class="inventory-status-item status-list-mobile-row ${esc(isOut ? 'is-out' : 'is-low')}">
     <div class="inventory-status-thumb">${buildThumb(item.id, item.has_photo, item.name, '📦', item.thumbnail_url)}</div>
     <div class="inventory-status-info">

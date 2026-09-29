@@ -1,7 +1,7 @@
 // 庫存管理系統 - 批次改位置（2026-09-06 方案 A）
 
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
 import { esc, toast } from '../../core/utils.js';
 import { getFilteredInventoryItems } from './filters.js';

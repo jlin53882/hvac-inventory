@@ -2,7 +2,8 @@ const assert = require('assert');
 const vm = require('vm');
 const { moduleScript } = require('./support/frontend-runtime');
 
-const apiSource = moduleScript('core/data.js');
+// 原 api.js：去向清單 primitive 在 core/data.js，loadData 流程在 features/shell/data-refresh.js（issue #39）
+const apiSource = moduleScript('core/data.js') + '\n' + moduleScript('features/shell/data-refresh.js');
 const appSource = moduleScript('features/shell/app.js');
 
 /**

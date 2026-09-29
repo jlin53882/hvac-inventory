@@ -1,7 +1,7 @@
 // 庫存管理系統 - 新增品項 Modal（v10：多位置 stocks）
 
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { qtyInputOrToast } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
 import { fillUnitSelect } from '../../core/units.js';

@@ -2,7 +2,8 @@
 
 import { photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
-import { loadData, refreshDestinationsAfterMutation } from '../../core/data.js';
+import { refreshDestinationsAfterMutation } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { appState } from '../../core/state.js';

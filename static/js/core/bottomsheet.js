@@ -10,9 +10,7 @@
 // 點選單外或「取消」關閉。
 // ============================================================
 
-import { appState } from './state.js';
 import { esc } from './utils.js';
-import { switchTab } from '../features/shell/app.js';
 
 let sheetEl = null;       // 目前開啟的選單 DOM（全域：render 切頁時可能殘留）
 let sheetEscBound = false;
@@ -84,14 +82,13 @@ export function isMobileView() {
 let _lastMobileState = null;
 
 // 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）
-export function initBottomsheet() {
+// onViewportModeChange：手機 / 桌機版面切換時呼叫（主頁傳入「重新掛載目前分頁」）；core 不認識分頁實作
+export function initBottomsheet(onViewportModeChange) {
   window.addEventListener('resize', () => {
     const now = isMobileView();
     if (_lastMobileState !== null && _lastMobileState !== now) {
       _lastMobileState = now;
-      if (typeof appState.currentTab !== 'undefined') {
-        switchTab(appState.currentTab);
-      }
+      if (onViewportModeChange) onViewportModeChange();
     } else {
       _lastMobileState = now;
     }

@@ -1,7 +1,7 @@
 // 庫存管理系統 - 整組 Modal（v8 拆分；材料選擇為 demo 樣式：已選列 + 單一可搜尋框）
 
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
 import { _cabinetOptions } from '../inventory/edit-modal.js';

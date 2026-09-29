@@ -3,7 +3,7 @@
 import { buildThumb, mobileCardShell, photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
 import { isMobileView, openSheet } from '../../core/bottomsheet.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';

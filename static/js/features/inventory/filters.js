@@ -1,6 +1,6 @@
 // 庫存管理系統 - 庫存篩選（品牌 / 分類 chips、篩選面板）
 
-import { loadInventoryPage } from '../../core/data.js';
+import { loadInventoryPage } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
 import { esc, jsStr } from '../../core/utils.js';
 

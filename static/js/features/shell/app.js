@@ -1,7 +1,7 @@
 // 庫存管理系統 - 主頁外殼：頁籤切換、側欄、使用者選單、開機流程
 
-import { loadData, loadInventoryPage } from '../../core/data.js';
-import { getStocktakeReminderState, updateNotifications } from '../../core/notifications.js';
+import { loadData, loadInventoryPage } from './data-refresh.js';
+import { getStocktakeReminderState, updateNotifications } from '../notifications/center.js';
 import { canAccessPage, checkAuth, firstAccessiblePageTab, resolveAccessiblePageTab } from '../../core/session.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, INVENTORY_SITES, appState, pending } from '../../core/state.js';
 import { loadUnits } from '../../core/units.js';

@@ -1,7 +1,7 @@
 // 庫存管理系統 - 庫存數量增減、儲存列與「全部儲存」
 
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../../core/data.js';
+import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { INVENTORY_PENDING_ITEMS, appState, pending, pendingByStock } from '../../core/state.js';
 import { toast } from '../../core/utils.js';

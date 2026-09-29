@@ -11,7 +11,7 @@ STATIC = BASE_DIR / "static"
 INDEX = STATIC / "index.html"
 CORE_CSS = STATIC / "css" / "3-components/notif-panel.css"
 STATUS_LIST_JS = STATIC / "js" / "components" / "status-list.js"
-NOTIFICATIONS_JS = STATIC / "js" / "core" / "notifications.js"
+NOTIFICATIONS_JS = STATIC / "js" / "features" / "notifications" / "center.js"
 
 
 def read(path: Path) -> str:
@@ -22,7 +22,7 @@ def test_notification_summary_center_shell_and_reuses_existing_dialogs():
     """通知只呈現摘要，分類點擊必須導向既有詳細清單流程。"""
     html = read(INDEX)
     js = read(NOTIFICATIONS_JS)
-    assert "core/notifications.js" in page_modules(INDEX)
+    assert "features/notifications/center.js" in page_modules(INDEX)
     assert 'id="notifPanel"' in html
     assert 'id="notifBackdrop"' in html
     assert 'id="notif-list"' in html
@@ -95,7 +95,7 @@ const context = {
 };
 vm.createContext(context);
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
-vm.runInContext(moduleScript('core/notifications.js'), context);
+vm.runInContext(moduleScript('features/notifications/center.js'), context);
 context.updateNotifications();
 if (!elements.notifList.innerHTML.includes('缺貨商品')) throw new Error('out summary missing');
 if (!elements.notifList.innerHTML.includes('低庫存商品')) throw new Error('low summary missing');
@@ -133,7 +133,7 @@ const context = {
 };
 vm.createContext(context);
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
-vm.runInContext(moduleScript('core/notifications.js'), context);
+vm.runInContext(moduleScript('features/notifications/center.js'), context);
 context.closeNotif = function() { calls.push('close'); };
 context.openNotificationDetail('out');
 context.appState.currentTab = 'stocktake'; context.openNotificationDetail('low');
@@ -255,7 +255,7 @@ const context = {
 };
 vm.createContext(context);
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
-vm.runInContext(moduleScript('core/notifications.js'), context);
+vm.runInContext(moduleScript('features/notifications/center.js'), context);
 const state = context.getStocktakeReminderState();
 if (state.visible !== false) throw new Error('no perm should be invisible');
 if (state.count !== 0) throw new Error('no perm count should be 0');
@@ -285,7 +285,7 @@ const context = {
 };
 vm.createContext(context);
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
-vm.runInContext(moduleScript('core/notifications.js'), context);
+vm.runInContext(moduleScript('features/notifications/center.js'), context);
 const summary = context.getNotificationSummary();
 if (summary.categories.length !== 0) throw new Error('calendar tab should have no categories');
 if (summary.total !== 0) throw new Error('calendar tab total should be 0');

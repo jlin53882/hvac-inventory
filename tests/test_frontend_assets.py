@@ -2414,6 +2414,36 @@ def test_bottomsheet_js_core_functions():
     assert "openTopMenu" not in js  # ☰ 功能選單已移除
 
 
+def test_bottomsheet_viewport_change_uses_page_callback_and_stocktake_keeps_edit_cache():
+    """issue #39 依賴邊界：core/bottomsheet.js 不再 import shell 的 switchTab，改由主頁傳入 callback；
+    components/status-list.js 不再代做 inventory 的編輯快取，盤點清單自己呼叫 rememberInventoryAlertItem。"""
+    script = r"""
+const vm = require('vm');
+const { moduleScript } = require('./tests/support/frontend-runtime');
+let mobile = false, listener = null, remounts = 0;
+const context = {
+  window: { matchMedia: () => ({ matches: mobile }), addEventListener: (type, fn) => { if (type === 'resize') listener = fn; } },
+  document: { addEventListener() {} },
+};
+vm.createContext(context);
+vm.runInContext(moduleScript('core/bottomsheet.js'), context);
+context.initBottomsheet(() => { remounts += 1; });
+listener();                 // 第一次只記錄目前模式
+mobile = true; listener();  // 桌機 → 手機：重新掛載一次
+listener();                 // 同模式 resize：不重繪
+mobile = false; listener(); // 手機 → 桌機：再一次
+if (remounts !== 2) throw new Error('remounts: ' + remounts);
+"""
+    result = subprocess.run(["node", "-e", script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "initBottomsheet(() => switchTab(appState.currentTab));" in read(os.path.join(STATIC, "js", "pages", "main.js"))
+    stocktake = read(STOCKTAKE_JS)
+    body = stocktake[stocktake.index("function renderStocktakeStatusItem("):stocktake.index("export function showStocktakeList(")]
+    assert body.index("rememberInventoryAlertItem(item);") < body.index("return renderSharedProductStatusItem(item, {")
+    status_list = read(os.path.join(STATIC, "js", "components", "status-list.js"))
+    assert "rememberInventoryAlertItem(" not in status_list and "getInventoryStatus(" not in status_list
+
+
 def test_globals_js_has_state_vars():
     """globals.js 全域狀態（ALL_ITEMS / stocktakeValues 等），防誤刪導致整站失效"""
     js = read(GLOBALS_JS)
@@ -4635,7 +4665,7 @@ if (context.appState.currentTab !== 'inventory') throw new Error('fallback did n
 // F2: reminder is hidden when stocktake operation is unavailable, even after the date threshold.
 context.localStorage = { getItem() { return null; } };
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
-vm.runInContext(moduleScript('core/notifications.js'), context);
+vm.runInContext(moduleScript('features/notifications/center.js'), context);
 if (context.getStocktakeReminderState().visible) throw new Error('inaccessible stocktake reminder remained visible');
 """
 

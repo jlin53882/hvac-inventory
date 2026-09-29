@@ -1,15 +1,15 @@
-// 振佳空調管理系統 - 通知 / 異常摘要中心
+// 振佳空調管理系統 - 通知 / 異常摘要中心（feature：聚合 inventory / kits / stocktake 的異常摘要，故不放 core）
 // 只負責摘要 state、Popover/Bottom Sheet 與既有詳細 Dialog 的導流。
 // 不重新查詢商品、不複製庫存判定、不建立通知 API 或資料表。
 
-import { canAccessPage, currentUser } from './session.js';
-import { appState } from './state.js';
-import { esc } from './utils.js';
-import { getFilteredInventoryItems } from '../features/inventory/filters.js';
-import { getInventoryDashboardStats, getInventoryStatus, showInventoryStatusList } from '../features/inventory/status.js';
-import { getKitStatus, showKitStatusList } from '../features/kits/page.js';
-import { switchTab } from '../features/shell/app.js';
-import { showStocktakeList } from '../features/stocktake/page.js';
+import { canAccessPage, currentUser } from '../../core/session.js';
+import { appState } from '../../core/state.js';
+import { esc } from '../../core/utils.js';
+import { getFilteredInventoryItems } from '../inventory/filters.js';
+import { getInventoryDashboardStats, getInventoryStatus, showInventoryStatusList } from '../inventory/status.js';
+import { getKitStatus, showKitStatusList } from '../kits/page.js';
+import { switchTab } from '../shell/app.js';
+import { showStocktakeList } from '../stocktake/page.js';
 
 var NOTIFICATION_OPEN = false;
 
