@@ -556,7 +556,7 @@ async function editKit(kitId) {
 
   document.querySelector('#kit-modal h3').textContent = '🔧 編輯整組';
 
-  const btn = document.querySelector('#kit-modal .btn-confirm');
+  const btn = document.getElementById('kit-submit');
 
   btn.textContent = '💾 儲存整組';
 

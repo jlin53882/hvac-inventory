@@ -522,3 +522,62 @@ def test_js_inline_styles_only_carry_runtime_state():
     字級、顏色、間距、圓角等外觀寫在 CSS，否則會蓋過分層樣式、讓手機版規則失效。"""
     for rel, text in _js_sources():
         assert not _js_style_violations(text), f"{rel}：" + "；".join(_js_style_violations(text))
+
+
+# ── JS 行為掛鉤不得依賴樣式 class（issue #39 第 3 項）──
+# 按鈕 / chip / utility 的 class 會依 CSS 規範改名；JS 若用它們找元素，改 class 後功能會默默失效。
+# JS 找元素請用 id、data-role（元素群組）或 data-action（使用者動作），見 docs/CSS架構重構設計.md §4.3。
+JS_LOOKUP_CALL = re.compile(
+    r"\b(querySelectorAll|querySelector|closest|matches|getElementsByClassName)\(\s*(['\"`])((?:\\.|(?!\2).)*)\2", re.S)
+STYLE_CLASS_NAME = re.compile(r"^(?:btn|chip)(?:-[\w-]*)?$|^[\w-]+-chip(?:-[\w-]*)?$|^u-[\w-]+$")
+
+
+def _style_class_lookups(text):
+    """回傳 JS 用樣式 class（.btn / .btn-* / .chip* / .xxx-chip / .u-*）找元素的呼叫。"""
+    bad = []
+    for match in JS_LOOKUP_CALL.finditer(text):
+        api, selector = match.group(1), match.group(3)
+        static = re.sub(r"\$\{[^}]*\}", " ", selector)
+        static = re.sub(r"\[[^\]]*\]", " ", static)  # data-role="u-..." 這類屬性值不是 class
+        if api == "getElementsByClassName":
+            names = static.split()
+        else:
+            names = re.findall(r"\.(-?[_a-zA-Z][\w-]*)", static)
+        bad += [f"{api}('{selector}') 使用樣式 class .{name}" for name in names if STYLE_CLASS_NAME.match(name)]
+    return bad
+
+
+@pytest.mark.parametrize("snippet", [
+    "document.querySelector('#kit-modal .btn-confirm')",
+    'document.querySelector("#expiry-modal .btn-save")',
+    "document.querySelectorAll('#settingsChipBar .chip')",
+    "document.querySelectorAll('.pc-chip')[3]",
+    "tr.querySelector('.u-ci-to')",
+    "btn.closest('.btn')",
+    "el.matches('.chip--seg.is-active')",
+    "document.getElementsByClassName('btn btn--primary')",
+    "root.querySelector(`#${id} .btn--secondary`)",
+])
+def test_style_class_lookup_guard_rejects_style_hooks(snippet):
+    """守衛本身要攔得到每一種找元素 API 搭配樣式 class 的寫法。"""
+    assert _style_class_lookups(snippet), snippet
+
+
+@pytest.mark.parametrize("snippet", [
+    "document.getElementById('kit-submit')",
+    "document.querySelectorAll('[data-role=\"pc-range\"]')",
+    "tr.querySelector('[data-role=\"unit-consolidate-to\"]')",
+    "document.querySelectorAll('#settingsChipBar [data-panel]')",
+    "btn.closest('.stock-row')",
+    "document.querySelector('#kit-modal h3')",
+    "el.classList.contains('btn-confirm')",
+    "document.querySelector(`[data-action=\"${action}\"]`)",
+])
+def test_style_class_lookup_guard_allows_semantic_hooks(snippet):
+    assert not _style_class_lookups(snippet), snippet
+
+
+def test_js_does_not_find_elements_by_style_classes():
+    """static/js 與 HTML 內嵌 script 不得用樣式 class 找元素；改用 id / data-role / data-action。"""
+    bad = [f"{rel}：{item}" for rel, text in _markup_sources() for item in _style_class_lookups(text)]
+    assert not bad, "\n".join(bad)

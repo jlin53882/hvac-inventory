@@ -548,7 +548,7 @@ async function submitPreparedEdit() {
     payload.code = document.getElementById('pe-code').value.trim();
     payload.unit = unit;
   }
-  const btn = document.querySelector('#prepared-edit-modal .btn-confirm');
+  const btn = document.getElementById('prepared-edit-submit');
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   try {

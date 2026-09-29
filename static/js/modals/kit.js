@@ -22,7 +22,7 @@ function openKitModal() {
   document.getElementById('k-code').value = '';
   document.getElementById('k-site').value = 'office';
   document.querySelector('#kit-modal h3').textContent = '🔧 新增整組';
-  const btn = document.querySelector('#kit-modal .btn-confirm');
+  const btn = document.getElementById('kit-submit');
   btn.textContent = '✅ 建立整組';
   btn.setAttribute('onclick', 'submitKit()');
   renderKitCompRows();  // 顯示「尚未加入材料」+ 搜尋框（同 demo）
@@ -45,7 +45,7 @@ function removeKitCompRow(idx) {
 }
 
 function setKitSubmitBusy(isBusy) {
-  const btn = document.querySelector('#kit-modal .btn-confirm');
+  const btn = document.getElementById('kit-submit');
   if (!btn) return;
   btn.disabled = isBusy;
   btn.setAttribute('aria-busy', String(isBusy));
@@ -53,7 +53,7 @@ function setKitSubmitBusy(isBusy) {
 
 // 送出新增整組表單（POST /api/kits），成功後立即關閉 Modal，背景上傳照片（避免多人併發卡頓）
 async function submitKit() {
-  if (document.querySelector('#kit-modal .btn-confirm')?.disabled) return;
+  if (document.getElementById('kit-submit')?.disabled) return;
   const name = document.getElementById('k-name').value.trim();
   const brand = document.getElementById('k-brand').value.trim();
   const code = document.getElementById('k-code').value.trim();
@@ -119,7 +119,7 @@ function _uploadKitPhotoAsync(kitId) {
 
 // 送出編輯整組（PUT /api/kits/{id}；與新增共用同一個 modal）
 async function submitKitEdit() {
-  if (document.querySelector('#kit-modal .btn-confirm')?.disabled) return;
+  if (document.getElementById('kit-submit')?.disabled) return;
   const name = document.getElementById('k-name').value.trim();
   const brand = document.getElementById('k-brand').value.trim();
   const code = document.getElementById('k-code').value.trim();

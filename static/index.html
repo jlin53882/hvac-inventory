@@ -472,7 +472,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('prepared-edit-modal')">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm" onclick="submitPreparedEdit()">💾 儲存</button>
+      <button class="btn btn--primary btn--md btn-confirm" id="prepared-edit-submit" onclick="submitPreparedEdit()">💾 儲存</button>
     </div>
   </div>
 </div>
@@ -693,7 +693,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn--secondary btn--md btn-cancel" onclick="closeModal('kit-modal')">取消</button>
-      <button class="btn btn--primary btn--md btn-confirm" onclick="submitKit()">✅ 建立整組</button>
+      <button class="btn btn--primary btn--md btn-confirm" id="kit-submit" onclick="submitKit()">✅ 建立整組</button>
     </div>
   </div>
 </div>
@@ -801,8 +801,8 @@
     <h3 class="u-mb-8">密碼已超過 6 個月未更換</h3>
     <p class="u-fs-13 u-text-muted u-lh-1_6 u-mb-18">為了帳號安全，建議更換密碼。<br>也可以選擇繼續使用目前的密碼。</p>
     <div class="u-d-flex u-gap-10">
-      <button class="btn btn--primary btn--md btn-save u-flex-1 u-mt-0" onclick="expiryGoChangePw()">🔑 立即改密碼</button>
-      <button class="btn btn--secondary btn--md btn-cancel u-flex-1 u-mt-0" onclick="ackPasswordExpiry()">繼續使用原密碼</button>
+      <button class="btn btn--primary btn--md btn-save u-flex-1 u-mt-0" id="expiry-change-pw" onclick="expiryGoChangePw()">🔑 立即改密碼</button>
+      <button class="btn btn--secondary btn--md btn-cancel u-flex-1 u-mt-0" id="expiry-ack" onclick="ackPasswordExpiry()">繼續使用原密碼</button>
     </div>
     <div class="u-fs-13 u-text-danger u-lh-1_6" id="expiry-admin-only" style="display:none">密碼已過期，請聯絡管理員重設密碼。</div>
     <div class="u-fs-11 u-text-subtle u-mt-12">選擇任一選項後，將再延長 6 個月</div>

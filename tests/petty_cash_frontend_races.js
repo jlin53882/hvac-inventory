@@ -445,8 +445,19 @@ async function testEngineeringSaveIsSingleFlight() {
 
 async function testResetFilterClearsReportTypeAndReloadsAll() {
   const oldQuerySelectorAll = document.querySelectorAll;
-  const chips = [0, 1, 2, 3].map(() => ({ classList: { add() {}, remove() {} } }));
-  document.querySelectorAll = selector => selector === '.pc-chip' ? chips : [];
+  const chips = ['month', 'prev', 'year', 'all'].map(range => {
+    const active = new Set(range === 'month' ? ['is-active'] : []);
+    return {
+      dataset: { range },
+      classList: {
+        add: name => active.add(name),
+        remove: name => active.delete(name),
+        toggle: (name, force) => (force ? active.add(name) : active.delete(name)),
+        contains: name => active.has(name),
+      },
+    };
+  });
+  document.querySelectorAll = selector => selector === '[data-role="pc-range"]' ? chips : [];
   try {
     ['pc-f-from', 'pc-f-to', 'pc-f-person', 'pc-f-status', 'pc-f-type', 'pc-f-q'].forEach(id => {
       elements[id].value = id === 'pc-f-type' ? 'engineering' : 'filled';
@@ -457,6 +468,8 @@ async function testResetFilterClearsReportTypeAndReloadsAll() {
       assert.strictEqual(elements[id].value, '', `${id} was not cleared`);
     });
     assert.strictEqual(context.pcPage, 1, 'reset did not return to page 1');
+    assert.deepStrictEqual(chips.filter(c => c.classList.contains('is-active')).map(c => c.dataset.range), ['all'],
+      'reset must highlight only the 全部 quick-range chip');
     const history = findPending('/api/petty-cash-reports?');
     const query = new URL(history.url, 'http://test').searchParams;
     assert.strictEqual(query.get('report_type'), '', 'reset history request kept report_type');

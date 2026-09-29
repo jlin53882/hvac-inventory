@@ -81,7 +81,7 @@ var selectedKeyId = null;
 function settingsSwitch(panel) {
   document.querySelectorAll('#settingsSideList .side-item').forEach(el =>
     el.classList.toggle('is-active', el.dataset.panel === panel));
-  document.querySelectorAll('#settingsChipBar .chip').forEach(el =>
+  document.querySelectorAll('#settingsChipBar [data-panel]').forEach(el =>
     el.classList.toggle('is-active', el.dataset.panel === panel));
   const showUnits = panel === 'units';
   const showCabinets = panel === 'cabinets';
@@ -174,11 +174,11 @@ function renderUnitsPanel() {
           html += '<tr><td class="p-name">' + esc(it.name) + (it.is_deleted ? ' <small>（非庫存）</small>' : '') + '</td>' +
             '<td class="qty">×' + absNum(it.total_qty) + '</td>' +
             '<td>' + _sgHtml +
-            '<div class="u-manual"><select class="u-ci-to" required><option value="">— 請選擇 —</option>';
+            '<div class="u-manual"><select class="u-ci-to" data-role="unit-consolidate-to" required><option value="">— 請選擇 —</option>';
           unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
-          html += '</select><input class="u-ci-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn btn--primary btn--sm btn-primary" onclick="consolidateItem(' + it.item_id + ', this)">改為</button></div></td></tr>';
+          html += '</select><input class="u-ci-qty" data-role="unit-consolidate-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn btn--primary btn--sm btn-primary" onclick="consolidateItem(' + it.item_id + ', this)">改為</button></div></td></tr>';
         });
-        html += '</table><div class="grp-fast">整組快速套用：<select class="u-ci-fast" required><option value="">— 請選擇 —</option>';
+        html += '</table><div class="grp-fast" data-role="unit-group-fast">整組快速套用：<select class="u-ci-fast" data-role="unit-consolidate-fast" required><option value="">— 請選擇 —</option>';
         unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
         html += '</select><button class="btn btn--primary btn--sm btn-primary" data-from="' + esc(g.unit) + '" onclick="consolidateGroup(this)">套用全部</button></div></div></div>';
       });
@@ -257,10 +257,10 @@ async function moveUnit(id, dir) {
 
 async function consolidateItem(itemId, btn) {
   const tr = btn.closest('tr');
-  const sel = tr ? tr.querySelector('.u-ci-to') : null;
+  const sel = tr ? tr.querySelector('[data-role="unit-consolidate-to"]') : null;
   const to = sel ? sel.value : '';
   if (!to) { toast('請先選擇目標單位', 'error'); return; }
-  const qInp = tr ? tr.querySelector('.u-ci-qty') : null;
+  const qInp = tr ? tr.querySelector('[data-role="unit-consolidate-qty"]') : null;
   const qRaw = qInp ? qInp.value.trim() : '';
   let newQty = null;
   if (qRaw !== '') {
@@ -310,7 +310,7 @@ async function applyQtySuggest(itemId, btn) {
 
 async function consolidateGroup(btn) {
   const from = btn.dataset.from;
-  const sel = btn.closest('.grp-fast').querySelector('.u-ci-fast');
+  const sel = btn.closest('[data-role="unit-group-fast"]').querySelector('[data-role="unit-consolidate-fast"]');
   const to = sel ? sel.value : '';
   if (!to) { toast('請先選擇目標單位', 'error'); return; }
   const label = from === '' ? '（空白）' : from;

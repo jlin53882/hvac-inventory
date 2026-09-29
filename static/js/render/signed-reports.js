@@ -148,10 +148,10 @@ async function renderSignedReports() {
               </div>
             </div>
             <div class="dsr-chips">
-              <button class="chip dsr-chip" onclick="dsrQuickRange('today',this)">今天</button>
-              <button class="chip dsr-chip" onclick="dsrQuickRange('week',this)">本週</button>
-              <button class="chip dsr-chip is-active" onclick="dsrQuickRange('month',this)">本月</button>
-              <button class="chip dsr-chip" onclick="dsrQuickRange('all',this)">全部</button>
+              <button class="chip dsr-chip" data-role="dsr-range" data-range="today" onclick="dsrQuickRange('today',this)">今天</button>
+              <button class="chip dsr-chip" data-role="dsr-range" data-range="week" onclick="dsrQuickRange('week',this)">本週</button>
+              <button class="chip dsr-chip is-active" data-role="dsr-range" data-range="month" onclick="dsrQuickRange('month',this)">本月</button>
+              <button class="chip dsr-chip" data-role="dsr-range" data-range="all" onclick="dsrQuickRange('all',this)">全部</button>
               <span class="dsr-result-count"><span id="dsr-result-count">0 筆</span></span>
             </div>
           </div>
@@ -400,15 +400,14 @@ function dsrResetFilter() {
   document.getElementById('dsr-f-from').value = _dsrIso(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('dsr-f-to').value = _dsrIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
   document.getElementById('dsr-f-q').value = '';
-  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('is-active'));
-  document.querySelectorAll('.dsr-chip')[2].classList.add('is-active');
+  document.querySelectorAll('[data-role="dsr-range"]').forEach(c => c.classList.toggle('is-active', c.dataset.range === 'month'));
   dsrPage = 1;
   dsrLoadHistory();
 }
 
 // 快捷日期範圍（今天/本週/本月/全部）
 function dsrQuickRange(k, btn) {
-  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('[data-role="dsr-range"]').forEach(c => c.classList.remove('is-active'));
   btn.classList.add('is-active');
   const now = new Date();
   if (k === 'today') { document.getElementById('dsr-f-from').value = _dsrIso(now); document.getElementById('dsr-f-to').value = _dsrIso(now); }

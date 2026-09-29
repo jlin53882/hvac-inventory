@@ -37,13 +37,13 @@ const overlay = { id: '', innerHTML: '', remove() {} };
 /** Supply only the DOM nodes consumed by the real Kit editor/photo renderers. */
 function getElementById(id) {
   if (id === 'k-photo-box') return box;
+  if (id === 'kit-submit') return formButton;
   return elements[id] || null;
 }
 
 /** Resolve modal selectors used by editKit without replacing its production logic. */
 function querySelector(selector) {
   if (selector === '#kit-modal h3') return title;
-  if (selector === '#kit-modal .btn-confirm') return formButton;
   return null;
 }
 

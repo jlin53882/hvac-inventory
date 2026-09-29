@@ -150,10 +150,10 @@ async function renderQuotationUploads() {
               </div>
             </div>
             <div class="qup-chips">
-              <button class="chip qup-chip" onclick="qupQuickRange('today',this)">今天</button>
-              <button class="chip qup-chip" onclick="qupQuickRange('week',this)">本週</button>
-              <button class="chip qup-chip is-active" onclick="qupQuickRange('month',this)">本月</button>
-              <button class="chip qup-chip" onclick="qupQuickRange('all',this)">全部</button>
+              <button class="chip qup-chip" data-role="qup-range" data-range="today" onclick="qupQuickRange('today',this)">今天</button>
+              <button class="chip qup-chip" data-role="qup-range" data-range="week" onclick="qupQuickRange('week',this)">本週</button>
+              <button class="chip qup-chip is-active" data-role="qup-range" data-range="month" onclick="qupQuickRange('month',this)">本月</button>
+              <button class="chip qup-chip" data-role="qup-range" data-range="all" onclick="qupQuickRange('all',this)">全部</button>
               <span class="qup-result-count"><span id="qup-result-count">0 筆</span></span>
             </div>
           </div>
@@ -399,15 +399,14 @@ function qupResetFilter() {
   document.getElementById('qup-f-from').value = _qupIso(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('qup-f-to').value = _qupIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
   document.getElementById('qup-f-q').value = '';
-  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('is-active'));
-  document.querySelectorAll('.qup-chip')[2].classList.add('is-active');
+  document.querySelectorAll('[data-role="qup-range"]').forEach(c => c.classList.toggle('is-active', c.dataset.range === 'month'));
   qupPage = 1;
   qupLoadHistory();
 }
 
 // 快捷日期範圍（今天/本週/本月/全部）
 function qupQuickRange(k, btn) {
-  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('[data-role="qup-range"]').forEach(c => c.classList.remove('is-active'));
   btn.classList.add('is-active');
   const now = new Date();
   if (k === 'today') { document.getElementById('qup-f-from').value = _qupIso(now); document.getElementById('qup-f-to').value = _qupIso(now); }

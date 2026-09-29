@@ -158,10 +158,10 @@ async function renderPettyCash() {
             </div>
           </div>
           <div class="pc-chips">
-            <button class="chip pc-chip" onclick="pcQuickRange('month',this)">本月</button>
-            <button class="chip pc-chip" onclick="pcQuickRange('prev',this)">上月</button>
-            <button class="chip pc-chip" onclick="pcQuickRange('year',this)">今年</button>
-            <button class="chip pc-chip is-active" onclick="pcQuickRange('all',this)">全部</button>
+            <button class="chip pc-chip" data-role="pc-range" data-range="month" onclick="pcQuickRange('month',this)">本月</button>
+            <button class="chip pc-chip" data-role="pc-range" data-range="prev" onclick="pcQuickRange('prev',this)">上月</button>
+            <button class="chip pc-chip" data-role="pc-range" data-range="year" onclick="pcQuickRange('year',this)">今年</button>
+            <button class="chip pc-chip is-active" data-role="pc-range" data-range="all" onclick="pcQuickRange('all',this)">全部</button>
             <span class="pc-result-count"><span id="pc-result-count">0 筆</span></span>
           </div>
         </div>
@@ -428,15 +428,14 @@ function pcResetFilter() {
   document.getElementById('pc-f-status').value = '';
   document.getElementById('pc-f-type').value = '';
   document.getElementById('pc-f-q').value = '';
-  document.querySelectorAll('.pc-chip').forEach(c => c.classList.remove('is-active'));
-  document.querySelectorAll('.pc-chip')[3].classList.add('is-active');
+  document.querySelectorAll('[data-role="pc-range"]').forEach(c => c.classList.toggle('is-active', c.dataset.range === 'all'));
   pcPage = 1;
   pcLoadHistory();
 }
 
 // 快捷期間（本月/上月/今年/全部，以報表期間交集篩選）
 function pcQuickRange(k, btn) {
-  document.querySelectorAll('.pc-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('[data-role="pc-range"]').forEach(c => c.classList.remove('is-active'));
   btn.classList.add('is-active');
   const now = new Date();
   const f = document.getElementById('pc-f-from');
