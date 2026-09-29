@@ -3333,10 +3333,10 @@ def test_filter_panel_switchtab_control():
 def test_mobile_header_can_fit_without_horizontal_clipping():
     """手機 Header 不可讓固定搜尋框與右側工具列把標題推出 viewport"""
     css = read_css_all()
-    assert '.breadcrumb { min-width: 0;' in css
+    assert '.breadcrumb { flex: 1 1 0; min-width: 0;' in css
     assert '.h-search { flex: 1 1 100%;' in css
     assert '.h-search input { width: 100%;' in css
-    assert '.header { flex-wrap: wrap;' in css
+    assert '.header { flex-wrap: wrap; row-gap: 8px;' in css
 
 def test_inventory_mobile_filter_expanded_state_survives_rerender():
     """品牌/分類篩選展開後，重繪不得自動恢復 collapsed"""
@@ -4004,8 +4004,8 @@ def test_prepared_mobile_card_keeps_stock_badge_in_layout():
     """待領出手機卡片資訊欄不被右側數量欄擠壓，badge 可正常排列。"""
     css = read(CSS_PREPARED)
     assert '.prepared-content .m-card .info { padding-right: 0;' in css
-    assert '.prepared-content .m-card .qty-col {' in css
-    assert 'width: 46px; padding-right: 0;' in css
+    # 數量欄要保留右側內距給 ⋯ 按鈕（曾設 padding-right: 0 讓 ⋯ 蓋住數量）
+    assert '.prepared-content .m-card .qty-col' not in css
     assert '.prepared-content .prepared-mobile-meta { display: flex;' in css
 
 
@@ -4317,10 +4317,20 @@ def test_transfer_uses_shared_qty_contract():
     assert "Number(document.getElementById('transfer-qty').value)" not in js
 
 
-def test_mobile_site_tab_2x2_layout():
-    """手機版 .h-site 使用 flex-wrap:wrap 讓 4 個 tab 排成 2×2。"""
-    css = read_shared_css()
-    assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
+def test_mobile_site_tab_single_row_layout():
+    """手機版 .h-site 四顆站點 chip 排成單行等分（issue #37：標頭高度回到改前以下）。
+
+    版面（不換行、等分）在 shell.css；縮小尺寸屬 chip 外觀，只能由 chip.css 的 .chip--fit 提供。
+    """
+    shell = read(os.path.join(STATIC, "css", "2-layout", "shell.css"))
+    chip = read(os.path.join(STATIC, "css", "3-components", "chip.css"))
+    index = read(INDEX)
+    assert ".h-site {display:flex;flex:1 1 auto;flex-wrap:nowrap" in shell, "手機 .h-site 應為單行 nowrap"
+    assert ".h-site button { flex: 1 1 0; min-width: 0;" in shell, "手機 .h-site 按鈕應等分寬度"
+    assert "calc(50% - 6px)" not in shell, "不可退回 2×2 寬度"
+    assert ".chip--fit" in chip, "chip.css 缺少 .chip--fit 變體"
+    for site in ("office", "warehouse", "van", "truck"):
+        assert re.search(r'class="chip chip--seg chip--fit[^"]*" id="site-%s"' % site, index), f"site-{site} 缺少 chip--fit"
 
 
 

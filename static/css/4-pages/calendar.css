@@ -194,7 +194,6 @@
 [data-page="calendar"] .cal-event-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--c-surface-2); }
 [data-page="calendar"] .cal-created-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--c-border-control); font-size: var(--fs-11); line-height: 1.35; }
 [data-page="calendar"] .cal-card-actions .cal-icon-btn { width: auto; min-width: 32px; }
-[data-page="calendar"] .cal-card-actions .cal-icon-btn.btn-edit { margin-top: 5px; }
 [data-page="calendar"] .cal-card-actions .cal-action-label { display: inline; }
 [data-page="calendar"] .cal-card-actions .cal-action-icon { font-size: var(--fs-14); line-height: 1; }
 [data-page="calendar"] .cal-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 140px; padding: 20px 12px; color: var(--c-muted); text-align: center; }

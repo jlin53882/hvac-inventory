@@ -13,6 +13,10 @@
   .chip:hover { border-color: var(--c-primary); color: var(--c-primary); }
   .chip:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
   .chip--seg { height: var(--h-sm); border-radius: var(--r-md); }
+  /* 手機窄列：一列放四顆以上時縮小（公司 / 倉庫 / 廂型車 / 貨車）；桌機維持原尺寸 */
+  @media (max-width: 767px) {
+    .chip--fit { height: 28px; padding: 0 4px; }
+  }
   .chip.is-active, .chip.is-active:hover { background: var(--c-primary); border-color: var(--c-primary); color: var(--c-white); }
   /* 語意選取色：收入 / 支出這類「選了什麼很重要」的二選一 */
   .chip--success.is-active, .chip--success.is-active:hover { background: var(--c-success-soft); border-color: var(--c-success); color: var(--c-success-strong); }

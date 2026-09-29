@@ -205,3 +205,46 @@ def test_tab_switch_leaves_no_page_scope_behind(page, live_server, tab):
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(200)
     assert page.evaluate(_SCOPE_JS) == direct
+
+
+# ---------- issue #37：手機標頭（公司 / 倉庫 chip 單行 + 頁面標題可見） ----------
+def test_mobile_header_site_chips_single_row(page, live_server, viewport):
+    """手機：四顆站點 chip 同一列、高 28px，標題「單一庫存」可見，標頭高度不超過改前的 133px；桌機 chip 維持 32px。"""
+    harness.open_tab(page, live_server, "inventory")
+    ids = ("office", "warehouse", "van", "truck")
+    boxes = [page.eval_on_selector(f"#site-{i}", "el => { const r = el.getBoundingClientRect(); return [r.top, r.height]; }") for i in ids]
+    if viewport[0] != "mobile":
+        assert {round(h) for _, h in boxes} == {32}
+        return
+    assert len({round(top) for top, _ in boxes}) == 1, f"站點 chip 沒排在同一列：{boxes}"
+    assert {round(h) for _, h in boxes} == {28}
+    assert page.eval_on_selector(".breadcrumb", "el => el.getBoundingClientRect().width") > 40, "頁面標題被擠掉"
+    assert page.eval_on_selector(".header", "el => el.getBoundingClientRect().height") <= 133
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "標頭造成橫向捲動"
+
+
+# ---------- 待領出頁手機卡片 ----------
+def test_prepared_mobile_more_button_does_not_cover_quantity(page, live_server, viewport):
+    """待領出卡片右上角的 ⋯ 不可蓋住待領出數量；整組子品項展開後要套用縮圖與列樣式。"""
+    if viewport[0] != "mobile":
+        pytest.skip("只適用手機卡片")
+    harness.open_tab(page, live_server, "prepared")
+    boxes = page.evaluate("""() => {
+      const card = document.querySelector('.prepared-mobile-card');
+      const r = s => card.querySelector(s).getBoundingClientRect();
+      const more = r('.more-btn'), qty = r('.qty-col .qty-num');
+      return {overlap: more.left < qty.right && more.right > qty.left && more.top < qty.bottom && more.bottom > qty.top};
+    }""")
+    assert not boxes["overlap"], "⋯ 按鈕蓋住待領出數量"
+
+
+def test_prepared_kit_subitems_are_styled(page, live_server):
+    """整組子品項清單屬於待領出頁，樣式必須限定在 [data-page=prepared]（曾誤留在庫存頁 CSS，導致縮圖與文字失去樣式）。"""
+    harness.open_tab(page, live_server, "prepared")
+    page.evaluate("""() => {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = '<div class="kit-subitem" id="t-sub"><div class="prepared-kit-thumb"></div><span class="kit-subitem-name">x</span></div>';
+      document.getElementById('content').appendChild(wrap);
+    }""")
+    assert _computed(page, "#t-sub", "display") == "flex"
+    assert _computed(page, "#t-sub", "font-size") == "12px"
