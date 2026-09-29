@@ -248,11 +248,11 @@ export async function wprEditReport(id, targetId) {
           </section>
           <section class="wpr-edit-form-section" aria-labelledby="wpr-edit-progress-title">
             <h4 id="wpr-edit-progress-title">工作進度資料</h4>
-            <label for="wpr-edit-uploader">回報人顯示名稱</label>
+            <label for="wpr-edit-uploader">回報人顯示名稱*</label>
             <input id="wpr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}">
             <div class="wpr-edit-creator">建立帳號：${esc(wprCreatedByText(report))}</div>
             <div class="wpr-edit-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div>
-            <label for="wpr-edit-note">工作進度</label>
+            <label for="wpr-edit-note">工作進度(選填)</label>
             <textarea id="wpr-edit-note" maxlength="1000" rows="6">${esc(report.note || '')}</textarea>
           </section>
         </div>

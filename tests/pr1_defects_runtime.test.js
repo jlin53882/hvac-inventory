@@ -27,11 +27,13 @@ function extractDeleteReturnHandler(html) {
 async function testDesktopInlineReturnDeleteExecutesHandler() {
   const calls = [];
   let refreshed = 0;
+  let destinationsRefreshed = 0;
   const context = vm.createContext({
     console,
     confirm: () => true,
     hasPerm: () => true,
     toast: () => {},
+    refreshDestinationsAfterMutation: async () => { destinationsRefreshed += 1; },
     renderStockOuts: () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });
@@ -55,6 +57,7 @@ async function testDesktopInlineReturnDeleteExecutesHandler() {
   assert.strictEqual(calls[0].url, '/api/stockout-returns/7');
   assert.strictEqual(calls[0].options.method, 'DELETE');
   assert.strictEqual(refreshed, 1, 'desktop inline delete should refresh exactly once');
+  assert.strictEqual(destinationsRefreshed, 1, 'desktop inline delete should refresh destination suggestions');
 }
 
 /**
@@ -64,12 +67,14 @@ async function testDesktopInlineReturnDeleteExecutesHandler() {
 async function testMobileReturnDeleteExecutesHandler() {
   const calls = [];
   let refreshed = 0;
+  let destinationsRefreshed = 0;
   let sheetActions = null;
   const context = vm.createContext({
     console,
     confirm: () => true,
     hasPerm: () => true,
     toast: () => {},
+    refreshDestinationsAfterMutation: async () => { destinationsRefreshed += 1; },
     renderStockOuts: () => { refreshed += 1; },
     openSheet: (_title, actions) => { sheetActions = actions; },
     fetch: async (url, options) => {
@@ -90,6 +95,7 @@ async function testMobileReturnDeleteExecutesHandler() {
   assert.strictEqual(calls[0].url, '/api/stockout-returns/7');
   assert.strictEqual(calls[0].options.method, 'DELETE');
   assert.strictEqual(refreshed, 1, 'mobile return deletion should refresh exactly once');
+  assert.strictEqual(destinationsRefreshed, 1, 'mobile return deletion should refresh destination suggestions');
 }
 
 /**

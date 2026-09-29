@@ -139,7 +139,7 @@ def test_calendar_js_uses_api_endpoints():
     # 2026-08-13 Sarah：明細卡顯示編輯者（非新增者時）——esc 防 XSS
     assert "esc(e.updated_by_name)" in js and "編輯" in js
     # 2026-08-13 Sarah：備註標籤無括號提示（不要寫「（型號 / 車馬費）」）
-    assert "<label>備註</label>" in js and "備註（型號" not in js
+    assert "<label>備註(選填)</label>" in js and "備註（型號" not in js
     # 2026-09-08：桌面版操作按鈕改為 icon + aria-label（手機版保留可辨識文字）
     assert "cal-icon-btn btn-edit" in js and "aria-label=\"編輯派工\"" in js
     assert "cal-icon-btn btn-delete" in js and "aria-label=\"刪除派工\"" in js
@@ -182,11 +182,15 @@ def test_css_cal_evt_b_variant_and_no_overflow():
 
 
 def test_css_cal_selected_highlight():
-    """2026-09-09：Today 與 Selected 依設計文件同時可見。"""
+    """選取日期只顯示外框；今天仍保留圓形日期標記。"""
     css = read_css_all()
     assert ".cal-cell.cal-selected {" in css and "border: 1px solid var(--c-primary)" in css
-    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: var(--c-primary)" in css
-    assert ".cal-cell.cal-today .cal-day-num" in css
+    assert ".cal-cell.cal-selected .cal-day-num {" not in css, "selected date should show the cell outline without a number badge"
+    today_selector = ".cal-cell.cal-today .cal-day-num"
+    assert today_selector in css
+    today_rule = css[css.index(today_selector):].split("}", 1)[0]
+    assert "background: var(--c-primary);" in today_rule
+    assert "color: var(--c-white);" in today_rule
 
 
 def test_calendar_desktop_dispatch_layout():
@@ -424,6 +428,10 @@ def test_calendar_date_required_validation():
     """B3：行事曆派工日期必填"""
     js = read(CALENDAR_MODAL_JS)
     assert "!body.date" in js and "請選擇派工日期" in js, "calendar.js 缺 date 必填檢查"
+    assert "<label>客戶姓名與戶號 / 案場*</label>" in js
+    assert "<label>派工日期*</label>" in js
+    for label in ("服務項目(選填)", "地址(選填)", "派工時間(選填)", "備註(選填)"):
+        assert label in js, f"calendar modal 缺少選填標示：{label}"
 
 def test_settings_html_has_gcal_panel():
     """settings.html 包含行事曆同步 panel"""
@@ -556,9 +564,11 @@ def test_calendar_btn_edit_is_feature_owned():
     assert not re.search(r"(?m)^\s*\.btn-edit:hover\s*\{", core), (
         "Core must not own the Calendar-only .btn-edit hover"
     )
-    # CSS 架構重構 P7.5：外觀改由 button.css 的 .btn 系統負責，頁面只保留位置
-    assert ".cal-card-actions .cal-icon-btn.btn-edit { margin-top: 5px; }" in calendar, (
-        "Calendar keeps only the edit-button layout offset"
+    # CSS 架構重構 P7.5：外觀改由 button.css 的 .btn 系統負責；編輯鈕與刪除鈕同一基準線，
+    # 不再位移（使用者要求與每月零用金「✏️ 編輯」相同格式）
+    assert "btn-edit { margin-top" not in calendar, "Calendar edit button must align with delete (no offset)"
+    assert '<span class="cal-action-icon">✏️</span><span class="cal-action-label">編輯</span>' in calendar_js, (
+        "Calendar edit button uses the same ✏️ 編輯 label as petty cash"
     )
     assert 'class=\"btn btn--secondary btn--sm cal-icon-btn btn-edit\"' in calendar_js, (
         "Calendar edit-button producer must remain"

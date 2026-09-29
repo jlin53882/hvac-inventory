@@ -79,10 +79,10 @@ function renderEditStockRows(stocks, unit) {
     const revision = stock.updated_at || '';
     return `
     <div class="stock-row" data-role="stock-row" data-idx="${esc(String(index))}" data-stock-id="${esc(String(stockId))}" data-stock-qty="${esc(String(stock.qty ?? 0))}" data-stock-updated-at="${esc(revision)}">
-      <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet" data-role="stock-cabinet">${_cabinetOptions(cabinet)}</select></label>
-      <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" data-role="stock-sub" value="${esc(subLocation)}" list="location-list" placeholder="位置"></label>
-      <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="${esc(quantity)}" placeholder="數量（可輸 1/4）"></label>
-      <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" data-role="stock-note" value="${esc(stock.note || '')}" placeholder="備註（選填）"></label>
+      <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子*</span><select class="stock-cabinet" data-role="stock-cabinet">${_cabinetOptions(cabinet)}</select></label>
+      <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" value="${esc(subLocation)}" list="location-list" placeholder="位置"></label>
+      <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="${esc(quantity)}" placeholder="數量（可輸 1/4）"></label>
+      <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" value="${esc(stock.note || '')}" placeholder="備註（選填）"></label>
       <button type="button" class="stock-remove" onclick="Inventory.deleteEditStockRow(this)" aria-label="移除第 ${esc(String(index + 1))} 個位置" title="移除此位置">✕</button>
     </div>`;
   }).join('');
@@ -115,10 +115,10 @@ export function addEditStockRow() {
   row.dataset.stockUpdatedAt = '';
   row.dataset.stockQty = '0';
   row.innerHTML = `
-    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子</span><select class="stock-cabinet" data-role="stock-cabinet">${_cabinetOptions('')}</select></label>
-    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="位置"></label>
-    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
-    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註（選填）"></label>
+    <label class="stock-field stock-field-cabinet"><span class="stock-mobile-label">櫃子*</span><select class="stock-cabinet" data-role="stock-cabinet">${_cabinetOptions('')}</select></label>
+    <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="位置"></label>
+    <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
+    <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註（選填）"></label>
     <button type="button" class="stock-remove" onclick="Inventory.deleteEditStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>
   `;
   box.appendChild(row);
@@ -157,47 +157,49 @@ export function deleteEditStockRow(button) {
 // 送出編輯表單（PATCH /api/items/{id}，位置庫存全量替換），成功後關閉 Modal 並重載資料
 export async function submitEdit() {
   const nameVal = document.getElementById('e-name').value.trim();
-  if (!nameVal) toast('名稱未修改（保留原值）', 'info');
+  const brandVal = document.getElementById('e-brand').value.trim();
+  const codeVal = document.getElementById('e-code').value.trim();
+  if (!brandVal) { toast('廠牌必填', 'error'); return; }
+  if (!codeVal) { toast('型號必填', 'error'); return; }
+  if (!nameVal) { toast('品項名稱必填', 'error'); return; }
   // 2026-09-12：門檻支援分數（Qty.parse）
   const _lsRaw = document.getElementById('e-lowstock').value;
   const lowstockVal = (function() { const _p = Qty.parse(_lsRaw.trim() === '' ? '0' : _lsRaw); return _p.error ? NaN : _p.value; })();
   if (document.getElementById('e-lowstock').value !== '' && (isNaN(lowstockVal) || lowstockVal < 0)) {
     toast('警示值不能為負數', 'error'); return;
   }
+  const stocks = [];
+  for (const row of document.querySelectorAll('#edit-stock-rows [data-role="stock-row"]')) {
+    const cabinet = row.querySelector('[data-role="stock-cabinet"]').value.trim();
+    const sub = row.querySelector('[data-role="stock-sub"]').value.trim();
+    const note = row.querySelector('[data-role="stock-note"]').value.trim();
+    const qtyInput = row.querySelector('[data-role="stock-qty"]');
+    const rawQty = qtyInput.value.trim();
+    const qty = rawQty === '' ? 0 : qtyInputOrToast(qtyInput, document.getElementById('e-unit').value);
+    if (typeof qty !== 'number' || isNaN(qty)) return;
+    if (!row.dataset.stockId && !cabinet && !sub && qty === 0 && !note) continue;
+    if (!cabinet) { toast('請選擇櫃子', 'error'); return; }
+    const location = sub ? `${cabinet} | ${sub}` : cabinet;
+    stocks.push({
+      id: row.dataset.stockId !== '' ? Number(row.dataset.stockId) : null,
+      location: location,
+      qty: qty,
+      note: note,
+      stock_updated_at: row.dataset.stockUpdatedAt || null,
+    });
+  }
+  if (!stocks.length) { toast('位置必填（至少選櫃子）', 'error'); return; }
   const payload = {
-    brand: document.getElementById('e-brand').value.trim(),
-    code: document.getElementById('e-code').value.trim(),
-    // 名稱空白時不更新（保留原值），避免把原名覆蓋成空白
-    ...(nameVal ? { name: nameVal } : {}),
+    brand: brandVal,
+    code: codeVal,
+    name: nameVal,
     unit: document.getElementById('e-unit').value,
     low_stock: isNaN(lowstockVal) ? 0 : lowstockVal,
     category: document.getElementById('e-category').value,
-    // v10：完整位置清單（全量替換）
-    stocks: [...document.querySelectorAll('#edit-stock-rows [data-role="stock-row"]')].map(row => {
-      const cab = row.querySelector('[data-role="stock-cabinet"]').value;
-      const sub = row.querySelector('[data-role="stock-sub"]').value.trim();
-      const location = cab ? (sub ? `${cab} | ${sub}` : cab) : '';
-      // 2026-09-12：分數/小數單位可輸 1/4；非法整包擋下（qtyInputOrToast 已 toast，回 NaN→null）
-      const _el = row.querySelector('[data-role="stock-qty"]');
-      const _qv = qtyInputOrToast(_el, document.getElementById('e-unit').value);
-      if (typeof _qv !== 'number' || isNaN(_qv)) return null;
-      const _qq = _qv;
-      // F2/F3：送回 stock id + stock_updated_at（existing = 有 id；new = 無 id）
-      const sid = row.dataset.stockId;
-      const srev = row.dataset.stockUpdatedAt;
-      return {
-        id: sid !== '' ? Number(sid) : null,
-        location: location,
-        qty: _qv,
-        note: row.querySelector('[data-role="stock-note"]').value.trim(),
-        stock_updated_at: srev || null,
-      };
-    }),
+    stocks: stocks,
     // 2026-08-14 樂觀鎖：帶開啟時的 updated_at 快照，後端比對被他人改過 → 409
     updated_at: editUpdatedAt,
   };
-  // 2026-09-12：任一位置數量非法（map 回 null，已 toast）→ 整包擋下不送
-  if (payload.stocks.some(s => s === null)) return;
   try {
     await apiFetch(`/api/items/${appState.editItemId}`, { method: 'PATCH', json: payload, fallback: '儲存失敗' });
     closeModalForce('edit-modal');

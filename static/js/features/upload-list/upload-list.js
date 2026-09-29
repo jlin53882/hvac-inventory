@@ -89,11 +89,11 @@ export function createUploadListPage(config) {
           <div class="dsr-card__bd">
             <div class="dsr-form-grid dsr-form-grid--two">
               <div class="dsr-field">
-                <label>上傳人姓名 <span class="dsr-required">*</span></label>
+                <label>上傳人姓名<span class="dsr-required">*</span></label>
                 <input id="upl-uploader" type="text" placeholder="例：蘇昱豪">
               </div>
               <div class="dsr-field">
-                <label>報表日期（業務日期） <span class="dsr-required">*</span></label>
+                <label>報表日期（業務日期）<span class="dsr-required">*</span></label>
                 <input id="upl-report-date" type="date" value="${esc(today)}">
               </div>
             </div>
@@ -485,10 +485,10 @@ export function createUploadListPage(config) {
       <div class="dsr-modal upl-edit-modal" role="dialog" aria-modal="true" aria-labelledby="upl-edit-title">
         <div class="dsr-modal__hd"><h3 id="upl-edit-title">✏️ ${esc(config.editTitle)}</h3><button class="btn btn--secondary btn--sm" type="button" data-upl-edit-cancel>✕ 關閉</button></div>
         <div class="dsr-modal__bd">
-          <div class="dsr-field"><label for="upl-edit-date">報表日期（YYYY-MM-DD）</label><input id="upl-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
-          <div class="u-mt-12 dsr-field"><label for="upl-edit-uploader">上傳人姓名</label><input id="upl-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
-          <div class="u-mt-12 dsr-field"><label for="upl-edit-note">備註</label><textarea id="upl-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
-          <div class="u-mt-12 dsr-field"><label for="upl-edit-file">替換檔案（選填）</label><input id="upl-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+          <div class="dsr-field"><label for="upl-edit-date">報表日期（YYYY-MM-DD）*</label><input id="upl-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
+          <div class="u-mt-12 dsr-field"><label for="upl-edit-uploader">上傳人姓名*</label><input id="upl-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+          <div class="u-mt-12 dsr-field"><label for="upl-edit-note">備註(選填)</label><textarea id="upl-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+          <div class="u-mt-12 dsr-field"><label for="upl-edit-file">替換檔案(選填)</label><input id="upl-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
           <div class="upl-hint">不選擇新檔案會保留目前檔案。</div>
         </div>
         <div class="dsr-modal__ft"><button class="btn btn--secondary btn--md" type="button" data-upl-edit-cancel>取消</button><button class="btn btn--primary btn--md" type="button" data-upl-edit-save>儲存</button></div>

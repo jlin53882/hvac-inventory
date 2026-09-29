@@ -2477,6 +2477,30 @@ def test_inventory_location_adjustment_runtime():
     )
 
 
+def test_inventory_and_stockout_option_caches_refresh_after_mutation():
+    """真正執行 API loader，驗證 mutation 更新 facets 與出庫去向建議快取。"""
+    script = os.path.join(BASE_DIR, "tests", "inventory_cache_refresh_runtime.test.js")
+    result = subprocess.run(
+        ["node", script], cwd=BASE_DIR, capture_output=True, text=True,
+        encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"inventory cache refresh runtime regression 失敗：\n{result.stdout}\n{result.stderr}"
+    )
+    stockout = read(STOCKOUT_MODAL_JS)
+    for function_name, next_function in (
+        ("submitStockOut", "submitNonStockOut"),
+        ("submitNonStockOut", "submitNonStockPrepare"),
+        ("submitPreparedOut", "returnPrepared"),
+        ("submitReturnStockout", "submitEditStockout"),
+        ("submitEditStockout", "deleteStockoutReturn"),
+    ):
+        start = stockout.index("async function " + function_name)
+        end = stockout.index("async function " + next_function, start)
+        assert "refreshDestinations: true" in stockout[start:end], f"{function_name} 未刷新去向建議"
+    assert "await refreshDestinationsAfterMutation();" in read(STOCKOUT_RENDER_JS)
+
+
 def test_edit_stock_rows_mobile_grid_layout():
     """編輯位置列在手機改為兩列網格，刪除控制不會擠壓四個輸入欄位。"""
     css = read(CSS_INVENTORY_LOCATIONS)
@@ -2739,8 +2763,24 @@ def test_api_js_saveall_keeps_failed_pending():
 def test_add_modal_required_fields_validation():
     """B4：新增品項 brand/code/location 必填驗證"""
     js = read(ADD_JS)
+    html = read(INDEX)
+    add_modal = html.split('id="add-modal"', 1)[1].split("<!-- 編輯品項 Modal -->", 1)[0]
     assert "!brand" in js and "廠牌必填" in js, "add.js 缺 brand 必填檢查"
+    assert "qtyInput.value.trim() === '' ? 0 : qtyInputOrToast(qtyInput, unit)" in js, "新增品項選填數量留白時需採 0"
     assert "!code" in js and "型號必填" in js, "add.js 缺 code 必填檢查"
+    assert all(f"<label>{label}</label>" in add_modal for label in ("廠牌*", "型號*", "品項名稱*")), "新增品項主檔必填欄位標示不完整"
+    assert "位置清單*（至少新增一個位置，可新增多個）" in add_modal, "新增品項位置清單缺至少一個位置的必填提示"
+    assert all(label in add_modal for label in (
+        '<span class="ch-cabinet">櫃子*</span>',
+        '<span class="ch-pos">位置(選填)</span>',
+        '<span class="ch-qty">數量(選填)</span>',
+        '<span class="ch-note">備註(選填)</span>',
+        "分類位置(選填)",
+        "單位(選填)",
+        "分類(選填)",
+        "品項照片(選填，手機可直接拍照)",
+    )), "新增品項選填欄位標示不完整"
+    assert all(label in js for label in ("櫃子*", "位置(選填)", "數量(選填)", "備註(選填)")), "新增品項手機位置列標示不完整"
     # 2026-09-28 多位置：每列需選櫃子、至少一個位置（buildAddStocks）
     assert "!cabinet" in js and "請選擇櫃子" in js, "add.js 缺每列櫃子必填檢查"
     assert "!stocks.length" in js and "位置必填" in js, "add.js 缺至少一個位置檢查"
@@ -2757,13 +2797,17 @@ def test_edit_modal_stock_qty_clamping():
     """A2：編輯品項位置庫存 qty 不得為負"""
     js = read(EDIT_JS)
     # 2026-09-12：parseFloat 換 Qty.validFor（分數可輸）；負數擋下行為保留
-    assert ("isNaN(q) || q < 0" in js) or ("qtyInputOrToast(_el" in js and "_qq" in js), "edit.js 缺 stock qty 負數 clamping"
+    assert "qtyInputOrToast(qtyInput" in js and "typeof qty !== 'number'" in js, "edit.js 缺 stock qty 負數 / 格式驗證"
+    assert "rawQty === '' ? 0 : qtyInputOrToast(qtyInput" in js, "編輯品項選填數量留白時需採 0"
 
 
 def test_edit_modal_name_empty_toast():
-    """B5：編輯品項 name 空白時 toast 提示"""
+    """編輯品項必填驗證與新增表單一致"""
     js = read(EDIT_JS)
-    assert "!nameVal" in js and "名稱未修改" in js, "edit.js 缺 name 空白 toast 提示"
+    assert "if (!brandVal)" in js and "廠牌必填" in js
+    assert "if (!codeVal)" in js and "型號必填" in js
+    assert "if (!nameVal)" in js and "品項名稱必填" in js
+    assert "請選擇櫃子" in js and "位置必填（至少選櫃子）" in js
 
 
 def test_stockout_edit_qty_upper_bound():
@@ -2959,7 +3003,7 @@ def test_add_modal_has_cabinet_and_sub_inputs():
     add_modal = html[html.index('id="add-modal"'):html.index('id="edit-modal"')]
     assert 'id="add-stock-rows"' in add_modal, "新增品項需有多位置清單容器"
     assert 'onclick="Inventory.addAddStockRow()"' in add_modal, "新增品項需有「新增位置」按鈕"
-    assert '<span class="ch-qty">數量</span>' in add_modal, "新增品項位置清單需有數量欄"
+    assert '<span class="ch-qty">數量(選填)</span>' in add_modal, "新增品項位置清單需標示數量為選填"
     # 舊的單一位置欄位不應存在
     for old_id in ("f-location", "f-cabinet", "f-sub", "f-qty", "f-note"):
         assert f'id="{old_id}"' not in html, f"{old_id} 已由多位置清單取代"
@@ -2975,6 +3019,20 @@ def test_edit_modal_has_cabinet_and_sub_per_row():
     assert "stock-sub" in js, "edit.js stock-row 需有 stock-sub class"
     # 舊的 stock-loc 不應存在
     assert "stock-loc" not in js, "stock-loc 已廢棄，應改為 stock-cabinet + stock-sub"
+    html = read(INDEX)
+    edit_modal = html.split('id="edit-modal"', 1)[1].split('id="prepared-edit-modal"', 1)[0]
+    assert all(label in edit_modal for label in (
+        "廠牌*", "型號*", "品項名稱*", "品項照片(選填",
+        "單位(選填)", "低庫存警示值(選填)", "分類(選填)", "分類位置(唯讀)",
+        '<span class="ch-cabinet">櫃子*</span>',
+        '<span class="ch-pos">位置(選填)</span>',
+        '<span class="ch-qty">數量(選填)</span>',
+        '<span class="ch-note">備註(選填)</span>',
+    ))
+    assert 'id="e-location"' not in edit_modal, "編輯 modal 不應保留未接入儲存流程的舊位置輸入框"
+    assert all(label in js for label in (
+        "櫃子*", "位置(選填)", "數量(選填)", "備註(選填)"
+    )), "編輯品項手機位置列標示不完整"
 
 
 def test_cabinet_options_function_exists():
@@ -2997,8 +3055,8 @@ def test_settings_cabinets_labels_and_mobile_chip():
     """2026-09-28：櫃子輸入框上方需有固定小標（輸入後仍看得到欄位名稱），手機 chip 列需能進櫃子設定。"""
     html = read_page_with_css(SETTINGS_HTML)
     panel = html[html.index('id="panel-cabinets"'):html.index('id="panel-pw"')]
-    assert '<span class="cab-field-label">櫃子編號 / 名稱 *</span>' in panel
-    assert '<span class="cab-field-label">位置說明（選填）</span>' in panel
+    assert '<span class="cab-field-label">櫃子編號／名稱*</span>' in panel
+    assert '<span class="cab-field-label">位置說明(選填)</span>' in panel
     modal = html[html.index('id="edit-cabinet-modal"'):]
     assert modal.count('class="cab-field-label"') == 2, "編輯櫃子 modal 也需有小標"
     assert ".cab-add-btn { flex: none; }" in html, "新增按鈕不得被擠壓"
@@ -3422,10 +3480,10 @@ def test_filter_panel_switchtab_control():
 def test_mobile_header_can_fit_without_horizontal_clipping():
     """手機 Header 不可讓固定搜尋框與右側工具列把標題推出 viewport"""
     css = read_css_all()
-    assert '.breadcrumb { min-width: 0;' in css
+    assert '.breadcrumb { flex: 1 1 0; min-width: 0;' in css
     assert '.h-search { flex: 1 1 100%;' in css
     assert '.h-search input { width: 100%;' in css
-    assert '.header { flex-wrap: wrap;' in css
+    assert '.header { flex-wrap: wrap; row-gap: 8px;' in css
 
 def test_inventory_mobile_filter_expanded_state_survives_rerender():
     """品牌/分類篩選展開後，重繪不得自動恢復 collapsed"""
@@ -4093,8 +4151,8 @@ def test_prepared_mobile_card_keeps_stock_badge_in_layout():
     """待領出手機卡片資訊欄不被右側數量欄擠壓，badge 可正常排列。"""
     css = read(CSS_PREPARED)
     assert '.prepared-content .m-card .info { padding-right: 0;' in css
-    assert '.prepared-content .m-card .qty-col {' in css
-    assert 'width: 46px; padding-right: 0;' in css
+    # 方案 A：⋯ 移到卡片底部，數量徽章不需為 ⋯ 保留右側內距
+    assert '.prepared-content .prepared-mobile-card .qty-col { padding-right: 0; }' in css
     assert '.prepared-content .prepared-mobile-meta { display: flex;' in css
 
 
@@ -4182,7 +4240,7 @@ def test_qty_merge_preserves_both_contracts():
 
     edit = read(EDIT_JS)
     assert 'input type="text" inputmode="decimal" class="stock-qty"' in edit
-    assert "qtyInputOrToast(_el" in edit
+    assert "qtyInputOrToast(qtyInput" in edit
 
     settings_js = read(js_modules("features/settings/units.js", "features/settings/petty-options.js", "features/settings/gcal.js", "features/settings/page.js", "features/settings/cabinets.js"))
     settings_html = read_page_with_css(SETTINGS_HTML)
@@ -4284,6 +4342,10 @@ def test_prepared_edit_modal_has_destination():
     assert "pe-dest" in html
     assert "pe-name" in html
     assert "pe-qty" in html
+    assert 'id="pe-name-label">品項名稱*' in html
+    assert "廠牌(選填)" in html and "型號(選填)" in html
+    assert "單位(選填)" in html and "準備說明(選填)" in html
+    assert "待領出數量*" in html
 
 
 def test_prepared_edit_uses_unified_patch_contract():
@@ -4303,6 +4365,7 @@ def test_prepared_edit_populates_destination():
     """openPreparedEditModal 填入 destination"""
     js = read(STOCKOUT_MODAL_JS)
     assert "openPreparedEditModal" in js
+    assert "nameLabel.textContent = canEditMaster ? '品項名稱*' : '品項名稱(唯讀)'" in js
     assert "pe-dest" in js
     assert "item.destination" in js
 
@@ -4403,12 +4466,27 @@ def test_transfer_uses_shared_qty_contract():
     assert "Qty.validFor" in js
     assert "Qty.inputTypeOf" in js
     assert "Number(document.getElementById('transfer-qty').value)" not in js
+    html = read(INDEX)
+    assert 'transfer-source-location">來源位置(選填)' in html
+    assert 'transfer-qty">調撥數量*' in html
+    assert 'transfer-target-site">目標庫存區*' in html
+    assert 'transfer-target-location">目標位置(選填)' in html
 
 
-def test_mobile_site_tab_2x2_layout():
-    """手機版 .h-site 使用 flex-wrap:wrap 讓 4 個 tab 排成 2×2。"""
-    css = read_shared_css()
-    assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
+def test_mobile_site_tab_single_row_layout():
+    """手機版 .h-site 四顆站點 chip 排成單行等分（issue #37：標頭高度回到改前以下）。
+
+    版面（不換行、等分）在 shell.css；縮小尺寸屬 chip 外觀，只能由 chip.css 的 .chip--fit 提供。
+    """
+    shell = read(os.path.join(STATIC, "css", "2-layout", "shell.css"))
+    chip = read(os.path.join(STATIC, "css", "3-components", "chip.css"))
+    index = read(INDEX)
+    assert ".h-site {display:flex;flex:1 1 auto;flex-wrap:nowrap" in shell, "手機 .h-site 應為單行 nowrap"
+    assert ".h-site button { flex: 1 1 0; min-width: 0;" in shell, "手機 .h-site 按鈕應等分寬度"
+    assert "calc(50% - 6px)" not in shell, "不可退回 2×2 寬度"
+    assert ".chip--fit" in chip, "chip.css 缺少 .chip--fit 變體"
+    for site in ("office", "warehouse", "van", "truck"):
+        assert re.search(r'class="chip chip--seg chip--fit[^"]*" id="site-%s"' % site, index), f"site-{site} 缺少 chip--fit"
 
 
 
@@ -5012,7 +5090,7 @@ def test_full_load_completion_does_not_remount_preserved_tabs():
     """整頁資料（/api/items）載入完成時，若使用者已切到保留掛載的頁，不可 switchTab 重掛
     （visual 快速切頁測試：整組頁觸發的 full load 回來後，把「報價單上傳」重掛成「報價單」）。"""
     api = read(API_JS)
-    start = api.index("const items = await apiFetch(")
+    start = api.index("apiFetch(`/api/items?site=")
     body = api[start:api.index("loadPreparedBadge();", start)]
     assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) switchTab(appState.currentTab);" in body
     assert "\n    switchTab(appState.currentTab);" not in body
@@ -5025,3 +5103,46 @@ def test_inventory_page_load_does_not_render_after_tab_left():
     body = api[api.index("async function loadInventoryPageImpl"):]
     body = body[body.index("await updateSubInfo();"):body.index("renderInventory();")]
     assert "if (requestId !== appState.inventoryRequestSeq || appState.currentTab !== 'inventory') return;" in body
+
+
+
+def test_form_requiredness_labels_are_consistent_across_create_and_edit_pages():
+    """新增與編輯表單都用 * / (選填) 清楚標示實際必填欄位。"""
+    index = read(INDEX)
+    settings = read(SETTINGS_HTML)
+    quote = read(QUOTATION_RENDER_JS)
+    # issue #39：簽名報表與報價上傳共用 upload-list.js 的表單模板
+    upload_list = read(UPLOAD_LIST_RENDER_JS)
+    work_progress = read(js_modules(*(f"features/work-progress/{name}.js" for name in ("upload", "detail", "page"))))
+    petty_cash = read(PETTY_CASH_MODAL_JS)
+    engineering_cash = read(PETTY_CASH_ENGINEERING_MODAL_JS)
+
+    assert '<label>領出數量*</label>' in index
+    assert '<label>去哪裡（客戶／案場／工地）*</label>' in index
+    assert '<label>去哪裡（客戶／案場／工地）(選填)</label>' in index
+    assert '<label>日期(選填)</label>' in index
+    assert '<label>退回庫存位置*</label>' in index and '<label>退回去向(選填)</label>' in index
+    assert '<label>組成材料*（每組至少新增一項，並填寫品項與數量）</label>' in index
+    assert '<label>備註(選填)</label>' in index and '<label>整組名稱*</label>' in index
+    assert '<label>分類位置(選填)</label>' in index
+    assert '<label>目前密碼*</label>' in settings and '<label>目前密碼*</label>' in index
+    assert '櫃子編號／名稱*' in settings and '位置說明(選填)' in settings
+    assert 'JSON 憑證*(新增時需上傳檔案或填寫路徑擇一；編輯時選填)' in settings
+
+    assert '報價日期<span class="dsr-required">*</span>' in quote
+    assert '客戶名稱<span class="dsr-required">*</span>' in quote
+    assert '報價單號(選填)' in quote and '聯絡人／電話(選填)' in quote
+    assert '<th>品項名稱*</th>' in quote and '<th>數量*</th>' in quote and '<th>單價*</th>' in quote
+    assert '<th>實際數量(選填)</th>' in read(STOCKTAKE_JS)
+    for source in (upload_list,):
+        assert '報表日期（YYYY-MM-DD）*</label>' in source
+        assert '上傳人姓名*</label>' in source
+        assert '備註(選填)</label>' in source
+        assert '替換檔案(選填)</label>' in source
+    assert '<label for="wpr-uploader">回報人顯示名稱<b>*</b></label>' in work_progress
+    assert '<label for="wpr-edit-uploader">回報人顯示名稱*</label>' in work_progress
+    assert '<label for="wpr-note">工作進度(選填)</label>' in work_progress
+    assert '<label for="wpr-edit-note">工作進度(選填)</label>' in work_progress
+    assert '<label>上期餘額(選填)</label>' in petty_cash
+    assert '<label>檔名備註(選填)</label>' in engineering_cash
+    assert '<label>統編(選填)</label>' in engineering_cash

@@ -12,12 +12,13 @@ import { checkReminder, switchTab } from '../features/shell/app.js';
 
 export async function loadData(options) {
   const full = Boolean(options && options.full);
+  const refreshDestinations = Boolean(options && options.refreshDestinations);
   const requestId = ++appState.dataRequestSeq;
   if (appState.dataAbortController) appState.dataAbortController.abort();
   // P1-D：mutation 後的 loadData 預設刷新 global summary；搜尋/換頁/filter 走 wrapper（不刷）。
   const refreshSummary = !options || options.refreshSummary !== false;
   if (!full && appState.currentTab === 'inventory') {
-    await loadInventoryPageImpl(appState.INVENTORY_META.page || 1, refreshSummary);
+    await loadInventoryPageImpl(appState.INVENTORY_META.page || 1, refreshSummary, true, refreshDestinations);
     return;
   }
   const controller = new AbortController();
@@ -35,12 +36,26 @@ export async function loadData(options) {
       loadPreparedBadge();
       return;
     }
-    const items = await apiFetch(`/api/items?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal });
+    const refreshFacets = appState.currentTab === 'inventory';
+    // facets 失敗（HTTP 錯誤）不擋列表，只是篩選選項沿用舊資料；網路錯誤 / 取消則照常中止
+    const [items, facets] = await Promise.all([
+      apiFetch(`/api/items?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal }),
+      refreshFacets
+        ? apiFetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
+          .catch(e => (e.status ? null : Promise.reject(e)))
+        : Promise.resolve(null),
+    ]);
     if (requestId !== appState.dataRequestSeq || siteAtRequest !== appState.currentSite) return;
     appState.ALL_ITEMS = items;
     appState.fullItemsLoadedSite = siteAtRequest;
     appState.inventoryLoadedSite = '';
-    buildDatalists();
+    if (facets) {
+      appState.INVENTORY_FACETS = facets;
+      appState.inventoryFacetsLoadedSite = siteAtRequest;
+      reconcileInventoryFilters(facets);
+    }
+    if (refreshDestinations) await refreshDestinationsAfterMutation();
+    buildDatalists(refreshDestinations);
     buildFilterPanel();
     checkReminder();
     updateNotifications();
@@ -63,8 +78,21 @@ export async function loadInventoryPage(page) {
   return loadInventoryPageImpl(page, false);
 }
 
+function reconcileInventoryFilters(facets) {
+  let changed = false;
+  const validBrands = new Set(Object.keys((facets && facets.brands) || {}));
+  const validCategories = new Set(Object.keys((facets && facets.categories) || {}));
+  for (let i = appState.currentBrands.length - 1; i >= 0; i--) {
+    if (!validBrands.has(appState.currentBrands[i])) { appState.currentBrands.splice(i, 1); changed = true; }
+  }
+  for (let i = appState.currentCategories.length - 1; i >= 0; i--) {
+    if (!validCategories.has(appState.currentCategories[i])) { appState.currentCategories.splice(i, 1); changed = true; }
+  }
+  return changed;
+}
+
 // refreshSummary=true：mutation 成功後，global summary cache 已過期才重刷。
-async function loadInventoryPageImpl(page, refreshSummary) {
+async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refreshDestinations) {
   appState.dataRequestSeq++;
   if (appState.dataAbortController) appState.dataAbortController.abort();
   const requestId = ++appState.inventoryRequestSeq;
@@ -84,17 +112,26 @@ async function loadInventoryPageImpl(page, refreshSummary) {
     if (search && search.value.trim()) params.set('search', search.value.trim());
     if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
     if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
-    const shouldLoadFacets = appState.inventoryFacetsLoadedSite !== siteAtRequest;
+    const shouldLoadFacets = Boolean(refreshFacets) || appState.inventoryFacetsLoadedSite !== siteAtRequest;
     // facets 失敗（HTTP 錯誤）不擋列表，只是篩選選項沿用舊資料；網路錯誤 / 取消則照常中止
     const facetsRequest = shouldLoadFacets
       ? apiFetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
         .catch(e => (e.status ? null : Promise.reject(e)))
       : Promise.resolve(null);
-    const [body, facets] = await Promise.all([
+    const [pageBody, facets] = await Promise.all([
       apiFetch(`/api/items?${params}`, { signal: controller.signal }),
       facetsRequest,
     ]);
+    let body = pageBody;
     if (requestId !== appState.inventoryRequestSeq || siteAtRequest !== appState.currentSite) return;
+    if (facets && reconcileInventoryFilters(facets)) {
+      if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
+      else params.delete('brands');
+      if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
+      else params.delete('categories');
+      body = await apiFetch(`/api/items?${params}`, { signal: controller.signal });
+      if (requestId !== appState.inventoryRequestSeq || siteAtRequest !== appState.currentSite) return;
+    }
     appState.ALL_ITEMS = body.items || [];
     appState.INVENTORY_META = {
       page: body.page || pageAtRequest,
@@ -105,10 +142,12 @@ async function loadInventoryPageImpl(page, refreshSummary) {
     if (facets) {
       appState.INVENTORY_FACETS = facets;
       appState.inventoryFacetsLoadedSite = siteAtRequest;
+      reconcileInventoryFilters(facets);
     }
     appState.inventoryLoadedSite = siteAtRequest;
     appState.fullItemsLoadedSite = '';
-    buildDatalists();
+    if (refreshDestinations) await refreshDestinationsAfterMutation();
+    buildDatalists(refreshDestinations);
     buildFilterPanel();
     checkReminder();
     updateNotifications();
@@ -208,4 +247,13 @@ export async function loadDestinations() {
     document.getElementById('dest-list').innerHTML =
       appState.DESTINATIONS.map(d => `<option value="${esc(d)}">`).join('');
   } catch (e) { if (e.name !== 'AbortError') console.error('[loadDestinations] 去向清單載入失敗', e); }
+}
+
+// Mutation-triggered item reloads must discard the per-site suggestion cache before rendering forms again.
+export async function refreshDestinationsAfterMutation() {
+  appState.destinationsLoadedSite = '';
+  appState.DESTINATIONS = [];
+  const list = document.getElementById('dest-list');
+  if (list) list.innerHTML = '';
+  await loadDestinations();
 }

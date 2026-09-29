@@ -21,7 +21,7 @@ import { closeInventoryStatusModal, getInventoryStatus, renderInventoryDashboard
 
 // 從 ALL_ITEMS 建立廠牌與位置的 datalist 建議清單，並載入去向建議
 
-export function buildDatalists() {
+export function buildDatalists(skipDestinationLoad) {
   const facetReady = appState.inventoryLoadedSite === appState.currentSite && appState.INVENTORY_FACETS;
   const brands = facetReady && Object.keys(appState.INVENTORY_FACETS.brands || {}).length
     ? Object.keys(appState.INVENTORY_FACETS.brands).sort()
@@ -31,7 +31,7 @@ export function buildDatalists() {
     : [...new Set(appState.ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
   document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
   document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${esc(l)}">`).join('');
-  if (appState.destinationsLoadedSite !== appState.currentSite) loadDestinations();
+  if (!skipDestinationLoad && appState.destinationsLoadedSite !== appState.currentSite) loadDestinations();
 }
 
 

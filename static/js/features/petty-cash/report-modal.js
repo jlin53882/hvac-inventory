@@ -83,12 +83,12 @@ export async function pcOpenReportModal(id) {
           </div>
           <div id="pc-step-1">
             <div class="pc-form-grid pc-form-grid--two">
-              <div class="pc-field"><label>報表期間（起） <span class="pc-required">*</span></label><input id="pc-m-start" type="date" value="${esc(d.start_date)}"></div>
-              <div class="pc-field"><label>報表期間（迄） <span class="pc-required">*</span></label><input id="pc-m-end" type="date" value="${esc(d.end_date)}"></div>
-              <div class="pc-field"><label>檔名文字 <span class="pc-required">*</span></label><input id="pc-m-filetext" type="text" placeholder="例：資材" value="${esc(d.filename_text)}" oninput="PettyCash.pcUpdateFilenamePreview()"></div>
-              <div class="pc-field"><label>上傳人姓名 <span class="pc-required">*</span></label><input id="pc-m-uploader" type="text" list="pc-persons-list" placeholder="例：王小明" value="${esc(d.upload_person)}" oninput="PettyCash.pcUploaderChanged()"></div>
-              <div class="pc-field"><label>製表人 <span class="pc-required">*</span></label><input id="pc-m-prepared" type="text" maxlength="50" placeholder="預設同上傳人，可修改" value="${esc(d.prepared_by)}"></div>
-              <div class="pc-field"><label>上期餘額</label><input id="pc-m-opening" type="number" min="0" step="0.01" value="${esc(d.opening_balance)}" oninput="PettyCash.pcOpeningEdited()"></div>
+              <div class="pc-field"><label>報表期間（起）<span class="pc-required">*</span></label><input id="pc-m-start" type="date" value="${esc(d.start_date)}"></div>
+              <div class="pc-field"><label>報表期間（迄）<span class="pc-required">*</span></label><input id="pc-m-end" type="date" value="${esc(d.end_date)}"></div>
+              <div class="pc-field"><label>檔名文字<span class="pc-required">*</span></label><input id="pc-m-filetext" type="text" placeholder="例：資材" value="${esc(d.filename_text)}" oninput="PettyCash.pcUpdateFilenamePreview()"></div>
+              <div class="pc-field"><label>上傳人姓名<span class="pc-required">*</span></label><input id="pc-m-uploader" type="text" list="pc-persons-list" placeholder="例：王小明" value="${esc(d.upload_person)}" oninput="PettyCash.pcUploaderChanged()"></div>
+              <div class="pc-field"><label>製表人<span class="pc-required">*</span></label><input id="pc-m-prepared" type="text" maxlength="50" placeholder="預設同上傳人，可修改" value="${esc(d.prepared_by)}"></div>
+              <div class="pc-field"><label>上期餘額(選填)</label><input id="pc-m-opening" type="number" min="0" step="0.01" value="${esc(d.opening_balance)}" oninput="PettyCash.pcOpeningEdited()"></div>
             </div>
             <datalist id="pc-persons-list">${pcPersons.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
             <div class="pc-filename-preview" id="pc-filename-preview"></div>
@@ -324,11 +324,11 @@ export function pcOpenEntryModal(idx) {
             <button class="chip chip--seg chip--danger pc-step pc-step--expense${pcEntryType === 'expense' ? ' is-active' : ''}" id="pc-type-expense" onclick="PettyCash.pcEntrySetType('expense')">💸 支出</button>
           </div>
           <div class="pc-form-grid pc-form-grid--two">
-            <div class="pc-field"><label>日期 <span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
-            <div class="pc-field"><label>科目</label><select id="pc-e-category" onchange="PettyCash.pcGeneralCategoryChanged(this)">${pcGeneralCategoryOptions(src.category || '')}</select></div>
+            <div class="pc-field"><label>日期<span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
+            <div class="pc-field"><label>科目(選填)</label><select id="pc-e-category" onchange="PettyCash.pcGeneralCategoryChanged(this)">${pcGeneralCategoryOptions(src.category || '')}</select></div>
           </div>
           <div class="pc-field u-mt-10"><label>摘要 <span class="pc-required" id="pc-e-desc-req">*</span></label><input id="pc-e-desc" type="text" placeholder="例：零用金 / 畚箕 ×1" value="${esc(src.description || '')}"></div>
-          <div class="pc-field u-mt-10"><label>總金額 <span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" oninput="PettyCash.pcEntryAmountHint()"></div>
+          <div class="pc-field u-mt-10"><label>總金額<span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" oninput="PettyCash.pcEntryAmountHint()"></div>
           <div id="pc-entry-items-wrap" class="u-mt-10" style="${pcEntryType === 'income' ? 'display:none' : ''}">
             <div class="pc-entry-items-head">
               <strong>明細項目</strong>

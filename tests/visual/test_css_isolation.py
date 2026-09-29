@@ -205,3 +205,90 @@ def test_tab_switch_leaves_no_page_scope_behind(page, live_server, tab):
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(200)
     assert page.evaluate(_SCOPE_JS) == direct
+
+
+# ---------- issue #37：手機標頭（公司 / 倉庫 chip 單行 + 頁面標題可見） ----------
+def test_mobile_header_site_chips_single_row(page, live_server, viewport):
+    """手機：四顆站點 chip 同一列、高 28px，標題「單一庫存」可見，標頭高度不超過改前的 133px；桌機 chip 維持 32px。"""
+    harness.open_tab(page, live_server, "inventory")
+    ids = ("office", "warehouse", "van", "truck")
+    boxes = [page.eval_on_selector(f"#site-{i}", "el => { const r = el.getBoundingClientRect(); return [r.top, r.height]; }") for i in ids]
+    if viewport[0] != "mobile":
+        assert {round(h) for _, h in boxes} == {32}
+        return
+    assert len({round(top) for top, _ in boxes}) == 1, f"站點 chip 沒排在同一列：{boxes}"
+    assert {round(h) for _, h in boxes} == {28}
+    assert page.eval_on_selector(".breadcrumb", "el => el.getBoundingClientRect().width") > 40, "頁面標題被擠掉"
+    assert page.eval_on_selector(".header", "el => el.getBoundingClientRect().height") <= 133
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "標頭造成橫向捲動"
+
+
+# ---------- 待領出頁手機卡片（issue #37 後續：方案 A） ----------
+def test_prepared_mobile_card_layout(page, live_server, viewport):
+    """待領出手機卡片（方案 A）：數量徽章在右上且完整可見，「已領出」與 ⋯ 在底部同一列、不與數量重疊。"""
+    if viewport[0] != "mobile":
+        pytest.skip("只適用手機卡片")
+    harness.open_tab(page, live_server, "prepared")
+    box = page.evaluate("""() => {
+      const card = document.querySelector('.prepared-mobile-card');
+      const rect = s => card.querySelector(s).getBoundingClientRect();
+      const c = card.getBoundingClientRect(), q = rect('.prepared-mobile-qty');
+      const btns = [...card.querySelectorAll('.prepared-mobile-meta .btn')].map(b => b.getBoundingClientRect());
+      return {
+        inside: q.left >= c.left && q.right <= c.right && q.top >= c.top,
+        oldMore: !!card.querySelector('.more-btn'),
+        btnCount: btns.length,
+        sameRow: new Set(btns.map(r => Math.round(r.top))).size === 1,
+        below: btns.every(r => r.top >= q.bottom),
+      };
+    }""")
+    assert box["inside"], "待領出數量徽章超出卡片"
+    assert not box["oldMore"], "右上角不應再有 ⋯ 浮動按鈕"
+    assert box["btnCount"] == 2 and box["sameRow"] and box["below"], f"底部動作列異常：{box}"
+
+
+def test_prepared_kit_subitems_are_styled(page, live_server):
+    """整組子品項清單屬於待領出頁，樣式必須限定在 [data-page=prepared]（曾誤留在庫存頁 CSS，導致縮圖與文字失去樣式）。"""
+    harness.open_tab(page, live_server, "prepared")
+    page.evaluate("""() => {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = '<div class="kit-subitem" id="t-sub"><div class="prepared-kit-thumb"></div><span class="kit-subitem-name">x</span></div>';
+      document.getElementById('content').appendChild(wrap);
+    }""")
+    assert _computed(page, "#t-sub", "display") == "flex"
+    assert _computed(page, "#t-sub", "font-size") == "12px"
+
+
+def test_prepared_mobile_card_viewer_has_no_actions(page, live_server, viewport):
+    """唯讀（無 stockout 權限）：手機卡片不出現「已領出」與 ⋯，但庫存資訊與數量徽章仍在。"""
+    if viewport[0] != "mobile":
+        pytest.skip("只適用手機卡片")
+    harness.open_tab(page, live_server, "prepared")
+    # 唯讀：登入者除了 stockout 以外的權限不變（hasPerm 讀 core/session.js 的 currentUser.permissions）
+    page.evaluate("hvac('core/session.js').currentUser.permissions.stockout = false; Prepared.renderPrepared()")
+    page.wait_for_selector(".prepared-mobile-card .prepared-mobile-stock")
+    assert page.locator(".prepared-mobile-meta .btn").count() == 0
+    assert page.locator(".prepared-mobile-card .prepared-mobile-qty").count() >= 1
+    assert page.locator(".prepared-mobile-card .more-btn").count() == 0
+
+
+def test_prepared_mobile_kit_subitems_toggle_and_long_unit(page, live_server, viewport):
+    """整組子品項可展開 / 收合且樣式正確；超長單位不造成橫向捲動。"""
+    if viewport[0] != "mobile":
+        pytest.skip("只適用手機卡片")
+    harness.open_tab(page, live_server, "prepared")
+    page.evaluate("""() => {
+      const holder = document.createElement('div');
+      holder.id = 't-kit';
+      holder.innerHTML = hvac('features/prepared/page.js').renderKitSubItemsMobile({is_kit: true, components: [
+        {item_id: 1, brand: '大金', name: '遙控器', code: 'ARC-480', need_qty: 2, unit: '個', has_photo: false}]});
+      document.querySelector('.prepared-mobile-list').appendChild(holder);
+      document.querySelector('.prepared-mobile-qty small').textContent = '待領出 ' + '超長單位'.repeat(6);
+    }""")
+    assert _computed(page, "#t-kit .kit-subitems-list", "display") == "none"
+    page.click("#t-kit .kit-subitems-toggle")
+    assert _computed(page, "#t-kit .kit-subitems-list", "display") == "block"
+    assert _computed(page, "#t-kit .kit-subitem", "display") == "flex"
+    page.click("#t-kit .kit-subitems-toggle")
+    assert _computed(page, "#t-kit .kit-subitems-list", "display") == "none"
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "超長單位造成橫向捲動"

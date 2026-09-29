@@ -1,6 +1,6 @@
 // 庫存管理系統 - 待領出頁渲染（v8 拆分）
 
-import { buildQtyNum, buildThumb, mobileCardShell, photoSrc } from '../../components/card.js';
+import { buildThumb, mobileCardShell, photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
 import { isMobileView, openSheet } from '../../core/bottomsheet.js';
 import { loadData } from '../../core/data.js';
@@ -51,7 +51,7 @@ function renderKitSubItems(item) {
 }
 
 // 手機版整組子品項展開（card 格式）
-function renderKitSubItemsMobile(item) {
+export function renderKitSubItemsMobile(item) {
   if (!item.is_kit || !item.components || !item.components.length) return '';
   let html = '<div class="kit-subitems-mobile-wrap">';
   html += '<div class="kit-subitems-toggle" onclick="Prepared.toggleKitSubItems(this)">';
@@ -158,18 +158,19 @@ export async function renderPrepared() {
     if (isM) {
       html += '<div class="prepared-mobile-list">';
       items.forEach(function(item) {
+        const qtyText = String(Qty.disp(item.prepared_qty, item.unit));
+        const stockText = String(Qty.disp(item.qty, item.unit));
         html += mobileCardShell({
           reverted: false,
           cardClass: 'prepared-mobile-card',
-          moreBtnHTML: isViewer ? '' : `<button class="more-btn" onclick="Prepared.openPreparedSheet(${item.id})">⋯</button>`,
+          moreBtnHTML: '',
           thumb: buildThumb(item.id, item.has_photo, item.name, '📷'),
           nameHTML: `<span class="prepared-mobile-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}</span>${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
           subHTML: `<span class="prepared-mobile-model">${kitModelHTML(item)}</span>`,
-          extraHTML: `<div class="prepared-mobile-location">位置：${esc(item.location || '未標示')}</div>${item.destination ? '<div class="prepared-card-dest">📋 ' + esc(item.destination) + '</div>' : ''}<div class="prepared-mobile-meta"><span class="prepared-status-badge">📦 待領出</span><span class="prepared-stock-badge">目前庫存 ${Qty.disp(item.qty, item.unit)} ${esc(item.unit)}</span></div>`,
-          qtyHTML: buildQtyNum(item.prepared_qty, item.unit, 'qty-violet'),
-          actionsHTML: ''
+          extraHTML: `<div class="prepared-mobile-location">📍 ${esc(item.location || '未標示')}</div>${item.destination ? '<div class="prepared-card-dest">📋 ' + esc(item.destination) + '</div>' : ''}`,
+          qtyHTML: `<div class="prepared-mobile-qty"><b>${esc(qtyText)}</b><small>待領出 ${esc(item.unit)}</small></div>`,
+          actionsHTML: renderKitSubItemsMobile(item) + `<div class="prepared-mobile-meta"><span class="prepared-mobile-stock">庫存 ${esc(stockText)} ${esc(item.unit)}</span>${isViewer ? '' : `<button class="btn btn--out btn--sm" onclick="Stockout.openPreparedOutModal(${item.id})">🚚 已領出</button><button class="btn btn--secondary btn--sm" onclick="Prepared.openPreparedSheet(${item.id})" aria-label="更多操作">⋯</button>`}</div>`
         });
-        html += renderKitSubItemsMobile(item);
       });
       html += '</div>';
     } else {

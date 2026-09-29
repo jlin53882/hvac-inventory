@@ -3,6 +3,7 @@
 import { buildQtyNum, buildThumb, mobileCardShell, photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
 import { isMobileView, openSheet } from '../../core/bottomsheet.js';
+import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { Qty } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { appState } from '../../core/state.js';
@@ -190,6 +191,7 @@ export async function deleteStockoutRecord(movementId) {
   try {
     await apiFetch(`/api/stockouts/${movementId}`, { method: 'DELETE', fallback: '刪除失敗' });
     toast('✅ 已刪除紀錄', 'success');
+    await refreshDestinationsAfterMutation();
     renderStockOuts();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');

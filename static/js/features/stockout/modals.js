@@ -2,7 +2,7 @@
 
 import { photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../../core/data.js';
+import { loadData, refreshDestinationsAfterMutation } from '../../core/data.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { appState } from '../../core/state.js';
@@ -50,7 +50,7 @@ export async function submitStockOut() {
     await apiFetch('/api/stockout', { method: 'POST', json: { item_id: stockoutState.outItemId, qty: qty, destination: dest, note: note, location: location }, fallback: '領出失敗' });
     closeModalForce('out-modal');
     toast(`✅ 已領出 ${Qty.disp(qty, item.unit)} ${item.unit} → ${dest}`, 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -88,7 +88,7 @@ export async function submitNonStockOut() {
     await apiFetch('/api/stockout/nonstock', { method: 'POST', json: { name: name, code: code, unit: unit, qty: qty, destination: dest, note: note }, fallback: '領出失敗' });
     closeModalForce('nonstock-out-modal');
     toast(`✅ 已領出 ${qty} ${unit} → ${dest}`, 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -187,7 +187,7 @@ export async function submitPreparedOut() {
     await apiFetch(`/api/items/${stockoutState.preparedOutItemId}/prepared-out`, { method: 'POST', json: { qty: qty, note: dest }, fallback: '領出失敗' });
     closeModalForce('prepared-out-modal');
     toast(`✅ 已領出 ${Qty.disp(qty, item.unit)} ${item.unit} → ${dest}（庫存已扣）`, 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -297,7 +297,7 @@ export async function submitReturnStockout() {
       editStockoutReturnId = null;
       closeModalForce('return-stockout-modal');
       toast('✅ 已更新退回紀錄', 'success');
-      await loadData();
+      await loadData({ refreshDestinations: true });
     } catch (e) { toast('⚠️ ' + e.message, 'error'); }
     return;
   }
@@ -314,7 +314,7 @@ export async function submitReturnStockout() {
     await apiFetch(`/api/stockouts/${returnStockoutId}/return`, { method: 'POST', json: body, fallback: '退回失敗' });
     closeModalForce('return-stockout-modal');
     toast('↩️ 已退回，數量已加回庫存', 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -357,7 +357,7 @@ export async function submitEditStockout() {
     await apiFetch(`/api/stockouts/${stockoutState.editStockoutId}`, { method: 'PATCH', json: body, fallback: '儲存失敗' });
     closeModalForce('edit-stockout-modal');
     toast('✅ 已更新已領出記錄', 'success');
-    await loadData();
+    await loadData({ refreshDestinations: true });
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -437,6 +437,7 @@ export async function deleteStockoutReturn(movementId) {
   try {
     await apiFetch(`/api/stockout-returns/${movementId}`, { method: 'DELETE', fallback: '刪除退回紀錄失敗' });
     toast('✅ 已刪除退回紀錄', 'success');
+    await refreshDestinationsAfterMutation();
     await renderStockOuts();
   } catch (e) { toast('⚠️ ' + e.message, 'error'); }
 }
@@ -459,6 +460,8 @@ export function openPreparedEditModal(id) {
   _preparedEditContext = true;
   appState.editItemId = id;  // 復用 editItemId 供共用流程
   const canEditMaster = canEditPreparedMaster(item);
+  const nameLabel = document.getElementById('pe-name-label');
+  if (nameLabel) nameLabel.textContent = canEditMaster ? '品項名稱*' : '品項名稱(唯讀)';
   ['pe-name', 'pe-brand', 'pe-code', 'pe-unit'].forEach(function(fieldId) {
     const field = document.getElementById(fieldId);
     if (field) field.disabled = !canEditMaster;

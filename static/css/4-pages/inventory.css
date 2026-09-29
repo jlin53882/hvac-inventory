@@ -734,35 +734,6 @@
   [data-page="inventory"] #qtyd-input { font-size: var(--fs-16); min-height: 46px; }
 }
 
-/* ========== 整組子品項展開（待領出頁） ========== */
-[data-page="inventory"] .kit-subitems-row td { padding: 0 16px 8px; background: var(--c-surface-2); }
-[data-page="inventory"] .kit-subitems-toggle {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 10px; margin: 4px 0;
-  font-size: var(--fs-12); color: var(--c-text-2); cursor: pointer;
-  border-radius: var(--r-sm); background: var(--c-border);
-  user-select: none;
-}
-[data-page="inventory"] .kit-subitems-toggle:hover { background: var(--c-border-strong); }
-[data-page="inventory"] .kit-subitems-arrow { font-size: var(--fs-11); transition: transform .15s; }
-[data-page="inventory"] .kit-subitems-list { padding: 4px 0; }
-[data-page="inventory"] .kit-subitem {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 8px; font-size: var(--fs-12);
-  border-bottom: 1px solid var(--c-surface-2);
-}
-[data-page="inventory"] .kit-subitem:last-child { border-bottom: none; }
-[data-page="inventory"] .kit-subitem-name { flex: 1; font-weight: var(--fw-medium); }
-[data-page="inventory"] .kit-subitem-code { color: var(--c-muted); font-size: var(--fs-11); }
-[data-page="inventory"] .kit-subitem-qty { font-weight: var(--fw-medium); color: var(--c-text-2); white-space: nowrap; }
-
-/* ========== 手機版整組子品項 ========== */
-[data-page="inventory"] .kit-subitems-mobile-wrap { padding: 0 12px 8px; }
-[data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-toggle { cursor: pointer; font-size: var(--fs-12); color: var(--c-prepare-solid); padding: 4px 0; }
-[data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--c-surface-2); font-size: var(--fs-12); }
-[data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem:last-child { border-bottom: none; }
-
-
 /* 表格欄寬、數量狀態色、批次模式卡片內距、批次確認清單（原本是 JS inline style） */
 [data-page="inventory"] .tbl-wrap th.col-check { width: 30px; }
 [data-page="inventory"] .tbl-wrap th.col-thumb { width: 44px; }
