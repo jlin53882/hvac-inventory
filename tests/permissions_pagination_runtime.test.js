@@ -150,7 +150,19 @@ function decodeHtml(value) {
 }
 
 function response(payload, status = 200) {
-  return { status, ok: status >= 200 && status < 300, statusText: 'OK', json: async () => payload };
+  return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+// perms.js 透過 utils.js 的 apiFetch 呼叫 API；載入正式實作，不另寫替身
+function extractFunction(source, name) {
+  const start = source.search(new RegExp(`(async )?function ${name}\\(`));
+  assert(start >= 0, `${name} must exist in utils.js`);
+  let depth = 0;
+  for (let i = source.indexOf(') {', start) + 2; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
+  }
+  throw new Error(`${name} is not closed`);
 }
 
 function buildPermissions() {
@@ -193,7 +205,10 @@ async function setup() {
     jsStr: value => String(value).replaceAll("'", "\\'"),
   };
   context.window = context;
-  vm.runInNewContext(fs.readFileSync('static/js/perms.js', 'utf8'), context, { filename: 'static/js/perms.js' });
+  vm.createContext(context);
+  const utils = fs.readFileSync('static/js/utils.js', 'utf8');
+  for (const name of ['apiErrorMessage', 'apiFetch']) vm.runInContext(extractFunction(utils, name), context);
+  vm.runInContext(fs.readFileSync('static/js/perms.js', 'utf8'), context, { filename: 'static/js/perms.js' });
   await document.dispatchReady();
   await new Promise(resolve => setTimeout(resolve, 20));
   return { context, document };

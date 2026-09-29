@@ -1,15 +1,13 @@
 // units.js — 單位動態清單共用元件（2026-08-16）
-// 依賴：utils.js（esc/toast/hasPerm——hasPerm 在 utils.js:4）、api.js（fetch）
+// 依賴：utils.js（esc/toast/hasPerm/apiFetch——hasPerm 在 utils.js:4）
 var unitList = [];          // 全量（含停用）——var：跨檔慣例（globals.js）
 var unitListActive = [];    // 啟用中（select 用）
 
 async function loadUnits() {
   try {
-    const res = await fetch('/api/units');
-    if (!res.ok) { console.error('[loadUnits] /api/units 失敗', res.status); return; }
-    unitList = await res.json();
+    unitList = await apiFetch('/api/units');
     unitListActive = unitList.filter(u => u.is_active);
-  } catch (e) { console.error('[loadUnits] 網路錯誤', e); }
+  } catch (e) { console.error('[loadUnits] /api/units 失敗', e.status, e.message); }
 }
 
 // 填充 select：active 單位 + 若 current 不在清單（歷史值）→ 補「（歷史）xxx」並選中
@@ -76,19 +74,18 @@ function openUnitQuickAdd(sel, addBtn) {
       return;
     }
     try {
-      const res = await fetch('/api/units', {
+      const data = await apiFetch('/api/units', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name }),
+        fallback: '新增失敗'
       });
-      const data = await res.json();
-      if (!res.ok) { toast(apiErrorMessage(data.detail) || '新增失敗', 'error'); return; }
       unitList.push(data);
       unitListActive = unitList.filter(u => u.is_active);
       box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = '';
       fillUnitSelect(sel, name);
       toast(`✅ 單位「${name}」已新增`, 'success');
-    } catch (e) { console.error('[openUnitQuickAdd] 新增單位失敗', e); toast('新增失敗', 'error'); }
+    } catch (e) { console.error('[openUnitQuickAdd] 新增單位失敗', e); toast(e.message, 'error'); }
   };
   cancel.onclick = () => { box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = ''; };
 }

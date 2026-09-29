@@ -795,6 +795,39 @@ def test_structured_api_error_messages_render_readably():
     assert result.returncode == 0, f"API 錯誤訊息測試失敗：\n{result.stdout}\n{result.stderr}"
 
 
+def test_api_fetch_runtime_contract():
+    """apiFetch（utils.js）：JSON / 204 / 字串與結構化 detail / 非 JSON 錯誤頁 / 網路錯誤 / AbortError / 401（issue #39）。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "api_fetch_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,
+    )
+    assert result.returncode == 0, f"apiFetch 測試失敗：\n{result.stdout}\n{result.stderr}"
+
+
+def test_api_fetch_migrated_callers_keep_requests_and_messages():
+    """設定頁 / 單位 / 行事曆 Key 改用 apiFetch 後，請求內容與各自的成功 / 失敗訊息不變。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "api_fetch_migration_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,
+    )
+    assert result.returncode == 0, f"apiFetch 遷移測試失敗：\n{result.stdout}\n{result.stderr}"
+
+
+# 已遷移到 apiFetch 的檔案：不可再自行呼叫 fetch 解析回應（其餘檔案列在 issue #39 後續清單，逐頁遷移後加入）
+API_FETCH_MIGRATED_JS = ("settings.js", "units.js", "modals/gcal-key.js", "perms.js")
+
+
+def test_api_fetch_migrated_files_do_not_call_fetch_directly():
+    js_root = Path(BASE_DIR) / "static" / "js"
+    raw = [
+        f"{rel}:{line_number}:{line.strip()}"
+        for rel in API_FETCH_MIGRATED_JS
+        for line_number, line in enumerate((js_root / rel).read_text(encoding="utf-8").splitlines(), 1)
+        if re.search(r"(?<![\w$.])fetch\(", line)
+    ]
+    assert not raw, "已遷移檔案請改用 apiFetch：\n" + "\n".join(raw)
+
+
 def test_petty_cash_settings_options_domain_layout():
     """零用金設定 domain：一般只有科目，工程分開管理分類與項目（2026-09-13）。"""
     html = read_page_with_css(SETTINGS_HTML)
@@ -1062,10 +1095,10 @@ def test_settings_js_orphan_group_ui():
     assert "grp-head" in js and "grp-body" in js  # 分組展開結構（舊 code 無）
     assert "consolidateGroup(" in js           # 組底整組快速套用（複用既有 consolidate）
     # 2026-08-28 稽核：consolidateGroup 曾用 `data.affected` 但 `const data`/`res` 未宣告
-    # → 收編成功 toast 拋 ReferenceError。鎖定 res+data 都被宣告（bug 版必紅）。
+    # → 收編成功 toast 拋 ReferenceError。鎖定 data 由 apiFetch 回傳並宣告（bug 版必紅）；
+    # 成功 toast 的實際執行由 tests/api_fetch_migration_runtime.test.js 驗證（issue #39 改用 apiFetch）。
     grp_func = js[js.find("function consolidateGroup"):]
-    assert "const res = await fetch('/api/units/consolidate'" in grp_func
-    assert "const data = await res.json();" in grp_func
+    assert "const data = await apiFetch('/api/units/consolidate'" in grp_func
     assert "data.affected" in grp_func
 
 
@@ -2937,7 +2970,9 @@ def test_settings_cabinet_single_edit_and_delete_reason():
     assert js.count("function editCabinet(") == 1
     assert "prompt('編輯櫃子編號/名稱'" not in js
     delete_fn = js[js.index("async function deleteCabinet("):js.index("async function initCabinetsTab(")]
-    assert "apiErrorMessage(err.detail) || '刪除失敗'" in delete_fn
+    # apiFetch 以 apiErrorMessage(detail) || fallback 組訊息；409 原因的實際顯示由 api_fetch_migration_runtime.test.js 驗證
+    assert "apiFetch(`/api/cabinets/${cabinetId}`, { method: 'DELETE', fallback: '刪除失敗' })" in delete_fn
+    assert "toast('⚠️ ' + e.message, 'error')" in delete_fn
 
 
 def test_every_item_photo_thumbnail_opens_lightbox():

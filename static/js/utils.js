@@ -144,3 +144,39 @@ function toast(msg, type) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.className = 'toast', 3500);
 }
+
+// ========== 共用 API 呼叫 ==========
+/**
+ * 呼叫後端 API 並解析回應；錯誤一律丟出已格式化、可直接顯示的訊息。
+ * - 經 window.fetch 送出，保留 auth.js 的 401 轉登入攔截；不處理頁面狀態、不 toast（由呼叫端決定）。
+ * - 成功：204 / 205 / 空內容回傳 null，其餘回傳解析後的 JSON；成功但 JSON 格式錯誤視為失敗。
+ * - 失敗：丟出 name 為 'ApiError' 的 Error：message 經 apiErrorMessage 格式化（沒有可讀訊息時用 fallback）、
+ *   status 為 HTTP 狀態（網路錯誤為 0）、detail 保留後端原始 detail 供呼叫端判斷。
+ * - AbortError 原樣丟出，讓呼叫端可以忽略被取消的請求。
+ * - 檔案下載（blob）不適用，請直接用 fetch + res.blob()。
+ * @param {string} url API 路徑。
+ * @param {RequestInit & {fallback?: string}} [options] fetch 參數；fallback 為後端沒有可讀訊息時顯示的文字。
+ * @returns {Promise<any>} 解析後的 JSON，沒有內容時為 null。
+ */
+async function apiFetch(url, options = {}) {
+  const { fallback, ...init } = options;
+  const fail = (message, status, detail) => Object.assign(new Error(message), { name: 'ApiError', status, detail });
+  let res, text;
+  try {
+    res = await fetch(url, init);
+    text = res.status === 204 || res.status === 205 ? '' : await res.text();
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    throw fail(fallback || '網路連線失敗，請稍後再試', res ? res.status : 0);
+  }
+  let body = null, parsed = true;
+  if (text) {
+    try { body = JSON.parse(text); } catch (e) { parsed = false; }
+  }
+  if (!res.ok) {
+    const detail = body && typeof body === 'object' ? body.detail : undefined;
+    throw fail(apiErrorMessage(detail) || fallback || res.statusText || '操作失敗', res.status, detail);
+  }
+  if (!parsed) throw fail(fallback || '伺服器回應格式錯誤', res.status);
+  return body;
+}

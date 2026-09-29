@@ -1,6 +1,6 @@
 // gcal-key.js — Google 行事曆同步 Key 新增/編輯 Modal
 // 新增可上傳 .json；編輯也可重新上傳，但伺服器端憑證路徑不回傳到瀏覽器。
-// 依賴：utils.js（esc/toast）、settings.js（gcalKeys/loadGcalKeys/renderGcalPanel）
+// 依賴：utils.js（esc/toast/apiFetch）、settings.js（gcalKeys/loadGcalKeys/renderGcalPanel）
 
 var _gcalEditingId = null;  // null=新增, 數字=編輯
 
@@ -80,13 +80,14 @@ async function submitGcalKey() {
     form.append('name', name);
     form.append('calendar_id', cal);
     form.append('credentials_file', file);
-    options = { method, body: form };
+    options = { method, body: form, fallback: '儲存失敗' };
   } else if (_gcalEditingId) {
     // 編輯但沒選檔案 → 用 JSON（可能改名稱/calendar_id）
     options = {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, credentials_path: cred || undefined, calendar_id: cal }),
+      fallback: '儲存失敗',
     };
   } else {
     // 新增沒選檔案 → 必須有路徑
@@ -95,16 +96,14 @@ async function submitGcalKey() {
     form.append('name', name);
     form.append('calendar_id', cal);
     form.append('credentials_path', cred);
-    options = { method, body: form };
+    options = { method, body: form, fallback: '儲存失敗' };
   }
 
   try {
-    const res = await fetch(url, options);
-    const data = await res.json();
-    if (!res.ok) { toast(apiErrorMessage(data.detail) || '儲存失敗', 'error'); return; }
+    await apiFetch(url, options);
     await loadGcalKeys();
     renderGcalPanel();
     closeGcalKeyModal();
     toast(_gcalEditingId ? '✅ 已更新' : '✅ 已新增', 'success');
-  } catch (e) { toast('儲存失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }

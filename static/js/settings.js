@@ -1,5 +1,5 @@
 // settings.js — 設定中心（2026-08-27 gcal-sync-settings 重寫）
-// 依賴：utils.js（esc/jsStr/hasPerm/toast）、units.js（unitList/unitListActive/loadUnits）、
+// 依賴：utils.js（esc/jsStr/hasPerm/toast/apiFetch）、units.js（unitList/unitListActive/loadUnits）、
 //       changepw.js（submitChangePw/cpwResetChecks/cpwCheckStrength/cpwCheckMatch）
 var orphanItems = [];
 var orphanLoadFailed = false;
@@ -9,8 +9,8 @@ var pettyOptionCache = { general: { category: [], group: [] }, engineering: { ca
 async function loadPettyOptions() {
   for (const type of ['general', 'engineering']) {
     for (const kind of ['category', 'group']) {
-      const res = await fetch('/api/petty-cash-options?report_type=' + type + '&option_type=' + kind);
-      if (res.ok) pettyOptionCache[type][kind] = (await res.json()).items || [];
+      const data = await apiFetch('/api/petty-cash-options?report_type=' + type + '&option_type=' + kind).catch(() => null);
+      if (data) pettyOptionCache[type][kind] = data.items || [];
     }
   }
 }
@@ -47,9 +47,8 @@ async function createPettyOptionKind(type, kind) {
   const input = document.getElementById('pc-opt-name-' + type + '-' + kind);
   const name = input.value.trim();
   if (!name) return toast('請輸入選單名稱', 'error');
-  const res = await fetch('/api/petty-cash-options', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_type:type, option_type:kind, name:name, sort_order:pettyOptionCache[type][kind].length}) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) return toast(apiErrorMessage(data.detail) || '新增失敗', 'error');
+  try { await apiFetch('/api/petty-cash-options', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_type:type, option_type:kind, name:name, sort_order:pettyOptionCache[type][kind].length}), fallback:'新增失敗' }); }
+  catch (e) { return toast(e.message, 'error'); }
   await loadPettyOptions(); renderPettyOptionsPanel(); toast('✅ 已新增', 'success');
 }
 
@@ -57,16 +56,14 @@ async function renamePettyOption(id, type, kind) {
   const old = (pettyOptionCache[type][kind].find(o => o.id === id) || {}).name || '';
   const name = prompt('請輸入新的選單名稱', old);
   if (name === null || !name.trim()) return;
-  const res = await fetch('/api/petty-cash-options/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name.trim()}) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) return toast(apiErrorMessage(data.detail) || '修改失敗', 'error');
+  try { await apiFetch('/api/petty-cash-options/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name.trim()}), fallback:'修改失敗' }); }
+  catch (e) { return toast(e.message, 'error'); }
   await loadPettyOptions(); renderPettyOptionsPanel();
 }
 async function deletePettyOption(id, type, kind) {
   if (!confirm('確定刪除此下拉選單項目？')) return;
-  const res = await fetch('/api/petty-cash-options/' + id, { method:'DELETE' });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) return toast(apiErrorMessage(data.detail) || '刪除失敗', 'error');
+  try { await apiFetch('/api/petty-cash-options/' + id, { method:'DELETE', fallback:'刪除失敗' }); }
+  catch (e) { return toast(e.message, 'error'); }
   await loadPettyOptions(); renderPettyOptionsPanel();
 }
 
@@ -101,9 +98,8 @@ function settingsSwitch(panel) {
 // ========== 單位管理面板 ==========
 async function loadOrphans() {
   try {
-    const res = await fetch('/api/units/orphans');
-    if (res.ok) { orphanItems = await res.json(); orphanLoadFailed = false; }
-    else { orphanLoadFailed = true; }
+    orphanItems = await apiFetch('/api/units/orphans');
+    orphanLoadFailed = false;
   } catch (e) { orphanLoadFailed = true; }
 }
 
@@ -199,60 +195,56 @@ async function addUnitFromSettings() {
   const qtyType = typeSel ? typeSel.value : 'integer';
   if (!name) { toast('請輸入單位名稱', 'error'); return; }
   try {
-    const res = await fetch('/api/units', {
+    const data = await apiFetch('/api/units', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, qty_type: qtyType })
+      body: JSON.stringify({ name: name, qty_type: qtyType }), fallback: '新增失敗'
     });
-    const data = await res.json();
-    if (!res.ok) { toast(apiErrorMessage(data.detail) || '新增失敗', 'error'); return; }
     unitList.push(data);
     unitListActive = unitList.filter(u => u.is_active);
     if (inp) inp.value = '';
     renderUnitsPanel();
     toast('✅ 單位「' + name + '」已新增', 'success');
-  } catch (e) { toast('新增失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function setUnitQtyType(id, qtyType) {
   try {
-    const res = await fetch('/api/units/' + id, {
+    await apiFetch('/api/units/' + id, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qty_type: qtyType })
+      body: JSON.stringify({ qty_type: qtyType }), fallback: '操作失敗'
     });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '操作失敗', 'error'); renderUnitsPanel(); return; }
     const u = unitList.find(x => x.id === id);
     if (u) u.qty_type = qtyType;
     renderUnitsPanel();
     toast('✅ 數量類型已更新', 'success');
-  } catch (e) { toast('操作失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); renderUnitsPanel(); }
 }
 
 async function toggleUnit(id, on) {
   try {
-    const res = await fetch('/api/units/' + id, {
+    await apiFetch('/api/units/' + id, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: on })
+      body: JSON.stringify({ is_active: on }), fallback: '操作失敗'
     });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '操作失敗', 'error'); renderUnitsPanel(); return; }
     const u = unitList.find(x => x.id === id);
     if (u) u.is_active = on;
     unitListActive = unitList.filter(x => x.is_active);
     renderUnitsPanel();
     toast(on ? '✅ 已啟用' : '已停用', on ? 'success' : '');
-  } catch (e) { toast('操作失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); renderUnitsPanel(); }
 }
 
 async function moveUnit(id, dir) {
   const u = unitList.find(x => x.id === id);
   if (!u) return;
   try {
-    await fetch('/api/units/' + id, {
+    await apiFetch('/api/units/' + id, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sort_order: u.sort_order + dir })
+      body: JSON.stringify({ sort_order: u.sort_order + dir }), fallback: '排序失敗'
     });
     await loadUnits();
     renderUnitsPanel();
-  } catch (e) { toast('排序失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function consolidateItem(itemId, btn) {
@@ -277,15 +269,15 @@ async function consolidateItem(itemId, btn) {
   const qtyNote = newQty === null ? '' : '，總量改為 ' + newQty;
   if (!confirm('將「' + (nameEl ? nameEl.textContent : '') + '」的單位改為「' + to + '」' + qtyNote + '？')) return;
   try {
-    const res = await fetch('/api/units/consolidate-item', {
+    await apiFetch('/api/units/consolidate-item', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newQty === null ? { item_id: itemId, to_unit: to } : { item_id: itemId, to_unit: to, new_qty: newQty })
+      body: JSON.stringify(newQty === null ? { item_id: itemId, to_unit: to } : { item_id: itemId, to_unit: to, new_qty: newQty }),
+      fallback: '改單位失敗'
     });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '改單位失敗', 'error'); return; }
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
     toast('✅ 已改為「' + to + '」', 'success');
-  } catch (e) { toast('改單位失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function applyQtySuggest(itemId, btn) {
@@ -296,16 +288,14 @@ async function applyQtySuggest(itemId, btn) {
   const nameEl = tr ? tr.querySelector('.p-name') : null;
   if (!confirm('套用建議：將「' + (nameEl ? nameEl.textContent : '') + '」改為 ' + qty + ' ' + to + '？')) return;
   try {
-    const res = await fetch('/api/units/consolidate-item', {
+    await apiFetch('/api/units/consolidate-item', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId, to_unit: to, new_qty: qty })
+      body: JSON.stringify({ item_id: itemId, to_unit: to, new_qty: qty }), fallback: '轉換失敗'
     });
-    const data = await res.json();
-    if (!res.ok) { toast(apiErrorMessage(data.detail) || '轉換失敗', 'error'); return; }
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
     toast('✅ 已轉換為 ' + qty + ' ' + to, 'success');
-  } catch (e) { toast('轉換失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function consolidateGroup(btn) {
@@ -317,16 +307,14 @@ async function consolidateGroup(btn) {
   const n = orphanItems.filter(o => o.unit === from).length;
   if (!confirm('將「' + label + '」全部 ' + n + ' 筆的單位改為「' + to + '」？')) return;
   try {
-    const res = await fetch('/api/units/consolidate', {
+    const data = await apiFetch('/api/units/consolidate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from_unit: from, to_unit: to })
+      body: JSON.stringify({ from_unit: from, to_unit: to }), fallback: '收編失敗'
     });
-    const data = await res.json();
-    if (!res.ok) { toast(apiErrorMessage(data.detail) || '收編失敗', 'error'); return; }
     await Promise.all([loadUnits(), loadOrphans()]);
     renderUnitsPanel();
     toast('✅ 已收編 ' + data.affected + ' 筆為「' + to + '」', 'success');
-  } catch (e) { toast('收編失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 // ========== 修改密碼 ==========
@@ -346,36 +334,31 @@ function clearPwForm() {
 // ========== 行事曆同步面板（左右佈局 v3）==========
 async function loadGcalKeys() {
   try {
-    const res = await fetch('/api/gcal-keys');
-    if (res.ok) gcalKeys = await res.json();
+    gcalKeys = await apiFetch('/api/gcal-keys');
   } catch (e) { console.error('[loadGcalKeys]', e); }
 }
 
 async function loadGcalUsers() {
   try {
-    const res = await fetch('/api/users');
-    if (res.ok) { const d = await res.json(); gcalUsers = d.users || []; }
+    gcalUsers = (await apiFetch('/api/users')).users || [];
   } catch (e) { console.error('[loadGcalUsers]', e); }
 }
 
 async function loadGcalSettings() {
   try {
-    const res = await fetch('/api/gcal-sync-settings');
-    if (res.ok) gcalSettings = await res.json();
+    gcalSettings = await apiFetch('/api/gcal-sync-settings');
   } catch (e) { console.error('[loadGcalSettings]', e); }
 }
 
 async function loadGcalSyncStatus() {
   try {
-    const res = await fetch('/api/gcal-sync-status');
-    if (res.ok) gcalHealth = await res.json();
+    gcalHealth = await apiFetch('/api/gcal-sync-status');
   } catch (e) { console.error('[loadGcalSyncStatus]', e); }
 }
 
 async function loadGcalQueue() {
   try {
-    const res = await fetch('/api/gcal-sync-queue');
-    if (res.ok) gcalQueueItems = (await res.json()).items || [];
+    gcalQueueItems = (await apiFetch('/api/gcal-sync-queue')).items || [];
   } catch (e) { console.error('[loadGcalQueue]', e); }
 }
 
@@ -637,16 +620,15 @@ function switchGcalTab(tab) {
 
 async function saveGcalSetting(key, value) {
   try {
-    const res = await fetch('/api/gcal-sync-settings', {
+    await apiFetch('/api/gcal-sync-settings', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [key]: value })
+      body: JSON.stringify({ [key]: value }), fallback: '儲存失敗'
     });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '儲存失敗', 'error'); return; }
     gcalSettings[key] = value;
     await refreshGcalSyncData(false);
     renderGcalPanel();
     toast('✅ 已儲存，受影響事件已重新評估', 'success');
-  } catch (e) { toast('儲存失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function saveKeyReminders(keyId) {
@@ -663,17 +645,16 @@ async function saveKeyReminders(keyId) {
     reminders.push({ method: 'popup', minutes: minutes });
   }
   try {
-    const res = await fetch('/api/gcal-keys/' + keyId + '/reminders', {
+    await apiFetch('/api/gcal-keys/' + keyId + '/reminders', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reminders: reminders })
+      body: JSON.stringify({ reminders: reminders }), fallback: '儲存失敗'
     });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '儲存失敗', 'error'); return; }
     const key = gcalKeys.find(k => k.id === keyId);
     if (key) key.reminders = reminders;
     await refreshGcalSyncData(false);
     renderGcalPanel();
     toast('✅ 提醒設定已儲存，既有事件已重新評估', 'success');
-  } catch (e) { toast('儲存失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 function addGcalReminderRow(keyId) {
@@ -711,8 +692,7 @@ function removeGcalReminderRow(keyId, index) {
 async function forceSyncNow() {
   if (!confirm('確定要立即執行同步？')) return;
   try {
-    var res = await fetch('/api/gcal-sync-now', { method: 'POST' });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '同步失敗', 'error'); return; }
+    await apiFetch('/api/gcal-sync-now', { method: 'POST', fallback: '同步失敗' });
     await refreshGcalSyncData(false);
     renderGcalPanel();
     toast('✅ 已觸發全部 Key 立即同步；已耗盡項目請按重新嘗試', 'success');
@@ -728,33 +708,31 @@ async function forceSyncNow() {
         } catch (e) { console.error('[forceSyncNow] 刷新失敗', e); }
       }
     }, 3000);
-  } catch (e) { toast('同步失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function retrySyncQueue(apptId, keyId) {
   if (!Number.isInteger(apptId) || !Number.isInteger(keyId)) return;
   try {
-    const res = await fetch('/api/gcal-sync-queue/reset?appt_id=' + apptId + '&key_id=' + keyId, { method: 'PUT' });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '重新嘗試失敗', 'error'); return; }
+    await apiFetch('/api/gcal-sync-queue/reset?appt_id=' + apptId + '&key_id=' + keyId, { method: 'PUT', fallback: '重新嘗試失敗' });
     await refreshGcalSyncData(false);
     renderGcalPanel();
     toast('✅ 已重設指定同步項目', 'success');
-  } catch (e) { toast('重新嘗試失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function toggleGcalKey(id, on) {
   try {
-    const res = await fetch('/api/gcal-keys/' + id, {
+    await apiFetch('/api/gcal-keys/' + id, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: on })
+      body: JSON.stringify({ is_active: on }), fallback: '操作失敗'
     });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '操作失敗', 'error'); return; }
     const k = gcalKeys.find(x => x.id === id);
     if (k) k.is_active = on;
     await refreshGcalSyncData(false);
     renderGcalPanel();
     toast(on ? '✅ 已啟用' : '已停用', on ? 'success' : '');
-  } catch (e) { toast('操作失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function deleteGcalKey(id) {
@@ -762,16 +740,7 @@ async function deleteGcalKey(id) {
   const name = key ? key.name : '未知';
   if (!confirm('確定要刪除 Key「' + name + '」？\n\n此操作會同時刪除 Google 行事曆上已同步的事件。')) return;
   try {
-    const res = await fetch('/api/gcal-keys/' + id, { method: 'DELETE' });
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      const detail = typeof errorData.detail === 'string'
-        ? errorData.detail
-        : 'Google 事件刪除未完成，Key 與同步問題已保留，請先處理同步清單';
-      toast(detail, 'error');
-      return;
-    }
-    const data = await res.json();
+    const data = await apiFetch('/api/gcal-keys/' + id, { method: 'DELETE' });
     gcalKeys = gcalKeys.filter(k => k.id !== id);
     if (selectedKeyId === id) selectedKeyId = gcalKeys.length ? gcalKeys[0].id : null;
     await refreshGcalSyncData(false);
@@ -780,22 +749,28 @@ async function deleteGcalKey(id) {
     if (data.google_deleted > 0) msg += '（Google 事件 ' + data.google_deleted + ' 筆已清除）';
     if (data.google_failed > 0) msg += '⚠️ Google 事件 ' + data.google_failed + ' 筆清除失敗';
     toast(msg, data.google_failed > 0 ? 'error' : 'success');
-  } catch (e) { toast('❌ 刪除失敗：' + e.message, 'error'); }
+  } catch (e) {
+    // HTTP 錯誤：字串 detail 原文顯示；Google 事件未刪完（409 物件 detail）或非 JSON 錯誤頁顯示專屬說明
+    const httpError = e.name === 'ApiError' && e.status >= 400;
+    const readable = httpError && typeof e.detail === 'string';
+    if (readable) toast(e.message, 'error');
+    else if (httpError) toast('Google 事件刪除未完成，Key 與同步問題已保留，請先處理同步清單', 'error');
+    else toast('❌ 刪除失敗：' + e.message, 'error');
+  }
 }
 
 async function bindGcalUser(userId, keyName) {
   try {
-    const res = await fetch('/api/users/' + userId, {
+    await apiFetch('/api/users/' + userId, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gcal_key: keyName })
+      body: JSON.stringify({ gcal_key: keyName }), fallback: '綁定失敗'
     });
-    if (!res.ok) { toast(apiErrorMessage((await res.json()).detail) || '綁定失敗', 'error'); return; }
     const u = gcalUsers.find(x => x.id === userId);
     if (u) u.gcal_key = keyName;
     await refreshGcalSyncData(false);
     renderGcalPanel();
     toast('✅ 已綁定', 'success');
-  } catch (e) { toast('綁定失敗', 'error'); }
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 // ========== 初始化 ==========
@@ -845,13 +820,8 @@ var cabinetList = [];
 
 async function loadCabinets() {
   try {
-    const res = await fetch('/api/cabinets');
-    if (res.ok) {
-      cabinetList = await res.json();
-      renderCabinetTable();
-    } else {
-      toast('查詢櫃子清單失敗', 'error');
-    }
+    cabinetList = await apiFetch('/api/cabinets', { fallback: '查詢櫃子清單失敗' });
+    renderCabinetTable();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
@@ -884,16 +854,12 @@ async function addCabinet() {
     return;
   }
   try {
-    const res = await fetch('/api/cabinets', {
+    const data = await apiFetch('/api/cabinets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, note })
+      body: JSON.stringify({ name, note }),
+      fallback: '新增失敗'
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(err.detail) || '新增失敗');
-    }
-    const data = await res.json();
     cabinetList.push(data);
     renderCabinetTable();
     document.getElementById('cabinet-name').value = '';
@@ -908,12 +874,8 @@ async function deleteCabinet(cabinetId) {
   const cab = cabinetList.find(c => c.id === cabinetId);
   if (!cab || !confirm('確定刪除櫃子「' + cab.name + '」？')) return;
   try {
-    const res = await fetch(`/api/cabinets/${cabinetId}`, { method: 'DELETE' });
-    if (!res.ok) {
-      // 櫃子仍被單一庫存/整組位置使用時後端回 409，需顯示原因
-      const err = await res.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(err.detail) || '刪除失敗');
-    }
+    // 櫃子仍被單一庫存/整組位置使用時後端回 409，錯誤訊息會帶出原因
+    await apiFetch(`/api/cabinets/${cabinetId}`, { method: 'DELETE', fallback: '刪除失敗' });
     cabinetList = cabinetList.filter(c => c.id !== cabinetId);
     renderCabinetTable();
     toast('✅ 已刪除櫃子', 'success');
@@ -946,16 +908,12 @@ async function submitCabinetEdit() {
   }
   const note = document.getElementById('edit-cabinet-note').value.trim();
   try {
-    const res = await fetch(`/api/cabinets/${currentEditCabinetId}`, {
+    const data = await apiFetch(`/api/cabinets/${currentEditCabinetId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, note })
+      body: JSON.stringify({ name, note }),
+      fallback: '編輯失敗'
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(err.detail) || '編輯失敗');
-    }
-    const data = await res.json();
     const idx = cabinetList.findIndex(c => c.id === currentEditCabinetId);
     if (idx >= 0) {
       cabinetList[idx] = data;

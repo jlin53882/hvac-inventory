@@ -1,6 +1,7 @@
 // perms.js — 帳號與權限頁（RBAC 2026-08-13）
 // 桌面：左帳號列表 + 右側 Tab（3-B）；手機：chip 橫滑列（M1）
 // 安全守則：使用者可控資料內插一律 esc()/jsStr()
+// 依賴：utils.js（apiFetch/apiErrorMessage）
 (() => {
   'use strict';
 
@@ -46,29 +47,26 @@
     'work-progress-delete', 'work-progress-delete-all',
   ];
 
-  // ---------- fetch 封裝 ----------
-  async function apiGet(url) {
-    const r = await fetch(url);
-    if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
-    if (!r.ok) {
-      const body = await r.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(body.detail) || r.statusText);
+  // ---------- fetch 封裝（apiFetch：utils.js；本頁未載入 auth.js，401 在這裡轉登入） ----------
+  async function permRequest(url, init) {
+    try {
+      return await apiFetch(url, init);
+    } catch (e) {
+      if (e.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+      throw e;
     }
-    return r.json();
   }
 
-  async function apiSend(url, method, body) {
-    const r = await fetch(url, {
+  function apiGet(url) {
+    return permRequest(url);
+  }
+
+  function apiSend(url, method, body) {
+    return permRequest(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      throw new Error(apiErrorMessage(j.detail) || r.statusText);
-    }
-    return r.json();
   }
 
   // ---------- 初始化 ----------
