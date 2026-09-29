@@ -65,7 +65,7 @@
     <div id="panel-petty-cash" style="display:none"></div>
     <div id="panel-cabinets" style="display:none">
       <h4>📦 櫃子</h4>
-      <p class="u-fs-13 u-c-666 u-mb-16">全站共用的櫃子清單（單一庫存與整組庫存同步）。</p>
+      <p class="u-fs-13 u-text-muted u-mb-16">全站共用的櫃子清單（單一庫存與整組庫存同步）。</p>
       <div class="cab-add-row">
         <label class="cab-field" for="cabinet-name"><span class="cab-field-label">櫃子編號 / 名稱 *</span>
           <input type="text" id="cabinet-name" placeholder="例：編號A、倉庫1" maxlength="50"></label>
@@ -122,27 +122,27 @@
     <div class="form-row">
       <label>Key 名稱</label>
       <input type="text" id="gk-name" placeholder="例：廠商A、小陳帳號" maxlength="50">
-      <div class="hint u-fs-11 u-c-999 u-mt-3">自訂名稱，方便辨識是哪個廠商/帳號的 Key</div>
+      <div class="hint u-fs-11 u-text-subtle u-mt-3">自訂名稱，方便辨識是哪個廠商/帳號的 Key</div>
     </div>
     <div class="form-row">
       <label>Service Account JSON 檔案（可直接上傳）</label>
       <input type="file" id="gk-file" accept=".json,application/json" onchange="gcalFileSelected(this)">
       <div class="u-ai-center u-gap-8 u-mt-6" id="gk-file-meta" style="display:none">
-        <span class="u-flex-1 u-minw-0 u-o-hidden u-to-ellipsis u-ws-nowrap u-c-2563eb u-fs-12" id="gk-file-name"></span>
+        <span class="u-flex-1 u-minw-0 u-o-hidden u-to-ellipsis u-ws-nowrap u-text-primary u-fs-12" id="gk-file-name"></span>
         <button type="button" class="btn btn--secondary btn--sm btn-cancel-ghost" onclick="clearGcalFile()">移除檔案</button>
       </div>
-      <div id="gk-file-hint" class="hint u-fs-11 u-c-999 u-mt-3">上傳後由伺服器固定儲存檔名；只會顯示 client_email，不會顯示 private_key。</div>
+      <div id="gk-file-hint" class="hint u-fs-11 u-text-subtle u-mt-3">上傳後由伺服器固定儲存檔名；只會顯示 client_email，不會顯示 private_key。</div>
     </div>
     <div class="form-row">
       <label>或手動輸入 JSON 檔路徑</label>
       <input type="text" id="gk-cred" placeholder="例：secrets/hvac-sync-a.json">
-      <div class="hint u-fs-11 u-c-999 u-mt-3">若不上傳檔案，改填伺服器上的 Service Account JSON 路徑。</div>
-      <div class="hint u-fs-11 u-c-2563eb u-mt-5">使用規則：上傳檔案與路徑同時存在時，以上傳檔案為準；刪除 Key 時，只會一併刪除透過本頁上傳的 JSON，手動輸入路徑的原檔不會刪除。</div>
+      <div class="hint u-fs-11 u-text-subtle u-mt-3">若不上傳檔案，改填伺服器上的 Service Account JSON 路徑。</div>
+      <div class="hint u-fs-11 u-text-primary u-mt-5">使用規則：上傳檔案與路徑同時存在時，以上傳檔案為準；刪除 Key 時，只會一併刪除透過本頁上傳的 JSON，手動輸入路徑的原檔不會刪除。</div>
     </div>
     <div class="form-row">
       <label>Calendar ID</label>
       <input type="text" id="gk-cal" placeholder="例：abc123@group.calendar.google.com">
-      <div class="hint u-fs-11 u-c-999 u-mt-3">要同步到的 Google 行事曆 ID（行事曆設定頁 → 整合日曆 → 行事曆 ID）</div>
+      <div class="hint u-fs-11 u-text-subtle u-mt-3">要同步到的 Google 行事曆 ID（行事曆設定頁 → 整合日曆 → 行事曆 ID）</div>
     </div>
     <div class="u-d-flex u-gap-10 u-mt-18">
       <button class="btn btn--primary btn--md btn-save u-flex-2" onclick="submitGcalKey()">💾 儲存</button>

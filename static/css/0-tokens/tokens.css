@@ -22,6 +22,7 @@
     --c-border-strong: #cbd5e1;
     --c-border-control: #94a3b8;
     --c-muted: #64748b;
+    --c-text-subtle: #94a3b8;  /* 提示 / 次要說明文字（與 border-control 同色，語意不同） */
     --c-text-2: #334155;
     --c-text: #0f172a;
     /* 主色（品牌深藍） */

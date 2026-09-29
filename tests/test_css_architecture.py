@@ -3,6 +3,7 @@
 
 規則隨重構階段逐步啟用；每條規則都是為了避免「改 A 頁、B 頁跟著壞」再發生。
 """
+import json
 import os
 import re
 
@@ -204,17 +205,9 @@ APPEARANCE_PROP = re.compile(
     r"^(background(-color)?|border(-(top|right|bottom|left))?(-(color|width|style))?|border-radius|color|"
     r"font-size|font-weight|padding(-(top|right|bottom|left))?|height|min-height|box-shadow)$"
 )
-# 不屬於 .btn / .chip 的專用控制項（數量 ±、KPI 卡、關閉 ✕、選單項目、開關、圖卡…），各自有元件樣式
-NON_STANDARD_BUTTON_CLASSES = {
-    "hamburger", "notif", "notif-close", "notif-category", "x", "toggle-btn", "collapse-btn", "more-btn",
-    "kit-more", "qty-btn", "inventory-kpi-card", "stocktake-kpi-card", "inventory-action-trigger",
-    "inventory-action-item", "inventory-export-dialog__close", "inventory-status-close", "stock-remove",
-    "btn-remove", "rm", "s-cancel", "stock-adjust-location-option", "quote-inventory-row", "switch",
-    "cal-sync-status", "btn-close", "login-btn", "password-toggle", "eng-category-head", "eng-group-head",
-    "eng-receipt-toggle", "eng-editor-receipt-toggle", "pc-general-detail-toggle", "pc-inline-expand",
-    "pc-mobile-action", "wpr-confirm-close", "wpr-edit-close", "wpr-gallery-close", "wpr-pending-gallery-close",
-    "wpr-job-card", "wpr-add-tile", "wpr-pending-preview", "wpr-photo-remove",
-}
+# 不屬於 .btn / .chip 的專用控制項：與瀏覽器測試共用 tests/button_contract.json（單一來源，避免兩份清單各自漂移）
+with open(os.path.join(ROOT, "tests", "button_contract.json"), encoding="utf-8") as _fh:
+    NON_STANDARD_BUTTON_CLASSES = set(json.load(_fh)["specialized_button_classes"])
 # 沒有 class 的 <button>：下拉選單項目、照片圖卡、燈箱上一張 / 下一張（各檔數量固定，新增按鈕必須套標準 class）
 UNCLASSED_BUTTONS = {"js/render/inventory.js": 2, "js/render/petty-cash.js": 1, "js/render/work-progress.js": 5}
 
@@ -285,6 +278,18 @@ def test_every_button_uses_the_standard_classes():
     assert unclassed == UNCLASSED_BUTTONS, f"沒有 class 的按鈕數量改變：{unclassed}"
 
 
+def test_specialized_button_list_has_no_stale_entries():
+    """tests/button_contract.json 的每個專用控制項 class 都必須還有 <button> 在用（清單只能反映現況）。"""
+    used = set()
+    for _rel, text in _markup_sources():
+        for match in re.finditer(r"<button\b((?:[^>`]|`[^`]*`|\$\{[^}]*\})*)>", text):
+            cls = re.search(r"class=([\"'])(.*?)\1", match.group(1))
+            if cls:
+                used |= _static_tokens(cls.group(2))
+    stale = sorted(NON_STANDARD_BUTTON_CLASSES - used)
+    assert not stale, f"button_contract.json 有已不存在的專用控制項：{stale}"
+
+
 # ---------- P8：數值一律走 token ----------
 TOKEN_FILE = "0-tokens/tokens.css"
 
@@ -338,3 +343,39 @@ def test_every_used_token_is_defined():
         local = set(re.findall(r"(--[\w-]+)\s*:", text))
         for name in set(re.findall(r"var\((--[\w-]+)", text)):
             assert name in defined or name in local, f"{rel} 使用未定義的 {name}"
+
+
+# ---------- utility 命名：名稱描述語意，不寫原始色碼 / 舊數值 ----------
+UTILITIES = "5-utilities/utilities.css"
+TOKEN_UTILITY_PREFIX = {"c": ("u-text-", "u-bg-"), "fs": ("u-fs-",), "r": ("u-r-",)}
+
+
+def _utility_rules():
+    for _media, selector, body in _style_rules(_read(UTILITIES)):
+        for part in _split_selectors(selector):
+            yield part.lstrip("."), body
+
+
+def test_token_utilities_are_named_after_their_token():
+    """用到 token 的 utility，名稱必須就是 token 名稱（.u-text-muted ↔ --c-muted、.u-r-md ↔ --r-md）。
+    禁止 .u-c-2563eb 這類以歷史色碼命名的 class——token 改值後名稱就會說謊。"""
+    for name, body in _utility_rules():
+        for kind, token in re.findall(r"var\(--(c|fs|r)-([\w-]+)\)", body):
+            expected = [prefix + token for prefix in TOKEN_UTILITY_PREFIX[kind]]
+            if token.startswith("text-"):  # --c-text-subtle → .u-text-subtle
+                expected.append("u-" + token)
+            assert name in expected, f".{name} 使用 --{kind}-{token}，名稱應為 {' 或 '.join('.' + e for e in expected)}"
+
+
+def test_color_utilities_have_no_hex_like_names():
+    """顏色 / 背景 utility 名稱不得含色碼片段（例如 u-c-666、u-bg-f9fafb）。"""
+    for name, body in _utility_rules():
+        if re.search(r"(^|;)\s*(color|background(-color)?)\s*:", body):
+            assert not re.search(r"-(?=[0-9a-f]*[0-9])(?:[0-9a-f]{3}|[0-9a-f]{6})$", name), f".{name} 以色碼命名"
+
+
+def test_every_utility_is_used():
+    """utility 沒有任何標記使用就刪掉（避免取代後殘留死碼）。"""
+    markup = "".join(text for _rel, text in _markup_sources())
+    for name, _body in _utility_rules():
+        assert re.search(r"(?<![\w-])" + re.escape(name) + r"(?![\w-])", markup), f".{name} 沒有任何 HTML / JS 使用"

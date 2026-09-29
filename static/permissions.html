@@ -126,7 +126,7 @@
 <div class="modal-overlay" id="resetPwOverlay">
   <div class="modal">
     <h3>🔑 重設密碼</h3>
-    <p class="u-fs-13 u-c-666 u-m-0-0-10" id="resetPwTarget"></p>
+    <p class="u-fs-13 u-text-muted u-m-0-0-10" id="resetPwTarget"></p>
     <div class="cr-field"><label>新密碼（8 碼以上，含大小寫與數字）</label><input class="cr-input" type="password" id="rp-password"></div>
     <div class="modal-actions">
       <button class="btn btn--secondary btn--md btn-ghost" onclick="closeResetPwModal()">取消</button>
@@ -140,7 +140,7 @@
   <div class="modal">
     <h3>⚠️ 重設為角色預設？</h3>
     <div class="warn-box">此操作會清除 <span id="resetPermTarget"></span> 的所有個人權限覆寫。</div>
-    <p class="u-fs-13 u-c-666 u-m-10-0-0">重設後，此帳號的權限將完全跟隨角色預設（<span id="resetPermRole"></span>）。原本「✏️ 自訂」的開關會全部還原，此動作無法復原。</p>
+    <p class="u-fs-13 u-text-muted u-m-10-0-0">重設後，此帳號的權限將完全跟隨角色預設（<span id="resetPermRole"></span>）。原本「✏️ 自訂」的開關會全部還原，此動作無法復原。</p>
     <div class="modal-actions">
       <button class="btn btn--secondary btn--md btn-ghost" onclick="closeResetPermModal()">取消</button>
       <button class="btn btn--danger btn--md" onclick="confirmResetPerm()">確定重設</button>
