@@ -109,7 +109,7 @@
 [data-page="work-progress"] #content.wpr-content .wpr-filter-actions .wpr-filter-primary { border-color: #2563eb; background: #2563eb; color: #fff; }
 [data-page="work-progress"] #content.wpr-content .wpr-quick-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 12px 0 14px; }
 [data-page="work-progress"] #content.wpr-content .wpr-chip { padding: 5px 9px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; cursor: pointer; font-size: 11px; font-weight: 800; }
-[data-page="work-progress"] #content.wpr-content .wpr-chip.active { border-color: #2563eb; background: #2563eb; color: #fff; }
+[data-page="work-progress"] #content.wpr-content .wpr-chip.is-active { border-color: #2563eb; background: #2563eb; color: #fff; }
 [data-page="work-progress"] #content.wpr-content .wpr-result-count { display: flex; align-items: center; margin-left: auto; color: #94a3b8; font-size: 11px; }
 [data-page="work-progress"] #content.wpr-content .wpr-history-item { border: 1px solid #e5eaf2; border-radius: 9px; margin-top: 8px; overflow: hidden; }
 [data-page="work-progress"] #content.wpr-content .wpr-history-item summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 12px; cursor: pointer; list-style: none; }

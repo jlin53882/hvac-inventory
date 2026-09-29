@@ -6,9 +6,9 @@
 
 /* ===== Drawer（統一操作容器） ===== */
 .dov {position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s}
-.dov.open {opacity:1;pointer-events:auto}
+.dov.is-open {opacity:1;pointer-events:auto}
 .drawer {position:fixed;top:0;right:-460px;width:440px;height:100vh;background:#fff;z-index:201;transition:right .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.12)}
-.drawer.open {right:0}
+.drawer.is-open {right:0}
 .dh {display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid #e5e7eb}
 .dh h3 {font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
 .dh .x {background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;padding:4px}

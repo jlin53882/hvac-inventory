@@ -52,12 +52,12 @@ function openGcalKeyModal(id) {
     document.getElementById('gk-cal').value = '';
     document.querySelector('#gcalKeyModal h4').textContent = '＋ 新增 Service Account Key';
   }
-  modal.classList.add('show');
+  modal.classList.add('is-open');
 }
 
 function closeGcalKeyModal() {
   const modal = document.getElementById('gcalKeyModal');
-  if (modal) modal.classList.remove('show');
+  if (modal) modal.classList.remove('is-open');
   _gcalEditingId = null;
 }
 

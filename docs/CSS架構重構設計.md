@@ -309,6 +309,7 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 | `.active` | `.is-active` | 頁籤、側欄、子頁籤 |
 | `.open`、`.show` | `.is-open` | 兩者合併 |
 | `.on` | `.is-active` | 分片切換，與頁籤一致 |
+| `.off` | `.is-inactive` | 停用中的使用者 / 單位（與 `.is-active` 成對） |
 | `.selected` / `.collapsed` / `.expanded` / `.changed` | `.is-selected` / `.is-collapsed` / `.is-expanded` / `.is-changed` | |
 | `:disabled`、`:checked` | 不變 | 原生偽類 |
 | `.hidden` | 不變 | utility，不是狀態 |

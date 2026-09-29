@@ -105,8 +105,8 @@ function pcSwitchModalStep(step, config) {
   if (step === 2 && config.validate && !config.validate()) return false;
   document.getElementById(config.stepIds[0]).style.display = step === 1 ? '' : 'none';
   document.getElementById(config.stepIds[1]).style.display = step === 2 ? '' : 'none';
-  document.getElementById(config.tabIds[0]).classList.toggle('active', step === 1);
-  document.getElementById(config.tabIds[1]).classList.toggle('active', step === 2);
+  document.getElementById(config.tabIds[0]).classList.toggle('is-active', step === 1);
+  document.getElementById(config.tabIds[1]).classList.toggle('is-active', step === 2);
   document.getElementById(config.opsIds[0]).style.display = step === 1 ? '' : 'none';
   document.getElementById(config.opsIds[1]).style.display = step === 2 ? '' : 'none';
   if (step === 2 && config.onDetail) config.onDetail();
@@ -161,7 +161,7 @@ async function renderPettyCash() {
             <button class="pc-chip" onclick="pcQuickRange('month',this)">本月</button>
             <button class="pc-chip" onclick="pcQuickRange('prev',this)">上月</button>
             <button class="pc-chip" onclick="pcQuickRange('year',this)">今年</button>
-            <button class="pc-chip active" onclick="pcQuickRange('all',this)">全部</button>
+            <button class="pc-chip is-active" onclick="pcQuickRange('all',this)">全部</button>
             <span class="pc-result-count"><span id="pc-result-count">0 筆</span></span>
           </div>
         </div>
@@ -428,16 +428,16 @@ function pcResetFilter() {
   document.getElementById('pc-f-status').value = '';
   document.getElementById('pc-f-type').value = '';
   document.getElementById('pc-f-q').value = '';
-  document.querySelectorAll('.pc-chip').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.pc-chip')[3].classList.add('active');
+  document.querySelectorAll('.pc-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('.pc-chip')[3].classList.add('is-active');
   pcPage = 1;
   pcLoadHistory();
 }
 
 // 快捷期間（本月/上月/今年/全部，以報表期間交集篩選）
 function pcQuickRange(k, btn) {
-  document.querySelectorAll('.pc-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('.pc-chip').forEach(c => c.classList.remove('is-active'));
+  btn.classList.add('is-active');
   const now = new Date();
   const f = document.getElementById('pc-f-from');
   const t = document.getElementById('pc-f-to');

@@ -16,7 +16,7 @@
 [data-page="settings"] .side-item { display: flex; align-items: center; gap: 10px; padding: 13px 14px; cursor: pointer; border-bottom: 1px solid #f5f5f5; transition: background .15s; font-size: 13.5px; }
 [data-page="settings"] .side-item:last-child { border-bottom: none; }
 [data-page="settings"] .side-item:hover { background: #f7fbff; }
-[data-page="settings"] .side-item.active { background: #e6f4ff; border-left: 3px solid #1890ff; font-weight: 600; }
+[data-page="settings"] .side-item.is-active { background: #e6f4ff; border-left: 3px solid #1890ff; font-weight: 600; }
 [data-page="settings"] .side-item .ic { font-size: 16px; }
 [data-page="settings"] .side-item .desc { color: #999; font-size: 11px; display: block; font-weight: 400; }
 [data-page="settings"] .side-main { flex: 1; min-width: 0; background: #fff; border-radius: 12px; border: 1px solid #eee; padding: 18px 20px; }
@@ -51,7 +51,7 @@
 [data-page="settings"] .u-table td:first-child { text-align: left; }
 [data-page="settings"] .u-table td:last-child { text-align: right; }
 [data-page="settings"] .u-table th { width: 33.33%; }
-[data-page="settings"] .u-table .off { color: #aaa; text-decoration: line-through; }
+[data-page="settings"] .u-table .is-inactive { color: #aaa; text-decoration: line-through; }
 [data-page="settings"] .updown { color: #2d5a8e; cursor: pointer; font-size: 13px; text-decoration: none; margin: 0 2px; }
 [data-page="settings"] .hist-clean { background: #fff8e6; border: 1px solid #f0d48a; border-radius: 8px; padding: 10px 12px; margin-top: 14px; font-size: 12.5px; color: #8a6d1a; }
 [data-page="settings"] .hist-clean .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; flex-wrap: wrap; }
@@ -63,10 +63,10 @@
 [data-page="settings"] .grp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; cursor: pointer; flex-wrap: wrap; font-weight: 700; font-size: 12.5px; color: #8a6d1a; }
 [data-page="settings"] .grp-head:hover { background: #fff8e6; }
 [data-page="settings"] .grp-title .arrow { display: inline-block; transition: transform .15s; font-size: 10px; }
-[data-page="settings"] .grp.open .grp-title .arrow { transform: rotate(90deg); }
+[data-page="settings"] .grp.is-open .grp-title .arrow { transform: rotate(90deg); }
 [data-page="settings"] .grp-count { font-size: 11px; color: #b0893a; font-weight: 400; }
 [data-page="settings"] .grp-body { display: none; border-top: 1px dashed #eedaab; }
-[data-page="settings"] .grp.open .grp-body { display: block; }
+[data-page="settings"] .grp.is-open .grp-body { display: block; }
 [data-page="settings"] .g-table { width: 100%; border-collapse: collapse; background: #fff; }
 [data-page="settings"] .g-table td { padding: 5px 10px; border-bottom: 1px solid #f7edcd; font-size: 12px; vertical-align: middle; }
 [data-page="settings"] .g-table tr:last-child td { border-bottom: none; }
@@ -86,7 +86,7 @@
 [data-page="settings"] .chip-bar { display: none; overflow-x: auto; gap: 8px; padding: 12px 16px 2px; scrollbar-width: none; }
 [data-page="settings"] .chip-bar::-webkit-scrollbar { display: none; }
 [data-page="settings"] .chip { display: flex; align-items: center; gap: 6px;}
-[data-page="settings"] .chip.active { background: #1890ff; color: #fff; border-color: #1890ff; }
+[data-page="settings"] .chip.is-active { background: #1890ff; color: #fff; border-color: #1890ff; }
 /* 修改密碼內嵌表單（id 與 index.html changepw-modal 一致，複用 changepw.js） */
 [data-page="settings"] .side-main .form-row { margin-bottom: 12px; max-width: 420px; }
 [data-page="settings"] .side-main .form-row label { display: block; font-size: 12.5px; color: #444; margin-bottom: 4px; font-weight: 600; }
@@ -109,7 +109,7 @@
 [data-page="settings"] .gcal-user-table select { padding: 4px 8px; border: 1px solid #cfd6df; border-radius: 6px; font-size: 12px; }
 /* GCal 同步設定 Tab（2026-08-27）*/
 [data-page="settings"] .gcal-tab { padding: 9px 16px; border: none; background: none; font-size: 14px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
-[data-page="settings"] .gcal-tab.active { color: #1890ff; border-bottom-color: #1890ff; font-weight: 600; }
+[data-page="settings"] .gcal-tab.is-active { color: #1890ff; border-bottom-color: #1890ff; font-weight: 600; }
 [data-page="settings"] .gcal-key-item:hover { background: #f7fbff; }
 [data-page="settings"] .gcal-reminders-list { display: flex; flex-direction: column; gap: 10px; }
 [data-page="settings"] .gcal-reminder-row { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto; align-items: center; gap: 10px; padding: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #f8fafc; }
@@ -123,7 +123,7 @@
 [data-page="settings"] .gcal-add-reminder:disabled, [data-page="settings"] .gcal-reminder-remove:disabled { cursor: not-allowed; opacity: .45; }
 [data-page="settings"] .gcal-reminder-remove { padding: 5px 9px; border: 1px solid #ffccc7; border-radius: 6px; background: #fff2f0; color: #cf1322; font-size: 12px; cursor: pointer; white-space: nowrap; }
 [data-page="settings"] .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
-[data-page="settings"] .modal-overlay.show { display: flex; }
+[data-page="settings"] .modal-overlay.is-open { display: flex; }
 [data-page="settings"] .modal-box { background: #fff; border-radius: 14px; padding: 24px; width: 440px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
 [data-page="settings"] .modal-box h4 { font-size: 16px; margin-bottom: 16px; color: #1e3a5f; }
 [data-page="settings"] .modal-box .form-row { margin-bottom: 14px; }

@@ -38,7 +38,7 @@ function quoteFillForm(form) {
 }
 
 function quoteModeTabs(active) {
-  return `<div class="quote-mode-tabs" role="tablist"><button type="button" class="quote-mode-tab ${active === 'quotation' ? 'active' : ''}" onclick="quoteSwitchMode('quotation')">🧾 報價單</button><button type="button" class="quote-mode-tab ${active === 'upload' ? 'active' : ''}" onclick="quoteSwitchMode('upload')">📤 報價單上傳</button></div>`;
+  return `<div class="quote-mode-tabs" role="tablist"><button type="button" class="quote-mode-tab ${active === 'quotation' ? 'is-active' : ''}" onclick="quoteSwitchMode('quotation')">🧾 報價單</button><button type="button" class="quote-mode-tab ${active === 'upload' ? 'is-active' : ''}" onclick="quoteSwitchMode('upload')">📤 報價單上傳</button></div>`;
 }
 function quoteSwitchMode(mode) {
   setPageScope(mode === 'upload' ? 'quotation-upload' : 'quotation');
@@ -106,8 +106,8 @@ async function quoteLoadHistory() { var list = document.getElementById('quote-hi
 async function quoteEdit(id) { try { var res = await fetch('/api/quotations/' + id); var data = await res.json(); if (!res.ok) throw new Error(data.detail || '讀取失敗'); quotationEditingId = id; quotationForm = data; quotationItems = data.items; renderQuotation(); window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { toast('⚠️ ' + e.message, 'error'); } }
 async function quoteDelete(id) { if (!confirm('確定要刪除此報價單？刪除後無法復原。')) return; try { var res = await fetch('/api/quotations/' + id, { method: 'DELETE' }); var data = await res.json(); if (!res.ok) throw new Error(data.detail || '刪除失敗'); if (quotationEditingId === id) quoteReset(); else quoteLoadHistory(); toast('✅ 報價單已刪除'); } catch (e) { toast('⚠️ ' + e.message, 'error'); } }
 function quoteDownload(id, ext) { window.open('/api/quotations/' + id + '/export.' + ext, '_blank'); }
-function quoteOpenInventory() { var overlay = document.getElementById('quote-inventory-overlay'); if (overlay) { overlay.classList.add('open'); document.getElementById('quote-inventory-q')?.focus(); quoteSearchInventory(); } }
-function quoteCloseInventory() { document.getElementById('quote-inventory-overlay')?.classList.remove('open'); }
+function quoteOpenInventory() { var overlay = document.getElementById('quote-inventory-overlay'); if (overlay) { overlay.classList.add('is-open'); document.getElementById('quote-inventory-q')?.focus(); quoteSearchInventory(); } }
+function quoteCloseInventory() { document.getElementById('quote-inventory-overlay')?.classList.remove('is-open'); }
 /**
  * 搜尋可加入報價的庫存品項，並顯示易讀的庫存區名稱。
  * @returns {Promise<void>} 結果或錯誤狀態完成呈現後結束。

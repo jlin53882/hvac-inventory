@@ -113,10 +113,10 @@
 
   function showError(msg, info) {
     errorMsg.textContent = msg;
-    errorBox.classList.remove('show', 'info');
+    errorBox.classList.remove('is-open', 'info');
     void errorBox.offsetWidth;  // 重新觸發 shake 動畫
     if (info) errorBox.classList.add('info');
-    errorBox.classList.add('show');
+    errorBox.classList.add('is-open');
     if (!info) {
       passwordEl.classList.add('err');
       setTimeout(() => passwordEl.classList.remove('err'), 1500);
@@ -158,7 +158,7 @@
       } catch (err) {}
 
       // ✅ 成功：顯示覆蓋層 → 跳轉主頁
-      successOv.classList.add('show');
+      successOv.classList.add('is-open');
       setTimeout(() => { window.location.href = '/'; }, 900);
     } catch (err) {
       showError('無法連線伺服器，請稍後再試');

@@ -150,9 +150,9 @@ def test_status_list_puts_brand_with_name_and_model_on_separate_line():
 def test_notification_css_has_desktop_popover_and_mobile_bottom_sheet():
     """通知中心 Desktop/Mobile 使用不同容器呈現，但共用摘要資料。"""
     css = read(CORE_CSS)
-    assert '.notif-panel.open' in css
+    assert '.notif-panel.is-open' in css
     assert '.notif-category' in css
-    assert '.notif-backdrop.open' in css
+    assert '.notif-backdrop.is-open' in css
     assert '@media (max-width: 767px)' in css
     assert 'border-radius: 24px 24px 0 0' in css
     assert 'max-height: 82dvh' in css

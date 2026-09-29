@@ -150,7 +150,7 @@ async function renderSignedReports() {
             <div class="dsr-chips">
               <button class="dsr-chip" onclick="dsrQuickRange('today',this)">今天</button>
               <button class="dsr-chip" onclick="dsrQuickRange('week',this)">本週</button>
-              <button class="dsr-chip active" onclick="dsrQuickRange('month',this)">本月</button>
+              <button class="dsr-chip is-active" onclick="dsrQuickRange('month',this)">本月</button>
               <button class="dsr-chip" onclick="dsrQuickRange('all',this)">全部</button>
               <span class="dsr-result-count"><span id="dsr-result-count">0 筆</span></span>
             </div>
@@ -400,16 +400,16 @@ function dsrResetFilter() {
   document.getElementById('dsr-f-from').value = _dsrIso(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('dsr-f-to').value = _dsrIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
   document.getElementById('dsr-f-q').value = '';
-  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.dsr-chip')[2].classList.add('active');
+  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('.dsr-chip')[2].classList.add('is-active');
   dsrPage = 1;
   dsrLoadHistory();
 }
 
 // 快捷日期範圍（今天/本週/本月/全部）
 function dsrQuickRange(k, btn) {
-  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('is-active'));
+  btn.classList.add('is-active');
   const now = new Date();
   if (k === 'today') { document.getElementById('dsr-f-from').value = _dsrIso(now); document.getElementById('dsr-f-to').value = _dsrIso(now); }
   else if (k === 'week') { const d = new Date(now); d.setDate(d.getDate()-d.getDay()); document.getElementById('dsr-f-from').value = _dsrIso(d); const e = new Date(d); e.setDate(e.getDate()+6); document.getElementById('dsr-f-to').value = _dsrIso(e); }
@@ -450,10 +450,10 @@ function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
   }
   else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
   document.getElementById('dsr-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
-  document.getElementById('dsr-overlay').classList.add('open');
+  document.getElementById('dsr-overlay').classList.add('is-open');
 }
 // 關閉預覽 Modal
-function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
+function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('is-open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function dsrDownload(id) { window.open('/api/signed-reports/' + id + '/download', '_blank'); }
 // 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）。
@@ -462,7 +462,7 @@ async function dsrEdit(id) {
   const report = dsrFiltered.find(item => item.id === id);
   if (!report) return;
   const overlay = document.createElement('div');
-  overlay.className = 'dsr-overlay open';
+  overlay.className = 'dsr-overlay is-open';
   overlay.innerHTML = `
     <div class="dsr-modal dsr-edit-modal" role="dialog" aria-modal="true" aria-labelledby="dsr-edit-title">
       <div class="dsr-modal__hd"><h3 id="dsr-edit-title">✏️ 編輯每日簽名日報表</h3><button class="dsr-btn-sm" type="button" data-dsr-edit-cancel>✕ 關閉</button></div>

@@ -46,7 +46,7 @@ function openTransferModal(itemId) {
   document.getElementById('transfer-qty').value = '';
   document.getElementById('transfer-target-location').value = '';
   document.getElementById('transfer-error').textContent = '';
-  modal.classList.add('show');
+  modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
 }
 
@@ -54,7 +54,7 @@ function closeTransferModal(force) {
   if (transferSubmitting && !force) return;
   const modal = document.getElementById('transfer-modal');
   if (!modal) return;
-  modal.classList.remove('show');
+  modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
   transferItemId = null;
   transferItemSnapshot = null;

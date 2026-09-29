@@ -80,9 +80,9 @@ var selectedKeyId = null;
 
 function settingsSwitch(panel) {
   document.querySelectorAll('#settingsSideList .side-item').forEach(el =>
-    el.classList.toggle('active', el.dataset.panel === panel));
+    el.classList.toggle('is-active', el.dataset.panel === panel));
   document.querySelectorAll('#settingsChipBar .chip').forEach(el =>
-    el.classList.toggle('active', el.dataset.panel === panel));
+    el.classList.toggle('is-active', el.dataset.panel === panel));
   const showUnits = panel === 'units';
   const showCabinets = panel === 'cabinets';
   const showGcal = panel === 'gcal';
@@ -147,7 +147,7 @@ function renderUnitsPanel() {
       ? '<select class="u-qty-type" onchange="setUnitQtyType(' + u.id + ', this.value)" title="數量輸入類型">' +
         ['integer', 'decimal', 'fraction'].map(t => '<option value="' + t + '"' + ((u.qty_type || 'integer') === t ? ' selected' : '') + '>' + qtyTypeLabel(t) + '</option>').join('') + '</select>'
       : '<span class="u-qty-label">' + esc(_tl) + '</span>';
-    html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'off') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td style="text-align:right">';
+    html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'is-inactive') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td style="text-align:right">';
     if (canManage) {
       html += '<a class="updown" onclick="moveUnit(' + u.id + ', -1)" title="上移">↑</a>' +
               '<a class="updown" onclick="moveUnit(' + u.id + ', 1)" title="下移">↓</a> ' +
@@ -162,7 +162,7 @@ function renderUnitsPanel() {
       html += '<div class="hist-clean"><b>⚠️ 歷史單位待處理（點開逐筆處理）</b>';
       html += '<div style="font-size:11.5px;color:#a08a3e;margin:4px 0 8px">這些資料可能包含舊式「數量 + 單位」混合格式，需要轉換成標準數量與正式單位。有轉換建議的可一鍵套用；判斷不出的請手填確認，處理完自動消失。</div>';
       groups.forEach(g => {
-        html += '<div class="grp"><div class="grp-head" onclick="this.parentElement.classList.toggle(\'open\')">' +
+        html += '<div class="grp"><div class="grp-head" onclick="this.parentElement.classList.toggle(\'is-open\')">' +
           '<span class="grp-title"><span class="arrow">▶</span> ' + esc(g.label) + '</span>' +
           '<span class="grp-count">' + g.items.length + ' 筆</span></div>' +
           '<div class="grp-body"><table class="g-table">';
@@ -451,7 +451,7 @@ function renderGcalPanel() {
   html += '<div class="gcal-key-list" style="width:220px;flex-shrink:0;background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden">';
   gcalKeys.forEach(k => {
     const isActive = k.id === selectedKeyId;
-    html += '<div class="gcal-key-item' + (isActive ? ' active' : '') + '" onclick="selectGcalKey(' + k.id + ')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s' + (isActive ? ';background:#e6f4ff;border-left:3px solid #1890ff' : '') + '">' +
+    html += '<div class="gcal-key-item' + (isActive ? ' is-active' : '') + '" onclick="selectGcalKey(' + k.id + ')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s' + (isActive ? ';background:#e6f4ff;border-left:3px solid #1890ff' : '') + '">' +
       '<div style="width:30px;height:30px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#9ca3af') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📅</div>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(k.name) + '</div>' +
@@ -490,7 +490,7 @@ function renderGcalPanel() {
 
       // Tabs
       html += '<div style="display:flex;gap:6px;margin:14px 0 4px;border-bottom:1px solid #eee">' +
-        '<button class="gcal-tab active" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
+        '<button class="gcal-tab is-active" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
         '<button class="gcal-tab" onclick="switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
         '</div>';
 
@@ -629,8 +629,8 @@ function selectGcalKey(id) {
 }
 
 function switchGcalTab(tab) {
-  document.querySelectorAll('.gcal-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('.gcal-tab[data-tab="' + tab + '"]').classList.add('active');
+  document.querySelectorAll('.gcal-tab').forEach(t => t.classList.remove('is-active'));
+  document.querySelector('.gcal-tab[data-tab="' + tab + '"]').classList.add('is-active');
   document.getElementById('gcal-tab-sync').style.display = tab === 'sync' ? '' : 'none';
   document.getElementById('gcal-tab-users').style.display = tab === 'users' ? '' : 'none';
 }
@@ -830,7 +830,7 @@ async function bindGcalUser(userId, keyName) {
       ['petty-cash', '🪙 零用金選單'],
       ['pw', '🔑 修改密碼']
     ].filter(([p]) => (p !== 'units' || canUnits) && (p !== 'petty-cash' || canPettyOptions) && (p !== 'pw' || canChangePassword))
-     .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
+     .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' is-active' : '') + '" data-panel="' + p + '" onclick="settingsSwitch(\'' + p + '\')">' + label + '</span>')
      .join('');
   }
   await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings(), loadGcalSyncStatus(), loadGcalQueue(), loadPettyOptions()]);

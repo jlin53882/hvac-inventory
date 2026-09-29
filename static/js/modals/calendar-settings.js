@@ -8,7 +8,7 @@ function calSettingsHtml(isAdmin) {
     <div class="modal">
       <h3>⚙️ 行事曆設定</h3>
       <div class="cal-set-tabs">
-        <button class="cal-set-tab active" id="cal-tab-svc" onclick="calSetTab('svc')">服務項目</button>
+        <button class="cal-set-tab is-active" id="cal-tab-svc" onclick="calSetTab('svc')">服務項目</button>
         <button class="cal-set-tab" id="cal-tab-ppl" onclick="calSetTab('ppl')">人員與顏色</button>
       </div>
       <div id="cal-tab-svc-panel">
@@ -41,7 +41,7 @@ function calSetTab(t) {
   ['svc', 'ppl'].forEach(x => {
     // 只切 panel 顯示 + tab 按鈕 active class（按鈕本身不能隱藏，否則切不回來）
     document.getElementById('cal-tab-' + x + '-panel').style.display = x === t ? 'block' : 'none';
-    document.getElementById('cal-tab-' + x).className = 'cal-set-tab' + (x === t ? ' active' : '');
+    document.getElementById('cal-tab-' + x).className = 'cal-set-tab' + (x === t ? ' is-active' : '');
   });
   if (t === 'svc') calRenderSvcRows();
   else calRenderPplRows();
@@ -60,7 +60,7 @@ function calRenderSvcRows() {
     tb.innerHTML += `<tr>
       <td>${esc(s.name)}</td>
       <td><input type="number" value="${s.sort_order}" style="width:56px" onchange="calUpdSvc(${s.id},this.value)"></td>
-      <td><button class="switch ${s.is_active ? 'on' : ''}" onclick="calUpdSvcActive(${s.id})"></button></td>
+      <td><button class="switch ${s.is_active ? 'is-active' : ''}" onclick="calUpdSvcActive(${s.id})"></button></td>
       <td>${s.is_active ? `<button class="btn-card btn-delete" onclick="calDelSvc(${s.id})">停用</button>` : '<span class="cal-off">已停用</span>'}</td>
     </tr>`;
   });

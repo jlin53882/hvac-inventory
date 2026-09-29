@@ -163,7 +163,7 @@ async function renderWorkProgress() {
           <div class="wpr-quick-filters">
             <button type="button" class="wpr-chip" onclick="wprQuickRange('today', this)">今天</button>
             <button type="button" class="wpr-chip" onclick="wprQuickRange('week', this)">本週</button>
-            <button type="button" class="wpr-chip active" onclick="wprQuickRange('month', this)">本月</button>
+            <button type="button" class="wpr-chip is-active" onclick="wprQuickRange('month', this)">本月</button>
             <button type="button" class="wpr-chip" onclick="wprQuickRange('all', this)">全部</button>
             <span class="wpr-result-count"><span id="wpr-result-count">0 筆</span></span>
           </div>
@@ -604,7 +604,7 @@ function wprSetHistoryMonth() {
   var to = document.getElementById('wpr-to');
   if (from) from.value = wprIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
   if (to) to.value = wprIsoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-  document.querySelectorAll('.wpr-chip').forEach(function(button) { button.classList.toggle('active', button.textContent.trim() === '本月'); });
+  document.querySelectorAll('.wpr-chip').forEach(function(button) { button.classList.toggle('is-active', button.textContent.trim() === '本月'); });
 }
 /**
  * Clear history filters and reload the default month.
@@ -627,7 +627,7 @@ function wprQuickRange(type, button) {
   if (type === 'today') from = to = wprIsoDate(today);
   if (type === 'month') { from = wprIsoDate(new Date(today.getFullYear(), today.getMonth(), 1)); to = wprIsoDate(new Date(today.getFullYear(), today.getMonth() + 1, 0)); }
   if (type === 'week') { var day = today.getDay() || 7; var start = new Date(today); start.setDate(today.getDate() - day + 1); from = wprIsoDate(start); to = wprIsoDate(today); }
-  if (button) document.querySelectorAll('.wpr-chip').forEach(function(item) { item.classList.toggle('active', item === button); });
+  if (button) document.querySelectorAll('.wpr-chip').forEach(function(item) { item.classList.toggle('is-active', item === button); });
   var fromInput = document.getElementById('wpr-from');
   var toInput = document.getElementById('wpr-to');
   if (fromInput) fromInput.value = from;

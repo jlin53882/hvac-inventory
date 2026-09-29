@@ -184,3 +184,15 @@ def test_html_inline_styles_only_toggle_visibility():
         with open(os.path.join(ROOT, "static", page), encoding="utf-8") as fh:
             for style in re.findall(r'\sstyle="([^"]*)"', fh.read()):
                 assert style.replace(" ", "").rstrip(";") == "display:none", f"{page} 有靜態 inline style：{style}"
+
+
+LEGACY_STATE_CLASSES = ("active", "open", "show", "on", "off", "collapsed", "expanded", "changed")
+
+
+@pytest.mark.parametrize("rel", _css_files())
+def test_state_classes_use_is_prefix(rel):
+    """狀態一律用 is-*（.is-active / .is-open / .is-collapsed …），不得再出現 .active / .open / .show / .on 等舊寫法
+    （P7 統一；.open 與 .show 已合併為 .is-open，.on 併入 .is-active）。"""
+    pattern = re.compile(r"\.(" + "|".join(LEGACY_STATE_CLASSES) + r")(?![\w-])")
+    for _media, selector, _body in _style_rules(_read(rel)):
+        assert not pattern.search(selector), f"{rel} 使用舊狀態 class：{selector}"

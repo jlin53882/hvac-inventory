@@ -73,12 +73,12 @@ async function pcOpenReportModal(id) {
   pcOpeningSource = d.opening_balance_source || 'manual';
   const el = document.getElementById('content');
   el.insertAdjacentHTML('beforeend', `
-    <div id="pc-report-overlay" class="pc-overlay open" onclick="if(event.target===this)pcCloseReportModal()">
+    <div id="pc-report-overlay" class="pc-overlay is-open" onclick="if(event.target===this)pcCloseReportModal()">
       <div class="pc-modal" role="dialog" aria-label="零用金月報">
         <div class="pc-modal__hd"><h3 id="pc-modal-title">${id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'}</h3><button class="pc-btn-sm" onclick="pcCloseReportModal()">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <button type="button" class="pc-step active" id="pc-step-1-tab" onclick="pcModalGotoStep(1)">① 基本資料</button>
+            <button type="button" class="pc-step is-active" id="pc-step-1-tab" onclick="pcModalGotoStep(1)">① 基本資料</button>
             <button type="button" class="pc-step" id="pc-step-2-tab" onclick="pcModalGotoStep(2)">② 收支明細</button>
           </div>
           <div id="pc-step-1">
@@ -243,7 +243,7 @@ function pcModalRenderEntries() {
     const collapsible = entries.length > 1;
     html += '<div class="pc-entry-date-group">';
     html += '<div class="pc-entry-date-header' + (collapsible ? ' collapsible' : '') + '"'
-      + (collapsible ? " onclick=\"this.parentElement.classList.toggle('collapsed')\"" : '') + '>';
+      + (collapsible ? " onclick=\"this.parentElement.classList.toggle('is-collapsed')\"" : '') + '>';
     html += '<span class="pc-entry-date-label">' + esc(_pcDate(date)) + '</span>';
     html += '<span class="pc-entry-date-count">' + entries.length + ' 筆</span>';
     if (collapsible) html += '<span class="pc-entry-date-toggle">▼</span>';
@@ -307,13 +307,13 @@ function pcOpenEntryModal(idx) {
     item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount
   }));
   document.getElementById('content').insertAdjacentHTML('beforeend', `
-    <div id="pc-entry-overlay" class="pc-overlay open" onclick="if(event.target===this)pcCloseEntryModal()">
+    <div id="pc-entry-overlay" class="pc-overlay is-open" onclick="if(event.target===this)pcCloseEntryModal()">
       <div class="pc-modal" role="dialog" aria-label="收支紀錄" style="max-width:640px">
         <div class="pc-modal__hd"><h3>${pcEntryEditIndex >= 0 ? '✏️ 編輯紀錄' : '＋ 新增紀錄'}</h3><button class="pc-btn-sm" onclick="pcCloseEntryModal()">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <button class="pc-step pc-step--income${pcEntryType === 'income' ? ' active' : ''}" id="pc-type-income" onclick="pcEntrySetType('income')">💰 收入</button>
-            <button class="pc-step pc-step--expense${pcEntryType === 'expense' ? ' active' : ''}" id="pc-type-expense" onclick="pcEntrySetType('expense')">💸 支出</button>
+            <button class="pc-step pc-step--income${pcEntryType === 'income' ? ' is-active' : ''}" id="pc-type-income" onclick="pcEntrySetType('income')">💰 收入</button>
+            <button class="pc-step pc-step--expense${pcEntryType === 'expense' ? ' is-active' : ''}" id="pc-type-expense" onclick="pcEntrySetType('expense')">💸 支出</button>
           </div>
           <div class="pc-form-grid pc-form-grid--two">
             <div class="pc-field"><label>日期 <span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
@@ -345,8 +345,8 @@ function pcOpenEntryModal(idx) {
 // 收支類型切換（收入不可帶明細：切換即清空項目草稿）
 function pcEntrySetType(t) {
   pcEntryType = t;
-  document.getElementById('pc-type-income').classList.toggle('active', t === 'income');
-  document.getElementById('pc-type-expense').classList.toggle('active', t === 'expense');
+  document.getElementById('pc-type-income').classList.toggle('is-active', t === 'income');
+  document.getElementById('pc-type-expense').classList.toggle('is-active', t === 'expense');
   document.getElementById('pc-entry-items-wrap').style.display = t === 'income' ? 'none' : '';
   if (t === 'income') pcEntryItemDraft = [];
   pcEntryAmountHint();

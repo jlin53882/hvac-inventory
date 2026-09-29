@@ -127,7 +127,7 @@
 [data-page="signed-reports"] .dsr-filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
 [data-page="signed-reports"] .dsr-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 [data-page="signed-reports"] .dsr-chip { padding: 5px 9px; border: 1px solid #e2e8f0; border-radius: 999px; background: #fff; color: #475569; font-size: 11px; font-weight: 800; }
-[data-page="signed-reports"] .dsr-chip.active { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
+[data-page="signed-reports"] .dsr-chip.is-active { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
 [data-page="signed-reports"] .dsr-result-count { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #94a3b8; font-size: 11px; }
 [data-page="signed-reports"] .dsr-report-list { display: grid; gap: 10px; margin-top: 12px; }
 [data-page="signed-reports"] .dsr-report-card { overflow: hidden; border: 1px solid #111827; border-radius: 10px; background: #fff; }
@@ -196,7 +196,7 @@
 
 /* 預覽 Modal */
 [data-page="signed-reports"] .dsr-overlay { position: fixed; inset: 0; z-index: 950; display: none; padding: 14px; background: rgba(15,23,42,.55); place-items: center; }
-[data-page="signed-reports"] .dsr-overlay.open { display: grid; }
+[data-page="signed-reports"] .dsr-overlay.is-open { display: grid; }
 /* 編輯視窗使用白底表單，不沿用預覽視窗的深色內容區。 */
 [data-page="signed-reports"] .dsr-edit-modal { max-width: 560px; }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-modal__hd { background: #1e3a5f; border-bottom: none; }

@@ -157,8 +157,8 @@ function closeNotif() {
   const panel = document.getElementById('notifPanel');
   const backdrop = document.getElementById('notifBackdrop');
   const bell = document.getElementById('notif-bell');
-  if (panel) { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); }
-  if (backdrop) { backdrop.classList.remove('open'); backdrop.setAttribute('aria-hidden', 'true'); }
+  if (panel) { panel.classList.remove('is-open'); panel.setAttribute('aria-hidden', 'true'); }
+  if (backdrop) { backdrop.classList.remove('is-open'); backdrop.setAttribute('aria-hidden', 'true'); }
   if (bell) bell.setAttribute('aria-expanded', 'false');
   if (document.body && document.body.classList) document.body.classList.remove('notification-sheet-open');
 }
@@ -170,8 +170,8 @@ function openNotif() {
   const backdrop = document.getElementById('notifBackdrop');
   const bell = document.getElementById('notif-bell');
   const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  if (panel) { panel.classList.add('open'); panel.setAttribute('aria-hidden', 'false'); }
-  if (backdrop && mobile) { backdrop.classList.add('open'); backdrop.setAttribute('aria-hidden', 'false'); }
+  if (panel) { panel.classList.add('is-open'); panel.setAttribute('aria-hidden', 'false'); }
+  if (backdrop && mobile) { backdrop.classList.add('is-open'); backdrop.setAttribute('aria-hidden', 'false'); }
   if (bell) bell.setAttribute('aria-expanded', 'true');
   if (mobile && document.body && document.body.classList) document.body.classList.add('notification-sheet-open');
 }
@@ -201,7 +201,7 @@ function handleNotificationKeydown(event) {
   if (typeof window !== 'undefined') window.addEventListener('resize', function() {
     if (NOTIFICATION_OPEN && window.innerWidth >= 768) {
       const backdropEl = document.getElementById('notifBackdrop');
-      if (backdropEl) backdropEl.classList.remove('open');
+      if (backdropEl) backdropEl.classList.remove('is-open');
       if (document.body && document.body.classList) document.body.classList.remove('notification-sheet-open');
     }
   });

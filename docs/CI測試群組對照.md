@@ -58,6 +58,7 @@
 | `test_work_progress.py` | `work_progress` | `full-only` | work progress API / media / RBAC |
 | `test_work_progress_ui_regressions.py` | `frontend`, `work_progress` | `CI / Frontend + Security` | frontend lifecycle regression |
 | `visual/test_css_isolation.py` | `visual` | `CI / Visual (browser)` | Playwright：CSS 跨頁外洩清單（`visual/known_css_leaks.json`）+ computed-style 版面契約；未安裝 visual 群組時自動略過（ubuntu runner） |
+| `visual/test_state_interactions.py` | `visual` | `CI / Visual (browser)` | 狀態 class 互動契約（只檢查可見 / 選取外觀，不依賴 class 名稱）：modal、選單、頁籤、chip、收合、toast、overlay、bottom sheet |
 
 ## Auxiliary JavaScript harnesses
 

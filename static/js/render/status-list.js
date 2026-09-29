@@ -87,7 +87,7 @@ function openSharedStatusListModal(config) {
   const modal = document.getElementById('inventory-status-modal');
   if (!modal) return;
   setSharedStatusListContext(config);
-  modal.classList.add('show');
+  modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
 }
 

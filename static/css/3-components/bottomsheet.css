@@ -6,7 +6,7 @@
   position: fixed; inset: 0; background: rgba(15,18,28,.45); z-index: 3000;
   display: none; align-items: flex-end; justify-content: center;
 }
-.sheet-overlay.show { display: flex; }
+.sheet-overlay.is-open { display: flex; }
 .sheet {
   width: 100%; max-width: 560px; background: #fff;
   border-radius: 16px 16px 0 0; padding: 10px 12px 18px;

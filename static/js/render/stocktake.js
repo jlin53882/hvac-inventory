@@ -97,7 +97,7 @@ async function renderStocktake() {
   const searchFiltered = function(arr) { return filterBySearch(arr, function(r) { return [r.item.name, r.item.code, r.item.brand, r.stock.location].join(' '); }); };
   const filteredKitRows = searchFiltered(kitRows);
   const filteredSingleRows = searchFiltered(singleRows);
-  html += `<div class="stk-tabs stocktake-tabs"><button class="stk-tab stocktake-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="stk-tab stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
+  html += `<div class="stk-tabs stocktake-tabs"><button class="stk-tab stocktake-tab is-active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="stk-tab stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
   html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div><div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;
   html += `<button type="button" class="stocktake-submit btn-save" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>`;
   if (!isCurrent()) return;
@@ -156,9 +156,9 @@ function stkGroupByLoc(rows) {
 function switchStocktakeTab(tab) {
   document.getElementById('stk-pane-kit').style.display = tab === 'kit' ? '' : 'none';
   document.getElementById('stk-pane-single').style.display = tab === 'single' ? '' : 'none';
-  document.querySelectorAll('.stk-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.stk-tab').forEach(b => b.classList.remove('is-active'));
   const idx = tab === 'kit' ? 0 : 1;
-  document.querySelectorAll('.stk-tab')[idx].classList.add('active');
+  document.querySelectorAll('.stk-tab')[idx].classList.add('is-active');
 }
 
 // ========== 盤點：低庫存 / 缺貨清單 ==========
@@ -207,8 +207,8 @@ function markChanged(input, key) {
       const _p = Qty.parse(input.value);
       _chg = !!(_p.error || Math.abs(_p.value - stock.qty) > 1e-9);
     } else _chg = parseFloat(input.value) !== stock.qty;
-    if (_chg) input.classList.add('changed'); else input.classList.remove('changed');
-  } else input.classList.remove('changed');
+    if (_chg) input.classList.add('is-changed'); else input.classList.remove('is-changed');
+  } else input.classList.remove('is-changed');
 }
 
 // 收集所有有差異的盤點值 → POST /api/stocktake 更新庫存並記錄盤點結果

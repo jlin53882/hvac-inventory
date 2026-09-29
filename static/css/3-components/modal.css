@@ -8,7 +8,7 @@
     position: fixed; inset: 0; background: rgba(0,0,0,0.45);
     z-index: 950; display: none; align-items: flex-end; justify-content: center;  /* 950: 須高於 header z-900，低於 sheet 3000/lightbox 9999（2026-08-25 截圖實證），須高於 900；低於 sheet 3000/lightbox 9999 */
   }
-  .modal-overlay.show { display: flex; }
+  .modal-overlay.is-open { display: flex; }
   .modal {
     background: #fff; width: 100%; max-width: 520px;
     border-radius: 16px 16px 0 0;

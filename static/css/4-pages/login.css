@@ -111,7 +111,7 @@
     border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600;
     margin-bottom: 14px; align-items: center; gap: 8px;
   }
-  [data-page="login"] .error-box.show { display: flex; animation: shake 0.4s ease; }
+  [data-page="login"] .error-box.is-open { display: flex; animation: shake 0.4s ease; }
   [data-page="login"] .error-box.info { background: rgba(30, 64, 175, 0.35); border-color: rgba(96, 165, 250, 0.4); color: #93c5fd; animation: none; }
   @keyframes shake {
     0%,100% { transform: translateX(0); }
@@ -127,7 +127,7 @@
     flex-direction: column; align-items: center; justify-content: center;
     color: #fff; text-align: center; padding: 30px;
   }
-  [data-page="login"] .success-overlay.show { display: flex; animation: fade-in 0.3s ease; }
+  [data-page="login"] .success-overlay.is-open { display: flex; animation: fade-in 0.3s ease; }
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
   [data-page="login"] .success-overlay .ok-icon { font-size: 52px; margin-bottom: 14px; }
   [data-page="login"] .success-overlay h2 { font-size: 20px; margin-bottom: 8px; }

@@ -13,7 +13,7 @@
     align-items: center;
     z-index: 95;
   }
-  .save-bar.show { display: flex; }
+  .save-bar.is-open { display: flex; }
   .save-bar .stat { font-size: 12px; color: #666; }
   .save-bar .stat b { font-size: 15px; color: #1a1a1a; }
 }

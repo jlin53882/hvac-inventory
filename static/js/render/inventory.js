@@ -326,7 +326,7 @@ function renderInventoryStatusModal(type, items) {
 
 function isInventoryStatusRequestCurrent(requestId, modal, type) {
   const isOpen = modal && modal.classList && typeof modal.classList.contains === 'function'
-    ? modal.classList.contains('show') : true;
+    ? modal.classList.contains('is-open') : true;
   return requestId === inventoryStatusRequestSeq && inventoryStatusModalType === type && isOpen;
 }
 
@@ -339,7 +339,7 @@ async function showInventoryStatusList(type) {
   let items = getInventoryStatusItems(type);
   const stats = typeof INVENTORY_META !== 'undefined' ? INVENTORY_META.stats : null;
   const hasAlertItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
-  modal.classList.add('show');
+  modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
   if (!hasAlertItems) {
     body.innerHTML = '<div class="inventory-status-loading">載入完整警示清單…</div>';
@@ -363,7 +363,7 @@ function closeInventoryStatusModal() {
   if (typeof clearSharedStatusListModal === 'function') clearSharedStatusListModal();
   const modal = document.getElementById('inventory-status-modal');
   if (!modal) return;
-  modal.classList.remove('show');
+  modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
 }
 
@@ -372,12 +372,12 @@ function renderInventoryChips() {
   const brands = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
   const cats = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
   let h = '<div class="chip-bar">';
-  h += '<span class="chip' + (currentBrands.length === 0 ? ' on' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
-  brands.forEach(b => { h += '<span class="chip' + (currentBrands.includes(b) ? ' on' : '') + '" onclick="toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
+  h += '<span class="chip' + (currentBrands.length === 0 ? ' is-active' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
+  brands.forEach(b => { h += '<span class="chip' + (currentBrands.includes(b) ? ' is-active' : '') + '" onclick="toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
   h += '</div>';
   h += '<div class="chip-bar">';
-  h += '<span class="chip' + (currentCategories.length === 0 ? ' on' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
-  cats.forEach(c => { h += '<span class="chip' + (currentCategories.includes(c) ? ' on' : '') + '" onclick="toggleInventoryCategory(\'' + esc(jsStr(c)) + '\')">' + esc(c) + '</span>'; });
+  h += '<span class="chip' + (currentCategories.length === 0 ? ' is-active' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
+  cats.forEach(c => { h += '<span class="chip' + (currentCategories.includes(c) ? ' is-active' : '') + '" onclick="toggleInventoryCategory(\'' + esc(jsStr(c)) + '\')">' + esc(c) + '</span>'; });
   h += '</div>';
   return h;
 }
@@ -409,7 +409,7 @@ function renderInventoryToolbar(list, isViewer) {
   let h = '<div class="loc-export-bar">';
   if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
   h += '<span class="loc-export-count">共 ' + (INVENTORY_META.total || list.length) + ' 項</span>';
-  h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'active' : '') + '">🃏 卡片</button></div>';
+  h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'is-active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'is-active' : '') + '">🃏 卡片</button></div>';
   if (!isViewer) h += '<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
   if (isM) {
     h += '<div class="more-actions-wrap"><button class="btn-sm btn-more-actions" onclick="toggleMoreActions()">⋮</button>';
@@ -487,11 +487,11 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
   Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
     const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
-    h += '<div class="section-title' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="toggleLoc(this, \'' + esc(jsStr(loc)) + '\')">';
+    h += '<div class="section-title' + (locCollapsed ? ' is-collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="toggleLoc(this, \'' + esc(jsStr(loc)) + '\')">';
     h += '<button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>';
     h += '<span class="loc">位置：' + esc(loc) + '</span><span>' + locItems.length + ' 項</span>';
     h += '</div>';
-    h += '<div class="loc-group' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '">';
+    h += '<div class="loc-group' + (locCollapsed ? ' is-collapsed' : '') + '" data-loc="' + esc(loc) + '">';
     locItems.forEach(i => {
       const status = getInventoryStatus(i);
       const display = status.qty;
@@ -636,13 +636,13 @@ function updateSaveBar() {
 
   if (n > 0 && currentTab === 'inventory') {
 
-    bar.classList.add('show');
+    bar.classList.add('is-open');
 
     document.getElementById('pending-count').textContent = n;
 
   } else {
 
-    bar.classList.remove('show');
+    bar.classList.remove('is-open');
 
   }
 
@@ -722,13 +722,13 @@ function toggleLoc(titleEl, loc) {
 
   try { localStorage.setItem(collapsedKey, JSON.stringify(arr)); } catch (e) {}
 
-  if (titleEl) titleEl.classList.toggle('collapsed', nowCollapsed);
+  if (titleEl) titleEl.classList.toggle('is-collapsed', nowCollapsed);
 
   try {
 
     const groups = document.querySelectorAll('.loc-group[data-loc="' + CSS.escape(loc) + '"]');
 
-    groups.forEach(g => g.classList.toggle('collapsed', nowCollapsed));
+    groups.forEach(g => g.classList.toggle('is-collapsed', nowCollapsed));
 
   } catch (e) {}
 
@@ -818,11 +818,11 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
   if (!el) return;
 
   el.innerHTML = '';
-  el.classList.toggle('collapsed', !filterExpandedState[type]);
+  el.classList.toggle('is-collapsed', !filterExpandedState[type]);
 
   var allChip = document.createElement('span');
 
-  allChip.className = 'filter-chip' + (selectedArr.length === 0 ? ' active' : '');
+  allChip.className = 'filter-chip' + (selectedArr.length === 0 ? ' is-active' : '');
 
   allChip.textContent = '全部';
 
@@ -831,7 +831,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
   el.appendChild(allChip);
 
   // 判定容器寬度是否足夠顯示全部 chips
-  var isCollapsed = el.classList.contains('collapsed');
+  var isCollapsed = el.classList.contains('is-collapsed');
   var visibleCount = calculateVisibleChipsCount(containerId);
   var totalChipsNeeded = counts.length + 1;  // 包含「全部」
   
@@ -850,7 +850,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
     var isSelected = selectedArr.includes(name);
 
-    chip.className = 'filter-chip' + (isSelected ? ' active' : '');
+    chip.className = 'filter-chip' + (isSelected ? ' is-active' : '');
 
     chip.innerHTML = esc(name) + ' <span class="badge">' + count + '</span>';
 
@@ -935,7 +935,7 @@ function toggleFilterCollapse(containerId, toggleBtnId) {
 
   var btn = document.getElementById(toggleBtnId);
 
-  var isCollapsed = el.classList.toggle('collapsed');
+  var isCollapsed = el.classList.toggle('is-collapsed');
   var filterType = containerId === 'fp-brand-chips' ? 'brand' : 'category';
   filterExpandedState[filterType] = !isCollapsed;
 
@@ -962,13 +962,13 @@ function toggleBatchMode() {
   batchMode = !batchMode;
   selectedStockIds.clear();
   var bt = document.getElementById('batch-toggle');
-  if (bt) bt.classList.toggle('active', batchMode);
+  if (bt) bt.classList.toggle('is-active', batchMode);
   document.getElementById('batch-num').textContent = 0;
   document.getElementById('batch-confirm').disabled = true;
   if (batchMode) {
-    document.getElementById('batch-bar').classList.add('show');
+    document.getElementById('batch-bar').classList.add('is-open');
   } else {
-    document.getElementById('batch-bar').classList.remove('show');
+    document.getElementById('batch-bar').classList.remove('is-open');
   }
   renderInventory();
 }
@@ -1016,13 +1016,13 @@ function _allSelected() {
 function _syncBatchUI() {
   document.getElementById('batch-num').textContent = selectedStockIds.size;
   document.getElementById('batch-confirm').disabled = selectedStockIds.size === 0;
-  document.getElementById('batch-bar').classList.toggle('show', selectedStockIds.size > 0);
+  document.getElementById('batch-bar').classList.toggle('is-open', selectedStockIds.size > 0);
   renderInventory();
 }
 
 function cancelBatch() {
   selectedStockIds.clear();
-  document.getElementById('batch-bar').classList.remove('show');
+  document.getElementById('batch-bar').classList.remove('is-open');
   document.getElementById('batch-cabinet').value = '';
   document.getElementById('batch-sub').value = '';
   renderInventory();
@@ -1045,11 +1045,11 @@ function showBatchConfirm() {
     });
   });
   document.getElementById('batch-confirm-items').innerHTML = details.join('');
-  document.getElementById('batch-confirm-modal').classList.add('show');
+  document.getElementById('batch-confirm-modal').classList.add('is-open');
 }
 
 function closeBatchConfirm() {
-  document.getElementById('batch-confirm-modal').classList.remove('show');
+  document.getElementById('batch-confirm-modal').classList.remove('is-open');
 }
 
 async function submitBatchLocation() {
@@ -1099,20 +1099,20 @@ function toggleInventoryCategory(cat) {
 // ========== 手機版更多操作選單 ==========
 function toggleMoreActions() {
   var dd = document.getElementById('moreActionsDropdown');
-  if (dd) dd.classList.toggle('open');
+  if (dd) dd.classList.toggle('is-open');
 }
 function closeMoreActions() {
   var dd = document.getElementById('moreActionsDropdown');
-  if (dd) dd.classList.remove('open');
+  if (dd) dd.classList.remove('is-open');
 }
 function openInventoryActionMenu(button, event) {
   if (event) event.stopPropagation();
-  document.querySelectorAll('.inventory-action-dropdown.open').forEach(function(el) { el.classList.remove('open'); });
+  document.querySelectorAll('.inventory-action-dropdown.is-open').forEach(function(el) { el.classList.remove('is-open'); });
   var menu = button && button.parentElement ? button.parentElement.querySelector('.inventory-action-dropdown') : null;
-  if (menu) menu.classList.toggle('open');
+  if (menu) menu.classList.toggle('is-open');
 }
 function closeInventoryActionMenus() {
-  document.querySelectorAll('.inventory-action-dropdown.open').forEach(function(el) { el.classList.remove('open'); });
+  document.querySelectorAll('.inventory-action-dropdown.is-open').forEach(function(el) { el.classList.remove('is-open'); });
 }
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.more-actions-wrap')) closeMoreActions();

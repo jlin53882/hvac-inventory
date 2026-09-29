@@ -68,7 +68,7 @@ def client(tmp_path, monkeypatch):
 # - 新檔案/新內插若不在清單 → 測試紅 → 人工審核（安全則加這裡，否則補 esc()）
 REVIEWED_SAFE_BODIES = {
     # 報價單內部分頁（2026-09-09）：active 只由固定模式傳入，輸出皆為固定 class/文字。
-    "active === 'quotation' ? 'active' : ''", "active === 'upload' ? 'active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
+    "active === 'quotation' ? 'is-active' : ''", "active === 'upload' ? 'is-active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
     # inventory card note context: formatter returns escaped display HTML; label uses it plus fixed text.
     "formatLocationDisplay(s.location)", "buildStockNoteLabelHTML(s, showLocationContext)",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
@@ -132,7 +132,7 @@ REVIEWED_SAFE_BODIES = {
     "isReturn ? '+' : '-'",
     "f && f.user_ids.includes(p.id) ? 'checked' : ''",
     "f && f.service_type_id === s.id ? 'selected' : ''",
-    "s.is_active ? 'on' : ''", "low ? 'warn' : ''", "zero ? 'danger' : ''",
+    "s.is_active ? 'is-active' : ''", "low ? 'warn' : ''", "zero ? 'danger' : ''",
     # 內部變數/函式回傳（內部已消毒或格式化）
     "roleClass", "roleLabel", "ROLE_LABELS[u.role] || u.role",
     "calFmtCreatedAt(e.created_at)", "calModalHtml(isAdmin)", "calSettingsHtml(isAdmin)",
@@ -143,8 +143,8 @@ REVIEWED_SAFE_BODIES = {
     # calendar.js 24 制時間下拉（2026-08-13）：${hh}/${mm} 為 String(h/mm).padStart 產生的純數字（00-23/00-55），不可控
     "hh", "mm",
     # perms.js 權限頁（2026-08-13）：class 三元 / ROLE_LABELS・GROUP_LABELS 常數輸出，使用者資料已 esc()
-    "u.id === curUid ? 'active' : ''", "badge", "u.is_active ? '啟用中' : '已停用'",
-    "u.is_active ? '' : 'off'", "u.is_active ? 'on' : 'off'", "isMe ? '（自己）' : ''",
+    "u.id === curUid ? 'is-active' : ''", "badge", "u.is_active ? '啟用中' : '已停用'",
+    "u.is_active ? '' : 'is-inactive'", "u.is_active ? 'is-active' : 'is-inactive'", "isMe ? '（自己）' : ''",
     "u.is_active ? '✅ 啟用中' : '⏸ 已停用'", "GROUP_LABELS[mod] || mod", "locked ? 'locked' : ''",
     "srcCls", "srcLabel", "checked", "disabled ? 'disabled' : ''", "isMe ? 'disabled' : ''",
     "Object.keys(permChanges).length ? 'changed' : ''", "u.is_active ? 0 : 1",
@@ -251,7 +251,7 @@ REVIEWED_SAFE_BODIES = {
     "titleBadge", "engineering ? '匯出' : '匯出 Excel'", "cards.map(pcDetailKpiCardHtml).join('')",
     "pcDetailHeaderHtml(r, false)", "pcDetailHeaderHtml(r, true)", "pcDetailKpiRowHtml(kpis)",
     "id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'",
-    "pcEntryType === 'income' ? ' active' : ''", "pcEntryType === 'expense' ? ' active' : ''",
+    "pcEntryType === 'income' ? ' is-active' : ''", "pcEntryType === 'expense' ? ' is-active' : ''",
     "pcEntryType === 'income' ? 'display:none' : ''",
 }
 

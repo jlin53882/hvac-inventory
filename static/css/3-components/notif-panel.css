@@ -2,7 +2,7 @@
 @layer components {
   /* Notification Summary Center：Desktop Popover / Mobile Bottom Sheet */
   .notif-panel {position:fixed;top:62px;right:24px;width:min(400px,calc(100vw - 32px));max-height:min(80vh,560px);display:none;flex-direction:column;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 16px 40px rgba(15,23,42,.18);z-index:150;overflow:hidden}
-  .notif-panel.open {display:flex}
+  .notif-panel.is-open {display:flex}
   .notif-panel-header {display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 18px 14px;border-bottom:1px solid #eef2f7;background:#fff}
   .notif-panel-header h2 {margin:0;color:#0f172a;font-size:18px;line-height:1.25}
   .notif-panel-header p {margin:4px 0 0;color:#64748b;font-size:12px;line-height:1.4}
@@ -40,6 +40,6 @@
     .notif-category {padding:16px 8px;grid-template-columns:34px minmax(0,1fr) auto 14px}
     .notif-category-copy strong {font-size:15px}
     .notif-category-copy small {font-size:12px;white-space:normal}
-    .notif-backdrop.open {display:block;position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:140}
+    .notif-backdrop.is-open {display:block;position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:140}
   }
 }

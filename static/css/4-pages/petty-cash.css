@@ -128,7 +128,7 @@
   font-weight: 700;
   cursor: pointer;
 }
-[data-page="petty-cash"] .pc-chip.active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
+[data-page="petty-cash"] .pc-chip.is-active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
 [data-page="petty-cash"] .pc-result-count { margin-left: auto; font-size: 12.5px; color: #64748b; }
 
 /* KPI canonical contract: three equal-width cards always stay in one row. */
@@ -229,7 +229,7 @@
   padding: 12px;
   box-sizing: border-box;
 }
-[data-page="petty-cash"] .pc-overlay.open { display: flex; }
+[data-page="petty-cash"] .pc-overlay.is-open { display: flex; }
 [data-page="petty-cash"] .pc-modal {
   background: #fff;
   border-radius: 16px;
@@ -269,7 +269,7 @@
   background: #f1f5f9;
   color: #64748b;
 }
-[data-page="petty-cash"] .pc-step.active { background: #dbeafe; color: #1d4ed8; }
+[data-page="petty-cash"] .pc-step.is-active { background: #dbeafe; color: #1d4ed8; }
 [data-page="petty-cash"] .pc-form-grid { display: grid; gap: 10px; }
 @media (min-width: 720px) {
   [data-page="petty-cash"] .pc-form-grid--two { grid-template-columns: 1fr 1fr; }
@@ -380,8 +380,8 @@
 }
 
 /* 收入/支出按鈕 active 色彩區分 */
-[data-page="petty-cash"] #content .pc-step.pc-step--income.active { background: #dcfce7; border: 2px solid #16a34a; color: #15803d; }
-[data-page="petty-cash"] #content .pc-step.pc-step--expense.active { background: #fee2e2; border: 2px solid #dc2626; color: #b91c1c; }
+[data-page="petty-cash"] #content .pc-step.pc-step--income.is-active { background: #dcfce7; border: 2px solid #16a34a; color: #15803d; }
+[data-page="petty-cash"] #content .pc-step.pc-step--expense.is-active { background: #fee2e2; border: 2px solid #dc2626; color: #b91c1c; }
 
 
 /* === 明細項目欄位標題 === */
@@ -420,14 +420,14 @@
 [data-page="petty-cash"] .pc-entry-date-label { color: #1e293b; }
 [data-page="petty-cash"] .pc-entry-date-count { color: #94a3b8; font-size: 11px; font-weight: 400; }
 [data-page="petty-cash"] .pc-entry-date-toggle { margin-left: auto; font-size: 10px; color: #94a3b8; transition: transform .2s; }
-[data-page="petty-cash"] .pc-entry-date-group.collapsed .pc-entry-date-toggle { transform: rotate(-90deg); }
+[data-page="petty-cash"] .pc-entry-date-group.is-collapsed .pc-entry-date-toggle { transform: rotate(-90deg); }
 [data-page="petty-cash"] .pc-entry-date-body {
   border: 1px solid #e2e8f0;
   border-top: none;
   border-radius: 0 0 8px 8px;
   overflow: hidden;
 }
-[data-page="petty-cash"] .pc-entry-date-group.collapsed .pc-entry-date-body { display: none; }
+[data-page="petty-cash"] .pc-entry-date-group.is-collapsed .pc-entry-date-body { display: none; }
 
 
 

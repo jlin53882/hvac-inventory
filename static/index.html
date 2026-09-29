@@ -62,7 +62,7 @@
   </div>
   <div class="sidebar-nav">
     <div class="nav-section">主要功能</div>
-    <a class="sb-nav-link active" id="sb-nav-calendar" data-page-key="calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
+    <a class="sb-nav-link is-active" id="sb-nav-calendar" data-page-key="calendar" onclick="switchTab('calendar')"><span class="ic">📅</span>行事曆</a>
     <a class="sb-nav-link" id="sb-nav-work-progress" data-page-key="work-progress" onclick="switchTab('work-progress')"><span class="ic">📸</span>每日工作進度回報</a>
     <a class="sb-nav-link" id="sb-nav-signed-reports" data-page-key="signed-reports" onclick="switchTab('signed-reports')"><span class="ic">🗂</span>每日簽名日報表</a>
     <a class="sb-nav-link" id="sb-nav-quotation" data-page-key="quotation" onclick="switchTab('quotation')"><span class="ic">🧾</span>報價單</a>
@@ -95,7 +95,7 @@
     </div>
     <div class="h-right">
       <div class="h-site">
-        <button class="on" id="site-office" onclick="switchSite('office')">🏢 公司</button>
+        <button class="is-active" id="site-office" onclick="switchSite('office')">🏢 公司</button>
         <button id="site-warehouse" onclick="switchSite('warehouse')">🏭 倉庫</button>
         <button id="site-van" onclick="switchSite('van')">🚐 廂型車</button>
         <button id="site-truck" onclick="switchSite('truck')">🚚 貨車</button>
@@ -147,14 +147,14 @@
         <div class="left">🏷️ 品牌 <span class="count" id="fp-brand-count"></span></div>
         <button class="toggle-btn" id="fp-brand-toggle" onclick="toggleFilterCollapse('fp-brand-chips','fp-brand-toggle')">展開 ▼</button>
       </div>
-      <div class="filter-chips collapsed" id="fp-brand-chips"></div>
+      <div class="filter-chips is-collapsed" id="fp-brand-chips"></div>
     </div>
     <div class="filter-section">
       <div class="filter-label">
         <div class="left">📦 項目分類 <span class="count" id="fp-cat-count"></span></div>
         <button class="toggle-btn" id="fp-cat-toggle" onclick="toggleFilterCollapse('fp-cat-chips','fp-cat-toggle')">展開 ▼</button>
       </div>
-      <div class="filter-chips collapsed" id="fp-cat-chips"></div>
+      <div class="filter-chips is-collapsed" id="fp-cat-chips"></div>
     </div>
     <div class="u-d-flex u-jc-space-between u-ai-center u-mt-8">
       <button class="filter-clear" onclick="clearFilterPanel()">清除篩選</button>

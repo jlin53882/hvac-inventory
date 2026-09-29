@@ -4,6 +4,6 @@
 /* ===== Inline chip filter bar ===== */
 .chip-bar {display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .chip-bar .chip {padding:4px 12px;border-radius:14px;border:1px solid #e5e7eb;background:#fff;font-size:12px;cursor:pointer;transition:all .12s;white-space:nowrap}
-.chip-bar .chip.on {background:#2d5a8e;color:#fff;border-color:#2d5a8e}
+.chip-bar .chip.is-active {background:#2d5a8e;color:#fff;border-color:#2d5a8e}
 .chip-bar .chip:hover {border-color:#2d5a8e}
 }

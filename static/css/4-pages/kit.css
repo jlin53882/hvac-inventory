@@ -7,7 +7,7 @@
     box-shadow: 0 10px 26px rgba(0,0,0,0.14);
     max-height: 240px; overflow-y: auto; z-index: 60;
   }
-  [data-page="kit"] .kit-dropdown.open { display: block; }
+  [data-page="kit"] .kit-dropdown.is-open { display: block; }
   [data-page="kit"] .kit-drop-opt {
     padding: 9px 10px; cursor: pointer; display: flex;
     justify-content: space-between; align-items: center; gap: 8px;

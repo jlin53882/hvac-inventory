@@ -229,11 +229,11 @@ async function testSearchAndFilterResetPageAndActiveState() {
   context.permSearch('');
   context.permFilter('reports');
   assert.strictEqual(pageText(document)[1], '1', 'module filter must reset page to 1');
-  assert.ok(filterButton(document, 'reports').className.split(/\s+/).includes('active'));
-  assert.ok(!filterButton(document, 'all').className.split(/\s+/).includes('active'));
+  assert.ok(filterButton(document, 'reports').className.split(/\s+/).includes('is-active'));
+  assert.ok(!filterButton(document, 'all').className.split(/\s+/).includes('is-active'));
   context.permFilter('stock');
-  assert.ok(filterButton(document, 'stock').className.split(/\s+/).includes('active'));
-  assert.ok(!filterButton(document, 'reports').className.split(/\s+/).includes('active'));
+  assert.ok(filterButton(document, 'stock').className.split(/\s+/).includes('is-active'));
+  assert.ok(!filterButton(document, 'reports').className.split(/\s+/).includes('is-active'));
 }
 
 async function testPendingAcrossPaginationSearchAndFilter() {

@@ -152,7 +152,7 @@ async function renderQuotationUploads() {
             <div class="qup-chips">
               <button class="qup-chip" onclick="qupQuickRange('today',this)">今天</button>
               <button class="qup-chip" onclick="qupQuickRange('week',this)">本週</button>
-              <button class="qup-chip active" onclick="qupQuickRange('month',this)">本月</button>
+              <button class="qup-chip is-active" onclick="qupQuickRange('month',this)">本月</button>
               <button class="qup-chip" onclick="qupQuickRange('all',this)">全部</button>
               <span class="qup-result-count"><span id="qup-result-count">0 筆</span></span>
             </div>
@@ -399,16 +399,16 @@ function qupResetFilter() {
   document.getElementById('qup-f-from').value = _qupIso(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('qup-f-to').value = _qupIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
   document.getElementById('qup-f-q').value = '';
-  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.qup-chip')[2].classList.add('active');
+  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('.qup-chip')[2].classList.add('is-active');
   qupPage = 1;
   qupLoadHistory();
 }
 
 // 快捷日期範圍（今天/本週/本月/全部）
 function qupQuickRange(k, btn) {
-  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('is-active'));
+  btn.classList.add('is-active');
   const now = new Date();
   if (k === 'today') { document.getElementById('qup-f-from').value = _qupIso(now); document.getElementById('qup-f-to').value = _qupIso(now); }
   else if (k === 'week') { const d = new Date(now); d.setDate(d.getDate()-d.getDay()); document.getElementById('qup-f-from').value = _qupIso(d); const e = new Date(d); e.setDate(e.getDate()+6); document.getElementById('qup-f-to').value = _qupIso(e); }
@@ -449,10 +449,10 @@ function qupShowPreview(name, mime, previewUrl, downloadUrl) {
   }
   else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
   document.getElementById('qup-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
-  document.getElementById('qup-overlay').classList.add('open');
+  document.getElementById('qup-overlay').classList.add('is-open');
 }
 // 關閉預覽 Modal
-function qupClosePreview() { document.getElementById('qup-overlay').classList.remove('open'); document.getElementById('qup-preview-body').innerHTML = ''; }
+function qupClosePreview() { document.getElementById('qup-overlay').classList.remove('is-open'); document.getElementById('qup-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function qupDownload(id) { window.open('/api/quotation-uploads/' + id + '/download', '_blank'); }
 // 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）。
@@ -461,7 +461,7 @@ async function qupEdit(id) {
   const report = qupFiltered.find(item => item.id === id);
   if (!report) return;
   const overlay = document.createElement('div');
-  overlay.className = 'qup-overlay open';
+  overlay.className = 'qup-overlay is-open';
   overlay.innerHTML = `
     <div class="qup-modal qup-edit-modal" role="dialog" aria-modal="true" aria-labelledby="qup-edit-title">
       <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="qup-btn-sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>

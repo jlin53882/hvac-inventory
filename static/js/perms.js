@@ -96,9 +96,9 @@
     const el = document.getElementById('userList');
     el.innerHTML = permUsers.map(u => {
       const isMe = me.id === u.id;
-      const cls = u.is_active ? 'on' : 'off';
+      const cls = u.is_active ? 'is-active' : 'is-inactive';
       const badge = ROLE_LABELS[u.role] || u.role;
-      return `<div class="user-list-item ${u.id === curUid ? 'active' : ''}" data-uid="${u.id}" onclick="window.permSelect(${u.id})">
+      return `<div class="user-list-item ${u.id === curUid ? 'is-active' : ''}" data-uid="${u.id}" onclick="window.permSelect(${u.id})">
         <div class="user-avatar ${cls}">${esc(u.display_name ? u.display_name.charAt(0) : '?')}</div>
         <div class="user-meta">
           <div class="user-name">${esc(u.display_name)}${isMe ? ' <span class="me-tag">（自己）</span>' : ''}</div>
@@ -113,8 +113,8 @@
     const el = document.getElementById('chipBar');
     el.innerHTML = permUsers.map(u => {
       const isMe = me.id === u.id;
-      return `<button class="chip ${u.id === curUid ? 'active' : ''} ${u.is_active ? '' : 'off'}" onclick="window.permSelect(${u.id})">
-        <span class="status-dot ${u.is_active ? 'on' : 'off'}"></span>${esc(u.display_name)}${isMe ? '（自己）' : ''}
+      return `<button class="chip ${u.id === curUid ? 'is-active' : ''} ${u.is_active ? '' : 'is-inactive'}" onclick="window.permSelect(${u.id})">
+        <span class="status-dot ${u.is_active ? 'is-active' : 'is-inactive'}"></span>${esc(u.display_name)}${isMe ? '（自己）' : ''}
       </button>`;
     }).join('');
   }
@@ -136,7 +136,7 @@
     if (!u) return;
     const isMe = me.id === u.id;
     document.getElementById('panelHead').innerHTML = `
-      <div class="user-avatar ${u.is_active ? '' : 'off'}">${esc(u.display_name.charAt(0) || '?')}</div>
+      <div class="user-avatar ${u.is_active ? '' : 'is-inactive'}">${esc(u.display_name.charAt(0) || '?')}</div>
       <div>
         <div class="panel-title">${esc(u.display_name)}${isMe ? ' <span style="font-size:12px;color:#999">（自己）</span>' : ''}</div>
         <div class="panel-sub">${ROLE_LABELS[u.role] || u.role} · @${esc(u.username)} · ${u.is_active ? '✅ 啟用中' : '⏸ 已停用'}</div>
@@ -168,8 +168,8 @@
     if (!detail) return;
     const el = document.getElementById('tab-perms');
     const isMe = me.id === curUid;
-    const featureActive = permissionView === 'features' ? 'active' : '';
-    const pageActive = permissionView === 'pages' ? 'active' : '';
+    const featureActive = permissionView === 'features' ? 'is-active' : '';
+    const pageActive = permissionView === 'pages' ? 'is-active' : '';
     let html = isMe
       ? '<div class="warn-box">⚠️ 不能修改自己的權限（系統保護）——你的權限由另一位管理員管理。</div>'
       : '';
@@ -190,7 +190,7 @@
     el.innerHTML = html;
     renderPermissionToolbar();
     renderPermissionView();
-    if (pendingCount) document.getElementById('saveHint')?.classList.add('changed');
+    if (pendingCount) document.getElementById('saveHint')?.classList.add('is-changed');
   }
 
   function renderPermissionToolbar() {
@@ -201,15 +201,15 @@
     let html = `<label class="perm-search-label" for="permission-search">搜尋權限名稱或 key</label>
       <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" oninput="window.permSearch(this.value)">
       <div class="perm-module-filter" role="group" aria-label="權限分類">
-        <button class="perm-filter ${esc(permissionModule === 'all' ? 'active' : '')}" data-module="all" onclick="window.permFilter('all')">全部</button>
-        ${modules.map(mod => `<button class="perm-filter ${esc(permissionModule === mod ? 'active' : '')}" data-module="${esc(mod)}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
+        <button class="perm-filter ${esc(permissionModule === 'all' ? 'is-active' : '')}" data-module="all" onclick="window.permFilter('all')">全部</button>
+        ${modules.map(mod => `<button class="perm-filter ${esc(permissionModule === mod ? 'is-active' : '')}" data-module="${esc(mod)}" onclick="window.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
       </div>`;
     toolbar.innerHTML = html;
   }
 
   function updatePermissionFilterState() {
     document.querySelectorAll?.('#permission-toolbar .perm-filter').forEach(button => {
-      button.classList.toggle('active', button.dataset.module === permissionModule);
+      button.classList.toggle('is-active', button.dataset.module === permissionModule);
     });
   }
 
@@ -338,7 +338,7 @@
     const hint = document.getElementById('saveHint');
     if (!hint) return;
     const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
-    hint.className = n ? 'save-hint changed' : 'save-hint';
+    hint.className = n ? 'save-hint is-changed' : 'save-hint';
     hint.textContent = n ? `有 ${n} 項未儲存變更` : '變更立即生效，不需重新登入';
   }
 
@@ -359,7 +359,7 @@
     const hint = document.getElementById('saveHint');
     if (hint) {
       const n = Object.keys(permChanges).length + Object.keys(pageChanges).length;
-      hint.className = 'save-hint changed';
+      hint.className = 'save-hint is-changed';
       hint.textContent = `有 ${n} 項未儲存變更`;
     }
   };
@@ -402,11 +402,11 @@
     if (!u) return;
     document.getElementById('resetPermTarget').textContent = `${u.display_name}（@${u.username}）`;
     document.getElementById('resetPermRole').textContent = ROLE_LABELS[u.role] || u.role;
-    document.getElementById('resetPermOverlay').classList.add('show');
+    document.getElementById('resetPermOverlay').classList.add('is-open');
   };
 
   window.closeResetPermModal = function closeResetPermModal() {
-    document.getElementById('resetPermOverlay').classList.remove('show');
+    document.getElementById('resetPermOverlay').classList.remove('is-open');
   };
 
   window.confirmResetPerm = async function confirmResetPerm() {
@@ -464,7 +464,7 @@
     const u = permUsers.find(x => x.id === uid);
     document.getElementById('resetPwTarget').textContent = `重設 ${u.display_name}（@${u.username}）的密碼`;
     document.getElementById('rp-password').value = '';
-    document.getElementById('resetPwOverlay').classList.add('show');
+    document.getElementById('resetPwOverlay').classList.add('is-open');
   };
 
   window.permToggleActive = async function permToggleActive(uid, nextActive) {
@@ -501,7 +501,7 @@
 
   // ---------- tab 切換 ----------
   window.switchTab = function switchTab(tab) {
-    document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('is-active', t.dataset.tab === tab));
     document.getElementById('tab-perms').style.display = tab === 'perms' ? '' : 'none';
     document.getElementById('tab-account').style.display = tab === 'account' ? '' : 'none';
   };
@@ -514,18 +514,18 @@
     document.getElementById('nu-password').value = '';
     document.getElementById('nu-batch').value = '';
     document.getElementById('nu-batch-result').innerHTML = '';
-    document.getElementById('addUserOverlay').classList.add('show');
+    document.getElementById('addUserOverlay').classList.add('is-open');
   };
 
   window.closeAddUserModal = function closeAddUserModal() {
-    document.getElementById('addUserOverlay').classList.remove('show');
+    document.getElementById('addUserOverlay').classList.remove('is-open');
   };
 
   window.addUserMode = function addUserMode(mode) {
     addMode = mode;
     document.getElementById('addSingle').style.display = mode === 'single' ? '' : 'none';
     document.getElementById('addBatch').style.display = mode === 'batch' ? '' : 'none';
-    document.querySelectorAll('#addUserOverlay .tab').forEach(t => t.classList.toggle('active', t.textContent.includes(mode === 'single' ? '單一' : '批次')));
+    document.querySelectorAll('#addUserOverlay .tab').forEach(t => t.classList.toggle('is-active', t.textContent.includes(mode === 'single' ? '單一' : '批次')));
   };
 
   window.submitAddUser = async function submitAddUser() {
@@ -580,11 +580,11 @@
     if (!u || me.id === uid) return;
     document.getElementById('ae-display-name').value = u.display_name || '';
     document.getElementById('ae-role').value = u.role;
-    document.getElementById('accountEditOverlay').classList.add('show');
+    document.getElementById('accountEditOverlay').classList.add('is-open');
   };
 
   window.closeAccountEditModal = function closeAccountEditModal() {
-    document.getElementById('accountEditOverlay').classList.remove('show');
+    document.getElementById('accountEditOverlay').classList.remove('is-open');
   };
 
   window.submitAccountEdit = async function submitAccountEdit() {
@@ -618,7 +618,7 @@
   };
 
   window.closeResetPwModal = function closeResetPwModal() {
-    document.getElementById('resetPwOverlay').classList.remove('show');
+    document.getElementById('resetPwOverlay').classList.remove('is-open');
   };
 
   // ---------- 共用 ----------

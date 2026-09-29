@@ -588,8 +588,8 @@ def test_petty_cash_income_expense_button_styling():
     assert '💰' in js
     assert '💸' in js
     css = read_petty_cash_css()
-    assert 'pc-step--income.active' in css
-    assert 'pc-step--expense.active' in css
+    assert 'pc-step--income.is-active' in css
+    assert 'pc-step--expense.is-active' in css
 
 
 def test_petty_cash_items_header_columns():
@@ -636,7 +636,7 @@ def test_petty_cash_entry_date_groups():
     css = read_petty_cash_css()
     assert '.pc-entry-date-group' in css
     assert '.pc-entry-date-header' in css
-    assert '.pc-entry-date-group.collapsed' in css
+    assert '.pc-entry-date-group.is-collapsed' in css
 
 
 def test_petty_cash_detail_table_mobile():
@@ -1035,7 +1035,7 @@ def test_permissions_html_uses_shared_toast_css():
     """The permissions page must not override shared toast geometry with top+bottom."""
     html = read(PERMISSIONS_HTML)
     assert ".toast { position: fixed; bottom: 24px" not in html
-    assert ".toast.show { opacity: 1; }" not in html
+    assert ".toast.is-open { opacity: 1; }" not in html
 
 
 def test_perms_js_account_edit_uses_shared_modal_and_update_api():
@@ -2037,7 +2037,7 @@ def test_stocktake_tabs_kit_single_split():
     # CSS 樣式
     css = read_css_all()
     assert ".stk-tabs {" in css
-    assert ".stk-tab.active {" in css
+    assert ".stk-tab.is-active {" in css
 
 
 def test_stocktake_table_photo_thumb():
@@ -2627,7 +2627,7 @@ def test_filter_panel_css_exists():
     css = read_css_all()
     assert '.filter-panel' in css, "style.css 缺 .filter-panel"
     assert '.filter-chip' in css, "style.css 缺 .filter-chip"
-    assert '.filter-chips.collapsed' in css, "style.css 缺 .filter-chips.collapsed"
+    assert '.filter-chips.is-collapsed' in css, "缺 .filter-chips.is-collapsed"
     assert '.toggle-btn' in css, "style.css 缺 .toggle-btn"
 
 
@@ -3152,14 +3152,14 @@ def test_stockout_return_tracks_source_and_return_locations():
 def test_sidebar_collapsed_css_exists():
     """sidebar 折疊 CSS 規則存在（桌面隱藏/展開）"""
     css = read_css_all()
-    assert ".sidebar.expanded" in css, "sidebar.expanded CSS 缺失"
+    assert ".sidebar.is-expanded" in css, "sidebar.is-expanded CSS 缺失"
     assert "sidebar-expanded" in css, "sidebar-expanded class 缺失"
 
 def test_toggle_sidebar_function():
     """toggleSidebar 可手動切換，但 sidebar 不再持久化展開狀態。"""
     js = read(APP_JS)
     assert "function toggleSidebar" in js, "app.js 缺 toggleSidebar"
-    assert "var expanded = sb.classList.toggle('expanded');" in js, "desktop sidebar 未切換 expanded"
+    assert "var expanded = sb.classList.toggle('is-expanded');" in js, "desktop sidebar 未切換 is-expanded"
     assert "mn.classList.toggle('sidebar-expanded', expanded)" in js, "main 未同步切換 sidebar-expanded"
     assert "sidebarExpanded" not in js, "sidebar 不應再寫入或讀取 dead localStorage state"
 
@@ -3566,7 +3566,7 @@ delete context.INVENTORY_PENDING_ITEMS[2];
   context.closeInventoryStatusModal();
   closedResolvers[0]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
   await closedRequest;
-  if (modalClasses.has('show')) throw new Error('closed modal was reopened by stale response');
+  if (modalClasses.has('is-open')) throw new Error('closed modal was reopened by stale response');
   context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
   modalClasses.clear();
   const rapidResolvers = [];
@@ -4437,7 +4437,7 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wpr-drop" in js and "dataTransfer.files" in js
     assert "wprResetFilter" in js
     assert "wpr-result-count" in js
-    assert "wpr-chip active" in js
+    assert "wpr-chip is-active" in js
     assert "wprBatchDeletePhotos" in js
     assert "wpr-photo-management-actions" in js
     assert "wpr-photo-clear-selection" in js

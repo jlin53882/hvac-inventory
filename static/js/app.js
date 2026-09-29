@@ -21,9 +21,9 @@ function switchSite(site) {
   ALL_ITEMS = [];
   ALERTS_BY_SITE = {};
   updateNotifications();
-  document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('on'); });
+  document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('is-active'); });
   var el = document.getElementById('site-' + site);
-  if (el) el.classList.add('on');
+  if (el) el.classList.add('is-active');
   loadData();
   syncViewUrl();
 }
@@ -38,11 +38,11 @@ window.addEventListener('beforeunload', function(e) {
 
 function openSidebar() {
   document.getElementById('sidebar').classList.add('mob-open');
-  document.getElementById('sbOverlay').classList.add('open');
+  document.getElementById('sbOverlay').classList.add('is-open');
 }
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('mob-open');
-  document.getElementById('sbOverlay').classList.remove('open');
+  document.getElementById('sbOverlay').classList.remove('is-open');
 }
 
 // Sidebar toggle (desktop: hidden ↔ shown, mobile: drawer)
@@ -57,7 +57,7 @@ function toggleSidebar() {
     return;
   }
   // Desktop: toggle hidden/expanded
-  var expanded = sb.classList.toggle('expanded');
+  var expanded = sb.classList.toggle('is-expanded');
   mn.classList.toggle('sidebar-expanded', expanded);
 }
 
@@ -66,11 +66,11 @@ function toggleSidebar() {
 
 // 頭像下拉選單
 function toggleAvatarMenu() {
-  document.getElementById('avatarMenu').classList.toggle('open');
+  document.getElementById('avatarMenu').classList.toggle('is-open');
 }
 function closeAvatarMenu() {
   var m = document.getElementById('avatarMenu');
-  if (m) m.classList.remove('open');
+  if (m) m.classList.remove('is-open');
 }
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.avatar-dropdown')) closeAvatarMenu();
@@ -158,12 +158,12 @@ function switchTab(tab) {
   checkReminder();
   updateNotifications();
   setPageScope(tab);
-  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
-  document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('is-active'); });
+  document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('is-active'); });
   var nav = document.getElementById('nav-' + tab);
-  if (nav) nav.classList.add('active');
+  if (nav) nav.classList.add('is-active');
   var sbNav = document.getElementById('sb-nav-' + tab);
-  if (sbNav) sbNav.classList.add('active');
+  if (sbNav) sbNav.classList.add('is-active');
   updateBreadcrumb(tab);
   closeSidebar();
 
@@ -182,7 +182,7 @@ function switchTab(tab) {
     if (typeof batchMode !== 'undefined' && batchMode) {
       batchMode = false;
       var bt = document.getElementById('batch-toggle');
-      if (bt) bt.classList.remove('active');
+      if (bt) bt.classList.remove('is-active');
     }
     if (typeof selectedStockIds !== 'undefined') selectedStockIds.clear();
     var bn = document.getElementById('batch-num');
@@ -190,7 +190,7 @@ function switchTab(tab) {
     var bc = document.getElementById('batch-confirm');
     if (bc) bc.disabled = true;
     var bb = document.getElementById('batch-bar');
-    if (bb) bb.classList.remove('show');
+    if (bb) bb.classList.remove('is-open');
     var cab = document.getElementById('batch-cabinet');
     if (cab) cab.value = '';
     var sub = document.getElementById('batch-sub');
@@ -265,7 +265,7 @@ var _focusReloadTimer = null;
 var _lastVisibilityReloadAt = 0;
 function autoReloadOnFocus() {
   if (hasPending()) return;
-  if (document.querySelector('.modal-overlay.show')) return;
+  if (document.querySelector('.modal-overlay.is-open')) return;
   if (document.visibilityState !== 'visible') return;
   // 只在 hidden → visible 時觸發；避免 window focus、手機輸入框/原生視窗反覆重畫。
   var now = Date.now();
@@ -273,7 +273,7 @@ function autoReloadOnFocus() {
   if (_focusReloadTimer) return;
   _focusReloadTimer = setTimeout(function() {
     _focusReloadTimer = null;
-    if (document.visibilityState !== 'visible' || hasPending() || document.querySelector('.modal-overlay.show')) return;
+    if (document.visibilityState !== 'visible' || hasPending() || document.querySelector('.modal-overlay.is-open')) return;
     _lastVisibilityReloadAt = Date.now();
     loadData();
   }, 300);
@@ -314,13 +314,13 @@ function mountPreservedTabAfterBootstrap() {
     var tabChangedDuringBoot = currentTab !== bootTab;
     updateBreadcrumb(currentTab);
     // site active 同步
-    document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('on'); });
+    document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('is-active'); });
     var siteEl = document.getElementById('site-' + currentSite);
-    if (siteEl) siteEl.classList.add('on');
+    if (siteEl) siteEl.classList.add('is-active');
     // sidebar active 同步
     var sbNav = document.getElementById('sb-nav-' + currentTab);
-    document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
-    if (sbNav) sbNav.classList.add('active');
+    document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('is-active'); });
+    if (sbNav) sbNav.classList.add('is-active');
     if (!tabChangedDuringBoot) setPageScope(currentTab);
     loadData();
     // loadData 不重繪保留 mount 的頁面；F5 直接開啟時由 bootstrap 建立一次頁面。

@@ -43,14 +43,14 @@ function openKitExportDialog() {
     input.checked = defaultSections.includes(input.dataset.section);
   });
   
-  modal.classList.add('show');
+  modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
 }
 
 function closeKitExportDialog() {
   const modal = document.getElementById('kit-export-dialog');
   if (!modal) return;
-  modal.classList.remove('show');
+  modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
 }
 

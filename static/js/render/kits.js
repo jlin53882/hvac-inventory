@@ -364,7 +364,7 @@ function filterKitSearch(kw) {
 
   }
 
-  drop.classList.add('open');
+  drop.classList.add('is-open');
 
 }
 
@@ -394,7 +394,7 @@ function pickKitItem(itemId) {
 
   if (input) input.value = '';
 
-  document.getElementById('kit-drop').classList.remove('open');
+  document.getElementById('kit-drop').classList.remove('is-open');
 
   renderKitCompRows();
 
@@ -408,9 +408,9 @@ document.addEventListener('click', (e) => {
 
   const inSearch = e.target.closest('.mat-search');
 
-  document.querySelectorAll('.kit-dropdown.open').forEach(d => {
+  document.querySelectorAll('.kit-dropdown.is-open').forEach(d => {
 
-    if (!inSearch || !inSearch.contains(d)) d.classList.remove('open');
+    if (!inSearch || !inSearch.contains(d)) d.classList.remove('is-open');
 
   });
 

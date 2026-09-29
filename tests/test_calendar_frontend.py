@@ -85,7 +85,7 @@ def test_index_has_calendar_nav():
     i_signed = html.index('id="sb-nav-signed-reports"')
     i_inv = html.index('id="sb-nav-inventory"')
     assert i_cal < i_signed < i_inv, "sidebar 順序應為 calendar < signed-reports < inventory"
-    assert 'class="sb-nav-link active" id="sb-nav-calendar"' in html
+    assert 'class="sb-nav-link is-active" id="sb-nav-calendar"' in html
     assert 'class="sb-nav-link" id="sb-nav-inventory"' in html
 
 def test_default_tab_is_calendar():
@@ -102,7 +102,7 @@ def test_app_boot_clears_default_calendar_active_before_selected_tab():
     boot_end = js.index("loadData();", boot_start) + len("loadData();")
     boot = js[boot_start:boot_end]
     assert "querySelectorAll('.sb-nav-link').forEach" in boot
-    assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('active')")
+    assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('is-active')")
     assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
     assert boot.index("setPageScope(currentTab);") < boot.index("loadData();")
 

@@ -48,7 +48,7 @@ function todayStr() {
 function openModal(id) {
   const el = document.getElementById(id);
   if (!el) { console.error('[openModal] modal 不存在:', id); return; }
-  el.classList.add('show');
+  el.classList.add('is-open');
   // 移到 DOM 最後：所有 modal 同 z-index（200），後開的必須蓋過先開的（DOM 順序決定覆蓋）
   document.body.appendChild(el);
   _snapshotModal(id);  // M15：開啟時快照初始值（未存變更保護用）
@@ -75,27 +75,27 @@ function closeModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
   if (_modalDirty(id) && !confirm('有未儲存的變更，確定要離開嗎？')) return;
-  el.classList.remove('show');
+  el.classList.remove('is-open');
   delete __modalSnapshots[id];
 }
 function closeModalForce(id) {  // 儲存成功等明確動作：跳過未存變更確認
   const el = document.getElementById(id);
   if (!el) return;
-  el.classList.remove('show');
+  el.classList.remove('is-open');
   delete __modalSnapshots[id];
 }
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.show').forEach(m => closeModal(m.id));
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.is-open').forEach(m => closeModal(m.id));
 });
 
 // ========== toast ==========
 function toast(msg, type) {
   const t = document.getElementById('toast');
   t.textContent = msg;
-  t.className = 'toast show ' + (type || '');
+  t.className = 'toast is-open ' + (type || '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.className = 'toast', 3500);
 }
