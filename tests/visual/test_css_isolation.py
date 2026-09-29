@@ -141,6 +141,36 @@ def test_mobile_calendar_event_names_fit(page, live_server, viewport):
     assert not clipped, f"月曆格名稱被截斷：{clipped}"
 
 
+def test_mobile_calendar_busy_day(page, live_server, viewport):
+    """一天多筆派工：格內最多 2 筆 + 「+N 筆」，名稱兩行也不會超出格子、不把整週撐得過高。"""
+    if viewport[0] == "desktop":
+        pytest.skip("桌機月曆格固定列高，另由截圖涵蓋")
+    types = live_server.api("GET", "/api/service-types")
+    types = types if isinstance(types, list) else types.get("items", [])
+    created = []
+    try:
+        for start, name in (("09:00", "台北信義區管理委員會"), ("10:30", "王大明"), ("13:00", "陳小姐"),
+                            ("15:00", "林先生"), ("", "大安社區")):
+            created.append(live_server.api("POST", "/api/appointments", {
+                "client_name": name, "address": "台北市", "date": "2026-09-29", "start_time": start,
+                "end_time": "" if not start else start[:2] + ":50", "service_type_id": types[0]["id"]})["id"])
+        harness.open_tab(page, live_server, "calendar")
+        cell = page.evaluate("""() => {
+            const c = [...document.querySelectorAll('.cal-cell')].find(el => el.querySelector('.cal-day-num')?.textContent.trim() === '29'
+                      && !el.classList.contains('cal-other'));
+            const r = c.getBoundingClientRect();
+            const chips = [...c.querySelectorAll('.cal-evt')];
+            return {chips: chips.length, more: c.querySelector('.cal-evt-more')?.textContent || '', height: r.height,
+                    overflow: chips.some(e => e.getBoundingClientRect().bottom > r.bottom + 1)};
+        }""")
+        assert cell["chips"] == 3 and "+3" in cell["more"], cell
+        assert not cell["overflow"], cell
+        assert cell["height"] <= 140, cell
+    finally:
+        for appt_id in created:
+            live_server.api("DELETE", f"/api/appointments/{appt_id}")
+
+
 def test_modal_overlay_stacks_above_shell(page, live_server):
     """modal 疊層高於 header / sidebar。"""
     harness.open_tab(page, live_server, "inventory")
