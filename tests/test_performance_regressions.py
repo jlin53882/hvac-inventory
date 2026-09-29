@@ -224,15 +224,17 @@ def test_multi_photo_upload_does_not_block_other_writers(client, slow_media):
     )
     started = time.perf_counter()
     adjust = client.post(f"/api/items/{slow_media.item_id}/adjust", json={"delta": 1})
-    elapsed = time.perf_counter() - started
+    elapsed = time.perf_counter() - started  # 僅供失敗訊息診斷，不作為 pass/fail 條件
     finished_when_adjust_returned = slow_media.finished
     thread.join()
     assert adjust.status_code == 200
     assert result["response"].status_code == 201, result["response"].text
     assert len(result["response"].json()["photos"]) == 2
-    # 因果檢查：調整完成時第一張圖尚未處理完 = 沒有等上傳；與牆鐘門檻互補，區分「被卡住」與「CI 量測抖動」
-    assert finished_when_adjust_returned == 0, "庫存調整等到影像處理結束才完成（被上傳卡住）"
-    assert elapsed < SLOW_VARIANT_SECONDS * 0.5, f"庫存調整被上傳卡住 {elapsed:.2f}s"
+    # 契約 = 因果順序：第一張圖處理中 → adjust 完成 → 圖片尚未處理完。
+    # 不設牆鐘門檻：repo 無 adjust 延遲 SLA，固定秒數在 CI 排程抖動下會誤判（issue #38）。
+    assert finished_when_adjust_returned == 0, (
+        f"庫存調整等到影像處理結束才完成（被上傳卡住）；adjust 耗時 {elapsed:.2f}s"
+    )
 
 
 def test_signed_report_file_replace_does_not_block_event_loop(client, slow_media):
