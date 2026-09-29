@@ -27,7 +27,7 @@
   /* v10.1：編輯 modal 照片區塊 */
   .photo-box { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
   .photo-box img { width: 84px; height: 84px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--c-border); }
-  .photo-box .photo-actions { display: flex; flex-direction: column; gap: 6px; }
+  .photo-box .photo-actions { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
   .form-row { margin-bottom: 12px; }
   .form-row label:not(.btn) { display: block; font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--c-muted); margin-bottom: 4px; }
   .form-row input, .form-row select, .form-row textarea {
@@ -44,4 +44,13 @@
 .pw-check { font-size: var(--fs-11); color: var(--c-muted); background: var(--c-border); border-radius: var(--r-lg); padding: 3px 8px; display: inline-block; }
 .pw-check.ok { color: var(--c-success-strong); background: var(--c-success-soft); }
 .cpw-mismatch { font-size: var(--fs-11); color: var(--c-out); background: var(--c-warning-soft); padding: 6px 10px; border-radius: var(--r-sm); margin-top: 6px; }
+
+/* 照片欄與單位快速新增（原本是 JS inline style） */
+.photo-box-hint { padding: 6px 0; color: var(--c-text-subtle); font-size: var(--fs-11); }
+.photo-box-thumb { cursor: pointer; }
+.photo-box-preview { margin: 8px 0; }
+.photo-preview { position: relative; display: inline-block; }
+.photo-box .photo-preview img { width: 320px; height: 240px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--c-border); }
+.photo-preview-clear { position: absolute; top: 4px; right: 4px; }
+.unit-quick-add { display: flex; gap: 6px; margin-top: 6px; width: 100%; }
 }

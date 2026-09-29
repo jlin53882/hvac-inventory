@@ -64,7 +64,6 @@ function openUnitQuickAdd(sel, addBtn) {
   sel.style.display = 'none'; if (addBtn) addBtn.style.display = 'none';
   const box = document.createElement('div');
   box.className = 'unit-quick-add';
-  box.style.cssText = 'display:flex;gap:6px;margin-top:6px;width:100%';
   box.append(input, ok, cancel);
   wrap.appendChild(box);
   input.focus();

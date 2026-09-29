@@ -14,8 +14,8 @@ function renderPhotoBox(itemId, hasPhoto) {
   if (hasPhoto) {
     box.innerHTML = `
       <img src="${photoSrc(itemId, 'thumbnail')}" alt="品項照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${itemId})"
-           style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
-      ${canPhoto ? `<div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+           class="photo-box-thumb" title="點擊看大圖" onerror="this.style.display='none'">
+      ${canPhoto ? `<div class="photo-actions">
         <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
@@ -28,8 +28,8 @@ function renderPhotoBox(itemId, hasPhoto) {
       </div>` : ''}`;
   } else {
     box.innerHTML = canPhoto
-      ? `<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
-      <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+      ? `<div class="photo-box-hint">尚無照片</div>
+      <div class="photo-actions">
         <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" style="display:none"
                  onchange="uploadItemPhoto(${itemId}, this)">
@@ -39,7 +39,7 @@ function renderPhotoBox(itemId, hasPhoto) {
                  onchange="uploadItemPhoto(${itemId}, this)">
         </label>
       </div>`
-      : '<div style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>';
+      : '<div class="photo-box-hint">尚無照片</div>';
   }
 }
 
@@ -194,15 +194,15 @@ function renderKitPhotoBox(kitId, itemId, hasPhoto) {
   if (!box) return;
   const canPhoto = hasPerm('photo');
   if (!canPhoto) {
-    box.innerHTML = '<div style="font-size:11px;color:#999;padding:6px 0">無照片上傳權限</div>';
+    box.innerHTML = '<div class="photo-box-hint">無照片上傳權限</div>';
     return;
   }
   // 新增模式沒有 Kit/item 識別碼；編輯模式分開使用 Kit ID 與 backing item ID。
   if (kitId === null || kitId === undefined) {
     // 新增模式：選檔後立即預覽
-    box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">建立後可立即上傳照片</div>
-      <div id="k-photo-preview" style="margin:8px 0"></div>
-      <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+    box.innerHTML = `<div id="k-photo-message" class="photo-box-hint">建立後可立即上傳照片</div>
+      <div id="k-photo-preview" class="photo-box-preview"></div>
+      <div class="photo-actions">
         <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
         </label>
@@ -218,9 +218,9 @@ function renderKitPhotoBox(kitId, itemId, hasPhoto) {
   } else {
     // 編輯模式：顯示既有照片 + 修改選項
     if (hasPhoto) {
-      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${itemId})" style="cursor:pointer" title="點擊看大圖" onerror="this.style.display='none'">
-        <div id="k-photo-preview" style="margin:8px 0"></div>
-        <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="openPhotoLightbox(${itemId})" class="photo-box-thumb" title="點擊看大圖" onerror="this.style.display='none'">
+        <div id="k-photo-preview" class="photo-box-preview"></div>
+        <div class="photo-actions">
           <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
             <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
@@ -230,9 +230,9 @@ function renderKitPhotoBox(kitId, itemId, hasPhoto) {
           <button class="btn btn--danger btn--md btn-prepare" onclick="deleteKitPhoto(${kitId}, ${itemId})">🗑 刪除</button>
         </div>`;
     } else {
-      box.innerHTML = `<div id="k-photo-message" style="font-size:11px;color:#999;padding:6px 0">尚無照片</div>
-        <div id="k-photo-preview" style="margin:8px 0"></div>
-        <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+      box.innerHTML = `<div id="k-photo-message" class="photo-box-hint">尚無照片</div>
+        <div id="k-photo-preview" class="photo-box-preview"></div>
+        <div class="photo-actions">
           <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
             <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="_previewKitPhoto(this)">
           </label>
@@ -298,15 +298,14 @@ function _previewKitPhoto(input) {
   const reader = new FileReader();
   reader.onload = function(e) {
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:relative;display:inline-block';
+    wrapper.className = 'photo-preview';
     const image = document.createElement('img');
     image.src = e.target.result;
     image.alt = '預覽';
-    image.style.cssText = 'width:320px;height:240px;object-fit:cover;border-radius:4px;border:1px solid #ddd';
     const clear = document.createElement('button');
     clear.type = 'button';
     clear.textContent = '✕ 清除';
-    clear.style.cssText = 'position:absolute;top:4px;right:4px;padding:4px 8px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px';
+    clear.className = 'btn btn--danger btn--sm photo-preview-clear';
     clear.addEventListener('click', _clearKitPhotoPreview);
     wrapper.append(image, clear);
     preview.replaceChildren(wrapper);

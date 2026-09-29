@@ -59,8 +59,8 @@
     --c-out-solid: #f59e0b;
     --c-out-soft: #fffbeb;
 
-    /* 字級 7 級（40px 以上的 emoji 圖示可直接寫） */
-    --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-28: 28px;
+    /* 字級 7 級（40px 以上的 emoji 圖示可直接寫）；--fs-9 只給手機月曆格這類極密集的格子用 */
+    --fs-9: 9px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-28: 28px;
     /* 字重 3 級 */
     --fw-regular: 400; --fw-medium: 600; --fw-bold: 700;
     /* 圓角 4 級（圓形用 50%、3px 以下細線可直接寫） */

@@ -62,12 +62,12 @@ async function renderSignedReports() {
                 <input id="dsr-report-date" type="date" value="${esc(today)}">
               </div>
             </div>
-            <div class="dsr-field" style="margin-top:12px">
+            <div class="u-mt-12 dsr-field">
               <label>備註 / 備忘（選填）</label>
               <textarea id="dsr-note" rows="2" placeholder="例：今日有現場工安檢查，客戶臨時增加 2 台保養"></textarea>
             </div>
             <!-- 拖曳上傳 -->
-            <div id="dsr-drop" class="dsr-drop" style="margin-top:12px" onclick="document.getElementById('dsr-file-input').click()">
+            <div id="dsr-drop" class="u-mt-12 dsr-drop" onclick="document.getElementById('dsr-file-input').click()">
               <div class="dsr-drop__icon">📎</div>
               <div class="dsr-drop__title">拖曳檔案到此，或點擊選擇</div>
               <div class="dsr-drop__sub">支援 PDF / PNG / JPG / GIF / WebP 格式</div>
@@ -81,7 +81,7 @@ async function renderSignedReports() {
             <!-- 選檔後預覽 -->
             <div id="dsr-file-preview" style="display:none">
               <div class="dsr-file-preview">
-                <div id="dsr-fp-icon" class="dsr-file-preview__icon" style="background:#fee2e2">📄</div>
+                <div id="dsr-fp-icon" class="dsr-file-preview__icon dsr-file-tone--pdf">📄</div>
                 <div class="dsr-file-preview__meta">
                   <div id="dsr-fp-name" class="dsr-file-preview__name"></div>
                   <div id="dsr-fp-sub" class="dsr-file-preview__sub"></div>
@@ -155,7 +155,7 @@ async function renderSignedReports() {
               <span class="dsr-result-count"><span id="dsr-result-count">0 筆</span></span>
             </div>
           </div>
-          <div class="dsr-card__bd" style="padding-top:0">
+          <div class="u-pt-0 dsr-card__bd">
             <div class="dsr-report-list" id="dsr-tbody"></div>
             <div id="dsr-empty" class="dsr-empty" style="display:none">
                 <div class="dsr-empty__icon">🗂</div>
@@ -165,7 +165,7 @@ async function renderSignedReports() {
             </div>
             <div class="dsr-pagination">
               <span id="dsr-page-info"></span>
-              <span style="display:flex;gap:6px">
+              <span class="u-d-flex u-gap-6">
                 <button class="btn btn--secondary btn--sm" onclick="dsrChangePage(-1)">‹ 上一頁</button>
                 <button class="btn btn--secondary btn--sm" onclick="dsrChangePage(1)">下一頁 ›</button>
               </span>
@@ -221,11 +221,11 @@ async function renderSignedReports() {
 
 // 依副檔名回傳圖示 emoji 與背景色
 function _dsrIconFor(mime) {
-  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', bg:'#e0f2fe'};
-  if (mime === 'pdf') return {icon:'📄', bg:'#fee2e2'};
-  if (['docx','doc'].includes(mime)) return {icon:'📝', bg:'#dbeafe'};
-  if (['xlsx','xls'].includes(mime)) return {icon:'📊', bg:'#dcfce7'};
-  return {icon:'📎', bg:'#f1f5f9'};
+  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', tone:'image'};
+  if (mime === 'pdf') return {icon:'📄', tone:'pdf'};
+  if (['docx','doc'].includes(mime)) return {icon:'📝', tone:'doc'};
+  if (['xlsx','xls'].includes(mime)) return {icon:'📊', tone:'sheet'};
+  return {icon:'📎', tone:'other'};
 }
 
 // 處理使用者選擇/拖曳的檔案，更新預覽區
@@ -233,7 +233,7 @@ function dsrHandleFile(f) {
   const ext = (f.name.split('.').pop() || '').toLowerCase();
   const ic = _dsrIconFor(ext);
   document.getElementById('dsr-fp-icon').textContent = ic.icon;
-  document.getElementById('dsr-fp-icon').style.background = ic.bg;
+  document.getElementById('dsr-fp-icon').className = 'dsr-file-preview__icon dsr-file-tone--' + ic.tone;
   document.getElementById('dsr-fp-name').textContent = f.name;
   document.getElementById('dsr-fp-sub').textContent = ext.toUpperCase() + ' · ' + (f.size/1024/1024).toFixed(1) + ' MB';
   document.getElementById('dsr-file-preview').style.display = 'block';
@@ -347,7 +347,7 @@ function dsrRenderTable() {
       const isImage = ['jpg','jpeg','png','webp','gif'].includes(ext);
       const fileVisual = isImage
         ? `<img class="dsr-report-thumb" src="/api/signed-reports/${r.id}/preview" alt="${esc(r.file_name)}" loading="lazy" onclick="dsrPreview(${r.id})" title="點擊圖片預覽">`
-        : `<div class="dsr-file-icon" style="background:${ic.bg}">${ic.icon}</div>`;
+        : `<div class="dsr-file-icon dsr-file-tone--${esc(ic.tone)}">${ic.icon}</div>`;
       return `<details class="dsr-report-card">
         <summary class="dsr-report-summary">
           <span class="dsr-report-summary__date">${esc(r.report_date)}</span>
@@ -359,7 +359,7 @@ function dsrRenderTable() {
             <div><span class="dsr-report-detail__label">報表日期</span><strong>${esc(r.report_date)}</strong></div>
             <div><span class="dsr-report-detail__label">上傳人</span><strong>${esc(r.uploader_name)}</strong></div>
             <div><span class="dsr-report-detail__label">上傳日期</span><strong>${esc(_dsrDateOnly(r.upload_time))}</strong></div>
-            <div class="dsr-report-detail__file"><span class="dsr-report-detail__label">檔案</span><div class="dsr-file-cell">${fileVisual}<div style="min-width:0"><div class="dsr-ellipsis" style="font-weight:700">${esc(r.file_name)}</div><div style="font-size:11px;color:#64748b">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
+            <div class="dsr-report-detail__file"><span class="dsr-report-detail__label">檔案</span><div class="dsr-file-cell">${fileVisual}<div class="u-minw-0"><div class="dsr-file-name dsr-ellipsis">${esc(r.file_name)}</div><div class="dsr-file-meta">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
             <div class="dsr-report-detail__note"><span class="dsr-report-detail__label">備註</span><div class="dsr-note-cell">${note}</div></div>
           </div>
           <div class="dsr-actions-cell">
@@ -439,16 +439,16 @@ function dsrPreview(id) {
 function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
   const body = document.getElementById('dsr-preview-body');
   document.getElementById('dsr-preview-title').textContent = '👁 預覽 — ' + name;
-  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" style="width:100%">';
+  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" class="dsr-preview-img">';
   else if (mime === 'pdf') {
     // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
     // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
     if (typeof isMobileView === 'function' && isMobileView()) {
-      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.innerHTML = '<div class="dsr-preview-fallback"><div class="dsr-preview-icon">📄</div><div class="dsr-preview-title">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
       body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
-    } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+    } else body.innerHTML = '<iframe src="' + previewUrl + '" class="dsr-preview-frame">';
   }
-  else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
+  else body.innerHTML = '<div class="dsr-preview-fallback dsr-preview-fallback--dark"><div class="dsr-preview-icon">📎</div><div class="dsr-preview-name">' + esc(name) + '</div><div class="dsr-preview-note">此格式不支援線上預覽</div></div>';
   document.getElementById('dsr-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
   document.getElementById('dsr-overlay').classList.add('is-open');
 }
@@ -468,9 +468,9 @@ async function dsrEdit(id) {
       <div class="dsr-modal__hd"><h3 id="dsr-edit-title">✏️ 編輯每日簽名日報表</h3><button class="btn btn--secondary btn--sm" type="button" data-dsr-edit-cancel>✕ 關閉</button></div>
       <div class="dsr-modal__bd">
         <div class="dsr-field"><label for="dsr-edit-date">報表日期（YYYY-MM-DD）</label><input id="dsr-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
-        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-uploader">上傳人姓名</label><input id="dsr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
-        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-note">備註</label><textarea id="dsr-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
-        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-file">替換檔案（選填）</label><input id="dsr-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+        <div class="u-mt-12 dsr-field"><label for="dsr-edit-uploader">上傳人姓名</label><input id="dsr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+        <div class="u-mt-12 dsr-field"><label for="dsr-edit-note">備註</label><textarea id="dsr-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+        <div class="u-mt-12 dsr-field"><label for="dsr-edit-file">替換檔案（選填）</label><input id="dsr-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
         <div class="dsr-hint">不選擇新檔案會保留目前檔案。</div>
       </div>
       <div class="dsr-modal__ft"><button class="btn btn--secondary btn--md dsr-btn" type="button" data-dsr-edit-cancel>取消</button><button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" type="button" data-dsr-edit-save>儲存</button></div>

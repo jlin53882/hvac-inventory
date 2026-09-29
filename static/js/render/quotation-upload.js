@@ -64,12 +64,12 @@ async function renderQuotationUploads() {
                 <input id="qup-report-date" type="date" value="${esc(today)}">
               </div>
             </div>
-            <div class="qup-field" style="margin-top:12px">
+            <div class="u-mt-12 qup-field">
               <label>備註 / 備忘（選填）</label>
               <textarea id="qup-note" rows="2" placeholder="例：今日有現場工安檢查，客戶臨時增加 2 台保養"></textarea>
             </div>
             <!-- 拖曳上傳 -->
-            <div id="qup-drop" class="qup-drop" style="margin-top:12px" onclick="document.getElementById('qup-file-input').click()">
+            <div id="qup-drop" class="u-mt-12 qup-drop" onclick="document.getElementById('qup-file-input').click()">
               <div class="qup-drop__icon">📎</div>
               <div class="qup-drop__title">拖曳檔案到此，或點擊選擇</div>
               <div class="qup-drop__sub">支援 PDF / PNG / JPG / GIF / WebP 格式</div>
@@ -83,7 +83,7 @@ async function renderQuotationUploads() {
             <!-- 選檔後預覽 -->
             <div id="qup-file-preview" style="display:none">
               <div class="qup-file-preview">
-                <div id="qup-fp-icon" class="qup-file-preview__icon" style="background:#fee2e2">📄</div>
+                <div id="qup-fp-icon" class="qup-file-preview__icon qup-file-tone--pdf">📄</div>
                 <div class="qup-file-preview__meta">
                   <div id="qup-fp-name" class="qup-file-preview__name"></div>
                   <div id="qup-fp-sub" class="qup-file-preview__sub"></div>
@@ -157,7 +157,7 @@ async function renderQuotationUploads() {
               <span class="qup-result-count"><span id="qup-result-count">0 筆</span></span>
             </div>
           </div>
-          <div class="qup-card__bd" style="padding-top:0">
+          <div class="u-pt-0 qup-card__bd">
             <div class="qup-report-list" id="qup-tbody"></div>
             <div id="qup-empty" class="qup-empty" style="display:none">
                 <div class="qup-empty__icon">🗂</div>
@@ -167,7 +167,7 @@ async function renderQuotationUploads() {
             </div>
             <div class="qup-pagination">
               <span id="qup-page-info"></span>
-              <span style="display:flex;gap:6px">
+              <span class="u-d-flex u-gap-6">
                 <button class="btn btn--secondary btn--sm" onclick="qupChangePage(-1)">‹ 上一頁</button>
                 <button class="btn btn--secondary btn--sm" onclick="qupChangePage(1)">下一頁 ›</button>
               </span>
@@ -221,11 +221,11 @@ async function renderQuotationUploads() {
 
 // 依副檔名回傳圖示 emoji 與背景色
 function _qupIconFor(mime) {
-  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', bg:'#e0f2fe'};
-  if (mime === 'pdf') return {icon:'📄', bg:'#fee2e2'};
-  if (['docx','doc'].includes(mime)) return {icon:'📝', bg:'#dbeafe'};
-  if (['xlsx','xls'].includes(mime)) return {icon:'📊', bg:'#dcfce7'};
-  return {icon:'📎', bg:'#f1f5f9'};
+  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', tone:'image'};
+  if (mime === 'pdf') return {icon:'📄', tone:'pdf'};
+  if (['docx','doc'].includes(mime)) return {icon:'📝', tone:'doc'};
+  if (['xlsx','xls'].includes(mime)) return {icon:'📊', tone:'sheet'};
+  return {icon:'📎', tone:'other'};
 }
 
 // 處理使用者選擇/拖曳的檔案，更新預覽區
@@ -233,7 +233,7 @@ function qupHandleFile(f) {
   const ext = (f.name.split('.').pop() || '').toLowerCase();
   const ic = _qupIconFor(ext);
   document.getElementById('qup-fp-icon').textContent = ic.icon;
-  document.getElementById('qup-fp-icon').style.background = ic.bg;
+  document.getElementById('qup-fp-icon').className = 'qup-file-preview__icon qup-file-tone--' + ic.tone;
   document.getElementById('qup-fp-name').textContent = f.name;
   document.getElementById('qup-fp-sub').textContent = ext.toUpperCase() + ' · ' + (f.size/1024/1024).toFixed(1) + ' MB';
   document.getElementById('qup-file-preview').style.display = 'block';
@@ -346,7 +346,7 @@ function qupRenderTable() {
       const isImage = ['jpg','jpeg','png','webp','gif'].includes(ext);
       const fileVisual = isImage
         ? `<img class="qup-report-thumb" src="/api/quotation-uploads/${r.id}/preview" alt="${esc(r.file_name)}" loading="lazy" onclick="qupPreview(${r.id})" title="點擊圖片預覽">`
-        : `<div class="qup-file-icon" style="background:${ic.bg}">${ic.icon}</div>`;
+        : `<div class="qup-file-icon qup-file-tone--${esc(ic.tone)}">${ic.icon}</div>`;
       return `<details class="qup-report-card">
         <summary class="qup-report-summary">
           <span class="qup-report-summary__date">${esc(r.report_date)}</span>
@@ -358,7 +358,7 @@ function qupRenderTable() {
             <div><span class="qup-report-detail__label">報表日期</span><strong>${esc(r.report_date)}</strong></div>
             <div><span class="qup-report-detail__label">上傳人</span><strong>${esc(r.uploader_name)}</strong></div>
             <div><span class="qup-report-detail__label">上傳日期</span><strong>${esc(_qupDateOnly(r.upload_time))}</strong></div>
-            <div class="qup-report-detail__file"><span class="qup-report-detail__label">檔案</span><div class="qup-file-cell">${fileVisual}<div style="min-width:0"><div class="qup-ellipsis" style="font-weight:700">${esc(r.file_name)}</div><div style="font-size:11px;color:#64748b">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
+            <div class="qup-report-detail__file"><span class="qup-report-detail__label">檔案</span><div class="qup-file-cell">${fileVisual}<div class="u-minw-0"><div class="qup-file-name qup-ellipsis">${esc(r.file_name)}</div><div class="qup-file-meta">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
             <div class="qup-report-detail__note"><span class="qup-report-detail__label">備註</span><div class="qup-note-cell">${note}</div></div>
           </div>
           <div class="qup-actions-cell">
@@ -438,16 +438,16 @@ function qupPreview(id) {
 function qupShowPreview(name, mime, previewUrl, downloadUrl) {
   const body = document.getElementById('qup-preview-body');
   document.getElementById('qup-preview-title').textContent = '👁 預覽 — ' + name;
-  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" style="width:100%">';
+  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" class="qup-preview-img">';
   else if (mime === 'pdf') {
     // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
     // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
     if (typeof isMobileView === 'function' && isMobileView()) {
-      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md qup-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.innerHTML = '<div class="qup-preview-fallback"><div class="qup-preview-icon">📄</div><div class="qup-preview-title">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md qup-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
       body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
-    } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+    } else body.innerHTML = '<iframe src="' + previewUrl + '" class="qup-preview-frame">';
   }
-  else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
+  else body.innerHTML = '<div class="qup-preview-fallback qup-preview-fallback--dark"><div class="qup-preview-icon">📎</div><div class="qup-preview-name">' + esc(name) + '</div><div class="qup-preview-note">此格式不支援線上預覽</div></div>';
   document.getElementById('qup-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
   document.getElementById('qup-overlay').classList.add('is-open');
 }
@@ -467,9 +467,9 @@ async function qupEdit(id) {
       <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="btn btn--secondary btn--sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>
       <div class="qup-modal__bd">
         <div class="qup-field"><label for="qup-edit-date">報表日期（YYYY-MM-DD）</label><input id="qup-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
-        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-uploader">上傳人姓名</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
-        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-note">備註</label><textarea id="qup-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
-        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-file">替換檔案（選填）</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-uploader">上傳人姓名</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-note">備註</label><textarea id="qup-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-file">替換檔案（選填）</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
         <div class="qup-hint">不選擇新檔案會保留目前檔案。</div>
       </div>
       <div class="qup-modal__ft"><button class="btn btn--secondary btn--md" type="button" data-qup-edit-cancel>取消</button><button class="btn btn--primary btn--md qup-btn--primary" type="button" data-qup-edit-save>儲存</button></div>

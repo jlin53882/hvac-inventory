@@ -1161,7 +1161,7 @@ def test_inventory_js_viewer_mode():
     """inventory.js 有 viewer 模式：隱藏編輯/操作按鈕、數量唯讀"""
     js = read(INVENTORY_RENDER_JS)
     assert "isViewer" in js
-    assert "cursor:default" in js  # 數量唯讀樣式
+    assert 'class="qty-value is-readonly"' in js  # 數量唯讀樣式（外觀在 inventory.css 的 .qty-value.is-readonly）
     assert "title=\"唯讀\"" in js
     assert "deleteItem" in js  # 卡片 刪除整筆材料（Sarah 需求）
     # Renderer uses JS Unicode escapes; browser output is still Chinese text.
@@ -3992,7 +3992,7 @@ def test_qty_merge_preserves_both_contracts():
     settings_html = read_page_with_css(SETTINGS_HTML)
     for qty_type in ("integer", "decimal", "fraction"):
         assert 'value="%s"' % qty_type in settings_js
-    assert 'style="text-align:right"' in settings_js
+    assert 'class="u-ta-right"' in settings_js
     assert "table-layout: fixed" in settings_html
     assert "width: 33.33%" in settings_html
 

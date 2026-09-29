@@ -166,6 +166,15 @@ def seed(server: LiveServer) -> dict:
                                      ("2026-09-22", "大安社區", "", "")):
         server.api("POST", "/api/appointments", {"client_name": client, "address": "台北市",
                                                  "date": date, "start_time": start, "end_time": end})
+    server.api("POST", "/api/cabinets", {"name": "A櫃", "note": "主倉"})
+    # 行事曆同步 Key（設定頁版面用；憑證路徑不存在也能顯示，不會真的同步）
+    db = sqlite3.connect(server.db_path)
+    try:
+        db.execute("INSERT INTO gcal_keys (name, credentials_path, calendar_id, is_active) "
+                   "VALUES ('公司主帳號', '/nonexistent/visual.json', 'team@group.calendar.google.com', 1)")
+        db.commit()
+    finally:
+        db.close()
     server.api("POST", "/api/quotations", {
         "quote_date": "2026-09-15", "customer_name": "範例客戶", "items": [
             {"item_name": "分離式冷氣安裝", "qty": 1, "unit": "式", "unit_price": 3500},

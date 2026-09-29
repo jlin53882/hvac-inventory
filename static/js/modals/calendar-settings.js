@@ -59,7 +59,7 @@ function calRenderSvcRows() {
   [...calSvc].sort((a, b) => a.sort_order - b.sort_order).forEach(s => {
     tb.innerHTML += `<tr>
       <td>${esc(s.name)}</td>
-      <td><input type="number" value="${s.sort_order}" style="width:56px" onchange="calUpdSvc(${s.id},this.value)"></td>
+      <td><input type="number" value="${s.sort_order}" class="cal-set-sort-input" onchange="calUpdSvc(${s.id},this.value)"></td>
       <td><button class="switch ${s.is_active ? 'is-active' : ''}" onclick="calUpdSvcActive(${s.id})"></button></td>
       <td>${s.is_active ? `<button class="btn btn--danger btn--sm btn-delete" onclick="calDelSvc(${s.id})">停用</button>` : '<span class="cal-off">已停用</span>'}</td>
     </tr>`;
@@ -129,7 +129,7 @@ function calRenderPplRows() {
       <td>${esc(p.display_name || p.username)}</td>
       <td>${esc(roleName[p.role] || p.role || '')}</td>
       <td><div class="cal-color-dots">${CAL_PALETTE.map(c =>
-        `<span style="background:${c}" class="${(p.color || '#1a73e8') === c ? 'sel' : ''}" onclick="calSetColor(${p.id},'${c}')"></span>`).join('')}</div></td>
+        `<span style="background:${c}" class="${(p.color || CAL_PALETTE[0]) === c ? 'sel' : ''}" onclick="calSetColor(${p.id},'${c}')"></span>`).join('')}</div></td>
     </tr>`;
   });
 }

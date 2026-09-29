@@ -140,14 +140,14 @@ function renderUnitsPanel() {
             '<select id="u-new-type" title="數量輸入類型"><option value="integer">整數</option><option value="decimal">小數</option><option value="fraction">分數/小數</option></select>' +
             '<button class="btn btn--primary btn--md btn-primary" onclick="addUnitFromSettings()">＋ 新增</button></div>';
   }
-  html += '<table class="u-table"><thead><tr><th>單位名稱</th><th>數量類型</th><th style="text-align:right">操作</th></tr></thead>';
+  html += '<table class="u-table"><thead><tr><th>單位名稱</th><th>數量類型</th><th class="u-ta-right">操作</th></tr></thead>';
   unitList.forEach(u => {
     const _tl = qtyTypeLabel(u.qty_type);
     const _typeCell = canManage
       ? '<select class="u-qty-type" onchange="setUnitQtyType(' + u.id + ', this.value)" title="數量輸入類型">' +
         ['integer', 'decimal', 'fraction'].map(t => '<option value="' + t + '"' + ((u.qty_type || 'integer') === t ? ' selected' : '') + '>' + qtyTypeLabel(t) + '</option>').join('') + '</select>'
       : '<span class="u-qty-label">' + esc(_tl) + '</span>';
-    html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'is-inactive') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td style="text-align:right">';
+    html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'is-inactive') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td class="u-ta-right">';
     if (canManage) {
       html += '<a class="updown" onclick="moveUnit(' + u.id + ', -1)" title="上移">↑</a>' +
               '<a class="updown" onclick="moveUnit(' + u.id + ', 1)" title="下移">↓</a> ' +
@@ -160,7 +160,7 @@ function renderUnitsPanel() {
     const groups = groupOrphans(orphanItems);
     if (groups.length) {
       html += '<div class="hist-clean"><b>⚠️ 歷史單位待處理（點開逐筆處理）</b>';
-      html += '<div style="font-size:11.5px;color:#a08a3e;margin:4px 0 8px">這些資料可能包含舊式「數量 + 單位」混合格式，需要轉換成標準數量與正式單位。有轉換建議的可一鍵套用；判斷不出的請手填確認，處理完自動消失。</div>';
+      html += '<div class="hist-clean-desc">這些資料可能包含舊式「數量 + 單位」混合格式，需要轉換成標準數量與正式單位。有轉換建議的可一鍵套用；判斷不出的請手填確認，處理完自動消失。</div>';
       groups.forEach(g => {
         html += '<div class="grp"><div class="grp-head" onclick="this.parentElement.classList.toggle(\'is-open\')">' +
           '<span class="grp-title"><span class="arrow">▶</span> ' + esc(g.label) + '</span>' +
@@ -184,9 +184,9 @@ function renderUnitsPanel() {
       });
       html += '</div>';
     } else if (orphanLoadFailed) {
-      html += '<div class="hist-clean" style="color:#c62828">⚠️ 歷史單位載入失敗</div>';
+      html += '<div class="hist-clean--error hist-clean">⚠️ 歷史單位載入失敗</div>';
     } else {
-      html += '<div class="hist-clean" style="color:#2e7d32">✅ 所有品項單位皆在清單中</div>';
+      html += '<div class="hist-clean--ok hist-clean">✅ 所有品項單位皆在清單中</div>';
     }
   }
   document.getElementById('panel-units').innerHTML = html;
@@ -445,42 +445,42 @@ function renderGcalPanel() {
   if (canSync) html += renderGcalHealth(canForce);
 
   // 左側 Key 列表 + 右側面板（用 CSS flex 模擬）
-  html += '<div class="gcal-layout" style="display:flex;gap:16px;margin-top:12px;align-items:flex-start">';
+  html += '<div class="gcal-layout">';
 
   // 左側 Key 列表
-  html += '<div class="gcal-key-list" style="width:220px;flex-shrink:0;background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden">';
+  html += '<div class="gcal-key-list">';
   gcalKeys.forEach(k => {
     const isActive = k.id === selectedKeyId;
-    html += '<div class="gcal-key-item' + (isActive ? ' is-active' : '') + '" onclick="selectGcalKey(' + k.id + ')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s' + (isActive ? ';background:#e6f4ff;border-left:3px solid #1890ff' : '') + '">' +
-      '<div style="width:30px;height:30px;border-radius:50%;background:' + (k.is_active ? '#52c41a' : '#9ca3af') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">📅</div>' +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(k.name) + '</div>' +
-        '<div style="font-size:11px;color:' + (k.is_active ? '#15803d' : '#dc2626') + ';margin-top:2px;font-weight:600">' + (k.is_active ? '帳號啟用' : '帳號停用') + '</div>' +
-        '<div class="gcal-key-email" style="font-size:10px;color:#64748b;margin-top:2px;word-break:break-all" title="' + esc(k.client_email || '') + '">' + esc(k.client_email || '—') + '</div>' +
+    html += '<div class="gcal-key-item' + (isActive ? ' is-active' : '') + '" onclick="selectGcalKey(' + k.id + ')">' +
+      '<div class="gcal-key-avatar' + (k.is_active ? '' : ' is-off') + '">📅</div>' +
+      '<div class="gcal-key-body">' +
+        '<div class="gcal-key-name">' + esc(k.name) + '</div>' +
+        '<div class="gcal-key-status' + (k.is_active ? '' : ' is-off') + '">' + (k.is_active ? '帳號啟用' : '帳號停用') + '</div>' +
+        '<div class="gcal-key-email" title="' + esc(k.client_email || '') + '">' + esc(k.client_email || '—') + '</div>' +
       '</div>' +
       '<button class="btn btn--sm ' + (k.is_active ? 'btn--danger' : 'btn--secondary') + ' u-shrink-0" onclick="event.stopPropagation();toggleGcalKey(' + k.id + ',' + (!k.is_active) + ')">' + (k.is_active ? '停用' : '啟用') + '</button>' +
       '</div>';
   });
   if (canManage) {
-    html += '<div class="gcal-key-add" onclick="openGcalKeyModal()" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-top:1px solid #f0f0f0;color:#1890ff;font-size:13px;cursor:pointer">＋ 新增 Key</div>';
+    html += '<div class="gcal-key-add" onclick="openGcalKeyModal()">＋ 新增 Key</div>';
   }
   html += '</div>';
 
   // 右側面板
-  html += '<div class="gcal-detail-panel" style="flex:1;min-width:0;background:#fff;border-radius:12px;border:1px solid #eee;padding:18px 20px">';
+  html += '<div class="gcal-detail-panel">';
 
   if (selectedKeyId) {
     const key = gcalKeys.find(k => k.id === selectedKeyId);
     if (key) {
       // Panel Head
-      html += '<div class="gcal-detail-head" style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">' +
-        '<div style="width:40px;height:40px;border-radius:50%;background:#52c41a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">📅</div>' +
-        '<div class="gcal-detail-info" style="flex:1"><div style="font-size:16px;font-weight:700">' + esc(key.name) + '</div>' +
-        '<div style="font-size:12px;color:#888;margin-top:2px">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div>' +
-        '<div style="font-size:12px;color:#2563eb;margin-top:3px">Client email：' + esc(key.client_email || '未讀取') + '</div></div>';
+      html += '<div class="gcal-detail-head">' +
+        '<div class="gcal-detail-avatar">📅</div>' +
+        '<div class="gcal-detail-info"><div class="gcal-detail-name">' + esc(key.name) + '</div>' +
+        '<div class="gcal-detail-meta">' + esc(key.calendar_id) + ' · ' + (key.is_active ? '✅ 啟用中' : '⏸ 停用') + '</div>' +
+        '<div class="gcal-detail-email">Client email：' + esc(key.client_email || '未讀取') + '</div></div>';
       // 操作按鈕
       if (canManage) {
-        html += '<div class="gcal-detail-actions" style="display:flex;gap:6px;align-items:center">' +
+        html += '<div class="gcal-detail-actions">' +
           '<label class="settings-switch" title="' + (key.is_active ? '點擊停用' : '點擊啟用') + '"><input type="checkbox" ' + (key.is_active ? 'checked' : '') + ' onchange="toggleGcalKey(' + key.id + ', this.checked)"><span class="slider"></span></label>' +
           '<button class="btn btn--secondary btn--sm" onclick="openGcalKeyModal(' + key.id + ')">✏️ 編輯</button>' +
           '<button type="button" class="btn btn--danger btn--sm" onclick="deleteGcalKey(' + key.id + ')">🗑️ 刪除</button>' +
@@ -489,7 +489,7 @@ function renderGcalPanel() {
       html += '</div>';
 
       // Tabs
-      html += '<div style="display:flex;gap:6px;margin:14px 0 4px;border-bottom:1px solid #eee">' +
+      html += '<div class="gcal-tabs">' +
         '<button class="chip chip--seg gcal-tab is-active" onclick="switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
         '<button class="chip chip--seg gcal-tab" onclick="switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
         '</div>';
@@ -499,7 +499,7 @@ function renderGcalPanel() {
       if (canSync) {
         html += renderGcalSyncSettings(key);
       } else {
-        html += '<p style="color:#999;font-size:13px;margin-top:16px">無權限修改同步設定</p>';
+        html += '<p class="gcal-no-perm">無權限修改同步設定</p>';
       }
       html += '</div>';
 
@@ -509,8 +509,8 @@ function renderGcalPanel() {
       html += '</div>';
     }
   } else {
-    html += '<div style="text-align:center;padding:40px 20px;color:#999">' +
-      '<div style="font-size:36px;margin-bottom:10px">📅</div>' +
+    html += '<div class="gcal-detail-empty">' +
+      '<div class="gcal-detail-empty-icon">📅</div>' +
       '<p>請選擇左側的 Key 查看設定</p></div>';
   }
 
@@ -528,47 +528,47 @@ function renderGcalSyncSettings(key) {
   let html = '';
 
   // Event 內容區塊
-  html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">📍 Event 內容</div>';
+  html += '<div class="gcal-section"><div class="gcal-section-title">📍 Event 內容</div>';
 
   // 地址→地點欄位
-  html += '<div class="gcal-settings-row" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">地址同步到地點欄位</label>' +
+  html += '<div class="gcal-settings-row">' +
+    '<label class="gcal-settings-label">地址同步到地點欄位</label>' +
     '<label class="settings-switch"><input type="checkbox" ' + (gcalSettings.gcal_use_location === '1' ? 'checked' : '') + ' onchange="saveGcalSetting(\'gcal_use_location\', this.checked ? \'1\' : \'0\')"><span class="slider"></span></label>' +
-    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">客戶地址顯示在 Google Calendar 的「地點」欄位</span></div>';
+    '<span class="gcal-settings-hint">客戶地址顯示在 Google Calendar 的「地點」欄位</span></div>';
 
   // 顯示為
-  html += '<div class="gcal-settings-row" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">顯示為</label>' +
-    '<select onchange="saveGcalSetting(\'gcal_transparency\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px">' +
+  html += '<div class="gcal-settings-row">' +
+    '<label class="gcal-settings-label">顯示為</label>' +
+    '<select onchange="saveGcalSetting(\'gcal_transparency\', this.value)" class="gcal-settings-control">' +
     '<option value="transparent"' + (gcalSettings.gcal_transparency === 'transparent' ? ' selected' : '') + '>🟢 空閒（不阻塞時段）</option>' +
     '<option value="opaque"' + (gcalSettings.gcal_transparency === 'opaque' ? ' selected' : '') + '>🔴 忙碌（阻塞時段）</option></select>' +
-    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">空閒 = 不會阻塞行事曆上的其他邀請</span></div>';
+    '<span class="gcal-settings-hint">空閒 = 不會阻塞行事曆上的其他邀請</span></div>';
   html += '</div>';
 
   // 時間設定區塊
-  html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">⏰ 時間設定</div>';
+  html += '<div class="gcal-section"><div class="gcal-section-title">⏰ 時間設定</div>';
 
   // 預設截止時間
-  html += '<div class="gcal-settings-row" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<label style="font-size:13px;color:#444;font-weight:600;min-width:140px">預設截止時間</label>' +
-    '<select onchange="saveGcalSetting(\'gcal_default_duration_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px">' +
+  html += '<div class="gcal-settings-row">' +
+    '<label class="gcal-settings-label">預設截止時間</label>' +
+    '<select onchange="saveGcalSetting(\'gcal_default_duration_min\', this.value)" class="gcal-settings-control">' +
     ['15', '30', '45', '60', '90', '120'].map(v => {
       var label = v === '60' ? '60 分鐘（1 小時）' : v === '120' ? '120 分鐘（2 小時）' : v + ' 分鐘';
       return '<option value="' + v + '"' + (gcalSettings.gcal_default_duration_min === v ? ' selected' : '') + '>' + label + '</option>';
     }).join('') + '</select>' +
-    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">未填截止時間的行程，同步時使用此時長</span></div>';
+    '<span class="gcal-settings-hint">未填截止時間的行程，同步時使用此時長</span></div>';
 
   // 同步間隔
-  html += '<div class="gcal-settings-row gcal-sync-interval-hint" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
-    '<label style="font-size:13px;color:#444;font-weight:600;min-width:180px">全部 Key 同步掃描間隔</label>' +
+  html += '<div class="gcal-settings-row gcal-sync-interval-hint">' +
+    '<label class="gcal-settings-label gcal-settings-label--wide">全部 Key 同步掃描間隔</label>' +
     '<input type="number" value="' + (gcalSettings.gcal_sync_interval_min || '5') + '" min="1" max="30" ' +
-    'onchange="saveGcalSetting(\'gcal_sync_interval_min\', this.value)" style="padding:6px 10px;border:1px solid #cfd6df;border-radius:8px;font-size:13px;width:70px"> 分鐘' +
-    '<span class="gcal-settings-hint" style="font-size:11px;color:#999">所有啟用中的 Google Calendar Key 共用此掃描間隔，背景排程器會掃描待同步隊列；行程修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖（立即同步全部 Key）</span></div>';
+    'onchange="saveGcalSetting(\'gcal_sync_interval_min\', this.value)" class="gcal-settings-control gcal-settings-control--num"> 分鐘' +
+    '<span class="gcal-settings-hint">所有啟用中的 Google Calendar Key 共用此掃描間隔，背景排程器會掃描待同步隊列；行程修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖（立即同步全部 Key）</span></div>';
   html += '</div>';
 
   // Per-Key 提醒設定
-  html += '<div style="margin-top:16px"><div style="font-size:12px;color:#999;font-weight:600;margin-bottom:10px">🔔 事件提醒（此 Key 專用）</div>';
-  html += '<p style="font-size:12px;color:#999;margin-bottom:12px">同步到 Google Calendar 時附帶的提醒通知。</p>';
+  html += '<div class="gcal-section"><div class="gcal-section-title">🔔 事件提醒（此 Key 專用）</div>';
+  html += '<p class="gcal-section-desc">同步到 Google Calendar 時附帶的提醒通知。</p>';
 
   var reminders = (key.reminders || []).filter(r => r.method === 'popup');
   if (!reminders.length) reminders = [{ method: 'popup', minutes: 30 }];
@@ -594,7 +594,7 @@ function renderGcalSyncSettings(key) {
   };
   html += '<div class="gcal-reminders-list" id="gcal-reminders-' + key.id + '">' + reminders.map(reminderRow).join('') + '</div>';
   html += '<button type="button" class="btn btn--ghost btn--sm gcal-add-reminder" onclick="addGcalReminderRow(' + key.id + ')"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
-  html += '<div style="margin-top:10px;padding:8px 12px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:6px;font-size:11.5px;color:#2d5a8e">' +
+  html += '<div class="gcal-api-note">' +
     '💡 Google Calendar API 上限：最長 4 週（40320 分鐘）= 672 小時 = 28 天 = 4 週</div>';
 
   // 儲存提醒按鈕
@@ -605,13 +605,13 @@ function renderGcalSyncSettings(key) {
 }
 
 function renderGcalUserBind(key) {
-  let html = '<p style="font-size:13px;color:#666;margin:12px 0">指派人員綁定此 Key → 該人員的行程同步到這本行事曆。</p>';
-  html += '<table style="width:100%;font-size:12.5px;border-collapse:collapse"><thead><tr>' +
-    '<th style="text-align:left;padding:7px 6px;border-bottom:2px solid #e0e0e0;color:#666;font-size:12px">使用者</th>' +
-    '<th style="text-align:left;padding:7px 6px;border-bottom:2px solid #e0e0e0;color:#666;font-size:12px">綁定 Key</th></tr></thead><tbody>';
+  let html = '<p class="gcal-bind-desc">指派人員綁定此 Key → 該人員的行程同步到這本行事曆。</p>';
+  html += '<table class="gcal-bind-table"><thead><tr>' +
+    '<th>使用者</th>' +
+    '<th>綁定 Key</th></tr></thead><tbody>';
   gcalUsers.forEach(u => {
-    html += '<tr><td style="padding:7px 6px;border-bottom:1px solid #f0f0f0">👤 ' + esc(u.display_name || u.username) + '</td><td style="padding:7px 6px;border-bottom:1px solid #f0f0f0">' +
-      '<select onchange="bindGcalUser(' + u.id + ', this.value)" style="padding:4px 8px;border:1px solid #cfd6df;border-radius:6px;font-size:12px">' +
+    html += '<tr><td>👤 ' + esc(u.display_name || u.username) + '</td><td>' +
+      '<select onchange="bindGcalUser(' + u.id + ', this.value)" class="gcal-bind-select">' +
       '<option value=""' + (!u.gcal_key ? ' selected' : '') + '>— 未綁定 —</option>';
     gcalKeys.filter(k => k.is_active).forEach(k => {
       html += '<option value="' + esc(k.name) + '"' + (u.gcal_key === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>';
@@ -619,7 +619,7 @@ function renderGcalUserBind(key) {
     html += '</select></td></tr>';
   });
   html += '</tbody></table>';
-  html += '<p style="font-size:11px;color:#999;margin-top:8px">未綁定 Key 的使用者，其指派的行程不會同步到任何行事曆。</p>';
+  html += '<p class="gcal-bind-note">未綁定 Key 的使用者，其指派的行程不會同步到任何行事曆。</p>';
   return html;
 }
 
@@ -861,14 +861,14 @@ function renderCabinetTable() {
   const tbody = document.getElementById('cabinetList');
   if (!tbody) return;
   if (!cabinetList.length) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #999;">尚未新增任何櫃子</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="cabinet-empty">尚未新增任何櫃子</td></tr>';
     return;
   }
   tbody.innerHTML = cabinetList.map(c => `
     <tr>
       <td><strong>${esc(c.name)}</strong></td>
       <td>${esc(c.note || '（無備註）')}</td>
-      <td style="text-align: right; display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+      <td class="cabinet-actions">
         <button class="btn btn--secondary btn--sm btn-save u-shrink-0" onclick="editCabinet(${c.id})">✎ 編輯</button>
         <button class="btn btn--danger btn--sm btn-cancel-ghost u-shrink-0" onclick="deleteCabinet(${c.id})">🗑 刪除</button>
       </td>

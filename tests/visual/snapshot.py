@@ -51,6 +51,7 @@ SCENARIOS = [(sid, tab, action) for sid, _owner, tab, action in harness.LEAK_SCE
     ("modal-petty-cash-entry", "petty-cash", "pcOpenReportModal().then(() => pcOpenEntryModal())"),
     ("page-settings-cabinets", "/settings.html", "settingsSwitch('cabinets')"),
     ("page-settings-gcal", "/settings.html", "settingsSwitch('gcal')"),
+    ("page-settings-gcal-key", "/settings.html", "(settingsSwitch('gcal'), selectGcalKey(1))"),
     ("page-settings-petty-cash", "/settings.html", "settingsSwitch('petty-cash')"),
     ("page-settings-pw", "/settings.html", "settingsSwitch('pw')"),
     ("page-permissions-add-user", "/permissions.html", "openAddUserModal()"),

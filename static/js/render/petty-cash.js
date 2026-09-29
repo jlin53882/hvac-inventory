@@ -165,7 +165,7 @@ async function renderPettyCash() {
             <span class="pc-result-count"><span id="pc-result-count">0 筆</span></span>
           </div>
         </div>
-        <div class="pc-card__bd" style="padding-top:0">
+        <div class="pc-card__bd u-pt-0">
           <div class="pc-table-wrap pc-report-list-table-wrap"><table class="pc-table pc-report-list-table">
             <thead><tr><th>#</th><th>報表期間</th><th>報表類型</th><th>檔名</th><th>報表歸屬人</th><th>製表人</th><th>金額摘要</th><th>狀態</th><th>操作</th></tr></thead>
             <tbody id="pc-tbody"></tbody>
@@ -179,7 +179,7 @@ async function renderPettyCash() {
         </div>
         <div class="pc-pagination">
           <span id="pc-page-info"></span>
-          <span style="display:flex;gap:6px">
+          <span class="u-d-flex u-gap-6">
             <button class="btn btn--secondary btn--sm" onclick="pcChangePage(-1)">‹ 上一頁</button>
             <button class="btn btn--secondary btn--sm" onclick="pcChangePage(1)">下一頁 ›</button>
           </span>
@@ -281,7 +281,7 @@ function pcReportCardHtml(r, typeLabel, typeClass, summaryLabel, summaryValue, f
     <div class="pc-report-card__file">${esc(fileLabel)}</div>
     <div class="pc-report-card__meta">報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div>
     <div class="pc-report-card__balance"><span>${esc(summaryLabel)}</span> $${esc(_pcMoney(summaryValue))}</div>
-    <div class="pc-row-actions pc-row-actions--mobile" style="margin-top:10px">${ops}</div>
+    <div class="pc-row-actions pc-row-actions--mobile u-mt-10">${ops}</div>
   </div>`;
 }
 

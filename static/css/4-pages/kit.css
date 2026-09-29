@@ -388,4 +388,15 @@
   background: var(--c-danger-soft);
   border-radius: var(--r-sm);
 }
+
+/* 整組待領出 modal 的材料清單（#kit-prepare-list；原本是 JS inline style） */
+[data-page="kit"] .kit-prepare-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--c-surface-2); }
+[data-page="kit"] .kit-prepare-thumb { width: 36px; height: 36px; border-radius: var(--r-sm); object-fit: cover; cursor: zoom-in; }
+[data-page="kit"] .kit-prepare-thumb--empty { display: flex; align-items: center; justify-content: center; background: var(--c-surface-2); color: var(--c-border-control); font-size: var(--fs-14); cursor: default; }
+[data-page="kit"] .kit-prepare-info { flex: 1; min-width: 0; }
+[data-page="kit"] .kit-prepare-name { font-size: var(--fs-13); font-weight: var(--fw-medium); }
+[data-page="kit"] .kit-prepare-code { color: var(--c-muted); font-size: var(--fs-11); }
+[data-page="kit"] .kit-prepare-qty { text-align: right; font-size: var(--fs-12); }
+[data-page="kit"] .kit-prepare-stock { color: var(--c-success-strong); }
+[data-page="kit"] .kit-prepare-stock.is-short { color: var(--c-danger); }
 }

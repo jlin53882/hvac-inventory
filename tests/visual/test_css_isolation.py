@@ -78,6 +78,66 @@ def test_export_dialog_styled_on_every_page(page, live_server, viewport, tab, di
     assert width <= (560 if viewport[0] == "desktop" else 390 - 24 + 1)
 
 
+def _goto_settings(page, live_server, action):
+    page.goto(live_server.base_url + "/settings.html")
+    page.wait_for_load_state("networkidle")
+    page.evaluate(f"async () => {{ {action} }}")
+    page.wait_for_timeout(200)
+
+
+def test_gcal_key_panel_layout(page, live_server, viewport):
+    """設定頁行事曆同步：桌機 Key 列表 220px + 右側詳情並排；手機改為上下排列、滿版
+    （回歸：inline style 蓋過手機規則，手機版被擠成左右兩欄、文字一字一行）。"""
+    _goto_settings(page, live_server, "settingsSwitch('gcal'); selectGcalKey(1);")
+    layout, keys, panel = "#panel-gcal .gcal-layout", "#panel-gcal .gcal-key-list", "#panel-gcal .gcal-detail-panel"
+    if viewport[0] == "desktop":
+        assert _computed(page, layout, "display") == "flex"
+        assert _computed(page, keys, "width") == "220px"
+    else:
+        assert _computed(page, layout, "display") == "block"
+        vw = page.evaluate("window.innerWidth")
+        for sel in (keys, panel):
+            width = page.eval_on_selector(sel, "el => el.getBoundingClientRect().width")
+            assert width > vw * 0.8, f"{sel} 手機版應接近滿版，實際 {width}px"
+        assert _computed(page, "#panel-gcal .gcal-detail-head", "flex-wrap") == "wrap"
+
+
+def test_cabinet_actions_stay_inline(page, live_server, viewport):
+    """櫃子設定的「編輯 / 刪除」在桌機與手機都維持同一列靠右（回歸：改 class 後被 .u-table td 蓋過）。"""
+    _goto_settings(page, live_server, "settingsSwitch('cabinets');")
+    cell = "#cabinetList td.cabinet-actions"
+    assert _computed(page, cell, "display") == "flex"
+    assert _computed(page, cell, "justify-content") == "flex-end"
+
+
+def test_stock_location_picker_keeps_its_width(page, live_server):
+    """入庫位置選擇視窗維持 420px 寬（回歸：與 .modal 同層同特異度，被較晚載入的 modal.css 蓋成 520px）。"""
+    harness.open_tab(page, live_server, "inventory")
+    harness.run_action(page, "openStockLocationPicker(ALL_ITEMS.find(i => i.id === 1), 1)")
+    width = page.eval_on_selector(".modal.stock-adjust-modal", "el => el.getBoundingClientRect().width")
+    assert width <= 420, width
+
+
+def test_kit_prepare_component_list_layout(page, live_server):
+    """整組待領出視窗的材料清單：縮圖、名稱、需要 / 庫存同一列（回歸：樣式誤限定在待領出頁）。"""
+    harness.open_tab(page, live_server, "kit")
+    harness.run_action(page, "openKitPrepareModal(1, '標準安裝包')")
+    assert _computed(page, "#kit-prepare-list .kit-prepare-row", "display") == "flex"
+    assert _computed(page, "#kit-prepare-list .kit-prepare-qty", "text-align") == "right"
+
+
+def test_mobile_calendar_event_names_fit(page, live_server, viewport):
+    """手機月曆格內的派工名稱不被截斷（回歸：字級統一把 9px 放大到 11px，名稱變成「陳…」）。"""
+    if viewport[0] == "desktop":
+        pytest.skip("桌機月曆格有足夠寬度")
+    harness.open_tab(page, live_server, "calendar")
+    # 3 個字的客戶名（最常見）在改版前完整顯示；4 字以上本來就會以 … 截斷
+    clipped = page.evaluate("""() => [...document.querySelectorAll('.cal-evt-body')]
+        .filter(el => el.getClientRects().length && el.textContent.trim().length <= 3 && el.scrollWidth > el.clientWidth + 1)
+        .map(el => el.textContent)""")
+    assert not clipped, f"月曆格名稱被截斷：{clipped}"
+
+
 def test_modal_overlay_stacks_above_shell(page, live_server):
     """modal 疊層高於 header / sidebar。"""
     harness.open_tab(page, live_server, "inventory")

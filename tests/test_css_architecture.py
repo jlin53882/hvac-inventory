@@ -379,3 +379,43 @@ def test_every_utility_is_used():
     markup = "".join(text for _rel, text in _markup_sources())
     for name, _body in _utility_rules():
         assert re.search(r"(?<![\w-])" + re.escape(name) + r"(?![\w-])", markup), f".{name} 沒有任何 HTML / JS 使用"
+
+
+# ---------- JS 產生的畫面：外觀一律交給 CSS class + token ----------
+# 使用者自訂的行事曆人員顏色屬於資料（存在資料庫），不是設計色票
+JS_COLOR_DATA = {"js/globals.js": ("var CAL_PALETTE = [",)}
+JS_RUNTIME_STYLE_PROPS = {"display", "width", "position", "top", "left", "right", "zIndex"}  # 顯示切換、進度條、下拉定位
+
+
+def _js_sources():
+    return [(rel, text) for rel, text in _markup_sources() if rel.endswith(".js")]
+
+
+def test_js_has_no_hardcoded_colors():
+    """static/js 不得寫死色碼：畫面顏色用 CSS class（token），只有行事曆人員調色盤這類「資料」例外。"""
+    color = re.compile(r"(?<![\w-])#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b(?![\w-])")
+    for rel, text in _js_sources():
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if any(line.lstrip().startswith(prefix) for prefix in JS_COLOR_DATA.get(rel, ())):
+                continue
+            code = re.sub(r"(querySelector(All)?|getElementById|closest|matches)\([^)]*\)", "", line)
+            for match in color.finditer(code):
+                before = code[max(0, match.start() - 1):match.start()]
+                if before in ("'", '"', ":", " ", "(", ",") and not re.match(r"#[a-z]+-", code[match.start():]):
+                    raise AssertionError(f"{rel}:{lineno} 寫死色碼 {match.group(0)}")
+
+
+def test_js_inline_styles_only_carry_runtime_state():
+    """JS 樣板的 style="" 只能放執行期狀態（display 切換）或資料值（${...}）；
+    字級、顏色、間距、圓角等外觀寫在 CSS，否則會蓋過分層樣式、讓手機版規則失效。"""
+    for rel, text in _js_sources():
+        assert "style.cssText" not in text, f"{rel} 使用 style.cssText，請改用 class"
+        for prop in re.findall(r"\.style\.([a-zA-Z]+)\s*=", text):
+            assert prop in JS_RUNTIME_STYLE_PROPS, f"{rel} 以 JS 設定外觀 style.{prop}，請改用 class"
+        for match in re.finditer(r"style=\\?([\"'])(.*?)\\?\1", text):
+            static = re.sub(r"\$\{.*?\}|' \+ .*? \+ '", "", match.group(2))
+            for decl in filter(None, (d.strip() for d in static.split(";"))):
+                prop, _, value = decl.partition(":")
+                if prop.strip() == "display" and value.strip() == "none":
+                    continue
+                assert not value.strip(), f"{rel} 的 inline style 寫死外觀：{match.group(2)[:80]}"

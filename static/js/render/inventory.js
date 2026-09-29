@@ -431,8 +431,8 @@ function renderInventoryTable(list, isViewer, canStockout) {
     (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
   });
   let h = '<div class="tbl-wrap"><table class="data-table"><thead><tr>';
-  if (batchMode && hasPerm('batch-loc-mgmt')) h += '<th style="width:30px"></th>';
-  h += '<th style="width:44px"></th><th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
+  if (batchMode && hasPerm('batch-loc-mgmt')) h += '<th class="col-check"></th>';
+  h += '<th class="col-thumb"></th><th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
   h += '</tr></thead><tbody>';
   Object.keys(byLoc).sort().forEach(loc => {
     byLoc[loc].forEach(i => {
@@ -448,11 +448,11 @@ function renderInventoryTable(list, isViewer, canStockout) {
       const locStr = stocks.map(s => esc(s.location)).join(', ');
       const photoHTML = i.has_photo ? '<span class="cphoto"><img src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
       h += '<tr class="' + rowClass + '">';
-      if (batchMode && hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
+      if (batchMode && hasPerm('batch-loc-mgmt')) h += '<td class="u-ta-center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
       h += '<td class="photo-cell">' + photoHTML + '</td>';
-      h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small style="color:#64748b">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
+      h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small class="col-name-code">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
-      h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + displayStr + '</td>';
+      h += '<td class="col-qty ' + (isZero ? 'is-out' : (isLow ? 'is-low' : 'is-ok')) + '">' + displayStr + '</td>';
       h += '<td>' + esc(i.unit) + '</td>';
       h += '<td class="col-loc">' + locStr + '</td>';
       h += '<td class="col-status">' + statusHTML + '</td>';
@@ -525,7 +525,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
         const locHtml = buildLocHTML(stocks);
         const noteHtml = buildNoteHTML(stocks);
-        h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' style="padding-left:32px"' : '') + '>';
+        h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' data-batch="1"' : '') + '>';
         if (batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">';
         if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
         else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
@@ -540,7 +540,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         h += buildInventoryStockoutActions(i, canStockout, false);
         if (!isViewer) h += '<div class="item-card-admin-actions"><button class="btn btn--secondary btn--sm edit-btn" onclick="openEditModal(' + i.id + ')" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="btn btn--danger btn--sm del-btn" onclick="deleteItem(' + i.id + ')" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
         if (isViewer) {
-          h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
+          h += '<div class="qty-control"><div class="qty-value is-readonly" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
         } else {
           h += '<div class="qty-control"><button class="qty-btn qty-minus" onclick="changeQty(' + i.id + ', -1)"' + (isZero && delta <= 0 ? ' disabled' : '') + '>−</button><div class="qty-value" onclick="quickSet(' + i.id + ')" title="點數字可輸入">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div><button class="qty-btn qty-plus" onclick="changeQty(' + i.id + ', 1)">+</button></div>';
         }
@@ -1040,7 +1040,7 @@ function showBatchConfirm() {
   ALL_ITEMS.forEach(function(item) {
     (item.stocks || []).forEach(function(s) {
       if (selectedStockIds.has(s.id)) {
-        details.push('<div class="modal-item-row"><span>' + esc(item.brand) + ' ' + esc(item.name) + '</span><span style="color:#999">' + esc(s.location) + ' \u2192 <b style="color:#2d5a8e">' + esc(target) + '</b></span></div>');
+        details.push('<div class="modal-item-row"><span>' + esc(item.brand) + ' ' + esc(item.name) + '</span><span class="modal-item-from">' + esc(s.location) + ' \u2192 <b class="modal-item-to">' + esc(target) + '</b></span></div>');
       }
     });
   });

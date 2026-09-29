@@ -43,7 +43,8 @@
 
 #edit-stock-rows .stock-remove:hover, #add-stock-rows .stock-remove:hover { background: var(--c-danger-soft); }
 
-.stock-adjust-modal {
+/* 與 .modal 同在 components 層且 modal.css 較晚載入：用 .modal.stock-adjust-modal 提高特異度，寬度才不會被 .modal 蓋掉 */
+.modal.stock-adjust-modal {
   width: min(420px, calc(100vw - 24px));
   max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);

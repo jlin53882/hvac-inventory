@@ -416,4 +416,10 @@
   [data-page="petty-cash"] .pc-item-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
   [data-page="petty-cash"] .pc-item-row input { min-width: 0; }
 }
+
+/* 月報 modal 內的按鈕列與收支紀錄 modal（原本是 JS inline style） */
+[data-page="petty-cash"] .pc-inline-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+[data-page="petty-cash"] .pc-inline-actions--head { margin-bottom: 10px; }
+[data-page="petty-cash"] .pc-modal.pc-modal--entry { max-width: 640px; }
+[data-page="petty-cash"] .pc-entry-items-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 }

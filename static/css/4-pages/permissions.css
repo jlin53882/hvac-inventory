@@ -147,4 +147,7 @@
 [data-page="permissions"] .batch-result { margin-top: 10px; font-size: var(--fs-12); max-height: 140px; overflow-y: auto; }
 [data-page="permissions"] .batch-result .ok { color: var(--c-success); }
 [data-page="permissions"] .batch-result .err { color: var(--c-danger); }
+
+/* 帳號名稱旁的「（自己）」標記（原本是 JS inline style） */
+[data-page="permissions"] .perm-self-tag { color: var(--c-text-subtle); font-size: var(--fs-12); }
 }

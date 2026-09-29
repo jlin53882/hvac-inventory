@@ -17,7 +17,7 @@
 | `test_appointments.py` | `regression` | `full-only` | calendar / sync regression |
 | `test_backup_db.py` | `core` | `full-only` | 每日資料庫備份腳本 / monitor 整合 |
 | `test_config.py` | `core` | `full-only` | config contract |
-| `test_css_architecture.py` | `frontend` | `CI / Frontend + Security` | CSS 分層目錄 / 每檔包在所屬 @layer / HTML 無內嵌 <style> / 頁面範圍 / 無 !important / 斷點白名單 / is-* 狀態 / 按鈕外觀只在 button.css・chip.css / 每個 <button> 套標準 class / 色碼・字級・字重・圓角・z-index 只能用 token |
+| `test_css_architecture.py` | `frontend` | `CI / Frontend + Security` | CSS 分層目錄 / 每檔包在所屬 @layer / HTML 無內嵌 <style> / 頁面範圍 / 無 !important / 斷點白名單 / is-* 狀態 / 按鈕外觀只在 button.css・chip.css / 每個 <button> 套標準 class / 色碼・字級・字重・圓角・z-index 只能用 token / JS 不得寫死色碼、inline style 只能放執行期狀態 |
 | `test_database_migrations.py` | `database`, `inventory` | `CI / Inventory + Database` | migration / seed rollback |
 | `test_deadvar_verify.py` | `regression` | `full-only` | dead variable regression |
 | `test_engineering_petty_cash.py` | `petty_cash`, `reports` | `CI / Reports` | engineering petty cash / Excel |

@@ -466,7 +466,7 @@ function calRenderDay() {
   list.className = 'cal-timeline';
   list.innerHTML = dayEvents.map(e => {
     const who = (e.assignees || []).map(p =>
-      `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
+      `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || CAL_PALETTE[0]}"></span>${esc(p.name || '')}</span>`).join(' ');
     const service = e.service_name
       ? `<span class="cal-service-badge cal-service-${esc(calServiceTone(e.service_name))}">${esc(e.service_name)}</span>` : '';
     const personal = calPersonalSync(e);
@@ -695,21 +695,21 @@ function calRenderMobileSearchResults(items) {
   calApplyRightPanelMode();
   el.style.display = 'block';
   if (!items.length) {
-    el.innerHTML = '<div style="padding:16px;text-align:center;color:#888;font-size:13px">找不到符合條件的行程</div>';
+    el.innerHTML = '<div class="cal-msearch-empty">找不到符合條件的行程</div>';
     return;
   }
-  let html = '<div style="padding:8px 0;font-size:12px;color:#666">找到 ' + items.length + ' 筆結果</div>';
+  let html = '<div class="cal-msearch-summary">找到 ' + items.length + ' 筆結果</div>';
   items.forEach(function(e) {
     const names = (e.assignees || []).map(function(a) { return esc(a.name); }).join('、');
-    html += '<div class="cal-search-item" style="padding:10px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer" data-date="' + esc(e.date) + '" onclick="calJumpToDate(this.dataset.date)">' +
-      '<div style="font-weight:600;font-size:13px">' + esc(e.client_name) + '</div>' +
-      '<div style="font-size:12px;color:#666;margin-top:2px">' +
+    html += '<div class="cal-search-item cal-msearch-item" data-date="' + esc(e.date) + '" onclick="calJumpToDate(this.dataset.date)">' +
+      '<div class="cal-msearch-title">' + esc(e.client_name) + '</div>' +
+      '<div class="cal-msearch-time">' +
       (esc(e.date) || '') + (e.start_time ? ' ' + esc(e.start_time) + (e.end_time ? '~' + esc(e.end_time) : '') : '') +
       (e.service_name ? ' [' + esc(e.service_name) + ']' : '') +
       '</div>' +
-      (names ? '<div style="font-size:11px;color:#888;margin-top:2px">👤 ' + names + '</div>' : '') +
-      (e.address ? '<div style="font-size:11px;color:#888">📍 ' + esc(e.address) + '</div>' : '') +
-      (e.note ? '<div style="font-size:11px;color:#888">📝 ' + esc(e.note) + '</div>' : '') +
+      (names ? '<div class="cal-msearch-meta">👤 ' + names + '</div>' : '') +
+      (e.address ? '<div class="cal-msearch-meta">📍 ' + esc(e.address) + '</div>' : '') +
+      (e.note ? '<div class="cal-msearch-meta">📝 ' + esc(e.note) + '</div>' : '') +
       '</div>';
   });
   el.innerHTML = html;

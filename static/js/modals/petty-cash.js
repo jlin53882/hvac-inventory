@@ -93,12 +93,12 @@ async function pcOpenReportModal(id) {
             <datalist id="pc-persons-list">${pcPersons.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
             <div class="pc-filename-preview" id="pc-filename-preview"></div>
             <div class="pc-balance-hint" id="pc-opening-hint"></div>
-            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <div class="pc-inline-actions u-mt-10">
               <button class="btn btn--secondary btn--sm" onclick="pcFetchPreviousBalance()">🔍 帶入上一期餘額</button>
             </div>
           </div>
           <div id="pc-step-2" style="display:none">
-            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <div class="pc-inline-actions pc-inline-actions--head">
               <button class="btn btn--primary btn--sm" onclick="pcOpenEntryModal()">＋ 新增紀錄</button>
             </div>
             <div id="pc-modal-entries"></div>
@@ -308,7 +308,7 @@ function pcOpenEntryModal(idx) {
   }));
   document.getElementById('content').insertAdjacentHTML('beforeend', `
     <div id="pc-entry-overlay" class="pc-overlay is-open" onclick="if(event.target===this)pcCloseEntryModal()">
-      <div class="pc-modal" role="dialog" aria-label="收支紀錄" style="max-width:640px">
+      <div class="pc-modal pc-modal--entry" role="dialog" aria-label="收支紀錄">
         <div class="pc-modal__hd"><h3>${pcEntryEditIndex >= 0 ? '✏️ 編輯紀錄' : '＋ 新增紀錄'}</h3><button class="btn btn--secondary btn--sm btn--icon" onclick="pcCloseEntryModal()">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
@@ -319,10 +319,10 @@ function pcOpenEntryModal(idx) {
             <div class="pc-field"><label>日期 <span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
             <div class="pc-field"><label>科目</label><select id="pc-e-category" onchange="pcGeneralCategoryChanged(this)">${pcGeneralCategoryOptions(src.category || '')}</select></div>
           </div>
-          <div class="pc-field" style="margin-top:10px"><label>摘要 <span class="pc-required" id="pc-e-desc-req">*</span></label><input id="pc-e-desc" type="text" placeholder="例：零用金 / 畚箕 ×1" value="${esc(src.description || '')}"></div>
-          <div class="pc-field" style="margin-top:10px"><label>總金額 <span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" oninput="pcEntryAmountHint()"></div>
-          <div id="pc-entry-items-wrap" style="margin-top:10px;${pcEntryType === 'income' ? 'display:none' : ''}">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div class="pc-field u-mt-10"><label>摘要 <span class="pc-required" id="pc-e-desc-req">*</span></label><input id="pc-e-desc" type="text" placeholder="例：零用金 / 畚箕 ×1" value="${esc(src.description || '')}"></div>
+          <div class="pc-field u-mt-10"><label>總金額 <span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" oninput="pcEntryAmountHint()"></div>
+          <div id="pc-entry-items-wrap" class="u-mt-10" style="${pcEntryType === 'income' ? 'display:none' : ''}">
+            <div class="pc-entry-items-head">
               <strong>明細項目</strong>
               <button class="btn btn--secondary btn--sm" onclick="pcEntryAddItemRow()">＋ 新增項目</button>
             </div>

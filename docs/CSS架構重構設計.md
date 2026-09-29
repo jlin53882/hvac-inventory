@@ -327,7 +327,7 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 | 主色 | `--c-primary #2d5a8e`（品牌深藍）、hover `--c-primary-strong #1e3a5f`、淺底 `--c-primary-soft #eef4fa` |
 | 文字 / 框線 | `--c-text #0f172a`、`--c-text-2 #334155`、`--c-muted #64748b`、`--c-border #e2e8f0`、`--c-border-strong #94a3b8` |
 | 語意色 | success `#16a34a`、warning `#d97706`、danger `#dc2626`、待領出 `#7c3aed` 系、已領出 `#f59e0b` 系（各有淺底） |
-| 字級 | 11 / 12 / 13 / 14 / 16 / 20 / 28 |
+| 字級 | 11 / 12 / 13 / 14 / 16 / 20 / 28（另有 `--fs-9` 僅供手機月曆格） |
 | 字重 | 400 / 600 / 700 |
 | 圓角 | 6 / 8 / 12 / 999（圓形 50% 保留） |
 | 控制項高度 | sm 32、md 38、手機觸控 44 |
@@ -353,7 +353,7 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 | 項目 | 規則 |
 |---|---|
 | 色碼 | 與 token 完全相同者直接對應；灰階依亮度歸到 white / surface-2 / border / border-strong / border-control / muted / text-2 / text；彩色依色相歸到 primary（藍、含 #1890ff、#1a73e8）/ success（綠）/ warning（橙黃）/ danger（紅）/ prepare（紫），再依亮度分 soft / border / 本色 / strong；帶透明度的色碼改 `color-mix()` |
-| 字級 | 8–11.5→11 · 12–12.5→12 · 13–13.5→13 · 14–15→14 · 16–18→16 · 19–22→20 · 24–39→28；40px 以上 emoji 保留 |
+| 字級 | 8–11.5→11（手機月曆格例外保留 `--fs-9`，否則派工名稱會被截斷）· 12–12.5→12 · 13–13.5→13 · 14–15→14 · 16–18→16 · 19–22→20 · 24–39→28；40px 以上 emoji 保留 |
 | 圓角 | 4–7→6 · 8–10→8 · 12–16→12 · 20 以上→999；3px 以下細線與 50% 圓形保留 |
 | 字重 | 400 以下→400 · 500 / 600 / 650→600 · 700 / 800 / 900→700 |
 | z-index | 20 以上改為具名疊層（`--z-header`、`--z-modal`、`--z-lightbox`…），數值不變 |
@@ -363,6 +363,7 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 
 - `button.css` / `chip.css` 以外，任何以 `.btn` / `.chip` 或其掛鉤 class 為主體的規則，不得設定顏色、框線、圓角、字級、字重、內距、高度。
 - 每個 `<button>` 都要套 `.btn` 或 `.chip`；專用控制項（數量 ±、KPI 卡、關閉 ✕…）登記在 `tests/button_contract.json`——靜態測試（標記）與瀏覽器測試（畫面上可見的按鈕）共用這一份清單，清單中已不存在的 class 也會被擋下。
+- JS 產生的畫面同樣遵守：`static/js` 不得寫死色碼（行事曆人員調色盤這類使用者資料除外），`style=""` 只能放 `display:none` 切換或 `${...}` 資料值，`el.style.*` 只能設定顯示切換、進度條寬度與下拉定位；外觀一律寫成 CSS class。原因：inline style 優先權高於所有分層樣式，手機版規則會因此失效（master 曾靠 `!important` 硬蓋，P5 移除 `!important` 後 `settings.js` 的行事曆同步手機版因此跑版）。
 - utility 名稱描述語意、不寫色碼：用到 token 的 utility 必須以 token 命名（`.u-text-muted` ↔ `--c-muted`、`.u-r-md` ↔ `--r-md`），沒人使用的 utility 必須刪除。
 - 瀏覽器契約測試：所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須等於其變體與尺寸的規格。
 - `tokens.css` 以外禁止色碼；字級、字重、圓角、20 以上的 z-index 只能用變數；用到的變數必須已定義（P8 啟用）。

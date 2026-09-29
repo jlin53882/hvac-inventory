@@ -276,4 +276,21 @@
 [data-page="quotation-upload"] .qup-edit-modal .qup-modal__hd h3 { color: var(--c-white); }
 [data-page="quotation-upload"] .qup-edit-modal .qup-modal__bd { padding: 16px; background: var(--c-white); }
 [data-page="quotation-upload"] .qup-edit-modal .qup-field label { color: var(--c-text-2); font-size: var(--fs-13); }
+
+/* 檔案類型圖示色與預覽內容（原本是 JS inline style / 色碼） */
+[data-page="quotation-upload"] .qup-file-name { font-weight: var(--fw-bold); }
+[data-page="quotation-upload"] .qup-file-meta { color: var(--c-muted); font-size: var(--fs-11); }
+[data-page="quotation-upload"] .qup-file-tone--image { background: var(--c-primary-soft); }
+[data-page="quotation-upload"] .qup-file-tone--pdf { background: var(--c-danger-soft); }
+[data-page="quotation-upload"] .qup-file-tone--doc { background: var(--c-primary-soft-2); }
+[data-page="quotation-upload"] .qup-file-tone--sheet { background: var(--c-success-soft); }
+[data-page="quotation-upload"] .qup-file-tone--other { background: var(--c-surface-2); }
+[data-page="quotation-upload"] .qup-preview-img { width: 100%; }
+[data-page="quotation-upload"] .qup-preview-frame { width: 100%; height: 72vh; border: 0; }
+[data-page="quotation-upload"] .qup-preview-fallback { padding: 32px; text-align: center; }
+[data-page="quotation-upload"] .qup-preview-fallback--dark { color: var(--c-border); }
+[data-page="quotation-upload"] .qup-preview-icon { font-size: var(--fs-28); }
+[data-page="quotation-upload"] .qup-preview-title { margin: 12px 0 16px; font-weight: var(--fw-bold); }
+[data-page="quotation-upload"] .qup-preview-name { margin-top: 8px; font-weight: var(--fw-bold); }
+[data-page="quotation-upload"] .qup-preview-note { margin-top: 6px; color: var(--c-text-subtle); font-size: var(--fs-12); }
 }

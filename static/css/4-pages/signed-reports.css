@@ -167,4 +167,21 @@
 [data-page="signed-reports"] .dsr-edit-modal .dsr-field label { margin-bottom: 6px; color: var(--c-text-2); font-size: var(--fs-13); }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-field input, [data-page="signed-reports"] .dsr-edit-modal .dsr-field textarea { font-size: var(--fs-14); }
 [data-page="signed-reports"] .dsr-edit-modal .dsr-hint { margin-top: 8px; }
+
+/* 檔案類型圖示色與預覽內容（原本是 JS inline style / 色碼） */
+[data-page="signed-reports"] .dsr-file-name { font-weight: var(--fw-bold); }
+[data-page="signed-reports"] .dsr-file-meta { color: var(--c-muted); font-size: var(--fs-11); }
+[data-page="signed-reports"] .dsr-file-tone--image { background: var(--c-primary-soft); }
+[data-page="signed-reports"] .dsr-file-tone--pdf { background: var(--c-danger-soft); }
+[data-page="signed-reports"] .dsr-file-tone--doc { background: var(--c-primary-soft-2); }
+[data-page="signed-reports"] .dsr-file-tone--sheet { background: var(--c-success-soft); }
+[data-page="signed-reports"] .dsr-file-tone--other { background: var(--c-surface-2); }
+[data-page="signed-reports"] .dsr-preview-img { width: 100%; }
+[data-page="signed-reports"] .dsr-preview-frame { width: 100%; height: 72vh; border: 0; }
+[data-page="signed-reports"] .dsr-preview-fallback { padding: 32px; text-align: center; }
+[data-page="signed-reports"] .dsr-preview-fallback--dark { color: var(--c-border); }
+[data-page="signed-reports"] .dsr-preview-icon { font-size: var(--fs-28); }
+[data-page="signed-reports"] .dsr-preview-title { margin: 12px 0 16px; font-weight: var(--fw-bold); }
+[data-page="signed-reports"] .dsr-preview-name { margin-top: 8px; font-weight: var(--fw-bold); }
+[data-page="signed-reports"] .dsr-preview-note { margin-top: 6px; color: var(--c-text-subtle); font-size: var(--fs-12); }
 }

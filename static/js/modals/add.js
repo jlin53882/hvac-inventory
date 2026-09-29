@@ -144,12 +144,12 @@ function renderAddPhotoBox() {
   const box = document.getElementById('f-photo-box');
   if (!box) return;
   if (!hasPerm('photo')) {
-    box.innerHTML = '<div style="font-size:11px;color:#999;padding:6px 0">無照片上傳權限</div>';
+    box.innerHTML = '<div class="photo-box-hint">無照片上傳權限</div>';
     return;
   }
   box.innerHTML = `
-    <div style="font-size:11px;color:#999;padding:6px 0">新增後可立即上傳照片</div>
-    <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
+    <div class="photo-box-hint">新增後可立即上傳照片</div>
+    <div class="photo-actions">
       <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
         <input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">
       </label>

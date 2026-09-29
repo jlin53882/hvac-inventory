@@ -91,7 +91,7 @@ function calOpenAppt(id) {
     const opt = document.createElement('label');
     opt.className = 'cal-person-opt';
     opt.innerHTML = `<input type="checkbox" value="${p.id}" ${f && f.user_ids.includes(p.id) ? 'checked' : ''}>
-      <span class="cal-swatch" style="background:${esc(p.color) || '#1a73e8'}"></span><span>${esc(p.display_name || p.username)}</span>`;
+      <span class="cal-swatch" style="background:${esc(p.color) || CAL_PALETTE[0]}"></span><span>${esc(p.display_name || p.username)}</span>`;
     list.appendChild(opt);
   });
   // 服務下拉（啟用中）

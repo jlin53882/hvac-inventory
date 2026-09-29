@@ -138,7 +138,7 @@
     document.getElementById('panelHead').innerHTML = `
       <div class="user-avatar ${u.is_active ? '' : 'is-inactive'}">${esc(u.display_name.charAt(0) || '?')}</div>
       <div>
-        <div class="panel-title">${esc(u.display_name)}${isMe ? ' <span style="font-size:12px;color:#999">（自己）</span>' : ''}</div>
+        <div class="panel-title">${esc(u.display_name)}${isMe ? ' <span class="perm-self-tag">（自己）</span>' : ''}</div>
         <div class="panel-sub">${ROLE_LABELS[u.role] || u.role} · @${esc(u.username)} · ${u.is_active ? '✅ 啟用中' : '⏸ 已停用'}</div>
       </div>`;
   }

@@ -762,4 +762,16 @@
 [data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--c-surface-2); font-size: var(--fs-12); }
 [data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem:last-child { border-bottom: none; }
 
+
+/* 表格欄寬、數量狀態色、批次模式卡片內距、批次確認清單（原本是 JS inline style） */
+[data-page="inventory"] .tbl-wrap th.col-check { width: 30px; }
+[data-page="inventory"] .tbl-wrap th.col-thumb { width: 44px; }
+[data-page="inventory"] .tbl-wrap .col-name-code { color: var(--c-muted); }
+[data-page="inventory"] .inventory-content .tbl-wrap .col-qty.is-ok, [data-page="inventory"] .tbl-wrap .col-qty.is-ok { color: var(--c-success); }
+[data-page="inventory"] .inventory-content .tbl-wrap .col-qty.is-low, [data-page="inventory"] .tbl-wrap .col-qty.is-low { color: var(--c-warning); }
+[data-page="inventory"] .inventory-content .tbl-wrap .col-qty.is-out, [data-page="inventory"] .tbl-wrap .col-qty.is-out { color: var(--c-danger); }
+[data-page="inventory"] #content [data-batch="1"] { padding-left: 32px; }
+[data-page="inventory"] .qty-value.is-readonly { cursor: default; }
+[data-page="inventory"] .modal-item-from { color: var(--c-text-subtle); }
+[data-page="inventory"] .modal-item-to { color: var(--c-primary); }
 }

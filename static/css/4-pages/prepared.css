@@ -321,4 +321,8 @@
 [data-page="prepared"] .prepared-content .prepared-mobile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 [data-page="prepared"] .prepared-item-dest { font-size: var(--fs-11); color: var(--c-primary-strong); margin-top: 2px; }
 [data-page="prepared"] .prepared-card-dest { font-size: var(--fs-11); color: var(--c-primary-strong); margin-top: 2px; }
+
+/* 整組子品項縮圖（原本是 JS inline style） */
+[data-page="prepared"] .prepared-kit-thumb { width: 28px; height: 28px; border-radius: var(--r-sm); object-fit: cover; cursor: pointer; }
+[data-page="prepared"] .prepared-kit-thumb--empty { display: flex; align-items: center; justify-content: center; background: var(--c-surface-2); color: var(--c-border-control); font-size: var(--fs-12); cursor: default; }
 }

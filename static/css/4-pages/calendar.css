@@ -140,8 +140,8 @@
 @media (max-width: 767px) {
   [data-page="calendar"] .cal-cell { min-height: 58px; }
   /* 2026-08-14 家豪 B 方案：手機格窄——時間+內容兩行（內容一行截斷），字級再縮 */
-  [data-page="calendar"] .cal-evt { font-size: var(--fs-11); padding: 0 3px; }
-  [data-page="calendar"] .cal-evt .cal-evt-time { font-size: var(--fs-11); }
+  [data-page="calendar"] .cal-evt { font-size: var(--fs-9); padding: 0 3px; }
+  [data-page="calendar"] .cal-evt .cal-evt-time { font-size: var(--fs-9); }
 }
 
 /* 今日提醒條（demo 同款） */
@@ -304,7 +304,7 @@
   }
   [data-page="calendar"] .cal-evt .cal-evt-time {
     flex: 0 0 auto;
-    font-size: var(--fs-11);
+    font-size: var(--fs-9);
     line-height: 1.1;
   }
   [data-page="calendar"] .cal-evt .cal-evt-body {
@@ -313,7 +313,7 @@
     min-width: 0;
     flex: 1;
     overflow: hidden;
-    font-size: var(--fs-11);
+    font-size: var(--fs-9);
     line-height: 1.1;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -335,4 +335,13 @@
 [data-page="calendar"] .cal-sync-team-extra { margin-top: 10px; color: var(--c-muted); font-size: var(--fs-12); }
 [data-page="calendar"] .cal-sync-clickable.cal-sync-retrying, [data-page="calendar"] .cal-sync-clickable.cal-sync-partial_retrying { border-color: var(--c-warning); }
 [data-page="calendar"] .cal-sync-clickable.cal-sync-failed, [data-page="calendar"] .cal-sync-clickable.cal-sync-partial_failed { border-color: var(--c-danger-border); }
+
+/* 手機版搜尋結果清單、服務項目排序欄（原本是 JS inline style） */
+[data-page="calendar"] .cal-msearch-empty { padding: 16px; text-align: center; color: var(--c-muted); font-size: var(--fs-13); }
+[data-page="calendar"] .cal-msearch-summary { padding: 8px 0; color: var(--c-muted); font-size: var(--fs-12); }
+[data-page="calendar"] .cal-msearch-item { padding: 10px 12px; border-bottom: 1px solid var(--c-border); cursor: pointer; }
+[data-page="calendar"] .cal-msearch-title { font-size: var(--fs-13); font-weight: var(--fw-medium); }
+[data-page="calendar"] .cal-msearch-time { margin-top: 2px; color: var(--c-muted); font-size: var(--fs-12); }
+[data-page="calendar"] .cal-msearch-meta { margin-top: 2px; color: var(--c-muted); font-size: var(--fs-11); }
+[data-page="calendar"] .cal-set-sort-input { width: 56px; }
 }
