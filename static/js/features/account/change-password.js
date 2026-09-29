@@ -22,10 +22,10 @@ export function cpwResetChecks() {
   });
 }
 
-// 新密碼輸入時：即時打勾（8 碼以上 / 含大寫 / 含小寫 / 含數字）——共用（cpw-* 與 rpw-* modal 皆可用）
+// 新密碼輸入時：即時打勾（8 碼以上 / 含大寫 / 含小寫 / 含數字）（輸入框 id 以參數傳入）
 export function cpwCheckStrength() { pwStrengthCheck('cpw-new'); }
 
-export function pwStrengthCheck(inputId) {
+function pwStrengthCheck(inputId) {
   const v = document.getElementById(inputId).value;
   const prefix = inputId.replace(/-new$/, '');
   const set = (suffix, ok) => {
@@ -44,7 +44,7 @@ export function pwStrengthCheck(inputId) {
 // 確認密碼輸入時：不一致警示——共用
 export function cpwCheckMatch() { pwMatchCheck('cpw-new', 'cpw-confirm', 'cpw-mismatch'); }
 
-export function pwMatchCheck(newId, confirmId, warnId) {
+function pwMatchCheck(newId, confirmId, warnId) {
   const a = document.getElementById(newId).value;
   const b = document.getElementById(confirmId).value;
   document.getElementById(warnId).style.display = (a && b && a !== b) ? 'block' : 'none';

@@ -14,6 +14,14 @@ export var SignedReports = createUploadListPage({
   editTitle: '編輯每日簽名日報表',
   kpiIcons: { archived: '🗂', rate: '📈' },
   uploadPermission: 'signed-report-upload',
+  intro: '位置：底部導覽「行事曆」旁新增「報表」Tab。讀取需登入，刪除見下方權限規則。',
+  steps: [
+    '行事曆「📤 匯出日報表」下載 xlsx → 列印簽名',
+    '隔日掃描成 PDF/圖片 → 回到本頁拖曳上傳',
+    '選擇「報表日期」= 簽名所屬的工作日（非上傳當天）',
+    '歷史區以日期/關鍵字篩選，支援預覽與下載',
+  ],
+  missingHint: '缺檔日 = 行事曆有派工但未上傳簽名檔的日期',
 });
 
 // 渲染每日簽名報表頁面（features/shell/app.js switchTab 呼叫）

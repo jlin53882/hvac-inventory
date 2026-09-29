@@ -71,6 +71,8 @@ REVIEWED_SAFE_BODIES = {
     "active === 'quotation' ? 'is-active' : ''", "active === 'upload' ? 'is-active' : ''", "quoteModeTabs('quotation')",
     # 檔案上傳清單（issue #39）：headerHtml 只由頁面設定傳入固定 HTML（報價單上傳為 quoteModeTabs('upload')）。
     "config.headerHtml ? config.headerHtml() : ''",
+    # 使用流程清單：步驟文字在組 stepsHtml 時已逐項 esc()，序號為陣列索引。
+    "stepsHtml",
     # inventory card note context: formatter returns escaped display HTML; label uses it plus fixed text.
     "formatLocationDisplay(s.location)", "buildStockNoteLabelHTML(s, showLocationContext)",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）

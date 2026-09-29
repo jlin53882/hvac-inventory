@@ -10,11 +10,13 @@ const PAGES = {
     file: 'features/upload-list/signed-reports.js', ctl: 'SignedReports', render: 'renderSignedReports', tab: 'signed-reports',
     api: '/api/signed-reports', title: '🗂 每日簽名報表', upload: '＋ 上傳每日簽名日報表', uploadTitle: '⬆️ 上傳每日簽名日報表',
     editTitle: '✏️ 編輯每日簽名日報表', icons: ['🗂', '📈'], gated: true, modeTabs: false,
+    intro: '底部導覽「行事曆」旁', step1: '行事曆「📤 匯出日報表」下載 xlsx → 列印簽名', missingHint: '缺檔日 = 行事曆有派工但未上傳簽名檔的日期',
   },
   quotation: {
     file: 'features/upload-list/quotation-upload.js', ctl: 'QuotationUploads', render: 'renderQuotationUploads', tab: 'quotation',
     api: '/api/quotation-uploads', title: '🗂 報價單上傳', upload: '＋ 上傳報價單', uploadTitle: '⬆️ 上傳報價單',
     editTitle: '✏️ 編輯報價單上傳', icons: ['🧾', '📊'], gated: false, modeTabs: true,
+    intro: '「報價單」頁上方切換至「報價單上傳」', step1: '將客戶確認（回簽）的報價單掃描成 PDF/圖片', missingHint: '缺檔日 = 行事曆有派工但未上傳報價單的日期',
   },
 };
 
@@ -97,6 +99,23 @@ const REPORT = {
     assert.strictEqual((html.match(/data-role="upl-upload-surface"/g) || []).length, 2, `${key}: header button and upload card are gated together`);
     assert(html.includes('<input id="upl-camera-input" type="file" style="display:none" accept="image/*" capture="environment">'), `${key}: camera input`);
     assert(html.includes('📷 相機拍攝'), `${key}: camera button`);
+    // 頁面說明 / 使用流程 / 缺檔日定義由各頁設定提供：報價單上傳不得出現簽名報表的操作說明
+    assert(html.includes(t.page.intro), `${key}: page intro`);
+    assert(html.includes(`<li><span class="dsr-badge">1</span> ${t.page.step1}</li>`), `${key}: usage steps`);
+    assert(html.includes(`<div class="upl-hint">${t.page.missingHint}</div>`), `${key}: missing-day hint`);
+    if (key === 'quotation') assert(!/簽名|匯出日報表/.test(html), 'quotation: no signed-report copy');
+    // 拖曳區內的「選擇檔案 / 相機拍攝」不可再冒泡到拖曳區的 onclick（否則檔案對話框開兩次）
+    const drop = html.slice(html.indexOf('<div id="upl-drop"'), html.indexOf('<input id="upl-file-input"'));
+    const spanHandlers = [...drop.matchAll(/<span onclick="([^"]*)">/g)].map(m => m[1]);
+    assert.strictEqual(spanHandlers.length, 2, `${key}: drop-zone buttons`);
+    for (const handler of spanHandlers) {
+      const clicks = { file: 0, camera: 0, stopped: false };
+      const event = { stopPropagation() { clicks.stopped = true; } };
+      const doc = { getElementById: id => ({ click() { clicks[id === 'upl-camera-input' ? 'camera' : 'file'] += 1; } }) };
+      new Function('event', 'document', handler)(event, doc);
+      assert(clicks.stopped, `${key}: ${handler} must stop propagation to #upl-drop`);
+      assert.strictEqual(clicks.file + clicks.camera, 1, `${key}: ${handler} opens exactly one picker`);
+    }
     assert(html.includes('<input id="upl-file-input" type="file" style="display:none" accept="image/*,.pdf">'), `${key}: file input accept`);
     assert(!/\.docx|\.xlsx/.test(html), `${key}: accept list matches backend whitelist`);
     assert(html.includes(`onclick="${t.page.ctl}.quickRange('month',this)"`), `${key}: onclick uses this page controller`);
@@ -187,11 +206,11 @@ const REPORT = {
     assert.strictEqual(overlay.removed, true);
     assert.strictEqual(t.calls.fetch[1].url.split('?')[0], t.page.api, `${key}: history reloads after edit`);
     assert.strictEqual(t.calls.toast.at(-1), '✅ 報表已更新');
-    // 編輯失敗：結構化 detail 經 apiErrorMessage，modal 保持開啟
+    // 編輯失敗：結構化 detail 經 apiErrorMessage（欄位顯示中文標籤，不顯示 uploader_name），modal 保持開啟
     overlay.removed = false;
     t.context.fetch = async () => jsonResponse({ detail: [{ loc: ['body', 'uploader_name'], type: 'string_too_long', ctx: { max_length: 50 } }] }, 422);
     await saveButton.listeners.click[0]();
-    assert.strictEqual(t.calls.toast.at(-1), '⚠️ 「uploader_name」不可超過 50 個字');
+    assert.strictEqual(t.calls.toast.at(-1), '⚠️ 「上傳人姓名」不可超過 50 個字');
     assert.strictEqual(overlay.removed, false);
 
     // 刪除：二次確認後 DELETE；失敗顯示後端原因

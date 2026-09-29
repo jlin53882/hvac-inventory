@@ -96,7 +96,7 @@ export function closeModalForce(id) {  // 儲存成功等明確動作：跳過�
  * @returns {string} 可顯示的純文字錯誤訊息。
  */
 export function apiErrorMessage(value) {
-  const labels = { prepared_by: '製表人', upload_person: '上傳人', filename_text: '檔名文字', start_date: '開始日期', end_date: '結束日期', opening_balance: '上期餘額', report_type: '報表類型', name: '名稱', brand: '品牌', code: '料號', unit: '單位', category: '分類', low_stock: '低庫存警示', qty: '數量', amount: '金額', item_name: '品項', description: '說明', entry_date: '日期', customer_name: '客戶名稱', quote_date: '報價日期', unit_price: '單價', note: '備註' };
+  const labels = { prepared_by: '製表人', upload_person: '上傳人', filename_text: '檔名文字', start_date: '開始日期', end_date: '結束日期', opening_balance: '上期餘額', report_type: '報表類型', name: '名稱', brand: '品牌', code: '料號', unit: '單位', category: '分類', low_stock: '低庫存警示', qty: '數量', amount: '金額', item_name: '品項', description: '說明', entry_date: '日期', customer_name: '客戶名稱', quote_date: '報價日期', unit_price: '單價', note: '備註', uploader_name: '上傳人姓名', report_date: '報表日期' };
   /**
    * 將單筆驗證錯誤的位置與限制轉成易讀欄位訊息。
    * @param {unknown} error FastAPI/Pydantic 回傳的驗證錯誤項目。

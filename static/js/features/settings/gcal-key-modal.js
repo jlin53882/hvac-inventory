@@ -107,5 +107,19 @@ export async function submitGcalKey() {
     renderGcalPanel();
     closeGcalKeyModal();
     toast(_gcalEditingId ? '✅ 已更新' : '✅ 已新增', 'success');
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) { toast(gcalKeySaveErrorMessage(e), 'error'); }
+}
+
+/**
+ * 儲存 Key 失敗的顯示文字：更換 Calendar ID 時舊行事曆事件未刪完（409 物件 detail）顯示專屬說明，其餘沿用 apiFetch 訊息。
+ * @param {Error & {status?: number, detail?: unknown}} e apiFetch 丟出的錯誤。
+ * @returns {string} 可顯示的錯誤訊息。
+ */
+export function gcalKeySaveErrorMessage(e) {
+  const d = e && e.detail;
+  if (e && e.status === 409 && d && typeof d === 'object' && d.key_updated === false) {
+    return '舊行事曆的 Google 事件刪除未完成（已刪除 ' + (Number(d.google_deleted) || 0) + ' 筆、失敗 '
+      + (Number(d.google_failed) || 0) + ' 筆），Key 未更新；請先處理同步清單後再更換 Calendar ID';
+  }
+  return e && e.message ? e.message : '儲存失敗';
 }

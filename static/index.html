@@ -806,32 +806,6 @@
   </div>
 </div>
 
-<!-- 重設密碼 modal -->
-<div class="modal-overlay" data-role="modal" id="resetpw-modal">
-  <div class="modal">
-    <h3>🔑 重設密碼</h3>
-    <div class="form-row">
-      <label>新密碼*</label>
-      <input type="password" id="rpw-new" placeholder="至少 8 碼，含大小寫與數字" oninput="Account.pwStrengthCheck('rpw-new')">
-      <div class="pw-checks" id="rpw-checks">
-        <span class="pw-check" id="rpw-len">⬜ 8 碼以上</span>
-        <span class="pw-check" id="rpw-up">⬜ 含大寫</span>
-        <span class="pw-check" id="rpw-low">⬜ 含小寫</span>
-        <span class="pw-check" id="rpw-digit">⬜ 含數字</span>
-      </div>
-    </div>
-    <div class="form-row">
-      <label>確認新密碼*</label>
-      <input type="password" id="rpw-confirm" placeholder="再輸入一次新密碼" oninput="Account.pwMatchCheck('rpw-new','rpw-confirm','rpw-mismatch')">
-      <div class="cpw-mismatch" id="rpw-mismatch" style="display:none">⚠️ 兩次輸入的密碼不一致</div>
-    </div>
-    <div class="u-d-flex u-gap-10 u-mt-6">
-      <button class="btn btn--primary btn--md btn-save u-flex-2 u-mt-0" onclick="submitResetPw()">💾 儲存新密碼</button>
-      <button class="btn btn--secondary btn--md btn-cancel-ghost u-flex-1 u-mt-0" onclick="UI.closeModal('resetpw-modal')">取消</button>
-    </div>
-  </div>
-</div>
-
 <!-- 數量調整 Dialog；方向選擇由 modals/qty.js 綁定，僅多位置總量點擊顯示。 -->
 <div class="modal-overlay" data-role="modal" id="qty-dialog">
   <div class="modal">

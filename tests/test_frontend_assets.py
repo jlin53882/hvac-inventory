@@ -1972,12 +1972,18 @@ def test_changepw_expiry_ui_present():
 
 
 def test_resetpw_modal_ui_present():
-    """v11.2：重設密碼 modal（同變體 B 樣式）+ z-order 修正 + ghost 取消鈕資產"""
+    """v11.2：重設密碼 modal（同變體 B 樣式）+ z-order 修正 + ghost 取消鈕資產
+
+    issue #39：重設密碼只在權限頁（Perms.submitResetPw）；首頁沒有任何入口會打開的 resetpw-modal
+    （onclick="submitResetPw()" 在首頁不存在）已移除，同時收回只供它使用的 Account.pwStrengthCheck / pwMatchCheck。
+    """
     idx = read(os.path.join(STATIC, "index.html"))
-    assert 'id="resetpw-modal"' in idx
-    assert 'id="rpw-new"' in idx and 'oninput="Account.pwStrengthCheck(\'rpw-new\')"' in idx
-    assert 'id="rpw-confirm"' in idx
-    assert 'id="rpw-mismatch"' in idx
+    assert 'id="resetpw-modal"' not in idx and "submitResetPw" not in idx
+    assert 'id="rpw-new"' not in idx and "Account.pwStrengthCheck" not in idx
+    assert 'id="rpw-confirm"' not in idx
+    assert 'id="rpw-mismatch"' not in idx
+    assert "pwStrengthCheck" not in read(os.path.join(STATIC, "js", "pages", "main.js")) and "pwMatchCheck" not in read(os.path.join(STATIC, "js", "pages", "main.js"))
+    assert 'onclick="Perms.submitResetPw()"' in read(os.path.join(STATIC, "permissions.html"))
     assert "btn btn--secondary btn--md btn-cancel-ghost" in idx  # 取消按鈕：白底次要按鈕（與儲存並排）
     css = read_css_all()
     assert ".btn--secondary {" in css

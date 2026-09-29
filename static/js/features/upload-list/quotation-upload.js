@@ -16,6 +16,14 @@ export var QuotationUploads = createUploadListPage({
   editTitle: '編輯報價單上傳',
   kpiIcons: { archived: '🧾', rate: '📊' },
   uploadPermission: null,
+  intro: '位置：「報價單」頁上方切換至「報價單上傳」。登入即可上傳與查詢，編輯/刪除見下方權限規則。',
+  steps: [
+    '將客戶確認（回簽）的報價單掃描成 PDF/圖片',
+    '回到本頁拖曳上傳，或以手機相機直接拍攝',
+    '選擇「報表日期」= 報價單所屬的業務日期（非上傳當天）',
+    '歷史區以日期/關鍵字篩選，支援預覽與下載',
+  ],
+  missingHint: '缺檔日 = 行事曆有派工但未上傳報價單的日期',
   headerHtml: () => quoteModeTabs('upload'),
 });
 

@@ -31,4 +31,7 @@ assert.strictEqual(
   '「分類」不可超過 50 個字');
 assert.strictEqual(context.apiErrorMessage([{ loc: ['body', 12], type: 'json_invalid' }]), '資料格式錯誤，請重新整理後再試');
 assert.strictEqual(context.apiErrorMessage([{ loc: ['body'], type: 'union_tag_invalid' }]), '類型不正確');
+// 上傳清單（簽名報表 / 報價單上傳）的表單欄位顯示中文標籤，不顯示 uploader_name / report_date
+assert.strictEqual(context.apiErrorMessage([{ loc: ['body', 'uploader_name'], type: 'missing' }]), '「上傳人姓名」為必填欄位');
+assert.strictEqual(context.apiErrorMessage([{ loc: ['body', 'report_date'], type: 'missing' }]), '「報表日期」為必填欄位');
 console.log('API error formatting runtime: PASS');

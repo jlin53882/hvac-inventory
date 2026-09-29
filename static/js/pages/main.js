@@ -29,7 +29,7 @@ import { closeModal, initUtils } from '../core/utils.js';
 import { closeNotif, initNotifications, toggleNotif } from '../core/notifications.js';
 import { closeStockoutExportDialog, initStockoutExportDialog, openStockoutExportDialog, submitStockoutExport } from '../features/stockout/export-dialog.js';
 import { closeTransferModal, openTransferModal, submitTransfer } from '../features/inventory/transfer-modal.js';
-import { cpwCheckMatch, cpwCheckStrength, openChangePwModal, pwMatchCheck, pwStrengthCheck, submitChangePw } from '../features/account/change-password.js';
+import { cpwCheckMatch, cpwCheckStrength, openChangePwModal, submitChangePw } from '../features/account/change-password.js';
 import { deleteStockoutReturn, openEditStockoutModal, openEditStockoutReturnModal, openKitPrepareModal, openNonStockOutModal, openNonStockPrepareModal, openOutModal, openPrepareModal, openPreparedEditModal, openPreparedOutModal, returnPrepared, returnStockout, submitEditStockout, submitNonStockOut, submitNonStockPrepare, submitPrepare, submitPreparedEdit, submitPreparedOut, submitReturnStockout, submitStockOut } from '../features/stockout/modals.js';
 import { engAddCategory, engAddDetail, engAddReceipt, engCloseModal, engDeleteCategory, engDeleteDetail, engDeleteGroup, engDeleteReceipt, engFilenamePreview, engGotoStep, engSave, engSelectCategory, engSetNameFromSelect, engToggleEditorReceipt, pcChooseReportType, pcOpenEngineeringModal } from '../features/petty-cash/engineering-modal.js';
 import { engToggle, pcChangePage, pcCloseMoreMenuFromAction, pcDelete, pcExport, pcLoadHistory, pcOpenDetail, pcQuickRange, pcResetFilter, renderPettyCash } from '../features/petty-cash/page.js';
@@ -114,7 +114,7 @@ import * as m61 from '../features/work-progress/page.js';
 import * as m62 from '../features/work-progress/state.js';
 import * as m63 from '../features/work-progress/upload.js';
 
-window.Account = { ackPasswordExpiry, cpwCheckMatch, cpwCheckStrength, expiryGoChangePw, openChangePwModal, pwMatchCheck, pwStrengthCheck, submitChangePw };
+window.Account = { ackPasswordExpiry, cpwCheckMatch, cpwCheckStrength, expiryGoChangePw, openChangePwModal, submitChangePw };
 window.App = { clearSearchAutofill, closeSidebar, switchSite, switchTab, toggleAvatarMenu, toggleSidebar };
 window.Auth = { logout };
 window.Calendar = { calAddSvc, calChangeMonth, calClearSearch, calDelSvc, calDeleteAppt, calExport, calJumpToDate, calOpenAppt, calPickDate, calPickToday, calRetryLoad, calRetryMySync, calRetryTeamMember, calRetryTeamSync, calSearch, calSetColor, calSetTab, calShiftDay, calShowSyncError, calShowTeamSyncDetails, calSubmitAppt, calUpdSvc, calUpdSvcActive, closeCalModal };

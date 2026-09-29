@@ -39,6 +39,9 @@ function _uplIconFor(mime) {
  * @param {string} config.editTitle 編輯視窗標題。
  * @param {{archived: string, rate: string}} config.kpiIcons KPI 卡圖示。
  * @param {string|null} config.uploadPermission 需要的上傳權限；null 代表登入即可上傳。
+ * @param {string} config.intro 頁首說明文字。
+ * @param {string[]} config.steps 右側「使用流程」步驟文字。
+ * @param {string} config.missingHint 「缺檔日」KPI 的定義說明。
  * @param {() => string} [config.headerHtml] 頁首上方額外 HTML（已跳脫的固定內容）。
  * @returns {object} 頁面控制器（state 與模板呼叫的方法）。
  */
@@ -65,13 +68,14 @@ export function createUploadListPage(config) {
     if (!el) return;
     const today = _uplIso(new Date());
     const gate = config.uploadPermission ? 'hidden ' : '';
+    const stepsHtml = config.steps.map((step, i) => '<li><span class="dsr-badge">' + (i + 1) + '</span> ' + esc(step) + '</li>').join('');
     el.innerHTML = `
     <div class="upl-wrap">
       ${config.headerHtml ? config.headerHtml() : ''}
       <div class="dsr-page-header">
         <div class="dsr-page-title">
           <h1>🗂 ${esc(config.title)} <span class="dsr-new-badge">NEW</span></h1>
-          <p>位置：底部導覽「行事曆」旁新增「報表」Tab。讀取需登入，刪除見下方權限規則。</p>
+          <p>${esc(config.intro)}</p>
         </div>
         <div class="dsr-page-actions">
           <button class="btn btn--secondary btn--md" onclick="document.getElementById('upl-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
@@ -107,8 +111,8 @@ export function createUploadListPage(config) {
               <div class="upl-drop__title">拖曳檔案到此，或點擊選擇</div>
               <div class="upl-drop__sub">支援 PDF / PNG / JPG / GIF / WebP 格式</div>
               <div class="upl-drop__actions">
-                <span onclick="document.getElementById('upl-file-input').click()">選擇檔案</span>
-                <span onclick="document.getElementById('upl-camera-input').click()">📷 相機拍攝</span>
+                <span onclick="event.stopPropagation();document.getElementById('upl-file-input').click()">選擇檔案</span>
+                <span onclick="event.stopPropagation();document.getElementById('upl-camera-input').click()">📷 相機拍攝</span>
               </div>
               <input id="upl-file-input" type="file" style="display:none" accept="image/*,.pdf">
               <input id="upl-camera-input" type="file" style="display:none" accept="image/*" capture="environment">
@@ -142,10 +146,7 @@ export function createUploadListPage(config) {
           <div class="dsr-info">
             <h3>💡 使用流程</h3>
             <ul>
-              <li><span class="dsr-badge">1</span> 行事曆「📤 匯出日報表」下載 xlsx → 列印簽名</li>
-              <li><span class="dsr-badge">2</span> 隔日掃描成 PDF/圖片 → 回到本頁拖曳上傳</li>
-              <li><span class="dsr-badge">3</span> 選擇「報表日期」= 簽名所屬的工作日（非上傳當天）</li>
-              <li><span class="dsr-badge">4</span> 歷史區以日期/關鍵字篩選，支援預覽與下載</li>
+              ${stepsHtml}
             </ul>
             <div class="dsr-info-badges">
               <span class="dsr-badge">🔒 登入可查</span>
@@ -161,7 +162,7 @@ export function createUploadListPage(config) {
                 <div class="ui-kpi-card ui-kpi-card--amber ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">⚠</span><div class="ui-kpi-body"><div class="ui-kpi-label">缺檔日</div><div class="ui-kpi-value" id="upl-kpi-missing">—</div><span class="ui-kpi-meta">本月</span></div></div>
                 <div class="ui-kpi-card ui-kpi-card--green ui-kpi-card--compact"><span class="ui-kpi-icon" aria-hidden="true">${esc(config.kpiIcons.rate)}</span><div class="ui-kpi-body"><div class="ui-kpi-label">歸檔率</div><div class="ui-kpi-value" id="upl-kpi-rate">—</div><span class="ui-kpi-meta">本月</span></div></div>
               </div>
-              <div class="upl-hint">缺檔日 = 行事曆有派工但未上傳簽名檔的日期（可一鍵跳至行事曆該日）</div>
+              <div class="upl-hint">${esc(config.missingHint)}</div>
             </div>
           </div>
         </aside>

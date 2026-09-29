@@ -52,7 +52,7 @@ function makeContext() {
   vm.createContext(context);
   installApiClient(context);
   for (const name of ['loadUnits']) vm.runInContext(extractFunction(units, name), context);
-  for (const name of ['submitGcalKey']) vm.runInContext(extractFunction(gcalKey, name), context);
+  for (const name of ['submitGcalKey', 'gcalKeySaveErrorMessage']) vm.runInContext(extractFunction(gcalKey, name), context);
   for (const name of [
     'loadPettyOptions', 'loadOrphans', 'addUnitFromSettings', 'setUnitQtyType', 'toggleUnit', 'moveUnit',
     'consolidateGroup', 'loadGcalQueue', 'saveGcalSetting', 'retrySyncQueue', 'toggleGcalKey', 'deleteGcalKey',
@@ -197,6 +197,22 @@ async function run(context, call) {
   assert.deepStrictEqual(lastToast(ctx), ['Google 事件刪除未完成，Key 與同步問題已保留，請先處理同步清單', 'error']);
   ctx = await gcalDelete(() => Promise.reject(new TypeError('Failed to fetch')));
   assert.deepStrictEqual(lastToast(ctx), ['❌ 刪除失敗：網路連線失敗，請稍後再試', 'error']);
+
+  // 編輯 Key 更換 Calendar ID：舊事件未刪完（409 物件 detail）顯示專屬說明，不再落成「格式不正確或不符合限制」
+  const gcalUpdate = async next => {
+    const context = makeContext();
+    vm.runInContext('_gcalEditingId = 2;', context);
+    context.inputs['gk-name'] = { value: '公司主帳號' }; context.inputs['gk-cred'] = { value: '' };
+    context.inputs['gk-cal'] = { value: 'new@group' }; context.inputs['gk-file'] = { files: [] };
+    context.next = next;
+    await run(context, 'submitGcalKey()');
+    assert.deepStrictEqual(context.calls.fetch.map(r => [r.url, r.method]), [['/api/gcal-keys/2', 'PUT']]);
+    return context;
+  };
+  ctx = await gcalUpdate(() => jsonResponse({ detail: { ok: false, key_updated: false, google_deleted: 1, google_failed: 2 } }, 409));
+  assert.deepStrictEqual(lastToast(ctx), ['舊行事曆的 Google 事件刪除未完成（已刪除 1 筆、失敗 2 筆），Key 未更新；請先處理同步清單後再更換 Calendar ID', 'error']);
+  ctx = await gcalUpdate(() => jsonResponse({ detail: 'Key 名稱已存在' }, 409));
+  assert.deepStrictEqual(lastToast(ctx), ['Key 名稱已存在', 'error'], 'string 409 detail stays verbatim');
 
   // 載入器：成功寫入狀態；失敗保留原值（或標記載入失敗），不跳 toast
   ctx = makeContext();
