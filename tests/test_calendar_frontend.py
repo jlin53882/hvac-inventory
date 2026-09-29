@@ -181,8 +181,8 @@ def test_css_cal_evt_b_variant_and_no_overflow():
 def test_css_cal_selected_highlight():
     """2026-09-09：Today 與 Selected 依設計文件同時可見。"""
     css = read_css_all()
-    assert ".cal-cell.cal-selected {" in css and "border: 1px solid #2563eb" in css
-    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: #2563eb" in css
+    assert ".cal-cell.cal-selected {" in css and "border: 1px solid var(--c-primary)" in css
+    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: var(--c-primary)" in css
     assert ".cal-cell.cal-today .cal-day-num" in css
 
 
@@ -595,7 +595,7 @@ def test_gcal_sync_health_mobile_cards_contract():
     """設定頁新增同步資訊在手機要使用 card stack，不得固定 table 寬度。"""
     html = read_page_with_css(SETTINGS_HTML)
     assert ".gcal-sync-issue" in html
-    assert "@media (max-width: 768px)" in html
+    assert "@media (max-width: 767px)" in html
     assert ".gcal-sync-issue-actions" in html
 
 def test_calendar_sync_status_semantic_css_contract():

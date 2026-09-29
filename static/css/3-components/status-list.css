@@ -1,7 +1,7 @@
 /* 商品 / 庫存異常清單 Dialog（庫存、整組、盤點共用；CSS 架構重構 P4 自 4-pages/inventory.css 抽出） */
 @layer components {
 .inventory-status-close:focus-visible, .inventory-status-edit:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, .24);
+  outline: 3px solid color-mix(in srgb, var(--c-primary) 24%, transparent);
   outline-offset: 2px;
 }
 .inventory-status-modal {
@@ -12,8 +12,8 @@
   width: min(980px, calc(100vw - 48px));
   max-height: 84vh;
   overflow: hidden;
-  border-radius: 14px;
-  background: #fff;
+  border-radius: var(--r-lg);
+  background: var(--c-white);
   box-shadow: 0 12px 40px rgba(15, 23, 42, .18);
 }
 .inventory-status-header {
@@ -22,31 +22,31 @@
   justify-content: space-between;
   gap: 16px;
   padding: 22px 24px 14px;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 1px solid var(--c-border);
 }
 .inventory-status-header h2 {
-  color: #0f172a;
-  font-size: 20px;
+  color: var(--c-text);
+  font-size: var(--fs-20);
 }
 .inventory-status-header p {
   margin-top: 4px;
-  color: #64748b;
-  font-size: 13px;
+  color: var(--c-muted);
+  font-size: var(--fs-13);
 }
 .inventory-status-close {
   width: 34px;
   height: 34px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #64748b;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-muted);
   cursor: pointer;
 }
 .inventory-status-count {
   padding: 12px 24px 0;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--c-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
 }
 .inventory-status-list {
   max-height: calc(84vh - 138px);
@@ -60,7 +60,7 @@
   align-items: center;
   gap: 14px;
   padding: 12px 0;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 1px solid var(--c-border);
 }
 .inventory-status-item:last-child {
   border-bottom: 0;
@@ -76,25 +76,25 @@
   height: 64px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--r-md);
 }
 .inventory-status-thumb {
   overflow: hidden;
-  background: #f8fafc;
-  color: #94a3b8;
-  font-size: 20px;
+  background: var(--c-surface-2);
+  color: var(--c-border-control);
+  font-size: var(--fs-20);
 }
 .inventory-status-thumb img {
   object-fit: cover;
 }
 .inventory-status-name {
-  color: #0f172a;
-  font-size: 15px;
-  font-weight: 700;
+  color: var(--c-text);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-bold);
 }
 .inventory-status-sub, .inventory-status-location, .inventory-status-meta {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
 }
 .inventory-status-sub {
   margin-top: 3px;
@@ -110,48 +110,48 @@
   gap: 5px;
 }
 .inventory-status-values strong {
-  color: #0f172a;
-  font-size: 16px;
+  color: var(--c-text);
+  font-size: var(--fs-16);
   font-variant-numeric: tabular-nums;
 }
 .inventory-status-values small {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 400;
+  color: var(--c-muted);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-regular);
 }
 .inventory-status-badge {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
   padding: 0 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 650;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-medium);
   white-space: nowrap;
 }
 .inventory-status-badge.status-low {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
 }
 .inventory-status-badge.status-out {
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
 }
 .inventory-status-empty {
   padding: 60px 20px;
-  color: #64748b;
+  color: var(--c-muted);
   text-align: center;
 }
 .inventory-status-empty span {
   display: block;
   margin-bottom: 10px;
-  color: #16a34a;
-  font-size: 30px;
+  color: var(--c-success);
+  font-size: var(--fs-28);
 }
 .inventory-status-empty p {
   margin-top: 6px;
-  color: #94a3b8;
-  font-size: 13px;
+  color: var(--c-border-control);
+  font-size: var(--fs-13);
 }
 @media (max-width: 767px) {
 .inventory-status-modal {
@@ -195,15 +195,15 @@
   z-index: 2;
   min-height: 76px;
   padding: 18px 24px 12px;
-  background: #fff;
+  background: var(--c-white);
 }
-.inventory-status-header.is-low { border-top: 3px solid #f59e0b; }
-.inventory-status-header.is-out { border-top: 3px solid #ef4444; }
+.inventory-status-header.is-low { border-top: 3px solid var(--c-out-solid); }
+.inventory-status-header.is-out { border-top: 3px solid var(--c-danger); }
 .status-list-header-actions {
   display: flex;
   align-items: center;
   gap: 14px;
-  color: #475569;
+  color: var(--c-text-2);
   white-space: nowrap;
 }
 .status-list-toolbar {
@@ -211,37 +211,37 @@
   align-items: center;
   gap: 12px;
   padding: 12px 24px;
-  border-bottom: 1px solid #eef1f5;
-  background: #fff;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-white);
 }
 .status-list-search, .status-list-location {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
 }
 .status-list-search { flex: 1 1 auto; min-width: 0; }
 .status-list-search input, .status-list-location select {
   min-height: 36px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #0f172a;
-  font-size: 13px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-text);
+  font-size: var(--fs-13);
 }
 .status-list-search input { width: 100%; padding: 0 12px; }
 .status-list-location select { min-width: 150px; padding: 0 10px; }
-.status-list-search input:focus, .status-list-location select:focus { outline: 3px solid rgba(37,99,235,.14); border-color: #2563eb; }
+.status-list-search input:focus, .status-list-location select:focus { outline: 3px solid color-mix(in srgb, var(--c-primary) 14%, transparent); border-color: var(--c-primary); }
 .status-list-column-headings {
   display: grid;
   grid-template-columns: 76px minmax(0, 1fr) 160px 130px 88px;
   gap: 16px;
   padding: 10px 24px 6px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
+  color: var(--c-muted);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
   text-transform: none;
 }
 .status-list-table {
@@ -266,36 +266,36 @@
 .status-list-table .inventory-status-edit { justify-self: end; }
 .status-list-table .kit-status-missing {
   grid-column: 1 / -1;
-  color: #64748b;
-  font-size: 12px;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
 }
 .status-list-table .kit-status-missing span {
   display: inline-block;
   margin-left: 6px;
   padding: 2px 6px;
-  border-radius: 5px;
-  background: #fee2e2;
-  color: #b91c1c;
+  border-radius: var(--r-sm);
+  background: var(--c-danger-soft);
+  color: var(--c-danger-strong);
 }
 .status-list-table .stocktake-status-extra {
   margin-top: 4px;
-  color: #b45309;
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--c-out);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
 }
 @media (max-width: 767px) {
 .inventory-status-modal { padding: 12px; }
 .inventory-status-dialog {
     width: calc(100vw - 24px);
     max-height: 94dvh;
-    border-radius: 20px 20px 0 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
   }
 .inventory-status-header {
     min-height: 64px;
     padding: 14px 16px 10px;
   }
-.inventory-status-header h2 { font-size: 18px; }
-.inventory-status-header p { max-width: 70vw; font-size: 12px; }
+.inventory-status-header h2 { font-size: var(--fs-16); }
+.inventory-status-header p { max-width: 70vw; font-size: var(--fs-12); }
 .status-list-header-actions { gap: 8px; }
 .status-list-column-headings { display: none; }
 .status-list-toolbar {
@@ -331,7 +331,7 @@
     gap: 8px;
     padding-right: 72px;
   }
-.status-list-table .inventory-status-values strong { font-size: 15px; }
+.status-list-table .inventory-status-values strong { font-size: var(--fs-14); }
 .status-list-table .inventory-status-edit {
     position: absolute;
     right: 0;

@@ -21,12 +21,12 @@ DIR_LAYERS = {
     "4-pages": {"pages"},
     "5-utilities": {"utilities"},
 }
-# 斷點白名單（P5 只統一寫法；數值收斂於 P7.5 設計系統統一時處理）
+# 斷點白名單（P8 收斂為 639 / 767 / 959 三個；1200 / 1440 只給頁面做桌機寬度微調，390 為小尺寸手機例外）
 MEDIA_WHITELIST = {
     "print",
-    "(max-width: 390px)", "(max-width: 639px)", "(max-width: 767px)", "(max-width: 768px)",
+    "(max-width: 390px)", "(max-width: 639px)", "(max-width: 767px)",
     "(max-width: 1200px)", "(max-width: 1440px)",
-    "(min-width: 560px)", "(min-width: 720px)", "(min-width: 768px)", "(min-width: 960px)",
+    "(min-width: 640px)", "(min-width: 768px)", "(min-width: 960px)",
 }
 # 頁面規則的範圍例外：login.css 只由 login.html 載入，其 * reset 需要涵蓋 html
 PAGE_SCOPE_EXCEPTIONS = {("4-pages/login.css", "*")}
@@ -283,3 +283,58 @@ def test_every_button_uses_the_standard_classes():
                 continue
             raise AssertionError(f"{rel} 的按鈕沒有套 .btn / .chip：class=\"{cls.group(2)}\"")
     assert unclassed == UNCLASSED_BUTTONS, f"沒有 class 的按鈕數量改變：{unclassed}"
+
+
+# ---------- P8：數值一律走 token ----------
+TOKEN_FILE = "0-tokens/tokens.css"
+
+
+def _declarations(rel):
+    for media, selector, body in _style_rules(_read(rel)):
+        for decl in body.split(";"):
+            if ":" in decl:
+                prop, value = decl.split(":", 1)
+                yield selector, prop.strip().lower(), value.strip()
+
+
+@pytest.mark.parametrize("rel", [r for r in _css_files() if r != TOKEN_FILE])
+def test_colors_come_from_tokens(rel):
+    """色碼只能寫在 tokens.css；其他檔用 var(--c-*)，換色只改一處。"""
+    for selector, prop, value in _declarations(rel):
+        assert not re.search(r"#[0-9a-fA-F]{3,8}\b", value), f"{rel} 的 {selector} {prop} 寫死色碼：{value}"
+
+
+@pytest.mark.parametrize("rel", [r for r in _css_files() if r != TOKEN_FILE])
+def test_font_sizes_weights_radii_use_tokens(rel):
+    """字級（40px 以上的圖示除外）、字重、圓角（3px 以下細線除外）只能用 token。"""
+    for selector, prop, value in _declarations(rel):
+        if prop == "font-size":
+            if "clamp(" in value:  # 隨螢幕寬度縮放的流體字級
+                continue
+            for px in re.findall(r"(?<![\w.-])([\d.]+)px", value):
+                assert float(px) >= 40, f"{rel} 的 {selector} 字級寫死 {px}px，請用 var(--fs-*)"
+        elif prop == "font-weight":
+            assert value.startswith("var(--fw-") or value in ("inherit", "normal", "bold"), (
+                f"{rel} 的 {selector} 字重寫死 {value}，請用 var(--fw-*)"
+            )
+        elif re.match(r"border(-(top|bottom)-(left|right))?-radius$", prop):
+            for px in re.findall(r"(?<![\w.-])([\d.]+)px", value):
+                assert float(px) <= 3, f"{rel} 的 {selector} 圓角寫死 {px}px，請用 var(--r-*)"
+
+
+@pytest.mark.parametrize("rel", [r for r in _css_files() if r != TOKEN_FILE])
+def test_stacking_levels_use_tokens(rel):
+    """z-index 20 以上代表跨元件的疊層順序，只能用 var(--z-*)（元件內部 0–10 的小堆疊可直接寫）。"""
+    for selector, prop, value in _declarations(rel):
+        if prop == "z-index" and value.isdigit():
+            assert int(value) < 20, f"{rel} 的 {selector} z-index 寫死 {value}，請用 var(--z-*)"
+
+
+def test_every_used_token_is_defined():
+    """用到的 var(--*) 都必須在 tokens.css 定義（打錯字會讓樣式靜默失效）。"""
+    defined = set(re.findall(r"(--[\w-]+)\s*:", _read(TOKEN_FILE)))
+    for rel in _css_files():
+        text = re.sub(r"/\*.*?\*/", "", _read(rel), flags=re.S)
+        local = set(re.findall(r"(--[\w-]+)\s*:", text))
+        for name in set(re.findall(r"var\((--[\w-]+)", text)):
+            assert name in defined or name in local, f"{rel} 使用未定義的 {name}"

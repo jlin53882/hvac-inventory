@@ -29,17 +29,17 @@
 [data-page="petty-cash"] .pc-page-title { min-width: 0; }
 [data-page="petty-cash"] .pc-page-title h1 {
   margin: 0;
-  color: #1e3a5f;
+  color: var(--c-primary-strong);
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 20px;
-  font-weight: 900;
+  font-size: var(--fs-20);
+  font-weight: var(--fw-bold);
 }
 [data-page="petty-cash"] .pc-page-title p {
   margin: 4px 0 0;
-  color: #64748b;
-  font-size: 12.5px;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
 }
 [data-page="petty-cash"] .pc-page-actions {
   display: flex;
@@ -50,16 +50,16 @@
 
 /* 卡片 */
 [data-page="petty-cash"] .pc-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  background: var(--c-white);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
   box-shadow: 0 1px 3px rgba(15, 23, 42, .06);
   margin-bottom: 16px;
   overflow: hidden;
 }
 [data-page="petty-cash"] .pc-card__hd { padding: 14px 16px 0; }
-[data-page="petty-cash"] .pc-card__hd h2 { margin: 0; font-size: 16px; font-weight: 800; color: #1e3a5f; }
-[data-page="petty-cash"] .pc-card__hd p { margin: 4px 0 0; font-size: 12.5px; color: #64748b; }
+[data-page="petty-cash"] .pc-card__hd h2 { margin: 0; font-size: var(--fs-16); font-weight: var(--fw-bold); color: var(--c-primary-strong); }
+[data-page="petty-cash"] .pc-card__hd p { margin: 4px 0 0; font-size: var(--fs-12); color: var(--c-muted); }
 [data-page="petty-cash"] .pc-card__bd { padding: 12px 16px 16px; }
 
 /* 篩選列 */
@@ -71,21 +71,21 @@
   margin-top: 10px;
 }
 [data-page="petty-cash"] .pc-field { display: flex; flex-direction: column; gap: 4px; min-width: 130px; }
-[data-page="petty-cash"] .pc-field label { font-size: 12px; color: #64748b; font-weight: 700; }
+[data-page="petty-cash"] .pc-field label { font-size: var(--fs-12); color: var(--c-muted); font-weight: var(--fw-bold); }
 [data-page="petty-cash"] .pc-field input, [data-page="petty-cash"] .pc-field select, [data-page="petty-cash"] .pc-field textarea {
   min-height: 44px;
   padding: 8px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 14px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  font-size: var(--fs-14);
   box-sizing: border-box;
-  background: #fff;
-  color: #0f172a;
+  background: var(--c-white);
+  color: var(--c-text);
 }
 [data-page="petty-cash"] .pc-field--search { flex: 1 1 200px; }
 [data-page="petty-cash"] .pc-filter-actions { display: flex; gap: 8px; }
 [data-page="petty-cash"] .pc-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
-[data-page="petty-cash"] .pc-result-count { margin-left: auto; font-size: 12.5px; color: #64748b; }
+[data-page="petty-cash"] .pc-result-count { margin-left: auto; font-size: var(--fs-12); color: var(--c-muted); }
 
 /* KPI canonical contract: three equal-width cards always stay in one row. */
 [data-page="petty-cash"] #content .pc-kpi-row {
@@ -103,65 +103,65 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 14px 16px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  background: var(--c-white);
   box-shadow: 0 1px 2px rgba(15,23,42,.04);
 }
 [data-page="petty-cash"] #content .pc-kpi-card__head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-icon {
   width: 30px; height: 30px; display: grid; place-items: center;
-  border-radius: 9px; background: #eff6ff; font-size: 15px; flex: 0 0 auto;
+  border-radius: var(--r-md); background: var(--c-primary-soft); font-size: var(--fs-14); flex: 0 0 auto;
 }
-[data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-label { font-size: 12px; font-weight: 600; color: #64748b; margin: 0; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-[data-page="petty-cash"] #content .pc-kpi-card__num { font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; margin-top: 10px; letter-spacing: -.02em; overflow-wrap: anywhere; }
-[data-page="petty-cash"] #content .pc-kpi-card__foot { font-size: 10.5px; color: #94a3b8; text-align: left; margin-top: 7px; }
+[data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-label { font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--c-muted); margin: 0; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+[data-page="petty-cash"] #content .pc-kpi-card__num { font-size: var(--fs-28); font-weight: var(--fw-bold); line-height: 1.1; font-variant-numeric: tabular-nums; margin-top: 10px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+[data-page="petty-cash"] #content .pc-kpi-card__foot { font-size: var(--fs-11); color: var(--c-border-control); text-align: left; margin-top: 7px; }
 [data-page="petty-cash"] #content .pc-kpi-card .ui-kpi-value { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
-[data-page="petty-cash"] #content .pc-kpi-card:nth-child(1) .ui-kpi-icon { background:#dbeafe; }
-[data-page="petty-cash"] #content .pc-kpi-card:nth-child(2) .ui-kpi-icon { background:#dcfce7; }
-[data-page="petty-cash"] #content .pc-kpi-card:nth-child(3) .ui-kpi-icon { background:#fef3c7; }
-[data-page="petty-cash"] #content .pc-kpi-blue { color: #2563eb; }
-[data-page="petty-cash"] #content .pc-kpi-green { color: #16a34a; }
-[data-page="petty-cash"] #content .pc-kpi-amber { color: #d97706; }
+[data-page="petty-cash"] #content .pc-kpi-card:nth-child(1) .ui-kpi-icon { background:var(--c-primary-soft); }
+[data-page="petty-cash"] #content .pc-kpi-card:nth-child(2) .ui-kpi-icon { background:var(--c-success-soft); }
+[data-page="petty-cash"] #content .pc-kpi-card:nth-child(3) .ui-kpi-icon { background:var(--c-warning-soft); }
+[data-page="petty-cash"] #content .pc-kpi-blue { color: var(--c-primary); }
+[data-page="petty-cash"] #content .pc-kpi-green { color: var(--c-success); }
+[data-page="petty-cash"] #content .pc-kpi-amber { color: var(--c-warning); }
 /* 金額語意：上期 neutral / 收入 green / 支出 red / 餘額 blue */
-[data-page="petty-cash"] .pc-kpi-opening { color: #475569; }
-[data-page="petty-cash"] .pc-kpi-income { color: #15803d; }
-[data-page="petty-cash"] .pc-kpi-expense { color: #b91c1c; }
-[data-page="petty-cash"] .pc-kpi-balance { color: #1d4ed8; }
+[data-page="petty-cash"] .pc-kpi-opening { color: var(--c-text-2); }
+[data-page="petty-cash"] .pc-kpi-income { color: var(--c-success-strong); }
+[data-page="petty-cash"] .pc-kpi-expense { color: var(--c-danger-strong); }
+[data-page="petty-cash"] .pc-kpi-balance { color: var(--c-primary); }
 /* KPI 色彩 */
-[data-page="petty-cash"] #content .pc-kpi-blue { color: #2563eb; }
-[data-page="petty-cash"] #content .pc-kpi-green { color: #16a34a; }
-[data-page="petty-cash"] #content .pc-kpi-amber { color: #d97706; }
+[data-page="petty-cash"] #content .pc-kpi-blue { color: var(--c-primary); }
+[data-page="petty-cash"] #content .pc-kpi-green { color: var(--c-success); }
+[data-page="petty-cash"] #content .pc-kpi-amber { color: var(--c-warning); }
 
 /* 列表 table（desktop） */
 [data-page="petty-cash"] .pc-table-wrap { overflow-x: auto; }
-[data-page="petty-cash"] .pc-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+[data-page="petty-cash"] .pc-table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
 [data-page="petty-cash"] .pc-table th {
   text-align: left;
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 800;
+  font-size: var(--fs-12);
+  color: var(--c-muted);
+  font-weight: var(--fw-bold);
   padding: 8px 10px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--c-border);
   white-space: nowrap;
 }
-[data-page="petty-cash"] .pc-table td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+[data-page="petty-cash"] .pc-table td { padding: 9px 10px; border-bottom: 1px solid var(--c-surface-2); vertical-align: middle; }
 [data-page="petty-cash"] .pc-table tr:last-child td { border-bottom: 0; }
 [data-page="petty-cash"] .pc-num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 [data-page="petty-cash"] .pc-status {
   display: inline-block;
   padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-bold);
   white-space: nowrap;
 }
-[data-page="petty-cash"] .pc-status--draft { background: #f1f5f9; color: #475569; }
-[data-page="petty-cash"] .pc-status--completed { background: #dcfce7; color: #15803d; }
+[data-page="petty-cash"] .pc-status--draft { background: var(--c-surface-2); color: var(--c-text-2); }
+[data-page="petty-cash"] .pc-status--completed { background: var(--c-success-soft); color: var(--c-success-strong); }
 [data-page="petty-cash"] .pc-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-[data-page="petty-cash"] .pc-empty { text-align: center; padding: 28px 12px; color: #64748b; }
-[data-page="petty-cash"] .pc-empty__icon { font-size: 32px; }
-[data-page="petty-cash"] .pc-hint { font-size: 12px; color: #94a3b8; margin-top: 8px; }
+[data-page="petty-cash"] .pc-empty { text-align: center; padding: 28px 12px; color: var(--c-muted); }
+[data-page="petty-cash"] .pc-empty__icon { font-size: var(--fs-28); }
+[data-page="petty-cash"] .pc-hint { font-size: var(--fs-12); color: var(--c-border-control); margin-top: 8px; }
 [data-page="petty-cash"] .pc-pagination {
   display: flex;
   align-items: center;
@@ -169,8 +169,8 @@
   gap: 8px;
   flex-wrap: wrap;
   padding: 10px 16px 14px;
-  font-size: 13px;
-  color: #64748b;
+  font-size: var(--fs-13);
+  color: var(--c-muted);
 }
 
 /* 明細 modal */
@@ -181,14 +181,14 @@
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: var(--z-menu);
   padding: 12px;
   box-sizing: border-box;
 }
 [data-page="petty-cash"] .pc-overlay.is-open { display: flex; }
 [data-page="petty-cash"] .pc-modal {
-  background: #fff;
-  border-radius: 16px;
+  background: var(--c-white);
+  border-radius: var(--r-lg);
   width: 100%;
   max-width: 860px;
   max-height: 92vh;
@@ -201,9 +201,9 @@
   align-items: center;
   gap: 8px;
   padding: 14px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--c-border);
 }
-[data-page="petty-cash"] .pc-modal__hd h3 { margin: 0; font-size: 16px; font-weight: 900; color: #1e3a5f; flex: 1; }
+[data-page="petty-cash"] .pc-modal__hd h3 { margin: 0; font-size: var(--fs-16); font-weight: var(--fw-bold); color: var(--c-primary-strong); flex: 1; }
 [data-page="petty-cash"] .pc-modal__bd { padding: 14px 16px; overflow-y: auto; }
 [data-page="petty-cash"] .pc-modal__ft {
   display: flex;
@@ -211,8 +211,8 @@
   flex-wrap: wrap;
   align-items: center;
   padding: 12px 16px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border-top: 1px solid var(--c-border);
+  background: var(--c-surface-2);
 }
 [data-page="petty-cash"] .pc-steps { display: flex; gap: 8px; margin-bottom: 12px; }
 [data-page="petty-cash"] .pc-step {
@@ -220,45 +220,45 @@
   text-align: center;
 }
 [data-page="petty-cash"] .pc-form-grid { display: grid; gap: 10px; }
-@media (min-width: 720px) {
+@media (min-width: 768px) {
   [data-page="petty-cash"] .pc-form-grid--two { grid-template-columns: 1fr 1fr; }
 }
-[data-page="petty-cash"] .pc-required { color: #b91c1c; }
+[data-page="petty-cash"] .pc-required { color: var(--c-danger-strong); }
 [data-page="petty-cash"] .pc-filename-preview {
-  font-size: 13px;
-  color: #1d4ed8;
-  background: #eff6ff;
-  border: 1px dashed #93c5fd;
-  border-radius: 8px;
+  font-size: var(--fs-13);
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  border: 1px dashed var(--c-primary-border);
+  border-radius: var(--r-md);
   padding: 8px 10px;
   margin-top: 6px;
   word-break: break-all;
 }
-[data-page="petty-cash"] .pc-balance-hint { font-size: 12.5px; margin-top: 6px; }
-[data-page="petty-cash"] .pc-balance-hint--auto { color: #15803d; }
-[data-page="petty-cash"] .pc-balance-hint--manual { color: #b45309; }
+[data-page="petty-cash"] .pc-balance-hint { font-size: var(--fs-12); margin-top: 6px; }
+[data-page="petty-cash"] .pc-balance-hint--auto { color: var(--c-success-strong); }
+[data-page="petty-cash"] .pc-balance-hint--manual { color: var(--c-out); }
 
 /* 收支 entry 卡 */
 [data-page="petty-cash"] .pc-entry-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
   padding: 10px 12px;
   margin-bottom: 10px;
 }
 [data-page="petty-cash"] .pc-entry-card__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-[data-page="petty-cash"] .pc-entry-card__date { font-weight: 900; color: #1e3a5f; }
-[data-page="petty-cash"] .pc-entry-card__desc { flex: 1 1 160px; font-size: 13.5px; color: #0f172a; word-break: break-all; }
-[data-page="petty-cash"] .pc-entry-card__amt { font-weight: 900; font-variant-numeric: tabular-nums; }
+[data-page="petty-cash"] .pc-entry-card__date { font-weight: var(--fw-bold); color: var(--c-primary-strong); }
+[data-page="petty-cash"] .pc-entry-card__desc { flex: 1 1 160px; font-size: var(--fs-13); color: var(--c-text); word-break: break-all; }
+[data-page="petty-cash"] .pc-entry-card__amt { font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
 [data-page="petty-cash"] .pc-entry-card__cat {
-  font-size: 11.5px;
-  font-weight: 800;
-  background: #f1f5f9;
-  color: #475569;
-  border-radius: 999px;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+  background: var(--c-surface-2);
+  color: var(--c-text-2);
+  border-radius: var(--r-pill);
   padding: 2px 8px;
 }
-[data-page="petty-cash"] .pc-entry-card__items { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: #475569; }
-[data-page="petty-cash"] .pc-entry-card__warn { font-size: 12.5px; color: #b45309; margin-top: 6px; }
+[data-page="petty-cash"] .pc-entry-card__items { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-12); color: var(--c-text-2); }
+[data-page="petty-cash"] .pc-entry-card__warn { font-size: var(--fs-12); color: var(--c-out); margin-top: 6px; }
 [data-page="petty-cash"] .pc-entry-card__ops { display: flex; gap: 6px; margin-top: 8px; }
 
 /* 明細項目輸入列 */
@@ -272,9 +272,9 @@
 [data-page="petty-cash"] .pc-item-row input {
   min-height: 44px;
   padding: 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 14px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  font-size: var(--fs-14);
   width: 100%;
   box-sizing: border-box;
 }
@@ -286,34 +286,34 @@
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
   padding: 10px 12px;
   margin-top: 10px;
-  font-size: 13.5px;
-  font-weight: 800;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
 }
 
 /* 明細檢視 table */
-[data-page="petty-cash"] .pc-detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+[data-page="petty-cash"] .pc-detail-table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
 [data-page="petty-cash"] .pc-detail-table th {
-  font-size: 12px;
-  color: #64748b;
+  font-size: var(--fs-12);
+  color: var(--c-muted);
   text-align: left;
   padding: 7px 8px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--c-border);
 }
-[data-page="petty-cash"] .pc-detail-table td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+[data-page="petty-cash"] .pc-detail-table td { padding: 7px 8px; border-bottom: 1px solid var(--c-surface-2); vertical-align: middle; }
 
 /* RWD：手機不呈現超寬 table，改 card */
 /* Mobile KPI presentation keeps the canonical three-card row. */
 @media (max-width: 1200px) {
   [data-page="petty-cash"] #content .pc-kpi-card { min-height: 68px; padding: 10px 12px 8px; }
-  [data-page="petty-cash"] #content .pc-kpi-card__num { font-size: 22px; }
-  [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-icon { width: 26px; height: 26px; font-size: 13px; }
-  [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-label { font-size: 11px; }
-  [data-page="petty-cash"] #content .pc-kpi-card__foot { font-size: 10px; }
+  [data-page="petty-cash"] #content .pc-kpi-card__num { font-size: var(--fs-20); }
+  [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-icon { width: 26px; height: 26px; font-size: var(--fs-13); }
+  [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-label { font-size: var(--fs-11); }
+  [data-page="petty-cash"] #content .pc-kpi-card__foot { font-size: var(--fs-11); }
 }
 @media (max-width: 767px) {
   [data-page="petty-cash"] .pc-filter-bar .pc-field { flex: 1 1 45%; min-width: 0; }
@@ -323,9 +323,9 @@
   [data-page="petty-cash"] #content .pc-kpi-card { min-height: 76px; padding: 8px 6px 6px; }
   [data-page="petty-cash"] #content .pc-kpi-card__num, [data-page="petty-cash"] #content .pc-kpi-card .ui-kpi-value { font-size: clamp(14px, 4.5vw, 24px); }
   [data-page="petty-cash"] #content .pc-kpi-card__head { gap: 3px; }
-  [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-icon { width: 20px; height: 20px; font-size: 11px; }
+  [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-icon { width: 20px; height: 20px; font-size: var(--fs-11); }
   [data-page="petty-cash"] #content .pc-kpi-card__head .ui-kpi-label { font-size: clamp(8px, 2.7vw, 11px); }
-  [data-page="petty-cash"] #content .pc-kpi-card__foot { font-size: 9px; }
+  [data-page="petty-cash"] #content .pc-kpi-card__foot { font-size: var(--fs-11); }
 }
 
 /* === 明細項目欄位標題 === */
@@ -335,12 +335,12 @@
   gap: 6px;
   box-sizing: border-box;
   padding: 4px 0;
-  font-size: 11px;
-  font-weight: 600;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-medium);
+  color: var(--c-muted);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
   margin-bottom: 4px;
 }
 [data-page="petty-cash"] .pc-items-header span:last-child { width: auto; }
@@ -352,41 +352,41 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px 8px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e293b;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--c-text);
 }
 [data-page="petty-cash"] .pc-entry-date-header.collapsible { cursor: pointer; }
-[data-page="petty-cash"] .pc-entry-date-header.collapsible:hover { background: #f1f5f9; }
-[data-page="petty-cash"] .pc-entry-date-label { color: #1e293b; }
-[data-page="petty-cash"] .pc-entry-date-count { color: #94a3b8; font-size: 11px; font-weight: 400; }
-[data-page="petty-cash"] .pc-entry-date-toggle { margin-left: auto; font-size: 10px; color: #94a3b8; transition: transform .2s; }
+[data-page="petty-cash"] .pc-entry-date-header.collapsible:hover { background: var(--c-surface-2); }
+[data-page="petty-cash"] .pc-entry-date-label { color: var(--c-text); }
+[data-page="petty-cash"] .pc-entry-date-count { color: var(--c-border-control); font-size: var(--fs-11); font-weight: var(--fw-regular); }
+[data-page="petty-cash"] .pc-entry-date-toggle { margin-left: auto; font-size: var(--fs-11); color: var(--c-border-control); transition: transform .2s; }
 [data-page="petty-cash"] .pc-entry-date-group.is-collapsed .pc-entry-date-toggle { transform: rotate(-90deg); }
 [data-page="petty-cash"] .pc-entry-date-body {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-border);
   border-top: none;
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 var(--r-md) var(--r-md);
   overflow: hidden;
 }
 [data-page="petty-cash"] .pc-entry-date-group.is-collapsed .pc-entry-date-body { display: none; }
 
 /* 一般零用金細項：卡片化輸入，與工程階層編輯保持同一視覺語言 */
-[data-page="petty-cash"] .pc-item-row { padding: 7px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .15s; }
-[data-page="petty-cash"] .pc-item-row:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,.10); }
-[data-page="petty-cash"] .pc-item-row input, [data-page="petty-cash"] .pc-item-row select { border-color: #dbe3ee; border-radius: 7px; background: #f8fafc; }
-[data-page="petty-cash"] .pc-item-row input:focus, [data-page="petty-cash"] .pc-item-row select:focus { background:#fff; border-color:#60a5fa; outline:0; }
+[data-page="petty-cash"] .pc-item-row { padding: 7px; border: 1px solid var(--c-border); border-radius: var(--r-md); background: var(--c-white); box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .15s; }
+[data-page="petty-cash"] .pc-item-row:focus-within { border-color: var(--c-primary-border); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 10%, transparent); }
+[data-page="petty-cash"] .pc-item-row input, [data-page="petty-cash"] .pc-item-row select { border-color: var(--c-border); border-radius: var(--r-sm); background: var(--c-surface-2); }
+[data-page="petty-cash"] .pc-item-row input:focus, [data-page="petty-cash"] .pc-item-row select:focus { background:var(--c-white); border-color:var(--c-primary); outline:0; }
 [data-page="petty-cash"] .pc-item-row .pc-btn-sm--danger { width:32px; justify-self:center; }
 @media (max-width: 767px) { [data-page="petty-cash"] .pc-item-row { grid-template-columns: minmax(0,1fr) 70px 44px; grid-template-areas: "name name del" "qty unit amount"; gap:6px; } [data-page="petty-cash"] .pc-item-row input[data-k="item_name"] { grid-area:name; } [data-page="petty-cash"] .pc-item-row input[data-k="qty"] { grid-area:qty; } [data-page="petty-cash"] .pc-item-row input[data-k="unit"] { grid-area:unit; } [data-page="petty-cash"] .pc-item-row input[data-k="amount"] { grid-area:amount; } [data-page="petty-cash"] .pc-item-row .pc-btn-sm--danger { grid-area:del; }
 }
 
 /* General entry cards are shared by the petty-cash editor surface. */
 [data-page="petty-cash"] .pc-entry-card--clickable { cursor:pointer; }
-[data-page="petty-cash"] .pc-entry-card--clickable:hover, [data-page="petty-cash"] .pc-entry-card--clickable:focus-visible { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.10); outline:0; }
+[data-page="petty-cash"] .pc-entry-card--clickable:hover, [data-page="petty-cash"] .pc-entry-card--clickable:focus-visible { border-color:var(--c-primary-border); box-shadow:0 0 0 3px color-mix(in srgb, var(--c-primary) 10%, transparent); outline:0; }
 /* Shared petty-cash detail/editor primitives. */
-[data-page="petty-cash"] .pc-empty-cell { color:#94a3b8; text-align:center; padding:18px; }
+[data-page="petty-cash"] .pc-empty-cell { color:var(--c-border-control); text-align:center; padding:18px; }
 [data-page="petty-cash"] .pc-item-row { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
 [data-page="petty-cash"] .pc-items-header { grid-template-columns:minmax(0,3fr) minmax(4.5rem,1fr) minmax(4rem,auto) minmax(5.5rem,auto) auto; }
 [data-page="petty-cash"] .pc-item-amount-required { display: none; }

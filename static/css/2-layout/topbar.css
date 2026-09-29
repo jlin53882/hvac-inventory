@@ -1,7 +1,7 @@
 /* settings / permissions 頁的深藍 topbar（CSS 架構重構 P3 自 legacy/core.css 拆出） */
 @layer layout {
   /* ===== topbar 背景（settings/permissions.html 仍使用） ===== */
-  .topbar { background: linear-gradient(135deg, #1e3a5f, #2d5a8e); color: #fff; }
+  .topbar { background: linear-gradient(135deg, var(--c-primary-strong), var(--c-primary)); color: var(--c-white); }
   /* ===== 舊 topbar 樣式已移除（Phase 1 Shell v2） ===== */
   .top-actions { display: flex; gap: 8px; }
 

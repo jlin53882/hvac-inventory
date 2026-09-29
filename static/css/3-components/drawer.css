@@ -5,14 +5,14 @@
 
 
 /* ===== Drawer（統一操作容器） ===== */
-.dov {position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s}
+.dov {position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:var(--z-menu);opacity:0;pointer-events:none;transition:opacity .25s}
 .dov.is-open {opacity:1;pointer-events:auto}
-.drawer {position:fixed;top:0;right:-460px;width:440px;height:100vh;background:#fff;z-index:201;transition:right .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.12)}
+.drawer {position:fixed;top:0;right:-460px;width:440px;height:100vh;background:var(--c-white);z-index:var(--z-drawer);transition:right .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.12)}
 .drawer.is-open {right:0}
-.dh {display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid #e5e7eb}
-.dh h3 {font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
-.dh .x {background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;padding:4px}
-.dh .x:hover {color:#1a1a1a}
+.dh {display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--c-border)}
+.dh h3 {font-size:var(--fs-16);font-weight:var(--fw-bold);display:flex;align-items:center;gap:8px}
+.dh .x {background:none;border:none;font-size:var(--fs-20);cursor:pointer;color:var(--c-border-control);padding:4px}
+.dh .x:hover {color:var(--c-text)}
 .db {flex:1;overflow-y:auto;padding:24px}
-.df {padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.df {padding:16px 24px;border-top:1px solid var(--c-border);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 }

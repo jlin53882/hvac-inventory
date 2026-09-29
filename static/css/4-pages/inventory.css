@@ -3,36 +3,36 @@
   /* 底部導覽 */
 
   /* ===== 篩選面板（品牌+分類 chips） ===== */
-  [data-page="inventory"] .filter-panel { background: #fff; padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
+  [data-page="inventory"] .filter-panel { background: var(--c-white); padding: 12px 16px; border-bottom: 1px solid var(--c-border-strong); }
   [data-page="inventory"] .filter-section { margin-bottom: 10px; }
   [data-page="inventory"] .filter-section:last-child { margin-bottom: 0; }
-  [data-page="inventory"] .filter-label { font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  [data-page="inventory"] .filter-label { font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--c-muted); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
   [data-page="inventory"] .filter-label .left { display: flex; align-items: center; gap: 6px; }
-  [data-page="inventory"] .filter-label .count { font-weight: 400; color: #9ca3af; }
+  [data-page="inventory"] .filter-label .count { font-weight: var(--fw-regular); color: var(--c-border-control); }
   [data-page="inventory"] .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; transition: max-height 0.2s ease; }
   [data-page="inventory"] .filter-chips.is-collapsed { max-height: 32px; overflow: hidden; }
-  [data-page="inventory"] .filter-chip .badge { font-size: 10.5px; background: rgba(0,0,0,0.08); padding: 1px 6px; border-radius: 10px; }
+  [data-page="inventory"] .filter-chip .badge { font-size: var(--fs-11); background: rgba(0,0,0,0.08); padding: 1px 6px; border-radius: var(--r-md); }
   [data-page="inventory"] .filter-chip.is-active .badge { background: rgba(255,255,255,0.25); }
-  [data-page="inventory"] .filter-summary { font-size: 12px; color: #9ca3af; }
-  [data-page="inventory"] .toggle-btn { font-size: 12px; color: #3b82f6; background: none; border: none; cursor: pointer; font-weight: 500; }
+  [data-page="inventory"] .filter-summary { font-size: var(--fs-12); color: var(--c-border-control); }
+  [data-page="inventory"] .toggle-btn { font-size: var(--fs-12); color: var(--c-primary); background: none; border: none; cursor: pointer; font-weight: var(--fw-medium); }
   @media (max-width: 767px) {
     [data-page="inventory"] .filter-chips.is-collapsed { max-height: 32px; }
 }
   /* 庫存清單頂部匯出列（2026-08-13 Sarah：匯出按鈕從 topbar 移到這裡，靠右） */
   [data-page="inventory"] .loc-export-bar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: 10px 2px 4px; }
-  [data-page="inventory"] .loc-export-count { font-size: 12px; color: #888; }
+  [data-page="inventory"] .loc-export-count { font-size: var(--fs-12); color: var(--c-muted); }
 
   [data-page="inventory"] .section-title {
-    font-size: 13px; font-weight: 700; color: #888;
+    font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-muted);
     margin: 14px 0 8px;
     display: flex; justify-content: space-between; align-items: center;
     cursor: pointer; user-select: none;
   }
-  [data-page="inventory"] .section-title .loc { color: #2d5a8e; font-weight: 600; margin-right: auto; }
+  [data-page="inventory"] .section-title .loc { color: var(--c-primary); font-weight: var(--fw-medium); margin-right: auto; }
   /* 位置折疊按鈕（最左邊箭頭） */
   [data-page="inventory"] .section-title .collapse-btn {
     background: none; border: none; padding: 0 6px 0 0; margin: 0;
-    font-size: 12px; color: #2d5a8e; cursor: pointer; line-height: 1;
+    font-size: var(--fs-12); color: var(--c-primary); cursor: pointer; line-height: 1;
     transition: transform .15s ease;
   }
   [data-page="inventory"] .section-title.is-collapsed .collapse-btn { transform: rotate(-90deg); }
@@ -43,8 +43,8 @@
   }
 
   [data-page="inventory"] .item-card {
-    background: #fff;
-    border-radius: 12px;
+    background: var(--c-white);
+    border-radius: var(--r-lg);
     padding: 12px 14px;
     margin-bottom: 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
@@ -62,18 +62,18 @@
   /* v10.1：品項照片縮圖（點擊可看大圖） */
     [data-page="inventory"] .item-card .item-photo {
       width: 52px; height: 52px; object-fit: cover;
-      border-radius: 8px; flex-shrink: 0;
-      border: 1px solid #e3e8ef; background: #f7f9fc;
+      border-radius: var(--r-md); flex-shrink: 0;
+      border: 1px solid var(--c-border); background: var(--c-surface-2);
       cursor: zoom-in; transition: transform .12s;
     }
     [data-page="inventory"] .item-card .item-photo:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.18); }
   [data-page="inventory"] .item-info { flex: 1; min-width: 0; cursor: pointer; }
-  [data-page="inventory"] .item-name { font-size: 14px; font-weight: 600; padding-right: 118px; }
-  [data-page="inventory"] .item-name .edit-hint { font-size: 10px; color: #999; font-weight: 400; margin-left: 4px; }
-  [data-page="inventory"] .item-code { font-size: 11px; color: #999; margin-top: 1px; }
+  [data-page="inventory"] .item-name { font-size: var(--fs-14); font-weight: var(--fw-medium); padding-right: 118px; }
+  [data-page="inventory"] .item-name .edit-hint { font-size: var(--fs-11); color: var(--c-border-control); font-weight: var(--fw-regular); margin-left: 4px; }
+  [data-page="inventory"] .item-code { font-size: var(--fs-11); color: var(--c-border-control); margin-top: 1px; }
   [data-page="inventory"] .item-loc {
-      font-size: 11px; color: #2d5a8e; background: #eef4fa;
-      border-radius: 6px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+      font-size: var(--fs-11); color: var(--c-primary); background: var(--c-primary-soft);
+      border-radius: var(--r-sm); padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
     }
   [data-page="inventory"] .stock-checkbox { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
   [data-page="inventory"] .item-card { position: relative; }
@@ -83,25 +83,25 @@
   [data-page="inventory"] .qty-control { display: flex; align-items: center; flex-shrink: 0; }
   [data-page="inventory"] .qty-btn {
     width: 34px; height: 34px;
-    border: none; border-radius: 9px;
-    font-size: 18px; font-weight: 700;
+    border: none; border-radius: var(--r-md);
+    font-size: var(--fs-16); font-weight: var(--fw-bold);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: transform 0.1s;
   }
   [data-page="inventory"] .qty-btn:active { transform: scale(0.9); }
-  [data-page="inventory"] .qty-minus { background: #fee2e2; color: #dc2626; }
-  [data-page="inventory"] .qty-plus { background: #dcfce7; color: #16a34a; }
+  [data-page="inventory"] .qty-minus { background: var(--c-danger-soft); color: var(--c-danger); }
+  [data-page="inventory"] .qty-plus { background: var(--c-success-soft); color: var(--c-success); }
   [data-page="inventory"] .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
   [data-page="inventory"] .qty-value {
     width: 46px; text-align: center;
-    font-size: 15px; font-weight: 700;
+    font-size: var(--fs-14); font-weight: var(--fw-bold);
     font-variant-numeric: tabular-nums;
     cursor: pointer;
   }
-  [data-page="inventory"] .qty-value .unit { font-size: 10px; color: #999; font-weight: 400; }
-  [data-page="inventory"] .btn-deselect-all { background: #fff; color: #555; border: 1.5px solid #d0d5dd; font-size: 12px; }
-  [data-page="inventory"] .btn-deselect-all:hover { border-color: #2d5a8e; color: #2d5a8e; }
+  [data-page="inventory"] .qty-value .unit { font-size: var(--fs-11); color: var(--c-border-control); font-weight: var(--fw-regular); }
+  [data-page="inventory"] .btn-deselect-all { background: var(--c-white); color: var(--c-text-2); border: 1.5px solid var(--c-border-strong); font-size: var(--fs-12); }
+  [data-page="inventory"] .btn-deselect-all:hover { border-color: var(--c-primary); color: var(--c-primary); }
 
   /* ===== 舊分片切換已移至 .h-site（Phase 1 Shell v2） ===== */
 
@@ -116,8 +116,8 @@
     right: 66px;
     z-index: 5;
   }
-[data-page="inventory"] .m-card .m-tag { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 20px; padding: 1px 8px; margin-left: 0; margin-right: 4px; }  /* V1b 2026-08-16：chip 移出 nameHTML 後改右邊距 */
-[data-page="inventory"] .m-card .m-tag.green { background: #dcfce7; color: #15803d; }
+[data-page="inventory"] .m-card .m-tag { display: inline-block; font-size: var(--fs-11); font-weight: var(--fw-medium); border-radius: var(--r-pill); padding: 1px 8px; margin-left: 0; margin-right: 4px; }  /* V1b 2026-08-16：chip 移出 nameHTML 後改右邊距 */
+[data-page="inventory"] .m-card .m-tag.green { background: var(--c-success-soft); color: var(--c-success-strong); }
 
 /* 手機庫存卡：底部 待領出/已領出 按鈕列（還原顯示） */
 [data-page="inventory"] .m-card-actions {
@@ -127,22 +127,22 @@
 /* 長註解獨立於主資訊列，避免推擠照片、數量與操作區。 */
 [data-page="inventory"] .m-card .item-note {
   display: flex; flex-direction: row; gap: 2px; margin: 0 12px 10px; padding: 7px 9px;
-  border: 1px solid #e5e7eb; border-radius: 7px; background: #f8fafc;
-  color: #475569; font-size: 11px; line-height: 1.45;
+  border: 1px solid var(--c-border); border-radius: var(--r-sm); background: var(--c-surface-2);
+  color: var(--c-text-2); font-size: var(--fs-11); line-height: 1.45;
   min-width: 0; overflow-wrap: anywhere; word-break: break-word;
 }
-[data-page="inventory"] .m-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
+[data-page="inventory"] .m-card .item-note-label { flex: 0 0 auto; color: var(--c-muted); font-weight: var(--fw-bold); }
 [data-page="inventory"] .m-card .item-note-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 [data-page="inventory"] .m-card .note-slot .item-note { margin: 6px 0 0; }
 
 /* 表格／桌面卡片使用同一組位置與註解語意；桌面不截斷內容。 */
 [data-page="inventory"] .item-card .item-note {
   display: flex; flex-direction: row; gap: 2px; margin-top: 6px; padding: 5px 7px;
-  border: 1px solid #e5e7eb; border-radius: 6px; background: #f8fafc;
-  color: #475569; font-size: 11px; line-height: 1.4;
+  border: 1px solid var(--c-border); border-radius: var(--r-sm); background: var(--c-surface-2);
+  color: var(--c-text-2); font-size: var(--fs-11); line-height: 1.4;
   min-width: 0; overflow-wrap: anywhere; word-break: break-word;
 }
-[data-page="inventory"] .item-card .item-note-label { flex: 0 0 auto; color: #64748b; font-weight: 700; }
+[data-page="inventory"] .item-card .item-note-label { flex: 0 0 auto; color: var(--c-muted); font-weight: var(--fw-bold); }
 [data-page="inventory"] .item-card .item-note-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 
 /* 表格模式也保留完整文字入口；手機橫向表格捲動後不會只剩不明圖示。 */
@@ -154,44 +154,44 @@
   /* 注意：盤點頁仍用 data-table（手機不修改），故不隱藏 table */
 
   /* 手機庫存卡：qty-control 縮小（配合 qty-col padding-right 避開 ⋯） */
-  [data-page="inventory"] .m-card .qty-control .qty-btn { width: 30px; height: 30px; font-size: 16px; border-radius: 8px; }
-  [data-page="inventory"] .m-card .qty-control .qty-value { width: 40px; font-size: 14px; }
+  [data-page="inventory"] .m-card .qty-control .qty-btn { width: 30px; height: 30px; font-size: var(--fs-16); border-radius: var(--r-md); }
+  [data-page="inventory"] .m-card .qty-control .qty-value { width: 40px; font-size: var(--fs-14); }
 }
 
 /* ===== row-warn / row-danger ===== */
-[data-page="inventory"] tr.row-warn td {background:#fffbeb}
-[data-page="inventory"] tr.row-danger td {background:#fff5f5}
+[data-page="inventory"] tr.row-warn td {background:var(--c-out-soft)}
+[data-page="inventory"] tr.row-danger td {background:var(--c-danger-soft)}
 
 /* ===== Table View (Phase 5) ===== */
-[data-page="inventory"] .tbl-wrap {overflow-x:auto;border:1px solid #e5e7eb;border-radius:10px;background:#fff;margin-top:12px}
-[data-page="inventory"] .tbl-wrap table.data-table {width:100%;border-collapse:collapse;font-size:13px}
-[data-page="inventory"] .tbl-wrap table.data-table th {background:#f8fafc;padding:10px 12px;text-align:left;font-weight:600;color:#64748b;border-bottom:1px solid #e5e7eb;white-space:nowrap}
-[data-page="inventory"] .tbl-wrap table.data-table td {padding:10px 12px;border-bottom:1px solid #f1f5f9}
+[data-page="inventory"] .tbl-wrap {overflow-x:auto;border:1px solid var(--c-border);border-radius:var(--r-md);background:var(--c-white);margin-top:12px}
+[data-page="inventory"] .tbl-wrap table.data-table {width:100%;border-collapse:collapse;font-size:var(--fs-13)}
+[data-page="inventory"] .tbl-wrap table.data-table th {background:var(--c-surface-2);padding:10px 12px;text-align:left;font-weight:var(--fw-medium);color:var(--c-muted);border-bottom:1px solid var(--c-border);white-space:nowrap}
+[data-page="inventory"] .tbl-wrap table.data-table td {padding:10px 12px;border-bottom:1px solid var(--c-surface-2)}
 [data-page="inventory"] .tbl-wrap table.data-table tr:last-child td {border-bottom:none}
-[data-page="inventory"] .tbl-wrap table.data-table tr.row-warn td {background:#fffbeb}
-[data-page="inventory"] .tbl-wrap table.data-table tr.row-danger td {background:#fff5f5}
-[data-page="inventory"] .tbl-wrap .col-name {font-weight:600}
-[data-page="inventory"] .tbl-wrap .col-qty {text-align:center;font-weight:700}
-[data-page="inventory"] .tbl-wrap .col-loc {color:#64748b;font-size:12px}
+[data-page="inventory"] .tbl-wrap table.data-table tr.row-warn td {background:var(--c-out-soft)}
+[data-page="inventory"] .tbl-wrap table.data-table tr.row-danger td {background:var(--c-danger-soft)}
+[data-page="inventory"] .tbl-wrap .col-name {font-weight:var(--fw-medium)}
+[data-page="inventory"] .tbl-wrap .col-qty {text-align:center;font-weight:var(--fw-bold)}
+[data-page="inventory"] .tbl-wrap .col-loc {color:var(--c-muted);font-size:var(--fs-12)}
 [data-page="inventory"] .tbl-wrap .col-status {text-align:center}
 [data-page="inventory"] .tbl-wrap .col-actions {text-align:right;white-space:nowrap}
-[data-page="inventory"] .tbl-wrap .col-actions button:not(.btn) {background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px}
+[data-page="inventory"] .tbl-wrap .col-actions button:not(.btn) {background:none;border:none;cursor:pointer;font-size:var(--fs-14);padding:2px 4px}
 [data-page="inventory"] .tbl-wrap .inventory-action-menu {display:inline-flex;position:relative;vertical-align:middle;margin-left:4px}
-[data-page="inventory"] .tbl-wrap .status-ok {color:#16a34a;font-size:11px}
-[data-page="inventory"] .tbl-wrap .status-warn {color:#d97706;font-size:11px;font-weight:600}
-[data-page="inventory"] .tbl-wrap .status-danger {color:#dc2626;font-size:11px;font-weight:600}
+[data-page="inventory"] .tbl-wrap .status-ok {color:var(--c-success);font-size:var(--fs-11)}
+[data-page="inventory"] .tbl-wrap .status-warn {color:var(--c-warning);font-size:var(--fs-11);font-weight:var(--fw-medium)}
+[data-page="inventory"] .tbl-wrap .status-danger {color:var(--c-danger);font-size:var(--fs-11);font-weight:var(--fw-medium)}
 
 /* ===== View Toggle ===== */
 [data-page="inventory"] .view-toggle {display:inline-flex;gap:4px;margin-left:8px}
 [data-page="inventory"] .more-actions-wrap {position:relative}
-[data-page="inventory"] .more-actions-dropdown {display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;min-width:140px}
+[data-page="inventory"] .more-actions-dropdown {display:none;position:absolute;right:0;top:100%;margin-top:4px;background:var(--c-white);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:var(--z-sidebar);min-width:140px}
 [data-page="inventory"] .more-actions-dropdown.is-open {display:block}
-[data-page="inventory"] .more-actions-dropdown button {display:block;width:100%;padding:10px 14px;border:none;background:none;font-size:13px;text-align:left;cursor:pointer;white-space:nowrap}
-[data-page="inventory"] .more-actions-dropdown button:hover {background:#f1f5f9}
+[data-page="inventory"] .more-actions-dropdown button {display:block;width:100%;padding:10px 14px;border:none;background:none;font-size:var(--fs-13);text-align:left;cursor:pointer;white-space:nowrap}
+[data-page="inventory"] .more-actions-dropdown button:hover {background:var(--c-surface-2)}
 
 /* ===== Card warn/danger (Phase 5) ===== */
-[data-page="inventory"] .item-card.warn, [data-page="inventory"] .m-card.warn {background:#fffbeb;border:1px solid #f59e0b}
-[data-page="inventory"] .item-card.danger, [data-page="inventory"] .m-card.danger {background:#fff5f5;border:1px solid #ef4444}
+[data-page="inventory"] .item-card.warn, [data-page="inventory"] .m-card.warn {background:var(--c-out-soft);border:1px solid var(--c-out-solid)}
+[data-page="inventory"] .item-card.danger, [data-page="inventory"] .m-card.danger {background:var(--c-danger-soft);border:1px solid var(--c-danger)}
 /* 自 legacy/core.css 搬來的本頁規則（原含 !important，P5 以選擇器特異度取代） */
 [data-page="inventory"] .m-card-actions .btn-prepare, [data-page="inventory"] .m-card-actions .btn-out {
   flex: 1; margin: 0;
@@ -199,13 +199,13 @@
 [data-page="inventory"] .inventory-stockout-actions .btn-prepare, [data-page="inventory"] .inventory-stockout-actions .btn-out {
   margin: 0;
 }
-[data-page="inventory"] .tbl-wrap .col-actions button.inventory-action-trigger {border:1px solid #dbe3ec;border-radius:6px;background:#fff;font-size:18px;line-height:1;padding:1px 7px;color:#475569}
-[data-page="inventory"] .tbl-wrap .col-actions button.inventory-action-trigger:hover {background:#f1f5f9;color:#1e3a5f}
-[data-page="inventory"] .tbl-wrap .inventory-action-dropdown {display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:132px;padding:4px;background:#fff;border:1px solid #dbe3ec;border-radius:8px;box-shadow:0 6px 18px rgba(15,23,42,.16);z-index:300}
+[data-page="inventory"] .tbl-wrap .col-actions button.inventory-action-trigger {border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-white);font-size:var(--fs-16);line-height:1;padding:1px 7px;color:var(--c-text-2)}
+[data-page="inventory"] .tbl-wrap .col-actions button.inventory-action-trigger:hover {background:var(--c-surface-2);color:var(--c-primary-strong)}
+[data-page="inventory"] .tbl-wrap .inventory-action-dropdown {display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:132px;padding:4px;background:var(--c-white);border:1px solid var(--c-border);border-radius:var(--r-md);box-shadow:0 6px 18px rgba(15,23,42,.16);z-index:var(--z-popover)}
 [data-page="inventory"] .tbl-wrap .inventory-action-dropdown.is-open {display:block}
-[data-page="inventory"] .tbl-wrap .inventory-action-dropdown .inventory-action-item {display:block;width:100%;padding:8px 10px;border-radius:5px;text-align:left;font-size:12px;white-space:nowrap;color:#334155}
-[data-page="inventory"] .tbl-wrap .inventory-action-dropdown .inventory-action-item:hover {background:#f1f5f9}
-[data-page="inventory"] .tbl-wrap .inventory-action-dropdown .inventory-action-item.del {color:#dc2626}
+[data-page="inventory"] .tbl-wrap .inventory-action-dropdown .inventory-action-item {display:block;width:100%;padding:8px 10px;border-radius:var(--r-sm);text-align:left;font-size:var(--fs-12);white-space:nowrap;color:var(--c-text-2)}
+[data-page="inventory"] .tbl-wrap .inventory-action-dropdown .inventory-action-item:hover {background:var(--c-surface-2)}
+[data-page="inventory"] .tbl-wrap .inventory-action-dropdown .inventory-action-item.del {color:var(--c-danger)}
 
 /* 振佳空調管理系統 — 單一庫存 / 待領出 desktop content redesign
    只作用於本檔新增的 page-scoped classes，不改 Sidebar / Navbar / 其他頁面。 */
@@ -221,8 +221,8 @@
 [data-page="inventory"] .filter-panel.inventory-filter-panel {
   width: 100%;
   padding: 0 32px 20px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-white);
 }
 
 [data-page="inventory"] .filter-panel.inventory-filter-panel .inventory-page-heading {
@@ -230,7 +230,7 @@
   align-items: center;
   gap: 14px;
   padding: 24px 0 18px;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 1px solid var(--c-border);
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .inventory-heading-icon {
   width: 44px;
@@ -238,29 +238,29 @@
   display: grid;
   place-items: center;
   flex: 0 0 44px;
-  border-radius: 12px;
-  background: #eff6ff;
-  color: #2563eb;
-  font-size: 22px;
+  border-radius: var(--r-lg);
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-size: var(--fs-20);
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .inventory-page-heading h1 {
-  color: #0f172a;
-  font-size: 26px;
+  color: var(--c-text);
+  font-size: var(--fs-28);
   line-height: 1.25;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .inventory-page-heading p {
   margin-top: 5px;
-  color: #64748b;
-  font-size: 14px;
+  color: var(--c-muted);
+  font-size: var(--fs-14);
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .filter-section {
   margin: 18px 0 0;
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .filter-label {
   margin-bottom: 8px;
-  color: #475569;
-  font-size: 13px;
+  color: var(--c-text-2);
+  font-size: var(--fs-13);
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .filter-chips {
   gap: 8px;
@@ -270,10 +270,10 @@
   background: transparent;
   color: inherit;
   opacity: .7;
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 [data-page="inventory"] .filter-panel.inventory-filter-panel .filter-summary {
-  color: #94a3b8;
+  color: var(--c-border-control);
 }
 
 /* ===== Inventory KPI ===== */
@@ -286,37 +286,37 @@
   cursor: pointer;
   transition: border-color .15s, background .15s, box-shadow .15s;}
 [data-page="inventory"] button.inventory-kpi-card:hover {
-  border-color: #cbd5e1;
+  border-color: var(--c-border-strong);
   box-shadow: 0 4px 12px rgba(15, 23, 42, .06);
 }
 [data-page="inventory"] button.inventory-kpi-card:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, .24);
+  outline: 3px solid color-mix(in srgb, var(--c-primary) 24%, transparent);
   outline-offset: 2px;
 }
 
 [data-page="inventory"] .inventory-kpi-action {
   margin-left: 4px;
   color: currentColor;
-  font-size: 11px;
+  font-size: var(--fs-11);
   opacity: .8;
 }
 [data-page="inventory"] .inventory-kpi-purple {
-  border-color: #ddd6fe;
-  background: #faf8ff;
+  border-color: var(--c-prepare-soft);
+  background: var(--c-white);
 }
 [data-page="inventory"] .inventory-kpi-purple .inventory-kpi-icon {
-  background: #f5f3ff;
+  background: var(--c-prepare-soft);
 }
 [data-page="inventory"] .inventory-kpi-purple .inventory-kpi-number {
-  color: #6d28d9;
+  color: var(--c-prepare);
 }
 
 [data-page="inventory"] .inventory-kpi-low .inventory-kpi-number, [data-page="inventory"] .inventory-kpi-low .inventory-kpi-action {
-  color: #d97706;
+  color: var(--c-warning);
 }
 
 [data-page="inventory"] .inventory-kpi-out .inventory-kpi-number, [data-page="inventory"] .inventory-kpi-out .inventory-kpi-action {
-  color: #dc2626;
+  color: var(--c-danger);
 }
 
 /* ===== Inventory toolbar / table ===== */
@@ -328,22 +328,22 @@
   padding: 10px 2px;
 }
 [data-page="inventory"] .inventory-content .loc-export-count {
-  color: #475569;
-  font-size: 14px;
-  font-weight: 600;
+  color: var(--c-text-2);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
 }
 [data-page="inventory"] .inventory-content .view-toggle {
   margin-left: auto;
   gap: 0;
   padding: 3px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #f8fafc;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
 }
 [data-page="inventory"] .inventory-content .tbl-wrap {
   margin-top: 0;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
 }
 [data-page="inventory"] .inventory-content .tbl-wrap table.data-table {
@@ -353,9 +353,9 @@
 [data-page="inventory"] .inventory-content .tbl-wrap table.data-table th {
   height: 46px;
   padding: 0 16px;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 13px;
+  background: var(--c-surface-2);
+  color: var(--c-text-2);
+  font-size: var(--fs-13);
   letter-spacing: .01em;
 }
 @media (min-width: 768px) {
@@ -367,26 +367,26 @@
 [data-page="inventory"] .inventory-content .tbl-wrap table.data-table td {
   min-height: 88px;
   padding: 14px 16px;
-  color: #334155;
-  font-size: 13px;
+  color: var(--c-text-2);
+  font-size: var(--fs-13);
 }
 [data-page="inventory"] .inventory-content .tbl-wrap table.data-table tr:hover td {
-  background: #fafcff;
+  background: var(--c-white);
 }
 [data-page="inventory"] .inventory-content .tbl-wrap table.data-table tr.row-warn td {
-  background: #fffbeb;
+  background: var(--c-out-soft);
 }
 [data-page="inventory"] .inventory-content .tbl-wrap table.data-table tr.row-danger td {
-  background: #fef2f2;
+  background: var(--c-danger-soft);
 }
 [data-page="inventory"] .inventory-content .tbl-wrap .col-name {
-  color: #0f172a;
-  font-size: 14px;
-  font-weight: 650;
+  color: var(--c-text);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   line-height: 1.45;
 }
 [data-page="inventory"] .inventory-content .tbl-wrap .col-qty {
-  font-size: 16px;
+  font-size: var(--fs-16);
 }
 [data-page="inventory"] .inventory-content .tbl-wrap .col-actions {
   min-width: 190px;
@@ -404,21 +404,21 @@
   align-items: center;
   min-height: 26px;
   padding: 0 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 650;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
 }
 [data-page="inventory"] .inventory-content .status-warn {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
 }
 [data-page="inventory"] .inventory-content .status-danger {
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
 }
 [data-page="inventory"] .inventory-content .status-ok {
-  color: #16a34a;
-  font-size: 12px;
+  color: var(--c-success);
+  font-size: var(--fs-12);
 }
 
 /* ===== Inventory card view ===== */
@@ -426,23 +426,23 @@
   min-height: 42px;
   margin: 0;
   padding: 0 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-border);
   border-bottom: 0;
-  border-radius: 12px 12px 0 0;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 13px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--c-surface-2);
+  color: var(--c-muted);
+  font-size: var(--fs-13);
 }
 [data-page="inventory"] .inventory-content .section-title .loc {
-  color: #334155;
-  font-size: 14px;
+  color: var(--c-text-2);
+  font-size: var(--fs-14);
 }
 [data-page="inventory"] .inventory-content .loc-group {
   margin-bottom: 16px;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 0 0 12px 12px;
-  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: var(--c-white);
 }
 [data-page="inventory"] .inventory-content .loc-group .item-card {
   min-height: 108px;
@@ -453,7 +453,7 @@
   margin: 0;
   padding: 16px 20px;
   border: 0;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 1px solid var(--c-border);
   border-radius: 0;
   box-shadow: none;
 }
@@ -510,7 +510,7 @@
   border-bottom: 0;
 }
 [data-page="inventory"] .inventory-content .loc-group .item-card:hover {
-  background: #fafcff;
+  background: var(--c-white);
 }
 [data-page="inventory"] .inventory-content .item-card .item-photo, [data-page="inventory"] .inventory-content .item-card .item-photo-empty {
   width: 72px;
@@ -518,11 +518,11 @@
   display: grid;
   place-items: center;
   flex: 0 0 72px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  color: #94a3b8;
-  font-size: 22px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+  color: var(--c-border-control);
+  font-size: var(--fs-20);
 }
 [data-page="inventory"] .inventory-content .item-card .item-photo {
   object-fit: cover;
@@ -534,21 +534,21 @@
 }
 [data-page="inventory"] .inventory-content .item-card .item-name {
   padding-right: 0;
-  color: #0f172a;
-  font-size: 16px;
-  font-weight: 700;
+  color: var(--c-text);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
 }
 [data-page="inventory"] .inventory-content .item-card .item-code {
   margin-top: 5px;
-  color: #64748b;
-  font-size: 13px;
+  color: var(--c-muted);
+  font-size: var(--fs-13);
 }
 [data-page="inventory"] .inventory-content .item-card .item-loc {
   margin-top: 8px;
-  border: 1px solid #dbeafe;
-  background: #eff6ff;
-  color: #2563eb;
-  font-size: 12px;
+  border: 1px solid var(--c-primary-soft);
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-size: var(--fs-12);
 }
 [data-page="inventory"] .inventory-content .item-card .inventory-stockout-actions {
   display: flex;
@@ -562,15 +562,15 @@
 [data-page="inventory"] .inventory-content .item-card .qty-btn {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
 }
 [data-page="inventory"] .inventory-content .item-card .qty-value {
   width: 58px;
-  color: #0f172a;
-  font-size: 17px;
+  color: var(--c-text);
+  font-size: var(--fs-16);
 }
 [data-page="inventory"] .inventory-content .item-card.warn, [data-page="inventory"] .inventory-content .item-card.danger {
-  background: #fff;
+  background: var(--c-white);
 }
 [data-page="inventory"] .inventory-content .item-card.warn {
 }
@@ -581,18 +581,18 @@
   align-items: center;
   margin-left: 8px;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   vertical-align: middle;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-medium);
 }
 [data-page="inventory"] .inventory-card-status.status-low {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
 }
 [data-page="inventory"] .inventory-card-status.status-out {
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
 }
 
 /* ===== Inventory empty / status modal ===== */
@@ -603,9 +603,9 @@
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  background: var(--c-white);
   text-align: center;
 }
 [data-page="inventory"] .inventory-empty-icon {
@@ -613,13 +613,13 @@
   font-size: 42px;
 }
 [data-page="inventory"] .inventory-empty-state h2 {
-  color: #334155;
-  font-size: 18px;
+  color: var(--c-text-2);
+  font-size: var(--fs-16);
 }
 [data-page="inventory"] .inventory-empty-state p {
   margin: 8px 0 18px;
-  color: #94a3b8;
-  font-size: 14px;
+  color: var(--c-border-control);
+  font-size: var(--fs-14);
 }
 [data-page="inventory"] .inventory-empty-actions {
   display: flex;
@@ -629,12 +629,12 @@
 }
 
 [data-page="inventory"] .inventory-card-status.status-low {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
 }
 [data-page="inventory"] .inventory-card-status.status-out {
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
 }
 
 /* ===== Responsive targets ===== */
@@ -668,10 +668,10 @@
     padding: 16px 0 14px;
   }
   [data-page="inventory"] .filter-panel.inventory-filter-panel .inventory-page-heading h1 {
-    font-size: 21px;
+    font-size: var(--fs-20);
   }
   [data-page="inventory"] .filter-panel.inventory-filter-panel .inventory-page-heading p {
-    font-size: 12px;
+    font-size: var(--fs-12);
   }
   [data-page="inventory"] .content.inventory-content {
     padding: 16px 14px 92px;
@@ -719,9 +719,9 @@
 }
 /* 單一庫存資訊階層：品牌品名第一行、型號第二行，桌面／手機一致。 */
 [data-page="inventory"] .inventory-content .m-card .nm { white-space: normal; overflow: visible; text-overflow: clip; }
-[data-page="inventory"] .inventory-content .inventory-mobile-model { display: block; flex-basis: 100%; min-width: 0; margin-top: 2px; color: #2563eb; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+[data-page="inventory"] .inventory-content .inventory-mobile-model { display: block; flex-basis: 100%; min-width: 0; margin-top: 2px; color: var(--c-primary); font-size: var(--fs-11); font-weight: var(--fw-medium); overflow-wrap: anywhere; }
 [data-page="inventory"] .inventory-content .m-card .item-loc, [data-page="inventory"] .inventory-content .item-card .item-loc { display: block; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
-[data-page="inventory"] .inventory-content .item-loc-label { font-weight: 700; }
+[data-page="inventory"] .inventory-content .item-loc-label { font-weight: var(--fw-bold); }
 
 /* 增減庫存 dialog 快捷列（2026-09-12 分數/小數單位；modal 本體沿用全域 .modal 樣式） */
 [data-page="inventory"] .qtyd-quick { display: flex; gap: 8px; margin: 2px 0 10px; }
@@ -731,52 +731,52 @@
 [data-page="inventory"] .qtyd-direction .chip { flex: 1; }
 @media (max-width: 767px) {
   [data-page="inventory"] #qty-dialog .modal { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
-  [data-page="inventory"] #qtyd-input { font-size: 17px; min-height: 46px; }
+  [data-page="inventory"] #qtyd-input { font-size: var(--fs-16); min-height: 46px; }
 }
 
 /* ========== 整組子品項展開（待領出頁） ========== */
-[data-page="inventory"] .kit-subitems-row td { padding: 0 16px 8px; background: #f8fafc; }
+[data-page="inventory"] .kit-subitems-row td { padding: 0 16px 8px; background: var(--c-surface-2); }
 [data-page="inventory"] .kit-subitems-toggle {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 10px; margin: 4px 0;
-  font-size: 12px; color: #475569; cursor: pointer;
-  border-radius: 6px; background: #e2e8f0;
+  font-size: var(--fs-12); color: var(--c-text-2); cursor: pointer;
+  border-radius: var(--r-sm); background: var(--c-border);
   user-select: none;
 }
-[data-page="inventory"] .kit-subitems-toggle:hover { background: #cbd5e1; }
-[data-page="inventory"] .kit-subitems-arrow { font-size: 10px; transition: transform .15s; }
+[data-page="inventory"] .kit-subitems-toggle:hover { background: var(--c-border-strong); }
+[data-page="inventory"] .kit-subitems-arrow { font-size: var(--fs-11); transition: transform .15s; }
 [data-page="inventory"] .kit-subitems-list { padding: 4px 0; }
 [data-page="inventory"] .kit-subitem {
   display: flex; align-items: center; gap: 8px;
-  padding: 4px 8px; font-size: 12px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 4px 8px; font-size: var(--fs-12);
+  border-bottom: 1px solid var(--c-surface-2);
 }
 [data-page="inventory"] .kit-subitem:last-child { border-bottom: none; }
-[data-page="inventory"] .kit-subitem-name { flex: 1; font-weight: 500; }
-[data-page="inventory"] .kit-subitem-code { color: #888; font-size: 11px; }
-[data-page="inventory"] .kit-subitem-qty { font-weight: 600; color: #334155; white-space: nowrap; }
+[data-page="inventory"] .kit-subitem-name { flex: 1; font-weight: var(--fw-medium); }
+[data-page="inventory"] .kit-subitem-code { color: var(--c-muted); font-size: var(--fs-11); }
+[data-page="inventory"] .kit-subitem-qty { font-weight: var(--fw-medium); color: var(--c-text-2); white-space: nowrap; }
 
 /* ========== 手機版整組子品項 ========== */
 [data-page="inventory"] .kit-subitems-mobile-wrap { padding: 0 12px 8px; }
-[data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-toggle { cursor: pointer; font-size: 12px; color: #7c3aed; padding: 4px 0; }
-[data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+[data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-toggle { cursor: pointer; font-size: var(--fs-12); color: var(--c-prepare-solid); padding: 4px 0; }
+[data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--c-surface-2); font-size: var(--fs-12); }
 [data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem:last-child { border-bottom: none; }
 
 /* Inventory Excel export dialog — scoped to avoid global modal collisions. */
 [data-page="inventory"] .inventory-export-dialog__panel { width: min(560px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; padding: 0; }
-[data-page="inventory"] .inventory-export-dialog__header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid #e5e7eb; }
-[data-page="inventory"] .inventory-export-dialog__header h3 { margin: 0; color: #163b63; }
-[data-page="inventory"] .inventory-export-dialog__close { border: 0; background: transparent; color: #64748b; font-size: 20px; cursor: pointer; }
-[data-page="inventory"] .inventory-export-section { padding: 16px 20px; border-bottom: 1px solid #eef2f7; }
-[data-page="inventory"] .inventory-export-section > strong { display: block; margin-bottom: 10px; color: #334155; font-size: 13px; }
-[data-page="inventory"] .inventory-export-period-choice, [data-page="inventory"] .inventory-export-check, [data-page="inventory"] .inventory-export-content-list label { display: flex; align-items: center; gap: 8px; color: #475569; font-size: 13px; margin: 8px 0; }
-[data-page="inventory"] .inventory-export-period-fields { display: flex; align-items: center; gap: 6px; margin: 4px 0 12px 24px; color: #64748b; }
-[data-page="inventory"] .inventory-export-period-fields input, [data-page="inventory"] .inventory-export-period-fields select { min-width: 0; padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b; }
+[data-page="inventory"] .inventory-export-dialog__header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--c-border); }
+[data-page="inventory"] .inventory-export-dialog__header h3 { margin: 0; color: var(--c-primary-strong); }
+[data-page="inventory"] .inventory-export-dialog__close { border: 0; background: transparent; color: var(--c-muted); font-size: var(--fs-20); cursor: pointer; }
+[data-page="inventory"] .inventory-export-section { padding: 16px 20px; border-bottom: 1px solid var(--c-border); }
+[data-page="inventory"] .inventory-export-section > strong { display: block; margin-bottom: 10px; color: var(--c-text-2); font-size: var(--fs-13); }
+[data-page="inventory"] .inventory-export-period-choice, [data-page="inventory"] .inventory-export-check, [data-page="inventory"] .inventory-export-content-list label { display: flex; align-items: center; gap: 8px; color: var(--c-text-2); font-size: var(--fs-13); margin: 8px 0; }
+[data-page="inventory"] .inventory-export-period-fields { display: flex; align-items: center; gap: 6px; margin: 4px 0 12px 24px; color: var(--c-muted); }
+[data-page="inventory"] .inventory-export-period-fields input, [data-page="inventory"] .inventory-export-period-fields select { min-width: 0; padding: 7px 8px; border: 1px solid var(--c-border-strong); border-radius: var(--r-sm); background: var(--c-white); color: var(--c-text); }
 [data-page="inventory"] .inventory-export-period-fields input[type="number"] { width: 90px; }
 [data-page="inventory"] .inventory-export-period-fields select { width: 100px; }
 [data-page="inventory"] .inventory-export-sites, [data-page="inventory"] .inventory-export-content-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
-[data-page="inventory"] .inventory-export-sites label { display: flex; align-items: center; gap: 8px; color: #475569; font-size: 13px; }
-[data-page="inventory"] .inventory-export-note { margin: 12px 0 0; padding: 9px 10px; border-radius: 6px; background: #eff6ff; color: #1e40af; font-size: 12px; }
+[data-page="inventory"] .inventory-export-sites label { display: flex; align-items: center; gap: 8px; color: var(--c-text-2); font-size: var(--fs-13); }
+[data-page="inventory"] .inventory-export-note { margin: 12px 0 0; padding: 9px 10px; border-radius: var(--r-sm); background: var(--c-primary-soft); color: var(--c-primary); font-size: var(--fs-12); }
 [data-page="inventory"] .inventory-export-dialog__footer { display: flex; gap: 10px; padding: 14px 20px 18px; }
 [data-page="inventory"] .inventory-export-dialog__footer button { flex: 1; }
 @media (max-width: 767px) {

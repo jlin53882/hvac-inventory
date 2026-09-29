@@ -298,7 +298,7 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 | **P6** | settings / permissions / login 內嵌 `<style>` 搬檔；靜態 inline style → utility | 不變 | 三頁截圖比對 |
 | **P7** | 狀態 class 統一 `is-*`，一個元件一個 commit（見 §7.1） | 不變 | 互動測試先行（改前改後皆綠） |
 | **P7.5** | 設計系統統一：token（色票 / 字級 / 圓角）；按鈕收斂為單一 `.btn`、選取型收斂為 `.chip`（見 §7.2） | **會變** | 提案經使用者確認；前後對照截圖、按鈕 computed-style 契約測試 |
-| **P8** | 顏色 / z-index / 字級 / 圓角全部改用 token；架構測試全開；移除過渡程式碼；更新文件 SOP | 不變 | 全部測試 |
+| **P8** | 顏色 / z-index / 字級 / 字重 / 圓角全部改用 token（舊值依 §7.2 歸併）；斷點收斂；架構測試全開；更新文件 SOP | **會變**（歸併造成的細微色差 / 字級差） | 全部測試、前後截圖 |
 
 每階段依 `CLAUDE.md`：Dead Code 4 步自查（被取代的舊檔同 commit 刪除）、前端行為改動補測試、GitNexus `detect_changes`（本雲端環境無法建立索引時於 commit 訊息註明）。
 
@@ -346,12 +346,23 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 
 **舊 class 的去向**：`.dsr-btn*`、`.pc-btn*`、`.qup-btn*`、`.btn-save`、`.btn-confirm`、`.kit-action` 等的外觀宣告全部刪除；仍被 JS / 排版使用的名稱留在標記上當掛鉤，其餘同 commit 移除。
 
+**P8 歸併規則**（`tokens.css` 以外全部改為變數，共替換約 1,600 個色碼）
+
+| 項目 | 規則 |
+|---|---|
+| 色碼 | 與 token 完全相同者直接對應；灰階依亮度歸到 white / surface-2 / border / border-strong / border-control / muted / text-2 / text；彩色依色相歸到 primary（藍、含 #1890ff、#1a73e8）/ success（綠）/ warning（橙黃）/ danger（紅）/ prepare（紫），再依亮度分 soft / border / 本色 / strong；帶透明度的色碼改 `color-mix()` |
+| 字級 | 8–11.5→11 · 12–12.5→12 · 13–13.5→13 · 14–15→14 · 16–18→16 · 19–22→20 · 24–39→28；40px 以上 emoji 保留 |
+| 圓角 | 4–7→6 · 8–10→8 · 12–16→12 · 20 以上→999；3px 以下細線與 50% 圓形保留 |
+| 字重 | 400 以下→400 · 500 / 600 / 650→600 · 700 / 800 / 900→700 |
+| z-index | 20 以上改為具名疊層（`--z-header`、`--z-modal`、`--z-lightbox`…），數值不變 |
+| 斷點 | max 768→767、min 560→640、min 720→768；保留 390（小手機）與 1200 / 1440（桌機微調） |
+
 **防回歸**（`tests/test_css_architecture.py`、`tests/visual/test_button_contract.py`）
 
 - `button.css` / `chip.css` 以外，任何以 `.btn` / `.chip` 或其掛鉤 class 為主體的規則，不得設定顏色、框線、圓角、字級、字重、內距、高度。
 - 每個 `<button>` 都要套 `.btn` 或 `.chip`；專用控制項需列入白名單。
 - 瀏覽器契約測試：所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須等於其變體與尺寸的規格。
-- `tokens.css` 以外禁止 hex、字級 / 圓角只能用變數（P8 啟用）。
+- `tokens.css` 以外禁止色碼；字級、字重、圓角、20 以上的 z-index 只能用變數；用到的變數必須已定義（P8 啟用）。
 
 ## 8. 改完之後的「改樣式 SOP」
 

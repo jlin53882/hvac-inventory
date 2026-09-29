@@ -170,12 +170,14 @@ def test_css_modal_mobile_visible_fix():
     assert "max-height: 88vh;" in css and "max-height: 88dvh;" in css
     assert css.index("max-height: 88vh;") < css.index("max-height: 88dvh;")
     # 層2：overlay 高於手機 topbar z-900、低於 sheet 3000/lightbox 9999
-    assert "z-index: 950" in css
-    assert "z-index: 960" in css          # toast 浮在開啟的 modal 上
+    # P8：疊層改用具名 token，數值不變
+    tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
+    assert "z-index: var(--z-overlay)" in css and "--z-overlay: 950;" in tokens
+    assert "z-index: var(--z-toast)" in css and "--z-toast: 960;" in tokens  # toast 浮在開啟的 modal 上
     # 層3：modal 底部 padding 歸零（sticky 按鈕自帶 padding），縫隙不再露出滾動內容
     assert "padding: 20px 20px 0;" in css
     # sticky 按鈕釘底——A 方案定案（2026-08-25 家豪選定）：白底無陰影貼底，白色框感消失
-    assert "position: sticky; bottom: 0; background: #fff; padding: 12px 0 14px; z-index: 10;" in css
+    assert "position: sticky; bottom: 0; background: var(--c-white); padding: 12px 0 14px; z-index: 10;" in css
     assert "box-shadow" not in css.split(".modal-actions")[1].split("}")[0]  # 按鈕區無陰影
 
 
@@ -264,9 +266,9 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "/api/signed-reports/" in js and "note" in js
     assert ".dsr-report-thumb" in css
     assert "btn btn--secondary btn--sm dsr-action-btn" in js
-    assert "border: 1px solid #111827" in css
-    assert ".dsr-note-cell" in css and "background: #fff7ed" in css
-    assert ".dsr-edit-modal .dsr-modal__hd h3" in css and "color: #fff" in css
+    assert "border: 1px solid var(--c-text)" in css
+    assert ".dsr-note-cell" in css and "background: var(--c-warning-soft)" in css
+    assert ".dsr-edit-modal .dsr-modal__hd h3" in css and "color: var(--c-white)" in css
     assert "isMobileView" in js and "開啟 PDF" in js
     assert "data-pdf-url" in js
 
@@ -298,8 +300,8 @@ def test_quotation_upload_actions_and_edit_modal_contract():
     assert "FormData" in js
     assert ".qup-note-cell" in css and "white-space: pre-wrap" in css
     assert ".qup-edit-modal" in css
-    assert ".qup-edit-modal .qup-modal__hd h3" in css and "color: #fff" in css
-    assert ".qup-edit-modal .qup-modal__bd" in css and "background: #fff" in css
+    assert ".qup-edit-modal .qup-modal__hd h3" in css and "color: var(--c-white)" in css
+    assert ".qup-edit-modal .qup-modal__bd" in css and "background: var(--c-white)" in css
     assert "isMobileView" in js and "開啟 PDF" in js
     assert "data-pdf-url" in js
 
@@ -703,7 +705,7 @@ def test_petty_cash_settings_options_domain_layout():
     assert '.pc-option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:54px; }' in html
     assert '.pc-option-row { align-items: flex-start; flex-direction: column;' not in html
     assert 'width:auto; min-width:88px' in html
-    assert 'border-radius: 8px' in read_petty_cash_css()
+    assert 'border-radius: var(--r-md)' in read_petty_cash_css()
     assert 'pc-opt-name-general-category' in js
     petty_css = read_petty_cash_css()
     assert '.eng-editor .eng-category-title > select' in petty_css
@@ -1648,7 +1650,7 @@ def test_login_input_icons_and_style():
     """輸入框 icon + 亮藍按鈕 + 高 46px"""
     html = read_page_with_css(LOGIN)
     assert "👤" in html and "🔒" in html or "content: '👤'" in html and "content: '🔒'" in html
-    assert "1890FF" in html
+    assert "var(--c-primary)" in html  # P8：原亮藍 #1890FF 歸併為品牌主色
     assert "height: 46px" in html
 
 
@@ -1902,9 +1904,9 @@ def test_kit_modal_demo_css_styles():
     assert ".selected-row" in css
     assert ".mat-search" in css
     assert ".btn-add-row" in css
-    # 搜尋框 focus 維持品牌藍（1890FF）——樣式被改歪時測試抓得到
+    # 搜尋框 focus 維持品牌主色（P8 由 #1890FF 歸併為 token）——樣式被改歪時測試抓得到
     assert ".mat-search input:focus" in css
-    assert "1890FF" in css
+    assert "var(--c-primary)" in css
 
 
 
@@ -3066,8 +3068,8 @@ def test_row_warn_danger_css():
     css = read(CSS_INVENTORY)
     assert 'row-warn' in css, "row-warn CSS 缺失"
     assert 'row-danger' in css, "row-danger CSS 缺失"
-    assert '#fffbeb' in css, "row-warn 背景色缺失"
-    assert '#fff5f5' in css, "row-danger 背景色缺失"
+    assert 'tr.row-warn td {background:var(--c-out-soft)}' in css, "row-warn 背景色缺失"
+    assert 'tr.row-danger td {background:var(--c-danger-soft)}' in css, "row-danger 背景色缺失"
 
 
 # ========== Phase 4: 盤點/批量 ==========

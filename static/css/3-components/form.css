@@ -7,41 +7,41 @@
 
   /* 單位搜尋框（2026-08-16：單位多時用搜尋較快，輸入過濾相似單位） */
   .unit-search {
-    width: 100%; padding: 7px 10px 7px 28px; border: 1px solid #ccc; border-radius: 8px;
-    font-size: 13px; background: #f7f8fa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 8px center;
+    width: 100%; padding: 7px 10px 7px 28px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md);
+    font-size: var(--fs-13); background: var(--c-surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 8px center;
   }
-  .unit-search:focus { outline: 2px solid #2d5a8e33; border-color: #2d5a8e; background-color: #fff; }
+  .unit-search:focus { outline: 2px solid color-mix(in srgb, var(--c-primary) 20%, transparent); border-color: var(--c-primary); background-color: var(--c-white); }
   .unit-search:focus::placeholder { opacity: 0; }        /* 家豪 08-16：聚焦後灰字消失 */
   .unit-search:focus { background-image: none; }          /* 聚焦後 🔍 圖案消失（乾淨輸入框） */
-  .unit-search::placeholder { color: #aaa; }
-  .hint-nonstock { font-size: 12px; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 7px 10px; margin-bottom: 12px; }
+  .unit-search::placeholder { color: var(--c-border-control); }
+  .hint-nonstock { font-size: var(--fs-12); color: var(--c-success-strong); background: var(--c-success-soft); border: 1px solid var(--c-success-border); border-radius: var(--r-md); padding: 7px 10px; margin-bottom: 12px; }
   /* v10.1：相似品項警示框（新增/編輯時浮出） */
   .similar-warn {
-    margin-top: 8px; padding: 8px 10px; border-radius: 8px;
-    background: #fff8e6; border: 1px solid #f0d48a;
-    font-size: 12px; color: #8a6d1a; line-height: 1.6;
+    margin-top: 8px; padding: 8px 10px; border-radius: var(--r-md);
+    background: var(--c-warning-soft); border: 1px solid var(--c-warning);
+    font-size: var(--fs-12); color: var(--c-warning-strong); line-height: 1.6;
   }
   .similar-warn .sim-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .similar-warn .sim-row + .sim-row { margin-top: 4px; }
-  .similar-warn a { color: #2d5a8e; font-weight: 600; text-decoration: none; flex-shrink: 0; }
+  .similar-warn a { color: var(--c-primary); font-weight: var(--fw-medium); text-decoration: none; flex-shrink: 0; }
   /* v10.1：編輯 modal 照片區塊 */
   .photo-box { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
-  .photo-box img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid #e3e8ef; }
+  .photo-box img { width: 84px; height: 84px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--c-border); }
   .photo-box .photo-actions { display: flex; flex-direction: column; gap: 6px; }
   .form-row { margin-bottom: 12px; }
-  .form-row label:not(.btn) { display: block; font-size: 12.5px; font-weight: 600; color: #666; margin-bottom: 4px; }
+  .form-row label:not(.btn) { display: block; font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--c-muted); margin-bottom: 4px; }
   .form-row input, .form-row select, .form-row textarea {
     width: 100%; padding: 9px 12px;
-    border: 1.5px solid #d0d5dd; border-radius: 8px;
-    font-size: 14px; outline: none;
+    border: 1.5px solid var(--c-border-strong); border-radius: var(--r-md);
+    font-size: var(--fs-14); outline: none;
   }
-  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: #2d5a8e; }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--c-primary); }
   .form-row textarea { resize: vertical; min-height: 50px; }
   .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 /* v11.2 修改密碼 modal：密碼強度即時打勾 + 確認不一致警示 */
 .pw-checks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.pw-check { font-size: 11px; color: #888; background: #f0f2f5; border-radius: 12px; padding: 3px 8px; display: inline-block; }
-.pw-check.ok { color: #15803d; background: #dcfce7; }
-.cpw-mismatch { font-size: 11px; color: #b45309; background: #fef3c7; padding: 6px 10px; border-radius: 6px; margin-top: 6px; }
+.pw-check { font-size: var(--fs-11); color: var(--c-muted); background: var(--c-border); border-radius: var(--r-lg); padding: 3px 8px; display: inline-block; }
+.pw-check.ok { color: var(--c-success-strong); background: var(--c-success-soft); }
+.cpw-mismatch { font-size: var(--fs-11); color: var(--c-out); background: var(--c-warning-soft); padding: 6px 10px; border-radius: var(--r-sm); margin-top: 6px; }
 }

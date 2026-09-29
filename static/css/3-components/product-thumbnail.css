@@ -4,9 +4,9 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--r-md);
 }
-.product-thumbnail-wrap { width: 100%; height: 100%; background: #f8fafc; }
-.product-thumbnail-placeholder { background: #f1f5f9; color: #94a3b8; font-size: 20px; }
+.product-thumbnail-wrap { width: 100%; height: 100%; background: var(--c-surface-2); }
+.product-thumbnail-placeholder { background: var(--c-surface-2); color: var(--c-border-control); font-size: var(--fs-20); }
 .product-thumbnail-placeholder[hidden] { display: none; }
 }

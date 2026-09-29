@@ -17,7 +17,7 @@
 | `test_appointments.py` | `regression` | `full-only` | calendar / sync regression |
 | `test_backup_db.py` | `core` | `full-only` | 每日資料庫備份腳本 / monitor 整合 |
 | `test_config.py` | `core` | `full-only` | config contract |
-| `test_css_architecture.py` | `frontend` | `CI / Frontend + Security` | CSS 分層目錄 / 每檔包在所屬 @layer / HTML 無內嵌 <style>（規則隨重構階段逐步啟用） |
+| `test_css_architecture.py` | `frontend` | `CI / Frontend + Security` | CSS 分層目錄 / 每檔包在所屬 @layer / HTML 無內嵌 <style> / 頁面範圍 / 無 !important / 斷點白名單 / is-* 狀態 / 按鈕外觀只在 button.css・chip.css / 每個 <button> 套標準 class / 色碼・字級・字重・圓角・z-index 只能用 token |
 | `test_database_migrations.py` | `database`, `inventory` | `CI / Inventory + Database` | migration / seed rollback |
 | `test_deadvar_verify.py` | `regression` | `full-only` | dead variable regression |
 | `test_engineering_petty_cash.py` | `petty_cash`, `reports` | `CI / Reports` | engineering petty cash / Excel |
@@ -58,6 +58,7 @@
 | `test_work_progress.py` | `work_progress` | `full-only` | work progress API / media / RBAC |
 | `test_work_progress_ui_regressions.py` | `frontend`, `work_progress` | `CI / Frontend + Security` | frontend lifecycle regression |
 | `visual/test_css_isolation.py` | `visual` | `CI / Visual (browser)` | Playwright：CSS 跨頁外洩清單（`visual/known_css_leaks.json`）+ computed-style 版面契約；未安裝 visual 群組時自動略過（ubuntu runner） |
+| `visual/test_button_contract.py` | `visual` | `CI / Visual (browser)` | 所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須符合設計系統規格（變體顏色、框線、圓角、字級、字重、高度） |
 | `visual/test_state_interactions.py` | `visual` | `CI / Visual (browser)` | 狀態 class 互動契約（只檢查可見 / 選取外觀，不依賴 class 名稱）：modal、選單、頁籤、chip、收合、toast、overlay、bottom sheet |
 
 ## Auxiliary JavaScript harnesses
@@ -70,6 +71,7 @@
 - `tests/tab_async_lifecycle.test.js`
 - `tests/work_progress_detail_target_lifecycle.test.js`
 - `tests/work_progress_upload_progress.test.js`：由 `test_work_progress_ui_regressions.py` 執行（上傳進度條）
+- `tests/visual/button_probe.js`：由 `visual/test_button_contract.py` 使用
 - `tests/visual/leak_probe.js`、`harness.py`、`serve.py`：由 `visual/test_css_isolation.py` 使用；`snapshot.py` 是 CSS 重構用截圖比對 / 外洩清單更新 CLI
 
 ## Phase 2 boundary

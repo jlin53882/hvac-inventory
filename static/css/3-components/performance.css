@@ -7,8 +7,8 @@
   justify-content: center;
   gap: 12px;
   margin: 18px 0 28px;
-  color: #475569;
-  font-size: 13px;
+  color: var(--c-text-2);
+  font-size: var(--fs-13);
 }
 
 img[loading="lazy"] {
