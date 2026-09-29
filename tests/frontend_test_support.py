@@ -110,7 +110,7 @@ def read_shared_css() -> str:
     parts = []
     for directory in SHARED_CSS_DIRS:
         folder = os.path.join(STATIC, "css", directory)
-        for name in sorted(os.listdir(folder)):
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
             if name.endswith(".css"):
                 parts.append(read(os.path.join(folder, name)))
     return "\n".join(parts)
@@ -132,7 +132,8 @@ def read_css_all() -> str:
     parts = [read_shared_css()]
     for directory in ("4-pages", "5-utilities"):
         folder = os.path.join(STATIC, "css", directory)
-        for name in sorted(os.listdir(folder)):
+        # git 不追蹤空目錄：某層暫時沒有檔案時目錄可能不存在（P5 曾因此在 CI 失敗）
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
             if name.endswith(".css"):
                 parts.append(read(os.path.join(folder, name)))
     return "\n".join(parts)
