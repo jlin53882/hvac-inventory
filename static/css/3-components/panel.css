@@ -1,0 +1,144 @@
+/* 簽名報表與報價單共用的頁面外殼：頁首、卡片、表單欄位、按鈕、資訊框、空狀態（CSS 架構重構 P4 自 4-pages/signed-reports.css 抽出；dsr- 前綴於 P7.5 改為通用名稱） */
+@layer legacy {
+.dsr-page-header {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.dsr-page-title { min-width: 0; }
+.dsr-page-title h1 {
+  margin: 0;
+  color: #1e3a5f;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 900;
+}
+.dsr-new-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+.dsr-page-title p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12.5px;
+}
+.dsr-page-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.dsr-card {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .06);
+}
+.dsr-card__hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.dsr-card__hd h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #1e3a5f;
+  font-size: 15px;
+  font-weight: 800;
+}
+.dsr-card__hd p {
+  margin: 0 0 0 auto;
+  color: #64748b;
+  font-size: 12.5px;
+}
+.dsr-card__bd { padding: 16px; }
+@media (max-width: 767px) {
+.dsr-card__bd { padding: 14px; }
+}
+.dsr-form-grid { display: grid; gap: 12px; }
+@media (min-width: 560px) {
+.dsr-form-grid.dsr-form-grid--two { grid-template-columns: 1fr 1fr; }
+}
+.dsr-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+.dsr-field input, .dsr-field textarea {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+  box-sizing: border-box;
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+}
+.dsr-field input:focus, .dsr-field textarea:focus {
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(45, 90, 142, .15);
+}
+.dsr-field textarea { min-height: 72px; resize: vertical; }
+.dsr-required { color: #dc2626; }
+.dsr-btn, .dsr-btn-sm { font-family: inherit; cursor: pointer; }
+.dsr-btn {
+  padding: 9px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+.dsr-btn--primary { border-color: #1e3a5f; background: #1e3a5f; color: #fff; }
+.dsr-btn--primary:hover { background: #172a44; }
+.dsr-btn--ghost { background: #fff; color: #334155; }
+.dsr-btn-sm {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+.dsr-btn-sm--primary { border-color: #2d5a8e; background: #2d5a8e; color: #fff; }
+.dsr-info { padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #1e3a5f, #2d5a8e); color: #fff; }
+.dsr-info h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 800; }
+.dsr-info ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; color: rgba(255,255,255,.92); font-size: 12.5px; }
+.dsr-info li { display: flex; gap: 8px; }
+.dsr-info-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.dsr-info .dsr-badge { padding: 3px 7px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: rgba(255,255,255,.18); color: #fff; font-size: 11px; font-weight: 800; }
+.dsr-action-btn {
+  padding: 6px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dsr-action-btn:hover { border-color: #2d5a8e; color: #1e3a5f; }
+.dsr-action-btn--danger:hover { border-color: #dc2626; color: #dc2626; }
+.dsr-empty { padding: 26px; color: #94a3b8; text-align: center; }
+.dsr-empty__icon { margin-bottom: 8px; font-size: 28px; }
+}

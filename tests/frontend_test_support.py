@@ -20,6 +20,10 @@ CSS_KIT = os.path.join(STATIC, "css", "4-pages", "kit.css")
 CSS_STOCKTAKE = os.path.join(STATIC, "css", "4-pages", "stocktake.css")
 CSS_STOCKOUT = os.path.join(STATIC, "css", "4-pages", "stockout.css")
 CSS_INVENTORY_LOCATIONS = os.path.join(STATIC, "css", "4-pages", "inventory-locations.css")
+# CSS 架構重構 P4：待領出頁、異常清單 Dialog、簽名報表 / 報價單共用外殼自原檔抽出
+CSS_PREPARED = os.path.join(STATIC, "css", "4-pages", "prepared.css")
+CSS_STATUS_LIST = os.path.join(STATIC, "css", "3-components", "status-list.css")
+CSS_PANEL = os.path.join(STATIC, "css", "3-components", "panel.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js

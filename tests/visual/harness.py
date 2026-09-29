@@ -269,6 +269,9 @@ LEAK_SCENARIOS = [
     ("modal-kit-prepare", "kit", "kit", "openKitPrepareModal(1, '標準安裝包')"),
     ("modal-petty-cash", "petty-cash", "petty-cash", "pcOpenReportModal()"),
     ("modal-petty-cash-engineering", "petty-cash", "petty-cash", "pcOpenEngineeringModal()"),
+    ("modal-status-inventory", "inventory", "inventory", "showInventoryStatusList('low')"),
+    ("modal-status-stocktake", "stocktake", "stocktake", "showStocktakeList('low')"),
+    ("modal-status-kit", "kit", "kit", "showKitStatusList('insufficient')"),
 ]
 KNOWN_LEAKS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "known_css_leaks.json")
 

@@ -279,8 +279,7 @@ tr.row-danger td {background:#fff5f5}
    只作用於本檔新增的 page-scoped classes，不改 Sidebar / Navbar / 其他頁面。 */
 
 /* ===== Shared desktop content frame ===== */
-.content.inventory-content,
-.content.prepared-content {
+.content.inventory-content {
   width: 100%;
   max-width: none;
   margin: 0;
@@ -312,15 +311,13 @@ tr.row-danger td {background:#fff5f5}
   color: #2563eb;
   font-size: 22px;
 }
-.filter-panel.inventory-filter-panel .inventory-page-heading h1,
-.prepared-page-header h1 {
+.filter-panel.inventory-filter-panel .inventory-page-heading h1 {
   color: #0f172a;
   font-size: 26px;
   line-height: 1.25;
   font-weight: 700;
 }
-.filter-panel.inventory-filter-panel .inventory-page-heading p,
-.prepared-heading-copy p {
+.filter-panel.inventory-filter-panel .inventory-page-heading p {
   margin-top: 5px;
   color: #64748b;
   font-size: 14px;
@@ -387,9 +384,7 @@ button.inventory-kpi-card:hover {
   border-color: #cbd5e1;
   box-shadow: 0 4px 12px rgba(15, 23, 42, .06);
 }
-button.inventory-kpi-card:focus-visible,
-.inventory-status-close:focus-visible,
-.inventory-status-edit:focus-visible {
+button.inventory-kpi-card:focus-visible {
   outline: 3px solid rgba(37, 99, 235, .24);
   outline-offset: 2px;
 }
@@ -740,9 +735,7 @@ button.inventory-kpi-card:focus-visible,
 }
 
 /* ===== Inventory empty / status modal ===== */
-.inventory-empty-state,
-.prepared-empty-state,
-.prepared-error-state {
+.inventory-empty-state {
   min-height: 300px;
   display: flex;
   flex-direction: column;
@@ -754,21 +747,15 @@ button.inventory-kpi-card:focus-visible,
   background: #fff;
   text-align: center;
 }
-.inventory-empty-icon,
-.prepared-empty-icon,
-.prepared-error-icon {
+.inventory-empty-icon {
   margin-bottom: 12px;
   font-size: 42px;
 }
-.inventory-empty-state h2,
-.prepared-empty-state h2,
-.prepared-error-state h2 {
+.inventory-empty-state h2 {
   color: #334155;
   font-size: 18px;
 }
-.inventory-empty-state p,
-.prepared-empty-state p,
-.prepared-error-state p {
+.inventory-empty-state p {
   margin: 8px 0 18px;
   color: #94a3b8;
   font-size: 14px;
@@ -788,402 +775,92 @@ button.inventory-kpi-card:focus-visible,
   color: #475569;
   cursor: pointer;
 }
-.inventory-status-modal {
-  align-items: center;
-  padding: 24px;
-}
-.inventory-status-dialog {
-  width: min(980px, calc(100vw - 48px));
-  max-height: 84vh;
-  overflow: hidden;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 12px 40px rgba(15, 23, 42, .18);
-}
-.inventory-status-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 22px 24px 14px;
-  border-bottom: 1px solid #eef1f5;
-}
-.inventory-status-header h2 {
-  color: #0f172a;
-  font-size: 20px;
-}
-.inventory-status-header p {
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 13px;
-}
-.inventory-status-close {
-  width: 34px;
-  height: 34px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #64748b;
-  cursor: pointer;
-}
-.inventory-status-count {
-  padding: 12px 24px 0;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
-}
-.inventory-status-list {
-  max-height: calc(84vh - 138px);
-  overflow-y: auto;
-  padding: 12px 24px 24px;
-}
-.inventory-status-item {
-  min-height: 86px;
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 0;
-  border-bottom: 1px solid #eef1f5;
-}
-.inventory-status-item:last-child {
-  border-bottom: 0;
-}
-.inventory-status-item.is-low {
-  padding-left: 12px;
-}
-.inventory-status-item.is-out {
-  padding-left: 12px;
-}
-.inventory-status-thumb,
-.inventory-status-thumb img {
-  width: 64px;
-  height: 64px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-}
-.inventory-status-thumb {
-  overflow: hidden;
-  background: #f8fafc;
-  color: #94a3b8;
-  font-size: 20px;
-}
-.inventory-status-thumb img {
-  object-fit: cover;
-}
-.inventory-status-name {
-  color: #0f172a;
-  font-size: 15px;
-  font-weight: 700;
-}
-.inventory-status-sub,
-.inventory-status-location,
-.inventory-status-meta {
-  color: #64748b;
-  font-size: 12px;
-}
-.inventory-status-sub {
-  margin-top: 3px;
-}
-.inventory-status-location {
-  margin-top: 5px;
-}
-.inventory-status-values {
-  min-width: 116px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-}
-.inventory-status-values strong {
-  color: #0f172a;
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-}
-.inventory-status-values small {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 400;
-}
-.inventory-status-badge,
-.prepared-status-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.inventory-status-badge.status-low,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 .inventory-card-status.status-low {
   background: #fef3c7;
   color: #d97706;
 }
-.inventory-status-badge.status-out,
 .inventory-card-status.status-out {
   background: #fee2e2;
   color: #dc2626;
 }
-.inventory-status-edit {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #2563eb;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-}
-.inventory-status-empty {
-  padding: 60px 20px;
-  color: #64748b;
-  text-align: center;
-}
-.inventory-status-empty span {
-  display: block;
-  margin-bottom: 10px;
-  color: #16a34a;
-  font-size: 30px;
-}
-.inventory-status-empty p {
-  margin-top: 6px;
-  color: #94a3b8;
-  font-size: 13px;
-}
 
-/* ===== Pending/prepared page ===== */
-.prepared-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 16px;
-}
-.prepared-heading-copy {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-.prepared-heading-icon {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 44px;
-  border-radius: 12px;
-  background: #f5f3ff;
-  color: #6d28d9;
-  font-size: 21px;
-}
-.prepared-page-header h1 span {
-  color: #64748b;
-  font-size: 16px;
-  font-weight: 500;
-}
-.prepared-header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.prepared-summary-card {
-  justify-content: center;}
-
-.prepared-summary-card span {
-  color: #64748b;}
 
 
 
 
-.prepared-page-header .btn-add-inv {
-  min-height: 42px;
-  padding: 0 20px;
-  border-radius: 8px;
-  font-size: 14px;
-}
-.prepared-alert {
-  margin-bottom: 18px;
-  padding: 11px 14px;
-  border: 1px solid #e9d5ff;
-  border-radius: 9px;
-  background: #f5f3ff;
-  color: #6d28d9;
-  font-size: 13px;
-}
-.prepared-panel {
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
-}
-.prepared-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 56px;
-  padding: 0 20px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
-}
-.prepared-toolbar strong {
-  color: #334155;
-  font-size: 15px;
-}
-.prepared-toolbar span {
-  margin-left: 10px;
-  color: #94a3b8;
-  font-size: 13px;
-}
-.prepared-table-wrap {
-  overflow-x: auto;
-}
-.prepared-table {
-  width: 100%;
-  min-width: 980px;
-  border-collapse: collapse;
-}
-.prepared-table th {
-  height: 46px;
-  padding: 0 16px;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  white-space: nowrap;
-}
-.prepared-table td {
-  height: 108px;
-  padding: 14px 16px;
-  border-bottom: 1px solid #eef1f5;
-  vertical-align: middle;
-}
-.prepared-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.prepared-table tbody tr:hover td {
-  background: #fafcff;
-}
-.prepared-col-photo,
-.prepared-photo-cell {
-  width: 108px;
-}
-.prepared-col-qty,
-.prepared-quantity-cell {
-  width: 160px;
-}
-.prepared-col-stock,
-.prepared-stock-cell {
-  width: 150px;
-}
-.prepared-col-actions,
-.prepared-actions-cell {
-  width: 360px;
-}
-.prepared-photo {
-  width: 72px;
-  height: 72px;
-  display: block;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  cursor: zoom-in;
-}
-.prepared-photo-empty {
-  display: grid;
-  place-items: center;
-  color: #94a3b8;
-  font-size: 22px;
-  cursor: default;
-}
-.prepared-item-name {
-  color: #0f172a;
-  font-size: 15px;
-  font-weight: 700;
-}
-.prepared-item-model {
-  margin-top: 5px;
-  color: #2563eb;
-  font-size: 13px;
-  font-weight: 600;
-}
-.prepared-item-location {
-  margin-top: 6px;
-  color: #64748b;
-  font-size: 12px;
-}
-.prepared-qty-badge,
-.prepared-stock-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 11px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.prepared-qty-badge {
-  border: 1px solid #ddd6fe;
-  background: #f5f3ff;
-  color: #6d28d9;
-}
-.prepared-stock-badge {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #334155;
-}
-.prepared-qty-badge small,
-.prepared-stock-badge small {
-  margin-left: 4px;
-  font-size: 11px;
-  font-weight: 400;
-}
-.prepared-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-.prepared-row-actions .btn-out,
-.prepared-row-actions .btn-prepare,
-.prepared-row-actions .btn-del {
-  min-height: 38px;
-  margin: 0;
-  padding: 0 13px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-.prepared-row-actions .btn-out:hover {
-  background: #fffbeb;
-}
-.prepared-row-actions .btn-prepare:hover {
-  background: #f5f3ff;
-}
-.prepared-row-actions .btn-del:hover {
-  background: #fef2f2;
-}
-.prepared-mobile-list {
-  display: none;
-}
-.prepared-error-state {
-  min-height: 360px;
-}
-.prepared-error-icon {
-  color: #dc2626;
-}
+/* ===== Pending/prepared page ===== */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* ===== Responsive targets ===== */
 @media (max-width: 1440px) {
-  .content.inventory-content,
-  .content.prepared-content {
+  .content.inventory-content {
     padding: 24px 24px 40px;
   }
   .filter-panel.inventory-filter-panel {
@@ -1203,14 +880,8 @@ button.inventory-kpi-card:focus-visible,
   .inventory-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .prepared-page-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .prepared-header-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
+  
+  
 }
 
 @media (max-width: 767px) {
@@ -1220,16 +891,13 @@ button.inventory-kpi-card:focus-visible,
   .filter-panel.inventory-filter-panel .inventory-page-heading {
     padding: 16px 0 14px;
   }
-  .filter-panel.inventory-filter-panel .inventory-page-heading h1,
-  .prepared-page-header h1 {
+  .filter-panel.inventory-filter-panel .inventory-page-heading h1 {
     font-size: 21px;
   }
-  .filter-panel.inventory-filter-panel .inventory-page-heading p,
-  .prepared-heading-copy p {
+  .filter-panel.inventory-filter-panel .inventory-page-heading p {
     font-size: 12px;
   }
-  .content.inventory-content,
-  .content.prepared-content {
+  .content.inventory-content {
     padding: 16px 14px 92px;
   }
 
@@ -1269,88 +937,33 @@ button.inventory-kpi-card:focus-visible,
   .inventory-content .item-card .inventory-stockout-actions {
     flex-wrap: wrap;
   }
-  .inventory-status-modal {
-    padding: 12px;
-  }
-  .inventory-status-dialog {
-    width: calc(100vw - 24px);
-    max-height: 90vh;
-  }
-  .inventory-status-header,
-  .inventory-status-list {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-  .inventory-status-list {
-    max-height: calc(90vh - 138px);
-  }
-  .inventory-status-item {
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 10px;
-  }
-  .inventory-status-thumb,
-  .inventory-status-thumb img {
-    width: 52px;
-    height: 52px;
-  }
-  .inventory-status-values {
-    grid-column: 2;
-    align-items: flex-start;
-  }
-  .inventory-status-edit {
-    grid-column: 2;
-    justify-self: start;
-  }
-  .prepared-page-header {
-    gap: 14px;
-  }
-  .prepared-heading-copy {
-    gap: 10px;
-  }
-  .prepared-heading-icon {
-    width: 38px;
-    height: 38px;
-    flex-basis: 38px;
-    font-size: 18px;
-  }
-  .prepared-header-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    width: 100%;
-  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
-  .prepared-page-header .btn-add-inv {
-    grid-column: 1 / -1;
-  }
-  .prepared-panel {
-    border-radius: 12px;
-  }
-  .prepared-toolbar {
-    min-height: 48px;
-    padding: 0 14px;
-  }
-  .prepared-table-wrap {
-    display: none;
-  }
-  .prepared-mobile-list {
-    display: block;
-    padding: 10px;
-  }
-  .prepared-mobile-card {
-    margin-bottom: 10px;
-    border-color: #e2e8f0;
-    box-shadow: none;
-  }
-  .prepared-mobile-card:last-child {
-    margin-bottom: 0;
-  }
+  
+  
+  
+  
+  
+  
+  
 }
 /* Mobile prepared cards：品名與非庫存 badge 可自然換行。 */
-.prepared-content .m-card .nm { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
-.prepared-content .prepared-mobile-name { display: block; flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-.prepared-content .prepared-mobile-model { display: block; flex-basis: 100%; margin-top: 2px; color: #2563eb; font-size: 11px; font-weight: 600; }
-.prepared-content .prepared-mobile-location { margin-top: 4px; color: #64748b; font-size: 11px; }
-.prepared-content .tag-nonstock { flex: 0 0 auto; white-space: nowrap; }
+
+
+
+
+
 @media (max-width: 767px) {
   .inventory-content .loc-export-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .inventory-content .loc-export-count { flex: 1 1 auto; min-width: 0; }
@@ -1361,9 +974,9 @@ button.inventory-kpi-card:focus-visible,
 }
 
 /* Mobile card/action alignment：避免共用 m-card 規則壓縮頁面專屬內容。 */
-.prepared-content .m-card .info { padding-right: 0; }
-.prepared-content .m-card .qty-col { width: 46px; padding-right: 0; }
-.prepared-content .prepared-mobile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+
+
+
 @media (max-width: 767px) {
   .inventory-content .tbl-wrap .col-actions { white-space: nowrap; }
   .inventory-content .tbl-wrap .inventory-stockout-actions { display: inline-flex; flex-direction: row; align-items: center; flex-wrap: nowrap; vertical-align: middle; white-space: nowrap; }
@@ -1377,120 +990,34 @@ button.inventory-kpi-card:focus-visible,
 .inventory-content .item-loc-label { font-weight: 700; }
 
 /* 共用商品/庫存異常清單：Desktop compact list + Mobile compact product row */
-.inventory-status-dialog {
-  width: min(1180px, calc(100vw - 64px));
-  max-height: 88vh;
-}
-.inventory-status-header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  min-height: 76px;
-  padding: 18px 24px 12px;
-  background: #fff;
-}
-.inventory-status-header.is-low { border-top: 3px solid #f59e0b; }
-.inventory-status-header.is-out { border-top: 3px solid #ef4444; }
-.status-list-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: #475569;
-  white-space: nowrap;
-}
-.status-list-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
-  border-bottom: 1px solid #eef1f5;
-  background: #fff;
-}
-.status-list-search,
-.status-list-location {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
-}
-.status-list-search { flex: 1 1 auto; min-width: 0; }
-.status-list-search input,
-.status-list-location select {
-  min-height: 36px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #0f172a;
-  font-size: 13px;
-}
-.status-list-search input { width: 100%; padding: 0 12px; }
-.status-list-location select { min-width: 150px; padding: 0 10px; }
-.status-list-search input:focus,
-.status-list-location select:focus { outline: 3px solid rgba(37,99,235,.14); border-color: #2563eb; }
-.status-list-column-headings {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) 160px 130px 88px;
-  gap: 16px;
-  padding: 10px 24px 6px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: none;
-}
-.status-list-table {
-  max-height: calc(88vh - 190px);
-  padding: 4px 24px 24px;
-}
-.status-list-table .inventory-status-item {
-  grid-template-columns: 76px minmax(0, 1fr) 160px 130px 88px;
-  min-height: 72px;
-  gap: 16px;
-  padding: 10px 0;
-  position: relative;
-}
-.status-list-table .inventory-status-thumb,
-.status-list-table .inventory-status-thumb img,
-.status-list-table .product-thumbnail-wrap,
-.status-list-table .product-thumbnail-placeholder {
-  width: 72px;
-  height: 72px;
-}
-.product-thumbnail-wrap,
-.product-thumbnail-placeholder {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 10px;
-}
-.product-thumbnail-wrap { width: 100%; height: 100%; background: #f8fafc; }
-.product-thumbnail-placeholder { background: #f1f5f9; color: #94a3b8; font-size: 20px; }
-.product-thumbnail-placeholder[hidden] { display: none; }
-.status-list-table .inventory-status-thumb img { display: block; }
-.status-list-table .inventory-status-info { min-width: 0; }
-.status-list-table .inventory-status-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.status-list-table .inventory-status-values { min-width: 0; align-items: flex-start; }
-.status-list-table .inventory-status-edit { justify-self: end; }
-.status-list-table .kit-status-missing {
-  grid-column: 1 / -1;
-  color: #64748b;
-  font-size: 12px;
-}
-.status-list-table .kit-status-missing span {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 6px;
-  border-radius: 5px;
-  background: #fee2e2;
-  color: #b91c1c;
-}
-.status-list-table .stocktake-status-extra {
-  margin-top: 4px;
-  color: #b45309;
-  font-size: 12px;
-  font-weight: 600;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 .inventory-content .loc-export-bar .btn-add-inv {
   border: 1px solid #2563eb;
   background: #fff;
@@ -1498,68 +1025,7 @@ button.inventory-kpi-card:focus-visible,
 }
 .inventory-content .loc-export-bar .btn-add-inv:hover { background: #eff6ff; }
 
-@media (max-width: 767px) {
-  .inventory-status-modal { padding: 12px; }
-  .inventory-status-dialog {
-    width: calc(100vw - 24px);
-    max-height: 94dvh;
-    border-radius: 20px 20px 0 0;
-  }
-  .inventory-status-header {
-    min-height: 64px;
-    padding: 14px 16px 10px;
-  }
-  .inventory-status-header h2 { font-size: 18px; }
-  .inventory-status-header p { max-width: 70vw; font-size: 12px; }
-  .status-list-header-actions { gap: 8px; }
-  .status-list-column-headings { display: none; }
-  .status-list-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-    padding: 10px 16px;
-  }
-  .status-list-location select { flex: 1; min-width: 0; }
-  .status-list-table {
-    max-height: calc(94dvh - 172px);
-    padding: 4px 16px 16px;
-  }
-  .status-list-table .inventory-status-item {
-    grid-template-columns: 58px minmax(0, 1fr);
-    min-height: 112px;
-    gap: 8px 10px;
-    padding: 10px 0;
-  }
-  .status-list-table .inventory-status-thumb,
-  .status-list-table .inventory-status-thumb img,
-  .status-list-table .product-thumbnail-wrap,
-  .status-list-table .product-thumbnail-placeholder {
-    width: 58px;
-    height: 58px;
-  }
-  .status-list-table .inventory-status-location {
-    grid-column: 2;
-    margin-top: 0;
-  }
-  .status-list-table .inventory-status-values {
-    grid-column: 2;
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding-right: 72px;
-  }
-  .status-list-table .inventory-status-values strong { font-size: 15px; }
-  .status-list-table .inventory-status-edit {
-    position: absolute;
-    right: 0;
-    bottom: 10px;
-    grid-column: auto;
-    justify-self: auto;
-    min-height: 30px;
-  }
-  .status-list-table .kit-status-missing { grid-column: 2; }
-}
+
 
 /* 增減庫存 dialog 快捷列（2026-09-12 分數/小數單位；modal 本體沿用全域 .modal 樣式） */
 .qtyd-quick { display: flex; gap: 8px; margin: 2px 0 10px; }
@@ -1596,8 +1062,8 @@ button.inventory-kpi-card:focus-visible,
 .kit-subitem-qty { font-weight: 600; color: #334155; white-space: nowrap; }
 
 /* ========== 待領出準備說明 ========== */
-.prepared-item-dest { font-size: 11px; color: #0369a1; margin-top: 2px; }
-.prepared-card-dest { font-size: 11px; color: #0369a1; margin-top: 2px; }
+
+
 
 /* ========== 手機版整組子品項 ========== */
 .kit-subitems-mobile-wrap { padding: 0 12px 8px; }

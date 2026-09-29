@@ -17,7 +17,8 @@ DIR_LAYERS = {
     "0-tokens": {"tokens"},
     "1-base": {"base"},
     "2-layout": {"layout"},
-    "3-components": {"components"},
+    # P4 過渡：自頁面檔抽出的共用規則（panel / status-list / product-thumbnail）暫留 legacy，P5 歸位後收回
+    "3-components": {"components", "legacy"},
     "4-pages": {"pages", "legacy"},
     "5-utilities": {"utilities", "legacy"},
     "legacy": {"legacy"},

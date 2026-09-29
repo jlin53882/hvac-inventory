@@ -8,11 +8,17 @@
   .stock-row .stock-qty { flex-shrink: 0; width: 60px; }
   .stock-row .stock-note { flex: 1; min-width: 0; }
 
-  /* 欄位標頭（新增/編輯 modal 兩段式位置上方） */
-  .col-headers { display: flex; gap: 6px; padding: 0 0 2px; font-size: 10px; color: #aaa; font-weight: 500; letter-spacing: 0.3px; }
-  .col-headers span { box-sizing: border-box; }
-  .col-headers .ch-cabinet { flex: 1; min-width: 0; }
-  .col-headers .ch-pos { flex: 1; min-width: 0; }
-  .col-headers .ch-qty { flex-shrink: 0; width: 60px; }
-  .col-headers .ch-note { flex: 1; min-width: 0; }
+  /* 欄位標頭（新增 / 編輯品項、整組 modal 共用）。
+     CSS 架構重構 P4：原本 core 的 10px 淺灰基底一直被 kit.css 未加範圍的 .col-headers 蓋掉，
+     實際外觀來自 kit.css；兩者合併於此成為唯一來源。新增 / 編輯品項的 5 欄 grid 見 4-pages/inventory-locations.css */
+  .col-headers {
+    display: flex; gap: 8px; padding: 8px 0; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb;
+    font-size: 12px; font-weight: 600; color: #666; letter-spacing: 0.3px;
+  }
+  .col-headers span { box-sizing: border-box; flex: 1; min-width: 0; }
+  .col-headers .ch-cabinet { flex: 0 0 25%; min-width: 0; }
+  .col-headers .ch-pos { flex: 0 0 25%; min-width: 0; }
+  .col-headers .ch-qty { flex: 0 0 15%; width: 60px; }
+  .col-headers .ch-note { flex: 1; min-width: 120px; }
+  .col-headers .ch-remove { flex: 0 0 32px; }
 }

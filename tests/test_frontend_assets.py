@@ -37,6 +37,9 @@ from frontend_test_support import (
     read_shared_css,
     CSS_INVENTORY,
     CSS_INVENTORY_LOCATIONS,
+    CSS_PANEL,
+    CSS_PREPARED,
+    CSS_STATUS_LIST,
     CSS_KIT,
     CSS_STOCKOUT,
     CSS_STOCKTAKE,
@@ -222,7 +225,7 @@ def test_signed_reports_demo_layout_contract():
 def test_signed_reports_actions_and_editable_note_contract():
     """DSR：圖片直接預覽；下載/刪除/編輯日期、檔案、上傳人與備註均為圖示加文字操作。"""
     js = read(SIGNED_REPORTS_RENDER_JS)
-    css = read(SIGNED_REPORTS_CSS)
+    css = read(SIGNED_REPORTS_CSS) + read(CSS_PANEL)  # P4：與報價單共用的外殼（按鈕 / 卡片 / 欄位）在 panel.css
     assert "onclick=\"dsrPreview(${r.id})\"" in js
     assert "!isImage" in js
     assert "class=\"dsr-report-thumb\"" in js
@@ -3410,11 +3413,12 @@ def test_desktop_inventory_and_prepared_styles_are_loaded():
     assert "'inventory': 'inventory-content'" in app
     assert "'prepared': 'prepared-content'" in app
     assert ".content.inventory-content" in css
-    assert ".content.prepared-content" in css
+    assert ".content.prepared-content" in read(CSS_PREPARED)
+    assert "/static/css/4-pages/prepared.css" in html
     assert 'class="filter-panel inventory-filter-panel"' in html
     assert ".filter-panel.inventory-filter-panel" in css
     assert "#filter-panel" not in css
-    assert ".inventory-status-modal" in css
+    assert ".inventory-status-modal" in read(CSS_STATUS_LIST)
 
 
 def test_inventory_status_kpis_and_detail_share_filtered_status_source():
@@ -3602,12 +3606,12 @@ def test_prepared_desktop_layout_keeps_existing_action_handlers():
 
 
 def test_desktop_inventory_pending_visual_system_css():
-    """單一庫存/待領出 desktop CSS 含 KPI、狀態、表格及 responsive 規則。"""
-    css = read(CSS_INVENTORY)
+    """單一庫存/待領出 desktop CSS 含 KPI、狀態、表格及 responsive 規則（P4 起待領出 / 異常清單各自成檔）。"""
+    css = read(CSS_INVENTORY) + read(CSS_PREPARED) + read(CSS_STATUS_LIST)
     for token in (".inventory-page-heading", ".inventory-kpi-card", ".inventory-status-dialog",
                   ".prepared-page-header", ".prepared-summary-card", ".prepared-table-wrap",
                   ".prepared-qty-badge", ".prepared-stock-badge", ".status-low", ".status-out"):
-        assert token in css, f"4-pages/inventory.css 缺少 {token}"
+        assert token in css, f"庫存 / 待領出 / 異常清單 CSS 缺少 {token}"
     assert "@media (max-width: 1440px)" in css
     assert "@media (max-width: 767px)" in css
 
@@ -3670,9 +3674,9 @@ def test_stocktake_desktop_dashboard_assets_and_scope():
         assert token in js or token in css, f"盤點頁缺少 {token}"
     assert "stk-pane-kit" in js and "stk-pane-single" in js
     assert ".stocktake-content" in css
-    # stocktake-status-extra 透過共用 status-list CSS（4-pages/inventory.css）提供
-    inv_css = read(CSS_INVENTORY)
-    assert ".status-list-table .stocktake-status-extra" in inv_css or "stocktake-status-extra" in inv_css
+    # stocktake-status-extra 透過共用 status-list CSS（3-components/status-list.css）提供
+    status_css = read(CSS_STATUS_LIST)
+    assert ".status-list-table .stocktake-status-extra" in status_css or "stocktake-status-extra" in status_css
     assert ".stocktake-content .stocktake-status-item .stocktake-status-extra" not in css
 
 
@@ -3818,7 +3822,7 @@ def test_stocktake_mobile_table_and_header_keep_columns_readable():
 def test_prepared_mobile_nonstock_badge_has_wrapping_layout():
     """待領出手機非庫存 badge 不得被品名 nowrap/ellipsis 切斷。"""
     js = read(PREPARED_RENDER_JS)
-    css = read(CSS_INVENTORY)
+    css = read(CSS_PREPARED)
     assert 'prepared-mobile-name' in js
     assert '.prepared-content .m-card .nm' in css
     assert 'white-space: normal;' in css
@@ -3878,7 +3882,7 @@ def test_stocktake_mobile_list_keeps_readable_width_with_horizontal_scroll():
 
 def test_prepared_mobile_card_keeps_stock_badge_in_layout():
     """待領出手機卡片資訊欄不被右側數量欄擠壓，badge 可正常排列。"""
-    css = read(CSS_INVENTORY)
+    css = read(CSS_PREPARED)
     assert '.prepared-content .m-card .info { padding-right: 0;' in css
     assert '.prepared-content .m-card .qty-col {' in css
     assert 'width: 46px; padding-right: 0;' in css
