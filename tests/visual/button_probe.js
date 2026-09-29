@@ -1,6 +1,8 @@
 // 按鈕 / chip 外觀契約探針（CSS 架構重構 P7.5）。
-// 回傳目前畫面上每個可見 .btn / .chip 的 computed style 與規格不符之處，以及沒有套標準 class 的可見 <button>。
-(() => {
+// 回傳目前畫面上每個可見 .btn / .chip 的 computed style 與規格不符之處（problems），
+// 以及既不是 .btn / .chip、也不是已登記專用控制項的可見 <button>（unstyled）。
+// 參數 specialized：tests/button_contract.json 的 specialized_button_classes（與靜態測試共用）。
+((specialized) => {
   const rgb = (h) => { const n = parseInt(h.slice(1), 16); return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`; };
   const WHITE = 'rgb(255, 255, 255)';
   const VARIANTS = {
@@ -64,9 +66,11 @@
     if (cs.fontSize !== '12px') want.push(`字級 ${cs.fontSize}`);
     if (want.length) problems.push(label(el) + ': ' + want.join('、'));
   });
+  const allowed = new Set(specialized || []);
   const unstyled = [];
   document.querySelectorAll('button').forEach((el) => {
     if (!visible(el) || el.classList.contains('btn') || el.classList.contains('chip')) return;
+    if ([...el.classList].some((c) => allowed.has(c))) return;
     unstyled.push(label(el));
   });
   return { problems, unstyled };

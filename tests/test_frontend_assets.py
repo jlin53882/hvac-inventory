@@ -4220,7 +4220,8 @@ def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
     js = read(os.path.join(STATIC, "js", "modals", "inventory-export.js"))
-    css = read(os.path.join(STATIC, "css", "4-pages", "inventory.css"))
+    # 匯出對話框庫存 / 整組 / 已領出三頁共用 → 樣式屬於共用元件，不可限定在庫存頁
+    css = read(os.path.join(STATIC, "css", "3-components", "export-dialog.css"))
     assert "openInventoryExportDialog" in js
     assert "submitInventoryExport" in js
     assert "closeInventoryExportDialog" in js
@@ -4244,8 +4245,9 @@ def test_inventory_export_dialog_contract():
     assert "Content-Disposition" in js
     assert 'id="inventory-export-dialog"' in index
     assert 'src="/static/js/modals/inventory-export.js"' in index
-    assert ".inventory-export-dialog" in css
+    assert ".inventory-export-dialog" in css and '[data-page=' not in css
     assert "@media (max-width: 767px)" in css
+    assert 'href="/static/css/3-components/export-dialog.css"' in index
     inventory = read(INVENTORY_RENDER_JS)
     assert "openInventoryExportDialog();closeMoreActions()" in inventory
     assert "onclick=\"openInventoryExportDialog()\"" in inventory

@@ -60,6 +60,24 @@ def test_kit_modal_location_headers_flex(page, live_server):
     assert _computed(page, f"{headers} .ch-note", "min-width") == "120px"
 
 
+@pytest.mark.parametrize("tab,dialog,opener", [
+    ("inventory", "#inventory-export-dialog", "openInventoryExportDialog()"),
+    ("kit", "#kit-export-dialog", "openKitExportDialog()"),
+    ("stockout", "#stockout-export-dialog", "openStockoutExportDialog()"),
+])
+def test_export_dialog_styled_on_every_page(page, live_server, viewport, tab, dialog, opener):
+    """匯出報表對話框三頁共用：每一頁開啟都要有同一套版面
+    （回歸：P5 曾把樣式誤限定在庫存頁，整組 / 已領出頁的對話框變成未排版的原生表單）。"""
+    harness.open_tab(page, live_server, tab)
+    harness.run_action(page, opener)
+    assert _computed(page, f"{dialog} .inventory-export-dialog__header", "display") == "flex"
+    assert _computed(page, f"{dialog} .inventory-export-dialog__footer", "display") == "flex"
+    assert _computed(page, f"{dialog} .inventory-export-dialog__close", "border-top-width") == "0px"
+    assert _computed(page, f"{dialog} .inventory-export-period-fields", "display") == "flex"
+    width = page.eval_on_selector(f"{dialog} .inventory-export-dialog__panel", "el => el.getBoundingClientRect().width")
+    assert width <= (560 if viewport[0] == "desktop" else 390 - 24 + 1)
+
+
 def test_modal_overlay_stacks_above_shell(page, live_server):
     """modal 疊層高於 header / sidebar。"""
     harness.open_tab(page, live_server, "inventory")

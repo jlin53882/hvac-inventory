@@ -1,0 +1,27 @@
+/* 匯出報表對話框（單一庫存 / 整組 / 已領出三頁共用：#inventory-export-dialog、#kit-export-dialog、#stockout-export-dialog）。
+   2026-09-29 自 4-pages/inventory.css 移出：P5 加頁面範圍時誤限定為 [data-page="inventory"]，整組與已領出頁的匯出對話框因此失去樣式。 */
+@layer components {
+  .inventory-export-dialog__panel { width: min(560px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; padding: 0; }
+  .inventory-export-dialog__header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--c-border); }
+  .inventory-export-dialog__header h3 { margin: 0; color: var(--c-primary-strong); }
+  .inventory-export-dialog__close { border: 0; background: transparent; color: var(--c-muted); font-size: var(--fs-20); cursor: pointer; }
+  .inventory-export-section { padding: 16px 20px; border-bottom: 1px solid var(--c-border); }
+  .inventory-export-section > strong { display: block; margin-bottom: 10px; color: var(--c-text-2); font-size: var(--fs-13); }
+  .inventory-export-period-choice, .inventory-export-check, .inventory-export-content-list label { display: flex; align-items: center; gap: 8px; color: var(--c-text-2); font-size: var(--fs-13); margin: 8px 0; }
+  .inventory-export-period-fields { display: flex; align-items: center; gap: 6px; margin: 4px 0 12px 24px; color: var(--c-muted); }
+  .inventory-export-period-fields input, .inventory-export-period-fields select { min-width: 0; padding: 7px 8px; border: 1px solid var(--c-border-strong); border-radius: var(--r-sm); background: var(--c-white); color: var(--c-text); }
+  .inventory-export-period-fields input[type="number"] { width: 90px; }
+  .inventory-export-period-fields select { width: 100px; }
+  .inventory-export-sites, .inventory-export-content-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
+  .inventory-export-sites label { display: flex; align-items: center; gap: 8px; color: var(--c-text-2); font-size: var(--fs-13); }
+  .inventory-export-note { margin: 12px 0 0; padding: 9px 10px; border-radius: var(--r-sm); background: var(--c-primary-soft); color: var(--c-primary); font-size: var(--fs-12); }
+  .inventory-export-dialog__footer { display: flex; gap: 10px; padding: 14px 20px 18px; }
+  .inventory-export-dialog__footer button { flex: 1; }
+  @media (max-width: 767px) {
+    .inventory-export-dialog__panel { width: calc(100vw - 24px); max-height: 92dvh; }
+    .inventory-export-dialog__header, .inventory-export-section { padding-left: 16px; padding-right: 16px; }
+    .inventory-export-period-fields { margin-left: 0; flex-wrap: wrap; }
+    .inventory-export-period-fields input[type="date"] { width: 100%; }
+    .inventory-export-dialog__footer { padding-left: 16px; padding-right: 16px; }
+  }
+}

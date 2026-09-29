@@ -762,28 +762,4 @@
 [data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--c-surface-2); font-size: var(--fs-12); }
 [data-page="inventory"] .kit-subitems-mobile-wrap .kit-subitems-list .kit-subitem:last-child { border-bottom: none; }
 
-/* Inventory Excel export dialog — scoped to avoid global modal collisions. */
-[data-page="inventory"] .inventory-export-dialog__panel { width: min(560px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; padding: 0; }
-[data-page="inventory"] .inventory-export-dialog__header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--c-border); }
-[data-page="inventory"] .inventory-export-dialog__header h3 { margin: 0; color: var(--c-primary-strong); }
-[data-page="inventory"] .inventory-export-dialog__close { border: 0; background: transparent; color: var(--c-muted); font-size: var(--fs-20); cursor: pointer; }
-[data-page="inventory"] .inventory-export-section { padding: 16px 20px; border-bottom: 1px solid var(--c-border); }
-[data-page="inventory"] .inventory-export-section > strong { display: block; margin-bottom: 10px; color: var(--c-text-2); font-size: var(--fs-13); }
-[data-page="inventory"] .inventory-export-period-choice, [data-page="inventory"] .inventory-export-check, [data-page="inventory"] .inventory-export-content-list label { display: flex; align-items: center; gap: 8px; color: var(--c-text-2); font-size: var(--fs-13); margin: 8px 0; }
-[data-page="inventory"] .inventory-export-period-fields { display: flex; align-items: center; gap: 6px; margin: 4px 0 12px 24px; color: var(--c-muted); }
-[data-page="inventory"] .inventory-export-period-fields input, [data-page="inventory"] .inventory-export-period-fields select { min-width: 0; padding: 7px 8px; border: 1px solid var(--c-border-strong); border-radius: var(--r-sm); background: var(--c-white); color: var(--c-text); }
-[data-page="inventory"] .inventory-export-period-fields input[type="number"] { width: 90px; }
-[data-page="inventory"] .inventory-export-period-fields select { width: 100px; }
-[data-page="inventory"] .inventory-export-sites, [data-page="inventory"] .inventory-export-content-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
-[data-page="inventory"] .inventory-export-sites label { display: flex; align-items: center; gap: 8px; color: var(--c-text-2); font-size: var(--fs-13); }
-[data-page="inventory"] .inventory-export-note { margin: 12px 0 0; padding: 9px 10px; border-radius: var(--r-sm); background: var(--c-primary-soft); color: var(--c-primary); font-size: var(--fs-12); }
-[data-page="inventory"] .inventory-export-dialog__footer { display: flex; gap: 10px; padding: 14px 20px 18px; }
-[data-page="inventory"] .inventory-export-dialog__footer button { flex: 1; }
-@media (max-width: 767px) {
-  [data-page="inventory"] .inventory-export-dialog__panel { width: calc(100vw - 24px); max-height: 92dvh; }
-  [data-page="inventory"] .inventory-export-dialog__header, [data-page="inventory"] .inventory-export-section { padding-left: 16px; padding-right: 16px; }
-  [data-page="inventory"] .inventory-export-period-fields { margin-left: 0; flex-wrap: wrap; }
-  [data-page="inventory"] .inventory-export-period-fields input[type="date"] { width: 100%; }
-  [data-page="inventory"] .inventory-export-dialog__footer { padding-left: 16px; padding-right: 16px; }
-}
 }
