@@ -58,7 +58,7 @@
 | `test_work_progress.py` | `work_progress` | `full-only` | work progress API / media / RBAC |
 | `test_work_progress_ui_regressions.py` | `frontend`, `work_progress` | `CI / Frontend + Security` | frontend lifecycle regression |
 | `visual/test_css_isolation.py` | `visual` | `CI / Visual (browser)` | Playwright：CSS 跨頁外洩清單（`visual/known_css_leaks.json`）+ computed-style 版面契約；未安裝 visual 群組時自動略過（ubuntu runner） |
-| `visual/test_button_contract.py` | `visual` | `CI / Visual (browser)` | 所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須符合設計系統規格（變體顏色、框線、圓角、字級、字重、高度） |
+| `visual/test_button_contract.py` | `visual` | `CI / Visual (browser)` | 所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須符合設計系統規格（變體顏色、框線、圓角、字級、字重、高度）；可見的一般 `<button>` 必須是 `.btn` / `.chip` 或已登記的專用控制項；探針自我檢查 |
 | `visual/test_state_interactions.py` | `visual` | `CI / Visual (browser)` | 狀態 class 互動契約（只檢查可見 / 選取外觀，不依賴 class 名稱）：modal、選單、頁籤、chip、收合、toast、overlay、bottom sheet |
 
 ## Auxiliary JavaScript harnesses
@@ -72,6 +72,7 @@
 - `tests/work_progress_detail_target_lifecycle.test.js`
 - `tests/work_progress_upload_progress.test.js`：由 `test_work_progress_ui_regressions.py` 執行（上傳進度條）
 - `tests/visual/button_probe.js`：由 `visual/test_button_contract.py` 使用
+- `tests/button_contract.json`：專用按鈕 class 清單，`test_css_architecture.py` 與 `visual/test_button_contract.py` 共用
 - `tests/visual/leak_probe.js`、`harness.py`、`serve.py`：由 `visual/test_css_isolation.py` 使用；`snapshot.py` 是 CSS 重構用截圖比對 / 外洩清單更新 CLI
 
 ## Phase 2 boundary

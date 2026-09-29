@@ -1,7 +1,9 @@
 # CSS 架構重構設計（頁面樣式互相衝突的根因與重整方案）
 
 > 建立：2026-09-28
-> 狀態：**已定案，執行中**（決策見 §9）
+> 狀態：**已實作，進入長期維護**（P0–P8 完成於 PR #36；決策見 §9）
+>
+> 實際的可執行規範以 `tests/test_css_architecture.py`、`tests/visual/*`、`tests/button_contract.json` 與 `.github/workflows/ci.yml` 為準；本文件描述預期架構與維護原則。兩者不一致視為架構漂移（architecture drift），必須修正其中一方。
 > 範圍：`static/css/*.css`（15 檔 / 5,560 行）、`static/*.html` 內嵌 `<style>` 與 `style=""`、JS 寫入的 inline style、對應的 pytest 斷言
 
 ---
@@ -360,7 +362,8 @@ assert computed("#add-modal .ch-qty", "grid-column-start") == "3"
 **防回歸**（`tests/test_css_architecture.py`、`tests/visual/test_button_contract.py`）
 
 - `button.css` / `chip.css` 以外，任何以 `.btn` / `.chip` 或其掛鉤 class 為主體的規則，不得設定顏色、框線、圓角、字級、字重、內距、高度。
-- 每個 `<button>` 都要套 `.btn` 或 `.chip`；專用控制項需列入白名單。
+- 每個 `<button>` 都要套 `.btn` 或 `.chip`；專用控制項（數量 ±、KPI 卡、關閉 ✕…）登記在 `tests/button_contract.json`——靜態測試（標記）與瀏覽器測試（畫面上可見的按鈕）共用這一份清單，清單中已不存在的 class 也會被擋下。
+- utility 名稱描述語意、不寫色碼：用到 token 的 utility 必須以 token 命名（`.u-text-muted` ↔ `--c-muted`、`.u-r-md` ↔ `--r-md`），沒人使用的 utility 必須刪除。
 - 瀏覽器契約測試：所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須等於其變體與尺寸的規格。
 - `tokens.css` 以外禁止色碼；字級、字重、圓角、20 以上的 z-index 只能用變數；用到的變數必須已定義（P8 啟用）。
 
