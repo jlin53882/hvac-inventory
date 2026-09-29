@@ -223,19 +223,28 @@ def test_mobile_header_site_chips_single_row(page, live_server, viewport):
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "標頭造成橫向捲動"
 
 
-# ---------- 待領出頁手機卡片 ----------
-def test_prepared_mobile_more_button_does_not_cover_quantity(page, live_server, viewport):
-    """待領出卡片右上角的 ⋯ 不可蓋住待領出數量；整組子品項展開後要套用縮圖與列樣式。"""
+# ---------- 待領出頁手機卡片（issue #37 後續：方案 A） ----------
+def test_prepared_mobile_card_layout(page, live_server, viewport):
+    """待領出手機卡片（方案 A）：數量徽章在右上且完整可見，「已領出」與 ⋯ 在底部同一列、不與數量重疊。"""
     if viewport[0] != "mobile":
         pytest.skip("只適用手機卡片")
     harness.open_tab(page, live_server, "prepared")
-    boxes = page.evaluate("""() => {
+    box = page.evaluate("""() => {
       const card = document.querySelector('.prepared-mobile-card');
-      const r = s => card.querySelector(s).getBoundingClientRect();
-      const more = r('.more-btn'), qty = r('.qty-col .qty-num');
-      return {overlap: more.left < qty.right && more.right > qty.left && more.top < qty.bottom && more.bottom > qty.top};
+      const rect = s => card.querySelector(s).getBoundingClientRect();
+      const c = card.getBoundingClientRect(), q = rect('.prepared-mobile-qty');
+      const btns = [...card.querySelectorAll('.prepared-mobile-meta .btn')].map(b => b.getBoundingClientRect());
+      return {
+        inside: q.left >= c.left && q.right <= c.right && q.top >= c.top,
+        oldMore: !!card.querySelector('.more-btn'),
+        btnCount: btns.length,
+        sameRow: new Set(btns.map(r => Math.round(r.top))).size === 1,
+        below: btns.every(r => r.top >= q.bottom),
+      };
     }""")
-    assert not boxes["overlap"], "⋯ 按鈕蓋住待領出數量"
+    assert box["inside"], "待領出數量徽章超出卡片"
+    assert not box["oldMore"], "右上角不應再有 ⋯ 浮動按鈕"
+    assert box["btnCount"] == 2 and box["sameRow"] and box["below"], f"底部動作列異常：{box}"
 
 
 def test_prepared_kit_subitems_are_styled(page, live_server):

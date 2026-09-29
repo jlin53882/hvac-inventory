@@ -4004,8 +4004,8 @@ def test_prepared_mobile_card_keeps_stock_badge_in_layout():
     """待領出手機卡片資訊欄不被右側數量欄擠壓，badge 可正常排列。"""
     css = read(CSS_PREPARED)
     assert '.prepared-content .m-card .info { padding-right: 0;' in css
-    # 數量欄要保留右側內距給 ⋯ 按鈕（曾設 padding-right: 0 讓 ⋯ 蓋住數量）
-    assert '.prepared-content .m-card .qty-col' not in css
+    # 方案 A：⋯ 移到卡片底部，數量徽章不需為 ⋯ 保留右側內距
+    assert '.prepared-content .prepared-mobile-card .qty-col { padding-right: 0; }' in css
     assert '.prepared-content .prepared-mobile-meta { display: flex;' in css
 
 

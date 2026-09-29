@@ -42,16 +42,6 @@
   color: var(--c-border-control);
   font-size: var(--fs-14);
 }
-[data-page="prepared"] .prepared-status-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: var(--r-pill);
-  font-size: var(--fs-11);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-}
 [data-page="prepared"] .prepared-page-header {
   display: flex;
   align-items: center;
@@ -317,7 +307,12 @@
 [data-page="prepared"] .prepared-content .prepared-mobile-location { margin-top: 4px; color: var(--c-muted); font-size: var(--fs-11); }
 [data-page="prepared"] .prepared-content .tag-nonstock { flex: 0 0 auto; white-space: nowrap; }
 [data-page="prepared"] .prepared-content .m-card .info { padding-right: 0; }
-[data-page="prepared"] .prepared-content .prepared-mobile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+[data-page="prepared"] .prepared-content .prepared-mobile-qty { min-width: 52px; padding: 4px 10px; text-align: center; color: var(--c-prepare); background: var(--c-prepare-soft); border: 1px solid var(--c-prepare-border); border-radius: var(--r-md); }
+[data-page="prepared"] .prepared-content .prepared-mobile-qty b { display: block; font-size: var(--fs-20); font-weight: var(--fw-bold); line-height: 1.1; }
+[data-page="prepared"] .prepared-content .prepared-mobile-qty small { font-size: var(--fs-11); white-space: nowrap; }
+[data-page="prepared"] .prepared-content .prepared-mobile-card .qty-col { padding-right: 0; }
+[data-page="prepared"] .prepared-content .prepared-mobile-meta { display: flex; align-items: center; gap: 8px; margin: 0 12px; padding: 8px 0 10px; border-top: 1px solid var(--c-border); }
+[data-page="prepared"] .prepared-content .prepared-mobile-stock { margin-right: auto; color: var(--c-muted); font-size: var(--fs-12); }
 [data-page="prepared"] .prepared-item-dest { font-size: var(--fs-11); color: var(--c-primary-strong); margin-top: 2px; }
 [data-page="prepared"] .prepared-card-dest { font-size: var(--fs-11); color: var(--c-primary-strong); margin-top: 2px; }
 
