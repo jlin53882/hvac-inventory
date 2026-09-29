@@ -292,10 +292,11 @@
     max-width: 100%;
     overflow: visible;
     text-overflow: clip;}
-  /* Mobile calendar cells: keep time and service on separate compact lines. */
+  /* Mobile calendar cells: keep time and service on separate compact lines.
+     客戶名最多兩行（4–6 字的名稱也能完整顯示），超過兩行才以 … 截斷；chip 高度隨內容。 */
   [data-page="calendar"] .cal-evt {
     min-height: 30px;
-    height: 30px;
+    height: auto;
     flex-direction: column;
     align-items: flex-start;
     gap: 0;
@@ -308,15 +309,18 @@
     line-height: 1.1;
   }
   [data-page="calendar"] .cal-evt .cal-evt-body {
-    display: block;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     width: 100%;
     min-width: 0;
     flex: 1;
     overflow: hidden;
     font-size: var(--fs-9);
     line-height: 1.1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-all;
   }
 }
 

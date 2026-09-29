@@ -127,14 +127,17 @@ def test_kit_prepare_component_list_layout(page, live_server):
 
 
 def test_mobile_calendar_event_names_fit(page, live_server, viewport):
-    """手機月曆格內的派工名稱不被截斷（回歸：字級統一把 9px 放大到 11px，名稱變成「陳…」）。"""
+    """手機月曆格的客戶名最多兩行：6 字以內完整顯示（如「大安社區」），更長才以 … 截斷
+    （回歸：字級統一曾把 9px 放大到 11px，連 3 字名稱都變成「陳…」）。"""
     if viewport[0] == "desktop":
         pytest.skip("桌機月曆格有足夠寬度")
     harness.open_tab(page, live_server, "calendar")
-    # 3 個字的客戶名（最常見）在改版前完整顯示；4 字以上本來就會以 … 截斷
-    clipped = page.evaluate("""() => [...document.querySelectorAll('.cal-evt-body')]
-        .filter(el => el.getClientRects().length && el.textContent.trim().length <= 3 && el.scrollWidth > el.clientWidth + 1)
-        .map(el => el.textContent)""")
+    result = page.evaluate("""() => [...document.querySelectorAll('.cal-evt-body')]
+        .filter(el => el.getClientRects().length)
+        .map(el => ({text: el.textContent.trim(),
+                     cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1}))""")
+    assert any(r["text"] == "大安社區" for r in result), result
+    clipped = [r["text"] for r in result if r["cut"] and len(r["text"]) <= 6]
     assert not clipped, f"月曆格名稱被截斷：{clipped}"
 
 
