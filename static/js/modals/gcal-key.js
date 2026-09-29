@@ -52,12 +52,12 @@ function openGcalKeyModal(id) {
     document.getElementById('gk-cal').value = '';
     document.querySelector('#gcalKeyModal h4').textContent = '＋ 新增 Service Account Key';
   }
-  modal.classList.add('show');
+  modal.classList.add('is-open');
 }
 
 function closeGcalKeyModal() {
   const modal = document.getElementById('gcalKeyModal');
-  if (modal) modal.classList.remove('show');
+  if (modal) modal.classList.remove('is-open');
   _gcalEditingId = null;
 }
 
@@ -101,7 +101,7 @@ async function submitGcalKey() {
   try {
     const res = await fetch(url, options);
     const data = await res.json();
-    if (!res.ok) { toast(data.detail || '儲存失敗', 'error'); return; }
+    if (!res.ok) { toast(apiErrorMessage(data.detail) || '儲存失敗', 'error'); return; }
     await loadGcalKeys();
     renderGcalPanel();
     closeGcalKeyModal();

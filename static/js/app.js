@@ -21,9 +21,9 @@ function switchSite(site) {
   ALL_ITEMS = [];
   ALERTS_BY_SITE = {};
   updateNotifications();
-  document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('on'); });
+  document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('is-active'); });
   var el = document.getElementById('site-' + site);
-  if (el) el.classList.add('on');
+  if (el) el.classList.add('is-active');
   loadData();
   syncViewUrl();
 }
@@ -38,11 +38,11 @@ window.addEventListener('beforeunload', function(e) {
 
 function openSidebar() {
   document.getElementById('sidebar').classList.add('mob-open');
-  document.getElementById('sbOverlay').classList.add('open');
+  document.getElementById('sbOverlay').classList.add('is-open');
 }
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('mob-open');
-  document.getElementById('sbOverlay').classList.remove('open');
+  document.getElementById('sbOverlay').classList.remove('is-open');
 }
 
 // Sidebar toggle (desktop: hidden ↔ shown, mobile: drawer)
@@ -57,7 +57,7 @@ function toggleSidebar() {
     return;
   }
   // Desktop: toggle hidden/expanded
-  var expanded = sb.classList.toggle('expanded');
+  var expanded = sb.classList.toggle('is-expanded');
   mn.classList.toggle('sidebar-expanded', expanded);
 }
 
@@ -66,11 +66,11 @@ function toggleSidebar() {
 
 // 頭像下拉選單
 function toggleAvatarMenu() {
-  document.getElementById('avatarMenu').classList.toggle('open');
+  document.getElementById('avatarMenu').classList.toggle('is-open');
 }
 function closeAvatarMenu() {
   var m = document.getElementById('avatarMenu');
-  if (m) m.classList.remove('open');
+  if (m) m.classList.remove('is-open');
 }
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.avatar-dropdown')) closeAvatarMenu();
@@ -103,11 +103,39 @@ function updateBreadcrumb(tab) {
 
 function renderNoAccessiblePage() {
   currentTab = '';
+  setPageScope('');
   var content = document.getElementById('content');
   if (content) content.innerHTML = '<div class="empty">目前沒有可用的頁面</div>';
 
   updateBreadcrumb('');
   syncViewUrl();
+}
+
+// 頁面範圍（CSS 架構重構 P1）：body[data-page] 是頁面樣式的唯一範圍，modal 也在 body 內。
+// 過渡期同時維護 #content 上的舊 *-content class；每次都先全部移除，避免上一頁的 class 殘留
+// （例：報價單上傳的 quotation-upload-content 曾在切回庫存後殘留，改掉庫存頁內距）。
+var PAGE_CONTENT_CLASS = {
+  'signed-reports': 'dsr-content',
+  'calendar': 'cal-content',
+  'quotation': 'quotation-content',
+  'quotation-upload': 'quotation-upload-content',
+  'petty-cash': 'pc-content',
+  'inventory': 'inventory-content',
+  'prepared': 'prepared-content',
+  'kit': 'kit-content',
+  'stocktake': 'stocktake-content',
+  'stockout': 'stockout-content',
+  'work-progress': 'wpr-content'
+};
+
+function setPageScope(page) {
+  if (page) document.body.dataset.page = page;
+  else delete document.body.dataset.page;
+  var content = document.getElementById('content');
+  if (!content) return;
+  Object.keys(PAGE_CONTENT_CLASS).forEach(function(key) {
+    content.classList.toggle(PAGE_CONTENT_CLASS[key], key === page);
+  });
 }
 
 function switchTab(tab) {
@@ -129,23 +157,13 @@ function switchTab(tab) {
   syncViewUrl();
   checkReminder();
   updateNotifications();
-  var content = document.getElementById('content');
-  if (content) content.classList.toggle('dsr-content', tab === 'signed-reports');
-  if (content) content.classList.toggle('cal-content', tab === 'calendar');
-  if (content) content.classList.toggle('quotation-content', tab === 'quotation');
-  if (content) content.classList.toggle('pc-content', tab === 'petty-cash');
-  if (content) content.classList.toggle('inventory-content', tab === 'inventory');
-  if (content) content.classList.toggle('prepared-content', tab === 'prepared');
-  if (content) content.classList.toggle('kit-content', tab === 'kit');
-  if (content) content.classList.toggle('stocktake-content', tab === 'stocktake');
-  if (content) content.classList.toggle('stockout-content', tab === 'stockout');
-  if (content) content.classList.toggle('wpr-content', tab === 'work-progress');
-  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
-  document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
+  setPageScope(tab);
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('is-active'); });
+  document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('is-active'); });
   var nav = document.getElementById('nav-' + tab);
-  if (nav) nav.classList.add('active');
+  if (nav) nav.classList.add('is-active');
   var sbNav = document.getElementById('sb-nav-' + tab);
-  if (sbNav) sbNav.classList.add('active');
+  if (sbNav) sbNav.classList.add('is-active');
   updateBreadcrumb(tab);
   closeSidebar();
 
@@ -164,7 +182,7 @@ function switchTab(tab) {
     if (typeof batchMode !== 'undefined' && batchMode) {
       batchMode = false;
       var bt = document.getElementById('batch-toggle');
-      if (bt) bt.classList.remove('active');
+      if (bt) bt.classList.remove('is-active');
     }
     if (typeof selectedStockIds !== 'undefined') selectedStockIds.clear();
     var bn = document.getElementById('batch-num');
@@ -172,7 +190,7 @@ function switchTab(tab) {
     var bc = document.getElementById('batch-confirm');
     if (bc) bc.disabled = true;
     var bb = document.getElementById('batch-bar');
-    if (bb) bb.classList.remove('show');
+    if (bb) bb.classList.remove('is-open');
     var cab = document.getElementById('batch-cabinet');
     if (cab) cab.value = '';
     var sub = document.getElementById('batch-sub');
@@ -247,7 +265,7 @@ var _focusReloadTimer = null;
 var _lastVisibilityReloadAt = 0;
 function autoReloadOnFocus() {
   if (hasPending()) return;
-  if (document.querySelector('.modal-overlay.show')) return;
+  if (document.querySelector('.modal-overlay.is-open')) return;
   if (document.visibilityState !== 'visible') return;
   // 只在 hidden → visible 時觸發；避免 window focus、手機輸入框/原生視窗反覆重畫。
   var now = Date.now();
@@ -255,7 +273,7 @@ function autoReloadOnFocus() {
   if (_focusReloadTimer) return;
   _focusReloadTimer = setTimeout(function() {
     _focusReloadTimer = null;
-    if (document.visibilityState !== 'visible' || hasPending() || document.querySelector('.modal-overlay.show')) return;
+    if (document.visibilityState !== 'visible' || hasPending() || document.querySelector('.modal-overlay.is-open')) return;
     _lastVisibilityReloadAt = Date.now();
     loadData();
   }, 300);
@@ -290,21 +308,23 @@ function mountPreservedTabAfterBootstrap() {
     applyRoleView(user);
     if (!currentTab) { renderNoAccessiblePage(); return; }
     if (user.password_expired) openExpiryModal();
+    var bootTab = currentTab;
     await loadUnits();
+    // 等待期間使用者已自行切頁（switchTab 已掛載該頁與範圍）→ 不可再用啟動時的流程覆蓋（例：報價單上傳被重掛成報價單）
+    var tabChangedDuringBoot = currentTab !== bootTab;
     updateBreadcrumb(currentTab);
     // site active 同步
-    document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('on'); });
+    document.querySelectorAll('.h-site button').forEach(function(t){ t.classList.remove('is-active'); });
     var siteEl = document.getElementById('site-' + currentSite);
-    if (siteEl) siteEl.classList.add('on');
+    if (siteEl) siteEl.classList.add('is-active');
     // sidebar active 同步
     var sbNav = document.getElementById('sb-nav-' + currentTab);
-    document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('active'); });
-    if (sbNav) sbNav.classList.add('active');
-    var content = document.getElementById('content');
-    if (content) content.classList.toggle('inventory-content', currentTab === 'inventory');
+    document.querySelectorAll('.sb-nav-link').forEach(function(n){ n.classList.remove('is-active'); });
+    if (sbNav) sbNav.classList.add('is-active');
+    if (!tabChangedDuringBoot) setPageScope(currentTab);
     loadData();
     // loadData 不重繪保留 mount 的頁面；F5 直接開啟時由 bootstrap 建立一次頁面。
-    mountPreservedTabAfterBootstrap();
+    if (!tabChangedDuringBoot) mountPreservedTabAfterBootstrap();
   } else {
     var content = document.getElementById('content');
     if (content) content.innerHTML = '<div class="empty">⚠️ 無法連線伺服器，請重新整理頁面<br><small>若持續發生請聯絡管理員</small></div>';

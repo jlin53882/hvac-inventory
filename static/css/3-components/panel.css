@@ -1,0 +1,117 @@
+/* 簽名報表與報價單共用的頁面外殼：頁首、卡片、表單欄位、按鈕、資訊框、空狀態（CSS 架構重構 P4 自 4-pages/signed-reports.css 抽出；dsr- 前綴於 P7.5 改為通用名稱） */
+@layer components {
+.dsr-page-header {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.dsr-page-title { min-width: 0; }
+.dsr-page-title h1 {
+  margin: 0;
+  color: var(--c-primary-strong);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-20);
+  font-weight: var(--fw-bold);
+}
+.dsr-new-badge {
+  padding: 4px 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-primary-strong);
+  color: var(--c-white);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+}
+.dsr-page-title p {
+  margin: 4px 0 0;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+}
+.dsr-page-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.dsr-card {
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  background: var(--c-white);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .06);
+}
+.dsr-card__hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--c-surface-2);
+}
+.dsr-card__hd h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--c-primary-strong);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-bold);
+}
+.dsr-card__hd p {
+  margin: 0 0 0 auto;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+}
+.dsr-card__bd { padding: 16px; }
+@media (max-width: 767px) {
+.dsr-card__bd { padding: 14px; }
+}
+.dsr-form-grid { display: grid; gap: 12px; }
+@media (min-width: 640px) {
+.dsr-form-grid.dsr-form-grid--two { grid-template-columns: 1fr 1fr; }
+}
+.dsr-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--c-text-2);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-bold);
+}
+.dsr-field input, .dsr-field textarea {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  outline: none;
+  box-sizing: border-box;
+  background: var(--c-white);
+  color: var(--c-text);
+  font-size: var(--fs-14);
+}
+.dsr-field input:focus, .dsr-field textarea:focus {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 15%, transparent);
+}
+.dsr-field textarea { min-height: 72px; resize: vertical; }
+.dsr-required { color: var(--c-danger); }
+.dsr-info { padding: 16px; border-radius: var(--r-lg); background: linear-gradient(135deg, var(--c-primary-strong), var(--c-primary)); color: var(--c-white); }
+.dsr-info h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-14); font-weight: var(--fw-bold); }
+.dsr-info ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; color: rgba(255,255,255,.92); font-size: var(--fs-12); }
+.dsr-info li { display: flex; gap: 8px; }
+.dsr-info-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.dsr-info .dsr-badge { padding: 3px 7px; border: 1px solid rgba(255,255,255,.25); border-radius: var(--r-pill); background: rgba(255,255,255,.18); color: var(--c-white); font-size: var(--fs-11); font-weight: var(--fw-bold); }
+.dsr-empty { padding: 26px; color: var(--c-border-control); text-align: center; }
+.dsr-empty__icon { margin-bottom: 8px; font-size: var(--fs-28); }
+.dsr-modal { display: flex; flex-direction: column; width: 100%; max-width: 860px; max-height: 90vh; overflow: hidden; border-radius: var(--r-lg); background: var(--c-white); box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.dsr-modal__hd { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--c-border); }
+.dsr-modal__hd h3 { margin: 0; color: var(--c-primary-strong); font-size: var(--fs-14); font-weight: var(--fw-bold); }
+.dsr-modal__bd { flex: 1; overflow: auto; padding: 0; background: var(--c-text); }
+.dsr-modal__bd img { display: block; width: 100%; height: auto; }
+.dsr-modal__bd iframe { width: 100%; height: 72vh; border: 0; background: var(--c-white); }
+.dsr-modal__ft { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--c-border); }
+.dsr-modal__note { color: var(--c-muted); font-size: var(--fs-12); }
+.dsr-modal__actions { display: flex; gap: 8px; }
+}

@@ -1,0 +1,93 @@
+/* 振佳空調管理系統 — CSS 分層順序（CSS 架構重構 P1，見 docs/CSS架構重構設計.md）
+   每個 HTML 必須最先載入本檔。後面的 layer 勝過前面的 layer，與選擇器特異度、載入順序無關：
+     tokens      :root 設計變數（顏色、字級、間距、圓角、z-index）
+     base        reset、字型
+     layout      sidebar / header / 底部導覽
+     components  跨頁共用元件（每個 class 只在一個元件檔定義）
+     pages       [data-page="…"] 範圍內的頁面樣式
+     utilities   .hidden 等工具 class、列印
+   頁面樣式一律寫成 [data-page="<page>"] 開頭（body 由 app.js setPageScope 設定），modal 也在範圍內。
+   未包進任何 layer 的樣式（HTML style 屬性以外不應存在）一律勝過所有 layer。 */
+@layer tokens, base, layout, components, pages, utilities;
+
+/* 設計系統標準（CSS 架構重構 P7.5 / P8；使用者 2026-09-29 確認主色品牌深藍與第 3 版提案）。
+   tokens.css 以外不得寫色碼、字級、字重、圓角與 20 以上的 z-index，一律用這裡的變數（架構測試會擋）。
+   其餘舊色碼已依「最接近的語意 token」歸併（見 docs/CSS架構重構設計.md §7.2）。 */
+@layer tokens {
+  :root {
+    /* 灰階與表面 */
+    --c-white: #ffffff;
+    --c-surface-2: #f8fafc;
+    --c-border: #e2e8f0;
+    --c-border-strong: #cbd5e1;
+    --c-border-control: #94a3b8;
+    --c-muted: #64748b;
+    --c-text-subtle: #94a3b8;  /* 提示 / 次要說明文字（與 border-control 同色，語意不同） */
+    --c-text-2: #334155;
+    --c-text: #0f172a;
+    /* 主色（品牌深藍） */
+    --c-primary: #2d5a8e;
+    --c-primary-strong: #1e3a5f;
+    --c-primary-soft: #eef4fa;
+    --c-primary-soft-2: #dfe9f5;
+    --c-primary-border: #b6cbe2;
+    /* 匯出（使用者 2026-09-29 指定維持原本亮藍，與主色區分） */
+    --c-export: #2563eb;
+    --c-export-strong: #1d4ed8;
+    /* 成功 */
+    --c-success: #16a34a;
+    --c-success-strong: #15803d;
+    --c-success-soft: #dcfce7;
+    --c-success-border: #bbf7d0;
+    /* 警示 */
+    --c-warning: #d97706;
+    --c-warning-strong: #92400e;
+    --c-warning-soft: #fef3c7;
+    --c-warning-border: #fde68a;
+    /* 危險 / 刪除 */
+    --c-danger: #dc2626;
+    --c-danger-strong: #b91c1c;
+    --c-danger-soft: #fee2e2;
+    --c-danger-border: #f87171;
+    /* 待領出（流程色） */
+    --c-prepare: #6d28d9;
+    --c-prepare-solid: #7c3aed;
+    --c-prepare-soft: #f5f3ff;
+    --c-prepare-border: #a78bfa;
+    /* 已領出（流程色） */
+    --c-out: #b45309;
+    --c-out-solid: #f59e0b;
+    --c-out-soft: #fffbeb;
+
+    /* 字級 7 級（40px 以上的 emoji 圖示可直接寫）；--fs-9 只給手機月曆格這類極密集的格子用 */
+    --fs-9: 9px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-28: 28px;
+    /* 字重 3 級 */
+    --fw-regular: 400; --fw-medium: 600; --fw-bold: 700;
+    /* 圓角 4 級（圓形用 50%、3px 以下細線可直接寫） */
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+    /* 控制項高度 */
+    --h-sm: 32px; --h-md: 38px; --h-touch: 44px;
+
+    /* 疊層順序（由低到高；元件內部 0–10 的小堆疊可直接寫） */
+    --z-menu-inline: 20;
+    --z-menu-row: 30;
+    --z-dropdown: 60;
+    --z-header: 90;
+    --z-save-bar: 95;
+    --z-sidebar-overlay: 99;
+    --z-sidebar: 100;
+    --z-sidebar-top: 101;
+    --z-notif-backdrop: 140;
+    --z-notif: 150;
+    --z-menu: 200;
+    --z-drawer: 201;
+    --z-popover: 300;
+    --z-overlay: 950;
+    --z-toast: 960;
+    --z-modal: 1000;
+    --z-sheet: 3000;
+    --z-lightbox-under: 9500;
+    --z-lightbox: 9999;
+    --z-lightbox-top: 10000;
+  }
+}

@@ -1,0 +1,402 @@
+@layer pages {
+  /* 可搜尋材料選擇（整組 Modal） */
+  [data-page="kit"] .kit-empty { font-size: var(--fs-12); color: var(--c-border-control); padding: 4px 0 8px; }
+  [data-page="kit"] .kit-dropdown {
+    display: none; position: absolute; left: 0; right: 0; top: calc(100% + 3px);
+    background: var(--c-white); border: 1.5px solid var(--c-border-strong); border-radius: var(--r-md);
+    box-shadow: 0 10px 26px rgba(0,0,0,0.14);
+    max-height: 240px; overflow-y: auto; z-index: var(--z-dropdown);
+  }
+  [data-page="kit"] .kit-dropdown.is-open { display: block; }
+  [data-page="kit"] .kit-drop-opt {
+    padding: 9px 10px; cursor: pointer; display: flex;
+    justify-content: space-between; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--c-surface-2);
+  }
+  [data-page="kit"] .kit-drop-opt:active { background: var(--c-primary-soft); }
+  [data-page="kit"] .kit-drop-opt .nm { font-size: var(--fs-13); color: var(--c-text); }
+  [data-page="kit"] .kit-drop-opt .bd { font-size: var(--fs-11); color: var(--c-muted); margin-top: 1px; }
+  [data-page="kit"] .kit-drop-opt .stk { flex: none; font-size: var(--fs-12); color: var(--c-success); font-weight: var(--fw-bold); white-space: nowrap; }
+  [data-page="kit"] .kit-drop-empty { padding: 12px 10px; font-size: var(--fs-12); color: var(--c-border-control); text-align: center; }
+
+  /* ===== 新增整組・材料選擇（demo 樣式移植：selected-row / mat-search / btn-add-row） ===== */
+  [data-page="kit"] .kit-empty { font-size: var(--fs-12); color: var(--c-border-control); padding: 4px 0 8px; }
+  [data-page="kit"] .selected-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--r-md);
+    padding: 9px 12px; margin-bottom: 8px;
+  }
+  [data-page="kit"] .selected-row .info { flex: 1; min-width: 0; }
+  [data-page="kit"] .selected-row .info .nm {
+    font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  [data-page="kit"] .selected-row .info .bd { font-size: var(--fs-11); color: var(--c-muted); }
+  [data-page="kit"] .selected-row input {
+    width: 58px; height: 36px; text-align: center;
+    border: 1.5px solid var(--c-border); border-radius: var(--r-md); font-size: var(--fs-14); outline: none;
+  }
+  [data-page="kit"] .selected-row .rm {
+    width: 28px; height: 28px; border: none; background: var(--c-danger-soft); color: var(--c-danger);
+    border-radius: var(--r-md); font-size: var(--fs-13); cursor: pointer; flex: none;
+  }
+  [data-page="kit"] .mat-search { position: relative; }
+  [data-page="kit"] .mat-search .input-wrap { position: relative; }
+  [data-page="kit"] .mat-search input {
+    width: 100%; height: 46px; padding: 0 34px 0 12px;
+    border: 1.5px solid var(--c-border); border-radius: var(--r-md);
+    font-size: var(--fs-14); background: var(--c-surface-2); outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  [data-page="kit"] .mat-search input:focus { border-color: var(--c-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 18%, transparent); }
+  [data-page="kit"] .mat-search .caret {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font-size: var(--fs-12); color: var(--c-border-control); pointer-events: none;
+  }
+  [data-page="kit"] .btn-add-row {
+    width: 100%; margin-top: 2px;
+  }
+[data-page="kit"] .selected-row .info .bd .model, [data-page="kit"] .kit-drop-opt .bd .model { color: var(--c-primary); font-weight: var(--fw-medium); }
+/* 整組庫存頁專用 desktop dashboard（僅 kit-content scope） */
+[data-page="kit"] .kit-content {
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 24px 28px 48px;
+  background: var(--c-surface-2);
+}
+[data-page="kit"] .kit-content .kit-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+[data-page="kit"] .kit-content .kit-heading-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+[data-page="kit"] .kit-content .kit-heading-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-size: var(--fs-20);
+}
+[data-page="kit"] .kit-content .kit-page-header h1 {
+  margin: 0;
+  color: var(--c-text);
+  font-size: var(--fs-28);
+  line-height: 1.2;
+  font-weight: var(--fw-bold);
+}
+[data-page="kit"] .kit-content .kit-page-header p {
+  margin: 6px 0 0;
+  color: var(--c-muted);
+  font-size: var(--fs-14);
+  line-height: 1.5;
+}
+[data-page="kit"] .kit-content .kit-add-button {
+  flex: none;
+}
+[data-page="kit"] .kit-content .kit-kpi-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));}
+
+[data-page="kit"] .kit-content .kit-toolbar {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 0 2px;
+}
+[data-page="kit"] .kit-content .kit-toolbar-count { color: var(--c-text-2); font-size: var(--fs-14); font-weight: var(--fw-medium); }
+[data-page="kit"] .kit-content .kit-toolbar-search { color: var(--c-border-control); font-size: var(--fs-13); }
+[data-page="kit"] .kit-content .kit-toolbar-search b { color: var(--c-text-2); font-weight: var(--fw-medium); }
+[data-page="kit"] .kit-content .kit-assembly-card {
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  background: var(--c-white);
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+}
+[data-page="kit"] .kit-content .kit-assembly-card.is-insufficient { border-color: var(--c-warning); }
+[data-page="kit"] .kit-content .kit-assembly-card.is-shortage { border-color: var(--c-danger-border); }
+[data-page="kit"] .kit-content .kit-assembly-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--c-border);
+}
+/* 卡片標題三欄佈局：照片 | 資訊 | 操作 */
+[data-page="kit"] .kit-content .kit-photo-slot {
+  flex: none;
+  width: 52px;
+  height: 52px;
+}
+/* buildThumb() 輸出 product-thumbnail-wrap / placeholder：填滿照片欄並裁切成方形 */
+[data-page="kit"] .kit-content .kit-photo-slot .product-thumbnail-wrap, [data-page="kit"] .kit-content .kit-photo-slot .product-thumbnail-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-md);
+  font-size: var(--fs-28);
+}
+[data-page="kit"] .kit-content .kit-photo-slot .product-thumbnail-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: zoom-in;
+}
+[data-page="kit"] .kit-content .kit-info-slot {
+  flex: 1;
+  min-width: 0;
+}
+[data-page="kit"] .kit-content .kit-name {
+  color: var(--c-text);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+  margin-bottom: 4px;
+}
+[data-page="kit"] .kit-content .kit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+}
+[data-page="kit"] .kit-content .kit-code {
+  white-space: nowrap;
+}
+/* 位置 / 整組備註 / 位置註解：meta 列下方各自一行，長內容自動換行 */
+[data-page="kit"] .kit-content .kit-detail-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+}
+[data-page="kit"] .kit-content .kit-detail-line {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 存放位置清單：每個位置一行，名稱對齊、備註接在後面 */
+[data-page="kit"] .kit-content .kit-loc-block {
+  max-width: 560px;
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+[data-page="kit"] .kit-content .kit-loc-title {
+  margin-bottom: 2px;
+  color: var(--c-text-2);
+  font-weight: var(--fw-medium);
+}
+[data-page="kit"] .kit-content .kit-loc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+[data-page="kit"] .kit-content .kit-loc-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+[data-page="kit"] .kit-content .kit-loc-name {
+  flex: none;
+  min-width: 96px;
+  color: var(--c-text-2);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+[data-page="kit"] .kit-content .kit-loc-note {
+  min-width: 0;
+  color: var(--c-muted);
+  overflow-wrap: anywhere;
+}
+[data-page="kit"] .kit-content .kit-actions-slot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+/* 移除舊結構（相容性） */
+[data-page="kit"] .kit-content .kit-assembly-title { min-width: 0; }
+[data-page="kit"] .kit-content .kit-assembly-name { color: var(--c-text); font-size: var(--fs-16); font-weight: var(--fw-bold); }
+[data-page="kit"] .kit-content .kit-assembly-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; color: var(--c-muted); font-size: var(--fs-12); }
+[data-page="kit"] .kit-content .kit-stock-badge, [data-page="kit"] .kit-content .kit-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+}
+[data-page="kit"] .kit-content .kit-stock-badge { background: var(--c-success-soft); color: var(--c-success-strong); }
+[data-page="kit"] .kit-content .kit-stock-badge.is-empty { background: var(--c-surface-2); color: var(--c-muted); }
+[data-page="kit"] .kit-content .kit-status-badge.is-insufficient { background: var(--c-warning-soft); color: var(--c-warning); }
+[data-page="kit"] .kit-content .kit-status-badge.is-shortage { background: var(--c-danger-soft); color: var(--c-danger); }
+[data-page="kit"] .kit-content .kit-assembly-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+[data-page="kit"] .kit-content .kit-assembly-actions .kit-action { flex: 1 1 0; min-width: 0; }
+[data-page="kit"] .kit-content .kit-component-wrap { overflow-x: auto; }
+[data-page="kit"] .kit-content .kit-component-table { width: 100%; min-width: 900px; border-collapse: collapse; table-layout: fixed; }
+[data-page="kit"] .kit-content .kit-component-table .kit-col-photo { width: 80px; }
+[data-page="kit"] .kit-content .kit-component-table .kit-col-info, [data-page="kit"] .kit-content .kit-component-table .kit-col-need, [data-page="kit"] .kit-content .kit-component-table .kit-col-stock, [data-page="kit"] .kit-content .kit-component-table .kit-col-status { width: calc((100% - 80px) / 4); }
+[data-page="kit"] .kit-content .kit-component-table th {
+  height: 44px;
+  padding: 0 18px;
+  background: var(--c-surface-2);
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  white-space: nowrap;
+}
+[data-page="kit"] .kit-content .kit-component-table td {
+  min-height: 68px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--c-border);
+  color: var(--c-text-2);
+  font-size: var(--fs-13);
+  vertical-align: middle;
+}
+[data-page="kit"] .kit-content .kit-component-photo { width: 80px; }
+[data-page="kit"] .kit-content .kit-component-photo .cphoto { width: 46px; height: 46px; display: grid; place-items: center; border-radius: var(--r-md); overflow: hidden; background: var(--c-surface-2); }
+[data-page="kit"] .kit-content .kit-component-info { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+[data-page="kit"] .kit-content .kit-component-photo .cphoto img { width: 100%; height: 100%; object-fit: cover; }
+[data-page="kit"] .kit-content .kit-component-name { color: var(--c-text); font-weight: var(--fw-medium); }
+[data-page="kit"] .kit-content .kit-component-model { margin-top: 3px; color: var(--c-primary); font-size: var(--fs-12); font-weight: var(--fw-medium); }
+[data-page="kit"] .kit-content .kit-component-qty { font-weight: var(--fw-medium); white-space: nowrap; }
+[data-page="kit"] .kit-content .kit-component-status { font-size: var(--fs-12); font-weight: var(--fw-medium); white-space: nowrap; }
+[data-page="kit"] .kit-content .kit-component-status.is-normal { color: var(--c-success); }
+[data-page="kit"] .kit-content .kit-component-status.is-insufficient { color: var(--c-warning); }
+[data-page="kit"] .kit-content .kit-component-status.is-shortage { color: var(--c-danger); }
+[data-page="kit"] .kit-content .kit-empty-state { padding: 64px 20px; border: 1px dashed var(--c-border-strong); border-radius: var(--r-lg); background: var(--c-white); text-align: center; }
+[data-page="kit"] .kit-content .kit-empty-icon { font-size: var(--fs-28); }
+[data-page="kit"] .kit-content .kit-empty-state h2 { margin-top: 12px; color: var(--c-text-2); font-size: var(--fs-16); }
+[data-page="kit"] .kit-content .kit-empty-state p { margin: 8px 0 18px; color: var(--c-muted); font-size: var(--fs-13); }
+[data-page="kit"] .kit-content .kit-more { display: none; }
+@media (max-width: 1440px) {
+  [data-page="kit"] .kit-content { padding: 24px 24px 40px; }
+  [data-page="kit"] .kit-content .kit-assembly-header { padding: 16px; }
+  [data-page="kit"] .kit-content .kit-component-table th, [data-page="kit"] .kit-content .kit-component-table td { padding-left: 14px; padding-right: 14px; }
+}
+@media (max-width: 1200px) {
+  [data-page="kit"] .kit-content .kit-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-page="kit"] .kit-content .kit-page-header { flex-direction: column; }
+  [data-page="kit"] .kit-content .kit-add-button { align-self: flex-start; }
+}
+@media (max-width: 767px) {
+  [data-page="kit"] .kit-content { padding: 16px 14px 92px; }
+  [data-page="kit"] .kit-content .kit-page-header { gap: 14px; margin-bottom: 16px; }
+  [data-page="kit"] .kit-content .kit-page-header h1 { font-size: var(--fs-20); }
+  [data-page="kit"] .kit-content .kit-page-header p { font-size: var(--fs-12); }
+
+  [data-page="kit"] .kit-content .kit-toolbar { align-items: flex-start; flex-direction: column; gap: 4px; min-height: 44px; }
+  /* 手機版：與單一庫存卡片一致——照片縮圖在名稱左邊，操作按鈕換到下一列 */
+  [data-page="kit"] .kit-content .kit-assembly-header {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-areas: "photo info" "actions actions";
+    column-gap: 12px;
+    row-gap: 12px;
+    padding: 14px;
+  }
+  [data-page="kit"] .kit-content .kit-photo-slot { grid-area: photo; width: 56px; height: 56px; }
+  [data-page="kit"] .kit-content .kit-info-slot { grid-area: info; width: auto; }
+  [data-page="kit"] .kit-content .kit-actions-slot { grid-area: actions; }
+  [data-page="kit"] .kit-content .kit-meta { gap: 6px; }
+  [data-page="kit"] .kit-content .kit-actions-slot { width: 100%; justify-content: flex-start; }
+  /* 舊結構相容（若有遺留） */
+  [data-page="kit"] .kit-content .kit-assembly-name { font-size: var(--fs-16); }
+  [data-page="kit"] .kit-content .kit-assembly-actions { width: 100%; justify-content: flex-start; }
+  [data-page="kit"] .kit-content .kit-assembly-header .kit-more { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-left: auto; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); background: var(--c-white); color: var(--c-text-2); font-size: var(--fs-20); cursor: pointer; }
+  [data-page="kit"] .kit-content .kit-component-table { min-width: 560px; }
+  [data-page="kit"] .kit-content .kit-component-table th, [data-page="kit"] .kit-content .kit-component-table td { padding-left: 10px; padding-right: 10px; }
+}
+/* KPI drill-down uses the shared inventory status-list renderer. */
+[data-page="kit"] .kit-content .kit-kpi-card.is-clickable { position: relative; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; }
+[data-page="kit"] .kit-content .kit-kpi-card.is-clickable:hover { border-color: var(--c-border-strong); box-shadow: 0 4px 12px rgba(15,23,42,.06); }
+[data-page="kit"] .kit-content .kit-kpi-card.is-clickable:focus-visible { outline: 3px solid color-mix(in srgb, var(--c-primary) 28%, transparent); outline-offset: 2px; }
+[data-page="kit"] .kit-content .kit-kpi-arrow { margin-left: auto; color: var(--c-muted); font-size: var(--fs-28); line-height: 1; }
+
+[data-page="kit"] .kit-content .kit-mobile-actions { display: flex; align-items: center; gap: 8px; width: 100%; }
+[data-page="kit"] .kit-content .kit-mobile-actions .kit-action { flex: 1 1 0; min-width: 0; }
+[data-page="kit"] .kit-content .kit-mobile-actions .kit-more { flex: 0 0 38px; }
+@media (max-width: 390px) {
+  [data-page="kit"] .kit-content .kit-mobile-actions { gap: 6px; }
+  [data-page="kit"] .kit-content .kit-mobile-actions .kit-more { flex-basis: 34px; }
+}
+
+/* Kit 位置清單（2026-09-27 多位置管理）；欄位標頭 .col-headers 已移至 3-components/location-headers.css（P4） */
+
+[data-page="kit"] .edit-stock-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+[data-page="kit"] .edit-stock-row input[type="text"], [data-page="kit"] .edit-stock-row input[type="number"] {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-13);
+}
+
+[data-page="kit"] .edit-stock-row input.kit-loc-cabinet { width: 25%; flex-shrink: 0; }
+[data-page="kit"] .edit-stock-row input.kit-loc-pos { width: 25%; flex-shrink: 0; }
+[data-page="kit"] .edit-stock-row input.kit-loc-qty { width: 15%; flex-shrink: 0; }
+[data-page="kit"] .edit-stock-row input.kit-loc-note { flex: 1; min-width: 120px; }
+
+[data-page="kit"] .edit-stock-row .btn-remove {
+  flex: 0 0 32px;
+  padding: 6px;
+  border: none;
+  background: none;
+  color: var(--c-danger);
+  cursor: pointer;
+  font-size: var(--fs-16);
+}
+
+[data-page="kit"] .edit-stock-row .btn-remove:hover {
+  background: var(--c-danger-soft);
+  border-radius: var(--r-sm);
+}
+
+/* 整組待領出 modal 的材料清單（#kit-prepare-list；原本是 JS inline style） */
+[data-page="kit"] .kit-prepare-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--c-surface-2); }
+[data-page="kit"] .kit-prepare-thumb { width: 36px; height: 36px; border-radius: var(--r-sm); object-fit: cover; cursor: zoom-in; }
+[data-page="kit"] .kit-prepare-thumb--empty { display: flex; align-items: center; justify-content: center; background: var(--c-surface-2); color: var(--c-border-control); font-size: var(--fs-14); cursor: default; }
+[data-page="kit"] .kit-prepare-info { flex: 1; min-width: 0; }
+[data-page="kit"] .kit-prepare-name { font-size: var(--fs-13); font-weight: var(--fw-medium); }
+[data-page="kit"] .kit-prepare-code { color: var(--c-muted); font-size: var(--fs-11); }
+[data-page="kit"] .kit-prepare-qty { text-align: right; font-size: var(--fs-12); }
+[data-page="kit"] .kit-prepare-stock { color: var(--c-success-strong); }
+[data-page="kit"] .kit-prepare-stock.is-short { color: var(--c-danger); }
+}

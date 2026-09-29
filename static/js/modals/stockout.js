@@ -581,18 +581,18 @@ function openKitPrepareModal(kitId, kitName) {
   let listHtml = '';
   comps.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;cursor:zoom-in" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')" title="點擊看大圖">'
-      : '<div style="width:36px;height:36px;border-radius:6px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:14px">📷</div>';
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" alt="" class="kit-prepare-thumb" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')" title="點擊看大圖">'
+      : '<div class="kit-prepare-thumb kit-prepare-thumb--empty">📷</div>';
     const stockOk = (c.stock || 0) >= c.need_qty;
-    listHtml += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9">' +
+    listHtml += '<div class="kit-prepare-row">' +
       photo +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:13px;font-weight:600">' + esc(c.brand || '') + ' ' + esc(c.name) + '</div>' +
-        '<div style="font-size:11px;color:#888">' + (c.code ? '型號：' + esc(c.code) : '') + '</div>' +
+      '<div class="kit-prepare-info">' +
+        '<div class="kit-prepare-name">' + esc(c.brand || '') + ' ' + esc(c.name) + '</div>' +
+        '<div class="kit-prepare-code">' + (c.code ? '型號：' + esc(c.code) : '') + '</div>' +
       '</div>' +
-      '<div style="text-align:right;font-size:12px">' +
+      '<div class="kit-prepare-qty">' +
         '<div>需要 ' + c.need_qty + ' ' + esc(c.unit || '個') + '</div>' +
-        '<div style="color:' + (stockOk ? '#15803d' : '#dc2626') + '">庫存 ' + (c.stock || 0) + '</div>' +
+        '<div class="kit-prepare-stock' + (stockOk ? '' : ' is-short') + '">庫存 ' + (c.stock || 0) + '</div>' +
       '</div>' +
     '</div>';
   });

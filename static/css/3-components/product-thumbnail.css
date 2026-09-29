@@ -1,0 +1,12 @@
+/* 商品縮圖（庫存 / 整組共用；CSS 架構重構 P4 自 4-pages/inventory.css 抽出） */
+@layer components {
+.product-thumbnail-wrap, .product-thumbnail-placeholder {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--r-md);
+}
+.product-thumbnail-wrap { width: 100%; height: 100%; background: var(--c-surface-2); }
+.product-thumbnail-placeholder { background: var(--c-surface-2); color: var(--c-border-control); font-size: var(--fs-20); }
+.product-thumbnail-placeholder[hidden] { display: none; }
+}

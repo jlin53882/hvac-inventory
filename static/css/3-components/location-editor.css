@@ -1,6 +1,7 @@
+/* 位置清單編輯器（新增 / 編輯品項 modal 的位置列、位置調整；跨頁共用，CSS 架構重構 P5 自 4-pages/inventory-locations.css 改為共用元件） */
+@layer components {
 /* Inventory location editing and target-location adjustment surfaces. */
-#edit-modal .edit-stock-headers, #add-modal .edit-stock-headers,
-#edit-stock-rows .stock-row, #add-stock-rows .stock-row {
+#edit-modal .edit-stock-headers, #add-modal .edit-stock-headers, #edit-stock-rows .stock-row, #add-stock-rows .stock-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 60px minmax(0, 1fr) 40px;
   gap: 6px;
@@ -19,8 +20,7 @@
   margin: 0;
 }
 
-#edit-stock-rows .stock-field select, #add-stock-rows .stock-field select,
-#edit-stock-rows .stock-field input, #add-stock-rows .stock-field input {
+#edit-stock-rows .stock-field select, #add-stock-rows .stock-field select, #edit-stock-rows .stock-field input, #add-stock-rows .stock-field input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -32,18 +32,19 @@
   width: 40px;
   height: 36px;
   padding: 0;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  background: #fff;
-  color: #b91c1c;
-  font-size: 16px;
-  font-weight: 700;
+  border: 1px solid var(--c-danger-border);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-danger-strong);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
   cursor: pointer;
 }
 
-#edit-stock-rows .stock-remove:hover, #add-stock-rows .stock-remove:hover { background: #fef2f2; }
+#edit-stock-rows .stock-remove:hover, #add-stock-rows .stock-remove:hover { background: var(--c-danger-soft); }
 
-.stock-adjust-modal {
+/* 與 .modal 同在 components 層且 modal.css 較晚載入：用 .modal.stock-adjust-modal 提高特異度，寬度才不會被 .modal 蓋掉 */
+.modal.stock-adjust-modal {
   width: min(420px, calc(100vw - 24px));
   max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);
@@ -52,8 +53,8 @@
 
 .stock-adjust-description {
   margin: -4px 0 12px;
-  color: #64748b;
-  font-size: 13px;
+  color: var(--c-muted);
+  font-size: var(--fs-13);
 }
 
 .stock-adjust-location-list {
@@ -71,23 +72,22 @@
   width: 100%;
   min-height: 48px;
   padding: 10px 12px;
-  border: 1px solid #dbe3ec;
-  border-radius: 10px;
-  background: #fff;
-  color: #1f2937;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-text);
   text-align: left;
   overflow-wrap: anywhere;
   cursor: pointer;
 }
 
-.stock-adjust-location-option:hover,
-.stock-adjust-location-option:focus-visible {
-  border-color: #2d5a8e;
-  background: #f8fbff;
+.stock-adjust-location-option:hover, .stock-adjust-location-option:focus-visible {
+  border-color: var(--c-primary);
+  background: var(--c-white);
 }
 
-.stock-adjust-location-name { font-size: 14px; font-weight: 700; }
-.stock-adjust-location-qty { color: #64748b; font-size: 12px; }
+.stock-adjust-location-name { font-size: var(--fs-14); font-weight: var(--fw-bold); }
+.stock-adjust-location-qty { color: var(--c-muted); font-size: var(--fs-12); }
 
 @media (max-width: 767px) {
   #edit-modal .edit-stock-headers, #add-modal .edit-stock-headers { display: none; }
@@ -98,8 +98,8 @@
     gap: 8px 6px;
     align-items: end;
     padding: 8px;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
   }
 
   #edit-stock-rows .stock-field-cabinet, #add-stock-rows .stock-field-cabinet { grid-area: cabinet; }
@@ -115,13 +115,13 @@
   #edit-stock-rows .stock-mobile-label, #add-stock-rows .stock-mobile-label {
     display: block;
     margin-bottom: 3px;
-    color: #64748b;
-    font-size: 10px;
-    font-weight: 600;
+    color: var(--c-muted);
+    font-size: var(--fs-11);
+    font-weight: var(--fw-medium);
   }
-  #edit-stock-rows .stock-field input, #add-stock-rows .stock-field input,
-  #edit-stock-rows .stock-field select, #add-stock-rows .stock-field select {
+  #edit-stock-rows .stock-field input, #add-stock-rows .stock-field input, #edit-stock-rows .stock-field select, #add-stock-rows .stock-field select {
     padding: 8px 7px;
-    font-size: 13px;
+    font-size: var(--fs-13);
   }
+}
 }

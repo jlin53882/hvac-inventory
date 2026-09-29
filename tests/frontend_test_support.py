@@ -1,6 +1,7 @@
 """Shared paths and readers for frontend contract tests."""
 
 import os
+import re
 
 # 專案根目錄
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,14 +12,18 @@ STATIC = os.path.join(BASE_DIR, "static")
 INDEX = os.path.join(STATIC, "index.html")
 # 待測：login.html
 LOGIN = os.path.join(STATIC, "login.html")
-# 待測：style.css
-CSS_CORE = os.path.join(STATIC, "css", "style.core.css")
-CSS_CAL = os.path.join(STATIC, "css", "style.calendar.css")
-CSS_INVENTORY = os.path.join(STATIC, "css", "style.inventory.css")
-CSS_KIT = os.path.join(STATIC, "css", "style.kit.css")
-CSS_STOCKTAKE = os.path.join(STATIC, "css", "style.stocktake.css")
-CSS_STOCKOUT = os.path.join(STATIC, "css", "style.stockout.css")
-CSS_INVENTORY_LOCATIONS = os.path.join(STATIC, "css", "style.inventory-locations.css")
+# 待測：共用樣式（CSS 架構重構 P3：原 style.core.css 拆成 1-base / 2-layout / 3-components）
+SHARED_CSS_DIRS = ("1-base", "2-layout", "3-components")
+CSS_CAL = os.path.join(STATIC, "css", "4-pages", "calendar.css")
+CSS_INVENTORY = os.path.join(STATIC, "css", "4-pages", "inventory.css")
+CSS_KIT = os.path.join(STATIC, "css", "4-pages", "kit.css")
+CSS_STOCKTAKE = os.path.join(STATIC, "css", "4-pages", "stocktake.css")
+CSS_STOCKOUT = os.path.join(STATIC, "css", "4-pages", "stockout.css")
+CSS_INVENTORY_LOCATIONS = os.path.join(STATIC, "css", "3-components", "location-editor.css")  # P5：跨頁共用的位置編輯器
+# CSS 架構重構 P4：待領出頁、異常清單 Dialog、簽名報表 / 報價單共用外殼自原檔抽出
+CSS_PREPARED = os.path.join(STATIC, "css", "4-pages", "prepared.css")
+CSS_STATUS_LIST = os.path.join(STATIC, "css", "3-components", "status-list.css")
+CSS_PANEL = os.path.join(STATIC, "css", "3-components", "panel.css")
 # 待測：auth.js
 AUTH_JS = os.path.join(STATIC, "js", "auth.js")
 # 待測：render/kits.js
@@ -54,9 +59,9 @@ CARD_JS = os.path.join(STATIC, "js", "render", "card.js")
 CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
 SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
-SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "style.signed-reports.css")
+SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "4-pages", "signed-reports.css")
 QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
-QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "style.quotation-upload.css")
+QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "4-pages", "quotation-upload.css")
 # 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
 QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation.js")
 QUOTATION_HISTORY_PAGINATION_JS = os.path.join(BASE_DIR, "tests", "quotation_history_pagination.test.js")
@@ -73,9 +78,9 @@ TAB_ASYNC_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_async_life
 CALENDAR_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "calendar_runtime.test.js")
 QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
 PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
-PETTY_CASH_CSS = os.path.join(STATIC, "css", "style.petty-cash.css")
-PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "style.petty-cash-reports.css")
-PETTY_CASH_ENGINEERING_CSS = os.path.join(STATIC, "css", "style.petty-cash-engineering.css")
+PETTY_CASH_CSS = os.path.join(STATIC, "css", "4-pages", "petty-cash.css")
+PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "4-pages", "petty-cash-reports.css")
+PETTY_CASH_ENGINEERING_CSS = os.path.join(STATIC, "css", "4-pages", "petty-cash-engineering.css")
 PETTY_CASH_ENGINEERING_MODAL_JS = os.path.join(STATIC, "js", "modals", "engineering-petty-cash.js")
 SETTINGS_HTML = os.path.join(STATIC, "settings.html")
 SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
@@ -84,10 +89,38 @@ CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
 CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
 
 
-def read(p: str) -> str:
-    """讀檔 helper（UTF-8）"""
+_PAGE_SCOPE_RE = re.compile(r'(body)?(?:\[data-page="[\w-]+"\]|:is\((?:\[data-page="[\w-]+"\],?)+\)) ?')
+
+
+def unscope_css(css: str) -> str:
+    """去掉頁面範圍前綴（[data-page="x"] / :is(...) / body[data-page="x"]），讓舊測試只比對宣告內容。
+    範圍本身由 tests/test_css_architecture.py 嚴格檢查。"""
+    return _PAGE_SCOPE_RE.sub(lambda m: m.group(1) or "", css)
+
+
+def read(p) -> str:
+    """讀檔 helper（UTF-8）；CSS 會先去掉頁面範圍前綴（見 unscope_css）"""
     with open(p, encoding="utf-8") as fh:
-        return fh.read()
+        text = fh.read()
+    return unscope_css(text) if str(p).endswith(".css") else text
+
+
+def read_shared_css() -> str:
+    """全部共用樣式（base / layout / components）依檔名順序串接。"""
+    parts = []
+    for directory in SHARED_CSS_DIRS:
+        folder = os.path.join(STATIC, "css", directory)
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            if name.endswith(".css"):
+                parts.append(read(os.path.join(folder, name)))
+    return "\n".join(parts)
+
+
+def read_page_with_css(html_path: str) -> str:
+    """HTML 原文 + 它載入的頁面樣式檔（CSS 架構重構 P2：settings / permissions / login 內嵌 <style> 已搬到 css/4-pages/）"""
+    html = read(html_path)
+    css = [read(os.path.join(STATIC, "css", rel)) for rel in re.findall(r'href="/static/css/(4-pages/[^"?]+\.css)', html)]
+    return "\n".join([html, *css])
 
 def read_petty_cash_css() -> str:
     """零用金三層 CSS 合併內容（僅供既有行為測試）。"""
@@ -95,5 +128,12 @@ def read_petty_cash_css() -> str:
 
 
 def read_css_all() -> str:
-    """style.css 拆檔後（2026-08-16）：core + calendar 合併讀，合併順序 = 原檔順序（內容 == 原 style.css）"""
-    return read(CSS_CORE) + read(CSS_CAL)
+    """全部 CSS（原 style.css 內容已分散到共用樣式與各頁檔案；CSS 架構重構 P3）"""
+    parts = [read_shared_css()]
+    for directory in ("4-pages", "5-utilities"):
+        folder = os.path.join(STATIC, "css", directory)
+        # git 不追蹤空目錄：某層暫時沒有檔案時目錄可能不存在（P5 曾因此在 CI 失敗）
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            if name.endswith(".css"):
+                parts.append(read(os.path.join(folder, name)))
+    return "\n".join(parts)

@@ -125,7 +125,7 @@ async function renderWorkProgress() {
     <div class="wpr-wrap">
       <section class="wpr-page-header">
         <div><div class="wpr-eyebrow">📸 現場紀錄</div><h1>每日工作進度回報</h1><p>記錄每日工作進度、備註及施工現場照片。</p></div>
-        <button class="wpr-history-jump" type="button" onclick="document.getElementById('wpr-history').scrollIntoView({behavior:'smooth'})">查看歷史 ↓</button>
+        <button class="btn btn--secondary btn--md wpr-history-jump" type="button" onclick="document.getElementById('wpr-history').scrollIntoView({behavior:'smooth'})">查看歷史 ↓</button>
       </section>
       <div class="wpr-layout">
         <section class="wpr-card wpr-create-card" id="wpr-create"></section>
@@ -158,13 +158,13 @@ async function renderWorkProgress() {
             <div class="wpr-filter-field"><label for="wpr-from">起始日</label><input type="date" id="wpr-from" aria-label="起始日期"></div>
             <div class="wpr-filter-field"><label for="wpr-to">迄止日</label><input type="date" id="wpr-to" aria-label="迄止日期"></div>
             <div class="wpr-filter-field wpr-filter-field--search"><label for="wpr-query">關鍵字（客戶／服務／地址／備註／回報人）</label><input type="search" id="wpr-query" placeholder="例：王先生、安裝、配管" aria-label="搜尋工作進度" onkeydown="if(event.key==='Enter') wprLoadHistory(1)"></div>
-            <div class="wpr-filter-actions"><button type="button" class="wpr-filter-primary" onclick="wprLoadHistory(1)">搜尋</button><button type="button" onclick="wprResetFilter()">清除</button></div>
+            <div class="wpr-filter-actions"><button type="button" class="btn btn--primary btn--md" onclick="wprLoadHistory(1)">搜尋</button><button type="button" class="btn btn--secondary btn--md" onclick="wprResetFilter()">清除</button></div>
           </div>
           <div class="wpr-quick-filters">
-            <button type="button" class="wpr-chip" onclick="wprQuickRange('today', this)">今天</button>
-            <button type="button" class="wpr-chip" onclick="wprQuickRange('week', this)">本週</button>
-            <button type="button" class="wpr-chip active" onclick="wprQuickRange('month', this)">本月</button>
-            <button type="button" class="wpr-chip" onclick="wprQuickRange('all', this)">全部</button>
+            <button type="button" class="chip wpr-chip" onclick="wprQuickRange('today', this)">今天</button>
+            <button type="button" class="chip wpr-chip" onclick="wprQuickRange('week', this)">本週</button>
+            <button type="button" class="chip wpr-chip is-active" onclick="wprQuickRange('month', this)">本月</button>
+            <button type="button" class="chip wpr-chip" onclick="wprQuickRange('all', this)">全部</button>
             <span class="wpr-result-count"><span id="wpr-result-count">0 筆</span></span>
           </div>
           <div id="wpr-history-list"></div>
@@ -216,14 +216,14 @@ function wprRenderCreate() {
         <div class="wpr-photo-limit-copy">JPG、PNG、WebP · 單張最多 20MB · 每份最多 20 張</div>
         <div id="wpr-drop" class="wpr-drop">
           <div class="wpr-drop-icon">📸</div><div class="wpr-drop-title">拖曳多張圖片到此</div><div class="wpr-drop-sub">支援 JPG、PNG、WebP；也可以使用相簿或手機相機連續新增</div>
-          <div class="wpr-photo-actions"><button id="wpr-album-button" type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-album').click()">🖼 從相簿選擇</button><button id="wpr-camera-button" type="button" class="wpr-photo-button" onclick="document.getElementById('wpr-camera').click()">📷 拍照新增</button></div>
+          <div class="wpr-photo-actions"><button id="wpr-album-button" type="button" class="btn btn--secondary btn--md" onclick="document.getElementById('wpr-album').click()">🖼 從相簿選擇</button><button id="wpr-camera-button" type="button" class="btn btn--secondary btn--md" onclick="document.getElementById('wpr-camera').click()">📷 拍照新增</button></div>
           <input id="wpr-album" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onchange="wprAddPendingFiles(this.files);this.value=''"><input id="wpr-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onchange="wprAddPendingFiles(this.files);this.value=''">
         </div>
         <div class="wpr-photo-counter" id="wpr-photo-counter">已選 0 / 20 張</div>
         <div id="wpr-pending-photos" class="wpr-photo-grid"></div>
       </div>
     </section>
-    <button id="wpr-save" type="button" class="wpr-save-button" disabled onclick="wprSubmit()">儲存工作進度回報</button>`;
+    <button id="wpr-save" type="button" class="btn btn--primary btn--md wpr-save-button" disabled onclick="wprSubmit()">儲存工作進度回報</button>`;
   var uploaderInput = document.getElementById('wpr-uploader');
   var creatorIdentity = document.getElementById('wpr-create-creator');
   var currentUserName = wprCurrentUserName();
@@ -335,7 +335,7 @@ async function wprSelectJob(id) {
   var save = document.getElementById('wpr-save');
   if (existing) {
     area.hidden = false;
-    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong>' + wprOptionalNoteHtml('工作進度', existing.note) + '<button type="button" onclick="wprOpenHistoryDetail(' + existing.id + ',\'wpr-selected-report-detail-' + existing.id + '\')">查看工作進度</button><div id="wpr-selected-report-detail-' + existing.id + '" class="wpr-selected-report-detail"></div></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
+    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong>' + wprOptionalNoteHtml('工作進度', existing.note) + '<button type="button" class="btn btn--secondary btn--sm" onclick="wprOpenHistoryDetail(' + existing.id + ',\'wpr-selected-report-detail-' + existing.id + '\')">查看工作進度</button><div id="wpr-selected-report-detail-' + existing.id + '" class="wpr-selected-report-detail"></div></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
     save.disabled = true;
   } else {
     area.hidden = false;
@@ -520,7 +520,7 @@ function wprOpenSubmitConfirmation(snapshot) {
   var overlay = document.createElement('div');
   overlay.className = 'wpr-confirm-overlay';
   overlay.id = 'wpr-confirm-overlay';
-  overlay.innerHTML = '<div class="wpr-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-confirm-title"><div class="wpr-confirm-header"><h3 id="wpr-confirm-title">確認儲存工作進度？</h3><button type="button" class="wpr-confirm-close" data-wpr-confirm-cancel aria-label="返回修改">✕</button></div><div class="wpr-confirm-body"><p>請確認以下工作進度內容無誤。</p><dl><dt>行事曆工作</dt><dd>' + esc(snapshot.date) + ' ' + snapshot.time + '<br>' + esc(snapshot.clientName) + ' · ' + esc(snapshot.serviceName) + '</dd><dt>回報人</dt><dd>' + esc(snapshot.uploaderName) + '</dd>' + (snapshot.note ? '<dt>工作進度</dt><dd>' + esc(snapshot.note) + '</dd>' : '') + '<dt>待上傳照片</dt><dd>' + snapshot.files.length + ' 張</dd></dl></div><div class="wpr-confirm-footer"><button type="button" class="wpr-confirm-secondary" data-wpr-confirm-cancel>返回修改</button><button type="button" class="wpr-confirm-primary" data-wpr-confirm-submit>確認儲存</button></div></div>';
+  overlay.innerHTML = '<div class="wpr-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-confirm-title"><div class="wpr-confirm-header"><h3 id="wpr-confirm-title">確認儲存工作進度？</h3><button type="button" class="wpr-confirm-close" data-wpr-confirm-cancel aria-label="返回修改">✕</button></div><div class="wpr-confirm-body"><p>請確認以下工作進度內容無誤。</p><dl><dt>行事曆工作</dt><dd>' + esc(snapshot.date) + ' ' + snapshot.time + '<br>' + esc(snapshot.clientName) + ' · ' + esc(snapshot.serviceName) + '</dd><dt>回報人</dt><dd>' + esc(snapshot.uploaderName) + '</dd>' + (snapshot.note ? '<dt>工作進度</dt><dd>' + esc(snapshot.note) + '</dd>' : '') + '<dt>待上傳照片</dt><dd>' + snapshot.files.length + ' 張</dd></dl></div><div class="wpr-confirm-footer"><button type="button" class="btn btn--secondary btn--md" data-wpr-confirm-cancel>返回修改</button><button type="button" class="btn btn--primary btn--md" data-wpr-confirm-submit>確認儲存</button></div></div>';
   document.body.appendChild(overlay);
   overlay.querySelectorAll('[data-wpr-confirm-cancel]').forEach(function(button) { button.addEventListener('click', wprCloseSubmitConfirmation); });
   overlay.querySelector('[data-wpr-confirm-submit]').addEventListener('click', wprConfirmSubmit);
@@ -604,7 +604,7 @@ function wprSetHistoryMonth() {
   var to = document.getElementById('wpr-to');
   if (from) from.value = wprIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
   if (to) to.value = wprIsoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-  document.querySelectorAll('.wpr-chip').forEach(function(button) { button.classList.toggle('active', button.textContent.trim() === '本月'); });
+  document.querySelectorAll('.wpr-chip').forEach(function(button) { button.classList.toggle('is-active', button.textContent.trim() === '本月'); });
 }
 /**
  * Clear history filters and reload the default month.
@@ -627,7 +627,7 @@ function wprQuickRange(type, button) {
   if (type === 'today') from = to = wprIsoDate(today);
   if (type === 'month') { from = wprIsoDate(new Date(today.getFullYear(), today.getMonth(), 1)); to = wprIsoDate(new Date(today.getFullYear(), today.getMonth() + 1, 0)); }
   if (type === 'week') { var day = today.getDay() || 7; var start = new Date(today); start.setDate(today.getDate() - day + 1); from = wprIsoDate(start); to = wprIsoDate(today); }
-  if (button) document.querySelectorAll('.wpr-chip').forEach(function(item) { item.classList.toggle('active', item === button); });
+  if (button) document.querySelectorAll('.wpr-chip').forEach(function(item) { item.classList.toggle('is-active', item === button); });
   var fromInput = document.getElementById('wpr-from');
   var toInput = document.getElementById('wpr-to');
   if (fromInput) fromInput.value = from;
@@ -641,7 +641,7 @@ function wprQuickRange(type, button) {
 function wprRenderHistoryPagination() {
   var lastPage = Math.max(1, Math.ceil(wprHistoryTotal / wprHistoryPageSize));
   if (lastPage <= 1) return '';
-  return '<nav class="wpr-pagination" aria-label="工作進度歷史分頁"><button type="button" onclick="wprLoadHistory(wprHistoryPage - 1)"' + (wprHistoryPage <= 1 ? ' disabled' : '') + '>上一頁</button><span>第 ' + wprHistoryPage + ' / ' + lastPage + ' 頁 · 共 ' + wprHistoryTotal + ' 筆</span><button type="button" onclick="wprLoadHistory(wprHistoryPage + 1)"' + (wprHistoryPage >= lastPage ? ' disabled' : '') + '>下一頁</button></nav>';
+  return '<nav class="wpr-pagination" aria-label="工作進度歷史分頁"><button type="button" class="btn btn--secondary btn--sm" onclick="wprLoadHistory(wprHistoryPage - 1)"' + (wprHistoryPage <= 1 ? ' disabled' : '') + '>上一頁</button><span>第 ' + wprHistoryPage + ' / ' + lastPage + ' 頁 · 共 ' + wprHistoryTotal + ' 筆</span><button type="button" class="btn btn--secondary btn--sm" onclick="wprLoadHistory(wprHistoryPage + 1)"' + (wprHistoryPage >= lastPage ? ' disabled' : '') + '>下一頁</button></nav>';
 }
 /**
  * Drop management state for detail surfaces that no longer exist.
@@ -783,7 +783,7 @@ function wprPhotoManagementToolbarHtml(id, targetId) {
   var state = wprPhotoManageState(id, targetId);
   var selectedCount = Object.keys(state.selected).length;
   var disabled = state.deleting ? ' disabled' : '';
-  return '<div class="wpr-photo-management-toolbar" role="toolbar" aria-label="施工照片管理"><span class="wpr-photo-selected-count">已選 ' + selectedCount + ' 張</span><div class="wpr-photo-management-actions"><button type="button" class="wpr-photo-select-all" onclick="wprSelectAllPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>全選</button><button type="button" class="wpr-photo-clear-selection" onclick="wprClearPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + (disabled || selectedCount === 0 ? ' disabled' : '') + '>取消選取</button><button type="button" class="wpr-photo-batch-delete" onclick="wprBatchDeletePhotos(' + id + ',\'' + esc(jsStr(targetId)) + '\')" aria-label="刪除選取的 ' + selectedCount + ' 張照片"' + (selectedCount === 0 || state.deleting ? ' disabled' : '') + '>' + (state.deleting ? '刪除中…' : '刪除選取') + '</button><button type="button" class="wpr-photo-finish" onclick="wprTogglePhotoManage(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>完成選取</button></div></div>';
+  return '<div class="wpr-photo-management-toolbar" role="toolbar" aria-label="施工照片管理"><span class="wpr-photo-selected-count">已選 ' + selectedCount + ' 張</span><div class="wpr-photo-management-actions"><button type="button" class="btn btn--secondary btn--sm" onclick="wprSelectAllPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>全選</button><button type="button" class="btn btn--secondary btn--sm wpr-photo-clear-selection" onclick="wprClearPhotoSelection(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + (disabled || selectedCount === 0 ? ' disabled' : '') + '>取消選取</button><button type="button" class="btn btn--danger btn--sm wpr-photo-batch-delete" onclick="wprBatchDeletePhotos(' + id + ',\'' + esc(jsStr(targetId)) + '\')" aria-label="刪除選取的 ' + selectedCount + ' 張照片"' + (selectedCount === 0 || state.deleting ? ' disabled' : '') + '>' + (state.deleting ? '刪除中…' : '刪除選取') + '</button><button type="button" class="btn btn--secondary btn--sm wpr-photo-finish" onclick="wprTogglePhotoManage(' + id + ',\'' + esc(jsStr(targetId)) + '\')"' + disabled + '>完成選取</button></div></div>';
 }
 /**
  * Load and render the full detail body for one report.
@@ -805,7 +805,7 @@ async function wprOpenHistoryDetail(id, targetId, cachedReport) {
     wprPhotoManageReports[cacheKey] = report;
     wprLastDetailReport = { id: id, report: report };
     var actionTargetId = esc(jsStr(detailTargetId));
-    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-detail-photo-section"><h4 class="wpr-detail-photo-title">施工照片</h4>' + (wprPhotoManageState(id, detailTargetId).manage ? wprPhotoManagementToolbarHtml(id, detailTargetId) : '') + '<div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id, detailTargetId) + '</div></div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" class="wpr-detail-action-edit" onclick="wprEditReport(' + id + ',\'' + actionTargetId + '\')">✏️ 編輯回報</button><button type="button" class="wpr-detail-action-manage" onclick="wprTogglePhotoManage(' + id + ',\'' + actionTargetId + '\')">' + (wprPhotoManageState(id, detailTargetId).manage ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" class="wpr-detail-action-add" onclick="wprAddExistingPhotos(' + id + ',\'' + actionTargetId + '\')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="wpr-detail-action-delete wpr-danger" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
+    detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-detail-photo-section"><h4 class="wpr-detail-photo-title">施工照片</h4>' + (wprPhotoManageState(id, detailTargetId).manage ? wprPhotoManagementToolbarHtml(id, detailTargetId) : '') + '<div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id, detailTargetId) + '</div></div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" class="btn btn--secondary btn--sm wpr-detail-action-edit" onclick="wprEditReport(' + id + ',\'' + actionTargetId + '\')">✏️ 編輯回報</button><button type="button" class="btn btn--secondary btn--sm wpr-detail-action-manage" onclick="wprTogglePhotoManage(' + id + ',\'' + actionTargetId + '\')">' + (wprPhotoManageState(id, detailTargetId).manage ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" class="btn btn--secondary btn--sm wpr-detail-action-add" onclick="wprAddExistingPhotos(' + id + ',\'' + actionTargetId + '\')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="btn btn--danger btn--sm wpr-detail-action-delete" onclick="wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
   } catch (error) { if (token === wprDetailRequestTokens[tokenKey]) detail.textContent = error.message; }
 }
 /**
@@ -929,7 +929,7 @@ async function wprEditReport(id, targetId) {
             <textarea id="wpr-edit-note" maxlength="1000" rows="6">${esc(report.note || '')}</textarea>
           </section>
         </div>
-        <div class="wpr-edit-footer"><button type="button" class="wpr-edit-secondary" data-wpr-edit-close>取消</button><button type="button" class="wpr-edit-primary" data-wpr-edit-save>儲存</button></div>
+        <div class="wpr-edit-footer"><button type="button" class="btn btn--secondary btn--md" data-wpr-edit-close>取消</button><button type="button" class="btn btn--primary btn--md" data-wpr-edit-save>儲存</button></div>
       </div>`;
     document.body.appendChild(overlay);
     var close = function() { overlay.remove(); };
@@ -1036,7 +1036,7 @@ function wprOpenUnsavedConfirmation(request) {
   var overlay = document.createElement('div');
   overlay.className = 'wpr-unsaved-overlay';
   overlay.id = 'wpr-unsaved-overlay';
-  overlay.innerHTML = '<div class="wpr-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-unsaved-title"><h3 id="wpr-unsaved-title">尚未儲存工作進度</h3><p>目前輸入內容與待上傳照片尚未儲存。<br>離開後這些內容將會遺失。</p><div class="wpr-unsaved-actions"><button type="button" class="wpr-unsaved-secondary" onclick="wprCloseLeaveConfirmation()">繼續編輯</button><button type="button" class="wpr-unsaved-danger" onclick="wprDiscardAndLeave()">放棄並離開</button></div></div>';
+  overlay.innerHTML = '<div class="wpr-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-unsaved-title"><h3 id="wpr-unsaved-title">尚未儲存工作進度</h3><p>目前輸入內容與待上傳照片尚未儲存。<br>離開後這些內容將會遺失。</p><div class="wpr-unsaved-actions"><button type="button" class="btn btn--secondary btn--md" onclick="wprCloseLeaveConfirmation()">繼續編輯</button><button type="button" class="btn btn--danger btn--md" onclick="wprDiscardAndLeave()">放棄並離開</button></div></div>';
   document.body.appendChild(overlay);
 }
 

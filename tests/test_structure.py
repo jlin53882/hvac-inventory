@@ -105,16 +105,19 @@ def test_calendar_state_in_globals():
 
 
 def test_style_css_split_two_files():
-    """A1：style.css 拆 style.core.css + style.calendar.css；舊檔已刪除"""
+    """A1：style.css → core + calendar；CSS 架構重構 P3 再把 core 拆成 base / layout / components；舊檔已刪除"""
     assert not os.path.exists(os.path.join(STATIC, "css", "style.css")), "style.css 應已刪除"
-    core = read(os.path.join(STATIC, "css", "style.core.css"))
-    cal = read(os.path.join(STATIC, "css", "style.calendar.css"))
-    assert ".topbar" in core and ".btn-primary" in core
+    assert not os.path.exists(os.path.join(STATIC, "css", "legacy", "core.css")), "legacy/core.css 應已拆完刪除"
+    topbar = read(os.path.join(STATIC, "css", "2-layout", "topbar.css"))
+    button = read(os.path.join(STATIC, "css", "3-components", "button.css"))
+    cal = read(os.path.join(STATIC, "css", "4-pages", "calendar.css"))
+    assert ".topbar" in topbar and ".btn--primary" in button
     assert "/* ========== 行事曆派工" in cal and ".cal-grid" in cal
-    # 三頁 link 正確
+    # 三頁 link 正確：共用樣式先於頁面樣式
     idx = read(os.path.join(STATIC, "index.html"))
-    assert '/static/css/style.core.css' in idx and '/static/css/style.calendar.css' in idx
+    assert idx.index('/static/css/2-layout/shell.css') < idx.index('/static/css/4-pages/calendar.css')
     assert '/static/css/style.css"' not in idx
     for page in ("permissions.html", "settings.html"):
         html = read(os.path.join(STATIC, page))
-        assert '/static/css/style.core.css' in html, f"{page} 未改 link core"
+        for rel in ("1-base/base.css", "2-layout/shell.css", "2-layout/topbar.css", "3-components/button.css"):
+            assert f'/static/css/{rel}' in html, f"{page} 缺少共用樣式 {rel}"

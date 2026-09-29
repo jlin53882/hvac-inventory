@@ -143,9 +143,9 @@ async function renderCalendar() {
           <label class="cal-field"><span>結束日期</span><input type="date" id="cal-search-to" aria-label="結束日期"></label>
           <label class="cal-field cal-keyword-field"><span>關鍵字</span><input type="text" id="cal-search-q" placeholder="搜尋客戶、地址或備註..." aria-label="行事曆關鍵字搜尋" onkeydown="if(event.key === 'Enter') calSearch()"></label>
           <div class="cal-header-actions">
-            <button class="cal-header-btn cal-search-submit" onclick="calSearch()" aria-label="搜尋">搜尋</button>
-            <button class="cal-header-btn cal-clear-btn" onclick="calClearSearch()" aria-label="清除搜尋">清除</button>
-            ${isViewer ? '' : '<button class="cal-header-btn cal-primary-action" onclick="calOpenAppt()">＋ 新增派工</button>'}
+            <button class="btn btn--secondary btn--md cal-header-btn" onclick="calSearch()" aria-label="搜尋">搜尋</button>
+            <button class="btn btn--secondary btn--md cal-header-btn" onclick="calClearSearch()" aria-label="清除搜尋">清除</button>
+            ${isViewer ? '' : '<button class="btn btn--primary btn--md cal-header-btn" onclick="calOpenAppt()">＋ 新增派工</button>'}
           </div>
         </div>
       </section>
@@ -158,10 +158,10 @@ async function renderCalendar() {
         <section class="card cal-card cal-month-card" aria-label="月曆">
           <div class="cal-panel-toolbar">
             <div class="cal-month-header">
-              <button class="btn-sm" onclick="calChangeMonth(-1)">◀ 上月</button>
-              <button class="btn-sm cal-today-inline" onclick="calPickDate(_iso(new Date()))">今天</button>
+              <button class="btn btn--secondary btn--sm btn-sm" onclick="calChangeMonth(-1)">◀ 上月</button>
+              <button class="btn btn--secondary btn--sm btn-sm cal-today-inline" onclick="calPickDate(_iso(new Date()))">今天</button>
               <h3 id="cal-month-title"></h3>
-              <button class="btn-sm" onclick="calChangeMonth(1)">下月 ▶</button>
+              <button class="btn btn--secondary btn--sm btn-sm" onclick="calChangeMonth(1)">下月 ▶</button>
             </div>
           </div>
           <div id="cal-load-state" class="cal-load-state" role="status" aria-live="polite"></div>
@@ -177,11 +177,11 @@ async function renderCalendar() {
             </div>
             <div class="cal-day-header-actions">
               <div class="cal-day-nav">
-                <button class="cal-icon-btn" onclick="calPickDate(_iso(new Date(calSelected.getFullYear(), calSelected.getMonth(), calSelected.getDate() - 1)))" aria-label="前一天" title="前一天">◀</button>
+                <button class="btn btn--ghost btn--sm btn--icon cal-icon-btn" onclick="calPickDate(_iso(new Date(calSelected.getFullYear(), calSelected.getMonth(), calSelected.getDate() - 1)))" aria-label="前一天" title="前一天">◀</button>
                 <input type="date" id="cal-picker" onchange="calPickDate(this.value)">
-                <button class="cal-icon-btn" onclick="calPickDate(_iso(new Date(calSelected.getFullYear(), calSelected.getMonth(), calSelected.getDate() + 1)))" aria-label="後一天" title="後一天">▶</button>
+                <button class="btn btn--ghost btn--sm btn--icon cal-icon-btn" onclick="calPickDate(_iso(new Date(calSelected.getFullYear(), calSelected.getMonth(), calSelected.getDate() + 1)))" aria-label="後一天" title="後一天">▶</button>
               </div>
-              ${isViewer ? '' : '<button class="btn-sm btn-primary cal-export-btn" onclick="calExport()">📤 匯出日報表</button>'}
+              ${isViewer ? '' : '<button class="btn btn--export btn--sm cal-export-btn" onclick="calExport()">📤 匯出日報表</button>'}
             </div>
           </div>
           <div id="cal-search-panel-slot" class="cal-search-panel-slot"></div>
@@ -197,6 +197,8 @@ async function renderCalendar() {
   calSetLoadState('loading');
   const applied = await calLoadData();
   if (applied === null) return;
+  // 載入期間已切到別的頁籤：月曆 DOM 已被取代，不可再寫入（否則 cal-month-title 為 null 拋錯）
+  if (currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;
   if (calLoadError) {
     calSetLoadState('error', calLoadError);
   } else {
@@ -261,7 +263,15 @@ function calRenderLoadingUi() {
   if (legend) { legend.style.display = 'none'; legend.innerHTML = ''; }
   if (helper) { helper.style.display = 'none'; helper.innerHTML = ''; }
   if (kpi) kpi.innerHTML = Array.from({length: 3}, () => '<div class="cal-kpi-card ui-kpi-card ui-kpi-card--stacked cal-skeleton-card" aria-hidden="true"><span></span><strong></strong></div>').join('');
-  if (grid) grid.innerHTML = Array.from({length: 42}, () => '<div class="cal-cell cal-skeleton-cell" aria-hidden="true"></div>').join('');
+  if (grid) {
+    // 骨架列數跟著要載入的月份，避免沿用上個月的 --cal-week-count 讓格子擠在一起或留白
+    const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1).getDay();
+    const total = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+    const weeks = Math.ceil((first + total) / 7);
+    grid.style.setProperty('--cal-week-count', String(weeks));
+    grid.innerHTML = CAL_WEEK.map((w, index) => '<div class="cal-weekday' + (index === 0 || index === 6 ? ' cal-weekend' : '') + '">' + esc(w) + '</div>').join('')
+      + Array.from({length: weeks * 7}, () => '<div class="cal-cell cal-skeleton-cell" aria-hidden="true"></div>').join('');
+  }
   if (list) list.innerHTML = '<div class="cal-skeleton-detail" aria-hidden="true"><span></span><span></span><span></span><span></span></div>';
 }
 
@@ -285,7 +295,7 @@ function calSetLoadState(state, message) {
     calRenderLoadingUi();
   } else if (state === 'error') {
     el.className = 'cal-load-state is-error';
-    el.innerHTML = `<span>⚠️ ${esc(message || '載入失敗')}</span><button class="btn-sm" onclick="calRetryLoad()">重新載入</button>`;
+    el.innerHTML = `<span>⚠️ ${esc(message || '載入失敗')}</span><button class="btn btn--secondary btn--sm btn-sm" onclick="calRetryLoad()">重新載入</button>`;
     calRenderErrorUi(message);
   } else {
     el.className = 'cal-load-state';
@@ -469,7 +479,7 @@ function calRenderDay() {
   list.className = 'cal-timeline';
   list.innerHTML = dayEvents.map(e => {
     const who = (e.assignees || []).map(p =>
-      `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || '#1a73e8'}"></span>${esc(p.name || '')}</span>`).join(' ');
+      `<span class="cal-who"><span class="cal-who-dot" style="background:${esc(p.color) || CAL_PALETTE[0]}"></span>${esc(p.name || '')}</span>`).join(' ');
     const service = e.service_name
       ? `<span class="cal-service-badge cal-service-${esc(calServiceTone(e.service_name))}">${esc(e.service_name)}</span>` : '';
     const personal = calPersonalSync(e);
@@ -482,7 +492,7 @@ function calRenderDay() {
         : `<span class="cal-sync-status cal-sync-${esc(personal.status)}" title="${esc(personalLabel)}">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(personalLabel)}</span></span>`)
       : (isAssigned ? '' : '');
     const myRetry = isAssigned && calCanRetryPersonal(personal)
-      ? `<button type="button" class="cal-sync-retry-btn" onclick="calRetryMySync(${e.id})">重試我的</button>` : '';
+      ? `<button type="button" class="btn btn--secondary btn--sm" onclick="calRetryMySync(${e.id})">重試我的</button>` : '';
     const canViewTeamSync = hasPerm('gcal-sync-team-view');
     const teamLabel = canViewTeamSync ? calTeamSyncLabel(e.team_sync) : '';
     const teamSync = teamLabel
@@ -506,8 +516,8 @@ function calRenderDay() {
         <div class="cal-event-footer">
           <div class="cal-created-meta"><span>建立：${esc(e.created_by_name || '系統')} · ${esc(calFmtCreatedAt(e.created_at))}</span>${updated}</div>
           ${isViewer ? '' : `<div class="cal-card-actions">
-            <button class="cal-icon-btn btn-edit" onclick="calOpenAppt(${e.id})" aria-label="編輯派工" title="編輯派工"><span class="cal-action-icon">✎</span><span class="cal-action-label">編輯</span></button>
-            <button class="cal-icon-btn btn-delete" onclick="calDeleteAppt(${e.id})" aria-label="刪除派工" title="刪除派工"><span class="cal-action-icon">🗑</span><span class="cal-action-label">刪除</span></button>
+            <button class="btn btn--secondary btn--sm cal-icon-btn btn-edit" onclick="calOpenAppt(${e.id})" aria-label="編輯派工" title="編輯派工"><span class="cal-action-icon">✎</span><span class="cal-action-label">編輯</span></button>
+            <button class="btn btn--danger btn--sm cal-icon-btn btn-delete" onclick="calDeleteAppt(${e.id})" aria-label="刪除派工" title="刪除派工"><span class="cal-action-icon">🗑</span><span class="cal-action-label">刪除</span></button>
           </div>`}
         </div>
       </div>
@@ -667,7 +677,7 @@ function calRenderSearchError() {
   calApplyRightPanelMode();
   const el = document.getElementById('cal-search-results');
   if (!el) return;
-  el.innerHTML = '<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><button class="cal-search-exit" type="button" onclick="calClearSearch()">× 結束搜尋</button></div><div class="cal-search-meta">搜尋派工失敗</div></div><div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">⚠️</div><strong>搜尋派工失敗</strong><p>請重新搜尋或調整條件。</p><button class="btn-sm" type="button" onclick="calSearch()">重新搜尋</button></div>';
+  el.innerHTML = '<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><button class="btn btn--secondary btn--sm cal-search-exit" type="button" onclick="calClearSearch()">× 結束搜尋</button></div><div class="cal-search-meta">搜尋派工失敗</div></div><div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">⚠️</div><strong>搜尋派工失敗</strong><p>請重新搜尋或調整條件。</p><button class="btn btn--secondary btn--sm btn-sm" type="button" onclick="calSearch()">重新搜尋</button></div>';
 }
 
 function calRenderSearchResults(items) {
@@ -689,8 +699,8 @@ function calRenderSearchResults(items) {
     const noteHtml = e.note ? `<span>📝 ${esc(e.note)}</span>` : '';
     return `<article class="cal-search-item" data-date="${esc(e.date || '')}" role="button" tabindex="0" onclick="calJumpToDate(this.dataset.date)" onkeydown="if(event.key === 'Enter' || event.key === ' ') this.click()"><div class="cal-search-item-date"><span>${esc(calSearchDateLabel(e.date))}</span><strong>${esc(e.start_time || '未指定時間')}</strong></div><div class="cal-search-item-body"><div class="cal-search-item-title">${esc(e.client_name || '未命名派工')}</div><div class="cal-search-item-tags">${service}${assigneeHtml}</div><div class="cal-search-item-extra">${addressHtml}${noteHtml}</div></div></article>`;
   }).join('');
-  const body = itemHtml || '<div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">🔍</div><strong>沒有符合條件的派工</strong><p>請調整日期或關鍵字後重新搜尋。</p><button class="btn-sm" type="button" onclick="calClearSearch()">清除搜尋</button></div>';
-  el.innerHTML = `<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><span class="cal-search-count">共 ${list.length} 筆</span><button class="cal-search-exit" type="button" onclick="calClearSearch()">× 結束搜尋</button></div><div class="cal-search-meta">${keyword} · ${range}</div></div><div class="cal-search-list">${body}</div>`;
+  const body = itemHtml || '<div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">🔍</div><strong>沒有符合條件的派工</strong><p>請調整日期或關鍵字後重新搜尋。</p><button class="btn btn--secondary btn--sm btn-sm" type="button" onclick="calClearSearch()">清除搜尋</button></div>';
+  el.innerHTML = `<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><span class="cal-search-count">共 ${list.length} 筆</span><button class="btn btn--secondary btn--sm cal-search-exit" type="button" onclick="calClearSearch()">× 結束搜尋</button></div><div class="cal-search-meta">${keyword} · ${range}</div></div><div class="cal-search-list">${body}</div>`;
 }
 
 // Mobile keeps the previous page-level result presentation; Desktop uses the right-panel mode above.
@@ -702,21 +712,21 @@ function calRenderMobileSearchResults(items) {
   calApplyRightPanelMode();
   el.style.display = 'block';
   if (!items.length) {
-    el.innerHTML = '<div style="padding:16px;text-align:center;color:#888;font-size:13px">找不到符合條件的行程</div>';
+    el.innerHTML = '<div class="cal-msearch-empty">找不到符合條件的行程</div>';
     return;
   }
-  let html = '<div style="padding:8px 0;font-size:12px;color:#666">找到 ' + items.length + ' 筆結果</div>';
+  let html = '<div class="cal-msearch-summary">找到 ' + items.length + ' 筆結果</div>';
   items.forEach(function(e) {
     const names = (e.assignees || []).map(function(a) { return esc(a.name); }).join('、');
-    html += '<div class="cal-search-item" style="padding:10px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer" data-date="' + esc(e.date) + '" onclick="calJumpToDate(this.dataset.date)">' +
-      '<div style="font-weight:600;font-size:13px">' + esc(e.client_name) + '</div>' +
-      '<div style="font-size:12px;color:#666;margin-top:2px">' +
+    html += '<div class="cal-search-item cal-msearch-item" data-date="' + esc(e.date) + '" onclick="calJumpToDate(this.dataset.date)">' +
+      '<div class="cal-msearch-title">' + esc(e.client_name) + '</div>' +
+      '<div class="cal-msearch-time">' +
       (esc(e.date) || '') + (e.start_time ? ' ' + esc(e.start_time) + (e.end_time ? '~' + esc(e.end_time) : '') : '') +
       (e.service_name ? ' [' + esc(e.service_name) + ']' : '') +
       '</div>' +
-      (names ? '<div style="font-size:11px;color:#888;margin-top:2px">👤 ' + names + '</div>' : '') +
-      (e.address ? '<div style="font-size:11px;color:#888">📍 ' + esc(e.address) + '</div>' : '') +
-      (e.note ? '<div style="font-size:11px;color:#888">📝 ' + esc(e.note) + '</div>' : '') +
+      (names ? '<div class="cal-msearch-meta">👤 ' + names + '</div>' : '') +
+      (e.address ? '<div class="cal-msearch-meta">📍 ' + esc(e.address) + '</div>' : '') +
+      (e.note ? '<div class="cal-msearch-meta">📝 ' + esc(e.note) + '</div>' : '') +
       '</div>';
   });
   el.innerHTML = html;

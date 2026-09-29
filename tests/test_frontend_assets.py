@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from frontend_test_support import (
+    read_page_with_css,
     ADD_JS,
     API_JS,
     APP_JS,
@@ -33,9 +34,12 @@ from frontend_test_support import (
     CARD_JS,
     CHANGEPW_JS,
     CSS_CAL,
-    CSS_CORE,
+    read_shared_css,
     CSS_INVENTORY,
     CSS_INVENTORY_LOCATIONS,
+    CSS_PANEL,
+    CSS_PREPARED,
+    CSS_STATUS_LIST,
     CSS_KIT,
     CSS_STOCKOUT,
     CSS_STOCKTAKE,
@@ -166,12 +170,14 @@ def test_css_modal_mobile_visible_fix():
     assert "max-height: 88vh;" in css and "max-height: 88dvh;" in css
     assert css.index("max-height: 88vh;") < css.index("max-height: 88dvh;")
     # 層2：overlay 高於手機 topbar z-900、低於 sheet 3000/lightbox 9999
-    assert "z-index: 950" in css
-    assert "z-index: 960" in css          # toast 浮在開啟的 modal 上
+    # P8：疊層改用具名 token，數值不變
+    tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
+    assert "z-index: var(--z-overlay)" in css and "--z-overlay: 950;" in tokens
+    assert "z-index: var(--z-toast)" in css and "--z-toast: 960;" in tokens  # toast 浮在開啟的 modal 上
     # 層3：modal 底部 padding 歸零（sticky 按鈕自帶 padding），縫隙不再露出滾動內容
     assert "padding: 20px 20px 0;" in css
     # sticky 按鈕釘底——A 方案定案（2026-08-25 家豪選定）：白底無陰影貼底，白色框感消失
-    assert "position: sticky; bottom: 0; background: #fff; padding: 12px 0 14px; z-index: 10;" in css
+    assert "position: sticky; bottom: 0; background: var(--c-white); padding: 12px 0 14px; z-index: 10;" in css
     assert "box-shadow" not in css.split(".modal-actions")[1].split("}")[0]  # 按鈕區無陰影
 
 
@@ -215,13 +221,13 @@ def test_signed_reports_demo_layout_contract():
     assert '.dsr-layout { grid-template-columns: 1.05fr .95fr; }' in css
     assert '.dsr-wrap { display: grid;' not in css
     assert 'max-width: 1100px;' not in css
-    assert "content.classList.toggle('dsr-content', tab === 'signed-reports')" in app
+    assert "'signed-reports': 'dsr-content'" in app
 
 
 def test_signed_reports_actions_and_editable_note_contract():
     """DSR：圖片直接預覽；下載/刪除/編輯日期、檔案、上傳人與備註均為圖示加文字操作。"""
     js = read(SIGNED_REPORTS_RENDER_JS)
-    css = read(SIGNED_REPORTS_CSS)
+    css = read(SIGNED_REPORTS_CSS) + read(CSS_PANEL)  # P4：與報價單共用的外殼（按鈕 / 卡片 / 欄位）在 panel.css
     assert "onclick=\"dsrPreview(${r.id})\"" in js
     assert "!isImage" in js
     assert "class=\"dsr-report-thumb\"" in js
@@ -238,8 +244,8 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "prompt('編輯備註" not in js
     assert "report_date" in js and "uploader_name" in js
     assert "✏️ 編輯" in js
-    assert "${r.can_edit ? `<button class=\"dsr-action-btn\" onclick=\"dsrEdit(${r.id})\">" in js
-    assert "${r.can_delete ? `<button class=\"dsr-action-btn dsr-action-btn--danger\" onclick=\"dsrDelete(${r.id})\">" in js
+    assert "${r.can_edit ? `<button class=\"btn btn--secondary btn--sm dsr-action-btn\" onclick=\"dsrEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"btn btn--danger btn--sm dsr-action-btn dsr-action-btn--danger\" onclick=\"dsrDelete(${r.id})\">" in js
     assert "function _dsrDateOnly" in js
     assert "_dsrDateOnly(r.upload_time)" in js
     assert "esc(r.upload_time)" not in js
@@ -259,10 +265,10 @@ def test_signed_reports_actions_and_editable_note_contract():
     assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
     assert "/api/signed-reports/" in js and "note" in js
     assert ".dsr-report-thumb" in css
-    assert ".dsr-action-btn" in css
-    assert "border: 1px solid #111827" in css
-    assert ".dsr-note-cell" in css and "background: #fff7ed" in css
-    assert ".dsr-edit-modal .dsr-modal__hd h3" in css and "color: #fff" in css
+    assert "btn btn--secondary btn--sm dsr-action-btn" in js
+    assert "border: 1px solid var(--c-text)" in css
+    assert ".dsr-note-cell" in css and "background: var(--c-warning-soft)" in css
+    assert ".dsr-edit-modal .dsr-modal__hd h3" in css and "color: var(--c-white)" in css
     assert "isMobileView" in js and "開啟 PDF" in js
     assert "data-pdf-url" in js
 
@@ -284,8 +290,8 @@ def test_quotation_upload_actions_and_edit_modal_contract():
     assert "prompt('編輯備註" not in js
     assert "qupEditNote" not in js
     assert "✏️ 編輯" in js
-    assert "${r.can_edit ? `<button class=\"qup-action-btn\" onclick=\"qupEdit(${r.id})\">" in js
-    assert "${r.can_delete ? `<button class=\"qup-action-btn qup-action-btn--danger\" onclick=\"qupDelete(${r.id})\">" in js
+    assert "${r.can_edit ? `<button class=\"btn btn--secondary btn--sm qup-action-btn\" onclick=\"qupEdit(${r.id})\">" in js
+    assert "${r.can_delete ? `<button class=\"btn btn--danger btn--sm qup-action-btn qup-action-btn--danger\" onclick=\"qupDelete(${r.id})\">" in js
     assert "function qupKeepUploaderOnly" in js
     assert "qupKeepUploaderOnly();" in js
     assert "accept=\".pdf,image/png,image/jpeg,image/gif,image/webp\"" in js
@@ -294,8 +300,8 @@ def test_quotation_upload_actions_and_edit_modal_contract():
     assert "FormData" in js
     assert ".qup-note-cell" in css and "white-space: pre-wrap" in css
     assert ".qup-edit-modal" in css
-    assert ".qup-edit-modal .qup-modal__hd h3" in css and "color: #fff" in css
-    assert ".qup-edit-modal .qup-modal__bd" in css and "background: #fff" in css
+    assert ".qup-edit-modal .qup-modal__hd h3" in css and "color: var(--c-white)" in css
+    assert ".qup-edit-modal .qup-modal__bd" in css and "background: var(--c-white)" in css
     assert "isMobileView" in js and "開啟 PDF" in js
     assert "data-pdf-url" in js
 
@@ -402,15 +408,15 @@ def test_petty_cash_frontend_contract():
     assert "switchTab('petty-cash')" in index
     assert 'src="/static/js/render/petty-cash.js"' in index
     assert 'src="/static/js/modals/petty-cash.js"' in index
-    assert 'href="/static/css/style.petty-cash.css"' in index
-    assert 'href="/static/css/style.petty-cash-reports.css"' in index
-    assert 'href="/static/css/style.petty-cash-engineering.css"' in index
+    assert 'href="/static/css/4-pages/petty-cash.css"' in index
+    assert 'href="/static/css/4-pages/petty-cash-reports.css"' in index
+    assert 'href="/static/css/4-pages/petty-cash-engineering.css"' in index
     assert 'style.petty-cash-pr8.css' not in index
     app = read(APP_JS)
     assert "'petty-cash':'零用金月報'" in app
     assert "'petty-cash':'🪙'" in app
     assert "renderPettyCash" in app
-    assert "content.classList.toggle('pc-content', tab === 'petty-cash')" in app
+    assert "'petty-cash': 'pc-content'" in app
     assert "'petty-cash'" in app  # _TABS / F5 / isCal（含搜尋框隱藏）
     api = read(API_JS)
     globals_js = read(GLOBALS_JS)
@@ -498,7 +504,7 @@ def test_petty_cash_css_ownership_and_breakpoint_contract():
     base = read(PETTY_CASH_CSS)
     reports = read(PETTY_CASH_REPORTS_CSS)
     engineering = read(PETTY_CASH_ENGINEERING_CSS)
-    assert index.index('style.petty-cash.css') < index.index('style.petty-cash-reports.css') < index.index('style.petty-cash-engineering.css')
+    assert index.index('4-pages/petty-cash.css') < index.index('4-pages/petty-cash-reports.css') < index.index('4-pages/petty-cash-engineering.css')
     assert 'style.petty-cash-pr8.css' not in index
     assert '.pc-report-list-table' in reports
     assert '.pc-general-detail-table' in reports
@@ -585,9 +591,11 @@ def test_petty_cash_income_expense_button_styling():
     assert 'pc-step--expense' in js
     assert '💰' in js
     assert '💸' in js
-    css = read_petty_cash_css()
-    assert 'pc-step--income.active' in css
-    assert 'pc-step--expense.active' in css
+    # CSS 架構重構 P7.5：收入 / 支出選取色改由 chip 元件的語意 modifier 提供
+    assert 'chip chip--seg chip--success pc-step pc-step--income' in js
+    assert 'chip chip--seg chip--danger pc-step pc-step--expense' in js
+    chip_css = read(os.path.join(STATIC, "css", "3-components", "chip.css"))
+    assert '.chip--success.is-active' in chip_css and '.chip--danger.is-active' in chip_css
 
 
 def test_petty_cash_items_header_columns():
@@ -634,7 +642,7 @@ def test_petty_cash_entry_date_groups():
     css = read_petty_cash_css()
     assert '.pc-entry-date-group' in css
     assert '.pc-entry-date-header' in css
-    assert '.pc-entry-date-group.collapsed' in css
+    assert '.pc-entry-date-group.is-collapsed' in css
 
 
 def test_petty_cash_detail_table_mobile():
@@ -694,6 +702,90 @@ def test_prefixed_api_errors_are_formatted_before_toast_concatenation():
     assert not unsafe, "結構化錯誤應在字串串接前格式化：\n" + "\n".join(unsafe)
 
 
+def test_raw_api_detail_is_not_stored_or_thrown_as_message():
+    """detail 先存進訊息變數或丟進 Error 再串接，同樣會變成 [object Object]（edit / add / photo 曾漏改）。"""
+    patterns = [
+        re.compile(r"\b[A-Za-z_$][\w$]*\s*=\s*[A-Za-z_$][\w$]*\.detail\s*;"),
+        re.compile(r"new Error\(\s*[A-Za-z_$][\w$]*\.detail\b"),
+    ]
+    js_root = Path(BASE_DIR) / "static" / "js"
+    unsafe = [
+        f"{path}:{line_number}:{line.strip()}"
+        for path in js_root.rglob("*.js")
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if any(p.search(line) for p in patterns)
+    ]
+    assert not unsafe, "API detail 需先經 apiErrorMessage 再當成訊息：\n" + "\n".join(unsafe)
+
+
+# 使用者看得到的訊息出口：API detail 進到這些地方前必須先經 apiErrorMessage
+API_DETAIL_SINK = re.compile(
+    r"\b(?:toast|alert|showErr|esc)\(|new Error\(|\.(?:textContent|innerText|innerHTML)\s*\+?=(?!=)"
+)
+API_DETAIL_REF = re.compile(r"(?:[\w$\]]|\))\.detail\b")
+API_DETAIL_FORMATTED = re.compile(r"apiErrorMessage\(\s*(?:\(await [^()]*\(\)\)|[\w$.\[\]]+)\.detail\b")
+
+
+def _api_detail_sink_violations(text):
+    """回傳把 API detail 直接交給使用者可見出口（未經 apiErrorMessage）的行。"""
+    bad = []
+    for line_number, line in enumerate(text.splitlines(), 1):
+        for sink in API_DETAIL_SINK.finditer(line):
+            segment = API_DETAIL_FORMATTED.sub("apiErrorMessage(X", line[sink.start():])
+            if API_DETAIL_REF.search(segment):
+                bad.append(f"{line_number}:{line.strip()}")
+                break
+    return bad
+
+
+@pytest.mark.parametrize("snippet", [
+    "toast(data.detail)",
+    "toast(data.detail || '新增失敗', 'error');",
+    "toast(err.detail || '失敗')",
+    "if (!r.ok) return toast(payload.detail, 'error');",
+    "toast((await res.json()).detail || '操作失敗', 'error');",
+    "alert(e.detail || '刪除失敗');",
+    "throw new Error(body.detail);",
+    "el.textContent = result.detail;",
+    "list.innerHTML = `<div>${esc(x.detail)}</div>`;",
+])
+def test_api_detail_sink_guard_rejects_raw_detail(snippet):
+    """守衛本身要抓得到各種變數名與寫法（不可只認 data / err）。"""
+    assert _api_detail_sink_violations(snippet), snippet
+
+
+@pytest.mark.parametrize("snippet", [
+    "toast(apiErrorMessage(data.detail) || '新增失敗', 'error');",
+    "toast(apiErrorMessage((await res.json()).detail) || '操作失敗', 'error');",
+    "throw new Error(apiErrorMessage(err.detail) || '儲存失敗');",
+    "list.innerHTML = `<div>${esc(apiErrorMessage(x.detail))}</div>`;",
+    "console.warn('整組照片上傳失敗:', e.detail || '未知錯誤');",
+    "if (data.detail === '已存在') retry();",
+])
+def test_api_detail_sink_guard_allows_formatted_or_internal_use(snippet):
+    assert not _api_detail_sink_violations(snippet), snippet
+
+
+def test_api_detail_is_formatted_before_user_visible_messages():
+    """所有使用者看得到的 API detail（toast / alert / Error / 畫面文字）都必須先經 apiErrorMessage。"""
+    unsafe = [
+        f"{path.relative_to(BASE_DIR)}:{hit}"
+        for path in (Path(BASE_DIR) / "static" / "js").rglob("*.js")
+        if path.name != "utils.js"  # apiErrorMessage 本身
+        for hit in _api_detail_sink_violations(path.read_text(encoding="utf-8"))
+    ]
+    assert not unsafe, "API detail 需先經 apiErrorMessage 再顯示：\n" + "\n".join(unsafe)
+
+
+def test_settings_api_errors_render_readably_at_runtime():
+    """設定頁零用金選單新增 / 改名 / 刪除遇到結構化 422 時顯示可讀訊息。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "settings_api_error_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,
+    )
+    assert result.returncode == 0, f"設定頁 API 錯誤訊息測試失敗：\n{result.stdout}\n{result.stderr}"
+
+
 def test_structured_api_error_messages_render_readably():
     """結構化 API 驗證錯誤需轉成明確欄位與限制訊息。"""
     result = subprocess.run(
@@ -705,7 +797,7 @@ def test_structured_api_error_messages_render_readably():
 
 def test_petty_cash_settings_options_domain_layout():
     """零用金設定 domain：一般只有科目，工程分開管理分類與項目（2026-09-13）。"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     js = read(SETTINGS_JS)
     assert 'panel-petty-cash' in html
     assert '一般零用金' in js and '工程零用金' in js
@@ -714,14 +806,14 @@ def test_petty_cash_settings_options_domain_layout():
     assert "option_type:kind" in js
     assert "createPettyOptionKind(\\'general\\',\\'category\\')" in js
     assert 'async function createPettyOption(type)' not in js
-    assert 'type="button" class="pc-icon-action"' in js
+    assert 'type="button" class="btn btn--secondary btn--sm pc-icon-action"' in js
     assert 'data-petty-action="rename"' in js and 'data-petty-action="delete"' in js
     assert "panel.querySelectorAll('[data-petty-action]')" in js
     assert 'grid-template-columns:minmax(0,1fr) auto' in html
     assert '.pc-option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:54px; }' in html
     assert '.pc-option-row { align-items: flex-start; flex-direction: column;' not in html
     assert 'width:auto; min-width:88px' in html
-    assert 'border-radius: 8px' in read_petty_cash_css()
+    assert 'border-radius: var(--r-md)' in read_petty_cash_css()
     assert 'pc-opt-name-general-category' in js
     petty_css = read_petty_cash_css()
     assert '.eng-editor .eng-category-title > select' in petty_css
@@ -906,8 +998,8 @@ def test_permissions_html_has_reset_perm_overlay():
 
 def test_permissions_html_breadcrumb_topbar():
     """2026-08-15 變體 B 麵包屑頂欄：vb-back 圓鈕 + 麵包屑 + 內容區大標題"""
-    html = read(PERMISSIONS_HTML)
-    assert 'class="vb-back"' in html
+    html = read_page_with_css(PERMISSIONS_HTML)
+    assert 'class="btn btn--on-dark btn--sm btn--icon vb-back"' in html
     assert 'class="vb-crumb"' in html
     assert "庫存" in html and "vb-crumb-current" in html  # 麵包屑「庫存 › 帳號與權限」
     assert 'class="vb-content-title"' in html  # 大標題下移內容區
@@ -916,7 +1008,7 @@ def test_permissions_html_breadcrumb_topbar():
 
 def test_permissions_html_save_bar_variant_b():
     """2026-08-15 方案 B sticky 底條：save-bar fixed bottom + inner 對齊 + 手機 column 雙鈕"""
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert ".save-bar {" in html and "position: fixed; bottom: 0" in html  # fixed 底條
     assert ".save-bar-inner" in html  # 桌面 1200 對齊 wrapper
     assert ".save-btns" in html  # 雙鈕組
@@ -930,9 +1022,12 @@ def test_permissions_html_save_bar_variant_b():
 def test_permissions_html_btn_ghost_white_fix():
     """2026-08-15 根因修復：.btn-ghost 全域白字樣式（topbar 專用）用於白底容器會隱形——
        save-bar / modal 內必須覆寫白底深字版"""
-    html = read(PERMISSIONS_HTML)
-    assert ".save-btns .btn-ghost" in html and "color: #555" in html  # save-bar 重設鈕覆寫
-    assert ".modal .btn-ghost" in html and "color: #555" in html  # modal 取消鈕覆寫
+    html = read_page_with_css(PERMISSIONS_HTML)
+    js = read(PERMS_JS)
+    # CSS 架構重構 P7.5：白底容器的次要按鈕改用 .btn--secondary，不再需要逐處覆寫
+    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="window.openResetPermModal()"' in js
+    assert 'class="btn btn--secondary btn--md btn-ghost" onclick="closeAddUserModal()"' in html
+    assert ".modal .btn-ghost" not in html
 
 
 def test_perms_js_reset_perm_modal_structure():
@@ -998,12 +1093,12 @@ def test_permissions_html_loads_perms_js():
 def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
     """Permission inventory is DB-driven, paginated, searchable, and page visibility is separate."""
     js = read(PERMS_JS)
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert 'permissionDetail.permissions' in js
     assert 'PERMISSIONS_PAGE_SIZE = 10' in js
     assert 'permSearch' in js and 'permFilter' in js and 'permPage' in js
     assert 'permSubTab' in js and 'page-visibility-group' in js
-    assert 'perm-pagination' in js and 'perm-page-btn' in html
+    assert 'perm-pagination' in js and 'perm-page-btn' in js
 
 
 def test_permissions_ui_keeps_search_toolbar_and_pending_source_contract():
@@ -1055,7 +1150,7 @@ def test_permissions_html_uses_shared_toast_css():
     """The permissions page must not override shared toast geometry with top+bottom."""
     html = read(PERMISSIONS_HTML)
     assert ".toast { position: fixed; bottom: 24px" not in html
-    assert ".toast.show { opacity: 1; }" not in html
+    assert ".toast.is-open { opacity: 1; }" not in html
 
 
 def test_perms_js_account_edit_uses_shared_modal_and_update_api():
@@ -1120,7 +1215,7 @@ def test_perms_html_nav_buttons_use_root():
 def test_perms_html_switch_after_overridden():
     """2026-08-14 修：權限頁開關必須覆寫 style.css 的 .switch::after（行事曆 button 開關的白圈）
     ——否則兩者共用 .switch class 撞名，權限頁每顆開關多出一個永遠停在左邊的白圈（家豪「兩個白色圓圈」）"""
-    html = read(PERMISSIONS_HTML)
+    html = read_page_with_css(PERMISSIONS_HTML)
     assert ".switch::after { content: none; }" in html
     assert ".switch { background: transparent; }" in html
 
@@ -1129,8 +1224,11 @@ def test_css_has_btn_primary():
     """2026-08-14 修：style.css 必須定義 .btn-primary（權限頁「新增帳號/儲存變更」）
     ——原本全站無定義 → 瀏覽器預設方形按鈕（家豪「不要這樣方形很醜」）"""
     css = read_css_all()
-    assert ".btn-primary {" in css
-    assert ".topbar .btn-primary {" in css  # topbar 深藍底上的反白
+    # CSS 架構重構 P7.5：主按鈕改為 .btn--primary；深藍 topbar 上改用 .btn--on-dark
+    assert ".btn--primary {" in css
+    assert ".btn--on-dark {" in css
+    perms = read(PERMISSIONS_HTML)
+    assert re.search(r'class="btn btn--on-dark btn--sm[^"]*" onclick="openAddUserModal\(\)"', perms)
 
 
 def test_perms_js_perm_toggle_updates_source_label():
@@ -1171,7 +1269,7 @@ def test_inventory_js_viewer_mode():
     """inventory.js 有 viewer 模式：隱藏編輯/操作按鈕、數量唯讀"""
     js = read(INVENTORY_RENDER_JS)
     assert "isViewer" in js
-    assert "cursor:default" in js  # 數量唯讀樣式
+    assert 'class="qty-value is-readonly"' in js  # 數量唯讀樣式（外觀在 inventory.css 的 .qty-value.is-readonly）
     assert "title=\"唯讀\"" in js
     assert "deleteItem" in js  # 卡片 刪除整筆材料（Sarah 需求）
     # Renderer uses JS Unicode escapes; browser output is still Chinese text.
@@ -1337,12 +1435,14 @@ def test_kits_components_show_photo():
     assert "openPhotoLightbox(${c.item_id})" in js                 # 材料點擊放大
 
 
-def test_kit_comp_left_align():
-    """整組材料名稱/型號靠左（2026-08-12 Sarah 需求）——
-    kit-comp 用 flex-start + gap，不能用 space-between（3 元素會把名稱推到中間）"""
+def test_kit_comp_dead_css_removed():
+    """整組卡片已改用 kits.js 的 kit-* 元件，舊 .m-card .kit-comp / .cname / .cneed 沒有任何產生者；
+    CSS 架構重構 P3 依 dead code 規則刪除，不得再出現（產生者與樣式須同時存在）。"""
     css = read_css_all()
-    assert ".m-card .kit-comp { display: flex; justify-content: flex-start; align-items: center; gap: 8px;" in css
-    assert ".m-card .kit-comp .cneed { color: #6b7280; flex-shrink: 0; margin-left: auto; }" in css
+    assert not re.search(r"\.m-card \.kit-comp(?![\w-])", css) and ".cneed" not in css and ".cname" not in css
+    for js in ALL_JS_FILES:
+        src = read(js)
+        assert not re.search(r"[\"' ]kit-comp[\"' ]", src) and "cneed" not in src, f"{js} 又產生 kit-comp，需先補樣式"
 
 
 # ---------- 2026-08-11 Sarah 需求：卡片顯示格式（位置/備註/刪除/照片/型號/標題） ----------
@@ -1593,7 +1693,7 @@ def test_login_img_no_manual_cachebuster():
 
 def test_login_img_position_adjust_params():
     """登入圖 CSS 速調參數存在（2026-08-12 家豪需求：translateX/translateY 手動微調）"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert html.count("速調登入圖位置") == 2                   # 手機 .brand .logo img + 桌機 .big-logo img
     assert "translateX(" in html and "translateY(" in html    # 參數本體不能整組被移除
     assert "負=左/正=右" in html and "負=上/正=下" in html     # 註解規則存在（調整指引）
@@ -1634,7 +1734,7 @@ def test_login_has_viewport():
 
 def test_login_dual_panel_desktop():
     """桌機雙欄：brand-panel 存在且 ≥768px 才顯示"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert 'class="brand-panel"' in html
     assert 'class="form-panel"' in html
     assert '@media (min-width: 768px)' in html
@@ -1642,7 +1742,7 @@ def test_login_dual_panel_desktop():
 
 def test_login_mobile_single_card():
     """手機維持單卡：卡片 90% + max-width 400px"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert "width: 90%; max-width: 400px" in html
 
 
@@ -1656,9 +1756,9 @@ def test_login_footer_text():
 
 def test_login_input_icons_and_style():
     """輸入框 icon + 亮藍按鈕 + 高 46px"""
-    html = read(LOGIN)
+    html = read_page_with_css(LOGIN)
     assert "👤" in html and "🔒" in html or "content: '👤'" in html and "content: '🔒'" in html
-    assert "1890FF" in html
+    assert "var(--c-primary)" in html  # P8：原亮藍 #1890FF 歸併為品牌主色
     assert "height: 46px" in html
 
 
@@ -1727,8 +1827,8 @@ def test_unit_search_and_duplicate_guard():
     units = read(os.path.join(STATIC, "js", "units.js"))
     assert "function filterUnitSelect" in units
     assert "已存在" in units and "unitList.some" in units  # 重複提示檢查
-    css = read(CSS_CORE)
-    assert ".modal .btn-ghost { background: #fff; border: 1.5px solid #d0d5dd; color: #555; }" in css  # 取消按鈕隱形修復
+    css = read_shared_css()
+    assert "cancel.className = 'btn btn--secondary btn--sm';" in read(os.path.join(STATIC, "js", "units.js"))  # 取消按鈕改用白底次要按鈕（不再隱形）
     assert ".unit-search" in css
 
 
@@ -1822,9 +1922,9 @@ def test_resetpw_modal_ui_present():
     assert 'id="rpw-new"' in idx and 'oninput="pwStrengthCheck(\'rpw-new\')"' in idx
     assert 'id="rpw-confirm"' in idx
     assert 'id="rpw-mismatch"' in idx
-    assert "btn-cancel-ghost" in idx  # 取消按鈕 ghost 樣式（與儲存並排）
+    assert "btn btn--secondary btn--md btn-cancel-ghost" in idx  # 取消按鈕：白底次要按鈕（與儲存並排）
     css = read_css_all()
-    assert ".btn-cancel-ghost" in css
+    assert ".btn--secondary {" in css
     us = read(PERMS_JS)
     assert "permResetPw" in us         # 重設改用 modal（不再用瀏覽器 prompt）
     assert "prompt(" not in us         # 回歸防護：不得改回 prompt
@@ -1912,9 +2012,9 @@ def test_kit_modal_demo_css_styles():
     assert ".selected-row" in css
     assert ".mat-search" in css
     assert ".btn-add-row" in css
-    # 搜尋框 focus 維持品牌藍（1890FF）——樣式被改歪時測試抓得到
+    # 搜尋框 focus 維持品牌主色（P8 由 #1890FF 歸併為 token）——樣式被改歪時測試抓得到
     assert ".mat-search input:focus" in css
-    assert "1890FF" in css
+    assert "var(--c-primary)" in css
 
 
 
@@ -2055,7 +2155,7 @@ def test_stocktake_tabs_kit_single_split():
     # CSS 樣式
     css = read_css_all()
     assert ".stk-tabs {" in css
-    assert ".stk-tab.active {" in css
+    assert "stk-tab stocktake-tab" in js and "chip chip--seg stk-tab" in js
 
 
 def test_stocktake_table_photo_thumb():
@@ -2144,12 +2244,13 @@ def test_checkreminder_uses_localstorage():
     assert "localStorage.getItem('lastStocktakeMonth')" in notif
 
 
-def test_css_stat_cards_four_columns():
-    """盤點統計卡 grid 4 欄（totalQty 補接：3 欄→4 欄），防退回 3 欄"""
+def test_css_stat_cards_dead_css_removed():
+    """盤點統計卡已改用共用 KPI 合約（.ui-kpi-grid），舊 .stat-cards / .stat-card 沒有任何產生者；
+    CSS 架構重構 P3 依 dead code 規則刪除，不得再出現。"""
     css = read_css_all()
-    assert ".stat-cards" in css
-    assert "grid-template-columns: repeat(4, 1fr);" in css
-    assert "repeat(3, 1fr)" not in css.split(".cal-grid")[0], ".stat-cards 區域誤退回 3 欄"
+    assert ".stat-card" not in css
+    for js in ALL_JS_FILES:
+        assert "stat-card" not in read(js), f"{js} 又產生 stat-card，請改用 .ui-kpi-*"
 
 
 # ---------- 2026-08-12 全專案 JS 完整性（家豪要求「都補」） ----------
@@ -2329,7 +2430,7 @@ def test_edit_stock_rows_mobile_grid_layout():
     assert ".edit-stock-headers" in mobile_css
     html = read(INDEX)
     assert 'class="col-headers edit-stock-headers"' in html
-    assert 'href="/static/css/style.inventory-locations.css"' in html
+    assert 'href="/static/css/3-components/location-editor.css"' in html
     assert 'src="/static/js/location-adjustments.js"' in html
     assert 'id="stock-location-modal"' in html
     modal_attributes = html.split('id="stock-location-modal"', 1)[1].split('>', 1)[0]
@@ -2644,7 +2745,7 @@ def test_filter_panel_css_exists():
     css = read_css_all()
     assert '.filter-panel' in css, "style.css 缺 .filter-panel"
     assert '.filter-chip' in css, "style.css 缺 .filter-chip"
-    assert '.filter-chips.collapsed' in css, "style.css 缺 .filter-chips.collapsed"
+    assert '.filter-chips.is-collapsed' in css, "缺 .filter-chips.is-collapsed"
     assert '.toggle-btn' in css, "style.css 缺 .toggle-btn"
 
 
@@ -2806,13 +2907,14 @@ def test_add_js_composes_cabinet_sub_location():
 
 def test_settings_cabinets_labels_and_mobile_chip():
     """2026-09-28：櫃子輸入框上方需有固定小標（輸入後仍看得到欄位名稱），手機 chip 列需能進櫃子設定。"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     panel = html[html.index('id="panel-cabinets"'):html.index('id="panel-pw"')]
     assert '<span class="cab-field-label">櫃子編號 / 名稱 *</span>' in panel
     assert '<span class="cab-field-label">位置說明（選填）</span>' in panel
     modal = html[html.index('id="edit-cabinet-modal"'):]
     assert modal.count('class="cab-field-label"') == 2, "編輯櫃子 modal 也需有小標"
-    assert ".cab-add-btn { flex: none; white-space: nowrap;" in html, "新增按鈕文字不得被擠成直排"
+    assert ".cab-add-btn { flex: none; }" in html, "新增按鈕不得被擠壓"
+    assert "white-space: nowrap" in read(os.path.join(STATIC, "css", "3-components", "button.css")), "按鈕文字不得被擠成直排"
     assert "['cabinets', '📦 櫃子']" in read(SETTINGS_JS), "手機 chip 列缺櫃子入口"
 
 
@@ -2987,7 +3089,7 @@ def test_drawer_html_structure():
 
 def test_drawer_css_exists():
     """Phase 2：Drawer CSS 樣式存在"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert '.drawer{' in css or '.drawer {' in css, "drawer CSS 缺失"
     assert '.dov{' in css or '.dov {' in css, "drawer overlay CSS 缺失"
     assert '.dh{' in css or '.dh {' in css, "drawer header CSS 缺失"
@@ -3010,7 +3112,7 @@ def test_drawer_js_functions():
 # ========== Phase 3: 庫存頁細節 ==========
 def test_all_dashboard_kpis_share_common_responsive_contract():
     """所有 dashboard KPI 使用同一組 Desktop/Mobile 呈現 contract。"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert "#content .ui-kpi-grid {" in css
     assert "#content .ui-kpi-card {" in css
     assert "#content .ui-kpi-icon {" in css
@@ -3064,18 +3166,18 @@ def test_chip_bar_filter():
 
 def test_chip_bar_css_exists():
     """Phase 3：Chip bar CSS 樣式存在"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert '.chip-bar{' in css or '.chip-bar {' in css, "chip-bar CSS 缺失"
-    assert '.chip-bar .chip' in css, "chip-bar .chip CSS 缺失"
+    assert '.chip.is-active' in css, "chip 選取狀態 CSS 缺失"
 
 
 def test_row_warn_danger_css():
     """Phase 3：row-warn/row-danger CSS 存在"""
-    css = read(CSS_CORE)
+    css = read(CSS_INVENTORY)
     assert 'row-warn' in css, "row-warn CSS 缺失"
     assert 'row-danger' in css, "row-danger CSS 缺失"
-    assert '#fffbeb' in css, "row-warn 背景色缺失"
-    assert '#fff5f5' in css, "row-danger 背景色缺失"
+    assert 'tr.row-warn td {background:var(--c-out-soft)}' in css, "row-warn 背景色缺失"
+    assert 'tr.row-danger td {background:var(--c-danger-soft)}' in css, "row-danger 背景色缺失"
 
 
 # ========== Phase 4: 盤點/批量 ==========
@@ -3113,7 +3215,7 @@ def test_view_toggle_function():
 
 def test_table_view_css():
     """Phase 5：table view CSS 存在"""
-    css = read(CSS_CORE)
+    css = read(CSS_INVENTORY)
     assert ".tbl-wrap" in css, "tbl-wrap CSS 缺失"
     assert ".view-toggle" in css, "view-toggle CSS 缺失"
     assert ".item-card.warn" in css, "item-card.warn CSS 缺失"
@@ -3169,14 +3271,14 @@ def test_stockout_return_tracks_source_and_return_locations():
 def test_sidebar_collapsed_css_exists():
     """sidebar 折疊 CSS 規則存在（桌面隱藏/展開）"""
     css = read_css_all()
-    assert ".sidebar.expanded" in css, "sidebar.expanded CSS 缺失"
+    assert ".sidebar.is-expanded" in css, "sidebar.is-expanded CSS 缺失"
     assert "sidebar-expanded" in css, "sidebar-expanded class 缺失"
 
 def test_toggle_sidebar_function():
     """toggleSidebar 可手動切換，但 sidebar 不再持久化展開狀態。"""
     js = read(APP_JS)
     assert "function toggleSidebar" in js, "app.js 缺 toggleSidebar"
-    assert "var expanded = sb.classList.toggle('expanded');" in js, "desktop sidebar 未切換 expanded"
+    assert "var expanded = sb.classList.toggle('is-expanded');" in js, "desktop sidebar 未切換 is-expanded"
     assert "mn.classList.toggle('sidebar-expanded', expanded)" in js, "main 未同步切換 sidebar-expanded"
     assert "sidebarExpanded" not in js, "sidebar 不應再寫入或讀取 dead localStorage state"
 
@@ -3266,8 +3368,10 @@ def test_inventory_stockout_actions_are_shared_and_labeled_in_card_and_table():
     assert '📤 待領出</button>' in js and '🚚 已領出</button>' in js
     assert "mobile ? 'm-card-actions' : 'inventory-stockout-actions'" in js
     assert '.inventory-stockout-actions { display: flex; flex-direction: column;' in css
-    assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-prepare {' in css
-    assert '.tbl-wrap .col-actions .inventory-stockout-actions .btn-out {' in css
+    assert 'class="btn btn--prepare btn--sm btn-prepare"' in js
+    assert 'class="btn btn--out btn--sm btn-out"' in js
+    # 表格操作欄的通用 button 規則不得蓋掉標準按鈕外觀
+    assert '.tbl-wrap .col-actions button:not(.btn) {' in css
 
 
 def test_mobile_inventory_card_does_not_inherit_desktop_flex_row_layout():
@@ -3409,8 +3513,16 @@ def test_inventory_mobile_table_does_not_force_desktop_width():
         '}'
     )
     assert desktop_width_rule in css
-    mobile_css = css[css.index('@media (max-width: 767px)'):]
-    assert 'min-width: 1040px' not in mobile_css
+    # 逐一取出每個手機版 @media 區塊內容（檔案內可能有多段，不能假設「第一段之後都是手機」）
+    mobile_blocks = []
+    for start in [m.end() for m in re.finditer(r'@media \(max-width: ?767px\)\s*\{', css)]:
+        depth, i = 1, start
+        while depth:
+            depth += {'{': 1, '}': -1}.get(css[i], 0)
+            i += 1
+        mobile_blocks.append(css[start:i])
+    assert mobile_blocks
+    assert not any('min-width: 1040px' in block for block in mobile_blocks)
 
 
 def test_desktop_inventory_and_prepared_styles_are_loaded():
@@ -3418,15 +3530,16 @@ def test_desktop_inventory_and_prepared_styles_are_loaded():
     html = read(INDEX)
     app = read(APP_JS)
     css = read(CSS_INVENTORY)
-    assert "/static/css/style.inventory.css" in html
-    assert "content.classList.toggle('inventory-content', tab === 'inventory')" in app
-    assert "content.classList.toggle('prepared-content', tab === 'prepared')" in app
+    assert "/static/css/4-pages/inventory.css" in html
+    assert "'inventory': 'inventory-content'" in app
+    assert "'prepared': 'prepared-content'" in app
     assert ".content.inventory-content" in css
-    assert ".content.prepared-content" in css
+    assert ".content.prepared-content" in read(CSS_PREPARED)
+    assert "/static/css/4-pages/prepared.css" in html
     assert 'class="filter-panel inventory-filter-panel"' in html
     assert ".filter-panel.inventory-filter-panel" in css
     assert "#filter-panel" not in css
-    assert ".inventory-status-modal" in css
+    assert ".inventory-status-modal" in read(CSS_STATUS_LIST)
 
 
 def test_inventory_status_kpis_and_detail_share_filtered_status_source():
@@ -3574,7 +3687,7 @@ delete context.INVENTORY_PENDING_ITEMS[2];
   context.closeInventoryStatusModal();
   closedResolvers[0]({ ok: true, json: () => Promise.resolve({ stats: { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2, zero_items: [{ id: 1, name: '頁一缺貨', qty: 0, low_stock: 0 }, { id: 3, name: '頁二缺貨', qty: 0, low_stock: 0 }], low_items: [{ id: 4, name: '頁二低庫存', qty: 2, low_stock: 5 }] } }) });
   await closedRequest;
-  if (modalClasses.has('show')) throw new Error('closed modal was reopened by stale response');
+  if (modalClasses.has('is-open')) throw new Error('closed modal was reopened by stale response');
   context.INVENTORY_META.stats = { total_qty: 10, item_count: 4, low_stock: 1, zero_stock: 2 };
   modalClasses.clear();
   const rapidResolvers = [];
@@ -3614,12 +3727,12 @@ def test_prepared_desktop_layout_keeps_existing_action_handlers():
 
 
 def test_desktop_inventory_pending_visual_system_css():
-    """單一庫存/待領出 desktop CSS 含 KPI、狀態、表格及 responsive 規則。"""
-    css = read(CSS_INVENTORY)
+    """單一庫存/待領出 desktop CSS 含 KPI、狀態、表格及 responsive 規則（P4 起待領出 / 異常清單各自成檔）。"""
+    css = read(CSS_INVENTORY) + read(CSS_PREPARED) + read(CSS_STATUS_LIST)
     for token in (".inventory-page-heading", ".inventory-kpi-card", ".inventory-status-dialog",
                   ".prepared-page-header", ".prepared-summary-card", ".prepared-table-wrap",
                   ".prepared-qty-badge", ".prepared-stock-badge", ".status-low", ".status-out"):
-        assert token in css, f"style.inventory.css 缺少 {token}"
+        assert token in css, f"庫存 / 待領出 / 異常清單 CSS 缺少 {token}"
     assert "@media (max-width: 1440px)" in css
     assert "@media (max-width: 767px)" in css
 
@@ -3631,8 +3744,8 @@ def test_kit_desktop_dashboard_assets_and_existing_actions():
     app = read(APP_JS)
     js = read(KITS_RENDER_JS)
     css = read(CSS_KIT)
-    assert "/static/css/style.kit.css" in html
-    assert "content.classList.toggle('kit-content', tab === 'kit')" in app
+    assert "/static/css/4-pages/kit.css" in html
+    assert "'kit': 'kit-content'" in app
     for token in (
         "kit-page-header", "kit-kpi-grid", "kit-toolbar", "kit-assembly-card",
         "kit-component-table", "kit-status-badge", "kit-empty-state",
@@ -3673,8 +3786,8 @@ def test_stocktake_desktop_dashboard_assets_and_scope():
     app = read(APP_JS)
     js = read(STOCKTAKE_JS)
     css = read(CSS_STOCKTAKE)
-    assert "/static/css/style.stocktake.css" in html
-    assert "content.classList.toggle('stocktake-content', tab === 'stocktake')" in app
+    assert "/static/css/4-pages/stocktake.css" in html
+    assert "'stocktake': 'stocktake-content'" in app
     for token in (
         "stocktake-page-header", "stocktake-kpi-grid", "stocktake-info-panel",
         "stocktake-summary-card", "stocktake-tabs", "stocktake-table",
@@ -3682,9 +3795,9 @@ def test_stocktake_desktop_dashboard_assets_and_scope():
         assert token in js or token in css, f"盤點頁缺少 {token}"
     assert "stk-pane-kit" in js and "stk-pane-single" in js
     assert ".stocktake-content" in css
-    # stocktake-status-extra 透過共用 status-list CSS（style.inventory.css）提供
-    inv_css = read(CSS_INVENTORY)
-    assert ".status-list-table .stocktake-status-extra" in inv_css or "stocktake-status-extra" in inv_css
+    # stocktake-status-extra 透過共用 status-list CSS（3-components/status-list.css）提供
+    status_css = read(CSS_STATUS_LIST)
+    assert ".status-list-table .stocktake-status-extra" in status_css or "stocktake-status-extra" in status_css
     assert ".stocktake-content .stocktake-status-item .stocktake-status-extra" not in css
 
 
@@ -3718,8 +3831,8 @@ def test_stockout_desktop_dashboard_assets_and_scope():
     app = read(APP_JS)
     js = read(STOCKOUT_RENDER_JS)
     css = read(CSS_STOCKOUT)
-    assert "/static/css/style.stockout.css" in html
-    assert "content.classList.toggle('stockout-content', tab === 'stockout')" in app
+    assert "/static/css/4-pages/stockout.css" in html
+    assert "'stockout': 'stockout-content'" in app
     for token in (
         "stockout-page-header", "stockout-filter-bar", "stockout-kpi-grid",
         "stockout-date-group", "stockout-record-row", "stockout-empty-state",
@@ -3768,7 +3881,7 @@ def test_prepared_stock_badge_uses_explicit_current_stock_label():
 
 def test_stockout_dashboard_uses_fixed_photo_and_equal_data_columns():
     """已領出桌面列的照片固定 80px，其餘欄位與操作欄固定均分。"""
-    css = read(os.path.join(STATIC, 'css', 'style.stockout.css'))
+    css = read(os.path.join(STATIC, 'css', '4-pages', 'stockout.css'))
     assert 'table-layout: fixed;' in css
     assert '.stockout-col-photo { width: 80px; }' in css
     assert 'stockout-col-photo' in read(os.path.join(STATIC, 'js', 'render', 'stockout.js'))
@@ -3830,7 +3943,7 @@ def test_stocktake_mobile_table_and_header_keep_columns_readable():
 def test_prepared_mobile_nonstock_badge_has_wrapping_layout():
     """待領出手機非庫存 badge 不得被品名 nowrap/ellipsis 切斷。"""
     js = read(PREPARED_RENDER_JS)
-    css = read(CSS_INVENTORY)
+    css = read(CSS_PREPARED)
     assert 'prepared-mobile-name' in js
     assert '.prepared-content .m-card .nm' in css
     assert 'white-space: normal;' in css
@@ -3847,8 +3960,7 @@ def test_inventory_mobile_toolbar_groups_count_add_and_more():
     assert '.inventory-content .loc-export-bar .btn-add-inv' in css
     assert '.inventory-content .more-actions-wrap' in css
     assert '.inventory-content .view-toggle { order: 4;' in css
-    assert '.inventory-content .btn-add-inv {' in css
-    assert 'background: #fff;' in css
+    assert 'class="btn btn--primary btn--md btn-add-inv"' in js
 
 
 def test_stockout_kpi_total_quantity_uses_item_unit_label():
@@ -3890,7 +4002,7 @@ def test_stocktake_mobile_list_keeps_readable_width_with_horizontal_scroll():
 
 def test_prepared_mobile_card_keeps_stock_badge_in_layout():
     """待領出手機卡片資訊欄不被右側數量欄擠壓，badge 可正常排列。"""
-    css = read(CSS_INVENTORY)
+    css = read(CSS_PREPARED)
     assert '.prepared-content .m-card .info { padding-right: 0;' in css
     assert '.prepared-content .m-card .qty-col {' in css
     assert 'width: 46px; padding-right: 0;' in css
@@ -3947,7 +4059,8 @@ def test_qty_domain_mounted_and_wired():
     assert "function setQtyDialogMode(mode)" in qty_modal, "qty-dialog 缺少方向切換 handler"
     qty_css = read(CSS_INVENTORY)
     assert ".qtyd-direction[hidden] { display: none; }" in qty_css, "方向選擇控制必須遵守 hidden 狀態"
-    assert '.qtyd-direction .btn-ghost[aria-pressed="true"]' in qty_css, "方向按鈕缺少目前選取狀態樣式"
+    assert 'class="chip chip--seg is-active" id="qtyd-mode-add"' in idx, "方向按鈕缺少目前選取狀態"
+    assert "addButton.classList.toggle('is-active', __qtyMode === 'add')" in qty_modal, "方向切換未同步選取狀態"
     kits = read(KITS_RENDER_JS)
     assert "kitCompQtyChanged" in kits, "kit 材料需求量分數輸入遺失"
     assert "組裝組數必須為正整數" in kits and "拆解組數必須為正整數" in kits, "組裝/拆解整數檢查遺失"
@@ -3984,36 +4097,31 @@ def test_qty_merge_preserves_both_contracts():
     assert "qtyInputOrToast(_el" in edit
 
     settings_js = read(os.path.join(STATIC, "js", "settings.js"))
-    settings_html = read(SETTINGS_HTML)
+    settings_html = read_page_with_css(SETTINGS_HTML)
     for qty_type in ("integer", "decimal", "fraction"):
         assert 'value="%s"' % qty_type in settings_js
-    assert 'style="text-align:right"' in settings_js
+    assert 'class="u-ta-right"' in settings_js
     assert "table-layout: fixed" in settings_html
     assert "width: 33.33%" in settings_html
 
 
 def test_btn_sm_canonical_shared_owner_and_consumers():
-    """Regression: .btn-sm base must be shared, not owned by Calendar."""
-    core = read(CSS_CORE)
+    """CSS 架構重構 P7.5：按鈕尺寸由 button.css 的 .btn--sm / .btn--md 統一定義，頁面不得自訂。"""
+    button = read(os.path.join(STATIC, "css", "3-components", "button.css"))
     calendar = read(CSS_CAL)
     inventory = read(CSS_INVENTORY)
     calendar_js = read(CALENDAR_RENDER_JS)
     inventory_js = read(INVENTORY_RENDER_JS)
     index = read(INDEX)
 
-    exact_base = ".btn-sm { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #333; }"
-    exact_primary = ".btn-sm.btn-primary { background: #2d5a8e; border-color: #2d5a8e; color: #fff; }"
-    assert exact_base in core, "shared .btn-sm base values must remain unchanged"
-    assert exact_primary in core, "shared .btn-sm primary values must remain unchanged"
-    assert index.index("style.core.css") < index.index("style.calendar.css") < index.index("style.inventory.css"), "shared owner must load before feature CSS"
-
-    assert re.search(r"(?m)^\s*\.btn-sm\s*\{", core), "shared core must own .btn-sm base"
-    assert re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", core), "shared core must own .btn-sm primary variant"
-    assert not re.search(r"(?m)^\s*\.btn-sm\s*\{", calendar), "Calendar must not own .btn-sm base"
-    assert not re.search(r"(?m)^\s*\.btn-sm\.btn-primary\s*\{", calendar), "Calendar must not own .btn-sm primary variant"
-    assert ".inventory-content .btn-sm" in inventory, "Inventory-specific .btn-sm delta must remain"
-    assert 'class=\"btn-sm' in calendar_js, "Calendar .btn-sm consumers must remain"
-    assert 'class=\"btn-sm' in inventory_js, "Inventory .btn-sm consumers must remain"
+    assert ".btn--sm { height: var(--h-sm);" in button, "shared .btn--sm size must live in button.css"
+    assert ".btn--md { height: var(--h-md);" in button, "shared .btn--md size must live in button.css"
+    assert index.index("3-components/button.css") < index.index("4-pages/calendar.css") < index.index("4-pages/inventory.css"), "shared owner must load before feature CSS"
+    for css in (calendar, inventory):
+        assert not re.search(r"\.btn-sm\b", css), "pages must not restyle legacy .btn-sm"
+        assert not re.search(r"\.btn--(sm|md)\b", css), "pages must not override standard button sizes"
+    assert 'class=\"btn btn--secondary btn--sm\"' in calendar_js, "Calendar small buttons use the standard size"
+    assert 'class="btn btn--export btn--md btn-export"' in inventory_js, "Inventory toolbar buttons use the standard size"
 
 
 # ---------- Prepared／庫存調撥／報表與工作進度前端回歸 ----------
@@ -4211,7 +4319,7 @@ def test_transfer_uses_shared_qty_contract():
 
 def test_mobile_site_tab_2x2_layout():
     """手機版 .h-site 使用 flex-wrap:wrap 讓 4 個 tab 排成 2×2。"""
-    css = read(CSS_CORE)
+    css = read_shared_css()
     assert "flex-wrap:wrap" in css, "手機 .h-site 缺少 flex-wrap:wrap"
 
 
@@ -4220,7 +4328,8 @@ def test_inventory_export_dialog_contract():
     """匯出改為期間選擇 Dialog，並以 single-flight 送出明確 query。"""
     index = read(INDEX)
     js = read(os.path.join(STATIC, "js", "modals", "inventory-export.js"))
-    css = read(os.path.join(STATIC, "css", "style.inventory.css"))
+    # 匯出對話框庫存 / 整組 / 已領出三頁共用 → 樣式屬於共用元件，不可限定在庫存頁
+    css = read(os.path.join(STATIC, "css", "3-components", "export-dialog.css"))
     assert "openInventoryExportDialog" in js
     assert "submitInventoryExport" in js
     assert "closeInventoryExportDialog" in js
@@ -4244,8 +4353,9 @@ def test_inventory_export_dialog_contract():
     assert "Content-Disposition" in js
     assert 'id="inventory-export-dialog"' in index
     assert 'src="/static/js/modals/inventory-export.js"' in index
-    assert ".inventory-export-dialog" in css
+    assert ".inventory-export-dialog" in css and '[data-page=' not in css
     assert "@media (max-width: 767px)" in css
+    assert 'href="/static/css/3-components/export-dialog.css"' in index
     inventory = read(INVENTORY_RENDER_JS)
     assert "openInventoryExportDialog();closeMoreActions()" in inventory
     assert "onclick=\"openInventoryExportDialog()\"" in inventory
@@ -4382,14 +4492,14 @@ def test_work_progress_frontend_is_independent_and_mounted():
     api = read(API_JS)
     globals_js = read(GLOBALS_JS)
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     assert 'id="sb-nav-work-progress"' in index
     assert "switchTab('work-progress')" in index
     assert 'src="/static/js/render/work-progress.js"' in index
-    assert 'href="/static/css/style.work-progress.css"' in index
+    assert 'href="/static/css/4-pages/work-progress.css"' in index
     assert "'work-progress':'每日工作進度回報'" in app
     assert "renderWorkProgress" in app
-    assert "content.classList.toggle('wpr-content', tab === 'work-progress')" in app
+    assert "'work-progress': 'wpr-content'" in app
     assert "ITEMLESS_TABS" in globals_js
     assert "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals_js
     assert "DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)" in api
@@ -4410,7 +4520,7 @@ def test_work_progress_frontend_is_independent_and_mounted():
 def test_work_progress_frontend_permission_and_workflow_contract():
     """工作進度 UI 以 view/edit/delete flags 與 appointment 狀態驅動。"""
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     auth = read(os.path.join(STATIC, "js", "auth.js"))
     assert "perms['work-progress-view']" in auth
     assert "can_edit" in js and "can_delete" in js
@@ -4445,7 +4555,7 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wpr-drop" in js and "dataTransfer.files" in js
     assert "wprResetFilter" in js
     assert "wpr-result-count" in js
-    assert "wpr-chip active" in js
+    assert "wpr-chip is-active" in js
     assert "wprBatchDeletePhotos" in js
     assert "wpr-photo-management-actions" in js
     assert "wpr-photo-clear-selection" in js
@@ -4531,7 +4641,7 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
 
 def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     edit_block = js.split("async function wprEditReport(id, targetId)", 1)[1].split(
         "async function wprBatchDeletePhotos", 1
     )[0]
@@ -4557,7 +4667,7 @@ def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
 
 def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_readonly_contract():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     select_block = js.split("async function wprSelectJob(id)", 1)[1].split("function wprUpdateNoteCount", 1)[0]
@@ -4606,7 +4716,7 @@ def test_work_progress_frontend_create_section_order_and_field_grouping():
 
 def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
     js = read(os.path.join(STATIC, "js", "render", "work-progress.js"))
-    css = read(os.path.join(STATIC, "css", "style.work-progress.css"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     app = read(APP_JS)
     submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi", 1)[0]
@@ -4769,3 +4879,46 @@ def test_work_progress_uploads_report_progress():
     existing_block = js.split("function wprAddExistingPhotos", 1)[1].split("async function wprDeleteReport", 1)[0]
     assert "wprUploadWithProgress('/api/work-progress/' + id + '/photos', form" in existing_block
     assert "{method:'POST', body:form}" not in existing_block
+
+
+def test_page_scope_contract():
+    """CSS 架構重構 P1：body[data-page] 是頁面樣式範圍；tokens.css 最先載入並宣告 layer 順序。"""
+    tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
+    assert "@layer tokens, base, layout, components, pages, utilities;" in tokens
+    for page in ("index.html", "settings.html", "permissions.html", "login.html"):
+        html = read(os.path.join(STATIC, page))
+        first_css = html.index('<link rel="stylesheet"')
+        assert html.index("/static/css/0-tokens/tokens.css") == html.index("/static/css/", first_css), f"{page} 必須最先載入 tokens.css"
+    for page, scope in (("settings.html", "settings"), ("permissions.html", "permissions"), ("login.html", "login")):
+        assert f'<body data-page="{scope}">' in read(os.path.join(STATIC, page))
+
+    app = read(os.path.join(STATIC, "js", "app.js"))
+    fn = app[app.index("function setPageScope(page)"):app.index("function switchTab(tab)")]
+    assert "document.body.dataset.page = page" in fn
+    # 每次都依對照表重設全部舊 class（不能只 toggle 部分 → 上一頁殘留）
+    assert "Object.keys(PAGE_CONTENT_CLASS).forEach" in fn and "key === page" in fn
+    assert "'quotation-upload': 'quotation-upload-content'" in app
+    switch = app[app.index("function switchTab(tab)"):app.index("function switchTab(tab)") + 3000]
+    assert "setPageScope(tab);" in switch
+    assert "content.classList.toggle(" not in switch, "頁面 class 只能由 setPageScope 管理"
+    quote = read(os.path.join(STATIC, "js", "render", "quotation.js"))
+    assert "setPageScope(mode === 'upload' ? 'quotation-upload' : 'quotation');" in quote
+    assert "quotation-upload-content" not in quote
+
+
+def test_full_load_completion_does_not_remount_preserved_tabs():
+    """整頁資料（/api/items）載入完成時，若使用者已切到保留掛載的頁，不可 switchTab 重掛
+    （visual 快速切頁測試：整組頁觸發的 full load 回來後，把「報價單上傳」重掛成「報價單」）。"""
+    api = read(API_JS)
+    body = api[api.index("const items = await res.json();"):api.index("loadPreparedBadge();", api.index("const items = await res.json();"))]
+    assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(currentTab)) switchTab(currentTab);" in body
+    assert "\n    switchTab(currentTab);" not in body
+
+
+def test_inventory_page_load_does_not_render_after_tab_left():
+    """庫存列表載入在 await updateSubInfo 後，若已切頁或被新請求取代，不可 renderInventory 蓋掉別頁
+    （visual 快速切頁測試：簽名報表頁被晚到的庫存渲染整個覆蓋）。"""
+    api = read(API_JS)
+    body = api[api.index("async function loadInventoryPageImpl"):]
+    body = body[body.index("await updateSubInfo();"):body.index("renderInventory();")]
+    assert "if (requestId !== inventoryRequestSeq || currentTab !== 'inventory') return;" in body

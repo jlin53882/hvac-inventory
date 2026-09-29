@@ -1,0 +1,344 @@
+/* 商品 / 庫存異常清單 Dialog（庫存、整組、盤點共用；CSS 架構重構 P4 自 4-pages/inventory.css 抽出） */
+@layer components {
+.inventory-status-close:focus-visible, .inventory-status-edit:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--c-primary) 24%, transparent);
+  outline-offset: 2px;
+}
+.inventory-status-modal {
+  align-items: center;
+  padding: 24px;
+}
+.inventory-status-dialog {
+  width: min(980px, calc(100vw - 48px));
+  max-height: 84vh;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--c-white);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, .18);
+}
+.inventory-status-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 14px;
+  border-bottom: 1px solid var(--c-border);
+}
+.inventory-status-header h2 {
+  color: var(--c-text);
+  font-size: var(--fs-20);
+}
+.inventory-status-header p {
+  margin-top: 4px;
+  color: var(--c-muted);
+  font-size: var(--fs-13);
+}
+.inventory-status-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-muted);
+  cursor: pointer;
+}
+.inventory-status-count {
+  padding: 12px 24px 0;
+  color: var(--c-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+.inventory-status-list {
+  max-height: calc(84vh - 138px);
+  overflow-y: auto;
+  padding: 12px 24px 24px;
+}
+.inventory-status-item {
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--c-border);
+}
+.inventory-status-item:last-child {
+  border-bottom: 0;
+}
+.inventory-status-item.is-low {
+  padding-left: 12px;
+}
+.inventory-status-item.is-out {
+  padding-left: 12px;
+}
+.inventory-status-thumb, .inventory-status-thumb img {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+}
+.inventory-status-thumb {
+  overflow: hidden;
+  background: var(--c-surface-2);
+  color: var(--c-border-control);
+  font-size: var(--fs-20);
+}
+.inventory-status-thumb img {
+  object-fit: cover;
+}
+.inventory-status-name {
+  color: var(--c-text);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-bold);
+}
+.inventory-status-sub, .inventory-status-location, .inventory-status-meta {
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+}
+.inventory-status-sub {
+  margin-top: 3px;
+}
+.inventory-status-location {
+  margin-top: 5px;
+}
+.inventory-status-values {
+  min-width: 116px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+.inventory-status-values strong {
+  color: var(--c-text);
+  font-size: var(--fs-16);
+  font-variant-numeric: tabular-nums;
+}
+.inventory-status-values small {
+  color: var(--c-muted);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-regular);
+}
+.inventory-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.inventory-status-badge.status-low {
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
+}
+.inventory-status-badge.status-out {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+}
+.inventory-status-empty {
+  padding: 60px 20px;
+  color: var(--c-muted);
+  text-align: center;
+}
+.inventory-status-empty span {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--c-success);
+  font-size: var(--fs-28);
+}
+.inventory-status-empty p {
+  margin-top: 6px;
+  color: var(--c-border-control);
+  font-size: var(--fs-13);
+}
+@media (max-width: 767px) {
+.inventory-status-modal {
+    padding: 12px;
+  }
+.inventory-status-dialog {
+    width: calc(100vw - 24px);
+    max-height: 90vh;
+  }
+.inventory-status-header, .inventory-status-list {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+.inventory-status-list {
+    max-height: calc(90vh - 138px);
+  }
+.inventory-status-item {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 10px;
+  }
+.inventory-status-thumb, .inventory-status-thumb img {
+    width: 52px;
+    height: 52px;
+  }
+.inventory-status-values {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+.inventory-status-edit {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+.inventory-status-dialog {
+  width: min(1180px, calc(100vw - 64px));
+  max-height: 88vh;
+}
+.inventory-status-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 76px;
+  padding: 18px 24px 12px;
+  background: var(--c-white);
+}
+.inventory-status-header.is-low { border-top: 3px solid var(--c-out-solid); }
+.inventory-status-header.is-out { border-top: 3px solid var(--c-danger); }
+.status-list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+.status-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-white);
+}
+.status-list-search, .status-list-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+}
+.status-list-search { flex: 1 1 auto; min-width: 0; }
+.status-list-search input, .status-list-location select {
+  min-height: 36px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-text);
+  font-size: var(--fs-13);
+}
+.status-list-search input { width: 100%; padding: 0 12px; }
+.status-list-location select { min-width: 150px; padding: 0 10px; }
+.status-list-search input:focus, .status-list-location select:focus { outline: 3px solid color-mix(in srgb, var(--c-primary) 14%, transparent); border-color: var(--c-primary); }
+.status-list-column-headings {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 160px 130px 88px;
+  gap: 16px;
+  padding: 10px 24px 6px;
+  color: var(--c-muted);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+  text-transform: none;
+}
+.status-list-table {
+  max-height: calc(88vh - 190px);
+  padding: 4px 24px 24px;
+}
+.status-list-table .inventory-status-item {
+  grid-template-columns: 76px minmax(0, 1fr) 160px 130px 88px;
+  min-height: 72px;
+  gap: 16px;
+  padding: 10px 0;
+  position: relative;
+}
+.status-list-table .inventory-status-thumb, .status-list-table .inventory-status-thumb img, .status-list-table .product-thumbnail-wrap, .status-list-table .product-thumbnail-placeholder {
+  width: 72px;
+  height: 72px;
+}
+.status-list-table .inventory-status-thumb img { display: block; }
+.status-list-table .inventory-status-info { min-width: 0; }
+.status-list-table .inventory-status-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-list-table .inventory-status-values { min-width: 0; align-items: flex-start; }
+.status-list-table .inventory-status-edit { justify-self: end; }
+.status-list-table .kit-status-missing {
+  grid-column: 1 / -1;
+  color: var(--c-muted);
+  font-size: var(--fs-12);
+}
+.status-list-table .kit-status-missing span {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  background: var(--c-danger-soft);
+  color: var(--c-danger-strong);
+}
+.status-list-table .stocktake-status-extra {
+  margin-top: 4px;
+  color: var(--c-out);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+}
+@media (max-width: 767px) {
+.inventory-status-modal { padding: 12px; }
+.inventory-status-dialog {
+    width: calc(100vw - 24px);
+    max-height: 94dvh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+.inventory-status-header {
+    min-height: 64px;
+    padding: 14px 16px 10px;
+  }
+.inventory-status-header h2 { font-size: var(--fs-16); }
+.inventory-status-header p { max-width: 70vw; font-size: var(--fs-12); }
+.status-list-header-actions { gap: 8px; }
+.status-list-column-headings { display: none; }
+.status-list-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px 16px;
+  }
+.status-list-location select { flex: 1; min-width: 0; }
+.status-list-table {
+    max-height: calc(94dvh - 172px);
+    padding: 4px 16px 16px;
+  }
+.status-list-table .inventory-status-item {
+    grid-template-columns: 58px minmax(0, 1fr);
+    min-height: 112px;
+    gap: 8px 10px;
+    padding: 10px 0;
+  }
+.status-list-table .inventory-status-thumb, .status-list-table .inventory-status-thumb img, .status-list-table .product-thumbnail-wrap, .status-list-table .product-thumbnail-placeholder {
+    width: 58px;
+    height: 58px;
+  }
+.status-list-table .inventory-status-location {
+    grid-column: 2;
+    margin-top: 0;
+  }
+.status-list-table .inventory-status-values {
+    grid-column: 2;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-right: 72px;
+  }
+.status-list-table .inventory-status-values strong { font-size: var(--fs-14); }
+.status-list-table .inventory-status-edit {
+    position: absolute;
+    right: 0;
+    bottom: 10px;
+    grid-column: auto;
+    justify-self: auto;
+  }
+.status-list-table .kit-status-missing { grid-column: 2; }
+}
+}

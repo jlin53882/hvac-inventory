@@ -8,8 +8,8 @@ function calSettingsHtml(isAdmin) {
     <div class="modal">
       <h3>⚙️ 行事曆設定</h3>
       <div class="cal-set-tabs">
-        <button class="cal-set-tab active" id="cal-tab-svc" onclick="calSetTab('svc')">服務項目</button>
-        <button class="cal-set-tab" id="cal-tab-ppl" onclick="calSetTab('ppl')">人員與顏色</button>
+        <button class="chip chip--seg is-active" id="cal-tab-svc" onclick="calSetTab('svc')">服務項目</button>
+        <button class="chip chip--seg" id="cal-tab-ppl" onclick="calSetTab('ppl')">人員與顏色</button>
       </div>
       <div id="cal-tab-svc-panel">
         <table class="cal-set-table">
@@ -18,7 +18,7 @@ function calSettingsHtml(isAdmin) {
         </table>
         <div class="cal-add-row">
           <input type="text" id="cal-svc-new" placeholder="新服務項目名稱（例：報價勘查）">
-          <button class="btn-sm btn-primary" onclick="calAddSvc()">＋ 加入</button>
+          <button class="btn btn--primary btn--sm btn-sm btn-primary" onclick="calAddSvc()">＋ 加入</button>
         </div>
         <div class="cal-hint">日報表勾選欄位固定：保養 / 維修 / 施工 / 場勘（其他服務匯出時附註於地點欄）</div>
       </div>
@@ -30,7 +30,7 @@ function calSettingsHtml(isAdmin) {
         <div class="cal-hint">顏色只影響行事曆與日報表顯示；人員啟用/停用請到 👥 使用者管理</div>
       </div>
       <div class="modal-actions">
-        <button class="btn-confirm" onclick="closeCalModal()">完成</button>
+        <button class="btn btn--primary btn--md btn-confirm" onclick="closeCalModal()">完成</button>
       </div>
     </div>
   </div>`;
@@ -41,7 +41,7 @@ function calSetTab(t) {
   ['svc', 'ppl'].forEach(x => {
     // 只切 panel 顯示 + tab 按鈕 active class（按鈕本身不能隱藏，否則切不回來）
     document.getElementById('cal-tab-' + x + '-panel').style.display = x === t ? 'block' : 'none';
-    document.getElementById('cal-tab-' + x).className = 'cal-set-tab' + (x === t ? ' active' : '');
+    document.getElementById('cal-tab-' + x).className = 'chip chip--seg' + (x === t ? ' is-active' : '');
   });
   if (t === 'svc') calRenderSvcRows();
   else calRenderPplRows();
@@ -59,9 +59,9 @@ function calRenderSvcRows() {
   [...calSvc].sort((a, b) => a.sort_order - b.sort_order).forEach(s => {
     tb.innerHTML += `<tr>
       <td>${esc(s.name)}</td>
-      <td><input type="number" value="${s.sort_order}" style="width:56px" onchange="calUpdSvc(${s.id},this.value)"></td>
-      <td><button class="switch ${s.is_active ? 'on' : ''}" onclick="calUpdSvcActive(${s.id})"></button></td>
-      <td>${s.is_active ? `<button class="btn-card btn-delete" onclick="calDelSvc(${s.id})">停用</button>` : '<span class="cal-off">已停用</span>'}</td>
+      <td><input type="number" value="${s.sort_order}" class="cal-set-sort-input" onchange="calUpdSvc(${s.id},this.value)"></td>
+      <td><button class="switch ${s.is_active ? 'is-active' : ''}" onclick="calUpdSvcActive(${s.id})"></button></td>
+      <td>${s.is_active ? `<button class="btn btn--danger btn--sm btn-delete" onclick="calDelSvc(${s.id})">停用</button>` : '<span class="cal-off">已停用</span>'}</td>
     </tr>`;
   });
 }
@@ -129,7 +129,7 @@ function calRenderPplRows() {
       <td>${esc(p.display_name || p.username)}</td>
       <td>${esc(roleName[p.role] || p.role || '')}</td>
       <td><div class="cal-color-dots">${CAL_PALETTE.map(c =>
-        `<span style="background:${c}" class="${(p.color || '#1a73e8') === c ? 'sel' : ''}" onclick="calSetColor(${p.id},'${c}')"></span>`).join('')}</div></td>
+        `<span style="background:${c}" class="${(p.color || CAL_PALETTE[0]) === c ? 'sel' : ''}" onclick="calSetColor(${p.id},'${c}')"></span>`).join('')}</div></td>
     </tr>`;
   });
 }

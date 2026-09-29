@@ -1,0 +1,212 @@
+@layer pages {
+  /* ============ 全域 ============ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body[data-page="login"] {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    min-height: 100vh;
+    background: var(--c-text);
+    color: var(--c-surface-2);
+  }
+  /* 背景裝飾 */
+  [data-page="login"] .bg-blob { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.28; z-index: 0; }
+  [data-page="login"] .blob1 { width: 340px; height: 340px; background: var(--c-primary); top: -80px; left: -80px; }
+  [data-page="login"] .blob2 { width: 260px; height: 260px; background: var(--c-primary-strong); bottom: -60px; right: -60px; }
+
+  /* ═══ 主容器（手機：單卡；桌機：雙欄） ═══ */
+  [data-page="login"] .login-wrap {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 20px 70px;   /* 底部預留頁尾空間 */
+  }
+
+  /* ═══ 登入卡片（手機版為主樣式） ═══ */
+  [data-page="login"] .login-card {
+    width: 90%; max-width: 400px;
+    margin: 0 auto;               /* 手機 block 模式下水平置中 */
+    background: rgba(30, 41, 59, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: var(--r-lg);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    padding: 32px 28px 28px;
+    animation: pop-in 0.35s ease;
+    position: relative;
+  }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* 系統標題區（手機顯示在卡片內） */
+  [data-page="login"] .brand { text-align: center; margin-bottom: 24px; }
+  [data-page="login"] .brand .logo {
+    width: 64px; height: 64px; margin: 0 auto 10px;
+    background: var(--c-white);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 5px rgba(255,255,255,0.06), 0 0 24px rgba(255,255,255,0.20), 0 8px 18px rgba(0,0,0,0.4);
+    overflow: hidden;
+  }
+  [data-page="login"] .brand .logo img { width: 100%; height: 100%; object-fit: contain; display: block;
+    transform: translateX(-2px) translateY(-4px); /* 速調登入圖位置：X 負=左/正=右，Y 負=上/正=下，單位 px */ }
+  [data-page="login"] .brand h1 { font-size: var(--fs-20); font-weight: var(--fw-bold); color: var(--c-surface-2); }
+  [data-page="login"] .brand .sub { font-size: var(--fs-12); color: var(--c-border-control); margin-top: 4px; }
+
+  /* 表單 */
+  [data-page="login"] .field { margin-bottom: 14px; }
+  [data-page="login"] .field label { display: block; font-size: var(--fs-12); font-weight: var(--fw-bold); color: var(--c-border-control); margin-bottom: 6px; }
+  [data-page="login"] .field .wrap { position: relative; }
+  [data-page="login"] .field input {
+    width: 100%; height: 46px; padding: 0 40px 0 38px;
+    border: 1.5px solid var(--c-text-2); border-radius: var(--r-md);
+    font-size: var(--fs-14); outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    background: rgba(15, 23, 42, 0.75);
+    color: var(--c-surface-2);
+  }
+  [data-page="login"] .field input::placeholder { color: var(--c-muted); }
+  [data-page="login"] .field input:focus { border-color: var(--c-primary); background: rgba(15, 23, 42, 0.95); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 22%, transparent), 0 0 12px color-mix(in srgb, var(--c-primary) 15%, transparent); }
+  [data-page="login"] .field input.err { border-color: var(--c-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-danger) 15%, transparent); }
+  /* 左側 icon（帳號👤 / 密碼🔒） */
+  [data-page="login"] .field .wrap::before {
+    content: '👤';
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    font-size: var(--fs-14); opacity: 0.55; pointer-events: none; z-index: 1;
+  }
+  [data-page="login"] .field.pw-field .wrap::before { content: '🔒'; }
+
+  [data-page="login"] .password-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: var(--fs-16); opacity: 0.55;
+    padding: 4px; line-height: 1;
+  }
+  [data-page="login"] .password-toggle:hover { opacity: 0.9; }
+
+  /* 表單附加列：記住帳號 + 忘記密碼 */
+  [data-page="login"] .form-extra {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 4px 0 14px; font-size: var(--fs-13);
+  }
+  [data-page="login"] .form-extra .remember { display: flex; align-items: center; gap: 6px; color: var(--c-border-control); cursor: pointer; }
+  [data-page="login"] .form-extra .remember input { width: 15px; height: 15px; accent-color: var(--c-primary); cursor: pointer; }
+  [data-page="login"] .form-extra .forgot { color: var(--c-primary); font-weight: var(--fw-medium); text-decoration: none; cursor: pointer; }
+  [data-page="login"] .form-extra .forgot:hover { text-decoration: underline; }
+
+  /* 登入按鈕（亮藍漸層） */
+  [data-page="login"] .login-btn {
+    width: 100%; height: 46px;
+    background: linear-gradient(135deg, var(--c-primary), var(--c-primary));
+    color: var(--c-white); border: none; border-radius: var(--r-md);
+    font-size: var(--fs-14); font-weight: var(--fw-bold); cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--c-primary) 40%, transparent);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  [data-page="login"] .login-btn:hover { filter: brightness(1.1); box-shadow: 0 10px 26px color-mix(in srgb, var(--c-primary) 50%, transparent); }
+  [data-page="login"] .login-btn:active { transform: scale(0.98); }
+  [data-page="login"] .login-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  /* 錯誤 / 資訊提示 */
+  [data-page="login"] .error-box {
+    display: none;
+    background: color-mix(in srgb, var(--c-danger-strong) 35%, transparent); border: 1px solid color-mix(in srgb, var(--c-danger-border) 40%, transparent); color: var(--c-danger-border);
+    border-radius: var(--r-md); padding: 10px 12px; font-size: var(--fs-13); font-weight: var(--fw-medium);
+    margin-bottom: 14px; align-items: center; gap: 8px;
+  }
+  [data-page="login"] .error-box.is-open { display: flex; animation: shake 0.4s ease; }
+  [data-page="login"] .error-box.info { background: color-mix(in srgb, var(--c-primary) 35%, transparent); border-color: color-mix(in srgb, var(--c-primary) 40%, transparent); color: var(--c-primary-border); animation: none; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+  }
+
+  /* 登入成功覆蓋層 */
+  [data-page="login"] .success-overlay {
+    position: absolute; inset: 0; z-index: 10;
+    background: linear-gradient(150deg, var(--c-text), var(--c-text) 60%, var(--c-primary-strong));
+    border-radius: var(--r-lg); display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    color: var(--c-white); text-align: center; padding: 30px;
+  }
+  [data-page="login"] .success-overlay.is-open { display: flex; animation: fade-in 0.3s ease; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  [data-page="login"] .success-overlay .ok-icon { font-size: 52px; margin-bottom: 14px; }
+  [data-page="login"] .success-overlay h2 { font-size: var(--fs-20); margin-bottom: 8px; }
+  [data-page="login"] .success-overlay p { font-size: var(--fs-13); color: var(--c-border-control); }
+
+  /* 頁尾（fixed 置底半透明白字） */
+  [data-page="login"] .footer-note {
+    position: fixed; bottom: 16px; left: 0; right: 0;
+    text-align: center; z-index: 1;
+    font-size: var(--fs-12); color: var(--c-border-control);
+    pointer-events: none;
+  }
+
+  /* 系統狀態（右下角） */
+  [data-page="login"] .sys-status {
+    position: fixed; bottom: 16px; right: 16px; z-index: 1;
+    font-size: var(--fs-11); color: rgba(255,255,255,0.65);
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
+    padding: 4px 10px; border-radius: var(--r-lg);
+  }
+
+  /* 維護公告橫幅（預設隱藏，需要時移除 hidden） */
+  [data-page="login"] .announce {
+    position: fixed; top: 0; left: 0; right: 0; z-index: var(--z-menu-inline);
+    background: color-mix(in srgb, var(--c-warning-strong) 75%, transparent); color: var(--c-warning-border); border-bottom: 1px solid color-mix(in srgb, var(--c-warning-border) 30%, transparent);
+    font-size: var(--fs-13); font-weight: var(--fw-medium); text-align: center;
+    padding: 8px 16px;
+  }
+
+  /* ═══ 電腦端（≥768px）：雙欄 ═══ */
+  [data-page="login"] .brand-panel { display: none; }   /* 手機隱藏 */
+  @media (min-width: 768px) {
+    [data-page="login"] .login-wrap { padding: 40px 6vw 90px; }
+    [data-page="login"] .login-panels {
+      display: flex; width: 100%; max-width: 960px;
+      background: rgba(30, 41, 59, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--r-lg); overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
+      min-height: 540px;
+    }
+    /* 左：品牌形象區 */
+    [data-page="login"] .brand-panel {
+      display: flex; flex: 55%;
+      background: linear-gradient(155deg, var(--c-text) 0%, var(--c-primary-strong) 55%, var(--c-primary) 100%);
+      color: var(--c-white); position: relative; overflow: hidden;
+      align-items: center; justify-content: center;
+    }
+    [data-page="login"] .brand-panel::before, [data-page="login"] .brand-panel::after {
+      content: ''; position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+    }
+    [data-page="login"] .brand-panel::before { width: 380px; height: 380px; top: -120px; right: -120px; }
+    [data-page="login"] .brand-panel::after { width: 300px; height: 300px; bottom: -100px; left: -80px; }
+    [data-page="login"] .brand-panel-inner { position: relative; z-index: 1; text-align: center; padding: 40px; }
+    [data-page="login"] .brand-panel-inner .big-logo {
+      width: 96px; height: 96px; margin: 0 auto 18px;
+      background: var(--c-white);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 6px rgba(255,255,255,0.06), 0 0 30px rgba(255,255,255,0.20), 0 10px 24px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
+    [data-page="login"] .brand-panel-inner .big-logo img { width: 100%; height: 100%; object-fit: contain; display: block;
+      transform: translateX(-3px) translateY(-4px); /* 速調登入圖位置：X 負=左/正=右，Y 負=上/正=下，單位 px */ }
+    [data-page="login"] .brand-panel-inner h2 { font-size: var(--fs-28); font-weight: var(--fw-bold); margin-bottom: 12px; }
+    [data-page="login"] .brand-panel-inner p { font-size: var(--fs-14); color: var(--c-border-control); line-height: 1.8; }
+    [data-page="login"] .brand-panel-inner .geo {
+      margin-top: 26px; font-size: 40px; opacity: 0.35; letter-spacing: 10px;
+    }
+    /* 右：表單操作區 */
+    [data-page="login"] .form-panel { flex: 45%; display: flex; align-items: center; justify-content: center; padding: 40px 30px; }
+    [data-page="login"] .login-card { width: 100%; max-width: 400px; box-shadow: none; background: transparent; padding: 0; border: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    [data-page="login"] .brand { display: none; }
+}
+
+  @media (max-width: 767px) {
+    [data-page="login"] .sys-status { display: none; }
+}
+}

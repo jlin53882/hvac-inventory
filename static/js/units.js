@@ -57,14 +57,13 @@ function openUnitQuickAdd(sel, addBtn) {
   input.maxLength = 20;
   const ok = document.createElement('button');
   ok.textContent = '新增';
-  ok.className = 'btn-save';
+  ok.className = 'btn btn--primary btn--sm';
   const cancel = document.createElement('button');
   cancel.textContent = '取消';
-  cancel.className = 'btn-ghost';
+  cancel.className = 'btn btn--secondary btn--sm';
   sel.style.display = 'none'; if (addBtn) addBtn.style.display = 'none';
   const box = document.createElement('div');
   box.className = 'unit-quick-add';
-  box.style.cssText = 'display:flex;gap:6px;margin-top:6px;width:100%';
   box.append(input, ok, cancel);
   wrap.appendChild(box);
   input.focus();
@@ -83,7 +82,7 @@ function openUnitQuickAdd(sel, addBtn) {
         body: JSON.stringify({ name })
       });
       const data = await res.json();
-      if (!res.ok) { toast(data.detail || '新增失敗', 'error'); return; }
+      if (!res.ok) { toast(apiErrorMessage(data.detail) || '新增失敗', 'error'); return; }
       unitList.push(data);
       unitListActive = unitList.filter(u => u.is_active);
       box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = '';

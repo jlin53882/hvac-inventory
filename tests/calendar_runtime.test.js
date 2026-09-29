@@ -200,6 +200,15 @@ async function assertCalendarLoad(context, state) {
         'September 2026 must end on October 3');
     }
   }
+  // Loading skeleton must follow the month being loaded, not the previous month's row count.
+  for (const [month, weeks] of [[1, 4], [7, 6]]) {
+    context.calMonth = new Date(2026, month, 1);
+    context.calRenderLoadingUi();
+    const html = get('cal-grid').innerHTML;
+    assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
+    assert.strictEqual((html.match(/cal-skeleton-cell/g) || []).length, weeks * 7);
+    assert.strictEqual((html.match(/class="cal-weekday/g) || []).length, 7);
+  }
   context.calMonth = new Date();
 
 

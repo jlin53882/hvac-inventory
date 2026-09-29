@@ -121,8 +121,8 @@ function renderInventoryPageHeading() {
 function renderInventoryEmptyState(isViewer) {
   const search = document.getElementById('search-input');
   const hasFilter = currentBrands.length > 0 || currentCategories.length > 0 || (search && search.value.trim());
-  const clearButton = hasFilter ? '<button class="inventory-empty-secondary" onclick="clearFilterPanel()">清除篩選</button>' : '';
-  const addButton = isViewer ? '' : '<button class="btn-add-inv" onclick="openAddModal()">＋ 新增品項</button>';
+  const clearButton = hasFilter ? '<button class="btn btn--secondary btn--md" onclick="clearFilterPanel()">清除篩選</button>' : '';
+  const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="openAddModal()">＋ 新增品項</button>';
   return `<div class="inventory-empty-state">
     <div class="inventory-empty-icon" aria-hidden="true">📦</div>
     <h2>${hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'}</h2>
@@ -326,7 +326,7 @@ function renderInventoryStatusModal(type, items) {
 
 function isInventoryStatusRequestCurrent(requestId, modal, type) {
   const isOpen = modal && modal.classList && typeof modal.classList.contains === 'function'
-    ? modal.classList.contains('show') : true;
+    ? modal.classList.contains('is-open') : true;
   return requestId === inventoryStatusRequestSeq && inventoryStatusModalType === type && isOpen;
 }
 
@@ -339,7 +339,7 @@ async function showInventoryStatusList(type) {
   let items = getInventoryStatusItems(type);
   const stats = typeof INVENTORY_META !== 'undefined' ? INVENTORY_META.stats : null;
   const hasAlertItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
-  modal.classList.add('show');
+  modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
   if (!hasAlertItems) {
     body.innerHTML = '<div class="inventory-status-loading">載入完整警示清單…</div>';
@@ -363,7 +363,7 @@ function closeInventoryStatusModal() {
   if (typeof clearSharedStatusListModal === 'function') clearSharedStatusListModal();
   const modal = document.getElementById('inventory-status-modal');
   if (!modal) return;
-  modal.classList.remove('show');
+  modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
 }
 
@@ -372,12 +372,12 @@ function renderInventoryChips() {
   const brands = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
   const cats = [...new Set(ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
   let h = '<div class="chip-bar">';
-  h += '<span class="chip' + (currentBrands.length === 0 ? ' on' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
-  brands.forEach(b => { h += '<span class="chip' + (currentBrands.includes(b) ? ' on' : '') + '" onclick="toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
+  h += '<span class="chip' + (currentBrands.length === 0 ? ' is-active' : '') + '" onclick="toggleInventoryBrand(\'\')">全部廠牌</span>';
+  brands.forEach(b => { h += '<span class="chip' + (currentBrands.includes(b) ? ' is-active' : '') + '" onclick="toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
   h += '</div>';
   h += '<div class="chip-bar">';
-  h += '<span class="chip' + (currentCategories.length === 0 ? ' on' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
-  cats.forEach(c => { h += '<span class="chip' + (currentCategories.includes(c) ? ' on' : '') + '" onclick="toggleInventoryCategory(\'' + esc(jsStr(c)) + '\')">' + esc(c) + '</span>'; });
+  h += '<span class="chip' + (currentCategories.length === 0 ? ' is-active' : '') + '" onclick="toggleInventoryCategory(\'\')">全部分類</span>';
+  cats.forEach(c => { h += '<span class="chip' + (currentCategories.includes(c) ? ' is-active' : '') + '" onclick="toggleInventoryCategory(\'' + esc(jsStr(c)) + '\')">' + esc(c) + '</span>'; });
   h += '</div>';
   return h;
 }
@@ -407,19 +407,19 @@ function renderInventoryToolbar(list, isViewer) {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = (typeof isMobileView === 'function') && isMobileView();
   let h = '<div class="loc-export-bar">';
-  if (batchMode) h += '<button class="btn-sm btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
+  if (batchMode) h += '<button class="btn btn--secondary btn--md btn-select-all" id="btn-select-toggle" onclick="selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
   h += '<span class="loc-export-count">共 ' + (INVENTORY_META.total || list.length) + ' 項</span>';
-  h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="' + (viewMode === 'table' ? 'active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="' + (viewMode === 'card' ? 'active' : '') + '">🃏 卡片</button></div>';
-  if (!isViewer) h += '<button class="btn-sm btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
+  h += '<div class="view-toggle"><button onclick="setInventoryView(\'table\')" class="chip chip--seg' + (viewMode === 'table' ? ' is-active' : '') + '">📊 表格</button><button onclick="setInventoryView(\'card\')" class="chip chip--seg' + (viewMode === 'card' ? ' is-active' : '') + '">🃏 卡片</button></div>';
+  if (!isViewer) h += '<button class="btn btn--primary btn--md btn-add-inv" onclick="openAddModal()">＋ 新增</button>';
   if (isM) {
-    h += '<div class="more-actions-wrap"><button class="btn-sm btn-more-actions" onclick="toggleMoreActions()">⋮</button>';
+    h += '<div class="more-actions-wrap"><button class="btn btn--secondary btn--md btn--icon" onclick="toggleMoreActions()">⋮</button>';
     h += '<div class="more-actions-dropdown" id="moreActionsDropdown">';
     if (hasPerm('batch-loc-mgmt')) h += '<button onclick="toggleBatchMode();closeMoreActions()">📦 批次改位置</button>';
     h += '<button onclick="openInventoryExportDialog();closeMoreActions()">⬇️ 匯出庫存</button>';
     h += '</div></div>';
   } else {
-    if (hasPerm('batch-loc-mgmt')) h += '<button class="btn-sm btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
-    h += '<button class="btn-sm btn-export" onclick="openInventoryExportDialog()">⬇️ 匯出庫存</button>';
+    if (hasPerm('batch-loc-mgmt')) h += '<button class="btn btn--secondary btn--md btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
+    h += '<button class="btn btn--export btn--md btn-export" onclick="openInventoryExportDialog()">⬇️ 匯出庫存</button>';
   }
   h += '</div>';
   return h;
@@ -431,8 +431,8 @@ function renderInventoryTable(list, isViewer, canStockout) {
     (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
   });
   let h = '<div class="tbl-wrap"><table class="data-table"><thead><tr>';
-  if (batchMode && hasPerm('batch-loc-mgmt')) h += '<th style="width:30px"></th>';
-  h += '<th style="width:44px"></th><th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
+  if (batchMode && hasPerm('batch-loc-mgmt')) h += '<th class="col-check"></th>';
+  h += '<th class="col-thumb"></th><th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
   h += '</tr></thead><tbody>';
   Object.keys(byLoc).sort().forEach(loc => {
     byLoc[loc].forEach(i => {
@@ -448,11 +448,11 @@ function renderInventoryTable(list, isViewer, canStockout) {
       const locStr = stocks.map(s => esc(s.location)).join(', ');
       const photoHTML = i.has_photo ? '<span class="cphoto"><img src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
       h += '<tr class="' + rowClass + '">';
-      if (batchMode && hasPerm('batch-loc-mgmt')) h += '<td style="text-align:center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
+      if (batchMode && hasPerm('batch-loc-mgmt')) h += '<td class="u-ta-center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(' + i.id + ')"></td>';
       h += '<td class="photo-cell">' + photoHTML + '</td>';
-      h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small style="color:#64748b">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
+      h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small class="col-name-code">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
-      h += '<td class="col-qty" style="color:' + (isZero ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')) + '">' + displayStr + '</td>';
+      h += '<td class="col-qty ' + (isZero ? 'is-out' : (isLow ? 'is-low' : 'is-ok')) + '">' + displayStr + '</td>';
       h += '<td>' + esc(i.unit) + '</td>';
       h += '<td class="col-loc">' + locStr + '</td>';
       h += '<td class="col-status">' + statusHTML + '</td>';
@@ -469,8 +469,8 @@ function renderInventoryTable(list, isViewer, canStockout) {
 // 單一庫存的待領出／已領出入口：卡片與表格共用，避免手機與桌面分支漂移。
 function buildInventoryStockoutActions(i, canStockout, mobile) {
   if (!canStockout) return '';
-  const prepare = i.is_kit ? '' : '<button class="btn-prepare" style="margin:0" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>';
-  const out = '<button class="btn-out" style="margin:0" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button>';
+  const prepare = i.is_kit ? '' : '<button class="btn btn--prepare btn--sm btn-prepare" onclick="openPrepareModal(' + i.id + ', event)">📤 待領出</button>';
+  const out = '<button class="btn btn--out btn--sm btn-out" onclick="openOutModal(' + i.id + ', event)">🚚 已領出</button>';
   return '<div class="' + (mobile ? 'm-card-actions' : 'inventory-stockout-actions') + '">' + prepare + out + '</div>';
 }
 
@@ -487,11 +487,11 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
   Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
     const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
-    h += '<div class="section-title' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="toggleLoc(this, \'' + esc(jsStr(loc)) + '\')">';
+    h += '<div class="section-title' + (locCollapsed ? ' is-collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="toggleLoc(this, \'' + esc(jsStr(loc)) + '\')">';
     h += '<button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>';
     h += '<span class="loc">位置：' + esc(loc) + '</span><span>' + locItems.length + ' 項</span>';
     h += '</div>';
-    h += '<div class="loc-group' + (locCollapsed ? ' collapsed' : '') + '" data-loc="' + esc(loc) + '">';
+    h += '<div class="loc-group' + (locCollapsed ? ' is-collapsed' : '') + '" data-loc="' + esc(loc) + '">';
     locItems.forEach(i => {
       const status = getInventoryStatus(i);
       const display = status.qty;
@@ -515,7 +515,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           checkboxHTML: batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">' : '',
           thumb: buildThumb(i.id, i.has_photo, i.name, '📦', i.thumbnail_url),
           nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名') + (i.site === 'warehouse' ? ' 🏭' : ''),
-          subHTML: (prepared > 0 ? '<span class="chip green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
+          subHTML: (prepared > 0 ? '<span class="m-tag green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
           extraHTML: locStr,
           noteHTML: noteStr,
           qtyHTML: buildQtyControl({id: i.id, display: displayStr, unit: i.unit, isZero, delta, viewer: isViewer}),
@@ -525,7 +525,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
         const locHtml = buildLocHTML(stocks);
         const noteHtml = buildNoteHTML(stocks);
-        h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' style="padding-left:32px"' : '') + '>';
+        h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (batchMode ? ' data-batch="1"' : '') + '>';
         if (batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="toggleStockSelect(\'item-' + i.id + '\')">';
         if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" onclick="openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
         else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
@@ -538,9 +538,9 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + ((typeof Qty !== 'undefined') ? Qty.format(prepared, Qty.unitTypeOf(i.unit)) : prepared) + ' ' + esc(i.unit) + '</div>';
         h += '</div>';
         h += buildInventoryStockoutActions(i, canStockout, false);
-        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="edit-btn" onclick="openEditModal(' + i.id + ')" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="del-btn" onclick="deleteItem(' + i.id + ')" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
+        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="btn btn--secondary btn--sm edit-btn" onclick="openEditModal(' + i.id + ')" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="btn btn--danger btn--sm del-btn" onclick="deleteItem(' + i.id + ')" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
         if (isViewer) {
-          h += '<div class="qty-control"><div class="qty-value" style="cursor:default" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
+          h += '<div class="qty-control"><div class="qty-value is-readonly" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
         } else {
           h += '<div class="qty-control"><button class="qty-btn qty-minus" onclick="changeQty(' + i.id + ', -1)"' + (isZero && delta <= 0 ? ' disabled' : '') + '>−</button><div class="qty-value" onclick="quickSet(' + i.id + ')" title="點數字可輸入">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div><button class="qty-btn qty-plus" onclick="changeQty(' + i.id + ', 1)">+</button></div>';
         }
@@ -557,9 +557,9 @@ function renderInventoryPagination() {
   if (totalPages <= 1) return '';
   const current = INVENTORY_META.page || 1;
   let h = '<div class="inventory-pagination">';
-  h += '<button type="button" onclick="changeInventoryPage(' + (current - 1) + ')"' + (current <= 1 ? ' disabled' : '') + '>上一頁</button>';
+  h += '<button type="button" class="btn btn--secondary btn--sm" onclick="changeInventoryPage(' + (current - 1) + ')"' + (current <= 1 ? ' disabled' : '') + '>上一頁</button>';
   h += '<span>第 ' + current + ' / ' + totalPages + ' 頁</span>';
-  h += '<button type="button" onclick="changeInventoryPage(' + (current + 1) + ')"' + (current >= totalPages ? ' disabled' : '') + '>下一頁</button>';
+  h += '<button type="button" class="btn btn--secondary btn--sm" onclick="changeInventoryPage(' + (current + 1) + ')"' + (current >= totalPages ? ' disabled' : '') + '>下一頁</button>';
   return h + '</div>';
 }
 
@@ -636,13 +636,13 @@ function updateSaveBar() {
 
   if (n > 0 && currentTab === 'inventory') {
 
-    bar.classList.add('show');
+    bar.classList.add('is-open');
 
     document.getElementById('pending-count').textContent = n;
 
   } else {
 
-    bar.classList.remove('show');
+    bar.classList.remove('is-open');
 
   }
 
@@ -727,13 +727,13 @@ function toggleLoc(titleEl, loc) {
 
   try { localStorage.setItem(collapsedKey, JSON.stringify(arr)); } catch (e) {}
 
-  if (titleEl) titleEl.classList.toggle('collapsed', nowCollapsed);
+  if (titleEl) titleEl.classList.toggle('is-collapsed', nowCollapsed);
 
   try {
 
     const groups = document.querySelectorAll('.loc-group[data-loc="' + CSS.escape(loc) + '"]');
 
-    groups.forEach(g => g.classList.toggle('collapsed', nowCollapsed));
+    groups.forEach(g => g.classList.toggle('is-collapsed', nowCollapsed));
 
   } catch (e) {}
 
@@ -823,11 +823,11 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
   if (!el) return;
 
   el.innerHTML = '';
-  el.classList.toggle('collapsed', !filterExpandedState[type]);
+  el.classList.toggle('is-collapsed', !filterExpandedState[type]);
 
   var allChip = document.createElement('span');
 
-  allChip.className = 'filter-chip' + (selectedArr.length === 0 ? ' active' : '');
+  allChip.className = 'chip filter-chip' + (selectedArr.length === 0 ? ' is-active' : '');
 
   allChip.textContent = '全部';
 
@@ -836,7 +836,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
   el.appendChild(allChip);
 
   // 判定容器寬度是否足夠顯示全部 chips
-  var isCollapsed = el.classList.contains('collapsed');
+  var isCollapsed = el.classList.contains('is-collapsed');
   var visibleCount = calculateVisibleChipsCount(containerId);
   var totalChipsNeeded = counts.length + 1;  // 包含「全部」
   
@@ -855,7 +855,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
     var isSelected = selectedArr.includes(name);
 
-    chip.className = 'filter-chip' + (isSelected ? ' active' : '');
+    chip.className = 'chip filter-chip' + (isSelected ? ' is-active' : '');
 
     chip.innerHTML = esc(name) + ' <span class="badge">' + count + '</span>';
 
@@ -940,7 +940,7 @@ function toggleFilterCollapse(containerId, toggleBtnId) {
 
   var btn = document.getElementById(toggleBtnId);
 
-  var isCollapsed = el.classList.toggle('collapsed');
+  var isCollapsed = el.classList.toggle('is-collapsed');
   var filterType = containerId === 'fp-brand-chips' ? 'brand' : 'category';
   filterExpandedState[filterType] = !isCollapsed;
 
@@ -967,13 +967,13 @@ function toggleBatchMode() {
   batchMode = !batchMode;
   selectedStockIds.clear();
   var bt = document.getElementById('batch-toggle');
-  if (bt) bt.classList.toggle('active', batchMode);
+  if (bt) bt.classList.toggle('is-active', batchMode);
   document.getElementById('batch-num').textContent = 0;
   document.getElementById('batch-confirm').disabled = true;
   if (batchMode) {
-    document.getElementById('batch-bar').classList.add('show');
+    document.getElementById('batch-bar').classList.add('is-open');
   } else {
-    document.getElementById('batch-bar').classList.remove('show');
+    document.getElementById('batch-bar').classList.remove('is-open');
   }
   renderInventory();
 }
@@ -1021,13 +1021,13 @@ function _allSelected() {
 function _syncBatchUI() {
   document.getElementById('batch-num').textContent = selectedStockIds.size;
   document.getElementById('batch-confirm').disabled = selectedStockIds.size === 0;
-  document.getElementById('batch-bar').classList.toggle('show', selectedStockIds.size > 0);
+  document.getElementById('batch-bar').classList.toggle('is-open', selectedStockIds.size > 0);
   renderInventory();
 }
 
 function cancelBatch() {
   selectedStockIds.clear();
-  document.getElementById('batch-bar').classList.remove('show');
+  document.getElementById('batch-bar').classList.remove('is-open');
   document.getElementById('batch-cabinet').value = '';
   document.getElementById('batch-sub').value = '';
   renderInventory();
@@ -1045,16 +1045,16 @@ function showBatchConfirm() {
   ALL_ITEMS.forEach(function(item) {
     (item.stocks || []).forEach(function(s) {
       if (selectedStockIds.has(s.id)) {
-        details.push('<div class="modal-item-row"><span>' + esc(item.brand) + ' ' + esc(item.name) + '</span><span style="color:#999">' + esc(s.location) + ' \u2192 <b style="color:#2d5a8e">' + esc(target) + '</b></span></div>');
+        details.push('<div class="modal-item-row"><span>' + esc(item.brand) + ' ' + esc(item.name) + '</span><span class="modal-item-from">' + esc(s.location) + ' \u2192 <b class="modal-item-to">' + esc(target) + '</b></span></div>');
       }
     });
   });
   document.getElementById('batch-confirm-items').innerHTML = details.join('');
-  document.getElementById('batch-confirm-modal').classList.add('show');
+  document.getElementById('batch-confirm-modal').classList.add('is-open');
 }
 
 function closeBatchConfirm() {
-  document.getElementById('batch-confirm-modal').classList.remove('show');
+  document.getElementById('batch-confirm-modal').classList.remove('is-open');
 }
 
 async function submitBatchLocation() {
@@ -1104,20 +1104,20 @@ function toggleInventoryCategory(cat) {
 // ========== 手機版更多操作選單 ==========
 function toggleMoreActions() {
   var dd = document.getElementById('moreActionsDropdown');
-  if (dd) dd.classList.toggle('open');
+  if (dd) dd.classList.toggle('is-open');
 }
 function closeMoreActions() {
   var dd = document.getElementById('moreActionsDropdown');
-  if (dd) dd.classList.remove('open');
+  if (dd) dd.classList.remove('is-open');
 }
 function openInventoryActionMenu(button, event) {
   if (event) event.stopPropagation();
-  document.querySelectorAll('.inventory-action-dropdown.open').forEach(function(el) { el.classList.remove('open'); });
+  document.querySelectorAll('.inventory-action-dropdown.is-open').forEach(function(el) { el.classList.remove('is-open'); });
   var menu = button && button.parentElement ? button.parentElement.querySelector('.inventory-action-dropdown') : null;
-  if (menu) menu.classList.toggle('open');
+  if (menu) menu.classList.toggle('is-open');
 }
 function closeInventoryActionMenus() {
-  document.querySelectorAll('.inventory-action-dropdown.open').forEach(function(el) { el.classList.remove('open'); });
+  document.querySelectorAll('.inventory-action-dropdown.is-open').forEach(function(el) { el.classList.remove('is-open'); });
 }
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.more-actions-wrap')) closeMoreActions();

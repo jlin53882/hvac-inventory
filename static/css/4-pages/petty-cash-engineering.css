@@ -1,0 +1,189 @@
+@layer pages {
+/* Engineering petty cash feature layer: hierarchy, detail view and editor. */
+/* 工程零用金：沿一般零用金的兩步 editor，分類與明細採左右分欄 */
+[data-page="petty-cash"] .eng-editor { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; align-items: start; }
+[data-page="petty-cash"] .eng-category-nav { display: flex; flex-direction: column; gap: 7px; padding: 10px; background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--r-lg); }
+[data-page="petty-cash"] .eng-category-tab { text-align: left; }
+[data-page="petty-cash"] .eng-detail-pane { min-width: 0; }
+[data-page="petty-cash"] .eng-category-title, [data-page="petty-cash"] .eng-group-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+[data-page="petty-cash"] .eng-category-title { margin-bottom: 10px; }
+[data-page="petty-cash"] .eng-category-title input, [data-page="petty-cash"] .eng-group-head input { flex: 1 1 180px; min-height: 44px; padding: 8px 10px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); box-sizing: border-box; font-weight: var(--fw-bold); }
+[data-page="petty-cash"] .eng-editor input, [data-page="petty-cash"] .eng-editor select { border-radius: var(--r-md); border: 1px solid var(--c-border-strong); background:var(--c-white); transition:border-color .15s, box-shadow .15s; }
+[data-page="petty-cash"] .eng-editor input:focus, [data-page="petty-cash"] .eng-editor select:focus { outline:0; border-color:var(--c-primary); box-shadow:0 0 0 3px color-mix(in srgb, var(--c-primary) 12%, transparent); }
+[data-page="petty-cash"] .eng-group-block { border: 1px solid var(--c-border); border-radius: var(--r-lg); padding: 10px; margin-bottom: 10px; background: var(--c-white); }
+[data-page="petty-cash"] .eng-receipts { margin-top: 10px; }
+[data-page="petty-cash"] .eng-receipt { border: 1px solid var(--c-border); border-radius: var(--r-md); padding: 10px; margin-bottom: 8px; }
+[data-page="petty-cash"] .eng-receipt-grid { display: grid; grid-template-columns: 1fr 1.5fr 120px; gap: 8px; }
+[data-page="petty-cash"] .eng-detail-row { display: grid; grid-template-columns: 70px minmax(0,1fr) auto; gap: 8px; align-items: center; margin-top: 8px; }
+[data-page="petty-cash"] .eng-detail-row label { font-size: var(--fs-12); color: var(--c-muted); font-weight: var(--fw-bold); }
+@media (max-width: 767px) {
+  [data-page="petty-cash"] .eng-editor { grid-template-columns: 1fr; }
+  [data-page="petty-cash"] .eng-category-nav { flex-direction: row; flex-wrap: wrap; }
+  [data-page="petty-cash"] .eng-category-nav strong { width: 100%; }
+  [data-page="petty-cash"] .eng-category-tab { flex: 1 1 120px; }
+  [data-page="petty-cash"] .eng-receipt-grid { grid-template-columns: 1fr; }
+  [data-page="petty-cash"] .eng-detail-row { grid-template-columns: 1fr; gap: 4px; }
+  [data-page="petty-cash"] .eng-detail-row button { justify-self: start; }
+}
+
+/* 工程零用金檢視：清楚區分分類／項目／單據／細項 */
+[data-page="petty-cash"] .eng-guide-card .pc-card__bd { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; color:var(--c-text-2); }
+[data-page="petty-cash"] .eng-guide-card strong { color:var(--c-primary-strong); }
+[data-page="petty-cash"] .eng-file-label { color:var(--c-muted); font-size:var(--fs-12); overflow-wrap:anywhere; }
+[data-page="petty-cash"] .eng-category-card .pc-card__hd { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+[data-page="petty-cash"] .eng-category-card .pc-card__hd h2 { margin:3px 0 0; }
+[data-page="petty-cash"] .eng-section-kicker { color:var(--c-muted); font-size:var(--fs-11); letter-spacing:.08em; }
+[data-page="petty-cash"] .eng-subtotal, [data-page="petty-cash"] .eng-group-head strong { color:var(--c-primary-strong); white-space:nowrap; }
+[data-page="petty-cash"] .eng-group-block { margin-bottom:16px; }
+[data-page="petty-cash"] .eng-group-block:last-child { margin-bottom:0; }
+[data-page="petty-cash"] .eng-group-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; background:var(--c-surface-2); border:1px solid var(--c-border); border-bottom:0; border-radius:var(--r-md) var(--r-md) 0 0; }
+[data-page="petty-cash"] .eng-group-head h3 { margin:0; font-size:var(--fs-14); color:var(--c-text-2); }
+[data-page="petty-cash"] .eng-detail-table-wrap { overflow-x:auto; border:1px solid var(--c-border); border-radius:0 0 var(--r-md) var(--r-md); }
+[data-page="petty-cash"] .eng-detail-table { width:100%; table-layout:auto; border-collapse:collapse; }
+[data-page="petty-cash"] .eng-detail-table th { background:var(--c-surface-2); color:var(--c-text-2); font-size:var(--fs-12); text-align:left; padding:8px 10px; border-bottom:1px solid var(--c-border); }
+[data-page="petty-cash"] .eng-detail-table th:nth-child(1) { width:42%; }
+[data-page="petty-cash"] .eng-detail-table th:nth-child(2) { width:20%; text-align:center; }
+[data-page="petty-cash"] .eng-detail-table th:nth-child(3) { width:20%; text-align:center; }
+[data-page="petty-cash"] .eng-detail-table th:nth-child(4) { width:18%; text-align:right; }
+[data-page="petty-cash"] .eng-detail-table td { padding:9px 10px; vertical-align:middle; border-bottom:1px solid var(--c-surface-2); }
+[data-page="petty-cash"] .eng-detail-table td:nth-child(2), [data-page="petty-cash"] .eng-detail-table td:nth-child(3) { text-align:center; }
+[data-page="petty-cash"] .eng-detail-table td:nth-child(4) { text-align:right; white-space:nowrap; }
+[data-page="petty-cash"] .eng-detail-table tbody tr:last-child td { border-bottom:0; }
+[data-page="petty-cash"] .eng-receipt-toggle { display:flex; align-items:center; gap:7px; width:100%; min-height:34px; padding:2px 0; border:0; background:transparent; color:var(--c-text-2); text-align:left; cursor:pointer; }
+[data-page="petty-cash"] .eng-receipt-toggle:hover .eng-receipt-no { color:var(--c-primary); }
+[data-page="petty-cash"] .eng-receipt-detail-row td { padding:0 10px 10px; background:var(--c-surface-2); }
+[data-page="petty-cash"] .eng-receipt-detail-row .eng-receipt-details { margin:0; }
+[data-page="petty-cash"] .eng-detail-cell { min-width:220px; white-space:pre-wrap; }
+[data-page="petty-cash"] .eng-tax-mark { display:inline-flex; min-width:24px; justify-content:center; padding:2px 6px; border-radius:var(--r-sm); background:var(--c-success-soft); color:var(--c-success-strong); font-weight:var(--fw-bold); }
+@media (max-width: 767px) { [data-page="petty-cash"] .eng-category-card .pc-card__hd, [data-page="petty-cash"] .eng-group-head { align-items:flex-start; flex-direction:column; } [data-page="petty-cash"] .eng-detail-table th, [data-page="petty-cash"] .eng-detail-table td { padding:8px 6px; } [data-page="petty-cash"] .eng-detail-table th:nth-child(1) { width:38%; } [data-page="petty-cash"] .eng-detail-table th:nth-child(2) { width:22%; } [data-page="petty-cash"] .eng-detail-table th:nth-child(3) { width:22%; } [data-page="petty-cash"] .eng-detail-table th:nth-child(4) { width:18%; }
+}
+
+[data-page="petty-cash"] .eng-category-head, [data-page="petty-cash"] .eng-group-head, [data-page="petty-cash"] .eng-receipt-parent { width:100%; border:0; text-align:left; cursor:pointer; }
+[data-page="petty-cash"] .eng-category-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:var(--c-white); border-radius:var(--r-lg); }
+[data-page="petty-cash"] .eng-category-head > span { display:flex; align-items:center; gap:8px; min-width:0; }
+[data-page="petty-cash"] .eng-category-head h2 { margin:2px 0 0; font-size:var(--fs-16); }
+[data-page="petty-cash"] .eng-category-head:hover, [data-page="petty-cash"] .eng-group-head:hover, [data-page="petty-cash"] .eng-receipt-parent--expandable:hover { background:var(--c-surface-2); }
+[data-page="petty-cash"] .eng-chevron { color:var(--c-muted); font-size:var(--fs-12); width:18px; flex:0 0 18px; }
+[data-page="petty-cash"] .eng-group-head { padding:11px 12px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--r-md); display:flex; justify-content:space-between; align-items:center; }
+[data-page="petty-cash"] .eng-group-head > span { display:flex; align-items:center; gap:8px; }
+[data-page="petty-cash"] .eng-group-body { padding:8px 0 0; }
+[data-page="petty-cash"] .eng-receipt-table-head { display:grid; grid-template-columns:minmax(160px,2fr) 90px minmax(80px,1fr) 110px; gap:8px; padding:5px 12px; color:var(--c-muted); font-size:var(--fs-11); font-weight:var(--fw-bold); }
+[data-page="petty-cash"] .eng-receipt-card { border:1px solid var(--c-border); border-radius:var(--r-md); margin:5px 0; overflow:hidden; }
+[data-page="petty-cash"] .eng-receipt-parent { display:grid; grid-template-columns:18px minmax(160px,2fr) 90px minmax(80px,1fr) 110px; gap:8px; align-items:center; padding:10px 12px; background:var(--c-white); }
+[data-page="petty-cash"] .eng-receipt-chevron { color:var(--c-muted); }
+[data-page="petty-cash"] .eng-receipt-no { font-weight:var(--fw-bold); overflow-wrap:anywhere; }
+[data-page="petty-cash"] .eng-detail-count { color:var(--c-muted); font-size:var(--fs-12); }
+[data-page="petty-cash"] .eng-receipt-details { margin:0 12px 10px 38px; padding:8px 10px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--r-sm); }
+[data-page="petty-cash"] .eng-receipt-details-title { font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--c-text-2); margin-bottom:5px; }
+[data-page="petty-cash"] .eng-detail-line { padding:4px 0; color:var(--c-text-2); font-size:var(--fs-12); overflow-wrap:anywhere; }
+@media (max-width: 767px) {
+  [data-page="petty-cash"] .eng-category-head { padding:12px; }
+  [data-page="petty-cash"] .eng-category-head h2 { font-size:var(--fs-14); }
+  [data-page="petty-cash"] .eng-receipt-table-head { display:none; }
+  [data-page="petty-cash"] .eng-receipt-parent { grid-template-columns:18px minmax(0,1fr) auto; gap:6px; }
+  [data-page="petty-cash"] .eng-receipt-parent .eng-tax-mark { grid-column:2; justify-self:start; }
+  [data-page="petty-cash"] .eng-receipt-parent .eng-detail-count { grid-column:2; }
+  [data-page="petty-cash"] .eng-receipt-parent strong { grid-column:3; grid-row:1 / span 3; }
+  [data-page="petty-cash"] .eng-receipt-details { margin-left:26px; }
+}
+[data-page="petty-cash"] .eng-editor .eng-category-title, [data-page="petty-cash"] .eng-editor .eng-group-head {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+}
+[data-page="petty-cash"] .eng-editor .eng-category-title { grid-template-columns: minmax(180px, 1fr) auto auto; }
+[data-page="petty-cash"] .eng-editor .eng-group-head { grid-template-columns: minmax(180px, 1fr) auto auto auto; }
+[data-page="petty-cash"] .eng-editor .eng-category-title > select, [data-page="petty-cash"] .eng-editor .eng-group-head > select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-text);
+  font-size: var(--fs-14);
+  box-sizing: border-box;
+}
+[data-page="petty-cash"] .eng-editor .eng-detail-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+  color: var(--c-text);
+  font-size: var(--fs-14);
+  box-sizing: border-box;
+}
+[data-page="petty-cash"] .eng-editor .eng-detail-row button { white-space: nowrap; }
+@media (max-width: 767px) {
+  [data-page="petty-cash"] .eng-editor .eng-category-title, [data-page="petty-cash"] .eng-editor .eng-group-head { display: flex; flex-direction: column; align-items: stretch; }
+  [data-page="petty-cash"] .eng-editor .eng-category-title > select, [data-page="petty-cash"] .eng-editor .eng-group-head > select { width: 100%; }
+}
+[data-page="petty-cash"] .eng-category-head, [data-page="petty-cash"] .eng-group-head { cursor:pointer; }
+[data-page="petty-cash"] .eng-category-head:focus-visible, [data-page="petty-cash"] .eng-group-head:focus-visible, [data-page="petty-cash"] .eng-receipt-toggle:focus-visible { outline:3px solid color-mix(in srgb, var(--c-primary) 25%, transparent); outline-offset:2px; }
+@media (max-width: 767px) {
+  [data-page="petty-cash"] .eng-category-card { margin-bottom:10px; }
+  [data-page="petty-cash"] .eng-category-card .pc-card__bd { padding:10px; }
+  [data-page="petty-cash"] .eng-group-block { margin-bottom:10px; }
+  [data-page="petty-cash"] .eng-group-head { min-height:44px; }
+}
+/* Engineering editor receipt accordion */
+[data-page="petty-cash"] .eng-editor-receipt-toggle { width:100%; min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:0; border-radius:var(--r-md); background:var(--c-surface-2); color:var(--c-primary-strong); cursor:pointer; text-align:left; }
+[data-page="petty-cash"] .eng-editor-receipt-toggle:hover, [data-page="petty-cash"] .eng-receipt.is-expanded .eng-editor-receipt-toggle { background:var(--c-primary-soft); }
+[data-page="petty-cash"] .eng-editor-receipt-toggle > span { display:flex; align-items:center; gap:8px; min-width:0; }
+[data-page="petty-cash"] .eng-editor-receipt-no { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--c-muted); font-weight:var(--fw-regular); }
+[data-page="petty-cash"] .eng-editor-receipt-body { padding-top:10px; }
+[data-page="petty-cash"] .eng-editor-receipt-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+[data-page="petty-cash"] .eng-editor-receipt-toggle:focus-visible { outline:3px solid color-mix(in srgb, var(--c-primary) 25%, transparent); outline-offset:2px; }
+/* Mobile engineering detail table: keep the first receipt column visible. */
+@media (max-width: 767px) {
+  [data-page="petty-cash"] .eng-detail-table { width:100%; min-width:0; }
+  [data-page="petty-cash"] .eng-detail-table th, [data-page="petty-cash"] .eng-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+  [data-page="petty-cash"] .eng-detail-table th:first-child, [data-page="petty-cash"] .eng-detail-table td:first-child { padding-left:10px; }
+  [data-page="petty-cash"] .eng-receipt-toggle { min-width:0; overflow:visible; }
+  [data-page="petty-cash"] .eng-receipt-no { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+}
+[data-page="petty-cash"] .eng-category-head, [data-page="petty-cash"] .eng-group-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
+[data-page="petty-cash"] .eng-category-head > span, [data-page="petty-cash"] .eng-group-head > span { min-width:0; }
+[data-page="petty-cash"] .eng-subtotal, [data-page="petty-cash"] .eng-group-head strong { min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+@media (max-width: 767px) {
+  [data-page="petty-cash"] .eng-category-head .eng-subtotal { flex:1 1 100%; max-width:100%; text-align:left; white-space:normal; }
+  [data-page="petty-cash"] .eng-group-head strong { max-width:100%; white-space:normal; text-align:left; }
+}
+[data-page="petty-cash"] .eng-detail-table { table-layout:auto; }
+[data-page="petty-cash"] .eng-detail-table th, [data-page="petty-cash"] .eng-detail-table td { box-sizing:border-box; overflow-wrap:anywhere; word-break:break-word; }
+[data-page="petty-cash"] .eng-detail-table th:nth-child(1), [data-page="petty-cash"] .eng-detail-table th:nth-child(2), [data-page="petty-cash"] .eng-detail-table th:nth-child(3), [data-page="petty-cash"] .eng-detail-table th:nth-child(4) { width:auto; }
+[data-page="petty-cash"] .eng-detail-table td:nth-child(4) { white-space:normal; overflow-wrap:anywhere; }
+[data-page="petty-cash"] .eng-editor .eng-category-title, [data-page="petty-cash"] .eng-editor .eng-group-head { grid-template-columns:minmax(0,1fr) auto auto auto; }
+[data-page="petty-cash"] .eng-editor .eng-category-title { grid-template-columns:minmax(0,1fr) auto auto; }
+[data-page="petty-cash"] .eng-receipt-grid { grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto; }
+[data-page="petty-cash"] .eng-receipt-table-head, [data-page="petty-cash"] .eng-receipt-parent { grid-template-columns:auto minmax(0,2fr) auto minmax(0,1fr) auto; }
+[data-page="petty-cash"] .eng-detail-total, [data-page="petty-cash"] .eng-editor-receipt-no { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+[data-page="petty-cash"] .eng-editor-receipt-no { overflow:visible; text-overflow:clip; }
+[data-page="petty-cash"] .eng-detail-table th:nth-child(4), [data-page="petty-cash"] .eng-detail-table td:nth-child(4) { text-align:center; }
+/* Engineering detail role isolation: editor and viewer may share the noun but not layout overrides. */
+[data-page="petty-cash"] .eng-editor .eng-group-head { grid-template-columns:minmax(180px,1fr) auto auto auto; }
+[data-page="petty-cash"] .eng-detail-view .eng-group-head { grid-template-columns:minmax(0,1fr) auto; }
+@media (max-width: 767px) {
+  [data-page="petty-cash"] .eng-editor .eng-group-head { grid-template-columns:1fr; }
+  [data-page="petty-cash"] .eng-detail-view .eng-group-head { grid-template-columns:minmax(0,1fr); }
+  [data-page="petty-cash"] #eng-report-overlay .pc-modal { width:100%; height:calc(100dvh - 24px); max-height:calc(100dvh - 24px); }
+  [data-page="petty-cash"] #eng-report-overlay .pc-modal__hd, [data-page="petty-cash"] #eng-report-overlay .pc-modal__ft { flex:0 0 auto; }
+  [data-page="petty-cash"] #eng-report-overlay .pc-modal__bd { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  [data-page="petty-cash"] #eng-report-overlay .pc-modal__ft > span {
+    display:flex; flex:1 1 100%; flex-wrap:wrap; gap:8px; min-width:0;
+  }
+  [data-page="petty-cash"] #eng-report-overlay .pc-modal__ft button { flex:1 1 120px; min-width:0; }
+  [data-page="petty-cash"] .eng-editor .eng-category-title, [data-page="petty-cash"] .eng-editor .eng-group-head { width:100%; min-width:0; box-sizing:border-box; }
+  [data-page="petty-cash"] .eng-editor .eng-category-title > *, [data-page="petty-cash"] .eng-editor .eng-group-head > * { min-width:0; max-width:100%; }
+  [data-page="petty-cash"] .eng-editor .eng-detail-row { grid-template-columns:minmax(0,1fr); min-width:0; }
+  [data-page="petty-cash"] .eng-editor .eng-detail-row input { min-width:0; }
+  [data-page="petty-cash"] .eng-editor .eng-editor-receipt-actions { flex-wrap:wrap; }
+  [data-page="petty-cash"] .eng-editor .eng-editor-receipt-actions > button { flex:1 1 120px; min-width:0; }
+  /* 固定手機 modal 高度，讓細項在 footer 上方可捲動；發票欄位改直排避免互相擠壓。 */
+  [data-page="petty-cash"] .eng-editor .eng-receipt-grid { grid-template-columns:minmax(0,1fr); }
+}
+}

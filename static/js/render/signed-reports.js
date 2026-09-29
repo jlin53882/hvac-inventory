@@ -39,8 +39,8 @@ async function renderSignedReports() {
           <p>位置：底部導覽「行事曆」旁新增「報表」Tab。讀取需登入，刪除見下方權限規則。</p>
         </div>
         <div class="dsr-page-actions">
-          <button class="dsr-btn dsr-btn--ghost" onclick="document.getElementById('dsr-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
-          <button hidden data-signed-upload class="dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳每日簽名日報表</button>
+          <button class="btn btn--secondary btn--md dsr-btn" onclick="document.getElementById('dsr-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
+          <button hidden data-signed-upload class="btn btn--primary btn--md dsr-btn dsr-btn--primary" onclick="document.getElementById('dsr-file-input').click()">＋ 上傳每日簽名日報表</button>
         </div>
       </div>
 
@@ -62,12 +62,12 @@ async function renderSignedReports() {
                 <input id="dsr-report-date" type="date" value="${esc(today)}">
               </div>
             </div>
-            <div class="dsr-field" style="margin-top:12px">
+            <div class="u-mt-12 dsr-field">
               <label>備註 / 備忘（選填）</label>
               <textarea id="dsr-note" rows="2" placeholder="例：今日有現場工安檢查，客戶臨時增加 2 台保養"></textarea>
             </div>
             <!-- 拖曳上傳 -->
-            <div id="dsr-drop" class="dsr-drop" style="margin-top:12px" onclick="document.getElementById('dsr-file-input').click()">
+            <div id="dsr-drop" class="u-mt-12 dsr-drop" onclick="document.getElementById('dsr-file-input').click()">
               <div class="dsr-drop__icon">📎</div>
               <div class="dsr-drop__title">拖曳檔案到此，或點擊選擇</div>
               <div class="dsr-drop__sub">支援 PDF / PNG / JPG / GIF / WebP 格式</div>
@@ -81,17 +81,17 @@ async function renderSignedReports() {
             <!-- 選檔後預覽 -->
             <div id="dsr-file-preview" style="display:none">
               <div class="dsr-file-preview">
-                <div id="dsr-fp-icon" class="dsr-file-preview__icon" style="background:#fee2e2">📄</div>
+                <div id="dsr-fp-icon" class="dsr-file-preview__icon dsr-file-tone--pdf">📄</div>
                 <div class="dsr-file-preview__meta">
                   <div id="dsr-fp-name" class="dsr-file-preview__name"></div>
                   <div id="dsr-fp-sub" class="dsr-file-preview__sub"></div>
                   <div class="dsr-progress"><div id="dsr-progress-bar" class="dsr-progress__bar"></div></div>
                 </div>
-                <button class="dsr-btn-sm" onclick="dsrClearFile()">移除</button>
+                <button class="btn btn--secondary btn--sm" onclick="dsrClearFile()">移除</button>
               </div>
               <div class="dsr-upload-actions">
-                <button class="dsr-btn dsr-btn--primary" onclick="dsrSubmitUpload()">⬆️ 確認上傳</button>
-                <button class="dsr-btn dsr-btn--ghost" onclick="dsrOpenPreviewFile()">👁 預覽</button>
+                <button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" onclick="dsrSubmitUpload()">⬆️ 確認上傳</button>
+                <button class="btn btn--secondary btn--md dsr-btn" onclick="dsrOpenPreviewFile()">👁 預覽</button>
               </div>
             </div>
             <div class="dsr-tags">
@@ -143,19 +143,19 @@ async function renderSignedReports() {
               <div class="dsr-field"><label>迄止日</label><input id="dsr-f-to" type="date"></div>
               <div class="dsr-field dsr-field--search"><label>關鍵字（上傳人 / 備註 / 檔名）</label><input id="dsr-f-q" type="text" placeholder="例：昱豪、工安"></div>
               <div class="dsr-filter-actions">
-                <button class="dsr-btn dsr-btn--primary" onclick="dsrLoadHistory(true)">搜尋</button>
-                <button class="dsr-btn dsr-btn--ghost" onclick="dsrResetFilter()">清除</button>
+                <button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" onclick="dsrLoadHistory(true)">搜尋</button>
+                <button class="btn btn--secondary btn--md dsr-btn" onclick="dsrResetFilter()">清除</button>
               </div>
             </div>
             <div class="dsr-chips">
-              <button class="dsr-chip" onclick="dsrQuickRange('today',this)">今天</button>
-              <button class="dsr-chip" onclick="dsrQuickRange('week',this)">本週</button>
-              <button class="dsr-chip active" onclick="dsrQuickRange('month',this)">本月</button>
-              <button class="dsr-chip" onclick="dsrQuickRange('all',this)">全部</button>
+              <button class="chip dsr-chip" onclick="dsrQuickRange('today',this)">今天</button>
+              <button class="chip dsr-chip" onclick="dsrQuickRange('week',this)">本週</button>
+              <button class="chip dsr-chip is-active" onclick="dsrQuickRange('month',this)">本月</button>
+              <button class="chip dsr-chip" onclick="dsrQuickRange('all',this)">全部</button>
               <span class="dsr-result-count"><span id="dsr-result-count">0 筆</span></span>
             </div>
           </div>
-          <div class="dsr-card__bd" style="padding-top:0">
+          <div class="u-pt-0 dsr-card__bd">
             <div class="dsr-report-list" id="dsr-tbody"></div>
             <div id="dsr-empty" class="dsr-empty" style="display:none">
                 <div class="dsr-empty__icon">🗂</div>
@@ -165,9 +165,9 @@ async function renderSignedReports() {
             </div>
             <div class="dsr-pagination">
               <span id="dsr-page-info"></span>
-              <span style="display:flex;gap:6px">
-                <button class="dsr-btn-sm" onclick="dsrChangePage(-1)">‹ 上一頁</button>
-                <button class="dsr-btn-sm dsr-btn-sm--primary" onclick="dsrChangePage(1)">下一頁 ›</button>
+              <span class="u-d-flex u-gap-6">
+                <button class="btn btn--secondary btn--sm" onclick="dsrChangePage(-1)">‹ 上一頁</button>
+                <button class="btn btn--secondary btn--sm" onclick="dsrChangePage(1)">下一頁 ›</button>
               </span>
             </div>
           </div>
@@ -178,13 +178,13 @@ async function renderSignedReports() {
     <!-- 預覽 Modal -->
     <div id="dsr-overlay" class="dsr-overlay" onclick="if(event.target===this)dsrClosePreview()">
       <div class="dsr-modal">
-        <div class="dsr-modal__hd"><h3 id="dsr-preview-title">👁 預覽</h3><button class="dsr-btn-sm" onclick="dsrClosePreview()">✕ 關閉</button></div>
+        <div class="dsr-modal__hd"><h3 id="dsr-preview-title">👁 預覽</h3><button class="btn btn--secondary btn--sm" onclick="dsrClosePreview()">✕ 關閉</button></div>
         <div class="dsr-modal__bd" id="dsr-preview-body"></div>
         <div class="dsr-modal__ft">
           <span class="dsr-modal__note">若預覽失敗，請直接下載原檔</span>
           <span class="dsr-modal__actions">
-            <button class="dsr-btn dsr-btn--ghost" onclick="dsrClosePreview()">關閉</button>
-            <button class="dsr-btn dsr-btn--primary" id="dsr-dl-btn">⬇️ 下載原檔</button>
+            <button class="btn btn--secondary btn--md dsr-btn" onclick="dsrClosePreview()">關閉</button>
+            <button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" id="dsr-dl-btn">⬇️ 下載原檔</button>
           </span>
         </div>
       </div>
@@ -221,11 +221,11 @@ async function renderSignedReports() {
 
 // 依副檔名回傳圖示 emoji 與背景色
 function _dsrIconFor(mime) {
-  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', bg:'#e0f2fe'};
-  if (mime === 'pdf') return {icon:'📄', bg:'#fee2e2'};
-  if (['docx','doc'].includes(mime)) return {icon:'📝', bg:'#dbeafe'};
-  if (['xlsx','xls'].includes(mime)) return {icon:'📊', bg:'#dcfce7'};
-  return {icon:'📎', bg:'#f1f5f9'};
+  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', tone:'image'};
+  if (mime === 'pdf') return {icon:'📄', tone:'pdf'};
+  if (['docx','doc'].includes(mime)) return {icon:'📝', tone:'doc'};
+  if (['xlsx','xls'].includes(mime)) return {icon:'📊', tone:'sheet'};
+  return {icon:'📎', tone:'other'};
 }
 
 // 處理使用者選擇/拖曳的檔案，更新預覽區
@@ -233,7 +233,7 @@ function dsrHandleFile(f) {
   const ext = (f.name.split('.').pop() || '').toLowerCase();
   const ic = _dsrIconFor(ext);
   document.getElementById('dsr-fp-icon').textContent = ic.icon;
-  document.getElementById('dsr-fp-icon').style.background = ic.bg;
+  document.getElementById('dsr-fp-icon').className = 'dsr-file-preview__icon dsr-file-tone--' + ic.tone;
   document.getElementById('dsr-fp-name').textContent = f.name;
   document.getElementById('dsr-fp-sub').textContent = ext.toUpperCase() + ' · ' + (f.size/1024/1024).toFixed(1) + ' MB';
   document.getElementById('dsr-file-preview').style.display = 'block';
@@ -347,7 +347,7 @@ function dsrRenderTable() {
       const isImage = ['jpg','jpeg','png','webp','gif'].includes(ext);
       const fileVisual = isImage
         ? `<img class="dsr-report-thumb" src="/api/signed-reports/${r.id}/preview" alt="${esc(r.file_name)}" loading="lazy" onclick="dsrPreview(${r.id})" title="點擊圖片預覽">`
-        : `<div class="dsr-file-icon" style="background:${ic.bg}">${ic.icon}</div>`;
+        : `<div class="dsr-file-icon dsr-file-tone--${esc(ic.tone)}">${ic.icon}</div>`;
       return `<details class="dsr-report-card">
         <summary class="dsr-report-summary">
           <span class="dsr-report-summary__date">${esc(r.report_date)}</span>
@@ -359,14 +359,14 @@ function dsrRenderTable() {
             <div><span class="dsr-report-detail__label">報表日期</span><strong>${esc(r.report_date)}</strong></div>
             <div><span class="dsr-report-detail__label">上傳人</span><strong>${esc(r.uploader_name)}</strong></div>
             <div><span class="dsr-report-detail__label">上傳日期</span><strong>${esc(_dsrDateOnly(r.upload_time))}</strong></div>
-            <div class="dsr-report-detail__file"><span class="dsr-report-detail__label">檔案</span><div class="dsr-file-cell">${fileVisual}<div style="min-width:0"><div class="dsr-ellipsis" style="font-weight:700">${esc(r.file_name)}</div><div style="font-size:11px;color:#64748b">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
+            <div class="dsr-report-detail__file"><span class="dsr-report-detail__label">檔案</span><div class="dsr-file-cell">${fileVisual}<div class="u-minw-0"><div class="dsr-file-name dsr-ellipsis">${esc(r.file_name)}</div><div class="dsr-file-meta">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
             <div class="dsr-report-detail__note"><span class="dsr-report-detail__label">備註</span><div class="dsr-note-cell">${note}</div></div>
           </div>
           <div class="dsr-actions-cell">
-            ${!isImage ? `<button class="dsr-action-btn" onclick="dsrPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_edit ? `<button class="dsr-action-btn" onclick="dsrEdit(${r.id})">✏️ 編輯</button>` : ''}
-            <button class="dsr-action-btn" onclick="dsrDownload(${r.id})">⬇️ 下載</button>
-            ${r.can_delete ? `<button class="dsr-action-btn dsr-action-btn--danger" onclick="dsrDelete(${r.id})">🗑 刪除</button>` : ''}
+            ${!isImage ? `<button class="btn btn--secondary btn--sm dsr-action-btn" onclick="dsrPreview(${r.id})">👁 預覽</button>` : ''}
+            ${r.can_edit ? `<button class="btn btn--secondary btn--sm dsr-action-btn" onclick="dsrEdit(${r.id})">✏️ 編輯</button>` : ''}
+            <button class="btn btn--secondary btn--sm dsr-action-btn" onclick="dsrDownload(${r.id})">⬇️ 下載</button>
+            ${r.can_delete ? `<button class="btn btn--danger btn--sm dsr-action-btn dsr-action-btn--danger" onclick="dsrDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>
         </div>
       </details>`;
@@ -400,16 +400,16 @@ function dsrResetFilter() {
   document.getElementById('dsr-f-from').value = _dsrIso(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('dsr-f-to').value = _dsrIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
   document.getElementById('dsr-f-q').value = '';
-  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.dsr-chip')[2].classList.add('active');
+  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('.dsr-chip')[2].classList.add('is-active');
   dsrPage = 1;
   dsrLoadHistory();
 }
 
 // 快捷日期範圍（今天/本週/本月/全部）
 function dsrQuickRange(k, btn) {
-  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('.dsr-chip').forEach(c => c.classList.remove('is-active'));
+  btn.classList.add('is-active');
   const now = new Date();
   if (k === 'today') { document.getElementById('dsr-f-from').value = _dsrIso(now); document.getElementById('dsr-f-to').value = _dsrIso(now); }
   else if (k === 'week') { const d = new Date(now); d.setDate(d.getDate()-d.getDay()); document.getElementById('dsr-f-from').value = _dsrIso(d); const e = new Date(d); e.setDate(e.getDate()+6); document.getElementById('dsr-f-to').value = _dsrIso(e); }
@@ -439,21 +439,21 @@ function dsrPreview(id) {
 function dsrShowPreview(name, mime, previewUrl, downloadUrl) {
   const body = document.getElementById('dsr-preview-body');
   document.getElementById('dsr-preview-title').textContent = '👁 預覽 — ' + name;
-  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" style="width:100%">';
+  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" class="dsr-preview-img">';
   else if (mime === 'pdf') {
     // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
     // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
     if (typeof isMobileView === 'function' && isMobileView()) {
-      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="dsr-btn dsr-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.innerHTML = '<div class="dsr-preview-fallback"><div class="dsr-preview-icon">📄</div><div class="dsr-preview-title">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
       body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
-    } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+    } else body.innerHTML = '<iframe src="' + previewUrl + '" class="dsr-preview-frame">';
   }
-  else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
+  else body.innerHTML = '<div class="dsr-preview-fallback dsr-preview-fallback--dark"><div class="dsr-preview-icon">📎</div><div class="dsr-preview-name">' + esc(name) + '</div><div class="dsr-preview-note">此格式不支援線上預覽</div></div>';
   document.getElementById('dsr-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
-  document.getElementById('dsr-overlay').classList.add('open');
+  document.getElementById('dsr-overlay').classList.add('is-open');
 }
 // 關閉預覽 Modal
-function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
+function dsrClosePreview() { document.getElementById('dsr-overlay').classList.remove('is-open'); document.getElementById('dsr-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function dsrDownload(id) { window.open('/api/signed-reports/' + id + '/download', '_blank'); }
 // 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）。
@@ -462,18 +462,18 @@ async function dsrEdit(id) {
   const report = dsrFiltered.find(item => item.id === id);
   if (!report) return;
   const overlay = document.createElement('div');
-  overlay.className = 'dsr-overlay open';
+  overlay.className = 'dsr-overlay is-open';
   overlay.innerHTML = `
     <div class="dsr-modal dsr-edit-modal" role="dialog" aria-modal="true" aria-labelledby="dsr-edit-title">
-      <div class="dsr-modal__hd"><h3 id="dsr-edit-title">✏️ 編輯每日簽名日報表</h3><button class="dsr-btn-sm" type="button" data-dsr-edit-cancel>✕ 關閉</button></div>
+      <div class="dsr-modal__hd"><h3 id="dsr-edit-title">✏️ 編輯每日簽名日報表</h3><button class="btn btn--secondary btn--sm" type="button" data-dsr-edit-cancel>✕ 關閉</button></div>
       <div class="dsr-modal__bd">
         <div class="dsr-field"><label for="dsr-edit-date">報表日期（YYYY-MM-DD）</label><input id="dsr-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
-        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-uploader">上傳人姓名</label><input id="dsr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
-        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-note">備註</label><textarea id="dsr-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
-        <div class="dsr-field" style="margin-top:12px"><label for="dsr-edit-file">替換檔案（選填）</label><input id="dsr-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+        <div class="u-mt-12 dsr-field"><label for="dsr-edit-uploader">上傳人姓名</label><input id="dsr-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+        <div class="u-mt-12 dsr-field"><label for="dsr-edit-note">備註</label><textarea id="dsr-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+        <div class="u-mt-12 dsr-field"><label for="dsr-edit-file">替換檔案（選填）</label><input id="dsr-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
         <div class="dsr-hint">不選擇新檔案會保留目前檔案。</div>
       </div>
-      <div class="dsr-modal__ft"><button class="dsr-btn dsr-btn--ghost" type="button" data-dsr-edit-cancel>取消</button><button class="dsr-btn dsr-btn--primary" type="button" data-dsr-edit-save>儲存</button></div>
+      <div class="dsr-modal__ft"><button class="btn btn--secondary btn--md dsr-btn" type="button" data-dsr-edit-cancel>取消</button><button class="btn btn--primary btn--md dsr-btn dsr-btn--primary" type="button" data-dsr-edit-save>儲存</button></div>
     </div>`;
   document.body.appendChild(overlay);
   const close = () => overlay.remove();

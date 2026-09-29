@@ -36,14 +36,14 @@ function openStockoutExportDialog() {
   document.getElementById('stockout-export-custom-mode').checked = false;
   syncStockoutExportPeriodMode();
   
-  modal.classList.add('show');
+  modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
 }
 
 function closeStockoutExportDialog() {
   const modal = document.getElementById('stockout-export-dialog');
   if (!modal) return;
-  modal.classList.remove('show');
+  modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
 }
 

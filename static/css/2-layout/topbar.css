@@ -1,0 +1,18 @@
+/* settings / permissions 頁的深藍 topbar（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer layout {
+  /* ===== topbar 背景（settings/permissions.html 仍使用） ===== */
+  .topbar { background: linear-gradient(135deg, var(--c-primary-strong), var(--c-primary)); color: var(--c-white); }
+  /* ===== 舊 topbar 樣式已移除（Phase 1 Shell v2） ===== */
+  .top-actions { display: flex; gap: 8px; }
+
+/* v11 登入：topbar 使用者選單 */
+.top-actions { align-items: center; }
+.user-menu { display: flex; align-items: center; gap: 8px; margin-left: 6px; }
+
+
+/* 手機版（<768px）：topbar 換行 + 登出/使用者 icon-only + modal 新增列 2×2 */
+@media (max-width: 767px) {
+  .top-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .user-menu { margin-left: 0; }
+  }
+}

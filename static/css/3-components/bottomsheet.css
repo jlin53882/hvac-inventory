@@ -1,0 +1,31 @@
+/* 手機 ⋯ 動作選單（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+
+/* ---------- Bottom Sheet 動作選單（點 ⋯ 彈出） ---------- */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(15,18,28,.45); z-index: var(--z-sheet);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.sheet-overlay.is-open { display: flex; }
+.sheet {
+  width: 100%; max-width: 560px; background: var(--c-white);
+  border-radius: var(--r-lg) var(--r-lg) 0 0; padding: 10px 12px 18px;
+  animation: sheet-up .18s ease;
+}
+@keyframes sheet-up { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+.sheet .sheet-title { font-size: var(--fs-12); color: var(--c-border-control); text-align: center; padding: 4px 0 8px; font-weight: var(--fw-medium); }
+.sheet .s-item {
+  display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: var(--r-md);
+  font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--c-text); cursor: pointer;
+}
+.sheet .s-item:active { background: var(--c-surface-2); }
+.sheet .s-item .ic { font-size: var(--fs-16); width: 22px; text-align: center; }
+.sheet .s-item.out { color: var(--c-primary); }
+.sheet .s-item.back { color: var(--c-out); }
+.sheet .s-item.del { color: var(--c-danger); }
+.sheet .s-cancel {
+  display: block; width: 100%; padding: 13px; border: none; background: none;
+  font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--c-muted); cursor: pointer;
+  border-top: 1px solid var(--c-surface-2); margin-top: 6px; border-radius: var(--r-md);
+}
+}

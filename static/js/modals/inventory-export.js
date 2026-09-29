@@ -27,14 +27,14 @@ function openInventoryExportDialog() {
   document.querySelectorAll('#inventory-export-sites input[data-site]').forEach(input => { input.checked = true; });
   const defaultSections = ['inventory', 'positions', 'movements'];
   document.querySelectorAll('#inventory-export-content input[data-section]').forEach(input => { input.checked = defaultSections.includes(input.dataset.section); });
-  modal.classList.add('show');
+  modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
 }
 
 function closeInventoryExportDialog() {
   const modal = document.getElementById('inventory-export-dialog');
   if (!modal) return;
-  modal.classList.remove('show');
+  modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
 }
 

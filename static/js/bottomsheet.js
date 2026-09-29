@@ -51,7 +51,7 @@ function openSheet(title, actions) {
 
   document.body.appendChild(overlay);
   sheetEl = overlay;
-  requestAnimationFrame(() => overlay.classList.add('show'));
+  requestAnimationFrame(() => overlay.classList.add('is-open'));
 
   // ESC 關閉
   if (!sheetEscBound) {

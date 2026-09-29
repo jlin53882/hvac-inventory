@@ -3,7 +3,7 @@
 // ========== 待領出頁籤 ==========
 
 function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
-  const addButton = isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>';
+  const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>';
   return `<section class="prepared-page-header">
     <div class="prepared-heading-copy">
       <div class="prepared-heading-icon" aria-hidden="true">📤</div>
@@ -27,8 +27,8 @@ function renderKitSubItems(item) {
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover;cursor:pointer" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')">'
-      : '<div style="width:28px;height:28px;border-radius:4px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">📷</div>';
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" class="prepared-kit-thumb" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')">'
+      : '<div class="prepared-kit-thumb prepared-kit-thumb--empty">📷</div>';
     html += '<div class="kit-subitem">';
     html += photo;
     html += '<span class="kit-subitem-name">' + esc(c.brand || '') + ' ' + esc(c.name) + '</span>';
@@ -49,8 +49,8 @@ function renderKitSubItemsMobile(item) {
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" style="width:28px;height:28px;border-radius:4px;object-fit:cover;cursor:pointer" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')">'
-      : '<div style="width:28px;height:28px;border-radius:4px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">📷</div>';
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" class="prepared-kit-thumb" loading="lazy" onclick="openPhotoLightbox(' + c.item_id + ')">'
+      : '<div class="prepared-kit-thumb prepared-kit-thumb--empty">📷</div>';
     html += '<div class="kit-subitem">';
     html += photo;
     html += '<span class="kit-subitem-name">' + esc(c.brand || '') + ' ' + esc(c.name) + '</span>';
@@ -90,10 +90,10 @@ function renderPreparedDesktopRow(item, isViewer) {
   const nonStock = item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : '';
   const location = item.location || '未標示';
   const actions = isViewer ? '' : `<td class="prepared-actions-cell"><div class="prepared-row-actions">
-    <button class="btn-prepare" onclick="openPreparedEditModal(${item.id})">✏️ 編輯</button>
-    <button class="btn-out" onclick="openPreparedOutModal(${item.id})">🚚 已領出</button>
-    ${item.is_deleted ? '' : `<button class="btn-prepare" onclick="returnPrepared(${item.id})">↩ 退回</button>`}
-    <button class="btn-del" onclick="clearPrepared(${item.id}, ${item.prepared_qty})">🗑 刪除</button>
+    <button class="btn btn--secondary btn--sm btn-prepare" onclick="openPreparedEditModal(${item.id})">✏️ 編輯</button>
+    <button class="btn btn--out btn--sm btn-out" onclick="openPreparedOutModal(${item.id})">🚚 已領出</button>
+    ${item.is_deleted ? '' : `<button class="btn btn--secondary btn--sm btn-prepare" onclick="returnPrepared(${item.id})">↩ 退回</button>`}
+    <button class="btn btn--danger btn--sm btn-del" onclick="clearPrepared(${item.id}, ${item.prepared_qty})">🗑 刪除</button>
   </div></td>`;
   return `<tr class="prepared-row">
     <td class="prepared-photo-cell">${photo}</td>
@@ -136,7 +136,7 @@ async function renderPrepared() {
         <div class="prepared-empty-icon" aria-hidden="true">📦</div>
         <h2>目前沒有待領出的品項</h2>
         <p>拿出商品後，可以在這裡管理尚未正式出庫的項目。</p>
-        ${isViewer ? '' : '<button class="btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>'}
+        ${isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="openNonStockPrepareModal()">＋ 新增待領出</button>'}
       </div></section>`;
       content.innerHTML = html;
       updatePreparedBadge(0);
@@ -176,7 +176,7 @@ async function renderPrepared() {
     updatePreparedBadge(items.length);
   } catch (e) {
     if (renderRequestId !== preparedRenderRequestSeq || currentTab !== 'prepared' || siteAtRequest !== currentSite) return;
-    content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn-cancel" onclick="renderPrepared()">重新載入</button></div>`;
+    content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--md btn-cancel" onclick="renderPrepared()">重新載入</button></div>`;
   }
 }
 

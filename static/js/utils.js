@@ -48,7 +48,7 @@ function todayStr() {
 function openModal(id) {
   const el = document.getElementById(id);
   if (!el) { console.error('[openModal] modal 不存在:', id); return; }
-  el.classList.add('show');
+  el.classList.add('is-open');
   // 移到 DOM 最後：所有 modal 同 z-index（200），後開的必須蓋過先開的（DOM 順序決定覆蓋）
   document.body.appendChild(el);
   _snapshotModal(id);  // M15：開啟時快照初始值（未存變更保護用）
@@ -75,20 +75,20 @@ function closeModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
   if (_modalDirty(id) && !confirm('有未儲存的變更，確定要離開嗎？')) return;
-  el.classList.remove('show');
+  el.classList.remove('is-open');
   delete __modalSnapshots[id];
 }
 function closeModalForce(id) {  // 儲存成功等明確動作：跳過未存變更確認
   const el = document.getElementById(id);
   if (!el) return;
-  el.classList.remove('show');
+  el.classList.remove('is-open');
   delete __modalSnapshots[id];
 }
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.show').forEach(m => closeModal(m.id));
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.is-open').forEach(m => closeModal(m.id));
 });
 
 // ========== API 錯誤與 toast ==========
@@ -98,7 +98,7 @@ document.addEventListener('keydown', e => {
  * @returns {string} 可顯示的純文字錯誤訊息。
  */
 function apiErrorMessage(value) {
-  const labels = { prepared_by: '製表人', upload_person: '上傳人', filename_text: '檔名文字', start_date: '開始日期', end_date: '結束日期', opening_balance: '上期餘額' };
+  const labels = { prepared_by: '製表人', upload_person: '上傳人', filename_text: '檔名文字', start_date: '開始日期', end_date: '結束日期', opening_balance: '上期餘額', report_type: '報表類型', name: '名稱', brand: '品牌', code: '料號', unit: '單位', category: '分類', low_stock: '低庫存警示', qty: '數量', amount: '金額', item_name: '品項', description: '說明', entry_date: '日期', customer_name: '客戶名稱', quote_date: '報價日期', unit_price: '單價', note: '備註' };
   /**
    * 將單筆驗證錯誤的位置與限制轉成易讀欄位訊息。
    * @param {unknown} error FastAPI/Pydantic 回傳的驗證錯誤項目。
@@ -108,7 +108,8 @@ function apiErrorMessage(value) {
     if (typeof error === 'string') return error;
     if (!error || typeof error !== 'object') return String(error == null ? '' : error);
     const loc = Array.isArray(error.loc) ? error.loc : [];
-    const key = String(loc[loc.length - 1] || '');
+    // 欄位取最後一個具名位置；略過 body/query 與陣列索引，避免顯示「12」「body」等無意義名稱
+    const key = String([...loc].reverse().find(part => typeof part === 'string' && !['body', 'query', 'path'].includes(part)) || '');
     const field = labels[key] || key;
     const ctx = error.ctx || {};
     const messages = {
@@ -120,6 +121,8 @@ function apiErrorMessage(value) {
       less_than_equal: `不可大於 ${ctx.le}`,
       less_than: `必須小於 ${ctx.lt}`,
       value_error: String(error.msg || '格式不正確').replace(/^Value error,?\s*/i, ''),
+      json_invalid: '資料格式錯誤，請重新整理後再試',
+      union_tag_invalid: '類型不正確',
     };
     const reason = messages[error.type] || '格式不正確或不符合限制';
     return field ? `「${field}」${reason}` : reason;
@@ -137,7 +140,7 @@ function apiErrorMessage(value) {
 function toast(msg, type) {
   const t = document.getElementById('toast');
   t.textContent = apiErrorMessage(msg);
-  t.className = 'toast show ' + (type || '');
+  t.className = 'toast is-open ' + (type || '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.className = 'toast', 3500);
 }

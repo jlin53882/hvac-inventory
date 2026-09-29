@@ -76,7 +76,7 @@ class FakeDocument {
       const input = this.make(parent, 'input', 'permission-search');
       input.value = decodeHtml((search[0].match(/value="([^"]*)"/) || ['', ''])[1]);
     }
-    const filterRe = /<button class="perm-filter ([^"]*)" data-module="([^"]+)"[^>]*>([^<]*)<\/button>/g;
+    const filterRe = /<button class="chip perm-filter ([^"]*)" data-module="([^"]+)"[^>]*>([^<]*)<\/button>/g;
     let match;
     while ((match = filterRe.exec(html))) {
       const button = this.make(parent, 'button');
@@ -229,11 +229,11 @@ async function testSearchAndFilterResetPageAndActiveState() {
   context.permSearch('');
   context.permFilter('reports');
   assert.strictEqual(pageText(document)[1], '1', 'module filter must reset page to 1');
-  assert.ok(filterButton(document, 'reports').className.split(/\s+/).includes('active'));
-  assert.ok(!filterButton(document, 'all').className.split(/\s+/).includes('active'));
+  assert.ok(filterButton(document, 'reports').className.split(/\s+/).includes('is-active'));
+  assert.ok(!filterButton(document, 'all').className.split(/\s+/).includes('is-active'));
   context.permFilter('stock');
-  assert.ok(filterButton(document, 'stock').className.split(/\s+/).includes('active'));
-  assert.ok(!filterButton(document, 'reports').className.split(/\s+/).includes('active'));
+  assert.ok(filterButton(document, 'stock').className.split(/\s+/).includes('is-active'));
+  assert.ok(!filterButton(document, 'reports').className.split(/\s+/).includes('is-active'));
 }
 
 async function testPendingAcrossPaginationSearchAndFilter() {

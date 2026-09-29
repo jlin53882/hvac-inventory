@@ -50,6 +50,7 @@ function createContext(tab) {
   };
   const document = {
     visibilityState: 'visible',
+    body: Object.assign(createElement('body'), { dataset: {} }),
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElement(id));
       return elements.get(id);

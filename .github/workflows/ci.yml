@@ -76,6 +76,30 @@ jobs:
         shell: bash
         run: bash scripts/run-tests.sh frontend
 
+  visual:
+    name: CI / Visual (browser)
+    if: github.event_name != 'schedule'
+    # 瀏覽器測試只看 computed style / 外洩清單，不比對截圖；Linux runner 安裝 Chromium 最快也最穩定
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "${{ env.UV_VERSION }}"
+          enable-cache: true
+      - name: Install locked dependencies (dev + visual)
+        shell: bash
+        run: uv sync --locked --group dev --group visual --python "$(python -c 'import sys; print(sys.executable)')"
+      - name: Install Chromium
+        shell: bash
+        run: .venv/bin/python -m playwright install --with-deps chromium
+      - name: Run browser CSS contracts
+        shell: bash
+        run: bash scripts/run-tests.sh visual
+
   inventory_database:
     name: CI / Inventory + Database
     if: github.event_name != 'schedule'
@@ -248,6 +272,7 @@ jobs:
     needs:
       - quality
       - frontend_security
+      - visual
       - inventory_database
       - rbac
       - reports
@@ -263,6 +288,7 @@ jobs:
           PROFILE_INPUT: ${{ inputs.profile }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           FRONTEND_RESULT: ${{ needs.frontend_security.result }}
+          VISUAL_RESULT: ${{ needs.visual.result }}
           INVENTORY_RESULT: ${{ needs.inventory_database.result }}
           RBAC_RESULT: ${{ needs.rbac.result }}
           REPORTS_RESULT: ${{ needs.reports.result }}
@@ -296,6 +322,7 @@ jobs:
           if [ "$EVENT_NAME" = "schedule" ]; then
             check_expected_skipped "quality" "$QUALITY_RESULT"
             check_expected_skipped "frontend-security" "$FRONTEND_RESULT"
+            check_expected_skipped "visual" "$VISUAL_RESULT"
             check_expected_skipped "inventory-database" "$INVENTORY_RESULT"
             check_expected_skipped "rbac" "$RBAC_RESULT"
             check_expected_skipped "reports" "$REPORTS_RESULT"
@@ -305,6 +332,7 @@ jobs:
           else
             check_required "quality" "$QUALITY_RESULT"
             check_required "frontend-security" "$FRONTEND_RESULT"
+            check_required "visual" "$VISUAL_RESULT"
             check_required "inventory-database" "$INVENTORY_RESULT"
             check_required "rbac" "$RBAC_RESULT"
             check_required "reports" "$REPORTS_RESULT"

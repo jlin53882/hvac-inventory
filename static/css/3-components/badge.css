@@ -1,0 +1,33 @@
+/* 小標籤（非庫存 / 分片 / 待領出 / 整組 / 數量正負）（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+  .tag-nonstock { display: inline-block; background: var(--c-success-soft); color: var(--c-success-strong); border-radius: var(--r-sm); padding: 1px 7px; font-size: var(--fs-11); font-weight: var(--fw-bold); margin-left: 6px; vertical-align: middle; }
+  .site-badge {
+    display: inline-block; font-size: var(--fs-11); font-weight: var(--fw-medium);
+    background: var(--c-primary-soft); color: var(--c-primary);
+    border-radius: var(--r-sm); padding: 1px 6px; margin-left: 6px;
+    vertical-align: middle;
+  }
+  .site-badge.wh { background: var(--c-warning-soft); color: var(--c-warning); }
+  .prepared-tag {
+    display: inline-block;
+    background: var(--c-prepare-soft);
+    color: var(--c-prepare);
+    font-size: var(--fs-11);
+    font-weight: var(--fw-bold);
+    border-radius: var(--r-sm);
+    padding: 2px 8px;
+    margin-top: 4px;
+  }
+  .kit-tag {
+    display: inline-block;
+    background: var(--c-success-soft);
+    color: var(--c-success-strong);
+    font-size: var(--fs-11);
+    font-weight: var(--fw-bold);
+    border-radius: var(--r-sm);
+    padding: 2px 8px;
+    margin-top: 4px;
+  }
+  .qty-neg { color: var(--c-danger); font-weight: var(--fw-bold); }
+  .qty-pos { color: var(--c-success); font-weight: var(--fw-bold); }
+}

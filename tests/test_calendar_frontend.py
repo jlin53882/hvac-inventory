@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 from frontend_test_support import (
+    read_page_with_css,
     API_JS,
     APP_JS,
     AUTH_JS,
@@ -14,7 +15,7 @@ from frontend_test_support import (
     CALENDAR_RUNTIME_JS,
     CALENDAR_SETTINGS_JS,
     CSS_CAL,
-    CSS_CORE,
+    read_shared_css,
     GLOBALS_JS,
     INDEX,
     SETTINGS_HTML,
@@ -62,7 +63,7 @@ def test_calendar_runtime():
 def test_gcal_key_reminder_cards_contract():
     """每把 Key 顯示統一卡片，可新增/移除，最多五筆 Popup 通知。"""
     js = read(SETTINGS_JS)
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert "gcal-reminder-row" in js
     assert "gcal-reminders-list" in js
     assert "addGcalReminderRow" in js
@@ -84,7 +85,7 @@ def test_index_has_calendar_nav():
     i_signed = html.index('id="sb-nav-signed-reports"')
     i_inv = html.index('id="sb-nav-inventory"')
     assert i_cal < i_signed < i_inv, "sidebar 順序應為 calendar < signed-reports < inventory"
-    assert 'class="sb-nav-link active" id="sb-nav-calendar"' in html
+    assert 'class="sb-nav-link is-active" id="sb-nav-calendar"' in html
     assert 'class="sb-nav-link" id="sb-nav-inventory"' in html
 
 def test_default_tab_is_calendar():
@@ -101,9 +102,9 @@ def test_app_boot_clears_default_calendar_active_before_selected_tab():
     boot_end = js.index("loadData();", boot_start) + len("loadData();")
     boot = js[boot_start:boot_end]
     assert "querySelectorAll('.sb-nav-link').forEach" in boot
-    assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('active')")
-    assert "content.classList.toggle('inventory-content', currentTab === 'inventory')" in boot
-    assert boot.index("content.classList.toggle('inventory-content', currentTab === 'inventory')") < boot.index("loadData();")
+    assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('is-active')")
+    assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
+    assert boot.index("setPageScope(currentTab);") < boot.index("loadData();")
 
 def test_index_loads_calendar_js():
     """index.html 載入 render/calendar.js + modals/calendar.js + modals/calendar-settings.js（2026-08-16 拆檔）"""
@@ -180,8 +181,8 @@ def test_css_cal_evt_b_variant_and_no_overflow():
 def test_css_cal_selected_highlight():
     """2026-09-09：Today 與 Selected 依設計文件同時可見。"""
     css = read_css_all()
-    assert ".cal-cell.cal-selected {" in css and "border: 1px solid #2563eb" in css
-    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: #2563eb" in css
+    assert ".cal-cell.cal-selected {" in css and "border: 1px solid var(--c-primary)" in css
+    assert ".cal-cell.cal-selected .cal-day-num {" in css and "background: var(--c-primary)" in css
     assert ".cal-cell.cal-today .cal-day-num" in css
 
 
@@ -531,18 +532,18 @@ def test_calendar_cal_content_full_width():
     """
     app = read(APP_JS)
     css = read(CSS_CAL)
-    # app.js：switchTab 必須 toggle cal-content class
-    assert "content.classList.toggle('cal-content', tab === 'calendar')" in app, \
+    # app.js：switchTab → setPageScope 必須對應 cal-content class
+    assert "'calendar': 'cal-content'" in app, \
         'app.js switchTab 缺 cal-content class toggle'
-    # style.calendar.css：必須有 #content.cal-content 覆寫 max-width
+    # 4-pages/calendar.css：必須有 #content.cal-content 覆寫 max-width
     assert '#content.cal-content' in css, \
-        'style.calendar.css 缺 #content.cal-content 規則'
+        '4-pages/calendar.css 缺 #content.cal-content 規則'
     assert 'max-width: none' in css, \
         'cal-content 規則應設定 max-width: none 解除 640px 限制'
 
 def test_calendar_btn_edit_is_feature_owned():
     """Regression: Calendar must own the feature-only edit button contract."""
-    core = read(CSS_CORE)
+    core = read_shared_css()
     calendar = read(CSS_CAL)
     index = read(INDEX)
     calendar_js = read(CALENDAR_RENDER_JS)
@@ -553,14 +554,14 @@ def test_calendar_btn_edit_is_feature_owned():
     assert not re.search(r"(?m)^\s*\.btn-edit:hover\s*\{", core), (
         "Core must not own the Calendar-only .btn-edit hover"
     )
-    assert (
-        ".cal-card-actions .cal-icon-btn.btn-edit "
-        "{ margin-top: 5px; transition: background 0.15s; }"
-    ) in calendar, "Calendar must preserve the former effective edit-button contract"
-    assert 'class=\"cal-icon-btn btn-edit\"' in calendar_js, (
+    # CSS 架構重構 P7.5：外觀改由 button.css 的 .btn 系統負責，頁面只保留位置
+    assert ".cal-card-actions .cal-icon-btn.btn-edit { margin-top: 5px; }" in calendar, (
+        "Calendar keeps only the edit-button layout offset"
+    )
+    assert 'class=\"btn btn--secondary btn--sm cal-icon-btn btn-edit\"' in calendar_js, (
         "Calendar edit-button producer must remain"
     )
-    assert index.index("style.core.css") < index.index("style.calendar.css"), (
+    assert index.index("3-components/button.css") < index.index("4-pages/calendar.css"), (
         "Core must load before Calendar CSS"
     )
 
@@ -580,7 +581,7 @@ def test_calendar_btn_edit_is_feature_owned():
 def test_gcal_sync_health_and_queue_ui_contract():
     """設定頁必須接上 health、queue、指定列 retry，且不把錯誤只留在 calendar card。"""
     js = read(SETTINGS_JS)
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert "/api/gcal-sync-status" in js
     assert "/api/gcal-sync-queue" in js
     assert "retrySyncQueue" in js
@@ -594,9 +595,9 @@ def test_gcal_sync_health_and_queue_ui_contract():
 
 def test_gcal_sync_health_mobile_cards_contract():
     """設定頁新增同步資訊在手機要使用 card stack，不得固定 table 寬度。"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert ".gcal-sync-issue" in html
-    assert "@media (max-width: 768px)" in html
+    assert "@media (max-width: 767px)" in html
     assert ".gcal-sync-issue-actions" in html
 
 def test_calendar_sync_status_semantic_css_contract():
@@ -706,9 +707,27 @@ def test_gcal_detail_head_has_class():
 
 def test_settings_html_gcal_mobile_css():
     """settings.html 手機版 CSS 包含 GCal 優化規則"""
-    html = read(SETTINGS_HTML)
+    html = read_page_with_css(SETTINGS_HTML)
     assert ".gcal-key-item" in html
     assert ".gcal-key-add" in html
     assert ".gcal-detail-head" in html
     assert ".gcal-settings-row" in html
     assert ".gcal-sync-interval-hint" in html
+
+
+def test_render_calendar_stops_when_tab_left_during_load():
+    """行事曆載入期間切到別頁：await 回來後不得再寫入已被取代的月曆 DOM（visual 測試快速切頁時曾拋 null.innerText）。"""
+    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    body = js[js.index("const applied = await calLoadData();"):js.index("calRenderMonth();", js.index("const applied = await calLoadData();"))]
+    assert "if (currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;" in body
+
+
+def test_bootstrap_does_not_remount_when_user_switched_tab_during_boot():
+    """啟動等待 loadUnits 期間使用者已切頁：不可再以啟動流程重設頁面範圍 / 重新掛載（曾把報價單上傳重掛成報價單）。"""
+    js = read(os.path.join(STATIC, "js", "app.js"))
+    boot = js[js.index("var bootTab = currentTab;"):js.index("mountPreservedTabAfterBootstrap();", js.index("var bootTab = currentTab;")) + 40]
+    assert boot.index("var bootTab = currentTab;") < boot.index("await loadUnits();") < boot.index("var tabChangedDuringBoot = currentTab !== bootTab;")
+    assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
+    assert "if (!tabChangedDuringBoot) mountPreservedTabAfterBootstrap();" in boot
+    qup = read(os.path.join(STATIC, "js", "render", "quotation-upload.js"))
+    assert "document.body.dataset.page === 'quotation-upload'" in qup[qup.index("function qupRenderIsCurrent"):]

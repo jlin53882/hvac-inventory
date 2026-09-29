@@ -57,7 +57,7 @@ async function renderStocktake() {
     <span class="stocktake-date">📅 ${esc(todayStr())}</span>
   </section>`;
   if (loadError) {
-    html += `<div class="stocktake-error-state"><h2>載入盤點資料失敗</h2><p>部分盤點資料無法載入，請重新載入。</p><button type="button" class="btn-cancel" onclick="renderStocktake()">重新載入</button></div>`;
+    html += `<div class="stocktake-error-state"><h2>載入盤點資料失敗</h2><p>部分盤點資料無法載入，請重新載入。</p><button type="button" class="btn btn--secondary btn--md btn-cancel" onclick="renderStocktake()">重新載入</button></div>`;
   }
   html += `<section class="stocktake-kpi-grid ui-kpi-grid">
     <div class="stocktake-kpi-card ui-kpi-card ui-kpi-card--blue"><div class="stocktake-kpi-icon ui-kpi-icon">📦</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">品項總數</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(ALL_ITEMS.length))}</div><span class="ui-kpi-meta">目前庫存品項</span></div></div>
@@ -97,9 +97,9 @@ async function renderStocktake() {
   const searchFiltered = function(arr) { return filterBySearch(arr, function(r) { return [r.item.name, r.item.code, r.item.brand, r.stock.location].join(' '); }); };
   const filteredKitRows = searchFiltered(kitRows);
   const filteredSingleRows = searchFiltered(singleRows);
-  html += `<div class="stk-tabs stocktake-tabs"><button class="stk-tab stocktake-tab active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="stk-tab stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
+  html += `<div class="stk-tabs stocktake-tabs"><button class="chip chip--seg stk-tab stocktake-tab is-active" onclick="switchStocktakeTab('kit')">🔧 整組<span>${esc(String(filteredKitRows.length))} 項</span></button><button class="chip chip--seg stk-tab stocktake-tab" onclick="switchStocktakeTab('single')">📦 單一材料<span>${esc(String(filteredSingleRows.length))} 項</span></button></div>`;
   html += `<div id="stk-pane-kit">${stkGroupByLoc(filteredKitRows)}</div><div id="stk-pane-single" style="display:none">${stkGroupByLoc(filteredSingleRows)}</div>`;
-  html += `<button type="button" class="stocktake-submit btn-save" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>`;
+  html += `<button type="button" class="btn btn--primary btn--md stocktake-submit btn-save" onclick="submitStocktake()">📋 完成盤點並更新庫存</button>`;
   if (!isCurrent()) return;
   content.innerHTML = html;
 }
@@ -156,9 +156,9 @@ function stkGroupByLoc(rows) {
 function switchStocktakeTab(tab) {
   document.getElementById('stk-pane-kit').style.display = tab === 'kit' ? '' : 'none';
   document.getElementById('stk-pane-single').style.display = tab === 'single' ? '' : 'none';
-  document.querySelectorAll('.stk-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.stk-tab').forEach(b => b.classList.remove('is-active'));
   const idx = tab === 'kit' ? 0 : 1;
-  document.querySelectorAll('.stk-tab')[idx].classList.add('active');
+  document.querySelectorAll('.stk-tab')[idx].classList.add('is-active');
 }
 
 // ========== 盤點：低庫存 / 缺貨清單 ==========
@@ -207,8 +207,8 @@ function markChanged(input, key) {
       const _p = Qty.parse(input.value);
       _chg = !!(_p.error || Math.abs(_p.value - stock.qty) > 1e-9);
     } else _chg = parseFloat(input.value) !== stock.qty;
-    if (_chg) input.classList.add('changed'); else input.classList.remove('changed');
-  } else input.classList.remove('changed');
+    if (_chg) input.classList.add('is-changed'); else input.classList.remove('is-changed');
+  } else input.classList.remove('is-changed');
 }
 
 // 收集所有有差異的盤點值 → POST /api/stocktake 更新庫存並記錄盤點結果

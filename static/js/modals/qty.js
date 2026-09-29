@@ -40,8 +40,8 @@ function setQtyDialogMode(mode) {
   if (title) title.textContent = __qtyMode === 'add' ? '➕ 增加庫存' : '➖ 減少庫存';
   const addButton = document.getElementById('qtyd-mode-add');
   const subButton = document.getElementById('qtyd-mode-sub');
-  if (addButton) addButton.setAttribute('aria-pressed', String(__qtyMode === 'add'));
-  if (subButton) subButton.setAttribute('aria-pressed', String(__qtyMode === 'sub'));
+  if (addButton) { addButton.setAttribute('aria-pressed', String(__qtyMode === 'add')); addButton.classList.toggle('is-active', __qtyMode === 'add'); }
+  if (subButton) { subButton.setAttribute('aria-pressed', String(__qtyMode === 'sub')); subButton.classList.toggle('is-active', __qtyMode === 'sub'); }
 }
 
 function qtydQuick(v) {

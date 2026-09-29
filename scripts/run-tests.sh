@@ -2,7 +2,7 @@
 # hvac-inventory 測試分組執行（2026-08-14，v4 pro 分析 + 家豪拍板）
 # 用途：開發中只跑「改動範圍」的相關組；commit/push 前一律跑 all（全量）
 #
-# 用法: ./scripts/run-tests.sh [core|frontend|storage|auth|database|inventory|rbac|regression|reports|petty_cash|work_progress|all] [pytest args]
+# 用法: ./scripts/run-tests.sh [core|frontend|storage|auth|database|inventory|rbac|regression|reports|petty_cash|work_progress|visual|all] [pytest args]
 #   組別    內容                                      觸發條件（改到就跑這組）
 #   core      main API + safety helpers + logging/config/notifications/server lifecycle  items/stockout/stocktake/kits/photos/stats/export + 共用安全 helper
 #   frontend  frontend_assets+calendar_frontend+security+structure+performance  static/** 任何改動；新增任何後端端點（XSS/公式注入守衛）
@@ -15,6 +15,7 @@
 #   reports   export + petty cash API/Excel/race contracts  報表與零用金匯出/前端競態
 #   petty_cash  test_petty_cash + engineering + Excel + race  app/routes/petty_cash.py、services/petty_cash_report.py
 #   work_progress test_work_progress + UI regressions          每日工作進度 API/媒體/RBAC/競態/前端 lifecycle
+#   visual    tests/visual（Playwright：CSS 跨頁外洩 + computed-style 契約）  static/css/**、HTML 結構、切頁 JS；需 uv sync --group visual + playwright install chromium，未安裝時自動略過
 #
 # ⚠️ 改到以下檔 = 跑 all（所有測試的 fixture 底層）：
 #    app/database.py、app/services/auth.py、main.py、app/models.py、app/config.py
@@ -31,7 +32,7 @@ fi
 
 case "${1:-all}" in
   core) FILES="tests/test_main.py tests/test_safety_helpers.py tests/test_app_logging.py tests/test_config.py tests/test_notifications.py tests/test_server_lifecycle.py tests/test_backup_db.py";; # core API/helpers/config/lifecycle contracts
-  frontend)   FILES="tests/test_frontend_assets.py tests/test_calendar_frontend.py tests/test_security_regression.py tests/test_structure.py tests/test_performance_frontend.py tests/test_work_progress_ui_regressions.py" ;;
+  frontend)   FILES="tests/test_frontend_assets.py tests/test_css_architecture.py tests/test_calendar_frontend.py tests/test_security_regression.py tests/test_structure.py tests/test_performance_frontend.py tests/test_work_progress_ui_regressions.py" ;;
   storage)    FILES="tests/test_media_storage.py tests/test_quotation_uploads.py tests/test_quotations.py tests/test_signed_reports.py tests/test_file_asset_scripts.py" ;;
   auth)       FILES="tests/test_users.py tests/test_viewer.py" ;;
   database)   FILES="tests/test_database_migrations.py" ;;
@@ -41,8 +42,9 @@ case "${1:-all}" in
   reports)    FILES="tests/test_export.py tests/test_petty_cash.py tests/test_engineering_petty_cash.py tests/test_petty_cash_excel_rendering.py tests/test_petty_cash_frontend_races.py" ;;
   petty_cash) FILES="tests/test_petty_cash.py tests/test_engineering_petty_cash.py tests/test_petty_cash_excel_rendering.py tests/test_petty_cash_frontend_races.py" ;;
   work_progress) FILES="tests/test_work_progress.py tests/test_work_progress_ui_regressions.py" ;;
+  visual)     FILES="tests/visual/" ;;
   all)        FILES="tests/" ;;
-  *) echo "用法: $0 [core|frontend|storage|auth|database|inventory|rbac|regression|reports|petty_cash|work_progress|all] [pytest args]"; exit 1 ;;
+  *) echo "用法: $0 [core|frontend|storage|auth|database|inventory|rbac|regression|reports|petty_cash|work_progress|visual|all] [pytest args]"; exit 1 ;;
 esac
 
 echo "== 測試組: ${1:-all} =="

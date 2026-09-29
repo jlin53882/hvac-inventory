@@ -22,4 +22,13 @@ context.toast(detail, 'error');
 assert.strictEqual(toastNode.textContent, '「製表人」不可超過 50 個字');
 context.toast('⚠️ ' + context.apiErrorMessage(detail), 'error');
 assert.strictEqual(toastNode.textContent, '⚠️ 「製表人」不可超過 50 個字');
+// 巢狀位置取最後的具名欄位，不顯示 body 或陣列索引
+assert.strictEqual(
+  context.apiErrorMessage([{ loc: ['body', 'entries', 0, 'items', 1, 'amount'], type: 'greater_than', ctx: { gt: 0 } }]),
+  '「金額」必須大於 0');
+assert.strictEqual(
+  context.apiErrorMessage([{ loc: ['body', 'category'], type: 'string_too_long', ctx: { max_length: 50 } }]),
+  '「分類」不可超過 50 個字');
+assert.strictEqual(context.apiErrorMessage([{ loc: ['body', 12], type: 'json_invalid' }]), '資料格式錯誤，請重新整理後再試');
+assert.strictEqual(context.apiErrorMessage([{ loc: ['body'], type: 'union_tag_invalid' }]), '類型不正確');
 console.log('API error formatting runtime: PASS');

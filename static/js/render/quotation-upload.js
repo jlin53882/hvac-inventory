@@ -12,7 +12,8 @@ var qupHistoryRequestSeq = 0;
 var qupKpiRequestSeq = 0;
 
 function qupRenderIsCurrent(renderSeq) {
-  return renderSeq === qupRenderSeq && currentTab === 'quotation';
+  // data-page 由 setPageScope 維護：切回報價單模式（或啟動流程重新掛載）後，進行中的上傳頁渲染必須停止
+  return renderSeq === qupRenderSeq && currentTab === 'quotation' && document.body.dataset.page === 'quotation-upload';
 }
 
 // 將 Date 物件轉為 YYYY-MM-DD 字串
@@ -40,8 +41,8 @@ async function renderQuotationUploads() {
           <p>位置：底部導覽「行事曆」旁新增「報表」Tab。讀取需登入，刪除見下方權限規則。</p>
         </div>
         <div class="qup-page-actions">
-          <button class="qup-btn qup-btn--ghost" onclick="document.getElementById('qup-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
-          <button class="qup-btn qup-btn--primary" onclick="document.getElementById('qup-file-input').click()">＋ 上傳報價單</button>
+          <button class="btn btn--secondary btn--md" onclick="document.getElementById('qup-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
+          <button class="btn btn--primary btn--md qup-btn--primary" onclick="document.getElementById('qup-file-input').click()">＋ 上傳報價單</button>
         </div>
       </div>
 
@@ -63,12 +64,12 @@ async function renderQuotationUploads() {
                 <input id="qup-report-date" type="date" value="${esc(today)}">
               </div>
             </div>
-            <div class="qup-field" style="margin-top:12px">
+            <div class="u-mt-12 qup-field">
               <label>備註 / 備忘（選填）</label>
               <textarea id="qup-note" rows="2" placeholder="例：今日有現場工安檢查，客戶臨時增加 2 台保養"></textarea>
             </div>
             <!-- 拖曳上傳 -->
-            <div id="qup-drop" class="qup-drop" style="margin-top:12px" onclick="document.getElementById('qup-file-input').click()">
+            <div id="qup-drop" class="u-mt-12 qup-drop" onclick="document.getElementById('qup-file-input').click()">
               <div class="qup-drop__icon">📎</div>
               <div class="qup-drop__title">拖曳檔案到此，或點擊選擇</div>
               <div class="qup-drop__sub">支援 PDF / PNG / JPG / GIF / WebP 格式</div>
@@ -82,17 +83,17 @@ async function renderQuotationUploads() {
             <!-- 選檔後預覽 -->
             <div id="qup-file-preview" style="display:none">
               <div class="qup-file-preview">
-                <div id="qup-fp-icon" class="qup-file-preview__icon" style="background:#fee2e2">📄</div>
+                <div id="qup-fp-icon" class="qup-file-preview__icon qup-file-tone--pdf">📄</div>
                 <div class="qup-file-preview__meta">
                   <div id="qup-fp-name" class="qup-file-preview__name"></div>
                   <div id="qup-fp-sub" class="qup-file-preview__sub"></div>
                   <div class="qup-progress"><div id="qup-progress-bar" class="qup-progress__bar"></div></div>
                 </div>
-                <button class="qup-btn-sm" onclick="qupClearFile()">移除</button>
+                <button class="btn btn--secondary btn--sm" onclick="qupClearFile()">移除</button>
               </div>
               <div class="qup-upload-actions">
-                <button class="qup-btn qup-btn--primary" onclick="qupSubmitUpload()">⬆️ 確認上傳</button>
-                <button class="qup-btn qup-btn--ghost" onclick="qupOpenPreviewFile()">👁 預覽</button>
+                <button class="btn btn--primary btn--md qup-btn--primary" onclick="qupSubmitUpload()">⬆️ 確認上傳</button>
+                <button class="btn btn--secondary btn--md" onclick="qupOpenPreviewFile()">👁 預覽</button>
               </div>
             </div>
             <div class="qup-tags">
@@ -144,19 +145,19 @@ async function renderQuotationUploads() {
               <div class="qup-field"><label>迄止日</label><input id="qup-f-to" type="date"></div>
               <div class="qup-field qup-field--search"><label>關鍵字（上傳人 / 備註 / 檔名）</label><input id="qup-f-q" type="text" placeholder="例：昱豪、工安"></div>
               <div class="qup-filter-actions">
-                <button class="qup-btn qup-btn--primary" onclick="qupLoadHistory(true)">搜尋</button>
-                <button class="qup-btn qup-btn--ghost" onclick="qupResetFilter()">清除</button>
+                <button class="btn btn--primary btn--md qup-btn--primary" onclick="qupLoadHistory(true)">搜尋</button>
+                <button class="btn btn--secondary btn--md" onclick="qupResetFilter()">清除</button>
               </div>
             </div>
             <div class="qup-chips">
-              <button class="qup-chip" onclick="qupQuickRange('today',this)">今天</button>
-              <button class="qup-chip" onclick="qupQuickRange('week',this)">本週</button>
-              <button class="qup-chip active" onclick="qupQuickRange('month',this)">本月</button>
-              <button class="qup-chip" onclick="qupQuickRange('all',this)">全部</button>
+              <button class="chip qup-chip" onclick="qupQuickRange('today',this)">今天</button>
+              <button class="chip qup-chip" onclick="qupQuickRange('week',this)">本週</button>
+              <button class="chip qup-chip is-active" onclick="qupQuickRange('month',this)">本月</button>
+              <button class="chip qup-chip" onclick="qupQuickRange('all',this)">全部</button>
               <span class="qup-result-count"><span id="qup-result-count">0 筆</span></span>
             </div>
           </div>
-          <div class="qup-card__bd" style="padding-top:0">
+          <div class="u-pt-0 qup-card__bd">
             <div class="qup-report-list" id="qup-tbody"></div>
             <div id="qup-empty" class="qup-empty" style="display:none">
                 <div class="qup-empty__icon">🗂</div>
@@ -166,9 +167,9 @@ async function renderQuotationUploads() {
             </div>
             <div class="qup-pagination">
               <span id="qup-page-info"></span>
-              <span style="display:flex;gap:6px">
-                <button class="qup-btn-sm" onclick="qupChangePage(-1)">‹ 上一頁</button>
-                <button class="qup-btn-sm qup-btn-sm--primary" onclick="qupChangePage(1)">下一頁 ›</button>
+              <span class="u-d-flex u-gap-6">
+                <button class="btn btn--secondary btn--sm" onclick="qupChangePage(-1)">‹ 上一頁</button>
+                <button class="btn btn--secondary btn--sm" onclick="qupChangePage(1)">下一頁 ›</button>
               </span>
             </div>
           </div>
@@ -179,13 +180,13 @@ async function renderQuotationUploads() {
     <!-- 預覽 Modal -->
     <div id="qup-overlay" class="qup-overlay" onclick="if(event.target===this)qupClosePreview()">
       <div class="qup-modal">
-        <div class="qup-modal__hd"><h3 id="qup-preview-title">👁 預覽</h3><button class="qup-btn-sm" onclick="qupClosePreview()">✕ 關閉</button></div>
+        <div class="qup-modal__hd"><h3 id="qup-preview-title">👁 預覽</h3><button class="btn btn--secondary btn--sm" onclick="qupClosePreview()">✕ 關閉</button></div>
         <div class="qup-modal__bd" id="qup-preview-body"></div>
         <div class="qup-modal__ft">
           <span class="qup-modal__note">若預覽失敗，請直接下載原檔</span>
           <span class="qup-modal__actions">
-            <button class="qup-btn qup-btn--ghost" onclick="qupClosePreview()">關閉</button>
-            <button class="qup-btn qup-btn--primary" id="qup-dl-btn">⬇️ 下載原檔</button>
+            <button class="btn btn--secondary btn--md" onclick="qupClosePreview()">關閉</button>
+            <button class="btn btn--primary btn--md qup-btn--primary" id="qup-dl-btn">⬇️ 下載原檔</button>
           </span>
         </div>
       </div>
@@ -220,11 +221,11 @@ async function renderQuotationUploads() {
 
 // 依副檔名回傳圖示 emoji 與背景色
 function _qupIconFor(mime) {
-  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', bg:'#e0f2fe'};
-  if (mime === 'pdf') return {icon:'📄', bg:'#fee2e2'};
-  if (['docx','doc'].includes(mime)) return {icon:'📝', bg:'#dbeafe'};
-  if (['xlsx','xls'].includes(mime)) return {icon:'📊', bg:'#dcfce7'};
-  return {icon:'📎', bg:'#f1f5f9'};
+  if (['jpg','jpeg','png','webp','heic','gif'].includes(mime)) return {icon:'🖼', tone:'image'};
+  if (mime === 'pdf') return {icon:'📄', tone:'pdf'};
+  if (['docx','doc'].includes(mime)) return {icon:'📝', tone:'doc'};
+  if (['xlsx','xls'].includes(mime)) return {icon:'📊', tone:'sheet'};
+  return {icon:'📎', tone:'other'};
 }
 
 // 處理使用者選擇/拖曳的檔案，更新預覽區
@@ -232,7 +233,7 @@ function qupHandleFile(f) {
   const ext = (f.name.split('.').pop() || '').toLowerCase();
   const ic = _qupIconFor(ext);
   document.getElementById('qup-fp-icon').textContent = ic.icon;
-  document.getElementById('qup-fp-icon').style.background = ic.bg;
+  document.getElementById('qup-fp-icon').className = 'qup-file-preview__icon qup-file-tone--' + ic.tone;
   document.getElementById('qup-fp-name').textContent = f.name;
   document.getElementById('qup-fp-sub').textContent = ext.toUpperCase() + ' · ' + (f.size/1024/1024).toFixed(1) + ' MB';
   document.getElementById('qup-file-preview').style.display = 'block';
@@ -345,7 +346,7 @@ function qupRenderTable() {
       const isImage = ['jpg','jpeg','png','webp','gif'].includes(ext);
       const fileVisual = isImage
         ? `<img class="qup-report-thumb" src="/api/quotation-uploads/${r.id}/preview" alt="${esc(r.file_name)}" loading="lazy" onclick="qupPreview(${r.id})" title="點擊圖片預覽">`
-        : `<div class="qup-file-icon" style="background:${ic.bg}">${ic.icon}</div>`;
+        : `<div class="qup-file-icon qup-file-tone--${esc(ic.tone)}">${ic.icon}</div>`;
       return `<details class="qup-report-card">
         <summary class="qup-report-summary">
           <span class="qup-report-summary__date">${esc(r.report_date)}</span>
@@ -357,14 +358,14 @@ function qupRenderTable() {
             <div><span class="qup-report-detail__label">報表日期</span><strong>${esc(r.report_date)}</strong></div>
             <div><span class="qup-report-detail__label">上傳人</span><strong>${esc(r.uploader_name)}</strong></div>
             <div><span class="qup-report-detail__label">上傳日期</span><strong>${esc(_qupDateOnly(r.upload_time))}</strong></div>
-            <div class="qup-report-detail__file"><span class="qup-report-detail__label">檔案</span><div class="qup-file-cell">${fileVisual}<div style="min-width:0"><div class="qup-ellipsis" style="font-weight:700">${esc(r.file_name)}</div><div style="font-size:11px;color:#64748b">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
+            <div class="qup-report-detail__file"><span class="qup-report-detail__label">檔案</span><div class="qup-file-cell">${fileVisual}<div class="u-minw-0"><div class="qup-file-name qup-ellipsis">${esc(r.file_name)}</div><div class="qup-file-meta">${esc((r.mime_type||'').toUpperCase())}</div></div></div></div>
             <div class="qup-report-detail__note"><span class="qup-report-detail__label">備註</span><div class="qup-note-cell">${note}</div></div>
           </div>
           <div class="qup-actions-cell">
-            ${!isImage ? `<button class="qup-action-btn" onclick="qupPreview(${r.id})">👁 預覽</button>` : ''}
-            ${r.can_edit ? `<button class="qup-action-btn" onclick="qupEdit(${r.id})">✏️ 編輯</button>` : ''}
-            <button class="qup-action-btn" onclick="qupDownload(${r.id})">⬇️ 下載</button>
-            ${r.can_delete ? `<button class="qup-action-btn qup-action-btn--danger" onclick="qupDelete(${r.id})">🗑 刪除</button>` : ''}
+            ${!isImage ? `<button class="btn btn--secondary btn--sm qup-action-btn" onclick="qupPreview(${r.id})">👁 預覽</button>` : ''}
+            ${r.can_edit ? `<button class="btn btn--secondary btn--sm qup-action-btn" onclick="qupEdit(${r.id})">✏️ 編輯</button>` : ''}
+            <button class="btn btn--secondary btn--sm qup-action-btn" onclick="qupDownload(${r.id})">⬇️ 下載</button>
+            ${r.can_delete ? `<button class="btn btn--danger btn--sm qup-action-btn qup-action-btn--danger" onclick="qupDelete(${r.id})">🗑 刪除</button>` : ''}
           </div>
         </div>
       </details>`;
@@ -398,16 +399,16 @@ function qupResetFilter() {
   document.getElementById('qup-f-from').value = _qupIso(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('qup-f-to').value = _qupIso(new Date(now.getFullYear(), now.getMonth()+1, 0));
   document.getElementById('qup-f-q').value = '';
-  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.qup-chip')[2].classList.add('active');
+  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('is-active'));
+  document.querySelectorAll('.qup-chip')[2].classList.add('is-active');
   qupPage = 1;
   qupLoadHistory();
 }
 
 // 快捷日期範圍（今天/本週/本月/全部）
 function qupQuickRange(k, btn) {
-  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('.qup-chip').forEach(c => c.classList.remove('is-active'));
+  btn.classList.add('is-active');
   const now = new Date();
   if (k === 'today') { document.getElementById('qup-f-from').value = _qupIso(now); document.getElementById('qup-f-to').value = _qupIso(now); }
   else if (k === 'week') { const d = new Date(now); d.setDate(d.getDate()-d.getDay()); document.getElementById('qup-f-from').value = _qupIso(d); const e = new Date(d); e.setDate(e.getDate()+6); document.getElementById('qup-f-to').value = _qupIso(e); }
@@ -437,21 +438,21 @@ function qupPreview(id) {
 function qupShowPreview(name, mime, previewUrl, downloadUrl) {
   const body = document.getElementById('qup-preview-body');
   document.getElementById('qup-preview-title').textContent = '👁 預覽 — ' + name;
-  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" style="width:100%">';
+  if (['jpg','jpeg','png','webp','gif'].includes(mime)) body.innerHTML = '<img src="' + previewUrl + '" class="qup-preview-img">';
   else if (mime === 'pdf') {
     // 手機瀏覽器不支援 iframe 內嵌 PDF（顯示「已遭到封鎖」），改用系統閱讀器開啟；桌面維持內嵌。
     // 按鈕用 data-pdf-url + addEventListener 接線（不用 inline handler，避開多層引號轉義）。
     if (typeof isMobileView === 'function' && isMobileView()) {
-      body.innerHTML = '<div style="padding:32px;text-align:center"><div style="font-size:32px">📄</div><div style="margin:12px 0 16px;font-weight:800">手機請用系統閱讀器開啟 PDF</div><button class="qup-btn qup-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
+      body.innerHTML = '<div class="qup-preview-fallback"><div class="qup-preview-icon">📄</div><div class="qup-preview-title">手機請用系統閱讀器開啟 PDF</div><button class="btn btn--primary btn--md qup-btn--primary" data-pdf-url="' + previewUrl + '">📄 開啟 PDF</button></div>';
       body.querySelector('[data-pdf-url]').addEventListener('click', function() { window.open(this.getAttribute('data-pdf-url'), '_blank'); });
-    } else body.innerHTML = '<iframe src="' + previewUrl + '" style="width:100%;height:72vh;border:0">';
+    } else body.innerHTML = '<iframe src="' + previewUrl + '" class="qup-preview-frame">';
   }
-  else body.innerHTML = '<div style="padding:32px;text-align:center;color:#e2e8f0"><div style="font-size:32px">📎</div><div style="margin-top:8px;font-weight:800">' + esc(name) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:6px">此格式不支援線上預覽</div></div>';
+  else body.innerHTML = '<div class="qup-preview-fallback qup-preview-fallback--dark"><div class="qup-preview-icon">📎</div><div class="qup-preview-name">' + esc(name) + '</div><div class="qup-preview-note">此格式不支援線上預覽</div></div>';
   document.getElementById('qup-dl-btn').onclick = () => window.open(downloadUrl, '_blank');
-  document.getElementById('qup-overlay').classList.add('open');
+  document.getElementById('qup-overlay').classList.add('is-open');
 }
 // 關閉預覽 Modal
-function qupClosePreview() { document.getElementById('qup-overlay').classList.remove('open'); document.getElementById('qup-preview-body').innerHTML = ''; }
+function qupClosePreview() { document.getElementById('qup-overlay').classList.remove('is-open'); document.getElementById('qup-preview-body').innerHTML = ''; }
 // 下載簽名報表原檔
 function qupDownload(id) { window.open('/api/quotation-uploads/' + id + '/download', '_blank'); }
 // 編輯報表日期、檔案、上傳人與備註（上傳者或全域權限者）。
@@ -460,18 +461,18 @@ async function qupEdit(id) {
   const report = qupFiltered.find(item => item.id === id);
   if (!report) return;
   const overlay = document.createElement('div');
-  overlay.className = 'qup-overlay open';
+  overlay.className = 'qup-overlay is-open';
   overlay.innerHTML = `
     <div class="qup-modal qup-edit-modal" role="dialog" aria-modal="true" aria-labelledby="qup-edit-title">
-      <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="qup-btn-sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>
+      <div class="qup-modal__hd"><h3 id="qup-edit-title">✏️ 編輯報價單上傳</h3><button class="btn btn--secondary btn--sm" type="button" data-qup-edit-cancel>✕ 關閉</button></div>
       <div class="qup-modal__bd">
         <div class="qup-field"><label for="qup-edit-date">報表日期（YYYY-MM-DD）</label><input id="qup-edit-date" type="date" value="${esc(report.report_date || '')}"></div>
-        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-uploader">上傳人姓名</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
-        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-note">備註</label><textarea id="qup-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
-        <div class="qup-field" style="margin-top:12px"><label for="qup-edit-file">替換檔案（選填）</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-uploader">上傳人姓名</label><input id="qup-edit-uploader" type="text" maxlength="50" value="${esc(report.uploader_name || '')}"></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-note">備註</label><textarea id="qup-edit-note" rows="4" maxlength="500">${esc(report.note || '')}</textarea></div>
+        <div class="u-mt-12 qup-field"><label for="qup-edit-file">替換檔案（選填）</label><input id="qup-edit-file" type="file" accept=".pdf,image/png,image/jpeg,image/gif,image/webp"></div>
         <div class="qup-hint">不選擇新檔案會保留目前檔案。</div>
       </div>
-      <div class="qup-modal__ft"><button class="qup-btn qup-btn--ghost" type="button" data-qup-edit-cancel>取消</button><button class="qup-btn qup-btn--primary" type="button" data-qup-edit-save>儲存</button></div>
+      <div class="qup-modal__ft"><button class="btn btn--secondary btn--md" type="button" data-qup-edit-cancel>取消</button><button class="btn btn--primary btn--md qup-btn--primary" type="button" data-qup-edit-save>儲存</button></div>
     </div>`;
   document.body.appendChild(overlay);
   const close = () => overlay.remove();

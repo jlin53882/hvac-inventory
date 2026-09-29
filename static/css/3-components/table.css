@@ -1,0 +1,28 @@
+/* 共用資料表格（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+
+  /* 表格（紀錄/盤點） */
+  .data-table { width: 100%; background: var(--c-white); border-radius: var(--r-lg); border: 1px solid var(--c-border); overflow: hidden; }
+  .data-table th {
+    background: var(--c-surface-2);
+    text-align: left;
+    padding: 9px 10px;
+    font-size: var(--fs-11);
+    color: var(--c-muted);
+    font-weight: var(--fw-bold);
+    border-bottom: 1.5px solid var(--c-border);
+  }
+  .data-table td {
+    padding: 9px 10px;
+    font-size: var(--fs-12);
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: middle;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+
+/* ===== v1.1 已領出照片欄 + 整組材料型號（2026-08-11 Sarah 需求） ===== */
+.data-table .photo-cell { width: 54px; padding: 6px; }
+.data-table .cphoto { width: 34px; height: 34px; border-radius: var(--r-sm); overflow: hidden; display: inline-flex; vertical-align: middle; margin-right: 8px; background: var(--c-border); align-items: center; justify-content: center; }
+.data-table .cphoto img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.data-table .cphoto .cphoto-empty { font-size: var(--fs-14); }
+}

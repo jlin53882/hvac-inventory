@@ -1,0 +1,61 @@
+/* 靜態版面 utility（CSS 架構重構 P6：取代 HTML 內寫死的 style=""；utilities 為最高 layer，覆蓋方式與 inline style 相同）。
+   僅供 HTML 靜態排版微調；元件外觀請寫在 3-components，頁面專屬請寫在 4-pages。 */
+@layer utilities {
+  .u-ai-center { align-items: center; }
+  .u-bg-surface-2 { background: var(--c-surface-2); }
+  .u-text-primary { color: var(--c-primary); }
+  .u-text-muted { color: var(--c-muted); }
+  .u-text-subtle { color: var(--c-text-subtle); }
+  .u-text-danger-strong { color: var(--c-danger-strong); }
+  .u-text-danger { color: var(--c-danger); }
+  .u-d-flex { display: flex; }
+  .u-flex-1 { flex: 1; }
+  .u-flex-2 { flex: 2; }
+  .u-shrink-0 { flex-shrink: 0; }
+  .u-fs-11 { font-size: var(--fs-11); }
+  .u-fs-12 { font-size: var(--fs-12); }
+  .u-fs-13 { font-size: var(--fs-13); }
+  .u-fs-44 { font-size: 44px; }
+  .u-gap-10 { gap: 10px; }
+  .u-gap-6 { gap: 6px; }
+  .u-gap-8 { gap: 8px; }
+  .u-jc-space-between { justify-content: space-between; }
+  .u-lh-1_6 { line-height: 1.6; }
+  .u-m-0 { margin: 0; }
+  .u-m-0-0-10 { margin: 0 0 10px; }
+  .u-m-0-0-12 { margin: 0 0 12px; }
+  .u-m-10-0-0 { margin: 10px 0 0; }
+  .u-maxh-200 { max-height: 200px; }
+  .u-maxh-400 { max-height: 400px; }
+  .u-maxw-420 { max-width: 420px; }
+  .u-maxw-440 { max-width: 440px; }
+  .u-maxw-520 { max-width: 520px; }
+  .u-mb-10 { margin-bottom: 10px; }
+  .u-mb-12 { margin-bottom: 12px; }
+  .u-mb-16 { margin-bottom: 16px; }
+  .u-mb-18 { margin-bottom: 18px; }
+  .u-mb-8 { margin-bottom: 8px; }
+  .u-minh-20 { min-height: 20px; }
+  .u-minw-0 { min-width: 0; }
+  .u-mt-0 { margin-top: 0; }
+  .u-mt-10 { margin-top: 10px; }
+  .u-mt-12 { margin-top: 12px; }
+  .u-mt-18 { margin-top: 18px; }
+  .u-mt-3 { margin-top: 3px; }
+  .u-mt-5 { margin-top: 5px; }
+  .u-mt-6 { margin-top: 6px; }
+  .u-mt-8 { margin-top: 8px; }
+  .u-o-hidden { overflow: hidden; }
+  .u-oy-auto { overflow-y: auto; }
+  .u-p-10 { padding: 10px; }
+  .u-pr-12 { padding-right: 12px; }
+  .u-pt-0 { padding-top: 0; }
+  .u-r-md { border-radius: var(--r-md); }
+  .u-ta-center { text-align: center; }
+  .u-ta-right { text-align: right; }
+  .u-to-ellipsis { text-overflow: ellipsis; }
+  .u-w-20pct { width: 20%; }
+  .u-w-30pct { width: 30%; }
+  .u-w-50pct { width: 50%; }
+  .u-ws-nowrap { white-space: nowrap; }
+}

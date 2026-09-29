@@ -1,0 +1,25 @@
+/* 照片大圖檢視（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+    /* v10.1：大圖檢視 lightbox（全螢幕 overlay） */
+    #photo-lightbox {
+      position: fixed; inset: 0; z-index: var(--z-lightbox);
+      background: rgba(15, 18, 28, .88);
+      display: flex; align-items: center; justify-content: center;
+      cursor: zoom-out; animation: fade .15s ease;
+    }
+    #photo-lightbox .lightbox-content { position: relative; max-width: 94vw; max-height: 92vh; }
+    #photo-lightbox img {
+      max-width: 94vw; max-height: 92vh; object-fit: contain;
+      border-radius: var(--r-md); box-shadow: 0 8px 40px rgba(0,0,0,.5);
+      cursor: default; background: var(--c-white);
+    }
+    #photo-lightbox .lightbox-close {
+      position: absolute; top: -38px; right: -4px;
+      background: rgba(255,255,255,.15); color: var(--c-white);
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--fs-16); cursor: pointer;
+    }
+    #photo-lightbox .lightbox-close:hover { background: rgba(255,255,255,.32); }
+    @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+}

@@ -1,0 +1,76 @@
+@layer pages {
+/* 報價單頁：沿用 DSR 卡片語言，所有新增樣式以 quote- scope。 */
+:is([data-page="quotation"],[data-page="quotation-upload"]) #content.quotation-content { max-width: none; padding: 16px 0 20px; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-wrap { width: 100%; margin: 0; padding: 0 16px; box-sizing: border-box; }
+@media (min-width: 768px) { :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-wrap { padding: 2px 16px 0; }
+}
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-mode-tabs { display: flex; gap: 4px; margin-bottom: 12px; padding: 4px; border: 1px solid var(--c-border); border-radius: var(--r-md); background: var(--c-surface-2); width: fit-content; }
+
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-layout { display: grid; gap: 16px; }
+@media (min-width: 960px) { :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-layout { grid-template-columns: 1.05fr .95fr; } :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-card { grid-column: 1 / -1; } :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-card { grid-column: 1 / -1; }
+}
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-side { display: grid; gap: 16px; align-content: start; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-field-gap { margin-top: 12px; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-heading p { margin: 0; color: var(--c-muted); font-size: var(--fs-12); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-heading + .dsr-btn { margin-left: auto; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-filter { display: flex; gap: 8px; width: min(100%, 420px); margin-left: auto; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-filter input { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); font: inherit; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-list { display: grid; gap: 8px; padding-top: 12px; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--c-border); border-radius: var(--r-md); background: var(--c-white); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-row > div:first-child { display: grid; gap: 2px; min-width: 0; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-row span, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-row small { color: var(--c-muted); font-size: var(--fs-12); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-total { color: var(--c-primary-strong); white-space: nowrap; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: none; padding: 14px; background: rgba(15,23,42,.55); place-items: center; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-overlay.is-open { display: grid; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-modal { display: flex; flex-direction: column; width: 100%; max-width: 720px; max-height: 86vh; overflow: hidden; border-radius: var(--r-lg); background: var(--c-white); box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-search { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--c-border); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-search input { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); font: inherit; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-list { overflow: auto; padding: 10px 16px 16px; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 11px; border: 0; border-bottom: 1px solid var(--c-surface-2); background: var(--c-white); color: var(--c-text); text-align: left; cursor: pointer; font: inherit; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-row:hover { background: var(--c-surface-2); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-row span { display: grid; gap: 3px; min-width: 0; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-row small { color: var(--c-muted); font-size: var(--fs-11); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-inventory-row b { flex-shrink: 0; color: var(--c-primary); font-size: var(--fs-12); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table-wrap { margin-top: 12px; overflow-x: auto; border: 1px solid var(--c-border); border-radius: var(--r-md); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: var(--fs-13); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table th { padding: 10px; border: 1px solid var(--c-text); background: var(--c-surface-2); color: var(--c-text-2); text-align: left; white-space: nowrap; font-weight: var(--fw-bold); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table td { padding: 8px; border: 1px solid var(--c-text); vertical-align: middle; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table tr:hover td { background: var(--c-surface-2); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-line-input { width: 100%; min-width: 120px; padding: 8px 9px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); box-sizing: border-box; color: var(--c-text); font: inherit; font-size: var(--fs-13); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-line-input:focus { border-color: var(--c-primary); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 15%, transparent); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-number-input { min-width: 82px; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-line-total { color: var(--c-primary-strong); font-weight: var(--fw-bold); white-space: nowrap; }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-summary-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--c-surface-2); color: var(--c-muted); font-size: var(--fs-13); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-summary-row strong { color: var(--c-text); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-summary-total { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; padding-top: 12px; border-top: 2px solid var(--c-primary-strong); color: var(--c-primary-strong); font-size: var(--fs-16); font-weight: var(--fw-bold); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-summary-total strong { font-size: var(--fs-20); }
+:is([data-page="quotation"],[data-page="quotation-upload"]) .quote-empty-hint { margin-top: 10px; color: var(--c-border-control); font-size: var(--fs-11); }
+@media (max-width: 639px) {
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-actions, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-filter { width: 100%; margin-left: 0; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-actions .dsr-btn { flex: 1; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-row { grid-template-columns: 1fr auto; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table { min-width: 0; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table thead { display: none; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table tbody, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table tr, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table td { display: block; width: 100%; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table tr { overflow: hidden; margin: 10px 0 0; border: 1px solid var(--c-border); border-radius: var(--r-md); }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table td { padding: 8px 12px; border: 1px solid var(--c-text); }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table td::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--c-border-control); font-size: var(--fs-11); font-weight: var(--fw-bold); }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table-wrap { border: none; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-heading + .dsr-btn { width: 100%; margin-left: 0; }
+}
+@media print {
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .sidebar, :is([data-page="quotation"],[data-page="quotation-upload"]) .header, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-page-header .dsr-page-actions, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-side, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-history-card, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-empty-hint, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table td:last-child, :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table th:last-child { display: none; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .main { margin: 0; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) #content.quotation-content { padding: 0; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-wrap { padding: 0; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-layout { display: block; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-card { margin-bottom: 14px; box-shadow: none; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-items-table { min-width: 0; }
+  :is([data-page="quotation"],[data-page="quotation-upload"]) .quote-line-input { border: 0; padding: 0; }
+}
+}

@@ -1,0 +1,38 @@
+/* 手機卡片 m-card（CSS 架構重構 P3 自 legacy/core.css 拆出） */
+@layer components {
+
+/* ---------- 手機版卡片（render 手機模板輸出） ---------- */
+.m-card {
+  background: var(--c-white); border-radius: var(--r-lg); box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  margin-bottom: 10px; overflow: hidden; border: 1px solid var(--c-border); position: relative;
+}
+.m-card .card-main { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 0; padding: 10px 12px; align-items: start; }
+.m-card .thumb { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+.m-card .info { grid-column: 2; grid-row: 1; }
+.m-card .qty-col { grid-column: 3; grid-row: 1; }
+.m-card .note-slot { grid-column: 2 / -1; grid-row: 2; min-width: 0; }
+.m-card .thumb {
+  width: 58px; height: 58px; border-radius: var(--r-md); object-fit: cover; flex-shrink: 0;
+  background: var(--c-border); display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-20); color: var(--c-border-strong); cursor: zoom-in; border: 1px solid var(--c-border);
+}
+.m-card .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--r-md); }
+.m-card .info { flex: 1; min-width: 0; padding-right: 30px; }
+.m-card .nm { font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card .sub { font-size: var(--fs-11); color: var(--c-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card .loc-tag {
+  display: inline-block; font-size: var(--fs-11); color: var(--c-primary); background: var(--c-primary-soft);
+  border: 1px solid var(--c-border-strong); border-radius: var(--r-sm); padding: 1px 7px; margin-top: 4px;
+  white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.m-card .qty-col { text-align: center; flex-shrink: 0; padding-right: 34px; }
+.m-card .qty-num { font-size: var(--fs-16); font-weight: var(--fw-bold); color: var(--c-text); line-height: 1.1; }
+.m-card .qty-unit { font-size: var(--fs-11); color: var(--c-border-control); display: block; }
+.m-card .qty-neg { color: var(--c-danger); }
+.m-card .qty-violet { color: var(--c-prepare); }
+.m-card.reverted { opacity: .55; }
+
+.m-card .kit-name { font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text); }
+.m-card .kit-stock { font-size: var(--fs-11); color: var(--c-primary); background: var(--c-primary-soft); border-radius: var(--r-sm); padding: 2px 8px; font-weight: var(--fw-medium); }
+.m-card .kit-comps { padding: 6px 12px 10px; }
+}

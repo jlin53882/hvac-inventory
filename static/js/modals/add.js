@@ -144,16 +144,16 @@ function renderAddPhotoBox() {
   const box = document.getElementById('f-photo-box');
   if (!box) return;
   if (!hasPerm('photo')) {
-    box.innerHTML = '<div style="font-size:11px;color:#999;padding:6px 0">無照片上傳權限</div>';
+    box.innerHTML = '<div class="photo-box-hint">無照片上傳權限</div>';
     return;
   }
   box.innerHTML = `
-    <div style="font-size:11px;color:#999;padding:6px 0">新增後可立即上傳照片</div>
-    <div class="photo-actions" style="flex-direction:row;gap:8px;flex-wrap:wrap">
-      <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">📷 拍照
+    <div class="photo-box-hint">新增後可立即上傳照片</div>
+    <div class="photo-actions">
+      <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
         <input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">
       </label>
-      <label class="btn-prepare" style="margin:0;text-align:center;cursor:pointer">🖼 從相簿選
+      <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
         <input type="file" accept="image/*" id="f-photo-album" style="display:none">
       </label>
     </div>`;
@@ -209,7 +209,7 @@ async function submitAdd() {
       let msg = '新增失敗';
       try {
         const err = await res.json();
-        if (err.detail) msg = err.detail;
+        if (err.detail) msg = apiErrorMessage(err.detail);
       } catch {}
       toast('⚠️ ' + msg, 'error');
       return;

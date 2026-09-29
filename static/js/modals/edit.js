@@ -205,7 +205,7 @@ async function submitEdit() {
     });
     if (!res.ok) {
       let msg = '儲存失敗';
-      try { const err = await res.json(); if (err.detail) msg = err.detail; } catch {}
+      try { const err = await res.json(); if (err.detail) msg = apiErrorMessage(err.detail); } catch {}
       toast('⚠️ ' + msg, 'error');
       return;
     }
