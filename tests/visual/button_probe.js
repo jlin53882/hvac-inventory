@@ -7,6 +7,7 @@
     primary: { bg: rgb('#2d5a8e'), fg: WHITE, bd: rgb('#2d5a8e') },
     secondary: { bg: WHITE, fg: rgb('#334155'), bd: rgb('#94a3b8') },
     ghost: { bg: rgb('#eef4fa'), fg: rgb('#2d5a8e') },
+    export: { bg: rgb('#2563eb'), fg: WHITE, bd: rgb('#2563eb') },
     danger: { bg: WHITE, fg: rgb('#dc2626'), bd: rgb('#f87171') },
     prepare: { bg: WHITE, fg: rgb('#6d28d9'), bd: rgb('#a78bfa') },
     out: { bg: WHITE, fg: rgb('#b45309'), bd: rgb('#f59e0b') },
@@ -27,7 +28,7 @@
     if (!visible(el)) return;
     const cs = getComputedStyle(el);
     const c = el.classList;
-    const vname = ['primary', 'secondary', 'ghost', 'danger', 'prepare', 'out', 'on-dark'].find((v) => c.contains('btn--' + v));
+    const vname = ['primary', 'secondary', 'ghost', 'export', 'danger', 'prepare', 'out', 'on-dark'].find((v) => c.contains('btn--' + v));
     if (!vname) { problems.push(label(el) + ': 沒有變體 class'); return; }
     if (c.contains('is-active')) return;  // 切換型按鈕按下狀態另有樣式
     const spec = VARIANTS[c.contains('btn--solid') ? vname + '-solid' : vname];

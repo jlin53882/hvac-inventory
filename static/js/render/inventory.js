@@ -419,7 +419,7 @@ function renderInventoryToolbar(list, isViewer) {
     h += '</div></div>';
   } else {
     if (hasPerm('batch-loc-mgmt')) h += '<button class="btn btn--secondary btn--md btn-batch" id="batch-toggle" onclick="toggleBatchMode()">📦 批次改位置</button>';
-    h += '<button class="btn btn--secondary btn--md btn-export" onclick="openInventoryExportDialog()">⬇️ 匯出庫存</button>';
+    h += '<button class="btn btn--export btn--md btn-export" onclick="openInventoryExportDialog()">⬇️ 匯出庫存</button>';
   }
   h += '</div>';
   return h;

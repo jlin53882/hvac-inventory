@@ -143,7 +143,7 @@ async function renderStockOuts() {
     const kpis = getStockoutKpis(filteredOuts);
     const stockoutBar = renderStockoutPageHeader(isViewer, kpis);
     let html = stockoutBar;
-    html += `<div class="stockout-toolbar"><span>共 <strong>${esc(String(kpis.recordCount))}</strong> 筆</span>${filteredOuts.length !== outs.length ? `<span>已篩選 ${esc(String(filteredOuts.length))} / ${esc(String(outs.length))} 筆</span>` : ''}<button class="btn btn--secondary btn--md btn-export" onclick="openStockoutExportDialog()">📊 匯出報表</button></div>`;
+    html += `<div class="stockout-toolbar"><span>共 <strong>${esc(String(kpis.recordCount))}</strong> 筆</span>${filteredOuts.length !== outs.length ? `<span>已篩選 ${esc(String(filteredOuts.length))} / ${esc(String(outs.length))} 筆</span>` : ''}<button class="btn btn--export btn--md btn-export" onclick="openStockoutExportDialog()">📊 匯出報表</button></div>`;
     if (!filteredOuts.length) {
       const filtered = outs.length > 0;
       html += `<div class="stockout-empty-state"><span class="empty-icon">🚚</span><strong>${esc(filtered ? '沒有符合條件的已領出紀錄' : '目前沒有已領出的紀錄')}</strong><p>${esc(filtered ? '可以清除搜尋或日期篩選後再試一次。' : '當商品正式領出後，紀錄會顯示在這裡。')}</p>${filtered ? '<button type="button" class="btn btn--secondary btn--md stockout-filter-action" onclick="clearStockoutFilters()">清除篩選</button>' : ''}</div>`;

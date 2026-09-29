@@ -1,5 +1,5 @@
 /* 按鈕：全系統唯一的按鈕外觀（CSS 架構重構 P7.5，規格見 docs/CSS架構重構設計.md §7.2）。
-   用途用變體表示：--primary（每區最多一個）/ --secondary / --ghost / --danger / --prepare / --out / --on-dark；
+   用途用變體表示：--primary（每區最多一個）/ --secondary / --ghost / --danger / --prepare / --out / --on-dark / --export（匯出，亮藍）；
    尺寸：--sm 32px、--md 38px（手機 44px）；--icon 方形圖示鈕；--solid 用於 modal 的流程確認鈕。
    頁面 CSS 只能調整位置與寬度（margin / width / flex / position），不得改按鈕外觀。 */
 @layer components {
@@ -28,6 +28,8 @@
   .btn--secondary.is-active { background: var(--c-primary-soft); border-color: var(--c-primary); color: var(--c-primary); }
   .btn--ghost { background: var(--c-primary-soft); border-color: transparent; color: var(--c-primary); }
   .btn--ghost:hover:not(:disabled) { background: var(--c-primary-soft-2); }
+  .btn--export { background: var(--c-export); border-color: var(--c-export); color: var(--c-white); }
+  .btn--export:hover:not(:disabled) { background: var(--c-export-strong); border-color: var(--c-export-strong); }
   .btn--danger { background: var(--c-white); border-color: var(--c-danger-border); color: var(--c-danger); }
   .btn--danger:hover:not(:disabled) { background: var(--c-danger-soft); }
   .btn--prepare { background: var(--c-white); border-color: var(--c-prepare-border); color: var(--c-prepare); }

@@ -181,7 +181,7 @@ async function renderCalendar() {
                 <input type="date" id="cal-picker" onchange="calPickDate(this.value)">
                 <button class="btn btn--ghost btn--sm btn--icon cal-icon-btn" onclick="calPickDate(_iso(new Date(calSelected.getFullYear(), calSelected.getMonth(), calSelected.getDate() + 1)))" aria-label="後一天" title="後一天">▶</button>
               </div>
-              ${isViewer ? '' : '<button class="btn btn--secondary btn--sm btn-sm cal-export-btn" onclick="calExport()">📤 匯出日報表</button>'}
+              ${isViewer ? '' : '<button class="btn btn--export btn--sm cal-export-btn" onclick="calExport()">📤 匯出日報表</button>'}
             </div>
           </div>
           <div id="cal-search-panel-slot" class="cal-search-panel-slot"></div>

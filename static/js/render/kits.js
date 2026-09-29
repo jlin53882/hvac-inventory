@@ -116,7 +116,7 @@ function renderKitToolbar(count) {
   const now = new Date();
   const month_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const month_end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn btn--secondary btn--md btn-export" onclick="openKitExportDialog()">📊 匯出報表</button></div>`;
+  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn btn--export btn--md btn-export" onclick="openKitExportDialog()">📊 匯出報表</button></div>`;
 }
 
 function renderKitStatusBadge(status) {

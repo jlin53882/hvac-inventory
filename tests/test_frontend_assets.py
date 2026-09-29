@@ -4013,7 +4013,7 @@ def test_btn_sm_canonical_shared_owner_and_consumers():
         assert not re.search(r"\.btn-sm\b", css), "pages must not restyle legacy .btn-sm"
         assert not re.search(r"\.btn--(sm|md)\b", css), "pages must not override standard button sizes"
     assert 'class=\"btn btn--secondary btn--sm\"' in calendar_js, "Calendar small buttons use the standard size"
-    assert 'class="btn btn--secondary btn--md btn-export"' in inventory_js, "Inventory toolbar buttons use the standard size"
+    assert 'class="btn btn--export btn--md btn-export"' in inventory_js, "Inventory toolbar buttons use the standard size"
 
 
 # ---------- Prepared／庫存調撥／報表與工作進度前端回歸 ----------

@@ -30,6 +30,9 @@
     --c-primary-soft: #eef4fa;
     --c-primary-soft-2: #dfe9f5;
     --c-primary-border: #b6cbe2;
+    /* 匯出（使用者 2026-09-29 指定維持原本亮藍，與主色區分） */
+    --c-export: #2563eb;
+    --c-export-strong: #1d4ed8;
     /* 成功 */
     --c-success: #16a34a;
     --c-success-strong: #15803d;
