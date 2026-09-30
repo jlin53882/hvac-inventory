@@ -75,6 +75,57 @@ def _parse_export_range(month: str | None, start_date: str | None, end_date: str
     return _parse_export_range(now.strftime("%Y-%m"), None, None, now)
 
 
+def _resolve_export_period(month, start_date, end_date, days):
+    """匯出期間：只給 days（近幾日）時以現在往回推；否則解析 month / 自訂區間。
+    回傳 (start, end, period, display_period)。"""
+    if days is not None and month is None and start_date is None and end_date is None:
+        if days < 0 or days > MAX_RANGE_DAYS:
+            raise HTTPException(400, "days 必須介於 0 到 366")
+        now = dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
+        start = now - dt.timedelta(days=days)
+        end = now
+        period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"
+        return start, end, period, period
+    return _parse_export_range(month, start_date, end_date)
+
+
+def _new_workbook() -> Workbook:
+    """空活頁簿（移除預設 sheet，開檔時強制重算公式）。"""
+    wb = Workbook()
+    wb.remove(wb.active)
+    wb.calculation.fullCalcOnLoad = True
+    wb.calculation.forceFullCalc = True
+    wb.calculation.calcMode = "auto"
+    return wb
+
+
+def _finalize_workbook(wb: Workbook, id_columns: dict) -> bytes:
+    """套用全活頁簿字型與格式、自動分配欄寬（id_columns：工作表名稱 → 編號欄位，僅以內容計欄寬），回傳 xlsx bytes。"""
+    for sheet in wb.worksheets:
+        _apply_workbook_styles(sheet)
+        id_column = id_columns.get(sheet.title)
+        _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
+    # 確保所有 2 欄標題工作表的欄寬足夠
+    for sheet in wb.worksheets:
+        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
+            sheet.column_dimensions['A'].width = 25
+            sheet.column_dimensions['B'].width = 25
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _report_filename(prefix: str, month, start_date, end_date) -> str:
+    """報表檔名：月份 / 自訂區間 / 無條件三種格式，皆附時間戳。"""
+    stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
+    if month and not start_date and not end_date:
+        return f"{prefix}_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
+    if start_date and end_date:
+        return f"{prefix}_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
+    return f"{prefix}_{stamp}.xlsx"
+
+
 def _safe(value):
     """將資料庫文字交給既有 Excel 公式注入防護 helper。"""
     return excel_safe("" if value is None else value)
@@ -745,12 +796,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         HTTPException: 日期範圍、庫存區或工作表識別值不合法時引發。
     """
     selected_sections = _parse_export_sections(sections, DEFAULT_EXPORT_SECTIONS, SINGLE_EXPORT_SECTIONS)
-    if days is not None and month is None and start_date is None and end_date is None:
-        if days < 0 or days > MAX_RANGE_DAYS:
-            raise HTTPException(400, "days 必須介於 0 到 366")
-        now = dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT); start = now - dt.timedelta(days=days); end = now; period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"; display_period = period
-    else:
-        start, end, period, display_period = _parse_export_range(month, start_date, end_date)
+    start, end, period, display_period = _resolve_export_period(month, start_date, end_date, days)
     selected_sites = list(SITE_ORDER) if not sites else [s for s in sites.split(",") if s]
     if not selected_sites or any(s not in SITES for s in selected_sites):
         raise HTTPException(400, "sites 含有不合法的庫存區")
@@ -800,7 +846,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
         cabinet_notes = _load_cabinet_notes(conn)
-    wb = Workbook(); wb.remove(wb.active); wb.calculation.fullCalcOnLoad = True; wb.calculation.forceFullCalc = True; wb.calculation.calcMode = "auto"
+    wb = _new_workbook()
     period_text = _period_text(period, display_period)
     if "overview" in selected_sections:
         overview = wb.create_sheet("01 總覽")
@@ -824,24 +870,8 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     if "stats" in selected_sections:
         stats = wb.create_sheet("06 統計")
         _build_stats_sheet(stats, items, positions, "inventory" in selected_sections and bool(items), period_text)
-    for sheet in wb.worksheets:
-        _apply_workbook_styles(sheet)
-        id_column = {"庫存總表(單一庫存)": 1, "位置明細(單一庫存)": 1, "庫存警示(單一庫存)": 2, "異動紀錄(單一庫存)": 3}.get(sheet.title)
-        _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
-    # 確保所有 2 欄標題工作表的欄寬足夠
-    for sheet in wb.worksheets:
-        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
-            sheet.column_dimensions['A'].width = 25
-            sheet.column_dimensions['B'].width = 25
-    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
-    stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
-    if month and not start_date and not end_date:
-        filename = f"庫存報表_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
-    elif start_date and end_date:
-        filename = f"庫存報表_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
-    else:
-        filename = f"庫存報表_{stamp}.xlsx"
-    return xlsx_download(buf.getvalue(), filename)
+    content = _finalize_workbook(wb, {"庫存總表(單一庫存)": 1, "位置明細(單一庫存)": 1, "庫存警示(單一庫存)": 2, "異動紀錄(單一庫存)": 3})
+    return xlsx_download(content, _report_filename("庫存報表", month, start_date, end_date))
 
 
 @router.get("/api/kit-export", dependencies=[Depends(require_perm("export"))])
@@ -863,16 +893,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         包含所選工作表的 XLSX 下載回應。
     """
     selected_sections = _parse_export_sections(sections, DEFAULT_EXPORT_SECTIONS, KIT_EXPORT_SECTIONS)
-    if days is not None and month is None and start_date is None and end_date is None:
-        if days < 0 or days > MAX_RANGE_DAYS:
-            raise HTTPException(400, "days 必須介於 0 到 366")
-        now = dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
-        start = now - dt.timedelta(days=days)
-        end = now
-        period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"
-        display_period = period
-    else:
-        start, end, period, display_period = _parse_export_range(month, start_date, end_date)
+    start, end, period, display_period = _resolve_export_period(month, start_date, end_date, days)
     
     with db_session() as conn:
         # 查詢整組品項（is_kit=1）；kits 定義提供 kit_id / 備註，庫存區與品牌型號以 items 為準
@@ -926,11 +947,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
         cabinet_notes = _load_cabinet_notes(conn)
     
-    wb = Workbook()
-    wb.remove(wb.active)
-    wb.calculation.fullCalcOnLoad = True
-    wb.calculation.forceFullCalc = True
-    wb.calculation.calcMode = "auto"
+    wb = _new_workbook()
     
     period_text = _period_text(period, display_period)
     
@@ -975,29 +992,8 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         _style_title(movement, "整組異動紀錄", period_text, header_count=12)
         _build_movement_sheet(movement, movements)
     
-    for sheet in wb.worksheets:
-        _apply_workbook_styles(sheet)
-        id_column = {"庫存總表(整組)": 1, "位置明細(整組)": 1, "組成材料(整組)": 1, "庫存警示(整組)": 1, "異動紀錄(整組)": 3}.get(sheet.title)
-        _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
-    # 確保所有 2 欄標題工作表的欄寬足夠
-    for sheet in wb.worksheets:
-        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
-            sheet.column_dimensions['A'].width = 25
-            sheet.column_dimensions['B'].width = 25
-    
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    
-    stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
-    if month and not start_date and not end_date:
-        filename = f"整組報表_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
-    elif start_date and end_date:
-        filename = f"整組報表_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
-    else:
-        filename = f"整組報表_{stamp}.xlsx"
-    
-    return xlsx_download(buf.getvalue(), filename)
+    content = _finalize_workbook(wb, {"庫存總表(整組)": 1, "位置明細(整組)": 1, "組成材料(整組)": 1, "庫存警示(整組)": 1, "異動紀錄(整組)": 3})
+    return xlsx_download(content, _report_filename("整組報表", month, start_date, end_date))
 
 
 @router.get("/api/stockout-export", dependencies=[Depends(require_perm("export"))])
@@ -1018,16 +1014,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         包含所選工作表的 XLSX 下載回應。
     """
     selected_sections = _parse_export_sections(sections, DEFAULT_STOCKOUT_SECTIONS, STOCKOUT_EXPORT_SECTIONS)
-    if days is not None and month is None and start_date is None and end_date is None:
-        if days < 0 or days > MAX_RANGE_DAYS:
-            raise HTTPException(400, "days 必須介於 0 到 366")
-        now = dt.datetime.strptime(movement_time.now_sql(), movement_time.SQL_DATETIME_FORMAT)
-        start = now - dt.timedelta(days=days)
-        end = now
-        period = f"{start.strftime('%Y/%m/%d')} ～ {end.strftime('%Y/%m/%d')}"
-        display_period = period
-    else:
-        start, end, period, display_period = _parse_export_range(month, start_date, end_date)
+    start, end, period, display_period = _resolve_export_period(month, start_date, end_date, days)
     
     with db_session() as conn:
         # 查詢已領出的異動：直接出庫（出庫%）+ 退回已領出
@@ -1042,11 +1029,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         )
         movements = conn.execute(movement_sql, [movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)]).fetchall()
     
-    wb = Workbook()
-    wb.remove(wb.active)
-    wb.calculation.fullCalcOnLoad = True
-    wb.calculation.forceFullCalc = True
-    wb.calculation.calcMode = "auto"
+    wb = _new_workbook()
     
     period_text = _period_text(period, display_period)
     
@@ -1112,27 +1095,5 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
         if id_column:
             movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
     
-    # 套用全工作簿字型與格式，並自動分配所有 sheet 的欄寬
-    for sheet in wb.worksheets:
-        _apply_workbook_styles(sheet)
-        id_column = {'異動紀錄(已領出)': 3}.get(sheet.title)
-        _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
-    # 確保所有 2 欄標題工作表的欄寬足夠
-    for sheet in wb.worksheets:
-        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
-            sheet.column_dimensions['A'].width = 25
-            sheet.column_dimensions['B'].width = 25
-    
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    
-    stamp = movement_time.now_sql().replace("-", "").replace(":", "").replace(" ", "_")
-    if month and not start_date and not end_date:
-        filename = f"已領出報表_{month[:4]}年{month[5:]}月_{stamp}.xlsx"
-    elif start_date and end_date:
-        filename = f"已領出報表_{start_date.replace('-', '')}-{end_date.replace('-', '')}_{stamp}.xlsx"
-    else:
-        filename = f"已領出報表_{stamp}.xlsx"
-    
-    return xlsx_download(buf.getvalue(), filename)
+    content = _finalize_workbook(wb, {'異動紀錄(已領出)': 3})
+    return xlsx_download(content, _report_filename("已領出報表", month, start_date, end_date))
