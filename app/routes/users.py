@@ -19,7 +19,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.database import db_session, get_db
+from app.database import db_session
 from app.models import PageVisibilityUpdate, UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate, initial_visible_page_keys
 from app.services.auth import (
     ALL_PAGE_KEYS,
@@ -306,13 +306,10 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
     )
     # display_name 會進入 Google description；只失效此使用者被指派行程的既有 mappings。
     if display_name_changed:
-        affected_conn = get_db()
-        try:
+        with db_session() as affected_conn:
             affected_ids = [r["appointment_id"] for r in affected_conn.execute(
                 "SELECT DISTINCT appointment_id FROM appointment_assignees WHERE user_id=?", (user_id,)
             ).fetchall()]
-        finally:
-            affected_conn.close()
         if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
             from app.services import sync_scheduler
             sync_scheduler.start_and_wake()

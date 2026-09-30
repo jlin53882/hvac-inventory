@@ -142,3 +142,59 @@ def test_ip_rate_limit_is_consistent_under_concurrency():
         assert auth.check_ip_rate_limit(ip) is True
     finally:
         auth.clear_ip_fail(ip)
+
+
+# ---------- 5. 模組層 import 不得循環 ----------
+
+def _module_name(path: Path) -> str:
+    rel = path.relative_to(ROOT).with_suffix("")
+    parts = list(rel.parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def _top_level_imports(path: Path, known: set[str]) -> set[str]:
+    """只看模組最上層的 import（函式內的延後 import 是刻意打斷循環的手段，不算）。"""
+    edges: set[str] = set()
+    for node in _parse(path).body:
+        if isinstance(node, ast.Import):
+            edges.update(a.name for a in node.names if a.name in known)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            if node.module in known:
+                edges.add(node.module)
+            for alias in node.names:
+                if f"{node.module}.{alias.name}" in known:      # from app.services import gcal_sync
+                    edges.add(f"{node.module}.{alias.name}")
+    return edges
+
+
+def test_python_module_level_imports_have_no_cycles():
+    """app/ 內的模組層 import 圖必須是 DAG。
+
+    已知的雙向依賴 gcal_sync ↔ sync_scheduler 以「gcal_sync 內延後 import」處理，不出現在模組層；
+    若有人把它改成模組層 import，或新增其他循環，這裡會紅燈。
+    """
+    files = _py_files(APP) + [ROOT / "main.py"]
+    known = {_module_name(p) for p in files}
+    graph = {_module_name(p): _top_level_imports(p, known) - {_module_name(p)} for p in files}
+
+    visiting: list[str] = []
+    done: set[str] = set()
+    cycles: list[list[str]] = []
+
+    def visit(node: str) -> None:
+        if node in done:
+            return
+        if node in visiting:
+            cycles.append(visiting[visiting.index(node):] + [node])
+            return
+        visiting.append(node)
+        for dep in sorted(graph[node]):
+            visit(dep)
+        visiting.pop()
+        done.add(node)
+
+    for name in sorted(graph):
+        visit(name)
+    assert not cycles, "模組層 import 循環：\n" + "\n".join(" → ".join(c) for c in cycles)
