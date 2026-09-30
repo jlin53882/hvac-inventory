@@ -152,6 +152,7 @@ def test_update_key(client):
 
 def test_update_uploaded_credentials_cleans_old_file(client):
     """編輯 Key 換路徑後，舊的系統上傳 JSON 應被清理。"""
+    from app.database import get_db
     from app.routes import gcal_keys as gk
 
     cr = client.post("/api/gcal-keys", json={
@@ -161,7 +162,7 @@ def test_update_uploaded_credentials_cleans_old_file(client):
     old_path = gk.UPLOADED_CREDENTIALS_DIR / ("a" * 32 + ".json")
     old_path.parent.mkdir(parents=True, exist_ok=True)
     old_path.write_text("{}", encoding="utf-8")
-    conn = gk.get_db()
+    conn = get_db()
     try:
         conn.execute("UPDATE gcal_keys SET credentials_path=? WHERE id=?", (str(old_path), kid))
         conn.commit()
@@ -1209,7 +1210,7 @@ def test_delete_key_acquires_key_lock_before_mapping_snapshot(client, monkeypatc
         finally:
             state["locked"] = False
 
-    real_get_db = gcal_keys.get_db
+    real_db_session = gcal_keys.db_session
 
     class TracedConnection:
         def __init__(self, wrapped):
@@ -1223,11 +1224,13 @@ def test_delete_key_acquires_key_lock_before_mapping_snapshot(client, monkeypatc
         def __getattr__(self, name):
             return getattr(self._wrapped, name)
 
-    def traced_get_db():
-        return TracedConnection(real_get_db())
+    @contextmanager
+    def traced_db_session():
+        with real_db_session() as conn:
+            yield TracedConnection(conn)
 
     monkeypatch.setattr(gcal_sync, "_key_process_lock", observed_key_lock)
-    monkeypatch.setattr(gcal_keys, "get_db", traced_get_db)
+    monkeypatch.setattr(gcal_keys, "db_session", traced_db_session)
 
     response = client.delete(f"/api/gcal-keys/{key_id}")
 
@@ -1368,15 +1371,19 @@ def test_key_api_does_not_expose_credentials_path(client):
 
 def test_create_uploaded_file_is_cleaned_when_db_acquisition_fails(client, monkeypatch, tmp_path):
     """create 上傳後若連 DB 都失敗，不得留下 orphan credential file。"""
+    from contextlib import contextmanager
+
     from app.routes import gcal_keys
 
     storage = tmp_path / "secrets" / "gcal"
     monkeypatch.setattr(gcal_keys, "UPLOADED_CREDENTIALS_DIR", storage.resolve())
 
-    def fail_get_db():
+    @contextmanager
+    def fail_db_session():
         raise RuntimeError("database unavailable")
+        yield  # pragma: no cover
 
-    monkeypatch.setattr(gcal_keys, "get_db", fail_get_db)
+    monkeypatch.setattr(gcal_keys, "db_session", fail_db_session)
     with pytest.raises(RuntimeError, match="database unavailable"):
         client.post(
             "/api/gcal-keys",

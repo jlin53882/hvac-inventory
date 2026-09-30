@@ -1,15 +1,14 @@
 // 庫存管理系統 - 行事曆派工頁（v1：月曆 + 當日明細 + 防衝突 + 匯出日報表 + 設定）
 // 資料來源：/api/appointments、/api/service-types、/api/assignable-users
-// 行事曆狀態在 core/state.js（calMonth、CAL_*）與 features/calendar/state.js（calendarState）
+// 行事曆狀態與常數（calMonth、CAL_*、calendarState）都在 features/calendar/state.js
 // 本模組負責資料載入與月曆 / 當日明細繪製；頁面外殼 renderCalendar（含派工與設定 modal 的 HTML）在 page.js
 
 import { apiDownload, apiFetch } from '../../core/api-client.js';
-import { appState, CAL_PALETTE, CAL_WEEK } from '../../core/state.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
 import { syncViewUrl } from '../shell/page-scope.js';
 import { _fmtTW, _iso, _parseLocalDate, _syncCalendarDateControls, calFmtCreatedAt, calServiceTone } from './format.js';
 import { calApplyRightPanelMode, calIsDesktopViewport, calRenderMobileSearchResults, calRenderSearchResults } from './search.js';
-import { calendarState } from './state.js';
+import { CAL_PALETTE, CAL_WEEK, calendarState } from './state.js';
 import { calCanRetryPersonal, calPersonalSync, calSyncStatusIcon, calSyncStatusLabel, calTeamSyncLabel } from './sync-status.js';
 
 export function calRenderReminder() {
@@ -21,7 +20,7 @@ export function calRenderReminder() {
 
 export async function calLoadData() {
   const requestToken = calendarState.calLoadGuard.next();
-  const y = appState.calMonth.getFullYear(), m = appState.calMonth.getMonth() + 1;
+  const y = calendarState.calMonth.getFullYear(), m = calendarState.calMonth.getMonth() + 1;
   const today = new Date();
   const todayStr = _iso(today);
   const monthEventsPromise = apiFetch(`/api/appointments?year=${y}&month=${m}`);
@@ -65,8 +64,8 @@ function calRenderLoadingUi() {
   if (kpi) kpi.innerHTML = Array.from({length: 3}, () => '<div class="cal-kpi-card ui-kpi-card ui-kpi-card--stacked cal-skeleton-card" aria-hidden="true"><span></span><strong></strong></div>').join('');
   if (grid) {
     // 骨架列數跟著要載入的月份，避免沿用上個月的 --cal-week-count 讓格子擠在一起或留白
-    const first = new Date(appState.calMonth.getFullYear(), appState.calMonth.getMonth(), 1).getDay();
-    const total = new Date(appState.calMonth.getFullYear(), appState.calMonth.getMonth() + 1, 0).getDate();
+    const first = new Date(calendarState.calMonth.getFullYear(), calendarState.calMonth.getMonth(), 1).getDay();
+    const total = new Date(calendarState.calMonth.getFullYear(), calendarState.calMonth.getMonth() + 1, 0).getDate();
     const weeks = Math.ceil((first + total) / 7);
     grid.style.setProperty('--cal-week-count', String(weeks));
     grid.innerHTML = CAL_WEEK.map((w, index) => '<div class="cal-weekday' + (index === 0 || index === 6 ? ' cal-weekend' : '') + '">' + esc(w) + '</div>').join('')
@@ -120,7 +119,7 @@ export function calRenderKpi() {
   const selectedStr = _iso(calendarState.calSelected);
   const cards = [
     { label: '今日派工', value: calendarState.calTodayEvents.length, meta: `今日共 ${calendarState.calTodayEvents.length} 筆派工`, tone: 'blue' },
-    { label: '本月派工', value: calendarState.calEvents.length, meta: `${appState.calMonth.getFullYear()} 年 ${appState.calMonth.getMonth() + 1} 月（共 ${calendarState.calEvents.length} 筆）`, tone: 'indigo' },
+    { label: '本月派工', value: calendarState.calEvents.length, meta: `${calendarState.calMonth.getFullYear()} 年 ${calendarState.calMonth.getMonth() + 1} 月（共 ${calendarState.calEvents.length} 筆）`, tone: 'indigo' },
   ];
   const el = document.getElementById('cal-kpi-grid');
   if (!el) return;
@@ -162,7 +161,7 @@ function calRenderHelper(dayEvents) {
  */
 export function calRenderMonth() {
   if (calendarState.calLoadError) return;
-  const y = appState.calMonth.getFullYear(), m = appState.calMonth.getMonth();
+  const y = calendarState.calMonth.getFullYear(), m = calendarState.calMonth.getMonth();
   document.getElementById('cal-month-title').innerText = `${y} 年 ${m + 1} 月`;
   const grid = document.getElementById('cal-grid');
   grid.innerHTML = '';
@@ -311,7 +310,7 @@ export function calRenderDay() {
 }
 
 export function calChangeMonth(d) {
-  appState.calMonth = new Date(appState.calMonth.getFullYear(), appState.calMonth.getMonth() + d, 1);
+  calendarState.calMonth = new Date(calendarState.calMonth.getFullYear(), calendarState.calMonth.getMonth() + d, 1);
   calSetLoadState('loading');
   calLoadData().then(applied => {
     if (applied === null) return;
@@ -338,7 +337,7 @@ export function calPickDate(v) {
   const selected = _parseLocalDate(v);
   if (!selected || isNaN(selected.getTime())) return;
   calendarState.calSelected = selected;
-  appState.calMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
+  calendarState.calMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
   _syncCalendarDateControls();
   calSetLoadState('loading');
   calLoadData().then(applied => {

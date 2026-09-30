@@ -83,7 +83,7 @@ const context = {
       zero_items: Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `商品${i + 1}`, qty: 0 })),
       low_items: [{ id: 50, name: '低庫存商品', qty: 2 }],
     } },
-    ALL_ITEMS: [], currentKitItems: [], ALERTS_BY_SITE: {},
+    ALL_ITEMS: [], currentKitItems: [],
   },
   getFilteredInventoryItems() { return []; },
   getInventoryDashboardStats(_items, stats) { return {

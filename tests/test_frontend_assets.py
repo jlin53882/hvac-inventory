@@ -824,7 +824,7 @@ def test_api_fetch_runtime_contract():
 
 
 def test_state_runtime_contract():
-    """core/state.js：parseCalendarMonth（網址 ?month=）與共用常數不可變。"""
+    """state 所有權（core/state.js 與 feature state）、parseCalendarMonth（網址 ?month=）與共用常數不可變。"""
     result = subprocess.run(
         ["node", os.path.join(BASE_DIR, "tests", "state_runtime.test.js")],
         capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,
@@ -847,7 +847,7 @@ def test_page_render_races_use_shared_request_guard():
     import re
 
     module_level = re.compile(r"^(?:var|let)\s+(\w*(?:RequestSeq|ReqSeq|RequestToken))\s*=\s*0\s*;", re.M)
-    in_state = re.compile(r"^\s+(\w*(?:RequestSeq|ReqSeq|RequestToken)):\s*0\s*,", re.M)   # wprDetailRequestTokens（複數 dict）不在此列
+    in_state = re.compile(r"^\s+(\w*(?:RequestSeq|ReqSeq|RequestToken)):\s*0\s*,", re.M)   # 詳情面板已改用 createKeyedRequestGuard（wprDetailGuard）
     offenders = []
     for top in ("features", "core"):
         for root, _dirs, files in os.walk(os.path.join(STATIC, "js", top)):
@@ -5070,7 +5070,8 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "wprDayGuard" in globals_js
     assert "wprHistoryGuard" in globals_js
     assert "wprKpiGuard" in globals_js
-    assert "wprDetailRequestTokens" in globals_js
+    assert "wprDetailGuard" in globals_js
+    assert "wprDetailRequestTokens" not in globals_js, "詳情面板的計數器已改為 createKeyedRequestGuard"
     assert "wprSelectGuard" in globals_js
     assert "workProgressState.wprSelectGuard.next()" in js
     assert "!workProgressState.wprSelectGuard.isCurrent(token)" in js

@@ -147,7 +147,7 @@ function createContext() {
   vm.createContext(context);
   installApiClient(context);
   loadModules(context, 'core/state.js', 'features/calendar/state.js');
-  context.appState.calMonth = month;
+  context.calendarState.calMonth = month;
   context.calendarState.calSelected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   // issue #39：頁面外殼 renderCalendar 在 features/calendar/page.js
   loadModules(context, 'features/calendar/format.js', 'features/calendar/sync-status.js', 'features/calendar/search.js',
@@ -191,7 +191,7 @@ async function assertCalendarLoad(context, state) {
   context.calendarState.calEvents = [];
   context.calendarState.calLoadError = null;
   for (const [month, weeks, cellCount] of [[1, 4, 35], [8, 5, 42], [7, 6, 49]]) {
-    context.appState.calMonth = new Date(2026, month, 1);
+    context.calendarState.calMonth = new Date(2026, month, 1);
     context.calRenderMonthProduction();
     assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
     assert.strictEqual(get('cal-grid').children.length, cellCount);
@@ -202,14 +202,14 @@ async function assertCalendarLoad(context, state) {
   }
   // Loading skeleton must follow the month being loaded, not the previous month's row count.
   for (const [month, weeks] of [[1, 4], [7, 6]]) {
-    context.appState.calMonth = new Date(2026, month, 1);
+    context.calendarState.calMonth = new Date(2026, month, 1);
     context.calRenderLoadingUi();
     const html = get('cal-grid').innerHTML;
     assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
     assert.strictEqual((html.match(/cal-skeleton-cell/g) || []).length, weeks * 7);
     assert.strictEqual((html.match(/class="cal-weekday/g) || []).length, 7);
   }
-  context.appState.calMonth = new Date();
+  context.calendarState.calMonth = new Date();
 
 
   // F1: execute the production page entry instead of jumping directly to calLoadData.

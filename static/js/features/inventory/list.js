@@ -5,6 +5,7 @@ import { isMobileView } from '../../core/bottomsheet.js';
 import { loadDestinations } from '../../core/data.js';
 import { Qty } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
+import { inventoryState } from './state.js';
 import { esc, hasPerm, jsStr } from '../../core/utils.js';
 import { buildInventoryItemActionMenu } from './actions.js';
 import { updateSaveBar } from './adjust.js';
@@ -103,7 +104,7 @@ function renderInventoryToolbar(list, isViewer) {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = isMobileView();
   let h = '<div class="loc-export-bar">';
-  if (appState.batchMode) h += '<button class="btn btn--secondary btn--md btn-select-all" id="btn-select-toggle" onclick="Inventory.selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
+  if (inventoryState.batchMode) h += '<button class="btn btn--secondary btn--md btn-select-all" id="btn-select-toggle" onclick="Inventory.selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
   h += '<span class="loc-export-count">共 ' + (appState.INVENTORY_META.total || list.length) + ' 項</span>';
   h += '<div class="view-toggle"><button onclick="Inventory.setInventoryView(\'table\')" class="chip chip--seg' + (viewMode === 'table' ? ' is-active' : '') + '">📊 表格</button><button onclick="Inventory.setInventoryView(\'card\')" class="chip chip--seg' + (viewMode === 'card' ? ' is-active' : '') + '">🃏 卡片</button></div>';
   if (!isViewer) h += '<button class="btn btn--primary btn--md btn-add-inv" onclick="Inventory.openAddModal()">＋ 新增</button>';
@@ -127,7 +128,7 @@ function renderInventoryTable(list, isViewer, canStockout) {
     (byLoc[mainLoc] = byLoc[mainLoc] || []).push(i);
   });
   let h = '<div class="tbl-wrap"><table class="data-table"><thead><tr>';
-  if (appState.batchMode && hasPerm('batch-loc-mgmt')) h += '<th class="col-check"></th>';
+  if (inventoryState.batchMode && hasPerm('batch-loc-mgmt')) h += '<th class="col-check"></th>';
   h += '<th class="col-thumb"></th><th>品項名稱</th><th>品牌</th><th>庫存</th><th>單位</th><th>位置</th><th>狀態</th><th>操作</th>';
   h += '</tr></thead><tbody>';
   Object.keys(byLoc).sort().forEach(loc => {
@@ -143,7 +144,7 @@ function renderInventoryTable(list, isViewer, canStockout) {
       const locStr = stocks.map(s => esc(s.location)).join(', ');
       const photoHTML = i.has_photo ? '<span class="cphoto"><img src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="" onclick="Inventory.openPhotoLightbox(' + i.id + ')" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
       h += '<tr class="' + rowClass + '">';
-      if (appState.batchMode && hasPerm('batch-loc-mgmt')) h += '<td class="u-ta-center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(' + i.id + ')"></td>';
+      if (inventoryState.batchMode && hasPerm('batch-loc-mgmt')) h += '<td class="u-ta-center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(' + i.id + ')"></td>';
       h += '<td class="photo-cell">' + photoHTML + '</td>';
       h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small class="col-name-code">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
@@ -206,7 +207,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           // 手機外框不可再掛 desktop .item-card：該 class 是 flex row，會把底部 actions 擠到右側。
           cardClass: isZero ? 'danger' : (isLow ? 'warn' : ''),
           moreBtnHTML: isViewer ? '' : '<button class="more-btn" onclick="Inventory.openItemSheet(' + i.id + ')">⋯</button>',
-          checkboxHTML: appState.batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(\'item-' + i.id + '\')">' : '',
+          checkboxHTML: inventoryState.batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(\'item-' + i.id + '\')">' : '',
           thumb: buildThumb(i.id, i.has_photo, i.name, '📦', i.thumbnail_url),
           nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名') + (i.site === 'warehouse' ? ' 🏭' : ''),
           subHTML: (prepared > 0 ? '<span class="m-tag green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
@@ -219,8 +220,8 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         const stocks = i.stocks && i.stocks.length ? i.stocks : [{id: null, location: i.location || '', qty: i.qty, note: i.note || ''}];
         const locHtml = buildLocHTML(stocks);
         const noteHtml = buildNoteHTML(stocks);
-        h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (appState.batchMode ? ' data-batch="1"' : '') + '>';
-        if (appState.batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(\'item-' + i.id + '\')">';
+        h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (inventoryState.batchMode ? ' data-batch="1"' : '') + '>';
+        if (inventoryState.batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(\'item-' + i.id + '\')">';
         if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" onclick="Inventory.openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
         else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
         h += '<div class="item-info"' + (isViewer ? '' : ' onclick="Inventory.openEditModal(' + i.id + ')"') + '>';

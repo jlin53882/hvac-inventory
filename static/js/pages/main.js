@@ -133,6 +133,7 @@ import * as m73 from '../features/work-progress/photo-upload.js';
 import * as m74 from '../features/work-progress/state.js';
 import * as m75 from '../features/work-progress/upload.js';
 import * as m76 from '../core/request-guard.js';
+import * as m77 from '../features/shell/state.js';
 
 window.Account = { ackPasswordExpiry, cpwCheckMatch, cpwCheckStrength, expiryGoChangePw, openChangePwModal, submitChangePw };
 window.App = { clearSearchAutofill, closeSidebar, switchSite, switchTab, toggleAvatarMenu, toggleSidebar };
@@ -231,6 +232,7 @@ window.__hvac = Object.freeze({
   'features/work-progress/state.js': m74,
   'features/work-progress/upload.js': m75,
   'core/request-guard.js': m76,
+  'features/shell/state.js': m77,
 });
 
 // 先組裝 shell 的 port（切頁、資料重新整理後的畫面更新），之後各模組的 init 與使用者操作才可能用到

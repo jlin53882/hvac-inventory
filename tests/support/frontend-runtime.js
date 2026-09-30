@@ -35,7 +35,7 @@ function moduleScript(relative) {
   return leaves.concat(script).join('\n');
 }
 
-const LEAF_MODULES = { createRequestGuard: 'core/request-guard.js' };
+const LEAF_MODULES = { createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js' };
 
 function strip(source) {
   return source

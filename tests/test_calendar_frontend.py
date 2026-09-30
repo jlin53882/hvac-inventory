@@ -269,7 +269,7 @@ def test_calendar_kpi_uses_existing_appointment_data():
     assert "calTodayEvents = todayEv.filter(e => e.date === todayStr)" in js
     assert "cal-kpi-meta" in js
     assert "今日共 ${calendarState.calTodayEvents.length} 筆派工" in js
-    assert "${appState.calMonth.getFullYear()} 年 ${appState.calMonth.getMonth() + 1} 月（共 ${calendarState.calEvents.length} 筆）" in js
+    assert "${calendarState.calMonth.getFullYear()} 年 ${calendarState.calMonth.getMonth() + 1} 月（共 ${calendarState.calEvents.length} 筆）" in js
 
     assert "已完成" not in js
     assert "進行中" not in js

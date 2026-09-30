@@ -97,7 +97,7 @@ def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():
     assert "dataGuard = createRequestGuard()" in api
     assert "signal: controller.signal" in api
     assert "!inventoryGuard.isCurrent(requestId)" in api
-    assert "ALERTS_BY_SITE" in globals_source
+    assert "ALERTS_BY_SITE" in (ROOT / "static/js/features/shell/state.js").read_text(encoding="utf-8")
     notif = (ROOT / "static/js/features/notifications/center.js").read_text(encoding="utf-8")
     assert "zero_items" in notif and "low_items" in notif
     assert "jsStr(loc)" in inventory
@@ -109,7 +109,7 @@ def test_inventory_facets_are_cached_between_page_requests():
     api = read(API_JS)
     globals_source = read(GLOBALS_JS)
     assert "inventoryFacetsLoadedSite" in api
-    assert "inventoryFacetsLoadedSite" in globals_source
+    assert "inventoryFacetsLoadedSite" in (ROOT / "static/js/features/shell/state.js").read_text(encoding="utf-8")
     assert "Promise.resolve(null)" in api
 
 

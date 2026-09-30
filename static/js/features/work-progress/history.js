@@ -1,9 +1,8 @@
 // 庫存管理系統 - 工作進度：KPI、歷史清單與分頁
 
 import { apiFetch } from '../../core/api-client.js';
-import { wprHistoryPageSize } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
-import { wprClearPhotoManageStates, workProgressState } from './state.js';
+import { wprClearPhotoManageStates, wprHistoryPageSize, workProgressState } from './state.js';
 import { wprCreatedByText, wprIsoDate, wprMonth, wprTimeText } from './format.js';
 
 /**

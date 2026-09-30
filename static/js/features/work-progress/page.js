@@ -19,7 +19,7 @@ export async function renderWorkProgress() {
   var el = document.getElementById('content');
   if (!el) return;
   wprClearPendingFiles();
-  workProgressState.wprDayGuard.invalidate(); workProgressState.wprHistoryGuard.invalidate(); workProgressState.wprKpiGuard.invalidate(); workProgressState.wprDetailRequestTokens = {}; workProgressState.wprPhotoManageStates = {}; workProgressState.wprPhotoManageReports = {}; workProgressState.wprSuppressHistoryToggle = {}; workProgressState.wprSelectGuard.invalidate();
+  workProgressState.wprDayGuard.invalidate(); workProgressState.wprHistoryGuard.invalidate(); workProgressState.wprKpiGuard.invalidate(); workProgressState.wprDetailGuard.invalidateAll(); workProgressState.wprPhotoManageStates = {}; workProgressState.wprPhotoManageReports = {}; workProgressState.wprSuppressHistoryToggle = {}; workProgressState.wprSelectGuard.invalidate();
   workProgressState.wprAppointments = [];
   workProgressState.wprReportsByAppointment = {};
   workProgressState.wprCurrentReport = null;

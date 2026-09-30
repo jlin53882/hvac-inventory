@@ -23,3 +23,28 @@ export function createRequestGuard() {
     invalidate() { current += 1; },
   };
 }
+
+/**
+ * 依 key 分開計數的請求守衛：同一頁有多個獨立區塊（例如每份報告的詳情面板）各自「最新請求優先」時使用。
+ * 用法：
+ *   const detailGuard = createKeyedRequestGuard();
+ *   const token = detailGuard.next(key);        // 該 key 開新一輪，只讓同一 key 舊的 token 失效
+ *   if (!detailGuard.isCurrent(key, token)) return;
+ *   detailGuard.invalidateAll();                // 離開頁面：所有 key 進行中的請求全部作廢
+ */
+export function createKeyedRequestGuard() {
+  let epoch = 0;              // invalidateAll 會換世代，之前發出的 token 一律失效（不會和清空後重新計數的 token 撞號）
+  const counters = new Map();
+  return {
+    /** 該 key 開新一輪並回傳 token。 */
+    next(key) {
+      const count = (counters.get(key) || 0) + 1;
+      counters.set(key, count);
+      return epoch + ':' + count;
+    },
+    /** token 是否仍是該 key 最新一輪。 */
+    isCurrent(key, token) { return token === epoch + ':' + (counters.get(key) || 0); },
+    /** 所有 key 進行中的請求全部作廢。 */
+    invalidateAll() { epoch += 1; counters.clear(); },
+  };
+}

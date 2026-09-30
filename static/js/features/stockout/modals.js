@@ -459,7 +459,7 @@ export function openPreparedEditModal(id) {
     : null;
   if (!item) return;
   _preparedEditContext = true;
-  appState.editItemId = id;  // 復用 editItemId 供共用流程
+  stockoutState.editPreparedId = id;
   const canEditMaster = canEditPreparedMaster(item);
   const nameLabel = document.getElementById('pe-name-label');
   if (nameLabel) nameLabel.textContent = canEditMaster ? '品項名稱*' : '品項名稱(唯讀)';
@@ -478,7 +478,7 @@ export function openPreparedEditModal(id) {
 
 export async function submitPreparedEdit() {
   const item = (typeof appState.preparedItems !== 'undefined' && appState.preparedItems)
-    ? appState.preparedItems.find(i => i.id === appState.editItemId)
+    ? appState.preparedItems.find(i => i.id === stockoutState.editPreparedId)
     : null;
   if (!item) { toast('找不到待領出品項', 'error'); return; }
   const canEditMaster = canEditPreparedMaster(item);
@@ -502,7 +502,7 @@ export async function submitPreparedEdit() {
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   try {
-    await apiFetch(`/api/prepared/${appState.editItemId}`, { method: 'PATCH', json: payload, fallback: '待領出修改失敗' });
+    await apiFetch(`/api/prepared/${stockoutState.editPreparedId}`, { method: 'PATCH', json: payload, fallback: '待領出修改失敗' });
     closeModalForce('prepared-edit-modal');
     toast('✅ 已儲存待領出修改', 'success');
     await renderPrepared();

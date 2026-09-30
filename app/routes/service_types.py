@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.database import db_session
 from app.models import ServiceTypeIn
 from app.services.auth import require_perm
-from app.services import gcal_sync
+from app.services import gcal_sync, sync_scheduler
 from app.services.work_progress import sync_work_progress_snapshot_for_appointment
 
 router = APIRouter()
@@ -67,7 +67,6 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
     # Commit DB consistency before touching scheduler/GCal state.
     if old_name != name:
         if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
-            from app.services import sync_scheduler
             sync_scheduler.start_and_wake()
     return result
 

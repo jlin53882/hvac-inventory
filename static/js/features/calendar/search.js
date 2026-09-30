@@ -1,7 +1,7 @@
 // 庫存管理系統 - 行事曆關鍵字搜尋（桌機右側面板 / 手機清單）
 
 import { apiFetch } from '../../core/api-client.js';
-import { CAL_WEEK } from '../../core/state.js';
+import { CAL_WEEK } from './state.js';
 import { esc, toast } from '../../core/utils.js';
 import { _parseLocalDate, calServiceTone } from './format.js';
 import { calendarState } from './state.js';
