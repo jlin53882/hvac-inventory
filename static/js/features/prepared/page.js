@@ -8,6 +8,7 @@ import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
+import { setPreparedItems } from '../../core/shared-read-model.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
 
 // ========== 待領出頁籤 ==========
@@ -130,7 +131,7 @@ export async function renderPrepared() {
   try {
     let items = await apiFetch(`/api/prepared?site=${siteAtRequest}`);
     if (!preparedRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
-    appState.preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
+    setPreparedItems(items);  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
     items = filterBySearch(items, function(i) {
       return [i.name, i.code, i.brand, i.note, i.destination].join(' ');

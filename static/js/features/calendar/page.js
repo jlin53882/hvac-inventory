@@ -30,13 +30,13 @@ export async function renderCalendar() {
           </div>
         </div>
         <div class="cal-header-filters">
-          <label class="cal-field"><span>開始日期</span><input type="date" id="cal-search-from" aria-label="開始日期" onchange="Calendar.calPickDate(this.value)"></label>
+          <label class="cal-field"><span>開始日期</span><input type="date" id="cal-search-from" aria-label="開始日期" data-action="cal-pick-date"></label>
           <label class="cal-field"><span>結束日期</span><input type="date" id="cal-search-to" aria-label="結束日期"></label>
-          <label class="cal-field cal-keyword-field"><span>關鍵字</span><input type="text" id="cal-search-q" placeholder="搜尋客戶、地址或備註..." aria-label="行事曆關鍵字搜尋" onkeydown="if(event.key === 'Enter') Calendar.calSearch()"></label>
+          <label class="cal-field cal-keyword-field"><span>關鍵字</span><input type="text" id="cal-search-q" placeholder="搜尋客戶、地址或備註..." aria-label="行事曆關鍵字搜尋" data-action="cal-search-input"></label>
           <div class="cal-header-actions">
-            <button class="btn btn--secondary btn--md cal-header-btn" onclick="Calendar.calSearch()" aria-label="搜尋">搜尋</button>
-            <button class="btn btn--secondary btn--md cal-header-btn" onclick="Calendar.calClearSearch()" aria-label="清除搜尋">清除</button>
-            ${isViewer ? '' : '<button class="btn btn--primary btn--md cal-header-btn" onclick="Calendar.calOpenAppt()">＋ 新增派工</button>'}
+            <button class="btn btn--secondary btn--md cal-header-btn" data-action="cal-search" aria-label="搜尋">搜尋</button>
+            <button class="btn btn--secondary btn--md cal-header-btn" data-action="cal-clear-search" aria-label="清除搜尋">清除</button>
+            ${isViewer ? '' : '<button class="btn btn--primary btn--md cal-header-btn" data-action="cal-appt-open">＋ 新增派工</button>'}
           </div>
         </div>
       </section>
@@ -49,10 +49,10 @@ export async function renderCalendar() {
         <section class="card cal-card cal-month-card" aria-label="月曆">
           <div class="cal-panel-toolbar">
             <div class="cal-month-header">
-              <button class="btn btn--secondary btn--sm btn-sm" onclick="Calendar.calChangeMonth(-1)">◀ 上月</button>
-              <button class="btn btn--secondary btn--sm btn-sm cal-today-inline" onclick="Calendar.calPickToday()">今天</button>
+              <button class="btn btn--secondary btn--sm btn-sm" data-action="cal-month" data-delta="-1">◀ 上月</button>
+              <button class="btn btn--secondary btn--sm btn-sm cal-today-inline" data-action="cal-today">今天</button>
               <h3 id="cal-month-title"></h3>
-              <button class="btn btn--secondary btn--sm btn-sm" onclick="Calendar.calChangeMonth(1)">下月 ▶</button>
+              <button class="btn btn--secondary btn--sm btn-sm" data-action="cal-month" data-delta="1">下月 ▶</button>
             </div>
           </div>
           <div id="cal-load-state" class="cal-load-state" role="status" aria-live="polite"></div>
@@ -68,11 +68,11 @@ export async function renderCalendar() {
             </div>
             <div class="cal-day-header-actions">
               <div class="cal-day-nav">
-                <button class="btn btn--ghost btn--sm btn--icon cal-icon-btn" onclick="Calendar.calShiftDay(-1)" aria-label="前一天" title="前一天">◀</button>
-                <input type="date" id="cal-picker" onchange="Calendar.calPickDate(this.value)">
-                <button class="btn btn--ghost btn--sm btn--icon cal-icon-btn" onclick="Calendar.calShiftDay(1)" aria-label="後一天" title="後一天">▶</button>
+                <button class="btn btn--ghost btn--sm btn--icon cal-icon-btn" data-action="cal-day" data-delta="-1" aria-label="前一天" title="前一天">◀</button>
+                <input type="date" id="cal-picker" data-action="cal-pick-date">
+                <button class="btn btn--ghost btn--sm btn--icon cal-icon-btn" data-action="cal-day" data-delta="1" aria-label="後一天" title="後一天">▶</button>
               </div>
-              ${isViewer ? '' : '<button class="btn btn--export btn--sm cal-export-btn" onclick="Calendar.calExport()">📤 匯出日報表</button>'}
+              ${isViewer ? '' : '<button class="btn btn--export btn--sm cal-export-btn" data-action="cal-export">📤 匯出日報表</button>'}
             </div>
           </div>
           <div id="cal-search-panel-slot" class="cal-search-panel-slot"></div>

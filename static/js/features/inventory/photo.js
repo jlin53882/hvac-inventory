@@ -25,7 +25,7 @@ export function renderPhotoBox(itemId, hasPhoto) {
   if (hasPhoto) {
     box.innerHTML = `
       <img src="${photoSrc(itemId, 'thumbnail')}" alt="品項照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}"
-           class="photo-box-thumb" title="點擊看大圖" onerror="this.style.display='none'">
+           class="photo-box-thumb" title="點擊看大圖" data-fallback="hide">
       ${canPhoto ? `<div class="photo-actions">
         <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" style="display:none"
@@ -216,7 +216,7 @@ export function renderKitPhotoBox(kitId, itemId, hasPhoto) {
   } else {
     // 編輯模式：顯示既有照片 + 修改選項
     if (hasPhoto) {
-      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}" class="photo-box-thumb" title="點擊看大圖" onerror="this.style.display='none'">
+      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}" class="photo-box-thumb" title="點擊看大圖" data-fallback="hide">
         <div id="k-photo-preview" class="photo-box-preview"></div>
         <div class="photo-actions">
           <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
@@ -324,9 +324,19 @@ function _clearKitPhotoPreview() {
 
 // 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）
 // 照片放大的事件委派：各 feature 的縮圖只輸出 data-action="photo-lightbox" data-id，不必 import 或掛 window.Inventory
-const photoActions = createActionDelegate('photo-', {
-  'photo-lightbox': { click: function(el) { openPhotoLightbox(Number(el.dataset.id)); } },
-});
+const PHOTO_ACTIONS = {
+  // 縮圖載入失敗時的備援（error / load 不冒泡，delegate 以 capture 接）：hide = 隱藏圖片；sibling = 換成同層的替代圖示
+  'photo-lightbox': {
+    click: function(el) { openPhotoLightbox(Number(el.dataset.id)); },
+    error: function(el) {
+      if (el.dataset.fallback === 'sibling') { el.hidden = true; el.nextElementSibling.hidden = false; }
+      else if (el.dataset.fallback === 'hide') el.style.display = 'none';
+    },
+    load: function(el) { if (el.dataset.fallback === 'sibling') el.nextElementSibling.hidden = true; },
+  },
+};
+
+const photoActions = createActionDelegate('photo-', PHOTO_ACTIONS);
 
 export const handlePhotoActionEvent = photoActions.handle;
 

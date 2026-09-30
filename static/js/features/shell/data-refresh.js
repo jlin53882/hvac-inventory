@@ -6,8 +6,8 @@ import { apiFetch } from '../../core/api-client.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, ITEMLESS_TABS, appState } from '../../core/state.js';
-import { getCurrentBrands, getCurrentCategories, setCurrentBrands, setCurrentCategories } from '../../core/shared-read-model.js';
-import { getInventoryMeta } from '../../core/inventory-read-model.js';
+import { getCurrentBrands, getCurrentCategories, setCurrentBrands, setCurrentCategories, setFullItemsLoadedSite, setInventoryLoadedSite } from '../../core/shared-read-model.js';
+import { getInventoryMeta, setAllItems, setInventoryFacets, setInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { shellState } from './state.js';
 
@@ -55,8 +55,8 @@ export async function loadData(options) {
     const skipItems = !full && ITEMLESS_TABS.has(appState.currentTab);
     if (skipItems) {
       if (!dataGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
-      appState.ALL_ITEMS = [];
-      appState.fullItemsLoadedSite = '';
+      setAllItems([]);
+      setFullItemsLoadedSite('');
       view().updateNotifications();
       updateSubInfo();
       if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) view().remountTab(appState.currentTab);
@@ -73,11 +73,11 @@ export async function loadData(options) {
         : Promise.resolve(null),
     ]);
     if (!dataGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
-    appState.ALL_ITEMS = items;
-    appState.fullItemsLoadedSite = siteAtRequest;
-    appState.inventoryLoadedSite = '';
+    setAllItems(items);
+    setFullItemsLoadedSite(siteAtRequest);
+    setInventoryLoadedSite('');
     if (facets) {
-      appState.INVENTORY_FACETS = facets;
+      setInventoryFacets(facets);
       shellState.inventoryFacetsLoadedSite = siteAtRequest;
       reconcileInventoryFilters(facets);
     }
@@ -157,20 +157,20 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
       body = await apiFetch(`/api/items?${params}`, { signal: controller.signal });
       if (!inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     }
-    appState.ALL_ITEMS = body.items || [];
-    appState.INVENTORY_META = {
+    setAllItems(body.items || []);
+    setInventoryMeta({
       page: body.page || pageAtRequest,
       page_size: body.page_size || 50,
       total: body.total || 0,
       stats: body.stats || null,
-    };
+    });
     if (facets) {
-      appState.INVENTORY_FACETS = facets;
+      setInventoryFacets(facets);
       shellState.inventoryFacetsLoadedSite = siteAtRequest;
       reconcileInventoryFilters(facets);
     }
-    appState.inventoryLoadedSite = siteAtRequest;
-    appState.fullItemsLoadedSite = '';
+    setInventoryLoadedSite(siteAtRequest);
+    setFullItemsLoadedSite('');
     if (refreshDestinations) await refreshDestinationsAfterMutation();
     view().buildDatalists(refreshDestinations);
     view().buildFilterPanel();

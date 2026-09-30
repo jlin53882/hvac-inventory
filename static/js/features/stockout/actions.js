@@ -3,10 +3,12 @@
 // 本檔只由 pages/main.js 載入（page.js 不能 import modals.js：modals 會回頭重繪本頁）。
 
 import { createActionDelegate } from '../../core/actions.js';
-import { openStockoutExportDialog } from './export-dialog.js';
+import { closeStockoutExportDialog, openStockoutExportDialog, submitStockoutExport } from './export-dialog.js';
 import {
   deleteStockoutReturn, openEditStockoutModal, openEditStockoutReturnModal, openKitPrepareModal, openNonStockOutModal,
   openNonStockPrepareModal, openOutModal, openPrepareModal, openPreparedEditModal, openPreparedOutModal, returnPrepared, returnStockout,
+  submitEditStockout, submitNonStockOut, submitNonStockPrepare, submitPrepare, submitPreparedEdit, submitPreparedOut,
+  submitReturnStockout, submitStockOut,
 } from './modals.js';
 import { clearStockoutFilters, deleteStockoutRecord, renderStockOuts, setStockoutFilter } from './page.js';
 import { openStockoutSheet } from './sheet.js';
@@ -33,6 +35,18 @@ const STOCKOUT_ACTIONS = {
   'stockout-kit-prepare': { click: function(el) { openKitPrepareModal(stockoutActionId(el), el.dataset.name); } },
   'stockout-out': { click: function(el, event) { openOutModal(stockoutActionId(el), event); } },
   'stockout-prepare': { click: function(el, event) { openPrepareModal(stockoutActionId(el), event); } },
+  // index.html 的靜態 modal 按鈕
+  'stockout-export-backdrop': { click: function(el, event) { if (event.target === el) closeStockoutExportDialog(); } },
+  'stockout-export-close': { click: function() { closeStockoutExportDialog(); } },
+  'stockout-export-submit': { click: function() { submitStockoutExport(); } },
+  'stockout-submit-prepared-edit': { click: function() { submitPreparedEdit(); } },
+  'stockout-submit-out': { click: function() { submitStockOut(); } },
+  'stockout-submit-nonstock-out': { click: function() { submitNonStockOut(); } },
+  'stockout-submit-nonstock-prepare': { click: function() { submitNonStockPrepare(); } },
+  'stockout-submit-prepare': { click: function() { submitPrepare(); } },
+  'stockout-submit-prepared-out': { click: function() { submitPreparedOut(); } },
+  'stockout-submit-edit': { click: function() { submitEditStockout(); } },
+  'stockout-submit-return': { click: function() { submitReturnStockout(); } },
   // 日期變更即重新查詢；關鍵字只記錄，按 Enter 才查詢
   'stockout-filter': {
     change: function(el) { if (el.dataset.filter !== 'search') setStockoutFilter(el.dataset.filter, el.value); },

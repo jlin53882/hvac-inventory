@@ -4,6 +4,7 @@ import { apiFetch } from '../../core/api-client.js';
 import { loadData } from '../shell/data-refresh.js';
 import { qtyInputOrToast } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
+import { setGlobalCabinetList } from '../../core/shared-read-model.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, hasPerm, openModal, toast } from '../../core/utils.js';
 import { _cabinetOptions } from './edit-modal.js';
@@ -38,7 +39,7 @@ export function openAddModal() {
   // 2026-09-27：新增時也載入最新櫃子清單；載入後只更新下拉選項，保留使用者已輸入的值
   (async () => {
     try {
-      appState.globalCabinetList = await apiFetch('/api/cabinets');
+      setGlobalCabinetList(await apiFetch('/api/cabinets'));
       refreshAddStockCabinetOptions();
     } catch (e) {
       console.warn('新增 modal 載入櫃子清單失敗', e);

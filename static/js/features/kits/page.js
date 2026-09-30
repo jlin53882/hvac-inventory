@@ -9,7 +9,7 @@ import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
-import { getCurrentKitItems } from '../../core/shared-read-model.js';
+import { getCurrentKitItems, setCurrentKitItems } from '../../core/shared-read-model.js';
 import { esc, hasPerm, openModal, toast } from '../../core/utils.js';
 import { renderKitPhotoBox } from '../inventory/photo.js';
 import { loadKitCabinetOptions, renderKitLocationRows } from './kit-modal.js';
@@ -30,11 +30,11 @@ export async function renderKits() {
   try {
     const kits = await apiFetch(`/api/kits?site=${siteAtRequest}`);
     if (!kitRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'kit' || siteAtRequest !== appState.currentSite) return;
-    appState.currentKitItems = filterBySearch(kits, function(k) {
+    setCurrentKitItems(filterBySearch(kits, function(k) {
       return [k.name, k.brand, k.code, k.note, (k.components || []).map(function(c) {
         return c.brand + ' ' + c.name + ' ' + (c.code || '');
       }).join(' ')].join(' ');
-    });
+    }));
     const filteredKits = getCurrentKitItems();
     updateNotifications();
     const isM = isMobileView();
@@ -323,7 +323,7 @@ export async function editKit(kitId) {
 
   btn.textContent = '💾 儲存整組';
 
-  btn.setAttribute('onclick', 'Kits.submitKitEdit()');
+  btn.dataset.action = 'kits-submit-edit';
 
   renderKitCompRows();
   renderKitLocationRows();  // 渲染位置清單

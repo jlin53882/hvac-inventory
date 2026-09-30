@@ -5,17 +5,18 @@
 import { createActionDelegate } from '../../core/actions.js';
 import { changeInventoryPage } from '../shell/data-refresh.js';
 import { closeInventoryActionMenus, closeMoreActions, deleteItem, openInventoryActionMenu, openItemSheet, toggleMoreActions } from './actions.js';
-import { openAddModal, removeAddStockRow } from './add-modal.js';
-import { changeQty, quickSet } from './adjust.js';
-import { selectAllStocks, toggleBatchMode, toggleStockSelect } from './batch-location.js';
-import { deleteEditStockRow, goEditSimilar, openEditModal } from './edit-modal.js';
-import { openInventoryExportDialog } from './export-dialog.js';
-import { clearFilterPanel, toggleInventoryBrand, toggleInventoryCategory } from './filters.js';
+import { addAddStockRow, openAddModal, removeAddStockRow, submitAdd } from './add-modal.js';
+import { changeQty, quickSet, saveAll } from './adjust.js';
+import { cancelBatch, closeBatchConfirm, selectAllStocks, showBatchConfirm, submitBatchLocation, toggleBatchMode, toggleStockSelect } from './batch-location.js';
+import { addEditStockRow, deleteEditStockRow, goEditSimilar, openEditModal, submitEdit } from './edit-modal.js';
+import { closeInventoryExportDialog, openInventoryExportDialog, submitInventoryExport, syncInventoryExportAllSites, toggleInventoryExportSites } from './export-dialog.js';
+import { clearFilterPanel, toggleFilterCollapse, toggleInventoryBrand, toggleInventoryCategory } from './filters.js';
 import { setInventoryView, toggleLoc } from './list.js';
-import { queueStockLocationAdjustment } from './location-adjustments.js';
+import { cancelStockLocationPicker, queueStockLocationAdjustment } from './location-adjustments.js';
 import { _previewKitPhoto, deleteItemPhoto, deleteKitPhoto, uploadItemPhoto } from './photo.js';
+import { qtydQuick, setQtyDialogMode, submitQtyDialog } from './qty-dialog.js';
 import { closeInventoryStatusModal, showInventoryStatusList } from './status.js';
-import { openTransferModal } from './transfer-modal.js';
+import { closeTransferModal, openTransferModal, submitTransfer } from './transfer-modal.js';
 
 const itemId = function(el) { return Number(el.dataset.id); };
 
@@ -46,6 +47,30 @@ const INVENTORY_ACTIONS = {
   'inventory-menu-edit': { click: function(el) { openEditModal(itemId(el)); closeInventoryActionMenus(); } },
   'inventory-menu-transfer': { click: function(el) { openTransferModal(itemId(el)); closeInventoryActionMenus(); } },
   'inventory-menu-delete': { click: function(el) { deleteItem(itemId(el)); closeInventoryActionMenus(); } },
+  // index.html 的靜態 modal / 面板
+  'inventory-filter-collapse': { click: function(el) { toggleFilterCollapse(el.dataset.chips, el.dataset.toggle); } },
+  'inventory-status-backdrop': { click: function(el, event) { if (event.target === el) closeInventoryStatusModal(); } },
+  'inventory-save-all': { click: function() { saveAll(); } },
+  'inventory-batch-cancel': { click: function() { cancelBatch(); } },
+  'inventory-batch-confirm-open': { click: function() { showBatchConfirm(); } },
+  'inventory-batch-confirm-close': { click: function() { closeBatchConfirm(); } },
+  'inventory-batch-submit': { click: function() { submitBatchLocation(); } },
+  'inventory-add-stock-row': { click: function() { addAddStockRow(); } },
+  'inventory-add-submit': { click: function() { submitAdd(); } },
+  'inventory-edit-stock-row': { click: function() { addEditStockRow(); } },
+  'inventory-edit-submit': { click: function() { submitEdit(); } },
+  'inventory-location-picker-cancel': { click: function() { cancelStockLocationPicker(); } },
+  'inventory-qty-mode': { click: function(el) { setQtyDialogMode(el.dataset.mode); } },
+  'inventory-qty-quick': { click: function(el) { qtydQuick(el.dataset.value); } },
+  'inventory-qty-submit': { click: function() { submitQtyDialog(); } },
+  'inventory-export-backdrop': { click: function(el, event) { if (event.target === el) closeInventoryExportDialog(); } },
+  'inventory-export-close': { click: function() { closeInventoryExportDialog(); } },
+  'inventory-export-submit': { click: function() { submitInventoryExport(); } },
+  'inventory-export-all-sites': { change: function(el) { toggleInventoryExportSites(el); } },
+  'inventory-export-site': { change: function() { syncInventoryExportAllSites(); } },
+  'inventory-transfer-backdrop': { click: function(el, event) { if (event.target === el) closeTransferModal(); } },
+  'inventory-transfer-close': { click: function() { closeTransferModal(); } },
+  'inventory-transfer-submit': { click: function() { submitTransfer(); } },
   'inventory-status-list': { click: function(el) { showInventoryStatusList(el.dataset.type); } },
   'inventory-status-close': { click: function() { closeInventoryStatusModal(); } },
   'inventory-status-edit': { click: function(el) { closeInventoryStatusModal(); openEditModal(itemId(el)); } },

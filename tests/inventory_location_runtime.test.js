@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { configureShellPorts, installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
+const { configureShellPorts, installApiClient, loadModules, mockResponse, seedReadModels } = require('./support/frontend-runtime');
 
 const inventoryRequests = [];
 const openedModals = [];
@@ -9,7 +9,8 @@ const elements = {
   'stock-location-options': { innerHTML: '' },
 };
 const sandbox = {
-  appState: { currentTab: 'inventory', currentSite: 'office', ALL_ITEMS: [
+  appState: { currentTab: 'inventory', currentSite: 'office' },
+  seedItems: [
     { id: 1, name: '多位置品項', unit: '個', qty: 12, stocks: [
       { id: 101, location: '編號A | 1-1', qty: 10 },
       { id: 102, location: '編號B <img src=x onerror=alert(1)>', qty: 2 },
@@ -25,7 +26,7 @@ const sandbox = {
       { id: 401, location: '罐架A', qty: 0.5 },
       { id: 402, location: '罐架B', qty: 0.5 },
     ] },
-  ] },
+  ],
   pending: {},
   pendingByStock: {},
   INVENTORY_PENDING_ITEMS: {},
@@ -58,6 +59,7 @@ const sandbox = {
 vm.createContext(sandbox);
 installApiClient(sandbox);
 loadModules(sandbox, 'core/qty.js');
+seedReadModels(sandbox, { allItems: sandbox.seedItems });
 sandbox.unitList = [
   { name: '個', qty_type: 'integer' },
   { name: 'kg', qty_type: 'decimal' },
@@ -95,7 +97,7 @@ loadModules(sandbox, 'features/inventory/qty-dialog.js');
   const openModalCount = openedModals.length;
   sandbox.changeQty(3, 1);
   assert.equal(openedModals.length, openModalCount, '儲存中不得打開小數數量輸入對話框');
-  sandbox.queueInventoryAdjustment(sandbox.appState.ALL_ITEMS[1], 1);
+  sandbox.queueInventoryAdjustment(sandbox.getAllItems()[1], 1);
   assert.equal(sandbox.pending['2'], undefined, '共用 queue 必須攔截所有調整入口');
   assert.equal(sandbox.pendingByStock['101'], undefined);
   vm.runInContext('inventoryState.savingAll = false; inventoryState.stockLocationPickerState = null;', sandbox);
@@ -211,11 +213,11 @@ loadModules(sandbox, 'features/inventory/qty-dialog.js');
     document: { getElementById: id => id === 'edit-stock-rows' ? editBox : null },
     esc: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'),
     toast: message => { editContext.lastToast = message; },
-    appState: { globalCabinetList: [] },
     unitList: [],
   };
   vm.createContext(editContext);
   loadModules(editContext, 'core/qty.js', 'features/inventory/edit-modal.js');
+  seedReadModels(editContext, { globalCabinetList: [] });
   editContext.renderEditStockRows([{ id: 101, location: '編號A | 1-1', qty: 0, note: '' }], '個');
   assert.match(editBox.innerHTML, /data-action="inventory-edit-stock-remove"/, '既有位置列需出現移除按鈕');
   assert.match(editBox.innerHTML, /data-stock-qty="0"/, '既有列需保存原始庫存量供安全移除判斷');

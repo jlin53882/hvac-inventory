@@ -1,8 +1,9 @@
 // 庫存管理系統 - 檔案上傳清單頁（每日簽名報表、報價單上傳共用；issue #39 第 2 項合併）
 // 兩頁只差設定（API 路徑、標題文字、上傳權限、是否目前頁面）；上傳、歷史查詢、預覽、編輯、刪除共用同一份實作。
 // 權限：登入可查/預覽/下載；編輯/刪除直接消費 backend final capabilities（r.can_edit / r.can_delete）
-// onclick 以設定的 global 名稱呼叫本頁控制器（由頁面進入點掛到 window）
+// 模板只輸出 data-action / data-ctl（控制器名稱）；本檔的 delegate 依 data-ctl 找到對應控制器
 
+import { createActionDelegate } from '../../core/actions.js';
 import { apiFetch } from '../../core/api-client.js';
 import { isMobileView } from '../../core/bottomsheet.js';
 import { createRequestGuard } from '../../core/request-guard.js';
@@ -32,7 +33,7 @@ function _uplIconFor(mime) {
 /**
  * 建立一個檔案上傳清單頁控制器。
  * @param {object} config 頁面設定。
- * @param {string} config.global 控制器的全域名稱（模板 onclick 使用，例：'SignedReports'）。
+ * @param {string} config.global 控制器名稱（模板 data-ctl 使用，例：'SignedReports'）。
  * @param {string} config.api API 路徑（例：'/api/signed-reports'）。
  * @param {() => boolean} config.isActive 目前是否仍在本頁（切頁 / 重新掛載後舊請求不可再寫畫面）。
  * @param {string} config.title 頁面標題。
@@ -79,8 +80,8 @@ export function createUploadListPage(config) {
           <p>${esc(config.intro)}</p>
         </div>
         <div class="dsr-page-actions">
-          <button class="btn btn--secondary btn--md" onclick="document.getElementById('upl-history').scrollIntoView({behavior:'smooth'})">↓ 查看歷史查詢</button>
-          <button ${esc(gate)}data-role="upl-upload-surface" class="btn btn--primary btn--md" onclick="document.getElementById('upl-file-input').click()">＋ 上傳${esc(config.uploadLabel)}</button>
+          <button class="btn btn--secondary btn--md" data-action="upl-scroll-history">↓ 查看歷史查詢</button>
+          <button ${esc(gate)}data-role="upl-upload-surface" class="btn btn--primary btn--md" data-action="upl-pick-file">＋ 上傳${esc(config.uploadLabel)}</button>
         </div>
       </div>
 
@@ -107,13 +108,13 @@ export function createUploadListPage(config) {
               <textarea id="upl-note" rows="2" placeholder="例：今日有現場工安檢查，客戶臨時增加 2 台保養"></textarea>
             </div>
             <!-- 拖曳上傳 -->
-            <div id="upl-drop" class="u-mt-12 upl-drop" onclick="document.getElementById('upl-file-input').click()">
+            <div id="upl-drop" class="u-mt-12 upl-drop" data-action="upl-pick-file">
               <div class="upl-drop__icon">📎</div>
               <div class="upl-drop__title">拖曳檔案到此，或點擊選擇</div>
               <div class="upl-drop__sub">支援 PDF / PNG / JPG / GIF / WebP 格式</div>
               <div class="upl-drop__actions">
-                <span onclick="event.stopPropagation();document.getElementById('upl-file-input').click()">選擇檔案</span>
-                <span onclick="event.stopPropagation();document.getElementById('upl-camera-input').click()">📷 相機拍攝</span>
+                <span data-action="upl-pick-file">選擇檔案</span>
+                <span data-action="upl-pick-camera">📷 相機拍攝</span>
               </div>
               <input id="upl-file-input" type="file" style="display:none" accept="image/*,.pdf">
               <input id="upl-camera-input" type="file" style="display:none" accept="image/*" capture="environment">
@@ -127,11 +128,11 @@ export function createUploadListPage(config) {
                   <div id="upl-fp-sub" class="upl-file-preview__sub"></div>
                   <div class="upl-progress"><div id="upl-progress-bar" class="upl-progress__bar"></div></div>
                 </div>
-                <button class="btn btn--secondary btn--sm" onclick="${esc(ctl)}.clearFile()">移除</button>
+                <button class="btn btn--secondary btn--sm" data-action="upl-clear-file" data-ctl="${esc(ctl)}">移除</button>
               </div>
               <div class="upl-upload-actions">
-                <button class="btn btn--primary btn--md upl-btn--primary" onclick="${esc(ctl)}.submitUpload()">⬆️ 確認上傳</button>
-                <button class="btn btn--secondary btn--md" onclick="${esc(ctl)}.openPreviewFile()">👁 預覽</button>
+                <button class="btn btn--primary btn--md upl-btn--primary" data-action="upl-submit" data-ctl="${esc(ctl)}">⬆️ 確認上傳</button>
+                <button class="btn btn--secondary btn--md" data-action="upl-preview-file" data-ctl="${esc(ctl)}">👁 預覽</button>
               </div>
             </div>
             <div class="upl-tags">
@@ -180,15 +181,15 @@ export function createUploadListPage(config) {
               <div class="dsr-field"><label>迄止日</label><input id="upl-f-to" type="date"></div>
               <div class="dsr-field upl-field--search"><label>關鍵字（上傳人 / 備註 / 檔名）</label><input id="upl-f-q" type="text" placeholder="例：昱豪、工安"></div>
               <div class="upl-filter-actions">
-                <button class="btn btn--primary btn--md" onclick="${esc(ctl)}.loadHistory(true)">搜尋</button>
-                <button class="btn btn--secondary btn--md" onclick="${esc(ctl)}.resetFilter()">清除</button>
+                <button class="btn btn--primary btn--md" data-action="upl-search" data-ctl="${esc(ctl)}">搜尋</button>
+                <button class="btn btn--secondary btn--md" data-action="upl-reset-filter" data-ctl="${esc(ctl)}">清除</button>
               </div>
             </div>
             <div class="upl-chips">
-              <button class="chip" data-role="upl-range" data-range="today" onclick="${esc(ctl)}.quickRange('today',this)">今天</button>
-              <button class="chip" data-role="upl-range" data-range="week" onclick="${esc(ctl)}.quickRange('week',this)">本週</button>
-              <button class="chip is-active" data-role="upl-range" data-range="month" onclick="${esc(ctl)}.quickRange('month',this)">本月</button>
-              <button class="chip" data-role="upl-range" data-range="all" onclick="${esc(ctl)}.quickRange('all',this)">全部</button>
+              <button class="chip" data-role="upl-range" data-range="today" data-action="upl-range" data-ctl="${esc(ctl)}">今天</button>
+              <button class="chip" data-role="upl-range" data-range="week" data-action="upl-range" data-ctl="${esc(ctl)}">本週</button>
+              <button class="chip is-active" data-role="upl-range" data-range="month" data-action="upl-range" data-ctl="${esc(ctl)}">本月</button>
+              <button class="chip" data-role="upl-range" data-range="all" data-action="upl-range" data-ctl="${esc(ctl)}">全部</button>
               <span class="upl-result-count"><span id="upl-result-count">0 筆</span></span>
             </div>
           </div>
@@ -203,8 +204,8 @@ export function createUploadListPage(config) {
             <div class="upl-pagination">
               <span id="upl-page-info"></span>
               <span class="u-d-flex u-gap-6">
-                <button class="btn btn--secondary btn--sm" onclick="${esc(ctl)}.changePage(-1)">‹ 上一頁</button>
-                <button class="btn btn--secondary btn--sm" onclick="${esc(ctl)}.changePage(1)">下一頁 ›</button>
+                <button class="btn btn--secondary btn--sm" data-action="upl-page" data-delta="-1" data-ctl="${esc(ctl)}">‹ 上一頁</button>
+                <button class="btn btn--secondary btn--sm" data-action="upl-page" data-delta="1" data-ctl="${esc(ctl)}">下一頁 ›</button>
               </span>
             </div>
           </div>
@@ -213,14 +214,14 @@ export function createUploadListPage(config) {
     </div>
 
     <!-- 預覽 Modal -->
-    <div id="upl-overlay" class="upl-overlay" onclick="if(event.target===this)${esc(ctl)}.closePreview()">
+    <div id="upl-overlay" class="upl-overlay" data-action="upl-close-preview-backdrop" data-ctl="${esc(ctl)}">
       <div class="dsr-modal">
-        <div class="dsr-modal__hd"><h3 id="upl-preview-title">👁 預覽</h3><button class="btn btn--secondary btn--sm" onclick="${esc(ctl)}.closePreview()">✕ 關閉</button></div>
+        <div class="dsr-modal__hd"><h3 id="upl-preview-title">👁 預覽</h3><button class="btn btn--secondary btn--sm" data-action="upl-close-preview" data-ctl="${esc(ctl)}">✕ 關閉</button></div>
         <div class="dsr-modal__bd" id="upl-preview-body"></div>
         <div class="dsr-modal__ft">
           <span class="dsr-modal__note">若預覽失敗，請直接下載原檔</span>
           <span class="dsr-modal__actions">
-            <button class="btn btn--secondary btn--md" onclick="${esc(ctl)}.closePreview()">關閉</button>
+            <button class="btn btn--secondary btn--md" data-action="upl-close-preview" data-ctl="${esc(ctl)}">關閉</button>
             <button class="btn btn--primary btn--md" id="upl-dl-btn">⬇️ 下載原檔</button>
           </span>
         </div>
@@ -362,7 +363,7 @@ export function createUploadListPage(config) {
         const note = r.note ? esc(r.note) : '<span class="upl-note-empty">—</span>';
         const isImage = UPLOAD_LIST_IMAGE_EXTS.includes(ext);
         const fileVisual = isImage
-          ? `<img class="upl-report-thumb" src="${esc(api)}/${r.id}/preview" alt="${esc(r.file_name)}" loading="lazy" onclick="${esc(ctl)}.preview(${r.id})" title="點擊圖片預覽">`
+          ? `<img class="upl-report-thumb" src="${esc(api)}/${r.id}/preview" alt="${esc(r.file_name)}" loading="lazy" data-action="upl-preview" data-id="${r.id}" data-ctl="${esc(ctl)}" title="點擊圖片預覽">`
           : `<div class="upl-file-icon upl-file-tone--${esc(ic.tone)}">${ic.icon}</div>`;
         return `<details class="upl-report-card">
           <summary class="upl-report-summary">
@@ -379,10 +380,10 @@ export function createUploadListPage(config) {
               <div class="upl-report-detail__note"><span class="upl-report-detail__label">備註</span><div class="upl-note-cell">${note}</div></div>
             </div>
             <div class="upl-actions-cell">
-              ${!isImage ? `<button class="btn btn--secondary btn--sm" onclick="${esc(ctl)}.preview(${r.id})">👁 預覽</button>` : ''}
-              ${r.can_edit ? `<button class="btn btn--secondary btn--sm" onclick="${esc(ctl)}.edit(${r.id})">✏️ 編輯</button>` : ''}
-              <button class="btn btn--secondary btn--sm" onclick="${esc(ctl)}.download(${r.id})">⬇️ 下載</button>
-              ${r.can_delete ? `<button class="btn btn--danger btn--sm" onclick="${esc(ctl)}.remove(${r.id})">🗑 刪除</button>` : ''}
+              ${!isImage ? `<button class="btn btn--secondary btn--sm" data-action="upl-preview" data-id="${r.id}" data-ctl="${esc(ctl)}">👁 預覽</button>` : ''}
+              ${r.can_edit ? `<button class="btn btn--secondary btn--sm" data-action="upl-edit" data-id="${r.id}" data-ctl="${esc(ctl)}">✏️ 編輯</button>` : ''}
+              <button class="btn btn--secondary btn--sm" data-action="upl-download" data-id="${r.id}" data-ctl="${esc(ctl)}">⬇️ 下載</button>
+              ${r.can_delete ? `<button class="btn btn--danger btn--sm" data-action="upl-remove" data-id="${r.id}" data-ctl="${esc(ctl)}">🗑 刪除</button>` : ''}
             </div>
           </div>
         </details>`;
@@ -533,8 +534,43 @@ export function createUploadListPage(config) {
     } catch(e) { toast('⚠️ ' + e.message); }
   }
 
-  return {
+  const controller = {
     state, render, renderTable, showPreview, loadHistory, resetFilter, quickRange, changePage,
     clearFile, submitUpload, openPreviewFile, preview, closePreview, download, edit, remove,
   };
+  uploadListControllers[ctl] = controller;
+  return controller;
 }
+
+// ========== 事件委派（data-action="upl-*"；兩個上傳清單頁共用，依 data-ctl 找控制器） ==========
+const uploadListControllers = {};
+const controllerOf = function(el) { return uploadListControllers[el.dataset.ctl]; };
+const isFileInput = function(event) { return !!(event.target && event.target.tagName === 'INPUT'); };
+const clickInput = function(id) { const input = document.getElementById(id); if (input) input.click(); };
+
+const UPLOAD_LIST_ACTIONS = {
+  'upl-scroll-history': { click: function() { document.getElementById('upl-history').scrollIntoView({ behavior: 'smooth' }); } },
+  // 選檔輸入框放在拖曳區裡，它自己的 click 會冒泡回拖曳區，所以目標是 input 時不再重複觸發
+  'upl-pick-file': { click: function(el, event) { if (!isFileInput(event)) clickInput('upl-file-input'); } },
+  'upl-pick-camera': { click: function() { clickInput('upl-camera-input'); } },
+  'upl-clear-file': { click: function(el) { controllerOf(el).clearFile(); } },
+  'upl-submit': { click: function(el) { controllerOf(el).submitUpload(); } },
+  'upl-preview-file': { click: function(el) { controllerOf(el).openPreviewFile(); } },
+  'upl-search': { click: function(el) { controllerOf(el).loadHistory(true); } },
+  'upl-reset-filter': { click: function(el) { controllerOf(el).resetFilter(); } },
+  'upl-range': { click: function(el) { controllerOf(el).quickRange(el.dataset.range, el); } },
+  'upl-page': { click: function(el) { controllerOf(el).changePage(Number(el.dataset.delta)); } },
+  'upl-close-preview': { click: function(el) { controllerOf(el).closePreview(); } },
+  'upl-close-preview-backdrop': { click: function(el, event) { if (event.target === el) controllerOf(el).closePreview(); } },
+  'upl-preview': { click: function(el) { controllerOf(el).preview(Number(el.dataset.id)); } },
+  'upl-edit': { click: function(el) { controllerOf(el).edit(Number(el.dataset.id)); } },
+  'upl-download': { click: function(el) { controllerOf(el).download(Number(el.dataset.id)); } },
+  'upl-remove': { click: function(el) { controllerOf(el).remove(Number(el.dataset.id)); } },
+};
+
+const uploadListDelegate = createActionDelegate('upl-', UPLOAD_LIST_ACTIONS);
+
+/** 測試入口：直接分派一個（模擬的）事件。 */
+export const handleUploadListEvent = uploadListDelegate.handle;
+
+export const initUploadListActions = uploadListDelegate.init;

@@ -1,6 +1,6 @@
 const assert = require('assert');
 const vm = require('vm');
-const { moduleScript } = require('./support/frontend-runtime');
+const { moduleScript, seedReadModels } = require('./support/frontend-runtime');
 
 // 原 api.js：去向清單 primitive 在 core/data.js，loadData 流程在 features/shell/data-refresh.js（issue #39）
 const apiSource = moduleScript('core/data.js') + '\n' + moduleScript('features/shell/data-refresh.js');
@@ -78,11 +78,6 @@ function createContext(tab) {
     appState: {
       currentTab: 'inventory',
       currentSite: 'office',
-      ALL_ITEMS: ['stale-item'],
-      fullItemsLoadedSite: 'office',
-      inventoryLoadedSite: '',
-      INVENTORY_META: { page: 1, stats: null },
-      INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
     },
     // features/shell/state.js：shell 內部的重新載入 controller / 警示快取
     shellState: { inventoryAbortController: null, dataAbortController: null, statsAbortController: null, ALERTS_BY_SITE: {}, inventoryFacetsLoadedSite: '' },
@@ -139,6 +134,10 @@ function createContext(tab) {
   };
   vm.createContext(context);
   vm.runInContext(apiSource, context);
+  seedReadModels(context, {
+    allItems: ['stale-item'], fullItemsLoadedSite: 'office', inventoryLoadedSite: '',
+    inventoryMeta: { page: 1, stats: null }, inventoryFacets: { brands: {}, categories: {}, locations: [] },
+  });
   return { context, calls };
 }
 

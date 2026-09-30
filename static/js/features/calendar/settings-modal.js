@@ -12,8 +12,8 @@ export function calSettingsHtml(isAdmin) {
     <div class="modal">
       <h3>⚙️ 行事曆設定</h3>
       <div class="cal-set-tabs">
-        <button class="chip chip--seg is-active" id="cal-tab-svc" onclick="Calendar.calSetTab('svc')">服務項目</button>
-        <button class="chip chip--seg" id="cal-tab-ppl" onclick="Calendar.calSetTab('ppl')">人員與顏色</button>
+        <button class="chip chip--seg is-active" id="cal-tab-svc" data-action="cal-settings-tab" data-tab="svc">服務項目</button>
+        <button class="chip chip--seg" id="cal-tab-ppl" data-action="cal-settings-tab" data-tab="ppl">人員與顏色</button>
       </div>
       <div id="cal-tab-svc-panel">
         <table class="cal-set-table">
@@ -22,7 +22,7 @@ export function calSettingsHtml(isAdmin) {
         </table>
         <div class="cal-add-row">
           <input type="text" id="cal-svc-new" placeholder="新服務項目名稱（例：報價勘查）">
-          <button class="btn btn--primary btn--sm btn-sm btn-primary" onclick="Calendar.calAddSvc()">＋ 加入</button>
+          <button class="btn btn--primary btn--sm btn-sm btn-primary" data-action="cal-svc-add">＋ 加入</button>
         </div>
         <div class="cal-hint">日報表勾選欄位固定：保養 / 維修 / 施工 / 場勘（其他服務匯出時附註於地點欄）</div>
       </div>
@@ -34,7 +34,7 @@ export function calSettingsHtml(isAdmin) {
         <div class="cal-hint">顏色只影響行事曆與日報表顯示；人員啟用/停用請到 👥 使用者管理</div>
       </div>
       <div class="modal-actions">
-        <button class="btn btn--primary btn--md btn-confirm" onclick="Calendar.closeCalModal()">完成</button>
+        <button class="btn btn--primary btn--md btn-confirm" data-action="cal-modal-close">完成</button>
       </div>
     </div>
   </div>`;
@@ -63,9 +63,9 @@ function calRenderSvcRows() {
   [...calendarState.calSvc].sort((a, b) => a.sort_order - b.sort_order).forEach(s => {
     tb.innerHTML += `<tr>
       <td>${esc(s.name)}</td>
-      <td><input type="number" value="${s.sort_order}" class="cal-set-sort-input" onchange="Calendar.calUpdSvc(${s.id},this.value)"></td>
-      <td><button class="switch ${s.is_active ? 'is-active' : ''}" onclick="Calendar.calUpdSvcActive(${s.id})"></button></td>
-      <td>${s.is_active ? `<button class="btn btn--danger btn--sm btn-delete" onclick="Calendar.calDelSvc(${s.id})">停用</button>` : '<span class="cal-off">已停用</span>'}</td>
+      <td><input type="number" value="${s.sort_order}" class="cal-set-sort-input" data-action="cal-svc-update" data-id="${s.id}"></td>
+      <td><button class="switch ${s.is_active ? 'is-active' : ''}" data-action="cal-svc-active" data-id="${s.id}"></button></td>
+      <td>${s.is_active ? `<button class="btn btn--danger btn--sm btn-delete" data-action="cal-svc-delete" data-id="${s.id}">停用</button>` : '<span class="cal-off">已停用</span>'}</td>
     </tr>`;
   });
 }
@@ -125,7 +125,7 @@ function calRenderPplRows() {
       <td>${esc(p.display_name || p.username)}</td>
       <td>${esc(roleName[p.role] || p.role || '')}</td>
       <td><div class="cal-color-dots">${CAL_PALETTE.map(c =>
-        `<span style="background:${c}" class="${(p.color || CAL_PALETTE[0]) === c ? 'sel' : ''}" onclick="Calendar.calSetColor(${p.id},'${c}')"></span>`).join('')}</div></td>
+        `<span style="background:${c}" class="${(p.color || CAL_PALETTE[0]) === c ? 'sel' : ''}" data-action="cal-person-color" data-id="${p.id}" data-color="${c}"></span>`).join('')}</div></td>
     </tr>`;
   });
 }

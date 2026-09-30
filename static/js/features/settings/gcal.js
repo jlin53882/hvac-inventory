@@ -61,7 +61,7 @@ function renderGcalHealth(canForce) {
   const lastSuccess = h.last_success_at || '尚未成功執行';
   const error = h.last_error ? '<div class="gcal-health-error">' + esc(String(h.last_error)) + '</div>' : '';
   const action = canForce
-    ? '<button type="button" class="btn btn--primary btn--md btn-primary gcal-health-force" onclick="Settings.forceSyncNow()">立即同步全部 Key</button>'
+    ? '<button type="button" class="btn btn--primary btn--md btn-primary gcal-health-force" data-action="settings-gcal-force-sync">立即同步全部 Key</button>'
     : '';
   return '<section class="gcal-sync-health" aria-label="Google 行事曆同步健康狀態">' +
     '<div class="gcal-health-head"><div><strong>Google 行事曆同步</strong><span class="gcal-health-running ' + runningClass + '">' + running + '</span></div>' + action + '</div>' +
@@ -113,18 +113,18 @@ export function renderGcalPanel() {
   html += '<div class="gcal-key-list">';
   gcalKeys.forEach(k => {
     const isActive = k.id === selectedKeyId;
-    html += '<div class="gcal-key-item' + (isActive ? ' is-active' : '') + '" onclick="Settings.selectGcalKey(' + k.id + ')">' +
+    html += '<div class="gcal-key-item' + (isActive ? ' is-active' : '') + '" data-action="settings-gcal-key-select" data-id="' + k.id + '">' +
       '<div class="gcal-key-avatar' + (k.is_active ? '' : ' is-off') + '">📅</div>' +
       '<div class="gcal-key-body">' +
         '<div class="gcal-key-name">' + esc(k.name) + '</div>' +
         '<div class="gcal-key-status' + (k.is_active ? '' : ' is-off') + '">' + (k.is_active ? '帳號啟用' : '帳號停用') + '</div>' +
         '<div class="gcal-key-email" title="' + esc(k.client_email || '') + '">' + esc(k.client_email || '—') + '</div>' +
       '</div>' +
-      '<button class="btn btn--sm ' + (k.is_active ? 'btn--danger' : 'btn--secondary') + ' u-shrink-0" onclick="event.stopPropagation();Settings.toggleGcalKey(' + k.id + ',' + (!k.is_active) + ')">' + (k.is_active ? '停用' : '啟用') + '</button>' +
+      '<button class="btn btn--sm ' + (k.is_active ? 'btn--danger' : 'btn--secondary') + ' u-shrink-0" data-action="settings-gcal-key-toggle-button" data-id="' + k.id + '" data-on="' + (!k.is_active) + '">' + (k.is_active ? '停用' : '啟用') + '</button>' +
       '</div>';
   });
   if (canManage) {
-    html += '<div class="gcal-key-add" onclick="Settings.openGcalKeyModal()">＋ 新增 Key</div>';
+    html += '<div class="gcal-key-add" data-action="settings-gcal-key-open">＋ 新增 Key</div>';
   }
   html += '</div>';
 
@@ -143,17 +143,17 @@ export function renderGcalPanel() {
       // 操作按鈕
       if (canManage) {
         html += '<div class="gcal-detail-actions">' +
-          '<label class="settings-switch" title="' + (key.is_active ? '點擊停用' : '點擊啟用') + '"><input type="checkbox" ' + (key.is_active ? 'checked' : '') + ' onchange="Settings.toggleGcalKey(' + key.id + ', this.checked)"><span class="slider"></span></label>' +
-          '<button class="btn btn--secondary btn--sm" onclick="Settings.openGcalKeyModal(' + key.id + ')">✏️ 編輯</button>' +
-          '<button type="button" class="btn btn--danger btn--sm" onclick="Settings.deleteGcalKey(' + key.id + ')">🗑️ 刪除</button>' +
+          '<label class="settings-switch" title="' + (key.is_active ? '點擊停用' : '點擊啟用') + '"><input type="checkbox" ' + (key.is_active ? 'checked' : '') + ' data-action="settings-gcal-key-toggle" data-id="' + key.id + '"><span class="slider"></span></label>' +
+          '<button class="btn btn--secondary btn--sm" data-action="settings-gcal-key-open" data-id="' + key.id + '">✏️ 編輯</button>' +
+          '<button type="button" class="btn btn--danger btn--sm" data-action="settings-gcal-key-delete" data-id="' + key.id + '">🗑️ 刪除</button>' +
           '</div>';
       }
       html += '</div>';
 
       // Tabs
       html += '<div class="gcal-tabs">' +
-        '<button class="chip chip--seg gcal-tab is-active" data-role="gcal-tab" onclick="Settings.switchGcalTab(\'sync\')" data-tab="sync">⚙️ 同步設定</button>' +
-        '<button class="chip chip--seg gcal-tab" data-role="gcal-tab" onclick="Settings.switchGcalTab(\'users\')" data-tab="users">👤 使用者綁定</button>' +
+        '<button class="chip chip--seg gcal-tab is-active" data-role="gcal-tab" data-action="settings-gcal-tab" data-tab="sync">⚙️ 同步設定</button>' +
+        '<button class="chip chip--seg gcal-tab" data-role="gcal-tab" data-action="settings-gcal-tab" data-tab="users">👤 使用者綁定</button>' +
         '</div>';
 
       // Tab 1: 同步設定
@@ -195,13 +195,13 @@ function renderGcalSyncSettings(key) {
   // 地址→地點欄位
   html += '<div class="gcal-settings-row">' +
     '<label class="gcal-settings-label">地址同步到地點欄位</label>' +
-    '<label class="settings-switch"><input type="checkbox" ' + (gcalSettings.gcal_use_location === '1' ? 'checked' : '') + ' onchange="Settings.saveGcalSetting(\'gcal_use_location\', this.checked ? \'1\' : \'0\')"><span class="slider"></span></label>' +
+    '<label class="settings-switch"><input type="checkbox" ' + (gcalSettings.gcal_use_location === '1' ? 'checked' : '') + ' data-action="settings-gcal-setting-checkbox" data-key="gcal_use_location"><span class="slider"></span></label>' +
     '<span class="gcal-settings-hint">客戶地址顯示在 Google Calendar 的「地點」欄位</span></div>';
 
   // 顯示為
   html += '<div class="gcal-settings-row">' +
     '<label class="gcal-settings-label">顯示為</label>' +
-    '<select onchange="Settings.saveGcalSetting(\'gcal_transparency\', this.value)" class="gcal-settings-control">' +
+    '<select data-action="settings-gcal-setting" data-key="gcal_transparency" class="gcal-settings-control">' +
     '<option value="transparent"' + (gcalSettings.gcal_transparency === 'transparent' ? ' selected' : '') + '>🟢 空閒（不阻塞時段）</option>' +
     '<option value="opaque"' + (gcalSettings.gcal_transparency === 'opaque' ? ' selected' : '') + '>🔴 忙碌（阻塞時段）</option></select>' +
     '<span class="gcal-settings-hint">空閒 = 不會阻塞行事曆上的其他邀請</span></div>';
@@ -213,7 +213,7 @@ function renderGcalSyncSettings(key) {
   // 預設截止時間
   html += '<div class="gcal-settings-row">' +
     '<label class="gcal-settings-label">預設截止時間</label>' +
-    '<select onchange="Settings.saveGcalSetting(\'gcal_default_duration_min\', this.value)" class="gcal-settings-control">' +
+    '<select data-action="settings-gcal-setting" data-key="gcal_default_duration_min" class="gcal-settings-control">' +
     ['15', '30', '45', '60', '90', '120'].map(v => {
       var label = v === '60' ? '60 分鐘（1 小時）' : v === '120' ? '120 分鐘（2 小時）' : v + ' 分鐘';
       return '<option value="' + v + '"' + (gcalSettings.gcal_default_duration_min === v ? ' selected' : '') + '>' + label + '</option>';
@@ -224,7 +224,7 @@ function renderGcalSyncSettings(key) {
   html += '<div class="gcal-settings-row gcal-sync-interval-hint">' +
     '<label class="gcal-settings-label gcal-settings-label--wide">全部 Key 同步掃描間隔</label>' +
     '<input type="number" value="' + (gcalSettings.gcal_sync_interval_min || '5') + '" min="1" max="30" ' +
-    'onchange="Settings.saveGcalSetting(\'gcal_sync_interval_min\', this.value)" class="gcal-settings-control gcal-settings-control--num"> 分鐘' +
+    'data-action="settings-gcal-setting" data-key="gcal_sync_interval_min" class="gcal-settings-control gcal-settings-control--num"> 分鐘' +
     '<span class="gcal-settings-hint">所有啟用中的 Google Calendar Key 共用此掃描間隔，背景排程器會掃描待同步隊列；行程修改後另有 5 分鐘編輯防抖等待，立即同步會略過防抖（立即同步全部 Key）</span></div>';
   html += '</div>';
 
@@ -251,16 +251,16 @@ function renderGcalSyncSettings(key) {
       '<input type="number" id="gcal-reminder-val-' + key.id + '-' + index + '" value="' + display.value + '" min="0" max="40320">' +
       '<select id="gcal-reminder-unit-' + key.id + '-' + index + '">' +
       '<option value="minutes"' + (display.unit === 'minutes' ? ' selected' : '') + '>分鐘</option><option value="hours"' + (display.unit === 'hours' ? ' selected' : '') + '>小時</option><option value="days"' + (display.unit === 'days' ? ' selected' : '') + '>天</option><option value="weeks"' + (display.unit === 'weeks' ? ' selected' : '') + '>週</option></select></div>' +
-      '<button type="button" class="btn btn--secondary btn--sm" onclick="Settings.removeGcalReminderRow(' + key.id + ',' + index + ')"' + (reminders.length <= 1 ? ' disabled' : '') + '>移除</button>' +
+      '<button type="button" class="btn btn--secondary btn--sm" data-action="settings-gcal-reminder-remove" data-key-id="' + key.id + '" data-index="' + index + '"' + (reminders.length <= 1 ? ' disabled' : '') + '>移除</button>' +
       '<span class="gcal-reminder-hint">Google Calendar Popup 提醒</span></div>';
   };
   html += '<div class="gcal-reminders-list" id="gcal-reminders-' + key.id + '">' + reminders.map(reminderRow).join('') + '</div>';
-  html += '<button type="button" class="btn btn--ghost btn--sm gcal-add-reminder" id="gcal-add-reminder-' + key.id + '" onclick="Settings.addGcalReminderRow(' + key.id + ')"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
+  html += '<button type="button" class="btn btn--ghost btn--sm gcal-add-reminder" id="gcal-add-reminder-' + key.id + '" data-action="settings-gcal-reminder-add" data-key-id="' + key.id + '"' + (reminders.length >= 5 ? ' disabled' : '') + '>＋ 新增通知（最多 5 個）</button>';
   html += '<div class="gcal-api-note">' +
     '💡 Google Calendar API 上限：最長 4 週（40320 分鐘）= 672 小時 = 28 天 = 4 週</div>';
 
   // 儲存提醒按鈕
-  html += '<button class="btn btn--primary btn--md btn-primary u-mt-12" onclick="Settings.saveKeyReminders(' + key.id + ')">💾 儲存提醒設定</button>';
+  html += '<button class="btn btn--primary btn--md btn-primary u-mt-12" data-action="settings-gcal-reminders-save" data-key-id="' + key.id + '">💾 儲存提醒設定</button>';
   html += '</div>';
 
   return html;
@@ -273,7 +273,7 @@ function renderGcalUserBind(key) {
     '<th>綁定 Key</th></tr></thead><tbody>';
   gcalUsers.forEach(u => {
     html += '<tr><td>👤 ' + esc(u.display_name || u.username) + '</td><td>' +
-      '<select onchange="Settings.bindGcalUser(' + u.id + ', this.value)" class="gcal-bind-select">' +
+      '<select data-action="settings-gcal-user-bind" data-id="' + u.id + '" class="gcal-bind-select">' +
       '<option value=""' + (!u.gcal_key ? ' selected' : '') + '>— 未綁定 —</option>';
     gcalKeys.filter(k => k.is_active).forEach(k => {
       html += '<option value="' + esc(k.name) + '"' + (u.gcal_key === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>';
@@ -341,7 +341,7 @@ export function addGcalReminderRow(keyId) {
   const row = document.createElement('div');
   row.className = 'gcal-reminder-row';
   row.dataset.reminderIndex = index;
-  row.innerHTML = '<div class="gcal-reminder-label" data-role="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div><div class="gcal-reminder-control"><input type="number" id="gcal-reminder-val-' + keyId + '-' + index + '" value="30" min="0" max="40320"><select id="gcal-reminder-unit-' + keyId + '-' + index + '"><option value="minutes" selected>分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div><button type="button" class="btn btn--secondary btn--sm" onclick="Settings.removeGcalReminderRow(' + keyId + ',' + index + ')">移除</button><span class="gcal-reminder-hint">Google Calendar Popup 提醒</span>';
+  row.innerHTML = '<div class="gcal-reminder-label" data-role="gcal-reminder-label">🔔 提前通知 ' + (index + 1) + '</div><div class="gcal-reminder-control"><input type="number" id="gcal-reminder-val-' + keyId + '-' + index + '" value="30" min="0" max="40320"><select id="gcal-reminder-unit-' + keyId + '-' + index + '"><option value="minutes" selected>分鐘</option><option value="hours">小時</option><option value="days">天</option><option value="weeks">週</option></select></div><button type="button" class="btn btn--secondary btn--sm" data-action="settings-gcal-reminder-remove" data-key-id="' + keyId + '" data-index="' + index + '">移除</button><span class="gcal-reminder-hint">Google Calendar Popup 提醒</span>';
   container.appendChild(row);
   const add = document.getElementById('gcal-add-reminder-' + keyId);
   if (add && container.children.length >= 5) add.disabled = true;

@@ -191,3 +191,19 @@ def test_debug_registry_lists_every_module_of_the_page_import_closure():
             f"{entry} 的 window.__hvac 與 import closure 不一致："
             f"缺少 {sorted(closure - registry - {entry})}，多出 {sorted(registry - closure)}"
         )
+
+
+def test_window_namespaces_are_gone():
+    """window.* export ratchet（基準 0）：page entry 只准掛除錯用的 window.__hvac；不得再把 feature 函式掛成 window.Xxx 命名空間。
+
+    事件全部走 data-action 委派（core/actions.js），不需要 window 命名空間；測試 / 除錯用 window.__hvac['模組路徑']。
+    """
+    offenders = {}
+    for module in _modules():
+        with open(os.path.join(JS_ROOT, module), encoding="utf-8") as fh:
+            source = fh.read()
+        hits = re.findall(r"^\s*window\.(?!__hvac\b)([A-Za-z_]\w*)\s*=(?!=)", source, re.M)
+        hits += re.findall(r"\bwindow\[\s*['\"]([A-Za-z_]\w*)['\"]\s*\]\s*=(?!=)", source)
+        if hits:
+            offenders[module] = sorted(set(hits))
+    assert not offenders, f"這些模組把東西掛到 window 上（請改用 data-action 委派 / ES module import）：{offenders}"

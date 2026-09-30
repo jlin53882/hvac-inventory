@@ -226,7 +226,7 @@ def open_tab(page, server: LiveServer, tab: str) -> None:
     """開主頁並切到指定頁籤，等資料載入完成。"""
     page.goto(f"{server.base_url}/?tab={tab}&site=office&month=2026-09")
     page.wait_for_load_state("networkidle")
-    page.evaluate("t => { if (hvac('core/state.js').appState.currentTab !== t) App.switchTab(t); }", tab)
+    page.evaluate("t => { if (hvac('core/state.js').appState.currentTab !== t) hvac('features/shell/app.js').switchTab(t); }", tab)
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(150)
 
@@ -270,7 +270,7 @@ def find_css_leaks(page, page_name: str) -> list[dict]:
 # (情境 id, 頁面歸屬, 頁籤, 開啟後執行的 JS)。頁面歸屬 = 這個畫面屬於哪一頁（決定哪些 CSS 檔可用）。
 LEAK_SCENARIOS = [
     ("inventory", "inventory", "inventory", None),
-    ("inventory-table", "inventory", "inventory", "Inventory.setInventoryView('table')"),
+    ("inventory-table", "inventory", "inventory", "hvac('features/inventory/list.js').setInventoryView('table')"),
     ("prepared", "prepared", "prepared", None),
     ("stockout", "stockout", "stockout", None),
     ("stocktake", "stocktake", "stocktake", None),
@@ -279,20 +279,20 @@ LEAK_SCENARIOS = [
     ("work-progress", "work-progress", "work-progress", None),
     ("signed-reports", "signed-reports", "signed-reports", None),
     ("quotation", "quotation", "quotation", None),
-    ("quotation-upload", "quotation-upload", "quotation", "Quotation.quoteSwitchMode('upload')"),
+    ("quotation-upload", "quotation-upload", "quotation", "hvac('features/quotation/page.js').quoteSwitchMode('upload')"),
     ("petty-cash", "petty-cash", "petty-cash", None),
-    ("modal-add-item", "inventory", "inventory", "Inventory.openAddModal()"),
-    ("modal-edit-item", "inventory", "inventory", "Inventory.openEditModal(1)"),
-    ("modal-out", "inventory", "inventory", "Stockout.openOutModal(1)"),
-    ("modal-prepare", "inventory", "inventory", "Stockout.openPrepareModal(1)"),
-    ("modal-transfer", "inventory", "inventory", "Inventory.openTransferModal(1)"),
-    ("modal-kit", "kit", "kit", "Kits.openKitModal()"),
-    ("modal-kit-prepare", "kit", "kit", "Stockout.openKitPrepareModal(1, '標準安裝包')"),
-    ("modal-petty-cash", "petty-cash", "petty-cash", "PettyCash.pcOpenReportModal()"),
-    ("modal-petty-cash-engineering", "petty-cash", "petty-cash", "PettyCash.pcOpenEngineeringModal()"),
-    ("modal-status-inventory", "inventory", "inventory", "Inventory.showInventoryStatusList('low')"),
-    ("modal-status-stocktake", "stocktake", "stocktake", "Stocktake.showStocktakeList('low')"),
-    ("modal-status-kit", "kit", "kit", "Kits.showKitStatusList('insufficient')"),
+    ("modal-add-item", "inventory", "inventory", "hvac('features/inventory/add-modal.js').openAddModal()"),
+    ("modal-edit-item", "inventory", "inventory", "hvac('features/inventory/edit-modal.js').openEditModal(1)"),
+    ("modal-out", "inventory", "inventory", "hvac('features/stockout/modals.js').openOutModal(1)"),
+    ("modal-prepare", "inventory", "inventory", "hvac('features/stockout/modals.js').openPrepareModal(1)"),
+    ("modal-transfer", "inventory", "inventory", "hvac('features/inventory/transfer-modal.js').openTransferModal(1)"),
+    ("modal-kit", "kit", "kit", "hvac('features/kits/kit-modal.js').openKitModal()"),
+    ("modal-kit-prepare", "kit", "kit", "hvac('features/stockout/modals.js').openKitPrepareModal(1, '標準安裝包')"),
+    ("modal-petty-cash", "petty-cash", "petty-cash", "hvac('features/petty-cash/report-modal.js').pcOpenReportModal()"),
+    ("modal-petty-cash-engineering", "petty-cash", "petty-cash", "hvac('features/petty-cash/engineering-modal.js').pcOpenEngineeringModal()"),
+    ("modal-status-inventory", "inventory", "inventory", "hvac('features/inventory/status.js').showInventoryStatusList('low')"),
+    ("modal-status-stocktake", "stocktake", "stocktake", "hvac('features/stocktake/page.js').showStocktakeList('low')"),
+    ("modal-status-kit", "kit", "kit", "hvac('features/kits/status.js').showKitStatusList('insufficient')"),
 ]
 KNOWN_LEAKS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "known_css_leaks.json")
 

@@ -151,10 +151,12 @@ export function renderSharedProductStatusItem(item, options) {
 }
 
 // 共用狀態清單的篩選控制（位置下拉、搜尋框）；關閉 / 編輯屬於各 feature，由呼叫端 feature 的 action 處理
-const statusListDelegate = createActionDelegate('status-list-', {
+const STATUS_LIST_ACTIONS = {
   'status-list-location': { change: function(el) { setSharedStatusListLocation(el.value); } },
   'status-list-search': { input: function(el) { setSharedStatusListSearch(el.value); } },
-});
+};
+
+const statusListDelegate = createActionDelegate('status-list-', STATUS_LIST_ACTIONS);
 
 export const handleStatusListEvent = statusListDelegate.handle;
 

@@ -4,8 +4,8 @@
 import { createActionDelegate } from '../../core/actions.js';
 import { closeInventoryStatusModal } from '../inventory/status.js';
 import { filterKitSearch, kitCompQtyChanged, openKitSearch, pickKitItem } from './component-rows.js';
-import { openKitExportDialog } from './export-dialog.js';
-import { openKitModal, removeKitCompRow, removeKitLocationRow } from './kit-modal.js';
+import { closeKitExportDialog, openKitExportDialog, submitKitExport } from './export-dialog.js';
+import { addKitCompRow, addKitLocationRow, openKitModal, removeKitCompRow, removeKitLocationRow, submitKit, submitKitEdit } from './kit-modal.js';
 import { assembleKit, deleteKit, disassembleKit, editKit, openKitSheet, renderKits } from './page.js';
 import { showKitStatusList } from './status.js';
 
@@ -17,6 +17,14 @@ const KITS_ACTIONS = {
   'kits-reload': { click: function() { renderKits(); } },
   'kits-export': { click: function() { openKitExportDialog(); } },
   // KPI 卡是 role="button"：滑鼠點擊與 Enter / 空白鍵都要能開啟清單
+  'kits-export-backdrop': { click: function(el, event) { if (event.target === el) closeKitExportDialog(); } },
+  'kits-export-close': { click: function() { closeKitExportDialog(); } },
+  'kits-export-submit': { click: function() { submitKitExport(); } },
+  'kits-location-add': { click: function() { addKitLocationRow(); } },
+  'kits-comp-add': { click: function() { addKitCompRow(); } },
+  'kits-submit': { click: function() { submitKit(); } },
+  // 編輯整組時 kit-modal 的送出鈕改指向這個 action（見 kits/page.js editKit）
+  'kits-submit-edit': { click: function() { submitKitEdit(); } },
   'kits-status-list': {
     click: function(el) { showKitStatusList(el.dataset.type); },
     keydown: function(el, event) {

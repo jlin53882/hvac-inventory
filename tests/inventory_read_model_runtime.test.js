@@ -1,33 +1,29 @@
-// core/inventory-read-model.js：accessor 讀到的是 owner（shell）寫入的最新值；setter 是 INVENTORY_META 原地修改的唯一入口。
+// core/inventory-read-model.js：資料存在 owner 模組（不在 appState）；getter 讀到 setter 寫入的最新值。
 const assert = require('assert');
 const vm = require('vm');
 const { loadModules } = require('./support/frontend-runtime');
 
-const context = vm.createContext({
-  appState: {
-    ALL_ITEMS: [],
-    INVENTORY_META: { page: 1, page_size: 50, total: 0, stats: null },
-    INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
-  },
-});
+const plain = value => JSON.parse(JSON.stringify(value));   // 跨 vm realm 比較內容
+const context = vm.createContext({});
 loadModules(context, 'core/inventory-read-model.js');
-const state = context.appState;
+loadModules(context, 'core/inventory-read-model.js');   // 重複載入（葉節點每個 context 只執行一次）不得重置資料
 
 // 預設值
-assert.deepStrictEqual(context.getAllItems(), []);
+assert.deepStrictEqual(plain(context.getAllItems()), []);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(context.getInventoryMeta())), { page: 1, page_size: 50, total: 0, stats: null });
 assert.deepStrictEqual(JSON.parse(JSON.stringify(context.getInventoryFacets())), { brands: {}, categories: {}, locations: [] });
 
 // owner 重新指派後（inventory reload / 切換分片），reader 立刻讀到新值，不會拿到舊 reference
 const items = [{ id: 1 }, { id: 2 }];
-state.ALL_ITEMS = items;
-state.INVENTORY_META = { page: 2, page_size: 50, total: 2, stats: { zero_items: 1 } };
-state.INVENTORY_FACETS = { brands: { A: 2 }, categories: {}, locations: ['L1'] };
+context.setAllItems(items);
+context.setInventoryMeta({ page: 2, page_size: 50, total: 2, stats: { zero_items: 1 } });
+context.setInventoryFacets({ brands: { A: 2 }, categories: {}, locations: ['L1'] });
+loadModules(context, 'core/inventory-read-model.js');   // 再載入一次也不會把資料清掉
 assert.strictEqual(context.getAllItems(), items);
 assert.strictEqual(context.getInventoryMeta().page, 2);
 assert.deepStrictEqual(Object.keys(context.getInventoryFacets().brands), ['A']);
-state.ALL_ITEMS = [];
-assert.deepStrictEqual(context.getAllItems(), [], '切換分片清空後 reader 不得讀到舊清單');
+context.setAllItems([]);
+assert.deepStrictEqual(plain(context.getAllItems()), [], '切換分片清空後 reader 不得讀到舊清單');
 
 // setter 只改對應欄位，且 reader 看得到
 context.setInventoryPage(1);
@@ -36,6 +32,9 @@ context.setInventoryStats(null);
 assert.strictEqual(context.getInventoryMeta().stats, null);
 assert.strictEqual(context.getInventoryMeta().total, 2, 'setter 不得動到其他欄位');
 context.setInventoryStats({ zero_items: 3 });
-assert.strictEqual(state.INVENTORY_META.stats.zero_items, 3);
+assert.strictEqual(context.getInventoryMeta().stats.zero_items, 3);
+
+// 資料不在 appState 上
+assert.strictEqual(context.appState, undefined);
 
 console.log('inventory read model runtime: PASS');

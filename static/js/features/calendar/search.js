@@ -99,7 +99,7 @@ function calRenderSearchError() {
   calApplyRightPanelMode();
   const el = document.getElementById('cal-search-results');
   if (!el) return;
-  el.innerHTML = '<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><button class="btn btn--secondary btn--sm cal-search-exit" type="button" onclick="Calendar.calClearSearch()">× 結束搜尋</button></div><div class="cal-search-meta">搜尋派工失敗</div></div><div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">⚠️</div><strong>搜尋派工失敗</strong><p>請重新搜尋或調整條件。</p><button class="btn btn--secondary btn--sm btn-sm" type="button" onclick="Calendar.calSearch()">重新搜尋</button></div>';
+  el.innerHTML = '<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><button class="btn btn--secondary btn--sm cal-search-exit" type="button" data-action="cal-clear-search">× 結束搜尋</button></div><div class="cal-search-meta">搜尋派工失敗</div></div><div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">⚠️</div><strong>搜尋派工失敗</strong><p>請重新搜尋或調整條件。</p><button class="btn btn--secondary btn--sm btn-sm" type="button" data-action="cal-search">重新搜尋</button></div>';
 }
 
 export function calRenderSearchResults(items) {
@@ -119,10 +119,10 @@ export function calRenderSearchResults(items) {
     const assigneeHtml = assignees ? `<span>👤 ${assignees}</span>` : '';
     const addressHtml = e.address ? `<span>📍 ${esc(e.address)}</span>` : '';
     const noteHtml = e.note ? `<span>📝 ${esc(e.note)}</span>` : '';
-    return `<article class="cal-search-item" data-date="${esc(e.date || '')}" role="button" tabindex="0" onclick="Calendar.calJumpToDate(this.dataset.date)" onkeydown="if(event.key === 'Enter' || event.key === ' ') this.click()"><div class="cal-search-item-date"><span>${esc(calSearchDateLabel(e.date))}</span><strong>${esc(e.start_time || '未指定時間')}</strong></div><div class="cal-search-item-body"><div class="cal-search-item-title">${esc(e.client_name || '未命名派工')}</div><div class="cal-search-item-tags">${service}${assigneeHtml}</div><div class="cal-search-item-extra">${addressHtml}${noteHtml}</div></div></article>`;
+    return `<article class="cal-search-item" data-date="${esc(e.date || '')}" role="button" tabindex="0" data-action="cal-jump-date"><div class="cal-search-item-date"><span>${esc(calSearchDateLabel(e.date))}</span><strong>${esc(e.start_time || '未指定時間')}</strong></div><div class="cal-search-item-body"><div class="cal-search-item-title">${esc(e.client_name || '未命名派工')}</div><div class="cal-search-item-tags">${service}${assigneeHtml}</div><div class="cal-search-item-extra">${addressHtml}${noteHtml}</div></div></article>`;
   }).join('');
-  const body = itemHtml || '<div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">🔍</div><strong>沒有符合條件的派工</strong><p>請調整日期或關鍵字後重新搜尋。</p><button class="btn btn--secondary btn--sm btn-sm" type="button" onclick="Calendar.calClearSearch()">清除搜尋</button></div>';
-  el.innerHTML = `<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><span class="cal-search-count">共 ${list.length} 筆</span><button class="btn btn--secondary btn--sm cal-search-exit" type="button" onclick="Calendar.calClearSearch()">× 結束搜尋</button></div><div class="cal-search-meta">${keyword} · ${range}</div></div><div class="cal-search-list">${body}</div>`;
+  const body = itemHtml || '<div class="cal-search-empty"><div class="cal-empty-icon" aria-hidden="true">🔍</div><strong>沒有符合條件的派工</strong><p>請調整日期或關鍵字後重新搜尋。</p><button class="btn btn--secondary btn--sm btn-sm" type="button" data-action="cal-clear-search">清除搜尋</button></div>';
+  el.innerHTML = `<div class="cal-search-panel-header"><div class="cal-search-header-row"><strong>🔍 搜尋結果</strong><span class="cal-search-count">共 ${list.length} 筆</span><button class="btn btn--secondary btn--sm cal-search-exit" type="button" data-action="cal-clear-search">× 結束搜尋</button></div><div class="cal-search-meta">${keyword} · ${range}</div></div><div class="cal-search-list">${body}</div>`;
 }
 
 // Mobile keeps the previous page-level result presentation; Desktop uses the right-panel mode above.
@@ -140,7 +140,7 @@ export function calRenderMobileSearchResults(items) {
   let html = '<div class="cal-msearch-summary">找到 ' + items.length + ' 筆結果</div>';
   items.forEach(function(e) {
     const names = (e.assignees || []).map(function(a) { return esc(a.name); }).join('、');
-    html += '<div class="cal-search-item cal-msearch-item" data-date="' + esc(e.date) + '" onclick="Calendar.calJumpToDate(this.dataset.date)">' +
+    html += '<div class="cal-search-item cal-msearch-item" data-date="' + esc(e.date) + '" data-action="cal-jump-date">' +
       '<div class="cal-msearch-title">' + esc(e.client_name) + '</div>' +
       '<div class="cal-msearch-time">' +
       (esc(e.date) || '') + (e.start_time ? ' ' + esc(e.start_time) + (e.end_time ? '~' + esc(e.end_time) : '') : '') +

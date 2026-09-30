@@ -104,21 +104,23 @@ const REPORT = {
     assert(html.includes(`<li><span class="dsr-badge">1</span> ${t.page.step1}</li>`), `${key}: usage steps`);
     assert(html.includes(`<div class="upl-hint">${t.page.missingHint}</div>`), `${key}: missing-day hint`);
     if (key === 'quotation') assert(!/簽名|匯出日報表/.test(html), 'quotation: no signed-report copy');
-    // 拖曳區內的「選擇檔案 / 相機拍攝」不可再冒泡到拖曳區的 onclick（否則檔案對話框開兩次）
+    // 拖曳區內的「選擇檔案 / 相機拍攝」：最近的 data-action 優先（不會再冒泡觸發拖曳區），各只開一個選檔視窗
     const drop = html.slice(html.indexOf('<div id="upl-drop"'), html.indexOf('<input id="upl-file-input"'));
-    const spanHandlers = [...drop.matchAll(/<span onclick="([^"]*)">/g)].map(m => m[1]);
-    assert.strictEqual(spanHandlers.length, 2, `${key}: drop-zone buttons`);
-    for (const handler of spanHandlers) {
-      const clicks = { file: 0, camera: 0, stopped: false };
-      const event = { stopPropagation() { clicks.stopped = true; } };
-      const doc = { getElementById: id => ({ click() { clicks[id === 'upl-camera-input' ? 'camera' : 'file'] += 1; } }) };
-      new Function('event', 'document', handler)(event, doc);
-      assert(clicks.stopped, `${key}: ${handler} must stop propagation to #upl-drop`);
-      assert.strictEqual(clicks.file + clicks.camera, 1, `${key}: ${handler} opens exactly one picker`);
+    const spanActions = [...drop.matchAll(/<span data-action="([^"]*)">/g)].map(m => m[1]);
+    assert.deepStrictEqual(spanActions, ['upl-pick-file', 'upl-pick-camera'], `${key}: drop-zone buttons`);
+    for (const action of spanActions) {
+      const clicks = { file: 0, camera: 0 };
+      const realGetElementById = t.context.document.getElementById;
+      t.context.document.getElementById = id => ({ click() { clicks[id === 'upl-camera-input' ? 'camera' : 'file'] += 1; } });
+      const el = { dataset: { action }, disabled: false };
+      const handled = t.context.handleUploadListEvent({ type: 'click', target: { tagName: 'SPAN', closest: () => el } });
+      t.context.document.getElementById = realGetElementById;
+      assert(handled, `${key}: ${action} must be handled`);
+      assert.strictEqual(clicks.file + clicks.camera, 1, `${key}: ${action} opens exactly one picker`);
     }
     assert(html.includes('<input id="upl-file-input" type="file" style="display:none" accept="image/*,.pdf">'), `${key}: file input accept`);
     assert(!/\.docx|\.xlsx/.test(html), `${key}: accept list matches backend whitelist`);
-    assert(html.includes(`onclick="${t.page.ctl}.quickRange('month',this)"`), `${key}: onclick uses this page controller`);
+    assert(html.includes(`data-action="upl-range" data-ctl="${t.page.ctl}"`), `${key}: range chips use this page controller`);
     assert(!html.includes(t.page.ctl === 'SignedReports' ? 'QuotationUploads.' : 'SignedReports.'), `${key}: no cross-page controller calls`);
     // 載入後：預設本月、歷史與 KPI 各打一次本頁 API
     assert.strictEqual(t.context.document.getElementById('upl-f-from').value.slice(8), '01');
@@ -167,10 +169,10 @@ const REPORT = {
     t.ctl.state.total = 2;
     t.ctl.renderTable();
     const list = t.context.document.getElementById('upl-tbody').innerHTML;
-    assert(list.includes(`onclick="${t.page.ctl}.edit(7)"`) && list.includes(`onclick="${t.page.ctl}.remove(7)"`));
-    assert(!list.includes(`${t.page.ctl}.edit(8)`) && !list.includes(`${t.page.ctl}.remove(8)`));
+    assert(list.includes(`data-action="upl-edit" data-id="7" data-ctl="${t.page.ctl}"`) && list.includes(`data-action="upl-remove" data-id="7" data-ctl="${t.page.ctl}"`));
+    assert(!list.includes('data-action="upl-edit" data-id="8"') && !list.includes('data-action="upl-remove" data-id="8"'));
     assert(list.includes(`<img class="upl-report-thumb" src="${t.page.api}/8/preview"`));
-    assert(list.includes(`onclick="${t.page.ctl}.preview(7)">👁 預覽</button>`));
+    assert(list.includes(`data-action="upl-preview" data-id="7" data-ctl="${t.page.ctl}">👁 預覽</button>`));
     assert(list.includes('<strong>2026-09-15</strong>'), `${key}: upload time shows date only`);
     assert(list.includes('<div class="upl-note-cell">已簽名</div>'));
     assert.strictEqual(t.context.document.getElementById('upl-page-info').textContent, '第 1 / 1 頁 · 共 2 筆');

@@ -23,7 +23,7 @@ export function wprOpenPendingGallery(index) {
   var overlay = document.createElement('div');
   overlay.className = 'wpr-pending-gallery-overlay';
   overlay.id = 'wpr-pending-gallery-overlay';
-  overlay.innerHTML = '<div class="wpr-pending-gallery-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-pending-gallery-title"><button type="button" class="wpr-pending-gallery-close" onclick="WorkProgress.wprClosePendingGallery()" aria-label="關閉待上傳照片預覽">✕</button><div id="wpr-pending-gallery-title" class="wpr-pending-gallery-count"></div><img id="wpr-pending-gallery-image" alt="待上傳照片預覽"><div id="wpr-pending-gallery-name" class="wpr-pending-gallery-name"></div><div class="wpr-pending-gallery-nav"><button type="button" onclick="WorkProgress.wprPendingGalleryMove(-1)">← 上一張</button><button type="button" onclick="WorkProgress.wprPendingGalleryMove(1)">下一張 →</button></div></div>';
+  overlay.innerHTML = '<div class="wpr-pending-gallery-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-pending-gallery-title"><button type="button" class="wpr-pending-gallery-close" data-action="wpr-pending-gallery-close" aria-label="關閉待上傳照片預覽">✕</button><div id="wpr-pending-gallery-title" class="wpr-pending-gallery-count"></div><img id="wpr-pending-gallery-image" alt="待上傳照片預覽"><div id="wpr-pending-gallery-name" class="wpr-pending-gallery-name"></div><div class="wpr-pending-gallery-nav"><button type="button" data-action="wpr-pending-gallery-move" data-dir="-1">← 上一張</button><button type="button" data-action="wpr-pending-gallery-move" data-dir="1">下一張 →</button></div></div>';
   document.body.appendChild(overlay);
   wprRenderPendingGallery();
 }
@@ -158,7 +158,7 @@ export function wprOpenGallery(id, index) {
     var overlay = document.createElement('div');
     overlay.className = 'wpr-gallery-overlay';
     overlay.id = 'wpr-gallery-overlay';
-    overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="WorkProgress.wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><div class="wpr-gallery-stage"><img id="wpr-gallery-image" alt="施工照片"></div><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="WorkProgress.wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="WorkProgress.wprGalleryMove(1)">下一張 →</button></div></div>';
+    overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" data-action="wpr-gallery-close">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><div class="wpr-gallery-stage"><img id="wpr-gallery-image" alt="施工照片"></div><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" data-action="wpr-gallery-move" data-dir="-1">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" data-action="wpr-gallery-move" data-dir="1">下一張 →</button></div></div>';
     document.body.appendChild(overlay);
     wprRenderGallery();
   }).catch(function(error) { if (!wprGalleryGuard.isCurrent(token)) return; toast(error.message, 'error'); });

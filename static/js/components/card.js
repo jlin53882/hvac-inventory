@@ -23,7 +23,7 @@ export function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
   const fallback = '<span class="product-thumbnail-placeholder' + (hasPhoto ? ' hidden' : '') + '">' + esc(placeholder || '📦') + '</span>';
   if (!hasPhoto) return fallback;
   const src = thumbnailUrl || photoSrc(id, 'thumbnail');
-  return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" data-action="photo-lightbox" data-id="' + id + '" title="點擊看大圖" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
+  return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" data-action="photo-lightbox" data-id="' + id + '" title="點擊看大圖" data-fallback="sibling">' + fallback + '</span>';
 }
 
 // Contract: return an escaped display string; callers must not escape it again.

@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
-const { installApiClient, extractFunction } = require('./support/frontend-runtime');
+const { installApiClient, extractFunction, seedReadModels } = require('./support/frontend-runtime');
 
 
 const read = path => fs.readFileSync(path, 'utf8');
@@ -40,7 +40,7 @@ function makeContext() {
     loadGcalKeys: async () => {},
     closeGcalKeyModal: () => {},
     closeModalForce: () => {},
-    unitList: [], appState: { unitListActive: [] }, orphanItems: [], gcalKeys: [], gcalUsers: [], gcalSettings: {},
+    unitList: [], orphanItems: [], gcalKeys: [], gcalUsers: [], gcalSettings: {},
     cabinetList: [], selectedKeyId: null, currentEditCabinetId: 3, _gcalEditingId: null,
     next: null,
   };
@@ -51,6 +51,7 @@ function makeContext() {
   };
   vm.createContext(context);
   installApiClient(context);
+  seedReadModels(context, { activeUnitList: [] });
   for (const name of ['loadUnits']) vm.runInContext(extractFunction(units, name), context);
   for (const name of ['submitGcalKey', 'gcalKeySaveErrorMessage']) vm.runInContext(extractFunction(gcalKey, name), context);
   for (const name of [
@@ -218,7 +219,7 @@ async function run(context, call) {
   ctx = makeContext();
   ctx.next = () => jsonResponse([{ id: 1, name: '個', is_active: true }, { id: 2, name: '舊', is_active: false }]);
   await run(ctx, 'loadUnits()');
-  assert.deepStrictEqual(value(ctx, 'appState.unitListActive.map(u => u.name)'), ['個']);
+  assert.deepStrictEqual(value(ctx, 'getActiveUnitList().map(u => u.name)'), ['個']);
   ctx.next = htmlError;
   await run(ctx, 'loadUnits()');
   assert.strictEqual(vm.runInContext('unitList.length', ctx), 2, 'failed reload keeps the previous unit list');

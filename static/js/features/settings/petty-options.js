@@ -24,14 +24,14 @@ export function renderPettyOptionsPanel() {
   if (!panel) return;
   let html = '<div class="pc-settings-title"><div><h4>🪙 零用金選單</h4><p>管理零用金報表使用的科目、分類與項目，資料不與其他報表類型共用。</p></div></div>';
   html += '<section class="pc-option-settings pc-option-settings--general"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">💳</span><div><h5>一般零用金</h5><p>管理一般零用金使用的科目</p></div></div><span class="pc-settings-note">ⓘ 僅需設定科目</span></div>';
-  if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-general-category">新增科目</label><div class="pc-option-add-row"><input id="pc-opt-name-general-category" maxlength="100" placeholder="輸入科目名稱（例如：文具費）"><button class="btn btn--primary btn--md btn-primary" onclick="Settings.createPettyOptionKind(\'general\',\'category\')">＋ 新增科目</button></div></div>';
+  if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-general-category">新增科目</label><div class="pc-option-add-row"><input id="pc-opt-name-general-category" maxlength="100" placeholder="輸入科目名稱（例如：文具費）"><button class="btn btn--primary btn--md btn-primary" data-action="settings-petty-option-create" data-scope="general" data-kind="category">＋ 新增科目</button></div></div>';
   html += '<div class="pc-option-list-head"><span>#　科目名稱</span><span>操作</span></div><div class="pc-option-list">' + pettyOptionRows('general', 'category', can) + '</div></section>';
   html += '<section class="pc-option-settings pc-option-settings--engineering"><div class="pc-settings-card-head"><div><span class="pc-settings-icon">👷</span><div><h5>工程零用金</h5><p>管理工程零用金使用的分類與項目</p></div></div></div><div class="pc-option-engineering-grid">';
   for (const kind of ['category', 'group']) {
     const label = kind === 'category' ? '📁 分類選項' : '📦 項目選項';
     const placeholder = kind === 'category' ? '輸入分類名稱（例如：交通費）' : '輸入項目名稱（例如：油資）';
     html += '<div class="pc-option-column"><div class="pc-option-column-head"><div><h6>' + label + '</h6><p>工程零用金' + (kind === 'category' ? '分類' : '項目') + '</p></div><b>' + (pettyOptionCache.engineering[kind] || []).length + ' 筆</b></div>';
-    if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-engineering-' + kind + '">新增' + (kind === 'category' ? '分類' : '項目') + '</label><div class="pc-option-add-row"><input id="pc-opt-name-engineering-' + kind + '" maxlength="100" placeholder="' + placeholder + '"><button class="btn btn--primary btn--md btn-primary" onclick="Settings.createPettyOptionKind(\'engineering\',\'' + kind + '\')">＋ 新增</button></div></div>';
+    if (can) html += '<div class="pc-option-add"><label for="pc-opt-name-engineering-' + kind + '">新增' + (kind === 'category' ? '分類' : '項目') + '</label><div class="pc-option-add-row"><input id="pc-opt-name-engineering-' + kind + '" maxlength="100" placeholder="' + placeholder + '"><button class="btn btn--primary btn--md btn-primary" data-action="settings-petty-option-create" data-scope="engineering" data-kind="' + kind + '">＋ 新增</button></div></div>';
     html += '<div class="pc-option-list">' + pettyOptionRows('engineering', kind, can) + '</div></div>';
   }
   html += '</div></section>';

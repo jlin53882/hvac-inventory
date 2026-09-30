@@ -1,6 +1,6 @@
 const assert = require('assert');
 const vm = require('vm');
-const { installApiClient, installNamespaces, loadModules, mockResponse } = require('./support/frontend-runtime');
+const { installApiClient, installNamespaces, loadModules, mockResponse, seedReadModels } = require('./support/frontend-runtime');
 
 function load(files, context) {
   installApiClient(context);
@@ -141,7 +141,6 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
   };
   const context = vm.createContext({
     console,
-    appState: { ALL_ITEMS: [], preparedItems: [{ id: 42, name: 'Prepared only', brand: 'PB', prepared_qty: 5, unit: '箱' }] },
     document: { getElementById: id => elements[id] },
     qtyInputOrToast: () => 2,
     closeModalForce: () => {},
@@ -154,6 +153,7 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
     },
   });
   load(['features/stockout/modals.js'], context);
+  seedReadModels(context, { allItems: [], preparedItems: [{ id: 42, name: 'Prepared only', brand: 'PB', prepared_qty: 5, unit: '箱' }] });
 
   context.openPreparedOutModal(42);
   assert.strictEqual(elements['po-item-name'].value, 'Prepared only (PB)');

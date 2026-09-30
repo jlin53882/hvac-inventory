@@ -3,7 +3,7 @@
 
 import { apiFetch } from './api-client.js';
 import { appState } from './state.js';
-import { getDestinations } from './shared-read-model.js';
+import { getDestinations, setDestinations, setDestinationsLoadedSite } from './shared-read-model.js';
 import { esc } from './utils.js';
 
 // 載入最近 100 筆出庫紀錄的去向 → 建立 destination 下拉建議清單（DESTINATIONS）
@@ -12,8 +12,8 @@ export async function loadDestinations() {
   try {
     const outs = await apiFetch(`/api/stockouts?limit=100&site=${encodeURIComponent(siteAtRequest)}`);
     if (siteAtRequest !== appState.currentSite) return;
-    appState.DESTINATIONS = [...new Set(outs.map(o => o.destination).filter(Boolean))];
-    appState.destinationsLoadedSite = siteAtRequest;
+    setDestinations([...new Set(outs.map(o => o.destination).filter(Boolean))]);
+    setDestinationsLoadedSite(siteAtRequest);
     document.getElementById('dest-list').innerHTML =
       getDestinations().map(d => `<option value="${esc(d)}">`).join('');
   } catch (e) { if (e.name !== 'AbortError') console.error('[loadDestinations] 去向清單載入失敗', e); }
@@ -21,8 +21,8 @@ export async function loadDestinations() {
 
 // Mutation-triggered item reloads must discard the per-site suggestion cache before rendering forms again.
 export async function refreshDestinationsAfterMutation() {
-  appState.destinationsLoadedSite = '';
-  appState.DESTINATIONS = [];
+  setDestinationsLoadedSite('');
+  setDestinations([]);
   const list = document.getElementById('dest-list');
   if (list) list.innerHTML = '';
   await loadDestinations();

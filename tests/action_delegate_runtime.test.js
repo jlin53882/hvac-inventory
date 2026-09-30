@@ -44,9 +44,9 @@ for (const type of ['change', 'input', 'focusin']) delegate.handle(event(type, f
 delegate.handle(event('keydown', field, { key: 'Enter' }));
 assert.deepStrictEqual(calls, [['change', 'v'], ['input', 'v'], ['focusin'], ['keydown', 'Enter']]);
 
-// init 在 document 註冊 click / change / input / keydown / focusin（委派：之後動態插入的 HTML 不必重新綁定）
+// init 在 document 註冊 click / change / input / keydown / focusin，以及 capture 階段的 error / load / toggle（委派：之後動態插入的 HTML 不必重新綁定）
 delegate.init();
-assert.deepStrictEqual(context.listeners.map(([type]) => type).sort(), ['change', 'click', 'focusin', 'input', 'keydown']);
+assert.deepStrictEqual(context.listeners.map(([type]) => type).sort(), ['change', 'click', 'error', 'focusin', 'input', 'keydown', 'load', 'toggle']);
 assert(context.listeners.every(([, fn]) => fn === delegate.handle));
 
 console.log('action delegate runtime: PASS');

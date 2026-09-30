@@ -27,8 +27,8 @@ function renderCabinetTable() {
       <td><strong>${esc(c.name)}</strong></td>
       <td>${esc(c.note || '（無備註）')}</td>
       <td class="cabinet-actions">
-        <button class="btn btn--secondary btn--sm btn-save u-shrink-0" onclick="Settings.editCabinet(${c.id})">✎ 編輯</button>
-        <button class="btn btn--danger btn--sm btn-cancel-ghost u-shrink-0" onclick="Settings.deleteCabinet(${c.id})">🗑 刪除</button>
+        <button class="btn btn--secondary btn--sm btn-save u-shrink-0" data-action="settings-cabinet-edit" data-id="${c.id}">✎ 編輯</button>
+        <button class="btn btn--danger btn--sm btn-cancel-ghost u-shrink-0" data-action="settings-cabinet-delete" data-id="${c.id}">🗑 刪除</button>
       </td>
     </tr>
   `).join('');

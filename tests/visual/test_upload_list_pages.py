@@ -13,7 +13,7 @@ import harness
 LOGO = os.path.join(harness.ROOT, "static", "img", "logo-topbar.png")
 PAGES = [
     ("signed-reports", None, "/api/signed-reports", "🗂 每日簽名報表"),
-    ("quotation", "Quotation.quoteSwitchMode('upload')", "/api/quotation-uploads", "🗂 報價單上傳"),
+    ("quotation", "hvac('features/quotation/page.js').quoteSwitchMode('upload')", "/api/quotation-uploads", "🗂 報價單上傳"),
 ]
 
 

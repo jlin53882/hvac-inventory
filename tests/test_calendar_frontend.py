@@ -144,7 +144,7 @@ def test_calendar_js_uses_api_endpoints():
     # 2026-09-08：桌面版操作按鈕改為 icon + aria-label（手機版保留可辨識文字）
     assert "cal-icon-btn btn-edit" in js and "aria-label=\"編輯派工\"" in js
     assert "cal-icon-btn btn-delete" in js and "aria-label=\"刪除派工\"" in js
-    assert "calOpenAppt(${e.id})" in js and "calDeleteAppt(${e.id})" in js
+    assert 'data-action="cal-appt-open" data-id="${e.id}"' in js and 'data-action="cal-appt-delete" data-id="${e.id}"' in js
     # 2026-08-13 Sarah：reminder 條只留文字＋框（移除「看今天行程」按鈕；calGoToday 已刪）
     assert "看今天行程</button>" not in js
     assert "calGoToday" not in js
@@ -163,7 +163,7 @@ def test_calendar_js_viewer_write_hidden():
     """viewer 看不到新增/編輯/刪除按鈕（權限整合）；tech 可看（行事曆可寫）"""
     js = read_calendar_js_all()
     assert "isViewer" in js
-    assert "calOpenAppt()" in js  # 按鈕以 isViewer 條件包住
+    assert 'data-action="cal-appt-open"' in js  # 按鈕以 isViewer 條件包住
 
 def test_css_has_calendar_styles():
     """style.css 含行事曆樣式（月曆格/事件/設定表格）"""
@@ -720,10 +720,10 @@ def test_gcal_key_list_shows_full_client_email():
     assert "emailShort" not in js
 
 def test_gcal_key_list_has_toggle_button():
-    """Key 列表有停用/啟用 toggle 按鈕（event.stopPropagation）"""
+    """Key 列表有停用/啟用 toggle 按鈕（最近的 data-action 優先，不會再觸發整列的 select）"""
     js = read(SETTINGS_JS)
-    assert "event.stopPropagation()" in js
-    assert "toggleGcalKey(" in js
+    assert 'data-action="settings-gcal-key-toggle-button"' in js
+    assert "toggleGcalKey(" in read("static/js/features/settings/actions.js")
     # 按鈕文字
     assert "停用" in js
     assert "啟用" in js

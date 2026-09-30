@@ -49,13 +49,13 @@ export function calModalHtml(isAdmin) {
         <textarea id="cal-f-note" rows="2" placeholder="例：車馬費 800 元"></textarea>
       </div>
       <div class="modal-actions">
-        <button class="btn btn--secondary btn--md btn-cancel" onclick="Calendar.closeCalModal()">取消</button>
-        <button class="btn btn--primary btn--md btn-confirm" onclick="Calendar.calSubmitAppt()">檢查並寫入</button>
+        <button class="btn btn--secondary btn--md btn-cancel" data-action="cal-modal-close">取消</button>
+        <button class="btn btn--primary btn--md btn-confirm" data-action="cal-appt-submit">檢查並寫入</button>
       </div>
     </div>
   </div>
       <!-- 同步錯誤詳情 modal -->
-  <div class="modal-overlay" data-role="modal" id="cal-sync-error-modal" onclick="if(event.target===this) UI.closeModal('cal-sync-error-modal')">
+  <div class="modal-overlay" data-role="modal" id="cal-sync-error-modal" data-action="ui-close-modal-backdrop" data-modal="cal-sync-error-modal">
     <div class="modal">
       <h3>⚠️ 同步錯誤詳情</h3>
       <div class="cal-sync-err-detail">
@@ -68,18 +68,18 @@ export function calModalHtml(isAdmin) {
         <div class="cal-sync-err-suggestion" id="cal-sync-err-suggestion"></div>
       </div>
       <div class="modal-actions">
-        <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('cal-sync-error-modal')">關閉</button>
+        <button class="btn btn--secondary btn--md btn-cancel" data-action="ui-close-modal" data-modal="cal-sync-error-modal">關閉</button>
       </div>
     </div>
   </div>
-  <div class="modal-overlay" data-role="modal" id="cal-team-sync-modal" onclick="if(event.target===this) UI.closeModal('cal-team-sync-modal')">
+  <div class="modal-overlay" data-role="modal" id="cal-team-sync-modal" data-action="ui-close-modal-backdrop" data-modal="cal-team-sync-modal">
     <div class="modal">
       <h3>👥 全員同步細節</h3>
       <div id="cal-team-sync-summary"></div>
-      <div class="cal-sync-team-actions"><button id="cal-team-sync-retry-all" type="button" class="btn btn--primary btn--sm btn-sm btn-primary" onclick="Calendar.calRetryTeamSync()">重試全體</button></div>
+      <div class="cal-sync-team-actions"><button id="cal-team-sync-retry-all" type="button" class="btn btn--primary btn--sm btn-sm btn-primary" data-action="cal-team-sync-retry">重試全體</button></div>
       <div id="cal-team-sync-details" class="cal-sync-team-details"></div>
       <div class="modal-actions">
-        <button class="btn btn--secondary btn--md btn-cancel" onclick="UI.closeModal('cal-team-sync-modal')">關閉</button>
+        <button class="btn btn--secondary btn--md btn-cancel" data-action="ui-close-modal" data-modal="cal-team-sync-modal">關閉</button>
       </div>
     </div>
   </div>`;
@@ -246,7 +246,7 @@ export function calShowTeamSyncDetails(apptId) {
     const status = `${calSyncStatusLabel(person.status)}${person.migration_pending ? '（行事曆切換中）' : ''}`;
     const error = person.error ? `：${person.error}` : '';
     const retry = hasPerm('gcal-sync-force') && calCanRetryTeamPerson(person)
-      ? `<button type="button" class="btn btn--secondary btn--sm btn-sm" onclick="Calendar.calRetryTeamMember(${esc(String(apptId))},${esc(String(person.user_id))})">重試</button>` : '';
+      ? `<button type="button" class="btn btn--secondary btn--sm btn-sm" data-action="cal-team-member-retry" data-appt-id="${esc(String(apptId))}" data-user-id="${esc(String(person.user_id))}">重試</button>` : '';
     return `<div class="cal-sync-team-row"><strong>${esc(person.display_name)}</strong><span>${esc(status)}${esc(error)}</span>${retry}</div>`;
   }).join('') || '<div class="cal-sync-team-row">目前沒有可用的 Google 行事曆，請先新增或啟用 Calendar Key</div>';
   const excluded = [];

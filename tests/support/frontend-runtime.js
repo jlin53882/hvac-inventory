@@ -26,24 +26,51 @@ function extractFunction(source, name) {
 function moduleScript(relative) {
   // 接受 static/js 之下的相對路徑，也接受 'static/js/...' 或絕對路徑（Python 測試內嵌的 node 腳本會傳完整路徑）
   const file = path.isAbsolute(relative) ? relative : path.join(ROOT, relative.startsWith('static/') ? relative : `static/js/${relative}`);
+  const own = path.relative(path.join(ROOT, 'static/js'), file).split(path.sep).join('/');
+  // 零依賴的葉節點模組（含 read-model 的資料物件）：harness 會去掉 import，頁面模組用到它們時在同一支 script 前面補上，
+  // 各測試不必手動把它們加進載入清單。葉節點以「每個 context 只執行一次」的方式載入，避免重複載入把已設定的資料重置。
+  if (LEAF_FILES.has(own)) return leafScript(own);
   const script = strip(fs.readFileSync(file, 'utf8'));
-  // 零依賴的葉節點模組：harness 會去掉 import，頁面模組用到它們時在同一支 script 前面補上，
-  // 各測試不必手動把它們加進載入清單（葉節點只含 function 宣告，重複載入無害）。
-  const leaves = Object.entries(LEAF_MODULES)
-    .filter(([name, leaf]) => script.includes(`${name}(`) && !file.endsWith(leaf))
-    .map(([, leaf]) => strip(fs.readFileSync(path.join(ROOT, 'static/js', leaf), 'utf8')));
-  return leaves.concat(script).join('\n');
+  const leaves = [...new Set(Object.entries(LEAF_MODULES).filter(([name]) => script.includes(`${name}(`)).map(([, leaf]) => leaf))];
+  return leaves.map(leafScript).concat(script).join('\n');
 }
 
-const READ_MODEL = 'core/inventory-read-model.js';  // read-model 只含讀寫 appState 的函式宣告；appState 由測試的 vm context 提供
+/** 葉節點模組的 script：包在「尚未載入才執行」的區塊裡（sloppy mode 的區塊 function 宣告仍會成為全域）。 */
+function leafScript(leaf) {
+  const marker = '__leaf_' + leaf.replace(/\W/g, '_');
+  return `if (typeof ${marker} === 'undefined') { var ${marker} = true;\n${strip(fs.readFileSync(path.join(ROOT, 'static/js', leaf), 'utf8'))}\n}`;
+}
+
+const INVENTORY_MODEL = 'core/inventory-read-model.js';  // 庫存清單資料與 getter / setter（資料存在模組私有物件，不在 appState）
+const SHARED_MODEL = 'core/shared-read-model.js';        // 其他跨 feature 共用資料與 getter / setter
 const LEAF_MODULES = {
   createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js', createActionDelegate: 'core/actions.js',
-  getAllItems: READ_MODEL, getInventoryMeta: READ_MODEL, getInventoryFacets: READ_MODEL,
-  setInventoryPage: READ_MODEL, setInventoryStats: READ_MODEL,
 };
+for (const name of ['getAllItems', 'getInventoryMeta', 'getInventoryFacets', 'setAllItems', 'setInventoryMeta', 'setInventoryFacets',
+  'setInventoryPage', 'setInventoryStats']) LEAF_MODULES[name] = INVENTORY_MODEL;
 for (const name of ['getPreparedItems', 'getCurrentKitItems', 'getGlobalCabinetList', 'getDestinations', 'getActiveUnitList',
   'getInventoryLoadedSite', 'getFullItemsLoadedSite', 'getDestinationsLoadedSite', 'getCurrentBrands', 'getCurrentCategories',
-  'setCurrentBrands', 'setCurrentCategories']) LEAF_MODULES[name] = 'core/shared-read-model.js';
+  'setPreparedItems', 'setCurrentKitItems', 'setGlobalCabinetList', 'setDestinations', 'setActiveUnitList',
+  'setInventoryLoadedSite', 'setFullItemsLoadedSite', 'setDestinationsLoadedSite', 'setCurrentBrands', 'setCurrentCategories']) LEAF_MODULES[name] = SHARED_MODEL;
+const LEAF_FILES = new Set(Object.values(LEAF_MODULES));
+
+/**
+ * 載入兩個 read-model 並用 setter 填入測試資料（取代過去在 appState 上塞 ALL_ITEMS / preparedItems 等欄位）。
+ * data 的 key：allItems / inventoryMeta / inventoryFacets / preparedItems / currentKitItems / globalCabinetList / destinations /
+ * activeUnitList / inventoryLoadedSite / fullItemsLoadedSite / destinationsLoadedSite / currentBrands / currentCategories。
+ */
+function seedReadModels(context, data = {}) {
+  loadModules(context, INVENTORY_MODEL, SHARED_MODEL);
+  const setters = {
+    allItems: 'setAllItems', inventoryMeta: 'setInventoryMeta', inventoryFacets: 'setInventoryFacets',
+    preparedItems: 'setPreparedItems', currentKitItems: 'setCurrentKitItems', globalCabinetList: 'setGlobalCabinetList',
+    destinations: 'setDestinations', activeUnitList: 'setActiveUnitList', inventoryLoadedSite: 'setInventoryLoadedSite',
+    fullItemsLoadedSite: 'setFullItemsLoadedSite', destinationsLoadedSite: 'setDestinationsLoadedSite',
+    currentBrands: 'setCurrentBrands', currentCategories: 'setCurrentCategories',
+  };
+  for (const [key, setter] of Object.entries(setters)) if (key in data) context[setter](data[key]);
+  return context;
+}
 
 function strip(source) {
   return source
@@ -115,4 +142,4 @@ function mockResponse(payload, status = 200) {
   };
 }
 
-module.exports = { ROOT, read, extractFunction, moduleScript, loadModules, loadWorkProgress, configureShellPorts, installNamespaces, installApiClient, mockResponse };
+module.exports = { ROOT, read, extractFunction, moduleScript, loadModules, seedReadModels, loadWorkProgress, configureShellPorts, installNamespaces, installApiClient, mockResponse };

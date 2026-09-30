@@ -51,7 +51,7 @@
 | `test_signed_reports.py` | `storage` | `full-only` | signed report file lifecycle |
 | `test_structure.py` | `frontend` | `CI / Frontend + Security` | source structure regression |
 | `test_frontend_module_boundaries.py` | `frontend` | `CI / Frontend + Security` | ES module 依賴方向：各層不 import 上層、只有 pages import shell 組裝層、整個 import 圖沒有循環 |
-| `test_frontend_state_ownership.py` | `frontend` | `CI / Frontend + Security` | appState 欄位只准縮小、每個欄位只有指定的 owner 目錄可直接指派（state ratchet） |
+| `test_frontend_state_ownership.py` | `frontend` | `CI / Frontend + Security` | `appState`（只剩 currentTab / currentSite）與 read-model（getter 讀、`ALLOWED_SETTERS` 管誰能寫）的所有權守衛（state ratchet） |
 | `test_units.py` | `inventory` | `CI / Inventory + Database` | unit dictionary / consolidation |
 | `test_users.py` | `auth` | `full-only` | account / login / rate limit |
 | `test_v101.py` | `regression` | `full-only` | v1.0.1 regression |
@@ -63,6 +63,7 @@
 | `visual/test_button_contract.py` | `visual` | `CI / Visual (browser)` | 所有截圖情境中可見的 `.btn` / `.chip`，computed style 必須符合設計系統規格（變體顏色、框線、圓角、字級、字重、高度）；可見的一般 `<button>` 必須是 `.btn` / `.chip` 或已登記的專用控制項；探針自我檢查 |
 | `visual/test_state_interactions.py` | `visual` | `CI / Visual (browser)` | 狀態 class 互動契約（只檢查可見 / 選取外觀，不依賴 class 名稱）：modal、選單、頁籤、chip、收合、toast、overlay、bottom sheet |
 | `visual/test_source_modules.py` | `visual` | `CI / Visual (browser)` | `HVAC_FRONTEND_SOURCE=1` 另起伺服器，Chromium 直接執行原始 ES modules：四頁（主頁逐一切換 10 個頁籤）無 pageerror / console.error / 模組載入失敗，命名空間存在且畫面已掛載 |
+| `visual/test_delegated_clicks.py` | `visual` | `CI / Visual (browser)` | data-action 事件委派的真實點擊契約：側欄頁籤 / 庫存區、modal 開關、頭像 / 通知、整組與已領出頁控制項、設定頁與權限頁（並確認頁面上沒有 inline handler） |
 
 ## Auxiliary JavaScript harnesses
 
@@ -71,6 +72,8 @@
 - `tests/petty_cash_frontend_races.js`：由 `test_petty_cash_frontend_races.py` 執行
 - `tests/qty.test.js`：由 `test_quantity.py` 的 quantity contract 執行
 - `tests/tab_lifecycle_runtime.test.js`
+- `tests/action_delegate_runtime.test.js`、`tests/action_tables_runtime.test.js`、`tests/stockout_actions_runtime.test.js`：由 `test_frontend_assets.py` 的 data-action 守衛執行（事件委派機制、每個 `*_ACTIONS` 表逐一觸發）
+- `tests/inventory_read_model_runtime.test.js`、`tests/shared_read_model_runtime.test.js`：由 `test_frontend_state_ownership.py` 執行（read-model 的 getter / setter）
 - `tests/tab_async_lifecycle.test.js`
 - `tests/work_progress_detail_target_lifecycle.test.js`
 - `tests/work_progress_upload_progress.test.js`：由 `test_work_progress_ui_regressions.py` 執行（上傳進度條）

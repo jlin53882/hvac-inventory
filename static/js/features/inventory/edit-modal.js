@@ -3,7 +3,7 @@
 import { apiFetch } from '../../core/api-client.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { appState, INVENTORY_ALERT_ITEMS } from '../../core/state.js';
-import { getGlobalCabinetList } from '../../core/shared-read-model.js';
+import { getGlobalCabinetList, setGlobalCabinetList } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';
 import { fillUnitSelect } from '../../core/units.js';
@@ -52,7 +52,7 @@ export function openEditModal(id) {
   // 2026-09-27：編輯時也載入最新櫃子清單
   (async () => {
     try {
-      appState.globalCabinetList = await apiFetch('/api/cabinets');
+      setGlobalCabinetList(await apiFetch('/api/cabinets'));
       // 重新渲染位置列表（更新櫃子選項）
       renderEditStockRows(stocks, item.unit || '個');
     } catch (e) {

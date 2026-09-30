@@ -74,7 +74,7 @@ function wprOpenUnsavedConfirmation(request) {
   var overlay = document.createElement('div');
   overlay.className = 'wpr-unsaved-overlay';
   overlay.id = 'wpr-unsaved-overlay';
-  overlay.innerHTML = '<div class="wpr-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-unsaved-title"><h3 id="wpr-unsaved-title">尚未儲存工作進度</h3><p>目前輸入內容與待上傳照片尚未儲存。<br>離開後這些內容將會遺失。</p><div class="wpr-unsaved-actions"><button type="button" class="btn btn--secondary btn--md" onclick="WorkProgress.wprCloseLeaveConfirmation()">繼續編輯</button><button type="button" class="btn btn--danger btn--md" onclick="WorkProgress.wprDiscardAndLeave()">放棄並離開</button></div></div>';
+  overlay.innerHTML = '<div class="wpr-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="wpr-unsaved-title"><h3 id="wpr-unsaved-title">尚未儲存工作進度</h3><p>目前輸入內容與待上傳照片尚未儲存。<br>離開後這些內容將會遺失。</p><div class="wpr-unsaved-actions"><button type="button" class="btn btn--secondary btn--md" data-action="wpr-leave-cancel">繼續編輯</button><button type="button" class="btn btn--danger btn--md" data-action="wpr-leave-discard">放棄並離開</button></div></div>';
   document.body.appendChild(overlay);
 }
 

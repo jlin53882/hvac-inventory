@@ -2,6 +2,7 @@
 // 只負責摘要 state、Popover/Bottom Sheet 與既有詳細 Dialog 的導流。
 // 不重新查詢商品、不複製庫存判定、不建立通知 API 或資料表。
 
+import { createActionDelegate } from '../../core/actions.js';
 import { canAccessPage, currentUser } from '../../core/session.js';
 import { appState } from '../../core/state.js';
 import { getCurrentKitItems, getFullItemsLoadedSite, getInventoryLoadedSite } from '../../core/shared-read-model.js';
@@ -213,3 +214,15 @@ export function initNotifications() {
     });
   })();
 }
+
+// 通知中心的事件委派（data-action="notif-*"）
+const NOTIF_ACTIONS = {
+  'notif-toggle': { click: function() { toggleNotif(); } },
+  'notif-close': { click: function() { closeNotif(); } },
+};
+
+const notifDelegate = createActionDelegate('notif-', NOTIF_ACTIONS);
+
+export const handleNotifEvent = notifDelegate.handle;
+
+export const initNotifActions = notifDelegate.init;

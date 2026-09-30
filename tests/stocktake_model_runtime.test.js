@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { loadModules } = require('./support/frontend-runtime');
+const { loadModules, seedReadModels } = require('./support/frontend-runtime');
 
 /**
  * Escape test data using the same HTML context needed by stocktake model labels.
@@ -14,7 +14,6 @@ const htmlEscape = value => String(value)
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;');
 const sandbox = {
-  appState: { ALL_ITEMS: [] },
   Qty: {
     /** Format a value deterministically for the renderer fixture. @param {number} value @returns {string} */
     format: value => String(value),
@@ -32,6 +31,7 @@ const sandbox = {
 
 vm.createContext(sandbox);
 loadModules(sandbox, 'features/stocktake/state.js', 'features/stocktake/page.js');
+seedReadModels(sandbox, { allItems: [] });
 
 /**
  * Build a stocktake item fixture while keeping identical display names across model cases.

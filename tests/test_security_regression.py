@@ -286,7 +286,7 @@ def test_js_html_templates_interpolations_escaped():
                 continue  # 非 HTML 模板（textContent 等）不檢查
             for im in re.finditer(r"\$\{([^}]*)\}", seg):
                 body = im.group(1).replace("\r", "").strip()  # CRLF 檔的 \r 先去掉，白名單統一 LF
-                if body.startswith(("esc(", "jsStr(")):
+                if body.startswith("esc("):
                     continue  # 已跳脫
                 if body in REVIEWED_SAFE_BODIES:
                     continue  # 已審核安全

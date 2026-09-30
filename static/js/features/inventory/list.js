@@ -224,7 +224,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         const noteHtml = buildNoteHTML(stocks);
         h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (inventoryState.batchMode ? ' data-batch="1"' : '') + '>';
         if (inventoryState.batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' data-action="inventory-stock-select" data-key="item-' + i.id + '">';
-        if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" data-action="photo-lightbox" data-id="' + i.id + '" title="點擊看大圖" onerror="this.style.display=\'none\'">';
+        if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" data-action="photo-lightbox" data-id="' + i.id + '" title="點擊看大圖" data-fallback="hide">';
         else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
         h += '<div class="item-info"' + (isViewer ? '' : ' data-action="inventory-edit" data-id="' + i.id + '"') + '>';
         h += '<div class="item-name">' + esc(i.brand || '無廠牌') + ' ' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + statusBadge + '</div>';

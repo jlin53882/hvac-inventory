@@ -45,7 +45,7 @@ def test_inventory_page_load_and_startup_skip_full_items():
     assert "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals
     assert "'calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash'" in globals
     inventory = read(INVENTORY_RENDER_JS)
-    assert "destinationsLoadedSite" in globals
+    assert "destinationsLoadedSite" in read("static/js/core/shared-read-model.js")
     assert "getDestinationsLoadedSite() !== appState.currentSite" in inventory
     assert "stats: body.stats || null" in api
     assert "renderInventoryDashboard(list, aggregateStats)" in inventory
