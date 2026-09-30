@@ -2,13 +2,12 @@
 
 import { buildThumb, mobileCardShell, photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
-import { isMobileView, openSheet } from '../../core/bottomsheet.js';
+import { isMobileView } from '../../core/bottomsheet.js';
 import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
-import { openPreparedEditModal, openPreparedOutModal, returnPrepared } from '../stockout/modals.js';
 
 // ========== 待領出頁籤 ==========
 
@@ -213,35 +212,4 @@ export async function clearPrepared(itemId, qty) {
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
-}
-
-
-
-
-
-// ========== 手機版 ⋯ 動作選單（待領出卡） ==========
-
-export function openPreparedSheet(itemId) {
-
-  const item = appState.preparedItems.find(i => i.id === itemId) || appState.ALL_ITEMS.find(i => i.id === itemId);  // 非庫存品項不在 ALL_ITEMS（2026-08-16 家豪：點 ⋯ 無效 bug）
-
-  if (!item) return;
-
-  const isViewer = !hasPerm('stockout');
-
-  const actions = [];
-
-  if (!isViewer) {
-
-    actions.push({ icon: '✏️', label: '編輯', cls: 'back', fn: () => openPreparedEditModal(itemId) });
-    actions.push({ icon: '🚚', label: '已領出', cls: 'out', fn: () => openPreparedOutModal(itemId) });
-
-    if (!item.is_deleted) actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnPrepared(itemId) });  // 非庫存無退回（家豪 2026-08-16）
-
-    actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => clearPrepared(itemId, item.prepared_qty) });
-
-  }
-
-  openSheet(`${item.brand} ${item.name}`, actions);
-
 }

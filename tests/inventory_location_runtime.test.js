@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
+const { configureShellPorts, installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
 const inventoryRequests = [];
 const openedModals = [];
@@ -68,6 +68,7 @@ loadModules(sandbox, 'features/inventory/state.js', 'features/inventory/filters.
   'features/inventory/status.js', 'features/inventory/actions.js', 'features/inventory/adjust.js', 'features/inventory/batch-location.js');
 sandbox.renderInventory = () => {};
 loadModules(sandbox, 'features/inventory/location-adjustments.js', 'core/data.js', 'features/shell/data-refresh.js');
+configureShellPorts(sandbox);
 sandbox.loadData = async () => {};
 loadModules(sandbox, 'features/inventory/qty-dialog.js');
 
@@ -84,7 +85,7 @@ loadModules(sandbox, 'features/inventory/qty-dialog.js');
   assert.deepEqual(inventoryRequests.map(request => request.url), ['/api/stocks/102/adjust']);
   assert.equal(inventoryRequests[0].body.delta, 1);
 
-  vm.runInContext('savingAll = true; inventoryState.stockLocationPickerState = null;', sandbox);
+  vm.runInContext('inventoryState.savingAll = true; inventoryState.stockLocationPickerState = null;', sandbox);
   sandbox.changeQty(2, 1);
   assert.equal(sandbox.pending['2'], undefined, '儲存中不得立刻修改單位置品項的 pending');
   sandbox.changeQty(2, -1);
@@ -97,7 +98,7 @@ loadModules(sandbox, 'features/inventory/qty-dialog.js');
   sandbox.queueInventoryAdjustment(sandbox.appState.ALL_ITEMS[1], 1);
   assert.equal(sandbox.pending['2'], undefined, '共用 queue 必須攔截所有調整入口');
   assert.equal(sandbox.pendingByStock['101'], undefined);
-  vm.runInContext('savingAll = false; inventoryState.stockLocationPickerState = null;', sandbox);
+  vm.runInContext('inventoryState.savingAll = false; inventoryState.stockLocationPickerState = null;', sandbox);
 
   inventoryRequests.length = 0;
   sandbox.failNextSave = true;

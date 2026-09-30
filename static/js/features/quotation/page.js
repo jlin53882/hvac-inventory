@@ -4,8 +4,9 @@ import { apiFetch } from '../../core/api-client.js';
 import { Qty } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
-import { setPageScope } from '../shell/app.js';
+import { setPageScope } from '../shell/page-scope.js';
 import { renderQuotationUploads } from '../upload-list/quotation-upload.js';
+import { quoteModeTabs } from './mode-tabs.js';
 
 var quotationItems = [];
 var quotationEditingId = null;
@@ -45,9 +46,6 @@ function quoteFillForm(form) {
   });
 }
 
-export function quoteModeTabs(active) {
-  return `<div class="quote-mode-tabs" role="tablist"><button type="button" class="chip chip--seg quote-mode-tab ${active === 'quotation' ? 'is-active' : ''}" onclick="Quotation.quoteSwitchMode('quotation')">🧾 報價單</button><button type="button" class="chip chip--seg quote-mode-tab ${active === 'upload' ? 'is-active' : ''}" onclick="Quotation.quoteSwitchMode('upload')">📤 報價單上傳</button></div>`;
-}
 export function quoteSwitchMode(mode) {
   setPageScope(mode === 'upload' ? 'quotation-upload' : 'quotation');
   if (mode === 'upload') renderQuotationUploads();

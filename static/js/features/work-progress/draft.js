@@ -1,10 +1,9 @@
 // 庫存管理系統 - 工作進度：未儲存內容保護（離開確認）
 
-import { switchTab } from '../shell/app.js';
+import { navigateToTab } from '../shell/navigation.js';
 import { wprClosePendingGallery } from './gallery.js';
-import { wprUpdateNoteCount } from './page.js';
+import { wprClearPendingFiles } from './pending-photos.js';
 import { workProgressState } from './state.js';
-import { wprCloseSubmitConfirmation, wprPendingSubmit, wprRenderPendingPhotos } from './upload.js';
 
 var wprBeforeUnloadInstalled = false;
 var wprLeaveRequest = null;
@@ -45,19 +44,6 @@ function wprBeforeUnload(event) {
 }
 
 /**
- * Clear the pending create draft and release every owned object URL.
- * @returns {void} Function result.
- */
-export function wprClearPendingFiles() {
-  wprClosePendingGallery();
-  workProgressState.wprSelectedFiles.forEach(function(item) {
-    if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-  });
-  workProgressState.wprSelectedFiles = [];
-  wprRenderPendingPhotos();
-}
-
-/**
  * Open the discard confirmation before switching away from Work Progress.
  * @param {string} nextTab - Requested destination tab.
  * @returns {void} Function result.
@@ -81,7 +67,7 @@ export function wprRequestDraftReset(action, restoreDate) {
  * @returns {void} Function result.
  */
 function wprOpenUnsavedConfirmation(request) {
-  if (wprPendingSubmit) return;
+  if (workProgressState.wprPendingSubmit) return;
   wprLeaveRequest = request;
   var old = document.getElementById('wpr-unsaved-overlay');
   if (old) old.remove();
@@ -135,5 +121,21 @@ export function wprDiscardAndLeave() {
   wprCloseSubmitConfirmation();
   wprResetCreateDraft();
   if (request && request.action) request.action();
-  else if (request && request.tab) switchTab(request.tab);
+  else if (request && request.tab) navigateToTab(request.tab);
+}
+
+/**
+ * Synchronize the progress-note character counter.
+ * @returns {void} Function result.
+ */
+export function wprUpdateNoteCount() { var note = document.getElementById('wpr-note'); var counter = document.getElementById('wpr-note-count'); if (note && counter) counter.textContent = note.value.length + ' / 1000'; }
+
+/**
+ * Close the save confirmation without changing the draft.
+ * @returns {void} Function result.
+ */
+export function wprCloseSubmitConfirmation() {
+  var overlay = document.getElementById('wpr-confirm-overlay');
+  if (overlay) overlay.remove();
+  workProgressState.wprPendingSubmit = null;
 }

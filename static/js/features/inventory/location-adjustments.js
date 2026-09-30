@@ -3,9 +3,8 @@
 import { Qty } from '../../core/qty.js';
 import { INVENTORY_PENDING_ITEMS, appState, pending, pendingByStock } from '../../core/state.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
-import { savingAll } from './adjust.js';
-import { renderInventory } from './list.js';
 import { inventoryState } from './state.js';
+import { renderInventoryView } from '../shell/data-refresh.js';
 
 /**
  * Queue a quantity change with explicit multi-location targeting and save-in-flight protection.
@@ -14,7 +13,7 @@ import { inventoryState } from './state.js';
  * @returns {void}
  */
 export function queueInventoryAdjustment(item, delta) {
-  if (savingAll) {
+  if (inventoryState.savingAll) {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }
@@ -25,7 +24,7 @@ export function queueInventoryAdjustment(item, delta) {
     openStockLocationPicker(item, amount);
     return;
   }
-  if (applyPendingInventoryAdjustment(item, amount, null)) renderInventory();
+  if (applyPendingInventoryAdjustment(item, amount, null)) renderInventoryView();
 }
 
 /**
@@ -121,7 +120,7 @@ export function openStockLocationPicker(item, delta) {
  * @returns {void}
  */
 export function queueStockLocationAdjustment(itemId, stockId) {
-  if (savingAll) {
+  if (inventoryState.savingAll) {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }
@@ -136,7 +135,7 @@ export function queueStockLocationAdjustment(itemId, stockId) {
   if (!applyPendingInventoryAdjustment(item, state.delta, Number(stock.id))) return;
   inventoryState.stockLocationPickerState = null;
   closeModalForce('stock-location-modal');
-  renderInventory();
+  renderInventoryView();
 }
 
 /**

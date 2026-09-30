@@ -133,6 +133,9 @@ const context = {
 };
 vm.createContext(context);
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
+// issue #39：通知中心經 features/shell/navigation.js 的 port 切頁，正式由 configureShell 接到 switchTab
+vm.runInContext(moduleScript('features/shell/navigation.js'), context);
+context.provideTabNavigator(tab => context.switchTab(tab));
 vm.runInContext(moduleScript('features/notifications/center.js'), context);
 context.closeNotif = function() { calls.push('close'); };
 context.openNotificationDetail('out');

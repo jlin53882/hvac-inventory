@@ -2,27 +2,12 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { esc, jsStr, toast } from '../../core/utils.js';
-import { wprCreatedByText, wprTimeText } from './format.js';
+import { wprCreatedByText, wprTimeText, wprOptionalNoteHtml } from './format.js';
 import { wprLoadHistory, wprLoadKpi } from './history.js';
-import { wprLoadDay, wprOptionalNoteHtml } from './page.js';
-import { workProgressState } from './state.js';
-import { wprUploadProgressText, wprUploadWithProgress, wprValidatePhotoBatch } from './upload.js';
+import { wprLoadDay } from './day.js';
+import { wprClearPhotoManageStates, workProgressState } from './state.js';
+import { wprUploadProgressText, wprUploadWithProgress, wprValidatePhotoBatch } from './photo-upload.js';
 
-export var wprLastDetailReport = null;
-/**
- * Drop management state for detail surfaces that no longer exist.
- * @param {function(string): boolean} predicate - State-key matcher.
- * @returns {void} Function result.
- */
-export function wprClearPhotoManageStates(predicate) {
-  Object.keys(workProgressState.wprPhotoManageStates).forEach(function(key) {
-    var targetId = key.slice(key.indexOf(':') + 1);
-    if (predicate(targetId)) {
-      delete workProgressState.wprPhotoManageStates[key];
-      delete workProgressState.wprPhotoManageReports[key];
-    }
-  });
-}
 /**
  * Resolve the DOM id used by one report detail surface.
  * @param {number} id - Report identifier.
@@ -125,12 +110,12 @@ export async function wprOpenHistoryDetail(id, targetId, cachedReport) {
   var token = (workProgressState.wprDetailRequestTokens[tokenKey] || 0) + 1; workProgressState.wprDetailRequestTokens[tokenKey] = token;
   var cacheKey = wprPhotoManageKey(id, detailTargetId);
   if (cachedReport) workProgressState.wprPhotoManageReports[cacheKey] = cachedReport;
-  if (wprLastDetailReport && wprLastDetailReport.id === id && !cachedReport) wprLastDetailReport = null;
+  if (workProgressState.wprLastDetailReport && workProgressState.wprLastDetailReport.id === id && !cachedReport) workProgressState.wprLastDetailReport = null;
   try {
     var report = cachedReport || (await apiFetch('/api/work-progress/' + id));
     if (token !== workProgressState.wprDetailRequestTokens[tokenKey]) return;
     workProgressState.wprPhotoManageReports[cacheKey] = report;
-    wprLastDetailReport = { id: id, report: report };
+    workProgressState.wprLastDetailReport = { id: id, report: report };
     var actionTargetId = esc(jsStr(detailTargetId));
     detail.innerHTML = '<div class="wpr-detail-grid"><span>工作日期<b>' + esc(report.report_date) + '</b></span><span>服務項目<b>' + esc(report.service_name || '未指定服務') + '</b></span><span>客戶 / 案場<b>' + esc(report.client_name) + '</b></span><span>時間<b>' + wprTimeText(report) + '</b></span><span>地址<b>' + esc(report.address || '—') + '</b></span><span>回報人<b>' + esc(report.uploader_name) + '</b></span><span>建立帳號<b>' + esc(wprCreatedByText(report)) + '</b></span></div>' + wprOptionalNoteHtml('行事曆備註', report.appointment_note) + wprOptionalNoteHtml('工作進度', report.note) + '<div class="wpr-detail-photo-section"><h4 class="wpr-detail-photo-title">施工照片</h4>' + (wprPhotoManageState(id, detailTargetId).manage ? wprPhotoManagementToolbarHtml(id, detailTargetId) : '') + '<div class="wpr-gallery-grid">' + wprPhotoGalleryHtml(report, id, detailTargetId) + '</div></div><div class="wpr-detail-actions">' + (report.can_edit ? '<button type="button" class="btn btn--secondary btn--sm wpr-detail-action-edit" onclick="WorkProgress.wprEditReport(' + id + ',\'' + actionTargetId + '\')">✏️ 編輯回報</button><button type="button" class="btn btn--secondary btn--sm wpr-detail-action-manage" onclick="WorkProgress.wprTogglePhotoManage(' + id + ',\'' + actionTargetId + '\')">' + (wprPhotoManageState(id, detailTargetId).manage ? '結束照片管理' : '📷 管理照片') + '</button><span class="wpr-photo-limit">目前 ' + report.photo_count + ' / 20 張照片' + (report.photo_count >= 20 ? ' · 已達照片上限' : ' · 最多還可新增 ' + (20 - report.photo_count) + ' 張') + '</span><button type="button" class="btn btn--secondary btn--sm wpr-detail-action-add" onclick="WorkProgress.wprAddExistingPhotos(' + id + ',\'' + actionTargetId + '\')"' + (report.photo_count >= 20 ? ' disabled' : '') + '>📷 新增照片</button>' : '') + (report.can_delete ? '<button type="button" class="btn btn--danger btn--sm wpr-detail-action-delete" onclick="WorkProgress.wprDeleteReport(' + id + ')">🗑 刪除</button>' : '') + '</div>';
   } catch (error) { if (token === workProgressState.wprDetailRequestTokens[tokenKey]) detail.textContent = error.message; }

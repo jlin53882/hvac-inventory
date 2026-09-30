@@ -1370,7 +1370,7 @@ def test_kit_edit_rerenders_directly_after_save():
     assert "preparedRenderRequestSeq" in prepared
     assert "renderRequestId !== preparedRenderRequestSeq" in prepared
     assert "siteAtRequest !== appState.currentSite" in prepared
-    render = read(os.path.join(STATIC, "js", "features", "kits", "page.js"))
+    render = read(KITS_RENDER_JS)  # issue #39：缺料 / 不足清單在 kits/status.js
     assert "kit-code" in render                                      # 新結構用 kit-code
     assert "esc(k.code)" in render
     assert "[kit.name, kit.brand, kit.code, kit.note" in render
@@ -2003,7 +2003,11 @@ def test_unsaved_changes_guard_present():
     assert "有未儲存的變更" in ut  # confirm 文案
     assert "delete __modalSnapshots[id]" in ut
     # submit 成功路徑用 force（不彈確認）
-    for f in ("inventory/add-modal.js", "inventory/edit-modal.js", "kits/kit-modal.js", "stockout/modals.js", "inventory/photo.js"):
+    # issue #39：相似品項「去編輯」（goEditSimilar）自 inventory/photo.js 移到 edit-modal.js，仍須以 force 關閉新增 / 編輯 modal
+    edit_modal = read(os.path.join(STATIC, "js", "features", "inventory", "edit-modal.js"))
+    similar = edit_modal[edit_modal.index("export function goEditSimilar("):]
+    assert "closeModalForce('add-modal');" in similar and "closeModalForce('edit-modal');" in similar
+    for f in ("inventory/add-modal.js", "inventory/edit-modal.js", "kits/kit-modal.js", "stockout/modals.js"):
         src = read(os.path.join(STATIC, "js", "features", *f.split("/")))
         assert "closeModalForce(" in src, f"{f} 應使用 closeModalForce"
 
@@ -3946,6 +3950,7 @@ const vm = require('vm');
 const { moduleScript } = require('./tests/support/frontend-runtime');
 const context = { document: { addEventListener() {} } };
 vm.createContext(context);
+vm.runInContext(moduleScript('features/kits/status.js'), context);
 vm.runInContext(moduleScript('features/kits/page.js'), context);
 const kits = [
   { id: 1, components: [{ item_id: 11, stock: 0, need_qty: 1 }, { item_id: 12, stock: 2, need_qty: 1 }] },
@@ -4107,7 +4112,7 @@ def test_kit_component_table_has_fixed_photo_and_equal_remaining_columns():
 
 def test_kit_status_kpis_are_clickable_and_use_existing_status_selector():
     """整組庫存異常 KPI 必須用既有 getKitStatus selector 開啟明細。"""
-    js = read(os.path.join(STATIC, 'js', 'features', 'kits', 'page.js'))
+    js = read(KITS_RENDER_JS)  # issue #39：showKitStatusList / getKitStatus 在 kits/status.js
     assert "showKitStatusList('${card[4]}')" in js
     assert 'function showKitStatusList(type)' in js
     assert "getKitStatus(k).status === validType" in js
@@ -4699,7 +4704,7 @@ def test_work_progress_frontend_is_independent_and_mounted():
     app = read(APP_JS)
     api = read(API_JS)
     globals_js = read(GLOBALS_JS)
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     assert 'id="sb-nav-work-progress"' in index
     assert "switchTab('work-progress')" in index
@@ -4728,7 +4733,7 @@ def test_work_progress_frontend_is_independent_and_mounted():
 
 def test_work_progress_frontend_permission_and_workflow_contract():
     """工作進度 UI 以 view/edit/delete flags 與 appointment 狀態驅動。"""
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     auth = read(js_modules("core/session.js", "features/shell/app.js"))
     assert "perms['work-progress-view']" in auth
@@ -4747,7 +4752,7 @@ def test_work_progress_frontend_permission_and_workflow_contract():
     assert "wprGalleryPreloadOffsets" in js
     assert "wprPreloadGalleryAround" in js
     assert "delete state.inflight[url]" in js
-    assert "wprLastDetailReport && wprLastDetailReport.id === id" in js
+    assert "workProgressState.wprLastDetailReport && workProgressState.wprLastDetailReport.id === id" in js
     assert "image.decoding = 'async'" in js
     gallery_block = js.split("function wprPhotoGalleryHtml", 1)[1].split(
         "async function wprOpenHistoryDetail", 1
@@ -4804,7 +4809,7 @@ def test_work_progress_frontend_permission_and_workflow_contract():
 
 def test_work_progress_frontend_create_permission_gates_form_but_preserves_view():
     """view 可用但 create 不可用時只顯示檢視提示，history/KPI 流程仍保留。"""
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
     assert "work-progress-create" in js
@@ -4818,7 +4823,7 @@ def test_work_progress_frontend_create_permission_gates_form_but_preserves_view(
 
 
 def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity():
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     assert "async function wprReloadAndReopenDetail(id, page, targetId)" in js
     helper = js.split("async function wprReloadAndReopenDetail(id, page, targetId)", 1)[1].split(
         "function wprHistoryCard", 1
@@ -4849,7 +4854,7 @@ def test_work_progress_history_mutations_reopen_detail_and_show_creator_identity
 
 
 def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     # issue #39：原檔中 wprBatchDeletePhotos 位於 wprEditReport 之前，舊切法實際取到「檔案其餘部分」；
     # 拆檔後改以 detail.js 中緊接的 wprAddExistingPhotos 為界，只檢查編輯 dialog 本身
@@ -4877,7 +4882,7 @@ def test_work_progress_edit_dialog_separates_calendar_and_owned_fields():
 
 
 def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_readonly_contract():
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     confirm_block = js.split("async function wprConfirmSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
@@ -4899,7 +4904,7 @@ def test_work_progress_frontend_create_uses_editable_uploader_and_calendar_reado
 
 
 def test_work_progress_frontend_create_section_order_and_field_grouping():
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     render_block = js.split("function wprRenderCreate()", 1)[1].split("async function wprLoadDay()", 1)[0]
     positions = {
         "date": render_block.index('id="wpr-date"'),
@@ -4926,7 +4931,7 @@ def test_work_progress_frontend_create_section_order_and_field_grouping():
 
 
 def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
     app = read(APP_JS)
     submit_block = js.split("async function wprSubmit()", 1)[1].split("async function wprLoadKpi()", 1)[0]
@@ -4985,7 +4990,7 @@ def test_work_progress_frontend_create_photo_and_unsaved_protection_contract():
 
 def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     """工作進度前端鎖定 report identity、分頁、Object URL lifecycle 與 loader freshness。"""
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     globals_js = read(GLOBALS_JS)
     select_block = js.split("async function wprSelectJob(id)", 1)[1].split(
         "function wprUpdateNoteCount", 1
@@ -5084,7 +5089,7 @@ def test_frontend_async_lifecycle_contracts():
 def test_work_progress_uploads_report_progress():
     """2026-09 A5：新增工作進度與追加照片都走 wprUploadWithProgress（XHR upload.onprogress），
     不再用 fetch 一次送出而只顯示「儲存中…」。runtime 行為見 work_progress_upload_progress.test.js。"""
-    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js"))
+    js = read(js_modules("features/work-progress/gallery.js", "features/work-progress/detail.js", "features/work-progress/history.js", "features/work-progress/upload.js", "features/work-progress/draft.js", "features/work-progress/page.js", "features/work-progress/format.js", "features/work-progress/state.js", "features/work-progress/day.js", "features/work-progress/pending-photos.js", "features/work-progress/photo-upload.js"))
     helper = js.split("function wprUploadWithProgress", 1)[1].split("function wprCurrentUserName", 1)[0]
     assert "xhr.upload.onprogress" in helper
     assert "xhr.upload.onload" in helper
@@ -5109,11 +5114,13 @@ def test_page_scope_contract():
         assert f'<body data-page="{scope}">' in read(os.path.join(STATIC, page))
 
     app = read(os.path.join(STATIC, "js", "features", "shell", "app.js"))
-    fn = app[app.index("function setPageScope(page)"):app.index("function switchTab(tab)")]
+    # issue #39：setPageScope / 對照表自 shell/app.js 移到 shell/page-scope.js（feature 使用時不必 import 組裝層）
+    scope = read(os.path.join(STATIC, "js", "features", "shell", "page-scope.js"))
+    fn = scope[scope.index("function setPageScope(page)"):scope.index("function syncViewUrl()")]
     assert "document.body.dataset.page = page" in fn
     # 每次都依對照表重設全部舊 class（不能只 toggle 部分 → 上一頁殘留）
     assert "Object.keys(PAGE_CONTENT_CLASS).forEach" in fn and "key === page" in fn
-    assert "'quotation-upload': 'quotation-upload-content'" in app
+    assert "'quotation-upload': 'quotation-upload-content'" in scope
     switch = app[app.index("function switchTab(tab)"):app.index("function switchTab(tab)") + 3000]
     assert "setPageScope(tab);" in switch
     assert "content.classList.toggle(" not in switch, "頁面 class 只能由 setPageScope 管理"
@@ -5128,8 +5135,10 @@ def test_full_load_completion_does_not_remount_preserved_tabs():
     api = read(API_JS)
     start = api.index("apiFetch(`/api/items?site=")
     body = api[start:api.index("loadPreparedBadge();", start)]
-    assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) switchTab(appState.currentTab);" in body
-    assert "\n    switchTab(appState.currentTab);" not in body
+    # issue #39：data-refresh 經注入的 remountTab（= shell/app.js 的 switchTab，見 configureShell）重新掛載
+    assert "if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) view().remountTab(appState.currentTab);" in body
+    assert "\n    view().remountTab(appState.currentTab);" not in body
+    assert "remountTab: switchTab," in read(os.path.join(STATIC, "js", "features", "shell", "app.js"))
 
 
 def test_inventory_page_load_does_not_render_after_tab_left():

@@ -95,7 +95,9 @@ def test_default_tab_is_calendar():
     gl = read(GLOBALS_JS)
     assert "  currentTab: 'calendar'," in gl
     ap = read(API_JS)
-    assert "switchTab(appState.currentTab);" in ap
+    # issue #39：data-refresh 經注入的 remountTab 分派，組裝層把它接到 shell/app.js 的 switchTab
+    assert "view().remountTab(appState.currentTab);" in ap
+    assert "remountTab: switchTab," in read(APP_JS)
 
 def test_app_boot_clears_default_calendar_active_before_selected_tab():
     """Regression: F5 on ?tab=inventory must not leave default calendar active in sidebar."""
@@ -729,7 +731,8 @@ def test_settings_html_gcal_mobile_css():
 
 def test_render_calendar_stops_when_tab_left_during_load():
     """行事曆載入期間切到別頁：await 回來後不得再寫入已被取代的月曆 DOM（visual 測試快速切頁時曾拋 null.innerText）。"""
-    js = read(js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/view.js", "features/calendar/sync-status.js", "features/calendar/state.js"))
+    # issue #39：renderCalendar 在 features/calendar/page.js（放在 view.js 之前，第一個 calLoadData 就是 renderCalendar 的）
+    js = read(js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/page.js", "features/calendar/view.js", "features/calendar/sync-status.js", "features/calendar/state.js"))
     body = js[js.index("const applied = await calLoadData();"):js.index("calRenderMonth();", js.index("const applied = await calLoadData();"))]
     assert "if (appState.currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;" in body
 

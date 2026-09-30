@@ -5,7 +5,6 @@ import { apiFetch } from '../../core/api-client.js';
 import { INVENTORY_ALERT_ITEMS, INVENTORY_PENDING_ITEMS, appState, pending } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems, getInventoryFilterKeywords, inventoryItemMatchesCurrentFilters } from './filters.js';
-import { formatInventoryQuantity } from './list.js';
 import { inventoryState } from './state.js';
 
 function getInventoryDisplayQty(item) {
@@ -75,6 +74,13 @@ export function getInventoryDashboardStats(list, aggregateStats) {
   });
   return dashboard;
 }
+// 庫存數量顯示（KPI 合計）：最多三位小數、千分位
+function formatInventoryQuantity(value) {
+  const n = Number(value);
+  if (!isFinite(n)) return '0';
+  return (Math.round(n * 1000) / 1000).toLocaleString('en-US');
+}
+
 export function renderInventoryDashboard(list, aggregateStats) {
   const dashboard = getInventoryDashboardStats(list, aggregateStats);
   const totalQty = dashboard.totalQty;

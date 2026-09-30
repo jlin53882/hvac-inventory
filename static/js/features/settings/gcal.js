@@ -1,12 +1,7 @@
 // 庫存管理系統 - 設定頁：Google 行事曆同步（金鑰、人員綁定、同步佇列）
 
 import { apiFetch } from '../../core/api-client.js';
-import { canAccessPage, checkAuth } from '../../core/session.js';
-import { loadUnits } from '../../core/units.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
-import { settingsSwitch } from './page.js';
-import { loadPettyOptions } from './petty-options.js';
-import { loadOrphans } from './units.js';
 
 export var gcalKeys = [];
 var gcalUsers = [];
@@ -446,41 +441,8 @@ export async function bindGcalUser(userId, keyName) {
 }
 
 // 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）
-export function initSettingsGcal() {
-  // ========== 初始化 ==========
-  (async function initSettings() {
-    const user = await checkAuth();
-    if (!user) return;
-    if (!canAccessPage('settings')) {
-      location.href = '/';
-      return;
-    }
-    const canUnits = hasPerm('unit-mgmt');
-    const canPettyOptions = hasPerm('petty-cash-config');
-    const canChangePassword = canAccessPage('change-password');
-    if (!canUnits) {
-      const item = document.querySelector('#settingsSideList [data-role="settings-side-item"][data-panel="units"]');
-      if (item) item.style.display = 'none';
-    }
-    if (!canPettyOptions) {
-      const item = document.querySelector('#settingsSideList [data-role="settings-side-item"][data-panel="petty-cash"]');
-      if (item) item.style.display = 'none';
-    }
-    const chipBar = document.getElementById('settingsChipBar');
-    if (chipBar) {
-      chipBar.innerHTML = [
-        ['units', '📦 單位管理'],
-        ['cabinets', '📦 櫃子'],  // 2026-09-28 手機版也要能進櫃子設定（與側欄一致）
-        ['gcal', '📅 行事曆同步'],
-        ['petty-cash', '🪙 零用金選單'],
-        ['pw', '🔑 修改密碼']
-      ].filter(([p]) => (p !== 'units' || canUnits) && (p !== 'petty-cash' || canPettyOptions) && (p !== 'pw' || canChangePassword))
-       .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' is-active' : '') + '" data-panel="' + p + '" onclick="Settings.settingsSwitch(\'' + p + '\')">' + label + '</span>')
-       .join('');
-    }
-    await Promise.all([loadUnits(), loadOrphans(), loadGcalKeys(), loadGcalUsers(), loadGcalSettings(), loadGcalSyncStatus(), loadGcalQueue(), loadPettyOptions()]);
-    // 預選第一個 key
-    if (gcalKeys.length && !selectedKeyId) selectedKeyId = gcalKeys[0].id;
-    settingsSwitch(canUnits ? 'units' : canPettyOptions ? 'petty-cash' : canChangePassword ? 'pw' : 'gcal');
-  })();
+// 設定頁啟動時載入行事曆同步面板需要的資料，並預選第一個 Key（由 settings/page.js 的 initSettingsPage 呼叫）
+export async function loadGcalPanelData() {
+  await Promise.all([loadGcalKeys(), loadGcalUsers(), loadGcalSettings(), loadGcalSyncStatus(), loadGcalQueue()]);
+  if (gcalKeys.length && !selectedKeyId) selectedKeyId = gcalKeys[0].id;
 }

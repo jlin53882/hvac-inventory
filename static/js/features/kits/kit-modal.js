@@ -6,7 +6,7 @@ import { appState } from '../../core/state.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
 import { _cabinetOptions } from '../inventory/edit-modal.js';
 import { renderKitPhotoBox } from '../inventory/photo.js';
-import { renderKitCompRows } from './page.js';
+import { renderKitCompRows } from './component-rows.js';
 import { kitsState } from './state.js';
 
 export async function loadKitCabinetOptions() {

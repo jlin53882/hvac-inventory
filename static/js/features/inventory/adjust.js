@@ -7,17 +7,17 @@ import { INVENTORY_PENDING_ITEMS, appState, pending, pendingByStock } from '../.
 import { toast } from '../../core/utils.js';
 import { queueInventoryAdjustment } from './location-adjustments.js';
 import { openQtyDialog } from './qty-dialog.js';
+import { inventoryState } from './state.js';
 
 /**
  * Save aggregate and explicitly targeted stock adjustments without discarding partial successes.
  * @returns {Promise<void>}
  */
-export let savingAll = false;  // 防止連點「全部儲存」重複送出同一批調整
 export async function saveAll() {
-  if (savingAll) return;
+  if (inventoryState.savingAll) return;
   const ids = Object.keys(pending);
   if (!ids.length) return;
-  savingAll = true;
+  inventoryState.savingAll = true;
   const button = document.getElementById('btn-save');
   if (button) button.disabled = true;
   let ok = 0;
@@ -76,7 +76,7 @@ export async function saveAll() {
     if (fail === 0) toast(`✅ 已儲存 ${ok} 項庫存調整`, 'success');
     else toast(`⚠️ ${ok} 成功，${fail} 失敗——失敗調整已保留，可修正後再儲存`, 'error');
   } finally {
-    savingAll = false;
+    inventoryState.savingAll = false;
     if (button) button.disabled = false;
   }
 }
@@ -91,7 +91,7 @@ export async function saveAll() {
  * @returns {void}
  */
 export function changeQty(id, delta) {
-  if (savingAll) {
+  if (inventoryState.savingAll) {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }
@@ -109,7 +109,7 @@ export function changeQty(id, delta) {
  * @returns {void}
  */
 export function quickSet(id) {
-  if (savingAll) {
+  if (inventoryState.savingAll) {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }

@@ -94,9 +94,8 @@ def test_layer_does_not_import_upper_layers(layer):
     assert violations == [], f"{layer} 反向依賴上層：\n" + "\n".join(violations)
 
 
-def test_core_and_components_are_outside_every_import_cycle():
-    """core / components 不可落在任何 import 循環中（循環會讓 evaluation 順序依賴入口，易出現 TDZ）。"""
-    graph = _graph()
+def _import_cycles(graph):
+    """Tarjan SCC：回傳所有多模組強連通分量（與自我 import 的模組），每個分量已排序。"""
     index, low, stack, on_stack, cycles = {}, {}, [], set(), []
     counter = [0]
 
@@ -119,16 +118,48 @@ def test_core_and_components_are_outside_every_import_cycle():
                 component.append(item)
                 if item == node:
                     break
-            if len(component) > 1:
+            if len(component) > 1 or node in graph.get(node, ()):
                 cycles.append(sorted(component))
 
     for node in graph:
         if node not in index:
             visit(node)
+    return sorted(cycles, key=len, reverse=True)
+
+
+def _cycle_report(graph, cycles):
+    """每個循環列出模組數、成員，以及分量內被最多成員 import 的 hub（除錯用）。"""
+    lines = []
+    for cycle in cycles:
+        members = set(cycle)
+        fan_in = {m: sum(1 for src in cycle if m in graph.get(src, ())) for m in cycle}
+        hubs = sorted(cycle, key=lambda m: -fan_in[m])[:3]
+        lines.append(f"{len(cycle)} modules, hubs {[(h, fan_in[h]) for h in hubs]}: {sorted(members)}")
+    return "\n".join(lines)
+
+
+def test_core_and_components_are_outside_every_import_cycle():
+    """core / components 不可落在任何 import 循環中（循環會讓 evaluation 順序依賴入口，易出現 TDZ）。"""
     offenders = [
         [m for m in cycle if _layer(m) in ("core", "components")]
-        for cycle in cycles
+        for cycle in _import_cycles(_graph())
     ]
     offenders = [o for o in offenders if o]
     assert offenders == [], f"core / components 仍在 import 循環內：{offenders}"
 
+
+def test_import_graph_has_no_cycles():
+    """整個 static/js（含 features 之間與 feature 內部）不得有任何 import 循環（無白名單）。
+
+    feature 需要「切頁」「重新整理資料」時，改用 shell 的 port（features/shell/navigation.js、data-refresh.js），
+    實作由頁面進入點組裝注入；modal 需要重繪頁面時，由呼叫端傳入 callback 或把共用 helper 抽成葉節點模組。"""
+    graph = _graph()
+    cycles = _import_cycles(graph)
+    assert cycles == [], f"import 循環 {len(cycles)} 個：\n" + _cycle_report(graph, cycles)
+
+
+def test_only_page_entries_import_shell_composition():
+    """features/shell/app.js 是主頁的組裝層（import 所有頁籤 renderer）：只有 pages/*.js 可以 import 它，
+    其他 feature 需要切頁時用 features/shell/navigation.js 的 navigateToTab。"""
+    importers = sorted(m for m, targets in _graph().items() if "features/shell/app.js" in targets and _layer(m) != "pages")
+    assert importers == [], f"只有頁面進入點可以 import features/shell/app.js：{importers}"

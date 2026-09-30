@@ -3,7 +3,6 @@
 import { apiFetch } from '../../core/api-client.js';
 import { appState } from '../../core/state.js';
 import { toast } from '../../core/utils.js';
-import { wprLastDetailReport } from './detail.js';
 import { workProgressState } from './state.js';
 
 var wprGallery = { report: null, index: 0 };
@@ -147,8 +146,8 @@ function wprPreloadGalleryAround(report, index, direction) {
 export function wprOpenGallery(id, index) {
   var token = ++wprGalleryRequestToken;
   wprCloseGallery(false);
-  var reportPromise = wprLastDetailReport && wprLastDetailReport.id === id
-    ? Promise.resolve(wprLastDetailReport.report)
+  var reportPromise = workProgressState.wprLastDetailReport && workProgressState.wprLastDetailReport.id === id
+    ? Promise.resolve(workProgressState.wprLastDetailReport.report)
     : apiFetch('/api/work-progress/' + id);
   reportPromise.then(function(report) {
     if (token !== wprGalleryRequestToken) return;

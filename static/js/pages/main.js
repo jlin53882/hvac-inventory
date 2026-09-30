@@ -2,15 +2,17 @@
 // 並依原本 <script> 的載入順序執行各模組的初始化。
 import { QuotationUploads } from '../features/upload-list/quotation-upload.js';
 import { SignedReports } from '../features/upload-list/signed-reports.js';
-import { _previewKitPhoto, closePhotoLightbox, deleteItemPhoto, deleteKitPhoto, goEditSimilar, initInventoryPhoto, openPhotoLightbox, uploadItemPhoto } from '../features/inventory/photo.js';
+import { _previewKitPhoto, closePhotoLightbox, deleteItemPhoto, deleteKitPhoto, initInventoryPhoto, openPhotoLightbox, uploadItemPhoto } from '../features/inventory/photo.js';
+import { goEditSimilar, addEditStockRow, deleteEditStockRow, openEditModal, submitEdit } from '../features/inventory/edit-modal.js';
 import { ackPasswordExpiry, expiryGoChangePw } from '../features/account/password-expiry.js';
 import { addAddStockRow, openAddModal, removeAddStockRow, submitAdd } from '../features/inventory/add-modal.js';
-import { addEditStockRow, deleteEditStockRow, openEditModal, submitEdit } from '../features/inventory/edit-modal.js';
 import { addKitCompRow, addKitLocationRow, openKitModal, removeKitCompRow, removeKitLocationRow, submitKit, submitKitEdit } from '../features/kits/kit-modal.js';
-import { assembleKit, deleteKit, disassembleKit, editKit, filterKitSearch, initKitsPage, kitCompQtyChanged, openKitSearch, openKitSheet, pickKitItem, renderKits, showKitStatusList } from '../features/kits/page.js';
+import { assembleKit, deleteKit, disassembleKit, editKit, initKitsPage, openKitSheet, renderKits } from '../features/kits/page.js';
+import { filterKitSearch, kitCompQtyChanged, openKitSearch, pickKitItem } from '../features/kits/component-rows.js';
+import { showKitStatusList } from '../features/kits/status.js';
 import { calAddSvc, calDelSvc, calSetColor, calSetTab, calUpdSvc, calUpdSvcActive } from '../features/calendar/settings-modal.js';
-import { calChangeMonth, calExport, calPickDate, calPickToday, calRetryLoad, calShiftDay } from '../features/calendar/view.js';
-import { calClearSearch, calJumpToDate, calSearch } from '../features/calendar/search.js';
+import { calChangeMonth, calExport, calPickDate, calPickToday, calRetryLoad, calShiftDay, calClearSearch, calJumpToDate } from '../features/calendar/view.js';
+import { calSearch } from '../features/calendar/search.js';
 import { calDeleteAppt, calOpenAppt, calRetryMySync, calRetryTeamMember, calRetryTeamSync, calShowSyncError, calShowTeamSyncDetails, calSubmitAppt, closeCalModal } from '../features/calendar/appt-modal.js';
 import { calcDiff, markChanged, renderStocktake, setStocktakeValue, showStocktakeList, submitStocktake, switchStocktakeTab } from '../features/stocktake/page.js';
 import { cancelBatch, closeBatchConfirm, selectAllStocks, showBatchConfirm, submitBatchLocation, toggleBatchMode, toggleStockSelect } from '../features/inventory/batch-location.js';
@@ -18,9 +20,11 @@ import { cancelStockLocationPicker, queueStockLocationAdjustment } from '../feat
 import { changeInventoryPage } from '../features/shell/data-refresh.js';
 import { changeQty, quickSet, saveAll } from '../features/inventory/adjust.js';
 import { clearFilterPanel, initInventoryFilters, toggleFilterCollapse, toggleInventoryBrand, toggleInventoryCategory } from '../features/inventory/filters.js';
-import { clearPrepared, openPreparedSheet, renderPrepared, toggleKitSubItems } from '../features/prepared/page.js';
-import { clearSearchAutofill, closeSidebar, initShellApp, switchSite, switchTab, toggleAvatarMenu, toggleSidebar } from '../features/shell/app.js';
-import { clearStockoutFilters, deleteStockoutRecord, openStockoutSheet, renderStockOuts, setStockoutFilter } from '../features/stockout/page.js';
+import { clearPrepared, renderPrepared, toggleKitSubItems } from '../features/prepared/page.js';
+import { openPreparedSheet } from '../features/prepared/sheet.js';
+import { clearSearchAutofill, closeSidebar, configureShell, initShellApp, switchSite, switchTab, toggleAvatarMenu, toggleSidebar } from '../features/shell/app.js';
+import { clearStockoutFilters, deleteStockoutRecord, renderStockOuts, setStockoutFilter } from '../features/stockout/page.js';
+import { openStockoutSheet } from '../features/stockout/sheet.js';
 import { closeInventoryActionMenus, closeMoreActions, deleteItem, initInventoryActions, openInventoryActionMenu, openItemSheet, toggleMoreActions } from '../features/inventory/actions.js';
 import { closeInventoryExportDialog, initInventoryExportDialog, openInventoryExportDialog, submitInventoryExport, syncInventoryExportAllSites, toggleInventoryExportSites } from '../features/inventory/export-dialog.js';
 import { closeInventoryStatusModal, showInventoryStatusList } from '../features/inventory/status.js';
@@ -44,9 +48,10 @@ import { qtydQuick, setQtyDialogMode, submitQtyDialog } from '../features/invent
 import { setInventoryView, toggleLoc } from '../features/inventory/list.js';
 import { setSharedStatusListLocation, setSharedStatusListSearch } from '../components/status-list.js';
 import { wprAddExistingPhotos, wprBatchDeletePhotos, wprClearPhotoSelection, wprDeleteReport, wprEditReport, wprOpenHistoryDetail, wprSelectAllPhotoSelection, wprTogglePhotoManage, wprTogglePhotoSelection } from '../features/work-progress/detail.js';
-import { wprAddPendingFiles, wprRemovePending, wprSubmit } from '../features/work-progress/upload.js';
-import { wprCloseLeaveConfirmation, wprDiscardAndLeave } from '../features/work-progress/draft.js';
-import { wprHandleDateChange, wprHistoryToggled, wprSelectJob, wprUpdateNoteCount } from '../features/work-progress/page.js';
+import { wprSubmit } from '../features/work-progress/upload.js';
+import { wprAddPendingFiles, wprRemovePending } from '../features/work-progress/pending-photos.js';
+import { wprCloseLeaveConfirmation, wprDiscardAndLeave, wprUpdateNoteCount } from '../features/work-progress/draft.js';
+import { wprHandleDateChange, wprHistoryToggled, wprSelectJob } from '../features/work-progress/page.js';
 import { wprLoadHistory, wprQuickRange, wprResetFilter } from '../features/work-progress/history.js';
 
 // 除錯 / 自動化測試入口（瀏覽器 console、Playwright）：依模組路徑取用本頁模組；正式程式碼不得依賴
@@ -66,55 +71,66 @@ import * as m12 from '../features/account/change-password.js';
 import * as m13 from '../features/account/password-expiry.js';
 import * as m14 from '../features/calendar/appt-modal.js';
 import * as m15 from '../features/calendar/format.js';
-import * as m16 from '../features/calendar/search.js';
-import * as m17 from '../features/calendar/settings-modal.js';
-import * as m18 from '../features/calendar/state.js';
-import * as m19 from '../features/calendar/sync-status.js';
-import * as m20 from '../features/calendar/view.js';
-import * as m21 from '../features/inventory/actions.js';
-import * as m22 from '../features/inventory/add-modal.js';
-import * as m23 from '../features/inventory/adjust.js';
-import * as m24 from '../features/inventory/batch-location.js';
-import * as m25 from '../features/inventory/edit-modal.js';
-import * as m26 from '../features/inventory/export-dialog.js';
-import * as m27 from '../features/inventory/filters.js';
-import * as m28 from '../features/inventory/list.js';
-import * as m29 from '../features/inventory/location-adjustments.js';
-import * as m30 from '../features/inventory/photo.js';
-import * as m31 from '../features/inventory/qty-dialog.js';
-import * as m32 from '../features/inventory/state.js';
-import * as m33 from '../features/inventory/status.js';
-import * as m34 from '../features/inventory/transfer-modal.js';
-import * as m35 from '../features/kits/export-dialog.js';
-import * as m36 from '../features/kits/kit-modal.js';
-import * as m37 from '../features/kits/page.js';
-import * as m38 from '../features/kits/state.js';
-import * as m39 from '../features/notifications/center.js';
-import * as m40 from '../features/petty-cash/engineering-modal.js';
-import * as m41 from '../features/petty-cash/page.js';
-import * as m42 from '../features/petty-cash/report-modal.js';
-import * as m43 from '../features/petty-cash/state.js';
-import * as m44 from '../features/prepared/page.js';
-import * as m45 from '../features/quotation/page.js';
-import * as m46 from '../features/shell/app.js';
-import * as m47 from '../features/shell/data-refresh.js';
-import * as m48 from '../features/stockout/export-dialog.js';
-import * as m49 from '../features/stockout/modals.js';
-import * as m50 from '../features/stockout/page.js';
-import * as m51 from '../features/stockout/state.js';
-import * as m52 from '../features/stocktake/page.js';
-import * as m53 from '../features/stocktake/state.js';
-import * as m54 from '../features/upload-list/quotation-upload.js';
-import * as m55 from '../features/upload-list/signed-reports.js';
-import * as m56 from '../features/upload-list/upload-list.js';
-import * as m57 from '../features/work-progress/detail.js';
-import * as m58 from '../features/work-progress/draft.js';
-import * as m59 from '../features/work-progress/format.js';
-import * as m60 from '../features/work-progress/gallery.js';
-import * as m61 from '../features/work-progress/history.js';
-import * as m62 from '../features/work-progress/page.js';
-import * as m63 from '../features/work-progress/state.js';
-import * as m64 from '../features/work-progress/upload.js';
+import * as m16 from '../features/calendar/page.js';
+import * as m17 from '../features/calendar/search.js';
+import * as m18 from '../features/calendar/settings-modal.js';
+import * as m19 from '../features/calendar/state.js';
+import * as m20 from '../features/calendar/sync-status.js';
+import * as m21 from '../features/calendar/view.js';
+import * as m22 from '../features/inventory/actions.js';
+import * as m23 from '../features/inventory/add-modal.js';
+import * as m24 from '../features/inventory/adjust.js';
+import * as m25 from '../features/inventory/batch-location.js';
+import * as m26 from '../features/inventory/edit-modal.js';
+import * as m27 from '../features/inventory/export-dialog.js';
+import * as m28 from '../features/inventory/filters.js';
+import * as m29 from '../features/inventory/list.js';
+import * as m30 from '../features/inventory/location-adjustments.js';
+import * as m31 from '../features/inventory/photo.js';
+import * as m32 from '../features/inventory/qty-dialog.js';
+import * as m33 from '../features/inventory/state.js';
+import * as m34 from '../features/inventory/status.js';
+import * as m35 from '../features/inventory/transfer-modal.js';
+import * as m36 from '../features/kits/component-rows.js';
+import * as m37 from '../features/kits/export-dialog.js';
+import * as m38 from '../features/kits/kit-modal.js';
+import * as m39 from '../features/kits/page.js';
+import * as m40 from '../features/kits/state.js';
+import * as m41 from '../features/kits/status.js';
+import * as m42 from '../features/notifications/center.js';
+import * as m43 from '../features/petty-cash/engineering-modal.js';
+import * as m44 from '../features/petty-cash/page.js';
+import * as m45 from '../features/petty-cash/report-modal.js';
+import * as m46 from '../features/petty-cash/state.js';
+import * as m47 from '../features/prepared/page.js';
+import * as m48 from '../features/prepared/sheet.js';
+import * as m49 from '../features/quotation/mode-tabs.js';
+import * as m50 from '../features/quotation/page.js';
+import * as m51 from '../features/shell/app.js';
+import * as m52 from '../features/shell/data-refresh.js';
+import * as m53 from '../features/shell/navigation.js';
+import * as m54 from '../features/shell/page-scope.js';
+import * as m55 from '../features/stockout/export-dialog.js';
+import * as m56 from '../features/stockout/modals.js';
+import * as m57 from '../features/stockout/page.js';
+import * as m58 from '../features/stockout/sheet.js';
+import * as m59 from '../features/stockout/state.js';
+import * as m60 from '../features/stocktake/page.js';
+import * as m61 from '../features/stocktake/state.js';
+import * as m62 from '../features/upload-list/quotation-upload.js';
+import * as m63 from '../features/upload-list/signed-reports.js';
+import * as m64 from '../features/upload-list/upload-list.js';
+import * as m65 from '../features/work-progress/day.js';
+import * as m66 from '../features/work-progress/detail.js';
+import * as m67 from '../features/work-progress/draft.js';
+import * as m68 from '../features/work-progress/format.js';
+import * as m69 from '../features/work-progress/gallery.js';
+import * as m70 from '../features/work-progress/history.js';
+import * as m71 from '../features/work-progress/page.js';
+import * as m72 from '../features/work-progress/pending-photos.js';
+import * as m73 from '../features/work-progress/photo-upload.js';
+import * as m74 from '../features/work-progress/state.js';
+import * as m75 from '../features/work-progress/upload.js';
 
 window.Account = { ackPasswordExpiry, cpwCheckMatch, cpwCheckStrength, expiryGoChangePw, openChangePwModal, submitChangePw };
 window.App = { clearSearchAutofill, closeSidebar, switchSite, switchTab, toggleAvatarMenu, toggleSidebar };
@@ -152,57 +168,70 @@ window.__hvac = Object.freeze({
   'features/account/password-expiry.js': m13,
   'features/calendar/appt-modal.js': m14,
   'features/calendar/format.js': m15,
-  'features/calendar/search.js': m16,
-  'features/calendar/settings-modal.js': m17,
-  'features/calendar/state.js': m18,
-  'features/calendar/sync-status.js': m19,
-  'features/calendar/view.js': m20,
-  'features/inventory/actions.js': m21,
-  'features/inventory/add-modal.js': m22,
-  'features/inventory/adjust.js': m23,
-  'features/inventory/batch-location.js': m24,
-  'features/inventory/edit-modal.js': m25,
-  'features/inventory/export-dialog.js': m26,
-  'features/inventory/filters.js': m27,
-  'features/inventory/list.js': m28,
-  'features/inventory/location-adjustments.js': m29,
-  'features/inventory/photo.js': m30,
-  'features/inventory/qty-dialog.js': m31,
-  'features/inventory/state.js': m32,
-  'features/inventory/status.js': m33,
-  'features/inventory/transfer-modal.js': m34,
-  'features/kits/export-dialog.js': m35,
-  'features/kits/kit-modal.js': m36,
-  'features/kits/page.js': m37,
-  'features/kits/state.js': m38,
-  'features/notifications/center.js': m39,
-  'features/petty-cash/engineering-modal.js': m40,
-  'features/petty-cash/page.js': m41,
-  'features/petty-cash/report-modal.js': m42,
-  'features/petty-cash/state.js': m43,
-  'features/prepared/page.js': m44,
-  'features/quotation/page.js': m45,
-  'features/shell/app.js': m46,
-  'features/shell/data-refresh.js': m47,
-  'features/stockout/export-dialog.js': m48,
-  'features/stockout/modals.js': m49,
-  'features/stockout/page.js': m50,
-  'features/stockout/state.js': m51,
-  'features/stocktake/page.js': m52,
-  'features/stocktake/state.js': m53,
-  'features/upload-list/quotation-upload.js': m54,
-  'features/upload-list/signed-reports.js': m55,
-  'features/upload-list/upload-list.js': m56,
-  'features/work-progress/detail.js': m57,
-  'features/work-progress/draft.js': m58,
-  'features/work-progress/format.js': m59,
-  'features/work-progress/gallery.js': m60,
-  'features/work-progress/history.js': m61,
-  'features/work-progress/page.js': m62,
-  'features/work-progress/state.js': m63,
-  'features/work-progress/upload.js': m64,
+  'features/calendar/page.js': m16,
+  'features/calendar/search.js': m17,
+  'features/calendar/settings-modal.js': m18,
+  'features/calendar/state.js': m19,
+  'features/calendar/sync-status.js': m20,
+  'features/calendar/view.js': m21,
+  'features/inventory/actions.js': m22,
+  'features/inventory/add-modal.js': m23,
+  'features/inventory/adjust.js': m24,
+  'features/inventory/batch-location.js': m25,
+  'features/inventory/edit-modal.js': m26,
+  'features/inventory/export-dialog.js': m27,
+  'features/inventory/filters.js': m28,
+  'features/inventory/list.js': m29,
+  'features/inventory/location-adjustments.js': m30,
+  'features/inventory/photo.js': m31,
+  'features/inventory/qty-dialog.js': m32,
+  'features/inventory/state.js': m33,
+  'features/inventory/status.js': m34,
+  'features/inventory/transfer-modal.js': m35,
+  'features/kits/component-rows.js': m36,
+  'features/kits/export-dialog.js': m37,
+  'features/kits/kit-modal.js': m38,
+  'features/kits/page.js': m39,
+  'features/kits/state.js': m40,
+  'features/kits/status.js': m41,
+  'features/notifications/center.js': m42,
+  'features/petty-cash/engineering-modal.js': m43,
+  'features/petty-cash/page.js': m44,
+  'features/petty-cash/report-modal.js': m45,
+  'features/petty-cash/state.js': m46,
+  'features/prepared/page.js': m47,
+  'features/prepared/sheet.js': m48,
+  'features/quotation/mode-tabs.js': m49,
+  'features/quotation/page.js': m50,
+  'features/shell/app.js': m51,
+  'features/shell/data-refresh.js': m52,
+  'features/shell/navigation.js': m53,
+  'features/shell/page-scope.js': m54,
+  'features/stockout/export-dialog.js': m55,
+  'features/stockout/modals.js': m56,
+  'features/stockout/page.js': m57,
+  'features/stockout/sheet.js': m58,
+  'features/stockout/state.js': m59,
+  'features/stocktake/page.js': m60,
+  'features/stocktake/state.js': m61,
+  'features/upload-list/quotation-upload.js': m62,
+  'features/upload-list/signed-reports.js': m63,
+  'features/upload-list/upload-list.js': m64,
+  'features/work-progress/day.js': m65,
+  'features/work-progress/detail.js': m66,
+  'features/work-progress/draft.js': m67,
+  'features/work-progress/format.js': m68,
+  'features/work-progress/gallery.js': m69,
+  'features/work-progress/history.js': m70,
+  'features/work-progress/page.js': m71,
+  'features/work-progress/pending-photos.js': m72,
+  'features/work-progress/photo-upload.js': m73,
+  'features/work-progress/state.js': m74,
+  'features/work-progress/upload.js': m75,
 });
 
+// 先組裝 shell 的 port（切頁、資料重新整理後的畫面更新），之後各模組的 init 與使用者操作才可能用到
+configureShell();
 initSession();
 initUtils();
 initInventoryExportDialog();

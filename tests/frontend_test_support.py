@@ -32,24 +32,24 @@ CSS_PREPARED = os.path.join(STATIC, "css", "4-pages", "prepared.css")
 CSS_STATUS_LIST = os.path.join(STATIC, "css", "3-components", "status-list.css")
 CSS_PANEL = os.path.join(STATIC, "css", "3-components", "panel.css")
 # 待測：登入狀態 / 頁面可用性（原 auth.js → core/session.js；使用者選單與角色畫面控制在 features/shell/app.js）
-AUTH_JS = js_modules("core/session.js", "features/shell/app.js")
+AUTH_JS = js_modules("core/session.js", "features/shell/app.js", "features/shell/page-scope.js")
 # 待測：整組頁（原 render/kits.js）
-KITS_RENDER_JS = os.path.join(STATIC, "js", "features", "kits", "page.js")
+KITS_RENDER_JS = js_modules("features/kits/page.js", "features/kits/status.js", "features/kits/component-rows.js")
 # 待測：整組 modal（原 modals/kit.js）
-KIT_MODAL_JS = js_modules("features/kits/kit-modal.js", "features/kits/state.js")
+KIT_MODAL_JS = js_modules("features/kits/kit-modal.js", "features/kits/component-rows.js", "features/kits/state.js")
 # 待測：庫存頁（原 render/inventory.js，issue #39 依職責拆成多個模組）
 INVENTORY_RENDER_JS = js_modules("features/inventory/filters.js", "core/search.js", "features/inventory/list.js", "features/inventory/status.js", "features/inventory/actions.js", "features/inventory/adjust.js", "features/inventory/batch-location.js", "core/state.js")
 # 待測：待領出頁（原 render/prepared.js）
-PREPARED_RENDER_JS = os.path.join(STATIC, "js", "features", "prepared", "page.js")
+PREPARED_RENDER_JS = js_modules("features/prepared/page.js", "features/prepared/sheet.js")
 # 待測：已領出頁（原 render/stockout.js）
-STOCKOUT_RENDER_JS = os.path.join(STATIC, "js", "features", "stockout", "page.js")
+STOCKOUT_RENDER_JS = js_modules("features/stockout/page.js", "features/stockout/sheet.js")
 # 待測：盤點頁（原 render/stocktake.js）
 STOCKTAKE_JS = os.path.join(STATIC, "js", "features", "stocktake", "page.js")
 # 待測：core/utils.js
 UTILS_JS = os.path.join(STATIC, "js", "core", "utils.js")
 # 待測：原 api.js / app.js / bottomsheet.js / globals.js（2026-08-12 全專案 JS 完整性補強；issue #39 後為下列模組）
 API_JS = js_modules("features/shell/data-refresh.js", "core/data.js", "features/inventory/adjust.js")
-APP_JS = os.path.join(STATIC, "js", "features", "shell", "app.js")
+APP_JS = js_modules("features/shell/app.js", "features/shell/page-scope.js", "features/shell/navigation.js")
 BOTTOMSHEET_JS = os.path.join(STATIC, "js", "core", "bottomsheet.js")
 GLOBALS_JS = js_modules("core/state.js", "features/inventory/state.js", "features/stockout/state.js", "features/stocktake/state.js", "features/kits/state.js", "features/calendar/state.js", "features/work-progress/state.js")
 NOTIFICATIONS_JS = os.path.join(STATIC, "js", "features", "notifications", "center.js")
@@ -58,12 +58,12 @@ ADD_JS = os.path.join(STATIC, "js", "features", "inventory", "add-modal.js")
 CHANGEPW_JS = os.path.join(STATIC, "js", "features", "account", "change-password.js")
 EDIT_JS = js_modules("features/inventory/edit-modal.js", "core/state.js")
 EXPIRY_JS = os.path.join(STATIC, "js", "features", "account", "password-expiry.js")
-PHOTO_JS = os.path.join(STATIC, "js", "features", "inventory", "photo.js")
+PHOTO_JS = js_modules("features/inventory/photo.js", "features/inventory/edit-modal.js")
 STOCKOUT_MODAL_JS = os.path.join(STATIC, "js", "features", "stockout", "modals.js")
 # 待測：components/card.js
 CARD_JS = os.path.join(STATIC, "js", "components", "card.js")
 # 待測：行事曆畫面（原 render/calendar.js，2026-08-13）
-CALENDAR_RENDER_JS = js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/view.js", "features/calendar/sync-status.js", "features/calendar/state.js")
+CALENDAR_RENDER_JS = js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/page.js", "features/calendar/view.js", "features/calendar/sync-status.js", "features/calendar/state.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
 SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "features", "upload-list", "signed-reports.js")
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "4-pages", "signed-reports.css")
@@ -74,7 +74,7 @@ UPLOAD_LIST_RENDER_JS = os.path.join(STATIC, "js", "features", "upload-list", "u
 UPLOAD_LIST_CSS = os.path.join(STATIC, "css", "3-components", "upload-list.css")
 UPLOAD_LIST_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "upload_list_runtime.test.js")
 # 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
-QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "features", "quotation", "page.js")
+QUOTATION_RENDER_JS = js_modules("features/quotation/page.js", "features/quotation/mode-tabs.js")
 QUOTATION_HISTORY_PAGINATION_JS = os.path.join(BASE_DIR, "tests", "quotation_history_pagination.test.js")
 QUOTATION_PERMISSION_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_permission_runtime.test.js")
 PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")

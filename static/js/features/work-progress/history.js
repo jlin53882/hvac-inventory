@@ -3,9 +3,8 @@
 import { apiFetch } from '../../core/api-client.js';
 import { wprHistoryPageSize } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
-import { wprClearPhotoManageStates } from './detail.js';
+import { wprClearPhotoManageStates, workProgressState } from './state.js';
 import { wprCreatedByText, wprIsoDate, wprMonth, wprTimeText } from './format.js';
-import { workProgressState } from './state.js';
 
 /**
  * Load and render the appointment-based monthly KPI summary.

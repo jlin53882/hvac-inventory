@@ -50,10 +50,29 @@ function installNamespaces(context, ...namespaces) {
 /** 工作進度頁（原 render/work-progress.js）拆分後的模組，依原檔順序載入，並執行模組載入時的副作用。 */
 function loadWorkProgress(context) {
   vm.createContext(context);
-  loadModules(context, 'features/work-progress/state.js', 'features/work-progress/format.js', 'features/work-progress/upload.js',
-    'features/work-progress/draft.js', 'features/work-progress/history.js', 'features/work-progress/detail.js',
-    'features/work-progress/gallery.js', 'features/work-progress/page.js');
+  loadModules(context, 'features/shell/navigation.js', 'features/work-progress/state.js', 'features/work-progress/format.js',
+    'features/work-progress/photo-upload.js', 'features/work-progress/gallery.js', 'features/work-progress/pending-photos.js',
+    'features/work-progress/history.js', 'features/work-progress/day.js', 'features/work-progress/draft.js',
+    'features/work-progress/detail.js', 'features/work-progress/upload.js', 'features/work-progress/page.js');
+  configureShellPorts(context);
   context.initWorkProgressGallery();
+  return context;
+}
+
+/**
+ * 把 shell 的 port 接到 vm context 內的同名函式（正式環境由 features/shell/app.js 的 configureShell 組裝）：
+ * data-refresh.js 的畫面更新 hook、navigation.js 的切頁。呼叫時才解析 context 上的函式，測試可在之後替換替身。
+ */
+function configureShellPorts(context) {
+  const hook = name => (...args) => context[name](...args);
+  if (typeof context.configureDataRefresh === 'function') {
+    context.configureDataRefresh({
+      buildDatalists: hook('buildDatalists'), buildFilterPanel: hook('buildFilterPanel'), checkReminder: hook('checkReminder'),
+      updateNotifications: hook('updateNotifications'), remountTab: hook('switchTab'), renderInventory: hook('renderInventory'),
+      updatePreparedBadge: hook('updatePreparedBadge'),
+    });
+  }
+  if (typeof context.provideTabNavigator === 'function') context.provideTabNavigator(hook('switchTab'));
   return context;
 }
 
@@ -76,4 +95,4 @@ function mockResponse(payload, status = 200) {
   };
 }
 
-module.exports = { ROOT, read, extractFunction, moduleScript, loadModules, loadWorkProgress, installNamespaces, installApiClient, mockResponse };
+module.exports = { ROOT, read, extractFunction, moduleScript, loadModules, loadWorkProgress, configureShellPorts, installNamespaces, installApiClient, mockResponse };

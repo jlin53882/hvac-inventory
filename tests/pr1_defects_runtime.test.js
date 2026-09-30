@@ -40,7 +40,7 @@ async function testDesktopInlineReturnDeleteExecutesHandler() {
       return mockResponse(({}));
     },
   });
-  load(['features/stockout/modals.js', 'features/stockout/page.js'], context);
+  load(['features/stockout/modals.js', 'features/stockout/page.js', 'features/stockout/sheet.js'], context);
   context.renderStockOuts = () => { refreshed += 1; };
 
   const html = context.renderStockoutActions({
@@ -82,7 +82,7 @@ async function testMobileReturnDeleteExecutesHandler() {
       return mockResponse(({}));
     },
   });
-  load(['features/stockout/modals.js', 'features/stockout/page.js'], context);
+  load(['features/stockout/modals.js', 'features/stockout/page.js', 'features/stockout/sheet.js'], context);
   context.stockoutState.stockoutRecords = [{ id: 7, brand: 'B', item_name: 'Returned', reason: '退回已領出', reverted_at: null }];
   context.renderStockOuts = () => { refreshed += 1; };
 

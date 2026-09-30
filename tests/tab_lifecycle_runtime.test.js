@@ -4,7 +4,8 @@ const { moduleScript } = require('./support/frontend-runtime');
 
 // 原 api.js：去向清單 primitive 在 core/data.js，loadData 流程在 features/shell/data-refresh.js（issue #39）
 const apiSource = moduleScript('core/data.js') + '\n' + moduleScript('features/shell/data-refresh.js');
-const appSource = moduleScript('features/shell/app.js');
+// shell 組裝層：頁面範圍 / 網址、切頁 port 與 app.js（issue #39）
+const appSource = ['features/shell/page-scope.js', 'features/shell/navigation.js', 'features/shell/app.js'].map(moduleScript).join('\n');
 
 /**
  * Create the minimum DOM element surface required by the production bootstrap.
@@ -110,6 +111,10 @@ function createContext(tab) {
     closeInventoryStatusModal() {},
     renderWorkProgress() { recordRender('work-progress'); },
     renderInventory() {},
+    // data-refresh 畫面更新 hook（configureShell 注入）其餘的替身：本測試的頁籤都不載入品項，不會被呼叫
+    buildDatalists() {},
+    buildFilterPanel() {},
+    updatePreparedBadge() {},
     renderPrepared() {},
     renderStockOuts() {},
     renderStocktake() {},
@@ -155,6 +160,8 @@ function createContext(tab) {
     // issue #39：使用者選單 / 角色畫面控制由 auth.js 搬到 app.js；本測試只驗頁籤生命週期，維持替身
     context.renderUserMenu = () => {};
     context.applyRoleView = () => {};
+    // 與 pages/main.js 相同：先組裝 port（data-refresh 的畫面更新、切頁）再啟動
+    context.configureShell();
     context.initShellApp();
     await new Promise(resolve => setTimeout(resolve, 25));
 

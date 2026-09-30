@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
+const { configureShellPorts, installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
 const requests = [];
 let facetsPayload = { brands: { Old: 1 }, categories: { OldCategory: 1 }, locations: ['OldLocation'] };
@@ -79,6 +79,7 @@ installApiClient(context);
 loadModules(context, 'core/qty.js', 'features/inventory/state.js', 'features/inventory/filters.js', 'core/search.js',
   'features/inventory/list.js', 'features/inventory/status.js', 'features/inventory/actions.js', 'features/inventory/adjust.js',
   'features/inventory/batch-location.js', 'core/data.js', 'features/shell/data-refresh.js');
+configureShellPorts(context);
 context.updateSubInfo = async () => {};
 
 (async () => {

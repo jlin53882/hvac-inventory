@@ -7,8 +7,8 @@ import { appState } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems } from '../inventory/filters.js';
 import { getInventoryDashboardStats, getInventoryStatus, showInventoryStatusList } from '../inventory/status.js';
-import { getKitStatus, showKitStatusList } from '../kits/page.js';
-import { switchTab } from '../shell/app.js';
+import { getKitStatus, showKitStatusList } from '../kits/status.js';
+import { navigateToTab } from '../shell/navigation.js';
 import { showStocktakeList } from '../stocktake/page.js';
 
 var NOTIFICATION_OPEN = false;
@@ -150,7 +150,7 @@ function openNotificationDetail(kind) {
   } else if (kind === 'insufficient') {
     showKitStatusList('insufficient');
   } else if (kind === 'reminder') {
-    switchTab('stocktake');
+    navigateToTab('stocktake');
   }
 }
 

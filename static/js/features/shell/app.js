@@ -1,23 +1,27 @@
 // 庫存管理系統 - 主頁外殼：頁籤切換、側欄、使用者選單、開機流程
 
-import { loadData, loadInventoryPage } from './data-refresh.js';
+import { configureDataRefresh, loadData, loadInventoryPage } from './data-refresh.js';
+import { provideTabNavigator } from './navigation.js';
+import { setPageScope, syncViewUrl } from './page-scope.js';
 import { getStocktakeReminderState, updateNotifications } from '../notifications/center.js';
 import { canAccessPage, checkAuth, firstAccessiblePageTab, resolveAccessiblePageTab } from '../../core/session.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, INVENTORY_SITES, appState, pending } from '../../core/state.js';
 import { loadUnits } from '../../core/units.js';
 import { openExpiryModal } from '../account/password-expiry.js';
-import { renderCalendar } from '../calendar/view.js';
+import { renderCalendar } from '../calendar/page.js';
 import { selectedStockIds } from '../inventory/batch-location.js';
-import { renderInventory } from '../inventory/list.js';
+import { buildDatalists, renderInventory } from '../inventory/list.js';
+import { buildFilterPanel } from '../inventory/filters.js';
 import { closeInventoryStatusModal } from '../inventory/status.js';
 import { renderKits } from '../kits/page.js';
 import { renderPettyCash } from '../petty-cash/page.js';
-import { renderPrepared } from '../prepared/page.js';
+import { renderPrepared, updatePreparedBadge } from '../prepared/page.js';
 import { renderQuotation } from '../quotation/page.js';
 import { renderStockOuts } from '../stockout/page.js';
 import { renderStocktake } from '../stocktake/page.js';
 import { renderSignedReports } from '../upload-list/signed-reports.js';
-import { wprClearPendingFiles, wprHasUnsavedChanges, wprRequestLeave } from '../work-progress/draft.js';
+import { wprHasUnsavedChanges, wprRequestLeave } from '../work-progress/draft.js';
+import { wprClearPendingFiles } from '../work-progress/pending-photos.js';
 import { wprCloseGallery } from '../work-progress/gallery.js';
 import { renderWorkProgress } from '../work-progress/page.js';
 
@@ -167,33 +171,6 @@ function renderNoAccessiblePage() {
   syncViewUrl();
 }
 
-// 頁面範圍（CSS 架構重構 P1）：body[data-page] 是頁面樣式的唯一範圍，modal 也在 body 內。
-// 過渡期同時維護 #content 上的舊 *-content class；每次都先全部移除，避免上一頁的 class 殘留
-// （例：報價單上傳的 quotation-upload-content 曾在切回庫存後殘留，改掉庫存頁內距）。
-var PAGE_CONTENT_CLASS = {
-  'signed-reports': 'dsr-content',
-  'calendar': 'cal-content',
-  'quotation': 'quotation-content',
-  'quotation-upload': 'quotation-upload-content',
-  'petty-cash': 'pc-content',
-  'inventory': 'inventory-content',
-  'prepared': 'prepared-content',
-  'kit': 'kit-content',
-  'stocktake': 'stocktake-content',
-  'stockout': 'stockout-content',
-  'work-progress': 'wpr-content'
-};
-
-export function setPageScope(page) {
-  if (page) document.body.dataset.page = page;
-  else delete document.body.dataset.page;
-  var content = document.getElementById('content');
-  if (!content) return;
-  Object.keys(PAGE_CONTENT_CLASS).forEach(function(key) {
-    content.classList.toggle(PAGE_CONTENT_CLASS[key], key === page);
-  });
-}
-
 export function switchTab(tab) {
   tab = resolveAccessiblePageTab(tab);
   if (!tab) { renderNoAccessiblePage(); return; }
@@ -316,18 +293,25 @@ function autoReloadOnFocus() {
   }, 300);
 }
 
-export function syncViewUrl() {
-  var p = new URLSearchParams();
-  p.set('tab', appState.currentTab);
-  p.set('site', appState.currentSite);
-  var cm = (typeof appState.calMonth !== 'undefined') ? appState.calMonth : new Date();
-  p.set('month', cm.getFullYear() + '-' + String(cm.getMonth() + 1).padStart(2, '0'));
-  history.replaceState(null, '', '?' + p.toString());
-}
 
 // Bootstrap only: mount a stateful itemless page once after initial data setup.
 function mountPreservedTabAfterBootstrap() {
   if (DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) switchTab(appState.currentTab);
+}
+
+// 主頁組裝（issue #39）：把切頁與資料重新整理後的畫面更新實作注入 port，
+// feature 透過 navigation.js / data-refresh.js 使用，不再反向 import 本模組。pages/main.js 在任何 init 之前呼叫。
+export function configureShell() {
+  provideTabNavigator(switchTab);
+  configureDataRefresh({
+    buildDatalists: buildDatalists,
+    buildFilterPanel: buildFilterPanel,
+    checkReminder: checkReminder,
+    updateNotifications: updateNotifications,
+    remountTab: switchTab,
+    renderInventory: renderInventory,
+    updatePreparedBadge: updatePreparedBadge,
+  });
 }
 
 // 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）

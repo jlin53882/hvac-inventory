@@ -1,11 +1,10 @@
 // 庫存管理系統 - 批次改位置（2026-09-06 方案 A）
 
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../shell/data-refresh.js';
+import { loadData, renderInventoryView } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
 import { esc, toast } from '../../core/utils.js';
 import { getFilteredInventoryItems } from './filters.js';
-import { renderInventory } from './list.js';
 
 export var selectedStockIds = new Set();
 
@@ -21,7 +20,7 @@ export function toggleBatchMode() {
   } else {
     document.getElementById('batch-bar').classList.remove('is-open');
   }
-  renderInventory();
+  renderInventoryView();
 }
 
 export function toggleStockSelect(stockId) {
@@ -68,7 +67,7 @@ function _syncBatchUI() {
   document.getElementById('batch-num').textContent = selectedStockIds.size;
   document.getElementById('batch-confirm').disabled = selectedStockIds.size === 0;
   document.getElementById('batch-bar').classList.toggle('is-open', selectedStockIds.size > 0);
-  renderInventory();
+  renderInventoryView();
 }
 
 export function cancelBatch() {
@@ -76,7 +75,7 @@ export function cancelBatch() {
   document.getElementById('batch-bar').classList.remove('is-open');
   document.getElementById('batch-cabinet').value = '';
   document.getElementById('batch-sub').value = '';
-  renderInventory();
+  renderInventoryView();
 }
 
 export function showBatchConfirm() {

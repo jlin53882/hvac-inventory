@@ -4,8 +4,8 @@
 import { Qty } from '../../core/qty.js';
 import { appState, pending } from '../../core/state.js';
 import { closeModalForce, openModal, toast } from '../../core/utils.js';
-import { savingAll } from './adjust.js';
 import { queueInventoryAdjustment } from './location-adjustments.js';
+import { inventoryState } from './state.js';
 
 var __qtyTargetId = null;
 var __qtyMode = 'add';
@@ -60,7 +60,7 @@ export function qtydQuick(v) {
  * @returns {void}
  */
 export function submitQtyDialog() {
-  if (savingAll) {
+  if (inventoryState.savingAll) {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }

@@ -149,8 +149,9 @@ function createContext() {
   loadModules(context, 'core/state.js', 'features/calendar/state.js');
   context.appState.calMonth = month;
   context.calendarState.calSelected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  // issue #39：頁面外殼 renderCalendar 在 features/calendar/page.js
   loadModules(context, 'features/calendar/format.js', 'features/calendar/sync-status.js', 'features/calendar/search.js',
-    'features/calendar/view.js', 'features/calendar/appt-modal.js');
+    'features/calendar/view.js', 'features/calendar/appt-modal.js', 'features/calendar/page.js');
 
   // Page-entry dependencies outside this finding are kept minimal: the actual
   // renderCalendar/calLoadData/page-shell path remains production code.

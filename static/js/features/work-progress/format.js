@@ -44,3 +44,13 @@ export function wprCurrentUserName() {
 export function wprCreatedByText(report) {
   return report.created_by_display_name || report.created_by_username || '未知帳號';
 }
+
+/**
+ * Render an optional escaped note row only when the source has content.
+ * @param {string} label - Visible label for the note.
+ * @param {string} value - User-authored note text.
+ * @returns {string} Empty string or escaped note markup.
+ */
+export function wprOptionalNoteHtml(label, value) {
+  return value ? '<div class="wpr-calendar-note"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>' : '';
+}

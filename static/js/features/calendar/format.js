@@ -41,3 +41,14 @@ export function calFmtCreatedAt(s) {
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+
+const CAL_SERVICE_TONES = {
+  '施工': 'blue',
+  '維修': 'green',
+  '場勘': 'amber',
+  '保養': 'purple',
+};
+
+export function calServiceTone(name) {
+  return CAL_SERVICE_TONES[name] || 'slate';
+}

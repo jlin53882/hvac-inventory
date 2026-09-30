@@ -99,12 +99,6 @@ function renderInventoryEmptyState(isViewer) {
 }
 
 
-export function formatInventoryQuantity(value) {
-  const n = Number(value);
-  if (!isFinite(n)) return '0';
-  return (Math.round(n * 1000) / 1000).toLocaleString('en-US');
-}
-
 function renderInventoryToolbar(list, isViewer) {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = isMobileView();

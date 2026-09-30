@@ -228,7 +228,7 @@ Current classification in `static/js/core/state.js`:
 | Quotation | Yes | Yes |
 | Petty Cash | Yes | Yes |
 
-`static/js/features/shell/data-refresh.js` owns refresh orchestration (`static/js/core/data.js` keeps only the destination-suggestion data primitive) and the distinction between skipping inventory data and remounting a page. `static/js/features/shell/app.js::mountPreservedTabAfterBootstrap()` owns the bootstrap-time initial mount for preserved stateful tabs.
+`static/js/features/shell/data-refresh.js` owns refresh orchestration (`static/js/core/data.js` keeps only the destination-suggestion data primitive; the view updates it triggers — filter panel, notifications, reminder, prepared badge, remounting the current tab — are injected by `configureShell()` in `static/js/features/shell/app.js`) and the distinction between skipping inventory data and remounting a page. `static/js/features/shell/app.js::mountPreservedTabAfterBootstrap()` owns the bootstrap-time initial mount for preserved stateful tabs.
 
 Required behavior:
 

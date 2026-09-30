@@ -6,11 +6,27 @@ import { apiFetch } from '../../core/api-client.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, ITEMLESS_TABS, appState } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
-import { buildFilterPanel } from '../inventory/filters.js';
-import { buildDatalists, renderInventory } from '../inventory/list.js';
-import { updateNotifications } from '../notifications/center.js';
-import { updatePreparedBadge } from '../prepared/page.js';
-import { checkReminder, switchTab } from './app.js';
+
+// 資料載入後要更新的畫面（庫存篩選 / 清單、通知、盤點提醒、待領出小標、重新掛載目前頁籤）由組裝層注入：
+// 本模組只 import core，feature 可以 import loadData 而不會和各頁 renderer 互相 import（issue #39 消除循環）。
+var VIEW_HOOKS = ['buildDatalists', 'buildFilterPanel', 'checkReminder', 'updateNotifications', 'remountTab', 'renderInventory', 'updatePreparedBadge'];
+var dataRefreshView = null;
+
+export function configureDataRefresh(hooks) {
+  var missing = VIEW_HOOKS.filter(function(name) { return typeof (hooks && hooks[name]) !== 'function'; });
+  if (missing.length) throw new TypeError('configureDataRefresh 缺少：' + missing.join(', '));
+  dataRefreshView = Object.freeze(VIEW_HOOKS.reduce(function(view, name) { view[name] = hooks[name]; return view; }, {}));
+}
+
+function view() {
+  if (!dataRefreshView) throw new Error('data-refresh：尚未設定畫面更新實作（pages/main.js 需先呼叫 configureShell）');
+  return dataRefreshView;
+}
+
+// 只重繪庫存清單、不重新載入資料（批次選取、待存調整、照片更新後）：feature 不直接 import inventory/list.js
+export function renderInventoryView() {
+  view().renderInventory();
+}
 
 export async function loadData(options) {
   const full = Boolean(options && options.full);
@@ -32,9 +48,9 @@ export async function loadData(options) {
       if (requestId !== appState.dataRequestSeq || siteAtRequest !== appState.currentSite) return;
       appState.ALL_ITEMS = [];
       appState.fullItemsLoadedSite = '';
-      updateNotifications();
+      view().updateNotifications();
       updateSubInfo();
-      if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) switchTab(appState.currentTab);
+      if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) view().remountTab(appState.currentTab);
       loadPreparedBadge();
       return;
     }
@@ -57,13 +73,13 @@ export async function loadData(options) {
       reconcileInventoryFilters(facets);
     }
     if (refreshDestinations) await refreshDestinationsAfterMutation();
-    buildDatalists(refreshDestinations);
-    buildFilterPanel();
-    checkReminder();
-    updateNotifications();
+    view().buildDatalists(refreshDestinations);
+    view().buildFilterPanel();
+    view().checkReminder();
+    view().updateNotifications();
     updateSubInfo();
     // 載入期間使用者可能已切到保留掛載的頁（報價單 / 簽名報表…）：不可重新 mount，否則會丟掉子模式與表單狀態
-    if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) switchTab(appState.currentTab);
+    if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) view().remountTab(appState.currentTab);
     loadPreparedBadge();
   } catch (e) {
     if (e.name === 'AbortError' || requestId !== appState.dataRequestSeq || siteAtRequest !== appState.currentSite) return;
@@ -149,10 +165,10 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     appState.inventoryLoadedSite = siteAtRequest;
     appState.fullItemsLoadedSite = '';
     if (refreshDestinations) await refreshDestinationsAfterMutation();
-    buildDatalists(refreshDestinations);
-    buildFilterPanel();
-    checkReminder();
-    updateNotifications();
+    view().buildDatalists(refreshDestinations);
+    view().buildFilterPanel();
+    view().checkReminder();
+    view().updateNotifications();
     if (refreshSummary || !hasSummaryCache()) {
       await updateSubInfo();
     } else {
@@ -160,7 +176,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     }
     // await updateSubInfo 期間可能已切頁或有新請求：不可把庫存頁畫進別頁的 #content
     if (requestId !== appState.inventoryRequestSeq || appState.currentTab !== 'inventory') return;
-    renderInventory();
+    view().renderInventory();
   } catch (e) {
     if (e.name === 'AbortError' || requestId !== appState.inventoryRequestSeq || siteAtRequest !== appState.currentSite) return;
     document.getElementById('content').innerHTML =
@@ -181,7 +197,7 @@ async function loadPreparedBadge() {
   try {
     const items = await apiFetch(`/api/prepared?site=${encodeURIComponent(siteAtRequest)}`);
     if (siteAtRequest !== appState.currentSite) return;
-    updatePreparedBadge(items.length);
+    view().updatePreparedBadge(items.length);
   } catch (e) { /* 小標載入失敗不影響頁面 */ }
 }
 
@@ -228,7 +244,7 @@ async function updateSubInfo() {
       truck: summary.truck || {},
     };
     renderSubInfo();
-    updateNotifications();
+    view().updateNotifications();
   } catch (e) {
     if (e.name !== 'AbortError' && requestId === appState.statsRequestSeq && siteAtRequest === appState.currentSite) {
       console.error('[updateSubInfo] 統計失敗', e);

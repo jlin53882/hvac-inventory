@@ -3,7 +3,7 @@
 // 權限：登入可查/預覽/下載/上傳；編輯/刪除直接消費 backend final capabilities
 
 import { appState } from '../../core/state.js';
-import { quoteModeTabs } from '../quotation/page.js';
+import { quoteModeTabs } from '../quotation/mode-tabs.js';
 import { createUploadListPage } from './upload-list.js';
 
 export var QuotationUploads = createUploadListPage({

@@ -3,9 +3,8 @@
 import { apiFetch } from '../../core/api-client.js';
 import { CAL_WEEK } from '../../core/state.js';
 import { esc, toast } from '../../core/utils.js';
-import { _parseLocalDate, _syncCalendarDateControls } from './format.js';
+import { _parseLocalDate, calServiceTone } from './format.js';
 import { calendarState } from './state.js';
-import { calPickDate, calRenderDay, calServiceTone } from './view.js';
 
 var calSearchViewportBound = false;
 
@@ -180,28 +179,4 @@ export async function calSearch() {
     if (calIsDesktopViewport()) calRenderSearchError();
     else toast('搜尋失敗', 'error');
   }
-}
-
-export function calClearSearch() {
-  document.getElementById('cal-search-to').value = '';
-  document.getElementById('cal-search-q').value = '';
-  // Preserve existing semantics: the start date defaults to calSelected via sync below.
-  calendarState.calSearchRequestToken += 1;
-  calendarState.calSearchMode = false;
-  calendarState.calSearchItems = [];
-  calendarState.calSearchMeta = { from: '', to: '', q: '' };
-  calendarState.calSearchState = 'idle';
-  calApplyRightPanelMode();
-  _syncCalendarDateControls();
-  calRenderDay();
-}
-
-export function calJumpToDate(dateStr) {
-  calendarState.calSearchRequestToken += 1;
-  calendarState.calSearchMode = false;
-  calendarState.calSearchItems = [];
-  calendarState.calSearchMeta = { from: '', to: '', q: '' };
-  calendarState.calSearchState = 'idle';
-  calApplyRightPanelMode();
-  calPickDate(dateStr);
 }

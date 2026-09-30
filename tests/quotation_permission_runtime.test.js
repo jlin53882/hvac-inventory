@@ -52,7 +52,7 @@ function renderWithPermission(allowed) {
   };
   context.window = context;
   installApiClient(vm.createContext(context));
-  loadModules(context, 'features/quotation/page.js');
+  loadModules(context, 'features/quotation/mode-tabs.js', 'features/quotation/page.js');
   context.renderQuotation();
   return { context, document };
 }

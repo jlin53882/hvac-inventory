@@ -7,7 +7,7 @@ import { _iso } from './format.js';
 import { calendarState } from './state.js';
 import { calCanRetryTeamPerson, calPersonalSync, calSyncStatusLabel, calTeamHasRetryableTarget } from './sync-status.js';
 import { calLoadData, calRenderDay, calRenderMonth, calSetLoadState } from './view.js';
-import { syncViewUrl } from '../shell/app.js';
+import { syncViewUrl } from '../shell/page-scope.js';
 
 // ========== 新增 / 編輯 ==========
 let calApptUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯派工 modal 時的 updated_at 快照

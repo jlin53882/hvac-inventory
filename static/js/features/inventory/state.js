@@ -3,4 +3,5 @@ export const inventoryState = {
   stockLocationPickerState: null, // pending item and delta while choosing a location
   inventoryStatusRequestSeq: 0,
   inventoryStatusModalType: '',
+  savingAll: false,  // 防止連點「全部儲存」重複送出同一批調整（adjust / location-adjustments / qty-dialog 共用）
 };

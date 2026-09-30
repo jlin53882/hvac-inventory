@@ -5,12 +5,10 @@
 
 import { photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../shell/data-refresh.js';
+import { loadData, renderInventoryView } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
-import { closeModalForce, esc, hasPerm, toast } from '../../core/utils.js';
-import { openEditModal } from './edit-modal.js';
-import { renderInventory } from './list.js';
+import { esc, hasPerm, toast } from '../../core/utils.js';
 
 let similarTimer = null;          // 相似查詢 debounce timer
 let similarReqSeq = 0;            // 請求序號：防舊回應覆蓋新輸入（競態防護）
@@ -78,7 +76,7 @@ export async function uploadItemPhoto(itemId, input) {
     toast('✅ 照片已更新', 'success');
     // 先更新列表狀態，再重繪編輯 modal，避免 modal 暫留舊縮圖
     const item = appState.ALL_ITEMS.find(i => i.id === itemId);
-    if (item) { item.has_photo = true; item.photo_asset_id = body.asset_id || null; item.thumbnail_url = body.thumbnail_url || null; item.preview_url = body.preview_url || null; renderInventory(); }
+    if (item) { item.has_photo = true; item.photo_asset_id = body.asset_id || null; item.thumbnail_url = body.thumbnail_url || null; item.preview_url = body.preview_url || null; renderInventoryView(); }
     renderPhotoBox(itemId, true);
   } catch { toast('上傳失敗', 'error'); }
   input.value = '';  // 允許重選同一檔案
@@ -91,7 +89,7 @@ export async function deleteItemPhoto(itemId) {
     toast('🗑 照片已刪除', 'success');
     renderPhotoBox(itemId, false);
     const item = appState.ALL_ITEMS.find(i => i.id === itemId);
-    if (item) { item.has_photo = false; renderInventory(); }
+    if (item) { item.has_photo = false; renderInventoryView(); }
   } catch { toast('刪除失敗', 'error'); }
 }
 
@@ -173,13 +171,6 @@ function renderSimilarWarn(warnId, hits) {
         <a href="#" onclick="Inventory.goEditSimilar(${h.id}); return false;">去編輯 →</a>
       </div>`).join('')}`;
   box.style.display = 'block';
-}
-
-// 點「去編輯」→ 關閉新增/編輯 modal、開該品項編輯 modal
-export function goEditSimilar(id) {
-  closeModalForce('add-modal');
-  closeModalForce('edit-modal');
-  openEditModal(id);
 }
 
 // ========== 整組照片（新增/編輯 modal） ==========

@@ -2,13 +2,12 @@
 
 import { buildQtyNum, buildThumb, mobileCardShell, photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
-import { isMobileView, openSheet } from '../../core/bottomsheet.js';
+import { isMobileView } from '../../core/bottomsheet.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { Qty } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { appState } from '../../core/state.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
-import { deleteStockoutReturn, openEditStockoutModal, openEditStockoutReturnModal, returnStockout } from './modals.js';
 import { stockoutState } from './state.js';
 
 // ========== 出庫紀錄頁 ==========
@@ -196,43 +195,4 @@ export async function deleteStockoutRecord(movementId) {
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
   }
-}
-
-
-
-
-
-// ========== 手機版 ⋯ 動作選單（已領出卡） ==========
-
-export function openStockoutSheet(movementId) {
-
-  const rec = (typeof stockoutState.stockoutRecords !== 'undefined' ? stockoutState.stockoutRecords : []).find(r => r.id === movementId);
-
-  if (!rec) return;
-
-  const isViewer = !hasPerm('stockout');
-
-  const reverted = !!rec.reverted_at;
-  const isReturn = rec.reason === '退回已領出';
-
-  const actions = [];
-
-  if (!isViewer) {
-
-    if (isReturn && !reverted) {
-      actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutReturnModal(movementId) });
-      actions.push({ icon: '↩️', label: '撤銷退回', cls: 'del', fn: () => deleteStockoutReturn(movementId) });
-    } else if (!isReturn && !reverted) {
-      actions.push({ icon: '✏️', label: '編輯', cls: 'out', fn: () => openEditStockoutModal(movementId) });
-      actions.push({ icon: '↩️', label: '退回', cls: 'back', fn: () => returnStockout(movementId) });
-    }
-
-    if (!isReturn) {
-      actions.push({ icon: '🗑', label: '刪除', cls: 'del', fn: () => deleteStockoutRecord(movementId) });
-    }
-
-  }
-
-  openSheet(`${rec.brand} ${rec.item_name}`, actions);
-
 }

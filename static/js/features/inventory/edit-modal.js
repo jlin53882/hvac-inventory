@@ -1,11 +1,11 @@
 // 庫存管理系統 - 編輯品項 Modal（v10：多位置 stocks）
 
 import { apiFetch } from '../../core/api-client.js';
-import { loadData } from '../shell/data-refresh.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
-import { INVENTORY_ALERT_ITEMS, appState } from '../../core/state.js';
+import { appState, INVENTORY_ALERT_ITEMS } from '../../core/state.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, esc, hasPerm, openModal, toast } from '../../core/utils.js';
+import { loadData } from '../shell/data-refresh.js';
 import { bindSimilarCheck, renderPhotoBox } from './photo.js';
 
 var editUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯 modal 時的 updated_at 快照（併發防覆蓋）
@@ -208,4 +208,11 @@ export async function submitEdit() {
   } catch (e) {
     toast(e.status ? '⚠️ ' + e.message : '儲存失敗', 'error');
   }
+}
+
+// 點「去編輯」→ 關閉新增/編輯 modal、開該品項編輯 modal
+export function goEditSimilar(id) {
+  closeModalForce('add-modal');
+  closeModalForce('edit-modal');
+  openEditModal(id);
 }

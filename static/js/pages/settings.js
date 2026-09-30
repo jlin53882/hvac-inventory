@@ -1,10 +1,10 @@
 // settings.html 的進入點（issue #39）：載入本頁需要的模組、把 inline handler 用的命名空間掛到 window，
 // 並依原本 <script> 的載入順序執行各模組的初始化。
 import { addCabinet, deleteCabinet, editCabinet, submitCabinetEdit } from '../features/settings/cabinets.js';
-import { addGcalReminderRow, bindGcalUser, deleteGcalKey, forceSyncNow, initSettingsGcal, removeGcalReminderRow, saveGcalSetting, saveKeyReminders, selectGcalKey, switchGcalTab, toggleGcalKey } from '../features/settings/gcal.js';
+import { addGcalReminderRow, bindGcalUser, deleteGcalKey, forceSyncNow, removeGcalReminderRow, saveGcalSetting, saveKeyReminders, selectGcalKey, switchGcalTab, toggleGcalKey } from '../features/settings/gcal.js';
 import { addUnitFromSettings, applyQtySuggest, consolidateGroup, consolidateItem, initSettingsUnits, moveUnit, setUnitQtyType, toggleUnit } from '../features/settings/units.js';
 import { clearGcalFile, closeGcalKeyModal, gcalFileSelected, openGcalKeyModal, submitGcalKey } from '../features/settings/gcal-key-modal.js';
-import { clearPwForm, settingsSubmitPw, settingsSwitch } from '../features/settings/page.js';
+import { clearPwForm, initSettingsPage, settingsSubmitPw, settingsSwitch } from '../features/settings/page.js';
 import { closeModalForce, initUtils } from '../core/utils.js';
 import { cpwCheckMatch, cpwCheckStrength } from '../features/account/change-password.js';
 import { createPettyOptionKind } from '../features/settings/petty-options.js';
@@ -47,5 +47,5 @@ window.__hvac = Object.freeze({
 
 initSession();
 initUtils();
-initSettingsGcal();
+initSettingsPage();
 initSettingsUnits();
