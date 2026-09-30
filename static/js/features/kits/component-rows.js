@@ -47,9 +47,9 @@ export function renderKitCompRows() {
 
         </div>
 
-        <input type="text" inputmode="decimal" value="${row.qty || 1}" placeholder="例：1、0.5、1/4" onchange="Kits.kitCompQtyChanged(${idx}, this.value)">
+        <input type="text" inputmode="decimal" value="${row.qty || 1}" placeholder="例：1、0.5、1/4" data-action="kits-comp-qty" data-idx="${idx}">
 
-        <button class="rm" onclick="Kits.removeKitCompRow(${idx})">✕</button>
+        <button class="rm" data-action="kits-comp-remove" data-idx="${idx}">✕</button>
 
       </div>`;
 
@@ -65,7 +65,7 @@ export function renderKitCompRows() {
 
       <input type="text" id="kit-mat-input" placeholder="🔍 搜尋材料想加的（名稱/型號/廠牌）…" autocomplete="off"
 
-        onfocus="Kits.openKitSearch()" oninput="Kits.filterKitSearch(this.value)">
+        data-action="kits-search">
 
       <span class="caret">▼</span>
 
@@ -111,7 +111,7 @@ export function filterKitSearch(kw) {
 
     drop.innerHTML = list.map(it => `
 
-      <div class="kit-drop-opt" onclick="Kits.pickKitItem(${it.id})">
+      <div class="kit-drop-opt" data-action="kits-pick-item" data-id="${it.id}">
 
         <div><div class="nm">${esc(it.brand)} ${esc(it.name)}</div><div class="bd">${it.code ? `型號 <span class="model">${esc(it.code)}</span> ・ ` : ''}${esc(it.unit || '')}</div></div>
 

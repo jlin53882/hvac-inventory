@@ -56,7 +56,7 @@ function addStockRowHtml() {
     <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="例：1-1"></label>
     <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
     <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註"></label>
-    <button type="button" class="stock-remove" onclick="Inventory.removeAddStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>`;
+    <button type="button" class="stock-remove" data-action="inventory-add-stock-remove" aria-label="移除此位置" title="移除此位置">✕</button>`;
 }
 
 /**

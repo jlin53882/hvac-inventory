@@ -2,8 +2,12 @@
 // 也不需要把函式掛到 window.Stockout。action 一律以 "stockout-" 開頭，避免和其他 feature 的 data-action 互相誤觸。
 // 本檔只由 pages/main.js 載入（page.js 不能 import modals.js：modals 會回頭重繪本頁）。
 
+import { createActionDelegate } from '../../core/actions.js';
 import { openStockoutExportDialog } from './export-dialog.js';
-import { deleteStockoutReturn, openEditStockoutModal, openEditStockoutReturnModal, openNonStockOutModal, returnStockout } from './modals.js';
+import {
+  deleteStockoutReturn, openEditStockoutModal, openEditStockoutReturnModal, openKitPrepareModal, openNonStockOutModal,
+  openNonStockPrepareModal, openOutModal, openPrepareModal, openPreparedEditModal, openPreparedOutModal, returnPrepared, returnStockout,
+} from './modals.js';
 import { clearStockoutFilters, deleteStockoutRecord, renderStockOuts, setStockoutFilter } from './page.js';
 import { openStockoutSheet } from './sheet.js';
 
@@ -21,6 +25,14 @@ const STOCKOUT_ACTIONS = {
   'stockout-clear-filters': { click: function() { clearStockoutFilters(); } },
   'stockout-new-nonstock': { click: function() { openNonStockOutModal(); } },
   'stockout-export': { click: function() { openStockoutExportDialog(); } },
+  // 其他 feature（庫存 / 整組 / 待領出頁）的按鈕也用這些 action；modal 的 owner 是 stockout，所以在這裡接線
+  'stockout-prepare-nonstock': { click: function() { openNonStockPrepareModal(); } },
+  'stockout-prepared-edit': { click: function(el) { openPreparedEditModal(stockoutActionId(el)); } },
+  'stockout-prepared-out': { click: function(el) { openPreparedOutModal(stockoutActionId(el)); } },
+  'stockout-prepared-return': { click: function(el) { returnPrepared(stockoutActionId(el)); } },
+  'stockout-kit-prepare': { click: function(el) { openKitPrepareModal(stockoutActionId(el), el.dataset.name); } },
+  'stockout-out': { click: function(el, event) { openOutModal(stockoutActionId(el), event); } },
+  'stockout-prepare': { click: function(el, event) { openPrepareModal(stockoutActionId(el), event); } },
   // 日期變更即重新查詢；關鍵字只記錄，按 Enter 才查詢
   'stockout-filter': {
     change: function(el) { if (el.dataset.filter !== 'search') setStockoutFilter(el.dataset.filter, el.value); },
@@ -29,22 +41,9 @@ const STOCKOUT_ACTIONS = {
   },
 };
 
-/**
- * 依事件目標（含巢狀子元素）找到最近的 stockout action 並執行。
- * @param {Event} event click / change / input / keydown 事件。
- * @returns {boolean} 是否有 action 被執行。
- */
-export function handleStockoutEvent(event) {
-  const el = event.target && event.target.closest ? event.target.closest('[data-action^="stockout-"]') : null;
-  if (!el || el.disabled) return false;
-  const handler = (STOCKOUT_ACTIONS[el.dataset.action] || {})[event.type];
-  if (!handler) return false;
-  handler(el, event);
-  return true;
-}
+const delegate = createActionDelegate('stockout-', STOCKOUT_ACTIONS);
 
-export function initStockoutActions() {
-  ['click', 'change', 'input', 'keydown'].forEach(function(type) {
-    document.addEventListener(type, handleStockoutEvent);
-  });
-}
+/** 測試入口：直接分派一個（模擬的）事件。 */
+export const handleStockoutEvent = delegate.handle;
+
+export const initStockoutActions = delegate.init;

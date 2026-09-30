@@ -1376,10 +1376,11 @@ def test_inventory_js_viewer_mode():
 def test_kits_js_viewer_mode():
     """kits.js 有 viewer 模式：隱藏新增整組/組裝/拆解按鈕"""
     js = read(KITS_RENDER_JS)
+    actions = read("static/js/features/kits/actions.js")
     assert "isViewer" in js
-    assert "openKitModal" in js
-    assert "editKit" in js  # 整組可編輯（Sarah 需求）
-    assert "deleteKit" in js  # 整組可刪除（Sarah 需求）
+    assert "kits-open-modal" in js and "openKitModal" in actions
+    assert "kits-edit" in js and "editKit" in actions  # 整組可編輯（Sarah 需求）
+    assert "kits-delete" in js and "deleteKit" in actions  # 整組可刪除（Sarah 需求）
     assert "submitKitEdit" in read(KIT_MODAL_JS)
 
 
@@ -1403,7 +1404,7 @@ def test_kit_edit_rerenders_directly_after_save():
     render = read(os.path.join(STATIC, "js", "features", "kits", "page.js"))
     assert "kitRenderGuard = createRequestGuard()" in render
     assert "!kitRenderGuard.isCurrent(renderRequestId)" in render
-    assert "'${esc(jsStr(k.name))}'" in render
+    assert 'data-name="${esc(k.name)}"' in render  # 待領出按鈕的整組名稱（原本以 jsStr 塞進 inline handler）
     assert "siteAtRequest !== appState.currentSite" in render
     prepared = read(PREPARED_RENDER_JS)
     assert "preparedRenderGuard = createRequestGuard()" in prepared
@@ -1528,7 +1529,7 @@ def test_kits_components_show_photo():
     js = read(KITS_RENDER_JS)
     assert "kit-photo-slot" in js                                  # 卡片標題照片區（新）
     assert "buildThumb(k.item_id, !!k.has_photo" in js             # 整組照片用 buildThumb
-    assert "openPhotoLightbox(${c.item_id})" in js                 # 材料點擊放大
+    assert 'data-action="photo-lightbox" data-id="${c.item_id}"' in js                 # 材料點擊放大
 
 
 def test_kit_comp_dead_css_removed():
@@ -2175,8 +2176,8 @@ def test_index_has_no_topbar_export():
     assert 'id="btn-add"' not in idx  # 新增按鈕也移出 topbar
     inv = read(INVENTORY_RENDER_JS)
     assert "loc-export-bar" in inv
-    assert "onclick=\"Inventory.openInventoryExportDialog()\"" in inv
-    assert "onclick=\"Inventory.openAddModal()\"" in inv  # 庫存清單頂部新增按鈕
+    assert 'data-action="inventory-export"' in inv
+    assert 'data-action="inventory-add-open"' in inv  # 庫存清單頂部新增按鈕
     css = read_css_all()
     assert "justify-content: flex-end" in css  # 匯出列靠右（2026-08-13 Sarah 選項）
 
@@ -2281,7 +2282,7 @@ def test_stocktake_table_photo_thumb():
     assert 'class="cphoto"' in js
     # 有照片 → img 縮圖 + 點擊放大
     assert 'src="${photoSrc(item.id, \'thumbnail\')}"' in js
-    assert "openPhotoLightbox(${item.id})" in js
+    assert 'data-action="photo-lightbox" data-id="${item.id}"' in js
     # 無照片 → 📷 佔位
     assert "cphoto-empty" in js
 
@@ -2295,7 +2296,7 @@ def test_stocktake_kit_tab_expands_components():
     # 展開渲染：找整組定義 + 組成品項縮圖 + 需/有數量
     assert "stocktakeKits.find(k => k.item_id === r.item.id)" in js
     assert 'src="${photoSrc(c.item_id, \'thumbnail\')}"' in js
-    assert "openPhotoLightbox(${c.item_id})" in js
+    assert 'data-action="photo-lightbox" data-id="${c.item_id}"' in js
     # 2026-09-12：需求數量分數顯示（Qty.format；無 Qty 回退舊字串）
     assert ("需 ${esc(String(c.need_qty))} ${esc(c.unit || '')}／組" in js) or ("Qty.format(c.need_qty" in js), "盤點材料需求數量顯示遺失"
     # 每個組成品項也可輸入實際數量（key=itemId:location，與單一材料盤點同一機制）
@@ -2730,11 +2731,11 @@ def test_kit_stockout_actions():
     """2026-08-13 Sarah：整組庫存也要有「待領出/已領出」按鈕（手機+桌面），整組用 openKitPrepareModal 顯示 BOM"""
     js = read(KITS_RENDER_JS)
     # 手機卡片 kit-mobile-actions + 桌面操作列：各一組 openKitPrepareModal/openOutModal（用 kit 的 item_id）
-    assert js.count("openKitPrepareModal(${k.item_id}") >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
-    assert js.count("openOutModal(${k.item_id}") >= 2, "整組卡片已領出按鈕（手機+桌面）缺失"
+    assert js.count('data-action="stockout-kit-prepare" data-id="${k.item_id}"') >= 2, "整組卡片待領出按鈕（手機+桌面）缺失"
+    assert js.count('data-action="stockout-out" data-id="${k.item_id}"') >= 2, "整組卡片已領出按鈕（手機+桌面）缺失"
     assert "kit-mobile-actions" in js, "手機整組卡片缺 kit-mobile-actions 按鈕列"
     # 桌面版：待領出/已領出要在編輯按鈕前面（設計圖：操作列最前面）
-    assert js.find("openOutModal(${k.item_id}") < js.find("editKit(${k.id})"), "桌面按鈕應在編輯前面"
+    assert js.find('data-action="stockout-out"') < js.find('data-action="kits-edit"'), "桌面按鈕應在編輯前面"
     # viewer/tech 隱藏
     assert 'if (isViewer) return \'\';' in js, "手機按鈕列應對 viewer/tech 隱藏"
 
@@ -2747,7 +2748,7 @@ def test_prepared_nonstock_add_ui():
     assert "apiFetch('/api/prepare/nonstock'" in js, "submitNonStockPrepare 沒打新端點"
 
     pjs = read(PREPARED_RENDER_JS)
-    assert "onclick=\"Stockout.openNonStockPrepareModal()\"" in pjs, "待領出頁缺新增按鈕入口"
+    assert 'data-action="stockout-prepare-nonstock"' in pjs, "待領出頁缺新增按鈕入口"
     assert "tag-nonstock" in pjs, "待領出頁非庫存標籤缺失"
     assert "renderPreparedPageHeader" in pjs, "待領出頁 header/toolbar 渲染函式缺失"
 
@@ -3183,10 +3184,10 @@ def test_every_item_photo_thumbnail_opens_lightbox():
     missing = []
     for path in sorted(js_dir.rglob("*.js")):
         for no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if "<img" in line and "photoSrc(" in line and "'thumbnail'" in line and "openPhotoLightbox(" not in line:
+            if "<img" in line and "photoSrc(" in line and "'thumbnail'" in line and "photo-lightbox" not in line:
                 missing.append(f"{path.relative_to(js_dir)}:{no}")
-    assert not missing, "照片縮圖缺 openPhotoLightbox：" + ", ".join(missing)
-    assert "openPhotoLightbox(' + id + ')" in read(CARD_JS), "buildThumb 縮圖需可點開"
+    assert not missing, "照片縮圖缺 data-action=\"photo-lightbox\"：" + ", ".join(missing)
+    assert "data-action=\"photo-lightbox\" data-id=\"' + id + '\"" in read(CARD_JS), "buildThumb 縮圖需可點開"
 
 
 def test_add_stock_rows_and_kit_location_runtime():
@@ -3549,7 +3550,7 @@ def test_table_photo_column():
     """表格 view 包含圖片欄"""
     js = read(INVENTORY_RENDER_JS)
     assert "photo-cell" in js, "表格缺 photo-cell 欄位"
-    assert "openPhotoLightbox" in js, "表格缺 openPhotoLightbox 呼叫"
+    assert "photo-lightbox" in js, "表格缺 photo-lightbox action"
 
 # ========== 搜尋框手機版可見 ==========
 def test_mobile_search_visible():
@@ -3590,7 +3591,7 @@ def test_inventory_mobile_stockout_actions_match_desktop_permission_gate():
     assert "if (!canStockout) return '';" in js
     card = read(CARD_JS)
     assert "${p.actionsHTML || ''}" in card
-    assert 'openPrepareModal' in js and 'openOutModal' in js
+    assert 'stockout-prepare' in js and 'stockout-out' in js
 
 
 def test_inventory_stockout_actions_are_shared_and_labeled_in_card_and_table():
@@ -3788,8 +3789,8 @@ def test_inventory_status_kpis_and_detail_share_filtered_status_source():
     assert "getFilteredInventoryItems()" in detail
     assert "getInventoryStatus(i)" in js
     assert "inventory-kpi-card" in js
-    assert "showInventoryStatusList('low')" in js
-    assert "showInventoryStatusList('out')" in js
+    assert 'data-action="inventory-status-list" data-type="low"' in js
+    assert 'data-action="inventory-status-list" data-type="out"' in js
 
 
 def test_inventory_status_detail_runtime_uses_filtered_items_and_priority():
@@ -3815,7 +3816,7 @@ if (context.getInventoryStatus(normal).isLowStock || context.getInventoryStatus(
 context.pending[1] = 1;
 const html = context.renderInventoryDashboard([low, zero, normal]);
 if (!html.includes('inventory-kpi-number ui-kpi-value">11</div>')) throw new Error('pending-aware total missing');
-if (!html.includes("showInventoryStatusList('low')") || !html.includes("showInventoryStatusList('out')")) throw new Error('KPI handlers missing');
+if (!html.includes('data-action="inventory-status-list" data-type="low"') || !html.includes('data-action="inventory-status-list" data-type="out"')) throw new Error('KPI handlers missing');
 """
     result = subprocess.run(['node', '-e', script], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, result.stderr or result.stdout
@@ -3880,7 +3881,7 @@ if (!outKpi.includes('inventory-kpi-number ui-kpi-value">2</div>')) throw new Er
 const zeroItems = context.getInventoryStatusItems('zero');
 if (zeroItems.length !== 2 || !zeroItems.some(item => item.id === 3)) throw new Error('full zero status list missing');
 const loadedStatusHtml = context.renderInventoryStatusItem(zeroItems[0], 'out');
-if (!loadedStatusHtml.includes('openEditModal(1)')) throw new Error('loaded status edit action missing');
+if (!loadedStatusHtml.includes('data-action="inventory-status-edit" data-id="1"')) throw new Error('loaded status edit action missing');
 const crossPageStatusHtml = context.renderInventoryStatusItem(zeroItems[1], 'out');
 // 共用 status-list renderer 允許所有 alert items 編輯（含跨頁 items）
 context.pending[2] = -8;
@@ -3955,11 +3956,11 @@ def test_prepared_desktop_layout_keeps_existing_action_handlers():
     assert "prepared-page-header" in js
     assert "prepared-alert" in js
     assert "prepared-table-wrap" in js
-    for token in ("openNonStockPrepareModal", "openPreparedOutModal", "returnPrepared", "clearPrepared"):
+    for token in ("stockout-prepare-nonstock", "stockout-prepared-out", "stockout-prepared-return", "prepared-clear"):
         assert token in js
     assert "item.is_deleted ? ''" in js
     assert "載入待領出資料失敗" in js
-    assert "renderPrepared()" in js
+    assert 'data-action="prepared-reload"' in js
 
 
 def test_desktop_inventory_pending_visual_system_css():
@@ -3987,7 +3988,7 @@ def test_kit_desktop_dashboard_assets_and_existing_actions():
         "kit-component-table", "kit-status-badge", "kit-empty-state",
     ):
         assert token in js or token in css, f"整組頁缺少 {token}"
-    for token in ("openKitPrepareModal", "openOutModal", "editKit", "deleteKit", "assembleKit", "disassembleKit"):
+    for token in ("stockout-kit-prepare", "stockout-out", "kits-edit", "kits-delete", "kits-assemble", "kits-disassemble"):
         assert token in js
     assert ".kit-content" in css
 
@@ -4110,6 +4111,34 @@ def test_stockout_actions_are_delegated_not_inline():
     assert result.returncode == 0, f"stockout actions runtime 失敗：\n{result.stdout}\n{result.stderr}"
 
 
+DELEGATE_PREFIXES = ("stockout-", "prepared-", "kits-", "inventory-", "photo-", "status-list-", "app-")
+
+
+def test_data_actions_and_delegate_handlers_match():
+    """每個 JS 模板輸出的 data-action 都要有 delegate handler，且 handler 表裡沒有沒人用的 action（避免點了沒反應 / 死碼）。
+    runtime 行為見 action_delegate_runtime.test.js、stockout_actions_runtime.test.js。"""
+    js_dir = Path(STATIC) / "js"
+    markup, handlers = set(), set()
+    for path in js_dir.rglob("*.js"):
+        if "dist" in path.parts:
+            continue
+        source = path.read_text(encoding="utf-8")
+        markup |= set(re.findall(r'data-action=\\?"([a-z][a-z-]+)"', source))
+        handlers |= set(re.findall(r"^\s*'([a-z][a-z-]+)': \{", source, re.M))
+    # 只檢查由 createActionDelegate 管的前綴（其他既有的 data-action，例如零用金 pc-*，用自己的事件綁定）
+    markup = {name for name in markup if name.startswith(DELEGATE_PREFIXES)}
+    # 動態組出的名稱：庫存項目選單 inventory-menu-<key>（key = edit / transfer / delete）
+    markup |= {"inventory-menu-edit", "inventory-menu-transfer", "inventory-menu-delete"}
+    assert markup - handlers == set(), f"這些 data-action 沒有 handler：{sorted(markup - handlers)}"
+    handlers = {name for name in handlers if name.startswith(DELEGATE_PREFIXES)}
+    assert handlers - markup == set(), f"這些 handler 沒有任何標記使用（死碼）：{sorted(handlers - markup)}"
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "action_delegate_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, f"action delegate runtime 失敗：\n{result.stdout}\n{result.stderr}"
+
+
 def test_stockout_existing_actions_and_return_states_remain():
     """既有已領出編輯/退回/撤銷/刪除與 mobile sheet action 不得因 UI 重構消失。"""
     js = read(STOCKOUT_RENDER_JS)
@@ -4189,7 +4218,7 @@ def test_kit_component_table_has_fixed_photo_and_equal_remaining_columns():
 def test_kit_status_kpis_are_clickable_and_use_existing_status_selector():
     """整組庫存異常 KPI 必須用既有 getKitStatus selector 開啟明細。"""
     js = read(KITS_RENDER_JS)  # issue #39：showKitStatusList / getKitStatus 在 kits/status.js
-    assert "showKitStatusList('${card[4]}')" in js
+    assert 'data-action="kits-status-list" data-type="${card[4]}"' in js
     assert 'function showKitStatusList(type)' in js
     assert "getKitStatus(k).status === validType" in js
     assert '庫存不足(個)' in js
@@ -4239,8 +4268,8 @@ def test_kit_mobile_actions_stay_on_one_row_in_requested_order():
     assert 'kit-mobile-actions' in js
     assert 'renderKitActionButtons(k, isViewer, isM, status)' in js
     assert 'kit-mobile-actions .kit-action' in css
-    assert js.index('openKitPrepareModal(${k.item_id}, ') < js.index('openOutModal(${k.item_id}, event)')
-    assert js.index('openOutModal(${k.item_id}, event)') < js.index('openKitSheet(${k.id})')
+    assert js.index('data-action="stockout-kit-prepare"') < js.index('data-action="stockout-out"')
+    assert js.index('data-action="stockout-out"') < js.index('data-action="kits-sheet"')
 
 
 def test_stocktake_mobile_text_keeps_original_wrapping_behavior():
@@ -4409,10 +4438,10 @@ def test_prepared_kit_subitems_desktop():
 def test_prepared_kit_photo_lightbox():
     """整組子品項照片可點擊看大圖（openPhotoLightbox）"""
     js = read(PREPARED_RENDER_JS)
-    assert "openPhotoLightbox" in js
+    assert "photo-lightbox" in js
     # 兩處：桌面版 renderKitSubItems + 手機版 renderKitSubItemsMobile
-    count = js.count("openPhotoLightbox")
-    assert count >= 2, f"openPhotoLightbox 應出現 >=2 次（桌面+手機），實際 {count}"
+    count = js.count("photo-lightbox")
+    assert count >= 2, f"photo-lightbox 應出現 >=2 次（桌面+手機），實際 {count}"
 
 
 def test_prepared_destination_display():
@@ -4529,7 +4558,7 @@ def test_inventory_transfer_ui_is_mounted_and_wired():
     assert 'function openTransferModal' in transfer
     assert '/api/inventory/transfers' in transfer
     assert 'openTransferModal(itemId)' in inventory
-    assert 'openTransferModal(${k.item_id})' in kits
+    assert 'data-action="inventory-transfer" data-id="${k.item_id}"' in kits
 
 
 def test_stocktake_frontend_sends_current_site():
@@ -4642,8 +4671,8 @@ def test_inventory_export_dialog_contract():
     assert "@media (max-width: 767px)" in css
     assert 'href="/static/css/3-components/export-dialog.css"' in index
     inventory = read(INVENTORY_RENDER_JS)
-    assert "Inventory.openInventoryExportDialog();Inventory.closeMoreActions()" in inventory
-    assert "onclick=\"Inventory.openInventoryExportDialog()\"" in inventory
+    assert 'data-action="inventory-export-from-menu"' in inventory
+    assert 'data-action="inventory-export"' in inventory
 
 
 def test_inventory_export_dialog_runtime():

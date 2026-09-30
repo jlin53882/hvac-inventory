@@ -23,10 +23,9 @@ export function buildInventoryItemActionMenu(itemId, isViewer) {
   const actions = getInventoryItemActions(itemId, isViewer, false);
   if (!actions.length) return '';
   const buttons = actions.map(a => {
-    const command = a.key === 'edit' ? 'Inventory.openEditModal(' + itemId + ')' : (a.key === 'transfer' ? 'Inventory.openTransferModal(' + itemId + ')' : 'Inventory.deleteItem(' + itemId + ')');
-    return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" onclick="' + command + ';Inventory.closeInventoryActionMenus()">' + a.icon + ' ' + a.label + '</button>';
+    return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" data-action="inventory-menu-' + a.key + '" data-id="' + itemId + '">' + a.icon + ' ' + a.label + '</button>';
   }).join('');
-  return '<div class="inventory-action-menu" data-role="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" onclick="Inventory.openInventoryActionMenu(this, event)">⋮</button><div class="inventory-action-dropdown" data-role="inventory-action-dropdown">' + buttons + '</div></div>';
+  return '<div class="inventory-action-menu" data-role="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" data-action="inventory-menu-open">⋮</button><div class="inventory-action-dropdown" data-role="inventory-action-dropdown">' + buttons + '</div></div>';
 }
 
 

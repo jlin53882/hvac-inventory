@@ -4,7 +4,7 @@ import { loadInventoryPage } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
 import { getCurrentBrands, getCurrentCategories, setCurrentBrands, setCurrentCategories } from '../../core/shared-read-model.js';
 import { getAllItems, getInventoryFacets, getInventoryMeta } from '../../core/inventory-read-model.js';
-import { esc, jsStr } from '../../core/utils.js';
+import { esc } from '../../core/utils.js';
 
 export function getInventoryFilterKeywords() {
   const searchInput = document.getElementById('search-input');
@@ -39,12 +39,12 @@ function renderInventoryChips() {
   const brands = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
   const cats = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
   let h = '<div class="chip-bar">';
-  h += '<span class="chip' + (getCurrentBrands().length === 0 ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryBrand(\'\')">全部廠牌</span>';
-  brands.forEach(b => { h += '<span class="chip' + (getCurrentBrands().includes(b) ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
+  h += '<span class="chip' + (getCurrentBrands().length === 0 ? ' is-active' : '') + '" data-action="inventory-brand-toggle" data-value="">全部廠牌</span>';
+  brands.forEach(b => { h += '<span class="chip' + (getCurrentBrands().includes(b) ? ' is-active' : '') + '" data-action="inventory-brand-toggle" data-value="' + esc(b) + '">' + esc(b) + '</span>'; });
   h += '</div>';
   h += '<div class="chip-bar">';
-  h += '<span class="chip' + (getCurrentCategories().length === 0 ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryCategory(\'\')">全部分類</span>';
-  cats.forEach(c => { h += '<span class="chip' + (getCurrentCategories().includes(c) ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryCategory(\'' + esc(jsStr(c)) + '\')">' + esc(c) + '</span>'; });
+  h += '<span class="chip' + (getCurrentCategories().length === 0 ? ' is-active' : '') + '" data-action="inventory-category-toggle" data-value="">全部分類</span>';
+  cats.forEach(c => { h += '<span class="chip' + (getCurrentCategories().includes(c) ? ' is-active' : '') + '" data-action="inventory-category-toggle" data-value="' + esc(c) + '">' + esc(c) + '</span>'; });
   h += '</div>';
   return h;
 }

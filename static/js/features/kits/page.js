@@ -10,7 +10,7 @@ import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
 import { getCurrentKitItems } from '../../core/shared-read-model.js';
-import { esc, hasPerm, jsStr, openModal, toast } from '../../core/utils.js';
+import { esc, hasPerm, openModal, toast } from '../../core/utils.js';
 import { renderKitPhotoBox } from '../inventory/photo.js';
 import { loadKitCabinetOptions, renderKitLocationRows } from './kit-modal.js';
 import { kitsState } from './state.js';
@@ -48,7 +48,7 @@ export async function renderKits() {
         <div class="kit-empty-icon" aria-hidden="true">🔧</div>
         <h2>${esc(hasSearch ? '沒有符合搜尋條件的整組' : '目前沒有整組資料') }</h2>
         <p>${esc(hasSearch ? '可以清除搜尋或調整關鍵字。' : '可以建立整組並加入組成材料。') }</p>
-        ${hasSearch ? '<button class="btn btn--secondary btn--sm kit-action" onclick="App.clearSearchAutofill();Kits.renderKits()">清除搜尋</button>' : (isViewer ? '' : '<button class="btn btn--primary btn--md kit-add-button" onclick="Kits.openKitModal()">＋ 新增整組</button>')}
+        ${hasSearch ? '<button class="btn btn--secondary btn--sm kit-action" data-action="app-kits-clear-search">清除搜尋</button>' : (isViewer ? '' : '<button class="btn btn--primary btn--md kit-add-button" data-action="kits-open-modal">＋ 新增整組</button>')}
       </div>`;
     } else {
       html += filteredKits.map(function(k) { return renderKitCard(k, isViewer, isM); }).join('');
@@ -56,7 +56,7 @@ export async function renderKits() {
     content.innerHTML = html;
   } catch (e) {
     if (!kitRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'kit' || siteAtRequest !== appState.currentSite) return;
-    content.innerHTML = `<div class="kit-empty-state"><div class="kit-empty-icon" aria-hidden="true">⚠️</div><h2>載入整組庫存失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--sm kit-action" onclick="Kits.renderKits()">重新載入</button></div>`;
+    content.innerHTML = `<div class="kit-empty-state"><div class="kit-empty-icon" aria-hidden="true">⚠️</div><h2>載入整組庫存失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--sm kit-action" data-action="kits-reload">重新載入</button></div>`;
   }
 }
 
@@ -94,7 +94,7 @@ function renderKitPageHeader(isViewer) {
       <div class="kit-heading-icon" aria-hidden="true">🔧</div>
       <div><h1>整組庫存</h1><p>管理設備整組與其組成材料，查看庫存狀態與需求數量。</p></div>
     </div>
-    ${isViewer ? '' : '<button class="btn btn--primary btn--md kit-add-button" onclick="Kits.openKitModal()">＋ 新增整組</button>'}
+    ${isViewer ? '' : '<button class="btn btn--primary btn--md kit-add-button" data-action="kits-open-modal">＋ 新增整組</button>'}
   </section>`;
 }
 
@@ -105,7 +105,7 @@ function renderKitDashboard(stats) {
     ['⚠️', stats.insufficientCount, '庫存不足(個)', 'is-warning', 'insufficient'],
     ['⛔', stats.shortageCount, '缺料(個)', 'is-danger', 'shortage'],
   ];
-  return `<section class="kit-kpi-grid ui-kpi-grid" aria-label="整組庫存統計">${cards.map(function(card) { const clickable = !!card[4]; const attrs = clickable ? ` role="button" tabindex="0" aria-label="查看${esc(card[2])}清單" onclick="Kits.showKitStatusList('${card[4]}')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); Kits.showKitStatusList('${card[4]}'); }"` : ''; const tone = card[4] === 'insufficient' ? 'amber' : card[4] === 'shortage' ? 'red' : card[0] === '🧩' ? 'purple' : 'blue'; const meta = card[4] === 'insufficient' ? '庫存不足 · 查看清單' : card[4] === 'shortage' ? '缺料 · 查看清單' : card[0] === '🧩' ? '不重複材料' : '目前篩選結果'; return `<div class="kit-kpi-card ui-kpi-card ui-kpi-card--${esc(tone)} ${esc(card[3])}${clickable ? ' is-clickable' : ''}"${attrs}><span class="kit-kpi-icon ui-kpi-icon" aria-hidden="true">${esc(card[0])}</span><div class="ui-kpi-body"><div class="kit-kpi-label ui-kpi-label">${esc(card[2])}</div><div class="kit-kpi-number ui-kpi-value">${esc(formatKitNumber(card[1]))}</div><span class="ui-kpi-meta">${esc(meta)}</span></div>${clickable ? '<span class="kit-kpi-arrow" aria-hidden="true">›</span>' : ''}</div>`; }).join('')}</section>`
+  return `<section class="kit-kpi-grid ui-kpi-grid" aria-label="整組庫存統計">${cards.map(function(card) { const clickable = !!card[4]; const attrs = clickable ? ` role="button" tabindex="0" aria-label="查看${esc(card[2])}清單" data-action="kits-status-list" data-type="${card[4]}"` : ''; const tone = card[4] === 'insufficient' ? 'amber' : card[4] === 'shortage' ? 'red' : card[0] === '🧩' ? 'purple' : 'blue'; const meta = card[4] === 'insufficient' ? '庫存不足 · 查看清單' : card[4] === 'shortage' ? '缺料 · 查看清單' : card[0] === '🧩' ? '不重複材料' : '目前篩選結果'; return `<div class="kit-kpi-card ui-kpi-card ui-kpi-card--${esc(tone)} ${esc(card[3])}${clickable ? ' is-clickable' : ''}"${attrs}><span class="kit-kpi-icon ui-kpi-icon" aria-hidden="true">${esc(card[0])}</span><div class="ui-kpi-body"><div class="kit-kpi-label ui-kpi-label">${esc(card[2])}</div><div class="kit-kpi-number ui-kpi-value">${esc(formatKitNumber(card[1]))}</div><span class="ui-kpi-meta">${esc(meta)}</span></div>${clickable ? '<span class="kit-kpi-arrow" aria-hidden="true">›</span>' : ''}</div>`; }).join('')}</section>`
 }
 
 function renderKitToolbar(count) {
@@ -116,7 +116,7 @@ function renderKitToolbar(count) {
   const now = new Date();
   const month_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const month_end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn btn--export btn--md btn-export" onclick="Kits.openKitExportDialog()">📊 匯出報表</button></div>`;
+  return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn btn--export btn--md btn-export" data-action="kits-export">📊 匯出報表</button></div>`;
 }
 
 function renderKitStatusBadge(status) {
@@ -127,15 +127,15 @@ function renderKitStatusBadge(status) {
 
 function renderKitActionButtons(k, isViewer, isM, status) {
   if (isViewer) return '';
-  const transfer = hasPerm('stock-mgmt') ? `<button class="btn btn--secondary btn--sm kit-action" onclick="Inventory.openTransferModal(${k.item_id})">🔄 調撥</button>` : '';
-  if (isM) return `<div class="kit-mobile-actions"><button class="btn btn--prepare btn--sm kit-action is-prepare" onclick="Stockout.openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button><button class="btn btn--out btn--sm kit-action is-out" onclick="Stockout.openOutModal(${k.item_id}, event)">🚚 已領出</button>${transfer}<button class="kit-more" type="button" onclick="Kits.openKitSheet(${k.id})" aria-label="整組操作">⋯</button></div>`;
+  const transfer = hasPerm('stock-mgmt') ? `<button class="btn btn--secondary btn--sm kit-action" data-action="inventory-transfer" data-id="${k.item_id}">🔄 調撥</button>` : '';
+  if (isM) return `<div class="kit-mobile-actions"><button class="btn btn--prepare btn--sm kit-action is-prepare" data-action="stockout-kit-prepare" data-id="${k.item_id}" data-name="${esc(k.name)}">📤 待領出</button><button class="btn btn--out btn--sm kit-action is-out" data-action="stockout-out" data-id="${k.item_id}">🚚 已領出</button>${transfer}<button class="kit-more" type="button" data-action="kits-sheet" data-id="${k.id}" aria-label="整組操作">⋯</button></div>`;
   return `<div class="kit-assembly-actions">
-    <button class="btn btn--prepare btn--sm kit-action is-prepare" onclick="Stockout.openKitPrepareModal(${k.item_id}, '${esc(jsStr(k.name))}')">📤 待領出</button>
-    <button class="btn btn--out btn--sm kit-action is-out" onclick="Stockout.openOutModal(${k.item_id}, event)">🚚 已領出</button>
-    <button class="btn btn--secondary btn--sm kit-action is-edit" onclick="Kits.editKit(${k.id})">✏️ 編輯</button>
-    <button class="btn btn--danger btn--sm kit-action is-delete" onclick="Kits.deleteKit(${k.id})">🗑 刪除</button>
-    <button class="btn btn--secondary btn--sm kit-action is-assemble" onclick="Kits.assembleKit(${k.id})" ${esc(status.canAssemble ? '' : 'disabled title="材料不足"')}>🛠️ 組裝</button>
-    <button class="btn btn--secondary btn--sm kit-action is-disassemble" onclick="Kits.disassembleKit(${k.id})" ${Number(k.stock_qty || 0) > 0 ? '' : 'disabled title="整組庫存為 0"'}>✂️ 拆解</button>
+    <button class="btn btn--prepare btn--sm kit-action is-prepare" data-action="stockout-kit-prepare" data-id="${k.item_id}" data-name="${esc(k.name)}">📤 待領出</button>
+    <button class="btn btn--out btn--sm kit-action is-out" data-action="stockout-out" data-id="${k.item_id}">🚚 已領出</button>
+    <button class="btn btn--secondary btn--sm kit-action is-edit" data-action="kits-edit" data-id="${k.id}">✏️ 編輯</button>
+    <button class="btn btn--danger btn--sm kit-action is-delete" data-action="kits-delete" data-id="${k.id}">🗑 刪除</button>
+    <button class="btn btn--secondary btn--sm kit-action is-assemble" data-action="kits-assemble" data-id="${k.id}" ${esc(status.canAssemble ? '' : 'disabled title="材料不足"')}>🛠️ 組裝</button>
+    <button class="btn btn--secondary btn--sm kit-action is-disassemble" data-action="kits-disassemble" data-id="${k.id}" ${Number(k.stock_qty || 0) > 0 ? '' : 'disabled title="整組庫存為 0"'}>✂️ 拆解</button>
   </div>` + transfer;
 }
 
@@ -145,7 +145,7 @@ function renderKitComponentRow(c) {
   const state = stock <= 0 && need > 0 ? 'shortage' : (stock < need - 1e-9 ? 'insufficient' : 'normal'); // 2026-09-12 塵容差
   const stateLabel = state === 'shortage' ? '缺料' : (state === 'insufficient' ? '庫存不足' : '正常');
   const stateClass = `kit-component-status is-${state}`;
-  const photo = c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" alt="" onclick="Inventory.openPhotoLightbox(${c.item_id})" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
+  const photo = c.has_photo ? `<img src="${photoSrc(c.item_id, 'thumbnail')}" alt="" data-action="photo-lightbox" data-id="${c.item_id}" title="點擊看大圖">` : '<span class="cphoto-empty">📷</span>';
   return `<tr>
     <td class="kit-component-photo"><span class="cphoto">${photo}</span></td>
     <td><div class="kit-component-info">

@@ -159,7 +159,7 @@ export function renderKitLocationRows() {
       <select class="kit-loc-cabinet" data-role="kit-loc-cabinet">${_cabinetOptions(row.cabinet || '')}</select>
       <input type="text" class="kit-loc-pos" data-role="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
       <input type="text" class="kit-loc-note" data-role="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
-      <button type="button" class="btn-remove" onclick="Kits.removeKitLocationRow(${idx})">🗑</button>
+      <button type="button" class="btn-remove" data-action="kits-location-remove" data-idx="${idx}">🗑</button>
     </div>
   `).join('');
 }

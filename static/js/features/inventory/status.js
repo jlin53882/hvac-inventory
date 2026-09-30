@@ -97,11 +97,11 @@ export function renderInventoryDashboard(list, aggregateStats) {
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">🗄️</span>
       <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">庫存總數</div><div class="inventory-kpi-number ui-kpi-value">${esc(formatInventoryQuantity(totalQty))}</div><span class="ui-kpi-meta">目前篩選結果合計</span></div>
     </div>
-    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--amber inventory-kpi-low" onclick="Inventory.showInventoryStatusList('low')" aria-label="查看低庫存商品">
+    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--amber inventory-kpi-low" data-action="inventory-status-list" data-type="low" aria-label="查看低庫存商品">
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">⚠</span>
       <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">低庫存</div><div class="inventory-kpi-number ui-kpi-value">${esc(String(lowCount))}</div><span class="ui-kpi-meta">低於警示值 · <span class="inventory-kpi-action">查看清單</span></span></div>
     </button>
-    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--red inventory-kpi-out" onclick="Inventory.showInventoryStatusList('out')" aria-label="查看缺貨商品">
+    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--red inventory-kpi-out" data-action="inventory-status-list" data-type="out" aria-label="查看缺貨商品">
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">⛔</span>
       <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">缺貨</div><div class="inventory-kpi-number ui-kpi-value">${esc(String(zeroCount))}</div><span class="ui-kpi-meta">數量為 0 · <span class="inventory-kpi-action">查看清單</span></span></div>
     </button>

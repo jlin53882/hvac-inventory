@@ -106,8 +106,8 @@ export function openStockLocationPicker(item, delta) {
   options.innerHTML = stocks.map(function(stock) {
     const location = stock.location || '未標示位置';
     const current = Qty.format(stock.qty || 0, Qty.unitTypeOf(item.unit));
-    return '<button type="button" class="stock-adjust-location-option" onclick="Inventory.queueStockLocationAdjustment(' +
-      Number(item.id) + ',' + Number(stock.id) + ')"><span class="stock-adjust-location-name">' + esc(location) +
+    return '<button type="button" class="stock-adjust-location-option" data-action="inventory-location-adjust" data-item-id="' +
+      Number(item.id) + '" data-stock-id="' + Number(stock.id) + '"><span class="stock-adjust-location-name">' + esc(location) +
       '</span><span class="stock-adjust-location-qty">目前 ' + esc(current) + ' ' + esc(item.unit || '') +
       '</span></button>';
   }).join('');

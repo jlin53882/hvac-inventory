@@ -526,7 +526,7 @@ export function openKitPrepareModal(kitId, kitName) {
   let listHtml = '';
   comps.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" alt="" class="kit-prepare-thumb" loading="lazy" onclick="Inventory.openPhotoLightbox(' + c.item_id + ')" title="點擊看大圖">'
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" alt="" class="kit-prepare-thumb" loading="lazy" data-action="photo-lightbox" data-id="' + c.item_id + '" title="點擊看大圖">'
       : '<div class="kit-prepare-thumb kit-prepare-thumb--empty">📷</div>';
     const stockOk = (c.stock || 0) >= c.need_qty;
     listHtml += '<div class="kit-prepare-row">' +

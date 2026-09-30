@@ -217,7 +217,7 @@ loadModules(sandbox, 'features/inventory/qty-dialog.js');
   vm.createContext(editContext);
   loadModules(editContext, 'core/qty.js', 'features/inventory/edit-modal.js');
   editContext.renderEditStockRows([{ id: 101, location: '編號A | 1-1', qty: 0, note: '' }], '個');
-  assert.match(editBox.innerHTML, /deleteEditStockRow\(this\)/, '既有位置列需出現移除按鈕');
+  assert.match(editBox.innerHTML, /data-action="inventory-edit-stock-remove"/, '既有位置列需出現移除按鈕');
   assert.match(editBox.innerHTML, /data-stock-qty="0"/, '既有列需保存原始庫存量供安全移除判斷');
 
   const newRow = {
@@ -229,7 +229,7 @@ loadModules(sandbox, 'features/inventory/qty-dialog.js');
   editBox.appendChild = row => editBox.children.push(row);
   editContext.document.createElement = () => newRow;
   editContext.addEditStockRow();
-  assert.ok(newRow.innerHTML.includes('deleteEditStockRow(this)'), '新增位置列也需出現移除按鈕');
+  assert.ok(newRow.innerHTML.includes('data-action="inventory-edit-stock-remove"'), '新增位置列也需出現移除按鈕');
   assert.equal(newRow.dataset.stockQty, '0', '新列原始數量需設為 0');
 
   let removed = false;

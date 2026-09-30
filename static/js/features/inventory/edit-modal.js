@@ -86,7 +86,7 @@ function renderEditStockRows(stocks, unit) {
       <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" value="${esc(subLocation)}" list="location-list" placeholder="位置"></label>
       <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="${esc(quantity)}" placeholder="數量（可輸 1/4）"></label>
       <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" value="${esc(stock.note || '')}" placeholder="備註（選填）"></label>
-      <button type="button" class="stock-remove" onclick="Inventory.deleteEditStockRow(this)" aria-label="移除第 ${esc(String(index + 1))} 個位置" title="移除此位置">✕</button>
+      <button type="button" class="stock-remove" data-action="inventory-edit-stock-remove" aria-label="移除第 ${esc(String(index + 1))} 個位置" title="移除此位置">✕</button>
     </div>`;
   }).join('');
 }
@@ -122,7 +122,7 @@ export function addEditStockRow() {
     <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="位置"></label>
     <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
     <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註（選填）"></label>
-    <button type="button" class="stock-remove" onclick="Inventory.deleteEditStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>
+    <button type="button" class="stock-remove" data-action="inventory-edit-stock-remove" aria-label="移除此位置" title="移除此位置">✕</button>
   `;
   box.appendChild(row);
   row.querySelector('[data-role="stock-sub"]').focus();

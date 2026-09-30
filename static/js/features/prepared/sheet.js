@@ -1,4 +1,4 @@
-// 待領出卡的手機版 ⋯ 動作選單（由 inline handler Prepared.openPreparedSheet 開啟；issue #39 自 page.js 抽出，
+// 待領出卡的手機版 ⋯ 動作選單（由 prepared/actions.js 的 data-action="prepared-sheet" 開啟；issue #39 自 page.js 抽出，
 // 讓待領出頁不必 import 會回頭重繪本頁的 stockout/modals.js）
 
 import { openSheet } from '../../core/bottomsheet.js';

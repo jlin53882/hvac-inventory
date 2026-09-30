@@ -23,7 +23,7 @@ export function buildThumb(id, hasPhoto, name, placeholder, thumbnailUrl) {
   const fallback = '<span class="product-thumbnail-placeholder' + (hasPhoto ? ' hidden' : '') + '">' + esc(placeholder || '📦') + '</span>';
   if (!hasPhoto) return fallback;
   const src = thumbnailUrl || photoSrc(id, 'thumbnail');
-  return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" onclick="Inventory.openPhotoLightbox(' + id + ')" title="點擊看大圖" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
+  return '<span class="product-thumbnail-wrap"><img src="' + esc(src) + '" alt="' + esc(name || '') + '" loading="lazy" decoding="async" width="52" height="52" data-action="photo-lightbox" data-id="' + id + '" title="點擊看大圖" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false">' + fallback + '</span>';
 }
 
 // Contract: return an escaped display string; callers must not escape it again.
@@ -60,9 +60,9 @@ export function buildQtyControl(opts) {
     return `<div class="qty-num">${display}</div><div class="qty-unit">${esc(unit)}</div>`;
   }
   return `<div class="qty-control">
-    <button class="qty-btn qty-minus" onclick="Inventory.changeQty(${id}, -1)" ${isZero && delta <= 0 ? 'disabled' : ''}>−</button>
-    <div class="qty-value" onclick="Inventory.quickSet(${id})" title="點數字可輸入">${display}<span class="unit"> ${esc(unit)}</span></div>
-    <button class="qty-btn qty-plus" onclick="Inventory.changeQty(${id}, 1)">+</button>
+    <button class="qty-btn qty-minus" data-action="inventory-qty-change" data-id="${id}" data-delta="-1" ${isZero && delta <= 0 ? 'disabled' : ''}>−</button>
+    <div class="qty-value" data-action="inventory-qty-quickset" data-id="${id}" title="點數字可輸入">${display}<span class="unit"> ${esc(unit)}</span></div>
+    <button class="qty-btn qty-plus" data-action="inventory-qty-change" data-id="${id}" data-delta="1">+</button>
   </div>`;
 }
 

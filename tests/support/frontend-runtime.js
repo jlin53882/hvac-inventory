@@ -37,7 +37,7 @@ function moduleScript(relative) {
 
 const READ_MODEL = 'core/inventory-read-model.js';  // read-model 只含讀寫 appState 的函式宣告；appState 由測試的 vm context 提供
 const LEAF_MODULES = {
-  createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js',
+  createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js', createActionDelegate: 'core/actions.js',
   getAllItems: READ_MODEL, getInventoryMeta: READ_MODEL, getInventoryFacets: READ_MODEL,
   setInventoryPage: READ_MODEL, setInventoryStats: READ_MODEL,
 };

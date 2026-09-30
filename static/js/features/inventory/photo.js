@@ -3,6 +3,7 @@
 // 照片：編輯 modal 內顯示/上傳/刪除（POST/DELETE /api/items/{id}/photo）
 // 相似：新增/編輯時 name/code 輸入 debounce → GET /api/items/similar → 警示框
 
+import { createActionDelegate } from '../../core/actions.js';
 import { photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
 import { loadData, renderInventoryView } from '../shell/data-refresh.js';
@@ -23,18 +24,18 @@ export function renderPhotoBox(itemId, hasPhoto) {
   const canPhoto = hasPerm('photo');
   if (hasPhoto) {
     box.innerHTML = `
-      <img src="${photoSrc(itemId, 'thumbnail')}" alt="品項照片" loading="lazy" decoding="async" width="320" height="240" onclick="Inventory.openPhotoLightbox(${itemId})"
+      <img src="${photoSrc(itemId, 'thumbnail')}" alt="品項照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}"
            class="photo-box-thumb" title="點擊看大圖" onerror="this.style.display='none'">
       ${canPhoto ? `<div class="photo-actions">
         <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" style="display:none"
-                 onchange="Inventory.uploadItemPhoto(${itemId}, this)">
+                 data-action="inventory-photo-upload" data-id="${itemId}">
         </label>
         <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
           <input type="file" accept="image/*" style="display:none"
-                 onchange="Inventory.uploadItemPhoto(${itemId}, this)">
+                 data-action="inventory-photo-upload" data-id="${itemId}">
         </label>
-        <button class="btn btn--danger btn--md btn-prepare" onclick="Inventory.deleteItemPhoto(${itemId})">🗑 刪除</button>
+        <button class="btn btn--danger btn--md btn-prepare" data-action="inventory-photo-delete" data-id="${itemId}">🗑 刪除</button>
       </div>` : ''}`;
   } else {
     box.innerHTML = canPhoto
@@ -42,11 +43,11 @@ export function renderPhotoBox(itemId, hasPhoto) {
       <div class="photo-actions">
         <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
           <input type="file" accept="image/*" capture="environment" style="display:none"
-                 onchange="Inventory.uploadItemPhoto(${itemId}, this)">
+                 data-action="inventory-photo-upload" data-id="${itemId}">
         </label>
         <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
           <input type="file" accept="image/*" style="display:none"
-                 onchange="Inventory.uploadItemPhoto(${itemId}, this)">
+                 data-action="inventory-photo-upload" data-id="${itemId}">
         </label>
       </div>`
       : '<div class="photo-box-hint">尚無照片</div>';
@@ -106,10 +107,11 @@ export function openPhotoLightbox(itemId) {
   overlay.id = 'photo-lightbox';
   overlay.innerHTML = `
     <div class="lightbox-content">
-      <img src="${photoSrc(itemId, 'preview')}" alt="品項照片大圖" decoding="async" onclick="event.stopPropagation()">
-      <div class="lightbox-close" onclick="Inventory.closePhotoLightbox()">✕</div>
+      <img src="${photoSrc(itemId, 'preview')}" alt="品項照片大圖" decoding="async">
+      <div class="lightbox-close">✕</div>
     </div>`;
-  overlay.onclick = closePhotoLightbox;
+  // 點 ✕ 或空白處關閉；點到照片本身不關閉
+  overlay.onclick = function(event) { if (!(event && event.target && event.target.tagName === 'IMG')) closePhotoLightbox(); };
   document.body.appendChild(overlay);
   photoLightboxEl = overlay;
 }
@@ -171,7 +173,7 @@ function renderSimilarWarn(warnId, hits) {
         <span>${esc(h.name)}${h.code ? '（' + esc(h.code) + '）' : ''}
           · 共 ${Qty.disp(h.total_qty, h.unit)} ${esc(h.unit || '個')}
           ${h.stocks && h.stocks.length ? '· ' + esc(h.stocks.map(s => s.location + '×' + s.qty).join(', ')) : ''}</span>
-        <a href="#" onclick="Inventory.goEditSimilar(${h.id}); return false;">去編輯 →</a>
+        <a href="#" data-action="inventory-similar-edit" data-id="${h.id}">去編輯 →</a>
       </div>`).join('')}`;
   box.style.display = 'block';
 }
@@ -200,10 +202,10 @@ export function renderKitPhotoBox(kitId, itemId, hasPhoto) {
       <div id="k-photo-preview" class="photo-box-preview"></div>
       <div class="photo-actions">
         <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-          <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="Inventory._previewKitPhoto(this)">
+          <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" data-action="inventory-kit-photo-preview">
         </label>
         <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-          <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="Inventory._previewKitPhoto(this)">
+          <input type="file" accept="image/*" id="k-photo-album" style="display:none" data-action="inventory-kit-photo-preview">
         </label>
       </div>`;
     // 兩個 input 互斥（選一個就清另一個）
@@ -214,26 +216,26 @@ export function renderKitPhotoBox(kitId, itemId, hasPhoto) {
   } else {
     // 編輯模式：顯示既有照片 + 修改選項
     if (hasPhoto) {
-      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" onclick="Inventory.openPhotoLightbox(${itemId})" class="photo-box-thumb" title="點擊看大圖" onerror="this.style.display='none'">
+      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}" class="photo-box-thumb" title="點擊看大圖" onerror="this.style.display='none'">
         <div id="k-photo-preview" class="photo-box-preview"></div>
         <div class="photo-actions">
           <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="Inventory._previewKitPhoto(this)">
+            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" data-action="inventory-kit-photo-preview">
           </label>
           <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-            <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="Inventory._previewKitPhoto(this)">
+            <input type="file" accept="image/*" id="k-photo-album" style="display:none" data-action="inventory-kit-photo-preview">
           </label>
-          <button class="btn btn--danger btn--md btn-prepare" onclick="Inventory.deleteKitPhoto(${kitId}, ${itemId})">🗑 刪除</button>
+          <button class="btn btn--danger btn--md btn-prepare" data-action="inventory-kit-photo-delete" data-kit-id="${kitId}" data-id="${itemId}">🗑 刪除</button>
         </div>`;
     } else {
       box.innerHTML = `<div id="k-photo-message" class="photo-box-hint">尚無照片</div>
         <div id="k-photo-preview" class="photo-box-preview"></div>
         <div class="photo-actions">
           <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" onchange="Inventory._previewKitPhoto(this)">
+            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" data-action="inventory-kit-photo-preview">
           </label>
           <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-            <input type="file" accept="image/*" id="k-photo-album" style="display:none" onchange="Inventory._previewKitPhoto(this)">
+            <input type="file" accept="image/*" id="k-photo-album" style="display:none" data-action="inventory-kit-photo-preview">
           </label>
         </div>`;
     }
@@ -321,7 +323,15 @@ function _clearKitPhotoPreview() {
 }
 
 // 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）
+// 照片放大的事件委派：各 feature 的縮圖只輸出 data-action="photo-lightbox" data-id，不必 import 或掛 window.Inventory
+const photoActions = createActionDelegate('photo-', {
+  'photo-lightbox': { click: function(el) { openPhotoLightbox(Number(el.dataset.id)); } },
+});
+
+export const handlePhotoActionEvent = photoActions.handle;
+
 export function initInventoryPhoto() {
+  photoActions.init();
   // ESC 關閉
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePhotoLightbox(); });
 }

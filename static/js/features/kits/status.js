@@ -34,7 +34,7 @@ function renderKitStatusItem(kit, type) {
     ? `<div class="kit-status-missing">${esc(missingLabel)} ${missing.length} 項：${missing.map(function(c) { return `<span>${esc(c.name || '未命名材料')}</span>`; }).join('')}</div>`
     : '';
   const editAction = hasPerm('kit-mgmt') && Number.isInteger(Number(kit.id))
-    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" onclick="Inventory.closeInventoryStatusModal();Kits.editKit(${esc(String(Number(kit.id)))})">編輯</button>`
+    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" data-action="kits-edit-from-status" data-id="${esc(String(Number(kit.id)))}">編輯</button>`
     : '';
   return `<article class="inventory-status-item status-list-mobile-row kit-status-item ${esc(statusClass)}">
     <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!kit.has_photo, kit.name, '🔧', kit.thumbnail_url)}</div>
