@@ -808,3 +808,73 @@ def test_representative_legacy_upgrade_rolls_back_and_retries_atomically(
     assert _snapshot_representative_legacy_state(database_path) == after_success
     assert _count_rows(database_path, "service_types") == 6
     assert _count_rows(database_path, "gcal_sync_settings") == 4
+
+
+# ---------- schema 版本（PRAGMA user_version）與拆分後的模組契約 ----------
+
+def test_init_db_stamps_schema_version(tmp_path, monkeypatch) -> None:
+    """初始化成功後 user_version = SCHEMA_VERSION，可回答「這個 DB 在哪個版本」。"""
+    from app.db_migrations import SCHEMA_VERSION
+
+    database_path = tmp_path / "versioned.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(database_path))
+    app_db.init_db()
+    conn = sqlite3.connect(database_path)
+    try:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    finally:
+        conn.close()
+
+
+def test_init_db_refuses_database_newer_than_code(tmp_path, monkeypatch) -> None:
+    """用舊程式開新資料庫（例如回滾部署）必須拒絕啟動，且不得動到資料庫。"""
+    from app.db_migrations import SCHEMA_VERSION
+
+    database_path = tmp_path / "newer.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(database_path))
+    app_db.init_db()
+    conn = sqlite3.connect(database_path)
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION + 1}")
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(RuntimeError, match="比程式碼支援的版本"):
+        app_db.init_db()
+
+    conn = sqlite3.connect(database_path)
+    try:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION + 1
+    finally:
+        conn.close()
+
+
+def test_init_db_twice_is_idempotent(tmp_path, monkeypatch) -> None:
+    """schema / 遷移 / 種子全部冪等：第二次初始化不得改變任何資料表內容。
+
+    sqlite_sequence 例外：INSERT OR IGNORE 每次啟動都會讓 AUTOINCREMENT 計數器前進，
+    這是 SQLite 既有行為、不影響資料，因此不納入比較。
+    """
+    database_path = tmp_path / "twice.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(database_path))
+
+    def snapshot() -> list[str]:
+        conn = sqlite3.connect(database_path)
+        try:
+            return [line for line in conn.iterdump() if '"sqlite_sequence"' not in line]
+        finally:
+            conn.close()
+
+    app_db.init_db()
+    first = snapshot()
+    app_db.init_db()
+    assert snapshot() == first
+
+
+def test_migrations_and_seeds_are_ordered_registries() -> None:
+    """遷移/種子以有序 tuple 註冊；RBAC 一次性相容遷移必須排在 RBAC 預設矩陣之後。"""
+    from app import db_migrations, db_seeds
+
+    assert isinstance(db_migrations.MIGRATIONS, tuple) and db_migrations.MIGRATIONS
+    names = [seed.__name__ for seed in db_seeds.SEEDS]
+    assert names.index("_seed_rbac_defaults") < names.index("_seed_rbac_one_time_compat")
+    assert len(names) == len(set(names))

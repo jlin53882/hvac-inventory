@@ -31,7 +31,6 @@ from frontend_test_support import (
 
 GCAL_KEY_JS = os.path.join(STATIC, "js", "features", "settings", "gcal-key-modal.js")
 GCAL_KEYS_PY = os.path.join(BASE_DIR, "app", "routes", "gcal_keys.py")
-DATABASE_PY = os.path.join(BASE_DIR, "app", "database.py")
 
 
 def read_calendar_js_all() -> str:
@@ -493,15 +492,36 @@ def test_gcal_keys_route_has_crud():
     assert '"/api/gcal-keys"' in code
     assert '"/api/gcal-keys/options"' in code
 
-def test_database_has_gcal_keys_table():
-    """database.py 建立 gcal_keys 表"""
-    code = read(DATABASE_PY)
-    assert "CREATE TABLE IF NOT EXISTS gcal_keys" in code, "database.py 缺 gcal_keys 表"
+def _init_temp_db(tmp_path, monkeypatch):
+    """實際初始化一個空資料庫（行為測試，不依賴 DDL 寫在哪個檔案）。"""
+    import sqlite3
 
-def test_database_has_users_gcal_key():
-    """database.py migration 加 users.gcal_key"""
-    code = read(DATABASE_PY)
-    assert "gcal_key" in code, "database.py 缺 users.gcal_key migration"
+    import app.database as app_db
+
+    path = tmp_path / "gcal.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(path))
+    app_db.init_db()
+    return sqlite3.connect(path)
+
+
+def test_database_has_gcal_keys_table(tmp_path, monkeypatch):
+    """初始化後存在 gcal_keys 表"""
+    conn = _init_temp_db(tmp_path, monkeypatch)
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(gcal_keys)").fetchall()]
+    finally:
+        conn.close()
+    assert cols, "初始化後缺 gcal_keys 表"
+
+
+def test_database_has_users_gcal_key(tmp_path, monkeypatch):
+    """初始化後 users 表有 gcal_key 欄位"""
+    conn = _init_temp_db(tmp_path, monkeypatch)
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    finally:
+        conn.close()
+    assert "gcal_key" in cols, "初始化後 users 缺 gcal_key 欄位"
 
 def test_settings_panel_script_includes_gcal_key_js():
     """settings.html 引入 Google 行事曆金鑰 modal（原 gcal-key.js；issue #39 起由 pages/settings.js import）"""
