@@ -2,6 +2,7 @@
 // 只依賴 core，任何 feature 都可以使用而不必 import shell 的組裝層。
 
 import { appState } from '../../core/state.js';
+import { calendarState } from '../calendar/state.js';
 
 // 頁面範圍（CSS 架構重構 P1）：body[data-page] 是頁面樣式的唯一範圍，modal 也在 body 內。
 // 過渡期同時維護 #content 上的舊 *-content class；每次都先全部移除，避免上一頁的 class 殘留
@@ -34,7 +35,7 @@ export function syncViewUrl() {
   var p = new URLSearchParams();
   p.set('tab', appState.currentTab);
   p.set('site', appState.currentSite);
-  var cm = (typeof appState.calMonth !== 'undefined') ? appState.calMonth : new Date();
+  var cm = calendarState.calMonth;
   p.set('month', cm.getFullYear() + '-' + String(cm.getMonth() + 1).padStart(2, '0'));
   history.replaceState(null, '', '?' + p.toString());
 }

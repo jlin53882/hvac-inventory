@@ -1,5 +1,6 @@
 // 跨模組共用、會被其他模組改寫的狀態（issue #39：原本是全域變數）
 import { createRequestGuard } from '../../core/request-guard.js';
+export const wprHistoryPageSize = 20;   // 歷史清單每頁筆數（只有 work-progress 用）
 export const workProgressState = {
   wprSelectedFiles: [], // 工作進度待上傳照片（含 file/previewUrl）
   wprAppointments: [],

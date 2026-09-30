@@ -3,19 +3,20 @@
 import { apiFetch } from '../../core/api-client.js';
 import { loadData, renderInventoryView } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
+import { inventoryState } from './state.js';
 import { esc, toast } from '../../core/utils.js';
 import { getFilteredInventoryItems } from './filters.js';
 
 export var selectedStockIds = new Set();
 
 export function toggleBatchMode() {
-  appState.batchMode = !appState.batchMode;
+  inventoryState.batchMode = !inventoryState.batchMode;
   selectedStockIds.clear();
   var bt = document.getElementById('batch-toggle');
-  if (bt) bt.classList.toggle('is-active', appState.batchMode);
+  if (bt) bt.classList.toggle('is-active', inventoryState.batchMode);
   document.getElementById('batch-num').textContent = 0;
   document.getElementById('batch-confirm').disabled = true;
-  if (appState.batchMode) {
+  if (inventoryState.batchMode) {
     document.getElementById('batch-bar').classList.add('is-open');
   } else {
     document.getElementById('batch-bar').classList.remove('is-open');

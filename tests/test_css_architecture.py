@@ -432,7 +432,7 @@ def test_every_utility_is_used():
 
 # ---------- JS 產生的畫面：外觀一律交給 CSS class + token ----------
 # 使用者自訂的行事曆人員顏色屬於資料（存在資料庫），不是設計色票
-JS_COLOR_DATA = {"js/core/state.js": ("export const CAL_PALETTE = Object.freeze([",)}
+JS_COLOR_DATA = {"js/features/calendar/state.js": ("export const CAL_PALETTE = Object.freeze([",)}
 JS_RUNTIME_STYLE_PROPS = {"display", "width", "position", "top", "left", "right", "zIndex"}  # 顯示切換、進度條、下拉定位
 # 只能用 setProperty 設定、且屬於「執行期版面狀態」的 CSS 變數；不可用 "--" 前綴整批放行，否則等於繞過 token
 JS_RUNTIME_CUSTOM_PROPERTIES = {"--cal-week-count"}  # 月曆每月 4 / 5 / 6 週的列數

@@ -1,6 +1,6 @@
 // 庫存管理系統 - 行事曆日期格式與日期控制項同步
 
-import { CAL_WEEK } from '../../core/state.js';
+import { CAL_WEEK } from './state.js';
 import { calendarState } from './state.js';
 
 export function _iso(d) {

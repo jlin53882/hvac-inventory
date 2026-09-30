@@ -1,7 +1,7 @@
 // 庫存管理系統 - 行事曆 ⚙️ 設定（admin；2026-08-16 從 render/calendar.js 拆出）
 
 import { apiFetch } from '../../core/api-client.js';
-import { CAL_PALETTE } from '../../core/state.js';
+import { CAL_PALETTE } from './state.js';
 import { esc, toast } from '../../core/utils.js';
 import { calendarState } from './state.js';
 

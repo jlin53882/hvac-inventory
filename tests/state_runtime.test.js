@@ -1,11 +1,11 @@
-// core/state.js：parseCalendarMonth（網址 ?month=）與共用常數不可變
+// core/state.js 與各 feature state：state 所有權（單一 feature 專用的值不放 appState）、parseCalendarMonth（網址 ?month=）、共用常數不可變
 const assert = require('assert');
 const vm = require('vm');
 const { loadModules } = require('./support/frontend-runtime');
 
 const context = { URLSearchParams, location: { search: '' } };
 vm.createContext(context);
-loadModules(context, 'core/state.js');
+loadModules(context, 'core/state.js', 'features/calendar/state.js', 'features/inventory/state.js', 'features/work-progress/state.js');
 const { parseCalendarMonth } = context;
 const NOW = new Date(2026, 8, 30);   // 2026-09-30
 
@@ -20,11 +20,18 @@ for (const search of ['', '?month=', '?month=2026-3', '?month=2026-13', '?month=
   assert.strictEqual(parseCalendarMonth(search, NOW), NOW, `invalid ${search} must fall back to now`);
 }
 
-// 模組載入時 calMonth 由 location.search 決定
+// 模組載入時 calMonth（calendar 擁有）由 location.search 決定
 const ctx2 = { URLSearchParams, location: { search: '?month=2024-02' } };
 vm.createContext(ctx2);
-loadModules(ctx2, 'core/state.js');
-assert.deepStrictEqual([ctx2.appState.calMonth.getFullYear(), ctx2.appState.calMonth.getMonth()], [2024, 1]);
+loadModules(ctx2, 'features/calendar/state.js');
+assert.deepStrictEqual([ctx2.calendarState.calMonth.getFullYear(), ctx2.calendarState.calMonth.getMonth()], [2024, 1]);
+
+// state 所有權：只有單一 feature 使用的值住在該 feature（或該模組私有），不在跨 feature 共用的 appState
+for (const moved of ['calMonth', 'batchMode', 'toastTimer', 'STATUS_LIST_CONTEXT']) {
+  assert.ok(!(moved in context.appState), `${moved} 不應留在 appState`);
+}
+assert.strictEqual(context.inventoryState.batchMode, false);
+assert.strictEqual(context.wprHistoryPageSize, 20);
 
 // 共用常數是凍結的（importer 不能意外改動）
 for (const name of ['CAL_PALETTE', 'CAL_WEEK', 'INVENTORY_SITES']) {

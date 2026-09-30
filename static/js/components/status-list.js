@@ -3,8 +3,10 @@
 
 import { buildThumb } from './card.js';
 import { Qty } from '../core/qty.js';
-import { appState } from '../core/state.js';
 import { esc, hasPerm } from '../core/utils.js';
+
+// 目前開啟中的異常清單 dialog 狀態（只有本模組讀寫，所以不放進 appState）
+let statusListContext = null;
 
 // 2026-09-12：有 Qty 且知單位時依單位類型顯示（分數單位顯示 3/4 而非 0.75）；缺時維持舊行為
 export function statusListFormatQuantity(value, unit) {
@@ -22,7 +24,7 @@ export function statusListLocations(item) {
 }
 
 function statusListFilteredItems() {
-  const state = typeof appState.STATUS_LIST_CONTEXT !== 'undefined' ? appState.STATUS_LIST_CONTEXT : null;
+  const state = statusListContext;
   if (!state) return [];
   const query = String(state.search || '').trim().toLowerCase();
   return state.items.filter(function(item) {
@@ -34,7 +36,7 @@ function statusListFilteredItems() {
 }
 
 function renderSharedStatusListModal() {
-  const state = typeof appState.STATUS_LIST_CONTEXT !== 'undefined' ? appState.STATUS_LIST_CONTEXT : null;
+  const state = statusListContext;
   const body = document.getElementById('inventory-status-modal-body');
   if (!state || !body) return;
 
@@ -75,7 +77,7 @@ function renderSharedStatusListModal() {
 }
 
 export function setSharedStatusListContext(config) {
-  appState.STATUS_LIST_CONTEXT = Object.assign({
+  statusListContext = Object.assign({
     items: [],
     search: '',
     location: '',
@@ -97,19 +99,19 @@ export function openSharedStatusListModal(config) {
 }
 
 export function setSharedStatusListSearch(value) {
-  if (!appState.STATUS_LIST_CONTEXT) return;
-  appState.STATUS_LIST_CONTEXT.search = value || '';
+  if (!statusListContext) return;
+  statusListContext.search = value || '';
   renderSharedStatusListModal();
 }
 
 export function setSharedStatusListLocation(value) {
-  if (!appState.STATUS_LIST_CONTEXT) return;
-  appState.STATUS_LIST_CONTEXT.location = value || '';
+  if (!statusListContext) return;
+  statusListContext.location = value || '';
   renderSharedStatusListModal();
 }
 
 export function clearSharedStatusListModal() {
-  appState.STATUS_LIST_CONTEXT = null;
+  statusListContext = null;
 }
 
 // options.status 由呼叫端依自己的庫存規則算好（{ qty, isOutOfStock }）；元件不認識 inventory 的判定實作。

@@ -6,6 +6,7 @@ import { setPageScope, syncViewUrl } from './page-scope.js';
 import { getStocktakeReminderState, updateNotifications } from '../notifications/center.js';
 import { canAccessPage, checkAuth, firstAccessiblePageTab, resolveAccessiblePageTab } from '../../core/session.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, INVENTORY_SITES, appState, pending } from '../../core/state.js';
+import { inventoryState } from '../inventory/state.js';
 import { loadUnits } from '../../core/units.js';
 import { openExpiryModal } from '../account/password-expiry.js';
 import { renderCalendar } from '../calendar/page.js';
@@ -209,8 +210,8 @@ export function switchTab(tab) {
   if (fp) fp.style.display = isInventory ? '' : 'none';
   // 批款改位置價限單一庫存別離時自動退出批款模式伦隱藨 batch-bar\uff08避免跨頁殘留\uff09
   if (!isInventory) {
-    if (typeof appState.batchMode !== 'undefined' && appState.batchMode) {
-      appState.batchMode = false;
+    if (inventoryState.batchMode) {
+      inventoryState.batchMode = false;
       var bt = document.getElementById('batch-toggle');
       if (bt) bt.classList.remove('is-active');
     }

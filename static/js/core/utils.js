@@ -3,7 +3,6 @@
 // RBAC（2026-08-13）：前端權限判斷 helper——currentUser.permissions 由 /api/auth/me 回傳
 
 import { currentUser } from './session.js';
-import { appState } from './state.js';
 
 export function hasPerm(key) {
   return !!currentUser && !!(currentUser.permissions || {})[key];
@@ -129,6 +128,7 @@ export function apiErrorMessage(value) {
   if (value && typeof value === 'object') return describe(value);
   return String(value == null ? '' : value);
 }
+let toastTimer;   // 只有 toast() 用；不放進 appState（沒有其他模組會碰）
 /**
  * 顯示一般或結構化 API 錯誤；一律以文字呈現以避免 HTML 注入。
  * @param {unknown} msg 一般訊息或 API detail。
@@ -139,8 +139,8 @@ export function toast(msg, type) {
   const t = document.getElementById('toast');
   t.textContent = apiErrorMessage(msg);
   t.className = 'toast is-open ' + (type || '');
-  clearTimeout(appState.toastTimer);
-  appState.toastTimer = setTimeout(() => t.className = 'toast', 3500);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = 'toast', 3500);
 }
 
 // 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）

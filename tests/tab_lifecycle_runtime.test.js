@@ -88,6 +88,8 @@ function createContext(tab) {
       ALERTS_BY_SITE: {},
     },
     pending: {},
+    calendarState: { calMonth: new Date(2026, 8, 1) },   // features/calendar/state.js（syncViewUrl 讀 calMonth）
+    inventoryState: { batchMode: false },   // features/inventory/state.js（切離庫存頁時關閉批次模式）
     checkAuth: async () => {
       calls.checkAuth += 1;
       return { username: 'runtime-user', display_name: 'Runtime User', role: 'viewer', password_expired: false };

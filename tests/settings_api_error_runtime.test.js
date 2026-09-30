@@ -16,7 +16,7 @@ const context = {
   document: { getElementById: id => (id === 'toast' ? toastNode : { value: '很長的名稱' }) },
   setTimeout: () => 1,
   clearTimeout: () => {},
-  appState: { toastTimer: null },
+  toastTimer: null,   // core/utils.js 的 module 私有變數（harness 只抽出 toast 函式，需自備）
   prompt: () => '很長的名稱',
   confirm: () => true,
   pettyOptionCache: { general: { category: [{ id: 1, name: '舊名稱' }] } },

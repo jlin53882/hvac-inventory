@@ -824,7 +824,7 @@ def test_api_fetch_runtime_contract():
 
 
 def test_state_runtime_contract():
-    """core/state.js：parseCalendarMonth（網址 ?month=）與共用常數不可變。"""
+    """state 所有權（core/state.js 與 feature state）、parseCalendarMonth（網址 ?month=）與共用常數不可變。"""
     result = subprocess.run(
         ["node", os.path.join(BASE_DIR, "tests", "state_runtime.test.js")],
         capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,

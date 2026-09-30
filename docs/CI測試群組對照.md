@@ -51,6 +51,7 @@
 | `test_signed_reports.py` | `storage` | `full-only` | signed report file lifecycle |
 | `test_structure.py` | `frontend` | `CI / Frontend + Security` | source structure regression |
 | `test_frontend_module_boundaries.py` | `frontend` | `CI / Frontend + Security` | ES module 依賴方向：各層不 import 上層、只有 pages import shell 組裝層、整個 import 圖沒有循環 |
+| `test_frontend_state_ownership.py` | `frontend` | `CI / Frontend + Security` | appState 欄位只准縮小、每個欄位只有指定的 owner 目錄可直接指派（state ratchet） |
 | `test_units.py` | `inventory` | `CI / Inventory + Database` | unit dictionary / consolidation |
 | `test_users.py` | `auth` | `full-only` | account / login / rate limit |
 | `test_v101.py` | `regression` | `full-only` | v1.0.1 regression |

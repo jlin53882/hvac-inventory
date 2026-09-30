@@ -1,10 +1,9 @@
 // 庫存管理系統 - 行事曆派工 modal（2026-08-16 從 render/calendar.js 拆出）
 
 import { apiFetch } from '../../core/api-client.js';
-import { CAL_PALETTE, appState } from '../../core/state.js';
 import { closeModal, esc, hasPerm, openModal, toast } from '../../core/utils.js';
 import { _iso } from './format.js';
-import { calendarState } from './state.js';
+import { CAL_PALETTE, calendarState } from './state.js';
 import { calCanRetryTeamPerson, calPersonalSync, calSyncStatusLabel, calTeamHasRetryableTarget } from './sync-status.js';
 import { calLoadData, calRenderDay, calRenderMonth, calSetLoadState } from './view.js';
 import { syncViewUrl } from '../shell/page-scope.js';
@@ -160,7 +159,7 @@ export async function calSubmitAppt() {
     closeCalModal();
     toast(id ? '✅ 行程已更新' : '✅ 行程已新增');
     calendarState.calSelected = new Date(body.date);
-    appState.calMonth = new Date(body.date.slice(0, 4), Number(body.date.slice(5, 7)) - 1, 1);
+    calendarState.calMonth = new Date(body.date.slice(0, 4), Number(body.date.slice(5, 7)) - 1, 1);
     const applied = await calLoadData();
     if (applied === null) return;
     if (calendarState.calLoadError) {
