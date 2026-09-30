@@ -2768,7 +2768,7 @@ def test_stockout_nonstock_add_ui():
     assert "apiFetch('/api/stockout/nonstock'" in js, "submitNonStockOut 沒打新端點"
 
     rjs = read(STOCKOUT_RENDER_JS)
-    assert "onclick=\"Stockout.openNonStockOutModal()\"" in rjs, "已領出頁缺新增按鈕入口"
+    assert "data-action=\"stockout-new-nonstock\"" in rjs, "已領出頁缺新增按鈕入口"
     assert "encodeURIComponent(siteAtRequest)" in rjs, "已領出頁 fetch 應隨 site 快照過濾（倉庫 0 就不能顯示內容）"
     assert "getStockoutKpis(filteredOuts)" in rjs, "已領出頁 KPI 必須取 filtered result"
     assert "tag-nonstock" in rjs, "非庫存標籤 class 缺失"
@@ -3498,8 +3498,8 @@ def test_stockout_return_tracks_source_and_return_locations():
     assert 'return_stock_id' in modal
     assert 'POST' in modal and '/return' in modal
     assert '/api/stockout-returns/' in modal
-    assert 'openEditStockoutReturnModal' in render
-    assert 'deleteStockoutReturn' in render
+    assert 'stockout-edit-return' in render
+    assert 'stockout-delete-return' in render
     assert 'return_location' in render
     assert 'esc(Number(st.id))' in modal
 
@@ -4089,15 +4089,42 @@ def test_stockout_kpis_and_groups_use_same_filtered_result():
         assert token in js, f"已領出缺少一致性資料鏈 token: {token}"
 
 
+def test_stockout_actions_are_delegated_not_inline():
+    """已領出頁（2026-09 inline handler 遷移）：page.js 只輸出 data-action，事件由 actions.js 委派，
+    不再依賴 window.Stockout；runtime 行為見 stockout_actions_runtime.test.js。"""
+    page = read(STOCKOUT_RENDER_JS)
+    assert "onclick=\"Stockout." not in page and "onchange=" not in page and "oninput=" not in page
+    actions = read("static/js/features/stockout/actions.js")
+    assert "initStockoutActions" in read("static/js/pages/main.js")
+    for action in re.findall(r'data-action="(stockout-[a-z-]+)"', page):
+        assert f"'{action}'" in actions, f"{action} 缺少 handler"
+    main = read("static/js/pages/main.js")
+    window_stockout = main.split("window.Stockout = {", 1)[1].split("};", 1)[0]
+    for name in ("deleteStockoutRecord", "openStockoutSheet", "setStockoutFilter", "clearStockoutFilters",
+                 "openEditStockoutModal", "openEditStockoutReturnModal", "deleteStockoutReturn", "returnStockout", "renderStockOuts"):
+        assert name not in window_stockout, f"{name} 已改走 data-action，不應再掛在 window.Stockout"
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "stockout_actions_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    assert result.returncode == 0, f"stockout actions runtime 失敗：\n{result.stdout}\n{result.stderr}"
+
+
 def test_stockout_existing_actions_and_return_states_remain():
     """既有已領出編輯/退回/撤銷/刪除與 mobile sheet action 不得因 UI 重構消失。"""
     js = read(STOCKOUT_RENDER_JS)
+    actions = read("static/js/features/stockout/actions.js")
     for token in (
-        "openEditStockoutModal", "openEditStockoutReturnModal", "returnStockout",
-        "deleteStockoutReturn", "deleteStockoutRecord", "openStockoutSheet",
+        "stockout-edit", "stockout-edit-return", "stockout-return",
+        "stockout-delete-return", "stockout-delete", "stockout-sheet",
         "reverted_at", "退回已領出", "已退回",
     ):
         assert token in js
+    for fn in (
+        "openEditStockoutModal", "openEditStockoutReturnModal", "returnStockout",
+        "deleteStockoutReturn", "deleteStockoutRecord", "openStockoutSheet",
+    ):
+        assert fn in actions
 
 
 

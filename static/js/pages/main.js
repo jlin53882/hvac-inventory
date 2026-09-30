@@ -23,8 +23,7 @@ import { clearFilterPanel, initInventoryFilters, toggleFilterCollapse, toggleInv
 import { clearPrepared, renderPrepared, toggleKitSubItems } from '../features/prepared/page.js';
 import { openPreparedSheet } from '../features/prepared/sheet.js';
 import { clearSearchAutofill, closeSidebar, configureShell, initShellApp, switchSite, switchTab, toggleAvatarMenu, toggleSidebar } from '../features/shell/app.js';
-import { clearStockoutFilters, deleteStockoutRecord, renderStockOuts, setStockoutFilter } from '../features/stockout/page.js';
-import { openStockoutSheet } from '../features/stockout/sheet.js';
+import { initStockoutActions } from '../features/stockout/actions.js';
 import { closeInventoryActionMenus, closeMoreActions, deleteItem, initInventoryActions, openInventoryActionMenu, openItemSheet, toggleMoreActions } from '../features/inventory/actions.js';
 import { closeInventoryExportDialog, initInventoryExportDialog, openInventoryExportDialog, submitInventoryExport, syncInventoryExportAllSites, toggleInventoryExportSites } from '../features/inventory/export-dialog.js';
 import { closeInventoryStatusModal, showInventoryStatusList } from '../features/inventory/status.js';
@@ -34,7 +33,7 @@ import { closeNotif, initNotifications, toggleNotif } from '../features/notifica
 import { closeStockoutExportDialog, initStockoutExportDialog, openStockoutExportDialog, submitStockoutExport } from '../features/stockout/export-dialog.js';
 import { closeTransferModal, openTransferModal, submitTransfer } from '../features/inventory/transfer-modal.js';
 import { cpwCheckMatch, cpwCheckStrength, openChangePwModal, submitChangePw } from '../features/account/change-password.js';
-import { deleteStockoutReturn, openEditStockoutModal, openEditStockoutReturnModal, openKitPrepareModal, openNonStockOutModal, openNonStockPrepareModal, openOutModal, openPrepareModal, openPreparedEditModal, openPreparedOutModal, returnPrepared, returnStockout, submitEditStockout, submitNonStockOut, submitNonStockPrepare, submitPrepare, submitPreparedEdit, submitPreparedOut, submitReturnStockout, submitStockOut } from '../features/stockout/modals.js';
+import { openKitPrepareModal, openNonStockOutModal, openNonStockPrepareModal, openOutModal, openPrepareModal, openPreparedEditModal, openPreparedOutModal, returnPrepared, submitEditStockout, submitNonStockOut, submitNonStockPrepare, submitPrepare, submitPreparedEdit, submitPreparedOut, submitReturnStockout, submitStockOut } from '../features/stockout/modals.js';
 import { engAddCategory, engAddDetail, engAddReceipt, engCloseModal, engDeleteCategory, engDeleteDetail, engDeleteGroup, engDeleteReceipt, engFilenamePreview, engGotoStep, engSave, engSelectCategory, engSetNameFromSelect, engToggleEditorReceipt, pcChooseReportType, pcOpenEngineeringModal } from '../features/petty-cash/engineering-modal.js';
 import { engToggle, pcChangePage, pcCloseMoreMenuFromAction, pcDelete, pcExport, pcLoadHistory, pcOpenDetail, pcQuickRange, pcResetFilter, renderPettyCash } from '../features/petty-cash/page.js';
 import { filterUnitSelect, openUnitQuickAdd } from '../core/units.js';
@@ -111,29 +110,30 @@ import * as m51 from '../features/shell/app.js';
 import * as m52 from '../features/shell/data-refresh.js';
 import * as m53 from '../features/shell/navigation.js';
 import * as m54 from '../features/shell/page-scope.js';
-import * as m55 from '../features/stockout/export-dialog.js';
-import * as m56 from '../features/stockout/modals.js';
-import * as m57 from '../features/stockout/page.js';
-import * as m58 from '../features/stockout/sheet.js';
-import * as m59 from '../features/stockout/state.js';
-import * as m60 from '../features/stocktake/page.js';
-import * as m61 from '../features/stocktake/state.js';
-import * as m62 from '../features/upload-list/quotation-upload.js';
-import * as m63 from '../features/upload-list/signed-reports.js';
-import * as m64 from '../features/upload-list/upload-list.js';
-import * as m65 from '../features/work-progress/day.js';
-import * as m66 from '../features/work-progress/detail.js';
-import * as m67 from '../features/work-progress/draft.js';
-import * as m68 from '../features/work-progress/format.js';
-import * as m69 from '../features/work-progress/gallery.js';
-import * as m70 from '../features/work-progress/history.js';
-import * as m71 from '../features/work-progress/page.js';
-import * as m72 from '../features/work-progress/pending-photos.js';
-import * as m73 from '../features/work-progress/photo-upload.js';
-import * as m74 from '../features/work-progress/state.js';
-import * as m75 from '../features/work-progress/upload.js';
-import * as m76 from '../core/request-guard.js';
-import * as m77 from '../features/shell/state.js';
+import * as m55 from '../features/stockout/actions.js';
+import * as m56 from '../features/stockout/export-dialog.js';
+import * as m57 from '../features/stockout/modals.js';
+import * as m58 from '../features/stockout/page.js';
+import * as m59 from '../features/stockout/sheet.js';
+import * as m60 from '../features/stockout/state.js';
+import * as m61 from '../features/stocktake/page.js';
+import * as m62 from '../features/stocktake/state.js';
+import * as m63 from '../features/upload-list/quotation-upload.js';
+import * as m64 from '../features/upload-list/signed-reports.js';
+import * as m65 from '../features/upload-list/upload-list.js';
+import * as m66 from '../features/work-progress/day.js';
+import * as m67 from '../features/work-progress/detail.js';
+import * as m68 from '../features/work-progress/draft.js';
+import * as m69 from '../features/work-progress/format.js';
+import * as m70 from '../features/work-progress/gallery.js';
+import * as m71 from '../features/work-progress/history.js';
+import * as m72 from '../features/work-progress/page.js';
+import * as m73 from '../features/work-progress/pending-photos.js';
+import * as m74 from '../features/work-progress/photo-upload.js';
+import * as m75 from '../features/work-progress/state.js';
+import * as m76 from '../features/work-progress/upload.js';
+import * as m77 from '../core/request-guard.js';
+import * as m78 from '../features/shell/state.js';
 
 window.Account = { ackPasswordExpiry, cpwCheckMatch, cpwCheckStrength, expiryGoChangePw, openChangePwModal, submitChangePw };
 window.App = { clearSearchAutofill, closeSidebar, switchSite, switchTab, toggleAvatarMenu, toggleSidebar };
@@ -148,7 +148,7 @@ window.Notifications = { closeNotif, toggleNotif };
 window.PettyCash = { engAddCategory, engAddDetail, engAddReceipt, engCloseModal, engDeleteCategory, engDeleteDetail, engDeleteGroup, engDeleteReceipt, engFilenamePreview, engGotoStep, engSave, engSelectCategory, engSetNameFromSelect, engToggle, engToggleEditorReceipt, pcChangePage, pcChooseReportType, pcCloseEntryModal, pcCloseMoreMenuFromAction, pcCloseReportModal, pcDelete, pcEntryAddItemRow, pcEntryAmountHint, pcEntryDelete, pcEntryRemoveItem, pcEntrySave, pcEntrySetType, pcExport, pcFetchPreviousBalance, pcGeneralCategoryChanged, pcLoadHistory, pcModalGotoStep, pcModalSave, pcOpenDetail, pcOpenEngineeringModal, pcOpenEntryModal, pcOpenReportModal, pcOpeningEdited, pcQuickRange, pcResetFilter, pcUpdateFilenamePreview, pcUploaderChanged, renderPettyCash };
 window.Prepared = { clearPrepared, openPreparedSheet, renderPrepared, toggleKitSubItems };
 window.Quotation = { quoteAddItem, quoteCloseInventory, quoteDelete, quoteDownload, quoteEdit, quoteLoadHistory, quoteOpenInventory, quoteReset, quoteSave, quoteSearchInventory, quoteSwitchMode, quoteUseInventory };
-window.Stockout = { clearStockoutFilters, closeStockoutExportDialog, deleteStockoutRecord, deleteStockoutReturn, openEditStockoutModal, openEditStockoutReturnModal, openKitPrepareModal, openNonStockOutModal, openNonStockPrepareModal, openOutModal, openPrepareModal, openPreparedEditModal, openPreparedOutModal, openStockoutExportDialog, openStockoutSheet, renderStockOuts, returnPrepared, returnStockout, setStockoutFilter, submitEditStockout, submitNonStockOut, submitNonStockPrepare, submitPrepare, submitPreparedEdit, submitPreparedOut, submitReturnStockout, submitStockOut, submitStockoutExport };
+window.Stockout = { closeStockoutExportDialog, openKitPrepareModal, openNonStockOutModal, openNonStockPrepareModal, openOutModal, openPrepareModal, openPreparedEditModal, openPreparedOutModal, openStockoutExportDialog, returnPrepared, submitEditStockout, submitNonStockOut, submitNonStockPrepare, submitPrepare, submitPreparedEdit, submitPreparedOut, submitReturnStockout, submitStockOut, submitStockoutExport };
 window.Stocktake = { calcDiff, markChanged, renderStocktake, setStocktakeValue, showStocktakeList, submitStocktake, switchStocktakeTab };
 window.UI = { closeModal };
 window.WorkProgress = { wprAddExistingPhotos, wprAddPendingFiles, wprBatchDeletePhotos, wprClearPhotoSelection, wprCloseGallery, wprCloseLeaveConfirmation, wprClosePendingGallery, wprDeleteReport, wprDiscardAndLeave, wprEditReport, wprGalleryMove, wprHandleDateChange, wprHistoryToggled, wprLoadHistory, wprOpenGallery, wprOpenHistoryDetail, wprOpenPendingGallery, wprPendingGalleryMove, wprQuickRange, wprRemovePending, wprResetFilter, wprSelectAllPhotoSelection, wprSelectJob, wprSubmit, wprTogglePhotoManage, wprTogglePhotoSelection, wprUpdateNoteCount };
@@ -210,29 +210,30 @@ window.__hvac = Object.freeze({
   'features/shell/data-refresh.js': m52,
   'features/shell/navigation.js': m53,
   'features/shell/page-scope.js': m54,
-  'features/stockout/export-dialog.js': m55,
-  'features/stockout/modals.js': m56,
-  'features/stockout/page.js': m57,
-  'features/stockout/sheet.js': m58,
-  'features/stockout/state.js': m59,
-  'features/stocktake/page.js': m60,
-  'features/stocktake/state.js': m61,
-  'features/upload-list/quotation-upload.js': m62,
-  'features/upload-list/signed-reports.js': m63,
-  'features/upload-list/upload-list.js': m64,
-  'features/work-progress/day.js': m65,
-  'features/work-progress/detail.js': m66,
-  'features/work-progress/draft.js': m67,
-  'features/work-progress/format.js': m68,
-  'features/work-progress/gallery.js': m69,
-  'features/work-progress/history.js': m70,
-  'features/work-progress/page.js': m71,
-  'features/work-progress/pending-photos.js': m72,
-  'features/work-progress/photo-upload.js': m73,
-  'features/work-progress/state.js': m74,
-  'features/work-progress/upload.js': m75,
-  'core/request-guard.js': m76,
-  'features/shell/state.js': m77,
+  'features/stockout/actions.js': m55,
+  'features/stockout/export-dialog.js': m56,
+  'features/stockout/modals.js': m57,
+  'features/stockout/page.js': m58,
+  'features/stockout/sheet.js': m59,
+  'features/stockout/state.js': m60,
+  'features/stocktake/page.js': m61,
+  'features/stocktake/state.js': m62,
+  'features/upload-list/quotation-upload.js': m63,
+  'features/upload-list/signed-reports.js': m64,
+  'features/upload-list/upload-list.js': m65,
+  'features/work-progress/day.js': m66,
+  'features/work-progress/detail.js': m67,
+  'features/work-progress/draft.js': m68,
+  'features/work-progress/format.js': m69,
+  'features/work-progress/gallery.js': m70,
+  'features/work-progress/history.js': m71,
+  'features/work-progress/page.js': m72,
+  'features/work-progress/pending-photos.js': m73,
+  'features/work-progress/photo-upload.js': m74,
+  'features/work-progress/state.js': m75,
+  'features/work-progress/upload.js': m76,
+  'core/request-guard.js': m77,
+  'features/shell/state.js': m78,
 });
 
 // 先組裝 shell 的 port（切頁、資料重新整理後的畫面更新），之後各模組的 init 與使用者操作才可能用到
@@ -242,6 +243,7 @@ initUtils();
 initInventoryExportDialog();
 initKitsExportDialog();
 initStockoutExportDialog();
+initStockoutActions();
 initInventoryActions();
 initInventoryFilters();
 initKitsPage();

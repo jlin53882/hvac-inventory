@@ -51,7 +51,7 @@ BASELINE = {
     "static/js/features/settings/petty-options.js": 2,
     "static/js/features/settings/units.js": 9,
     "static/js/features/stockout/modals.js": 1,
-    "static/js/features/stockout/page.js": 18,
+    "static/js/features/stockout/page.js": 1,
     "static/js/features/stocktake/page.js": 10,
     "static/js/features/upload-list/upload-list.js": 24,
     "static/js/features/work-progress/day.js": 1,
