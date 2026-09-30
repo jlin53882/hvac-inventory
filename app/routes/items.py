@@ -15,6 +15,7 @@
   新增時若已存在 → 400 提示，需改用「新增位置」加到既有品項。
 """
 import datetime
+from types import MappingProxyType
 import math
 import os
 from typing import Optional
@@ -181,6 +182,66 @@ def _inventory_page_stats(
     return stats
 
 
+# 排序選項 → ORDER BY 子句（白名單；未知的 sort 一律退回 brand）
+_ITEM_SORT_SQL = MappingProxyType({
+    "brand": "i.brand COLLATE NOCASE, i.name",
+    "location": "MIN(s.location), i.name",
+    "qty": "total_qty DESC",
+    "created": "i.id DESC",
+})
+
+
+def _build_item_filters(page, site, brand, brands, category, categories, location, search):
+    """依查詢參數組出 WHERE 子句與參數 → (where_sql, params)。
+
+    brands / categories 的數量上限在這裡檢查（超過回 400）；帶 page 時只列非整組品項。
+    """
+    where = ["i.is_deleted = 0"]
+    params = []
+    if page is not None:
+        where.append("i.is_kit = 0")
+    if site and site != "all":
+        where.append("i.site = ?")
+        params.append(site)
+    selected_brands = [b.strip() for b in (brands or "").split(",") if b.strip()]
+    if len(selected_brands) > MAX_FILTER_VALUES:
+        raise HTTPException(400, f"brands 最多 {MAX_FILTER_VALUES} 個值")
+    if selected_brands:
+        brand_parts = []
+        for selected in selected_brands:
+            if selected == "無廠牌":
+                brand_parts.append("(i.brand IS NULL OR i.brand = '')")
+            else:
+                brand_parts.append("i.brand = ?")
+                params.append(selected)
+        where.append("(" + " OR ".join(brand_parts) + ")")
+    elif brand and brand != "全部":
+        where.append("i.brand = ?")
+        params.append(brand)
+    selected_categories = [c.strip() for c in (categories or "").split(",") if c.strip()]
+    if len(selected_categories) > MAX_FILTER_VALUES:
+        raise HTTPException(400, f"categories 最多 {MAX_FILTER_VALUES} 個值")
+    if len(selected_brands) + len(selected_categories) > MAX_FILTER_VALUES:
+        raise HTTPException(400, f"brands/categories 合計最多 {MAX_FILTER_VALUES} 個值")
+    if selected_categories:
+        placeholders = ",".join("?" * len(selected_categories))
+        where.append("i.category IN (" + placeholders + ")")
+        params.extend(selected_categories)
+    elif category:
+        where.append("i.category = ?")
+        params.append(category)
+    if location:
+        where.append("EXISTS (SELECT 1 FROM item_stocks s2 WHERE s2.item_id=i.id AND s2.location = ?)")
+        params.append(location)
+    if search:
+        like = f"%{search}%"
+        where.append("""(i.name LIKE ? OR i.code LIKE ? OR i.brand LIKE ?
+                       OR EXISTS (SELECT 1 FROM item_stocks s3 WHERE s3.item_id=i.id
+                                  AND (s3.location LIKE ? OR s3.note LIKE ?)))""")
+        params += [like, like, like, like, like]
+    return " WHERE " + " AND ".join(where), params
+
+
 @router.get("/api/items")
 def list_items(
     brand: Optional[str] = None,
@@ -204,57 +265,8 @@ def list_items(
         raise HTTPException(400, "page_size 必須在 1-100")
     with db_session() as conn:
         from_sql = " FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id"
-        where = ["i.is_deleted = 0"]
-        params = []
-        if page is not None:
-            where.append("i.is_kit = 0")
-        if site and site != "all":
-            where.append("i.site = ?")
-            params.append(site)
-        selected_brands = [b.strip() for b in (brands or "").split(",") if b.strip()]
-        if len(selected_brands) > MAX_FILTER_VALUES:
-            raise HTTPException(400, f"brands 最多 {MAX_FILTER_VALUES} 個值")
-        if selected_brands:
-            brand_parts = []
-            for selected in selected_brands:
-                if selected == "無廠牌":
-                    brand_parts.append("(i.brand IS NULL OR i.brand = '')")
-                else:
-                    brand_parts.append("i.brand = ?")
-                    params.append(selected)
-            where.append("(" + " OR ".join(brand_parts) + ")")
-        elif brand and brand != "全部":
-            where.append("i.brand = ?")
-            params.append(brand)
-        selected_categories = [c.strip() for c in (categories or "").split(",") if c.strip()]
-        if len(selected_categories) > MAX_FILTER_VALUES:
-            raise HTTPException(400, f"categories 最多 {MAX_FILTER_VALUES} 個值")
-        if len(selected_brands) + len(selected_categories) > MAX_FILTER_VALUES:
-            raise HTTPException(400, f"brands/categories 合計最多 {MAX_FILTER_VALUES} 個值")
-        if selected_categories:
-            placeholders = ",".join("?" * len(selected_categories))
-            where.append("i.category IN (" + placeholders + ")")
-            params.extend(selected_categories)
-        elif category:
-            where.append("i.category = ?")
-            params.append(category)
-        if location:
-            where.append("EXISTS (SELECT 1 FROM item_stocks s2 WHERE s2.item_id=i.id AND s2.location = ?)")
-            params.append(location)
-        if search:
-            like = f"%{search}%"
-            where.append("""(i.name LIKE ? OR i.code LIKE ? OR i.brand LIKE ?
-                           OR EXISTS (SELECT 1 FROM item_stocks s3 WHERE s3.item_id=i.id
-                                      AND (s3.location LIKE ? OR s3.note LIKE ?)))""")
-            params += [like, like, like, like, like]
-        where_sql = " WHERE " + " AND ".join(where)
-        sort_map = {
-            "brand": "i.brand COLLATE NOCASE, i.name",
-            "location": "MIN(s.location), i.name",
-            "qty": "total_qty DESC",
-            "created": "i.id DESC",
-        }
-        order_sql = sort_map.get(sort, sort_map["brand"])
+        where_sql, params = _build_item_filters(page, site, brand, brands, category, categories, location, search)
+        order_sql = _ITEM_SORT_SQL.get(sort, _ITEM_SORT_SQL["brand"])
         # P1-B：paged total 直接取 page_stats.item_count（省一次 COUNT）；
         # unpaged response 不用 total，完全不執行 COUNT
         page_stats = (_inventory_page_stats(conn, from_sql, where_sql, params, include_alert_items)

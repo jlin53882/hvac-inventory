@@ -637,56 +637,75 @@ def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inve
         period: 與其他報表工作表共用的顯示期間。
     """
     _style_title(ws, "庫存統計", period, header_count=7)
+    _write_stats_headers(ws)
+    quantity_by_item = _quantity_by_item(positions)
+    _write_site_stats(ws, items, quantity_by_item, inventory_available)
+    category_totals, brand_totals = _aggregate_category_brand_totals(items, quantity_by_item)
+    _write_category_brand_rows(ws, category_totals, brand_totals, inventory_available)
+    if not items:
+        ws["J6"] = "目前無資料"
+        ws["O6"] = "目前無資料"
+
+
+def _write_stats_headers(ws: Worksheet) -> None:
+    """寫入庫存統計工作表三張摘要表的標題與表頭。"""
     ws["A4"] = "庫存區統計"
     ws["J4"] = "分類統計"
     ws["O4"] = "廠牌統計"
     for cell in (ws["A4"], ws["J4"], ws["O4"]):
         cell.font = Font(bold=True, size=13, color=TITLE_FILL)
+    # 左側庫存區表頭由 _write_headers() 套用；分類/廠牌表頭套用相同樣式
     _write_headers(ws, ["庫存區", "品項數", "總庫存", "待領出", "可用庫存", "低庫存", "缺貨"], row=5)
-    # 手動寫分類統計和廠牌統計標題，並套用相同的表頭樣式
-    for column, header in enumerate(["分類", "品項數", "總庫存", "可用庫存"], 10):
-        cell = ws.cell(5, column)
-        cell.value = header
-        cell.font = Font(name="Microsoft JhengHei", bold=True, size=11, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    for column, header in enumerate(["廠牌", "品項數", "總庫存", "可用庫存"], 15):
-        cell = ws.cell(5, column)
-        cell.value = header
-        cell.font = Font(name="Microsoft JhengHei", bold=True, size=11, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    # 左側庫存區表頭已由 _write_headers() 套用，不需重複處理
+    for start_column, first_header in ((10, "分類"), (15, "廠牌")):
+        for column, header in enumerate([first_header, "品項數", "總庫存", "可用庫存"], start_column):
+            cell = ws.cell(5, column)
+            cell.value = header
+            cell.font = Font(name="Microsoft JhengHei", bold=True, size=11, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor=HEADER_FILL)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    quantity_by_item = {}
+
+def _quantity_by_item(positions: Iterable) -> dict:
+    """依位置資料列彙總每個品項的現有庫存總量。"""
+    quantity_by_item: dict = {}
     for position in positions:
         item_id = position["id"]
         quantity_by_item[item_id] = quantity_by_item.get(item_id, 0) + (position["qty"] or 0)
+    return quantity_by_item
+
+
+def _site_measures(site: str, row: int, items: Iterable, quantity_by_item: dict, inventory_available: bool) -> list:
+    """單一庫存區的六項統計：有庫存總表時用公式，否則由快照計算。"""
+    if inventory_available:
+        return [
+            f'=COUNTIF(tblInventory[庫存區],A{row})',
+            f'=SUMIF(tblInventory[庫存區],A{row},tblInventory[總庫存])',
+            f'=SUMIF(tblInventory[庫存區],A{row},tblInventory[待領出])',
+            f'=SUMIF(tblInventory[庫存區],A{row},tblInventory[可用庫存])',
+            f'=COUNTIFS(tblInventory[庫存區],A{row},tblInventory[庫存狀態],"低庫存")',
+            f'=COUNTIFS(tblInventory[庫存區],A{row},tblInventory[庫存狀態],"缺貨")',
+        ]
+    site_items = [item for item in items if item["site"] == site]
+    return [
+        len(site_items),
+        sum(quantity_by_item.get(item["id"], 0) for item in site_items),
+        sum(item["prepared_qty"] or 0 for item in site_items),
+        sum(quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) for item in site_items),
+        sum(1 for item in site_items if 0 < quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) <= (item["low_stock"] or 0) and (item["low_stock"] or 0) > 0),
+        sum(1 for item in site_items if quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) == 0),
+    ]
+
+
+def _write_site_stats(ws: Worksheet, items: Iterable, quantity_by_item: dict, inventory_available: bool) -> None:
     for site in SITE_ORDER:
         row = ws.max_row + 1
-        if inventory_available:
-            measures = [
-                f'=COUNTIF(tblInventory[庫存區],A{row})',
-                f'=SUMIF(tblInventory[庫存區],A{row},tblInventory[總庫存])',
-                f'=SUMIF(tblInventory[庫存區],A{row},tblInventory[待領出])',
-                f'=SUMIF(tblInventory[庫存區],A{row},tblInventory[可用庫存])',
-                f'=COUNTIFS(tblInventory[庫存區],A{row},tblInventory[庫存狀態],"低庫存")',
-                f'=COUNTIFS(tblInventory[庫存區],A{row},tblInventory[庫存狀態],"缺貨")',
-            ]
-        else:
-            site_items = [item for item in items if item["site"] == site]
-            measures = [
-                len(site_items),
-                sum(quantity_by_item.get(item["id"], 0) for item in site_items),
-                sum(item["prepared_qty"] or 0 for item in site_items),
-                sum(quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) for item in site_items),
-                sum(1 for item in site_items if 0 < quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) <= (item["low_stock"] or 0) and (item["low_stock"] or 0) > 0),
-                sum(1 for item in site_items if quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) == 0),
-            ]
-        ws.append([SITES[site], *measures])
+        ws.append([SITES[site], *_site_measures(site, row, items, quantity_by_item, inventory_available)])
 
-    category_totals = {}
-    brand_totals = {}
+
+def _aggregate_category_brand_totals(items: Iterable, quantity_by_item: dict) -> tuple[dict, dict]:
+    """回傳 (分類彙總, 廠牌彙總)，值為 [品項數, 總庫存, 可用庫存]。"""
+    category_totals: dict = {}
+    brand_totals: dict = {}
     for item in items:
         total = quantity_by_item.get(item["id"], 0)
         available = total - (item["prepared_qty"] or 0)
@@ -697,6 +716,10 @@ def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inve
             values[0] += 1
             values[1] += total
             values[2] += available
+    return category_totals, brand_totals
+
+
+def _write_category_brand_rows(ws: Worksheet, category_totals: dict, brand_totals: dict, inventory_available: bool) -> None:
     for row, (category, values) in enumerate(sorted(category_totals.items()), 6):
         ws.cell(row, 10).value = _safe(category)
         ws.cell(row, 11).value = values[0]
@@ -710,9 +733,6 @@ def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inve
             ws.cell(row, 18).value = f'=SUMIF(tblInventory[廠牌],O{row},tblInventory[可用庫存])'
         else:
             ws.cell(row, 16).value, ws.cell(row, 17).value, ws.cell(row, 18).value = values
-    if not items:
-        ws["J6"] = "目前無資料"
-        ws["O6"] = "目前無資料"
 
 
 def _movement_type(reason: str, delta: float) -> str:

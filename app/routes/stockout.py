@@ -724,6 +724,76 @@ def list_prepared(site: Optional[InventorySiteQuery] = None):
             p["destination"] = destinations.get(p["id"]) or ""
         return payloads
 
+def _check_prepared_update_allowed(row, upd, user):
+    """檢查此人能否改這個待領出品項 → (is_nonstock, metadata_fields, has_metadata)。
+
+    整組主檔不可在這裡改；非庫存品項可自由改 metadata，庫存品項需要品項管理權限。
+    """
+    is_nonstock = bool(row["is_deleted"])
+    is_kit = bool(row["is_kit"])
+    metadata_fields = {
+        "name": upd.name,
+        "brand": upd.brand,
+        "code": upd.code,
+        "unit": upd.unit,
+    }
+    has_metadata = any(value is not None for value in metadata_fields.values())
+    if is_kit and has_metadata:
+        raise HTTPException(400, "整組主檔請至整組庫存頁編輯")
+    if has_metadata and not is_nonstock and not user.get("permissions", {}).get("item-mgmt"):
+        raise HTTPException(403, "修改庫存品項主檔需要品項管理權限")
+    return is_nonstock, metadata_fields, has_metadata
+
+
+def _prepared_update_fields(conn, item_id, row, upd, metadata_fields, has_metadata, is_nonstock):
+    """整理要 UPDATE 的欄位（metadata 去空白、prepared_qty 標準化並檢查預計庫存）。"""
+    old_prepared = _canonical_qty(row["prepared_qty"] or 0)
+    new_prepared = old_prepared
+    if upd.prepared_qty is not None:
+        new_prepared = _canonical_qty(upd.prepared_qty)
+        if not is_nonstock:
+            assert_projected_inventory(
+                conn,
+                item_id,
+                prepared_delta=_canonical_qty(new_prepared - old_prepared),
+            )
+
+    fields = {}
+    if has_metadata:
+        for key, value in metadata_fields.items():
+            if value is None:
+                continue
+            normalized = value.strip()
+            if key in ("name", "unit") and not normalized:
+                raise HTTPException(400, f"{key}不可空白")
+            fields[key] = normalized
+    if upd.prepared_qty is not None:
+        fields["prepared_qty"] = new_prepared
+    return fields
+
+
+def _write_prepared_update(conn, item_id, fields, upd, movement):
+    """寫入品項欄位（唯一索引衝突轉 400）並更新「領出準備」異動的去向。"""
+    if fields or upd.destination is not None:
+        fields["updated_at"] = datetime.datetime.now().isoformat()
+        sets = ", ".join(f"{key}=?" for key in fields)
+        try:
+            conn.execute(
+                f"UPDATE items SET {sets} WHERE id=?",
+                (*fields.values(), item_id),
+            )
+        except sqlite3.IntegrityError as exc:
+            message = str(exc)
+            if "idx_items_unique" in message or "UNIQUE constraint failed" in message:
+                raise HTTPException(400, "相同品牌、型號、名稱、單位與站點的品項已存在") from exc
+            raise
+    if movement is not None:
+        conn.execute(
+            "UPDATE movements SET destination=? WHERE id=?",
+            ((upd.destination or "").strip(), movement["id"]),
+        )
+
+
 @router.patch("/api/prepared/{item_id}")
 def update_prepared_item(
     item_id: int,
@@ -743,42 +813,8 @@ def update_prepared_item(
         if upd.updated_at and row["updated_at"] and upd.updated_at != row["updated_at"]:
             raise HTTPException(409, "該品項已被其他人修改，請重新整理後再編輯")
 
-        is_nonstock = bool(row["is_deleted"])
-        is_kit = bool(row["is_kit"])
-        metadata_fields = {
-            "name": upd.name,
-            "brand": upd.brand,
-            "code": upd.code,
-            "unit": upd.unit,
-        }
-        has_metadata = any(value is not None for value in metadata_fields.values())
-        if is_kit and has_metadata:
-            raise HTTPException(400, "整組主檔請至整組庫存頁編輯")
-        if has_metadata and not is_nonstock and not user.get("permissions", {}).get("item-mgmt"):
-            raise HTTPException(403, "修改庫存品項主檔需要品項管理權限")
-
-        old_prepared = _canonical_qty(row["prepared_qty"] or 0)
-        new_prepared = old_prepared
-        if upd.prepared_qty is not None:
-            new_prepared = _canonical_qty(upd.prepared_qty)
-            if not is_nonstock:
-                assert_projected_inventory(
-                    conn,
-                    item_id,
-                    prepared_delta=_canonical_qty(new_prepared - old_prepared),
-                )
-
-        fields = {}
-        if has_metadata:
-            for key, value in metadata_fields.items():
-                if value is None:
-                    continue
-                normalized = value.strip()
-                if key in ("name", "unit") and not normalized:
-                    raise HTTPException(400, f"{key}不可空白")
-                fields[key] = normalized
-        if upd.prepared_qty is not None:
-            fields["prepared_qty"] = new_prepared
+        is_nonstock, metadata_fields, has_metadata = _check_prepared_update_allowed(row, upd, user)
+        fields = _prepared_update_fields(conn, item_id, row, upd, metadata_fields, has_metadata, is_nonstock)
 
         movement = None
         if upd.destination is not None:
@@ -789,24 +825,7 @@ def update_prepared_item(
             if not movement:
                 raise HTTPException(404, "該品項沒有領出準備紀錄")
 
-        if fields or upd.destination is not None:
-            fields["updated_at"] = datetime.datetime.now().isoformat()
-            sets = ", ".join(f"{key}=?" for key in fields)
-            try:
-                conn.execute(
-                    f"UPDATE items SET {sets} WHERE id=?",
-                    (*fields.values(), item_id),
-                )
-            except sqlite3.IntegrityError as exc:
-                message = str(exc)
-                if "idx_items_unique" in message or "UNIQUE constraint failed" in message:
-                    raise HTTPException(400, "相同品牌、型號、名稱、單位與站點的品項已存在") from exc
-                raise
-        if movement is not None:
-            conn.execute(
-                "UPDATE movements SET destination=? WHERE id=?",
-                ((upd.destination or "").strip(), movement["id"]),
-            )
+        _write_prepared_update(conn, item_id, fields, upd, movement)
 
         conn.commit()
         fresh = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()

@@ -11,6 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from app.services.petty_cash_excel import (
+    clear_visible_body,
     INTEGER_MONEY_FORMAT,
     configure_print_layout,
     copy_role_style,
@@ -189,26 +190,8 @@ def _detail_row_height(detail):
     return min(60, max(22, 15 * math.ceil(length / 38)))
 
 
-def _clear_visible_body(ws, first_body_row):
-    for merged in list(ws.merged_cells.ranges):
-        ws.unmerge_cells(str(merged))
-    if ws.max_row >= first_body_row:
-        ws.delete_rows(first_body_row, ws.max_row - first_body_row + 1)
-    for key in list(ws.row_dimensions):
-        try:
-            row_number = int(key)
-        except (TypeError, ValueError):
-            continue
-        if row_number >= first_body_row:
-            del ws.row_dimensions[key]
-
-
-def build_engineering_report(report):
-    wb = load_workbook(TEMPLATE_PATH)
-    ws = wb.active
-    styles = wb["__styles__"]
-    _clear_visible_body(ws, 3)
-
+def _write_engineering_header(ws, styles, report):
+    """欄寬、標題列與欄位表頭。"""
     widths = {"A": 16, "B": 16, "C": 14, "D": 18, "E": 60, "F": 14}
     for column, width in widths.items():
         ws.column_dimensions[column].width = width
@@ -226,6 +209,12 @@ def build_engineering_report(report):
         ws.cell(2, col).value = value
     _apply_engineering_presentation(ws, 2, "header")
 
+
+def _plan_engineering_rows(report):
+    """把 類別 → 項目 → 單據 → 細項 的階層攤平成列，並算出各層的合併範圍與小計列位置。
+
+    只做計算、不碰工作表 → (data_rows, receipt_merges, group_merges, category_merges, subtotal_rows, current_row)。
+    """
     categories = report.get("categories") or []
     calculated = calculate_engineering_totals(categories)
     categories = calculated["categories"]
@@ -284,7 +273,11 @@ def build_engineering_report(report):
             category_merges.append((category_start, category_end, 1))
         subtotal_rows.append((current_row, category.get("name", ""), category_start, category_end))
         current_row += 1
+    return data_rows, receipt_merges, group_merges, category_merges, subtotal_rows, current_row
 
+
+def _write_engineering_rows(ws, styles, data_rows, receipt_merges, group_merges, category_merges, subtotal_rows):
+    """依規劃寫入資料列、跨列合併與各類別小計。"""
     for record in data_rows:
         row_number = record["row_number"]
         copy_role_style(styles, "engineering_data", ws, row_number)
@@ -310,6 +303,9 @@ def build_engineering_report(report):
         ws.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=5)
         _apply_engineering_presentation(ws, row_number, "subtotal")
 
+
+def _write_engineering_footer(ws, styles, subtotal_rows, current_row):
+    """註記列與總計列 → 總計列號。"""
     note_row = current_row
     copy_role_style(styles, "engineering_spacer", ws, note_row)
     ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=6)
@@ -323,6 +319,21 @@ def build_engineering_report(report):
     ws.cell(total_row, 6).value = f"=SUM({subtotal_refs})" if subtotal_refs else f"=SUM(F{note_row}:F{note_row})"
     ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=5)
     _apply_engineering_presentation(ws, total_row, "total")
+    return total_row
+
+
+def build_engineering_report(report):
+    wb = load_workbook(TEMPLATE_PATH)
+    ws = wb.active
+    styles = wb["__styles__"]
+    clear_visible_body(ws, 3)
+
+    _write_engineering_header(ws, styles, report)
+
+    (data_rows, receipt_merges, group_merges, category_merges,
+     subtotal_rows, current_row) = _plan_engineering_rows(report)
+    _write_engineering_rows(ws, styles, data_rows, receipt_merges, group_merges, category_merges, subtotal_rows)
+    total_row = _write_engineering_footer(ws, styles, subtotal_rows, current_row)
 
     ws.title = engineering_sheet_title(report["start_date"], report["end_date"])
     ws.sheet_view.showGridLines = False

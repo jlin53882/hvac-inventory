@@ -319,6 +319,51 @@ def _plan_asset_paths(category: str, year_month: str, asset_id: str, ext: str, i
     return original_rel, preview_rel, thumbnail_rel
 
 
+def _insert_asset_row(conn, *, asset_id, category, owner_type, owner_id, original_name, mime_type,
+                      original_rel, preview_rel, thumbnail_rel, original_size, preview_size,
+                      thumbnail_size, width, height, is_image, sha256) -> None:
+    """在呼叫端的交易內建立 file_assets metadata（不 commit）。"""
+    conn.execute(
+        """INSERT INTO file_assets(
+            asset_id, category, owner_type, owner_id, original_name,
+            mime_type, original_path, preview_path, thumbnail_path,
+            original_size, preview_size, thumbnail_size, width, height,
+            compression_method, compression_version, sha256
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            asset_id,
+            category,
+            owner_type,
+            str(owner_id),
+            original_name,
+            mime_type,
+            original_rel,
+            preview_rel,
+            thumbnail_rel,
+            original_size,
+            preview_size,
+            thumbnail_size,
+            width,
+            height,
+            "jpeg-preview" if is_image else "none",
+            COMPRESSION_VERSION if is_image else "original-v1",
+            sha256,
+        ),
+    )
+
+
+def _relative_backup_paths(backups, upload_dir) -> tuple:
+    """把（目標檔, 備份檔）的絕對路徑轉成相對 uploads 根目錄的字串，供 Asset 記錄以便日後還原/清理。"""
+    root = _uploads_root(upload_dir)
+    return tuple(
+        (
+            str(target.relative_to(root)).replace("\\", "/"),
+            str(backup.relative_to(root)).replace("\\", "/"),
+        )
+        for target, backup in backups
+    )
+
+
 def store_asset(
     conn: Any,
     *,
@@ -383,32 +428,12 @@ def store_asset(
         else:
             thumbnail_path = None
 
-        conn.execute(
-            """INSERT INTO file_assets(
-                asset_id, category, owner_type, owner_id, original_name,
-                mime_type, original_path, preview_path, thumbnail_path,
-                original_size, preview_size, thumbnail_size, width, height,
-                compression_method, compression_version, sha256
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                asset_id,
-                category,
-                owner_type,
-                str(owner_id),
-                original_name,
-                safe_mime,
-                original_rel,
-                preview_rel,
-                thumbnail_rel,
-                len(data),
-                preview_size,
-                thumbnail_size,
-                width,
-                height,
-                "jpeg-preview" if is_image else "none",
-                COMPRESSION_VERSION if is_image else "original-v1",
-                prepared.sha256,
-            ),
+        _insert_asset_row(
+            conn, asset_id=asset_id, category=category, owner_type=owner_type, owner_id=owner_id,
+            original_name=original_name, mime_type=safe_mime, original_rel=original_rel,
+            preview_rel=preview_rel, thumbnail_rel=thumbnail_rel, original_size=len(data),
+            preview_size=preview_size, thumbnail_size=thumbnail_size, width=width, height=height,
+            is_image=is_image, sha256=prepared.sha256,
         )
     except Exception:
         for path in reversed(written):
@@ -419,14 +444,7 @@ def store_asset(
         _restore_backups(backups)
         raise
 
-    root = _uploads_root(upload_dir)
-    backup_paths = tuple(
-        (
-            str(target.relative_to(root)).replace("\\", "/"),
-            str(backup.relative_to(root)).replace("\\", "/"),
-        )
-        for target, backup in backups
-    )
+    backup_paths = _relative_backup_paths(backups, upload_dir)
     return Asset(
         asset_id=asset_id,
         original_path=original_rel,

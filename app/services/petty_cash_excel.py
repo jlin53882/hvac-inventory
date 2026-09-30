@@ -67,6 +67,21 @@ def copy_role_style(style_ws, role, target_ws, target_row, columns=6):
     copy_row_style(style_ws, source_row, target_ws, target_row, columns)
 
 
+def clear_visible_body(ws, first_body_row):
+    """清掉範本的示範資料列（取消合併、刪列、刪列高），保留表頭與樣式來源。"""
+    for merged in list(ws.merged_cells.ranges):
+        ws.unmerge_cells(str(merged))
+    if ws.max_row >= first_body_row:
+        ws.delete_rows(first_body_row, ws.max_row - first_body_row + 1)
+    for key in list(ws.row_dimensions):
+        try:
+            row_number = int(key)
+        except (TypeError, ValueError):
+            continue
+        if row_number >= first_body_row:
+            del ws.row_dimensions[key]
+
+
 def configure_print_layout(ws, last_row, title_rows="$1:$3"):
     """Set output bounds so preformatted template tails cannot leak into print."""
     ws.print_area = f"$A$1:$F${last_row}"

@@ -1028,6 +1028,38 @@ def _record_sync_failure(error_summary: dict, key_row: dict, cal_id: str, appt_i
         wc.close()
 
 
+def _handle_sync_exception(error: Exception, *, appt_id: int, key_id: int, op: str, gid: str, la_orig: str,
+                           cal_id: str, key_row: dict, error_summary: dict) -> str:
+    """單列同步失敗後的處置 → "ok"（視為成功，計 ok）/ "resolved"（已自動解決，不計數）/ "fail"（計 fail）。
+
+    順序：先補「遠端已建立但本地行程消失」的 D queue → 依錯誤類型判斷是否其實已解決
+    （例如 remote 已刪除）→ 都不是才記為真正失敗並 attempts +1。
+    """
+    # map upsert 與本地 delete 之間仍可能有極窄 race；若 remote side effect
+    # 已完成，先補 D queue，再進一般錯誤分類，避免把 orphan 當成 resolved。
+    if op in ("C", "U") and gid:
+        try:
+            if _queue_delete_for_missing_appointment(appt_id, key_id, gid):
+                return "ok"
+        except Exception as cleanup_error:
+            logger.error(
+                "gcal remote event cleanup queue 建立失敗 appointment=%s key=%s: %s",
+                appt_id, key_id, safe_sync_error(cleanup_error),
+            )
+    outcome = classify_sync_exception(op, error)
+    if outcome != "failed":
+        _settle_resolved_error(appt_id, key_id, op, gid, la_orig, outcome)
+        _record_resolution(error_summary, key_id, cal_id, outcome,
+                           key_row.get("name", "") if key_row else "")
+        if outcome == "remote_already_deleted":
+            if op == "D":
+                maybe_finalize_calendar_migration(key_id)
+            return "ok"
+        return "resolved"
+    _record_sync_failure(error_summary, key_row, cal_id, appt_id, key_id, op, la_orig, error)
+    return "fail"
+
+
 def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
     """對 due（每列對應一個 appointment + key）逐列同步。
 
@@ -1108,29 +1140,12 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
                     if op == "D":
                         maybe_finalize_calendar_migration(key_id)
                 except Exception as e:
-                    # map upsert 與本地 delete 之間仍可能有極窄 race；若 remote side effect
-                    # 已完成，先補 D queue，再進一般錯誤分類，避免把 orphan 當成 resolved。
-                    if op in ("C", "U") and gid:
-                        try:
-                            if _queue_delete_for_missing_appointment(appt_id, key_id, gid):
-                                ok += 1
-                                continue
-                        except Exception as cleanup_error:
-                            logger.error(
-                                "gcal remote event cleanup queue 建立失敗 appointment=%s key=%s: %s",
-                                appt_id, key_id, safe_sync_error(cleanup_error),
-                            )
-                    outcome = classify_sync_exception(op, e)
-                    if outcome != "failed":
-                        _settle_resolved_error(appt_id, key_id, op, gid, la_orig, outcome)
-                        _record_resolution(error_summary, key_id, cal_id, outcome,
-                                           key_row.get("name", "") if key_row else "")
-                        if outcome == "remote_already_deleted":
-                            ok += 1
-                            if op == "D":
-                                maybe_finalize_calendar_migration(key_id)
-                        continue
-
-                    _record_sync_failure(error_summary, key_row, cal_id, appt_id, key_id, op, la_orig, e)
-                    fail += 1
+                    result = _handle_sync_exception(
+                        e, appt_id=appt_id, key_id=key_id, op=op, gid=gid, la_orig=la_orig,
+                        cal_id=cal_id, key_row=key_row, error_summary=error_summary,
+                    )
+                    if result == "ok":
+                        ok += 1
+                    elif result == "fail":
+                        fail += 1
     return ok, fail, error_summary

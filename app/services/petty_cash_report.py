@@ -18,6 +18,7 @@ from app.services.petty_cash_excel import (
     INTEGER_MONEY_FORMAT,
     configure_print_layout,
     copy_cell_style,
+    clear_visible_body,
     copy_role_style,
     ensure_page_defaults,
     period_display,
@@ -53,30 +54,8 @@ def _xlsx_number(value):
     return int(amount) if amount.is_integer() else amount
 
 
-def _clear_visible_body(ws, first_body_row):
-    for merged in list(ws.merged_cells.ranges):
-        ws.unmerge_cells(str(merged))
-    if ws.max_row >= first_body_row:
-        ws.delete_rows(first_body_row, ws.max_row - first_body_row + 1)
-    for key in list(ws.row_dimensions):
-        try:
-            row_number = int(key)
-        except (TypeError, ValueError):
-            continue
-        if row_number >= first_body_row:
-            del ws.row_dimensions[key]
-
-
-def build_petty_cash_report(report: dict) -> io.BytesIO:
-    """Render a general petty-cash report with an exact dynamic body/footer."""
-    start = report["start_date"]
-    end = report["end_date"]
-    opening = round(float(report.get("opening_balance") or 0), 2)
-
-    wb = load_workbook(TEMPLATE_PATH)
-    ws = wb.active
-    styles = wb["__styles__"]
-    _clear_visible_body(ws, 4)
+def _write_header(ws, start, end, opening):
+    """標題、民國年、上期餘額與欄位表頭。"""
     ws.merge_cells("A1:F1")
     ws["A1"] = f"{period_display(start, end)}零用金收支明細表"
     roc_year = datetime.date.fromisoformat(start).year - 1911
@@ -87,6 +66,9 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
     for col, value in enumerate(["項次", "日   期", "摘         要", "收   入", "支   出", "科 目"], 1):
         ws.cell(3, col).value = value
 
+
+def _expand_entries(report):
+    """依日期排序，並把多項目支出展開成多列 → [(entry, item 或 None, item_index, item_count)]。"""
     entries = sorted(
         report.get("entries") or [],
         key=lambda entry: (entry.get("entry_date") or "", entry.get("sort_order") or 0, entry.get("id") or 0),
@@ -101,51 +83,49 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
             expanded.extend((entry, item, index, len(items)) for index, item in enumerate(items))
         else:
             expanded.append((entry, None, 0, 1))
+    return expanded
 
-    body_count = len(expanded)
-    closing_row = 4 + body_count
-    label_row = closing_row + 2
-    ws.insert_rows(4, body_count + 3)
 
-    seq = 0
-    for index, (entry, item, item_index, item_count) in enumerate(expanded):
-        row_number = 4 + index
-        if item_count == 1:
-            role = "general_data"
-        elif item_index == 0:
-            role = "general_multi_first"
-        elif item_index == item_count - 1:
-            role = "general_multi_last"
-        else:
-            role = "general_multi_middle"
-        copy_role_style(styles, role, ws, row_number)
-        seq += 1
-        ws.cell(row_number, 1).value = seq
-        entry_date = datetime.date.fromisoformat(entry["entry_date"])
-        if item is not None:
-            ws.cell(row_number, 3).value = _item_text(item)
-            if item_index == 0:
-                ws.cell(row_number, 2).value = entry_date
-                ws.cell(row_number, 5).value = _xlsx_number(entry["amount"])
-                ws.cell(row_number, 5).number_format = INTEGER_MONEY_FORMAT
-                ws.cell(row_number, 6).value = excel_safe((entry.get("category") or "").strip())
-            if item_count > 1 and item_index == 0:
-                for col in (2, 4, 5, 6):
-                    ws.merge_cells(
-                        start_row=row_number,
-                        start_column=col,
-                        end_row=row_number + item_count - 1,
-                        end_column=col,
-                    )
-        else:
+def _write_entry_row(ws, styles, row_number, seq, entry, item, item_index, item_count):
+    """寫一列明細（含多項目支出的跨列合併）；樣式依單項 / 多項的首中尾決定。"""
+    if item_count == 1:
+        role = "general_data"
+    elif item_index == 0:
+        role = "general_multi_first"
+    elif item_index == item_count - 1:
+        role = "general_multi_last"
+    else:
+        role = "general_multi_middle"
+    copy_role_style(styles, role, ws, row_number)
+    ws.cell(row_number, 1).value = seq
+    entry_date = datetime.date.fromisoformat(entry["entry_date"])
+    if item is not None:
+        ws.cell(row_number, 3).value = _item_text(item)
+        if item_index == 0:
             ws.cell(row_number, 2).value = entry_date
-            ws.cell(row_number, 3).value = excel_safe((entry.get("description") or "").strip())
-            amount = _xlsx_number(entry["amount"])
-            amount_column = 4 if entry.get("entry_type") == "income" else 5
-            ws.cell(row_number, amount_column).value = amount
-            ws.cell(row_number, amount_column).number_format = INTEGER_MONEY_FORMAT
+            ws.cell(row_number, 5).value = _xlsx_number(entry["amount"])
+            ws.cell(row_number, 5).number_format = INTEGER_MONEY_FORMAT
             ws.cell(row_number, 6).value = excel_safe((entry.get("category") or "").strip())
+        if item_count > 1 and item_index == 0:
+            for col in (2, 4, 5, 6):
+                ws.merge_cells(
+                    start_row=row_number,
+                    start_column=col,
+                    end_row=row_number + item_count - 1,
+                    end_column=col,
+                )
+    else:
+        ws.cell(row_number, 2).value = entry_date
+        ws.cell(row_number, 3).value = excel_safe((entry.get("description") or "").strip())
+        amount = _xlsx_number(entry["amount"])
+        amount_column = 4 if entry.get("entry_type") == "income" else 5
+        ws.cell(row_number, amount_column).value = amount
+        ws.cell(row_number, amount_column).number_format = INTEGER_MONEY_FORMAT
+        ws.cell(row_number, 6).value = excel_safe((entry.get("category") or "").strip())
 
+
+def _write_footer(ws, styles, report, closing_row, label_row, body_count):
+    """本期餘額（公式）與簽名列。"""
     copy_role_style(styles, "general_closing", ws, closing_row)
     ws.cell(closing_row, 4).value = "本期餘額"
     if body_count:
@@ -160,6 +140,30 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
     ws.cell(label_row, 4).value = "製表人:"
     copy_cell_style(styles.cell(10, 5), ws.cell(label_row, 5))
     ws.cell(label_row, 5).value = excel_safe((report.get("prepared_by") or "").strip())
+
+
+def build_petty_cash_report(report: dict) -> io.BytesIO:
+    """Render a general petty-cash report with an exact dynamic body/footer."""
+    start = report["start_date"]
+    end = report["end_date"]
+    opening = round(float(report.get("opening_balance") or 0), 2)
+
+    wb = load_workbook(TEMPLATE_PATH)
+    ws = wb.active
+    styles = wb["__styles__"]
+    clear_visible_body(ws, 4)
+    _write_header(ws, start, end, opening)
+
+    expanded = _expand_entries(report)
+    body_count = len(expanded)
+    closing_row = 4 + body_count
+    label_row = closing_row + 2
+    ws.insert_rows(4, body_count + 3)
+
+    for index, (entry, item, item_index, item_count) in enumerate(expanded):
+        _write_entry_row(ws, styles, 4 + index, index + 1, entry, item, item_index, item_count)
+
+    _write_footer(ws, styles, report, closing_row, label_row, body_count)
 
     ws.title = period_token(start, end)
     ensure_page_defaults(ws)

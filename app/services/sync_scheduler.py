@@ -258,6 +258,73 @@ def _finalize_pending_migrations():
         with gcal_sync._key_process_lock(key_id):
             gcal_sync.maybe_finalize_calendar_migration(key_id)
 
+def _load_eligible_queue_rows() -> list:
+    """讀出可同步的 queue 列（key 啟用中、attempts 未達上限）。
+
+    Python 端再守一次 attempts 上限：即使呼叫端 / 測試傳入過期的列，force 語意也不會失效。
+    """
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT q.appointment_id, q.key_id, q.op_type, q.google_event_id, "
+            "q.last_modified_at, q.attempts "
+            "FROM appointment_sync_queue q JOIN gcal_keys k ON k.id=q.key_id "
+            "WHERE q.attempts < ? AND k.is_active=1", (_MAX_ATTEMPTS,)
+        ).fetchall()
+    finally:
+        conn.close()
+
+    # Python-side guard protects force semantics even when a caller/test supplies a stale row.
+    eligible = []
+    for row in rows:
+        try:
+            attempts = row["attempts"]
+        except (KeyError, IndexError):
+            attempts = 0
+        if int(attempts or 0) < _MAX_ATTEMPTS:
+            eligible.append(row)
+    return eligible
+
+
+def _select_due(eligible: list, now, force: bool) -> list:
+    """本輪要處理的列：force 全部處理；否則只取 debounce 視窗已到期者。"""
+    if force:
+        due = [dict(row) for row in eligible]
+    else:
+        cap = _due_ids(eligible, now)
+        due = [dict(row) for row in eligible if (row["appointment_id"], row["key_id"]) in cap]
+    return due
+
+
+def _build_sync_notification(ok: int, fail: int, resolved_total: int, error_summary: dict) -> str:
+    """組出 Discord 通知文字（依 key 彙總錯誤與自動處理項目，超過 1900 字截斷）。"""
+    title = "⚠️ **hvac Google 同步有失敗**" if fail else "✅ **hvac Google 同步完成**"
+    lines = [
+        title,
+        f"成功 {ok} / 失敗 {fail} / 已自動處理 {resolved_total}",
+        f"時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+    ]
+    resolution_labels = {
+        "remote_already_deleted": "Google 事件已不存在，刪除視為完成",
+        "appointment_deleted": "本地行程已刪除，清除過期同步任務",
+    }
+    for key_id, info in sorted(error_summary.items()):
+        errs = info.get("errors", {})
+        if errs:
+            lines.append(_format_sync_error_line(key_id, info))
+            if len(errs) > 3:
+                lines.append(f"   +{len(errs) - 3} 種其他錯誤")
+        for reason, count in info.get("resolved", {}).items():
+            label = resolution_labels.get(reason, reason)
+            key_name = info.get("key_name") or f"key={key_id}"
+            lines.append(f"ℹ️ Key「{key_name}」：{label} ×{count}")
+    msg = chr(10).join(lines)
+    if len(msg) > 1900:
+        msg = msg[:1897] + "..."
+    return msg
+
+
 def _run_once(force: bool = False):
     """單輪同步；同一 process 的 scheduler/force 入口不可重疊。"""
     with _run_lock:
@@ -270,31 +337,8 @@ def _run_once(force: bool = False):
             _set_health(last_success_at=health_now, last_error=None)
             return
 
-        conn = get_db()
-        try:
-            rows = conn.execute(
-                "SELECT q.appointment_id, q.key_id, q.op_type, q.google_event_id, "
-                "q.last_modified_at, q.attempts "
-                "FROM appointment_sync_queue q JOIN gcal_keys k ON k.id=q.key_id "
-                "WHERE q.attempts < ? AND k.is_active=1", (_MAX_ATTEMPTS,)
-            ).fetchall()
-        finally:
-            conn.close()
-
-        # Python-side guard protects force semantics even when a caller/test supplies a stale row.
-        eligible = []
-        for row in rows:
-            try:
-                attempts = row["attempts"]
-            except (KeyError, IndexError):
-                attempts = 0
-            if int(attempts or 0) < _MAX_ATTEMPTS:
-                eligible.append(row)
-        if force:
-            due = [dict(row) for row in eligible]
-        else:
-            cap = _due_ids(eligible, now)
-            due = [dict(row) for row in eligible if (row["appointment_id"], row["key_id"]) in cap]
+        eligible = _load_eligible_queue_rows()
+        due = _select_due(eligible, now, force)
         if not due:
             _set_health(last_success_at=health_now, last_error=None)
             return
@@ -309,34 +353,10 @@ def _run_once(force: bool = False):
         else:
             _set_health(last_success_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"), last_error=None)
         if fail or resolved_total:
-            title = "⚠️ **hvac Google 同步有失敗**" if fail else "✅ **hvac Google 同步完成**"
             if fail:
                 logger.warning("gcal 同步完成：成功 %d / 失敗 %d", ok, fail)
             else:
                 logger.info("gcal 同步完成：成功 %d / 自動處理 %d", ok, resolved_total)
-            lines = [
-                title,
-                f"成功 {ok} / 失敗 {fail} / 已自動處理 {resolved_total}",
-                f"時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                "",
-            ]
-            resolution_labels = {
-                "remote_already_deleted": "Google 事件已不存在，刪除視為完成",
-                "appointment_deleted": "本地行程已刪除，清除過期同步任務",
-            }
-            for key_id, info in sorted(error_summary.items()):
-                errs = info.get("errors", {})
-                if errs:
-                    lines.append(_format_sync_error_line(key_id, info))
-                    if len(errs) > 3:
-                        lines.append(f"   +{len(errs) - 3} 種其他錯誤")
-                for reason, count in info.get("resolved", {}).items():
-                    label = resolution_labels.get(reason, reason)
-                    key_name = info.get("key_name") or f"key={key_id}"
-                    lines.append(f"ℹ️ Key「{key_name}」：{label} ×{count}")
-            msg = chr(10).join(lines)
-            if len(msg) > 1900:
-                msg = msg[:1897] + "..."
-            _notify_discord(msg)
+            _notify_discord(_build_sync_notification(ok, fail, resolved_total, error_summary))
         else:
             logger.info("gcal 同步完成：成功 %d", ok)

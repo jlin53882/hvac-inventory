@@ -1,5 +1,6 @@
 """Google 行事曆同步 Key CRUD（admin 級操作）"""
 import json
+import logging
 from contextlib import ExitStack
 import re
 import uuid
@@ -15,6 +16,8 @@ from app.services import gcal_sync
 from app.services.gcal_sync import parse_popup_reminders
 # 名稱保留 _wake_scheduler：tests 以 monkeypatch.setattr(gcal_keys, "_wake_scheduler", ...) 靜音 route 端喚醒
 from app.services.sync_scheduler import start_and_wake as _wake_scheduler
+
+logger = logging.getLogger(__name__)
 
 MAX_CREDENTIALS_SIZE = 1024 * 1024
 CLIENT_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -372,14 +375,98 @@ def _stage_calendar_change(conn, key_id: int, calendar_id: str) -> None:
     conn.commit()
 
 
+def _requeue_failed_delete(conn, appointment_id: int, key_id: int, google_event_id: str,
+                           version: str, error_text: str) -> None:
+    """遠端刪除失敗：把該行程改成可 retry 的 D queue（attempts +1，上限 MAX_ATTEMPTS）。"""
+    existing = conn.execute(
+        "SELECT attempts FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+        (appointment_id, key_id),
+    ).fetchone()
+    attempts = min(
+        gcal_sync.MAX_ATTEMPTS,
+        (int(existing["attempts"] or 0) if existing else 0) + 1,
+    )
+    conn.execute(
+        "INSERT INTO appointment_sync_queue "
+        "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+        "VALUES(?,?, 'D', ?, ?, ?, ?) "
+        "ON CONFLICT(appointment_id,key_id) DO UPDATE SET "
+        "op_type='D', google_event_id=excluded.google_event_id, "
+        "last_modified_at=excluded.last_modified_at, attempts=excluded.attempts, "
+        "last_error=excluded.last_error",
+        (appointment_id, key_id, google_event_id, version, attempts, error_text),
+    )
+
+
+def _delete_remote_calendar_events(row, maps):
+    """刪除 map 對應的舊 calendar 遠端事件 → (deleted_ok, failed_maps)；failed_maps：{(appt_id, key_id): 錯誤文字}。
+
+    410（遠端已不存在）視為成功。呼叫端須已持有對應的 event 鎖。
+    """
+    deleted_ok = 0
+    failed_maps = {}
+    remote_maps = [m for m in maps if m["google_event_id"]]
+    if not remote_maps:
+        return deleted_ok, failed_maps
+    try:
+        service = gcal_sync.get_service_for_key(dict(row))
+    except Exception as exc:
+        safe_error = gcal_sync.safe_sync_error(exc)
+        return deleted_ok, {(m["appointment_id"], m["key_id"]): safe_error for m in remote_maps}
+    for map_row in remote_maps:
+        identity = (map_row["appointment_id"], map_row["key_id"])
+        try:
+            service.events().delete(
+                calendarId=row["calendar_id"],
+                eventId=map_row["google_event_id"],
+            ).execute()
+            deleted_ok += 1
+        except Exception as exc:
+            status = getattr(getattr(exc, "resp", None), "status", None)
+            if status == 410:
+                deleted_ok += 1
+                continue
+            failed_maps[identity] = gcal_sync.safe_sync_error(exc)
+    return deleted_ok, failed_maps
+
+
+def _abort_calendar_change(conn, key_id: int, maps, deleted_ok: int, failed_maps: dict) -> None:
+    """部分遠端刪除失敗：成功的 map 清掉、失敗的轉成 D queue 供重試；提交後回 409（不更新 key）。"""
+    version = gcal_sync.sync_version_now()
+    failed_identities = set(failed_maps)
+    for map_row in maps:
+        identity = (map_row["appointment_id"], map_row["key_id"])
+        if identity not in failed_identities:
+            conn.execute(
+                "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                identity,
+            )
+            continue
+        _requeue_failed_delete(
+            conn, map_row["appointment_id"], key_id, map_row["google_event_id"],
+            version, failed_maps[identity],
+        )
+    conn.commit()
+    # Partial migration must not backfill against the still-old
+    # calendar_id: successful deletes must stay deleted.  Wake
+    # only so the retained D rows can retry their remote delete.
+    _wake_scheduler()
+    raise HTTPException(
+        409,
+        {
+            "ok": False,
+            "key_updated": False,
+            "google_deleted": deleted_ok,
+            "google_failed": len(failed_maps),
+        },
+    )
+
+
 def _delete_remote_events_for_calendar_change(conn, key_id: int, row) -> None:
     """calendar_id 變更第二步：刪除舊 calendar 上的遠端事件。
 
     全部成功 → 清掉 map；有失敗 → 保留失敗列為可 retry 的 D queue、其餘 map 刪除，並回 409（不更新 key）。
     """
-    maps = []
-    deleted_ok = 0
-    failed_maps = {}
     maps = conn.execute(
         "SELECT appointment_id, key_id, google_event_id "
         "FROM appointment_gcal_map WHERE key_id=?",
@@ -392,79 +479,9 @@ def _delete_remote_events_for_calendar_change(conn, key_id: int, row) -> None:
             event_locks.enter_context(
                 gcal_sync._event_process_lock(mapped_appt_id, mapped_key_id)
             )
-        remote_maps = [m for m in maps if m["google_event_id"]]
-        if remote_maps:
-            try:
-                service = gcal_sync.get_service_for_key(dict(row))
-            except Exception as exc:
-                safe_error = gcal_sync.safe_sync_error(exc)
-                failed_maps = {
-                    (m["appointment_id"], m["key_id"]): safe_error
-                    for m in remote_maps
-                }
-            else:
-                for map_row in remote_maps:
-                    identity = (map_row["appointment_id"], map_row["key_id"])
-                    try:
-                        service.events().delete(
-                            calendarId=row["calendar_id"],
-                            eventId=map_row["google_event_id"],
-                        ).execute()
-                        deleted_ok += 1
-                    except Exception as exc:
-                        status = getattr(getattr(exc, "resp", None), "status", None)
-                        if status == 410:
-                            deleted_ok += 1
-                            continue
-                        failed_maps[identity] = gcal_sync.safe_sync_error(exc)
-
+        deleted_ok, failed_maps = _delete_remote_calendar_events(row, maps)
         if failed_maps:
-            version = gcal_sync.sync_version_now()
-            failed_identities = set(failed_maps)
-            for map_row in maps:
-                identity = (map_row["appointment_id"], map_row["key_id"])
-                if identity not in failed_identities:
-                    conn.execute(
-                        "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
-                        identity,
-                    )
-                    continue
-                existing = conn.execute(
-                    "SELECT attempts FROM appointment_sync_queue "
-                    "WHERE appointment_id=? AND key_id=?",
-                    identity,
-                ).fetchone()
-                attempts = min(
-                    gcal_sync.MAX_ATTEMPTS,
-                    (int(existing["attempts"] or 0) if existing else 0) + 1,
-                )
-                conn.execute(
-                    "INSERT INTO appointment_sync_queue "
-                    "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
-                    "VALUES(?,?, 'D', ?, ?, ?, ?) "
-                    "ON CONFLICT(appointment_id,key_id) DO UPDATE SET "
-                    "op_type='D', google_event_id=excluded.google_event_id, "
-                    "last_modified_at=excluded.last_modified_at, attempts=excluded.attempts, "
-                    "last_error=excluded.last_error",
-                    (
-                        map_row["appointment_id"], key_id, map_row["google_event_id"],
-                        version, attempts, failed_maps[identity],
-                    ),
-                )
-            conn.commit()
-            # Partial migration must not backfill against the still-old
-            # calendar_id: successful deletes must stay deleted.  Wake
-            # only so the retained D rows can retry their remote delete.
-            _wake_scheduler()
-            raise HTTPException(
-                409,
-                {
-                    "ok": False,
-                    "key_updated": False,
-                    "google_deleted": deleted_ok,
-                    "google_failed": len(failed_maps),
-                },
-            )
+            _abort_calendar_change(conn, key_id, maps, deleted_ok, failed_maps)
         conn.execute("DELETE FROM appointment_gcal_map WHERE key_id=?", (key_id,))
 
 
@@ -544,14 +561,63 @@ def _update_gcal_key_locked(key_id: int, body):
             uploaded_path.unlink(missing_ok=True)
 
 
+def _delete_remote_key_events(row, remote_maps):
+    """刪除 key 名下各行程的遠端事件 → (deleted_ok, failed_maps)；failed_maps：[(map_row, 錯誤文字)]。
+
+    410（遠端已不存在）視為完成；無法建立 Google service（憑證可能無效）時全部視為失敗。
+    """
+    try:
+        svc = gcal_sync.get_service_for_key(dict(row))
+    except Exception as exc:
+        logger.warning("刪除 key 時無法建立 Google service（憑證可能無效）: %s", type(exc).__name__)
+        return 0, [(m, f"{type(exc).__name__}: Google service unavailable") for m in remote_maps]
+    deleted_ok = 0
+    failed_maps = []
+    cal_id = row["calendar_id"]
+    for map_row in remote_maps:
+        try:
+            svc.events().delete(
+                calendarId=cal_id, eventId=map_row["google_event_id"]
+            ).execute()
+            deleted_ok += 1
+        except Exception as exc:
+            if getattr(getattr(exc, "resp", None), "status", None) == 410:
+                # 遠端已不存在，與同步 D semantics 一樣視為完成。
+                deleted_ok += 1
+                continue
+            logger.warning(
+                "刪除 key 時 Google 事件刪除失敗 appt=%s gid=%s: %s",
+                map_row["appointment_id"], map_row["google_event_id"], gcal_sync.safe_sync_error(exc),
+            )
+            failed_maps.append((map_row, gcal_sync.safe_sync_error(exc)))
+    return deleted_ok, failed_maps
+
+
+def _keep_key_after_failed_deletes(conn, key_id: int, deleted_ok: int, failed_maps) -> None:
+    """有遠端刪除失敗：保留 key/map，把失敗的交給既有 D queue 重試，提交後回 409。"""
+    version = gcal_sync.sync_version_now()
+    for map_row, error_text in failed_maps:
+        _requeue_failed_delete(
+            conn, map_row["appointment_id"], key_id, map_row["google_event_id"], version, error_text,
+        )
+    conn.commit()
+    _wake_scheduler()
+    raise HTTPException(
+        409,
+        {
+            "ok": False,
+            "key_deleted": False,
+            "google_deleted": deleted_ok,
+            "google_failed": len(failed_maps),
+        },
+    )
+
+
 @router.delete("/api/gcal-keys/{key_id}", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def delete_gcal_key(key_id: int):
     """刪除 key；遠端清理不完整時保留 key/map 與可 retry 的 D queue。"""
     if key_id < 0:
         raise HTTPException(400, "key_id 不可為負數")
-    import logging
-    from app.services import gcal_sync
-    logger = logging.getLogger(__name__)
 
     conn = get_db()
     try:
@@ -572,72 +638,10 @@ def delete_gcal_key(key_id: int):
                     event_locks.enter_context(
                         gcal_sync._event_process_lock(mapped_appt_id, mapped_key_id)
                     )
-                deleted_ok = 0
-                failed_maps = []
                 remote_maps = [m for m in maps if m["google_event_id"]]
-                if remote_maps:
-                    try:
-                        svc = gcal_sync.get_service_for_key(dict(row))
-                    except Exception as exc:
-                        logger.warning("刪除 key 時無法建立 Google service（憑證可能無效）: %s", type(exc).__name__)
-                        failed_maps = [
-                            (m, f"{type(exc).__name__}: Google service unavailable") for m in remote_maps
-                        ]
-                    else:
-                        cal_id = row["calendar_id"]
-                        for map_row in remote_maps:
-                            try:
-                                svc.events().delete(
-                                    calendarId=cal_id, eventId=map_row["google_event_id"]
-                                ).execute()
-                                deleted_ok += 1
-                            except Exception as exc:
-                                if getattr(getattr(exc, "resp", None), "status", None) == 410:
-                                    # 遠端已不存在，與同步 D semantics 一樣視為完成。
-                                    deleted_ok += 1
-                                    continue
-                                logger.warning(
-                                    "刪除 key 時 Google 事件刪除失敗 appt=%s gid=%s: %s",
-                                    map_row["appointment_id"], map_row["google_event_id"], gcal_sync.safe_sync_error(exc),
-                                )
-                                failed_maps.append((map_row, gcal_sync.safe_sync_error(exc)))
-
+                deleted_ok, failed_maps = _delete_remote_key_events(row, remote_maps) if remote_maps else (0, [])
                 if failed_maps:
-                    version = gcal_sync.sync_version_now()
-                    for map_row, error_text in failed_maps:
-                        existing = conn.execute(
-                            "SELECT attempts FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
-                            (map_row["appointment_id"], key_id),
-                        ).fetchone()
-                        attempts = min(
-                            gcal_sync.MAX_ATTEMPTS,
-                            (int(existing["attempts"] or 0) if existing else 0) + 1,
-                        )
-                        conn.execute(
-                            "INSERT INTO appointment_sync_queue "
-                            "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
-                            "VALUES(?,?, 'D', ?, ?, ?, ?) "
-                            "ON CONFLICT(appointment_id,key_id) DO UPDATE SET "
-                            "op_type='D', google_event_id=excluded.google_event_id, "
-                            "last_modified_at=excluded.last_modified_at, attempts=excluded.attempts, "
-                            "last_error=excluded.last_error",
-                            (
-                                map_row["appointment_id"], key_id, map_row["google_event_id"],
-                                version, attempts, error_text,
-                            ),
-                        )
-                    # 保留 key/map；只把失敗的 remote deletes 交給既有 queue 管理流程。
-                    conn.commit()
-                    _wake_scheduler()
-                    raise HTTPException(
-                        409,
-                        {
-                            "ok": False,
-                            "key_deleted": False,
-                            "google_deleted": deleted_ok,
-                            "google_failed": len(failed_maps),
-                        },
-                    )
+                    _keep_key_after_failed_deletes(conn, key_id, deleted_ok, failed_maps)
 
                 conn.execute("DELETE FROM gcal_keys WHERE id=?", (key_id,))
                 conn.commit()

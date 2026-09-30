@@ -5,6 +5,8 @@
 全部使用 INSERT OR IGNORE 或「只在 fresh DB / 尚未記錄時」的守衛，可重複執行且不覆蓋使用者已改的值。
 SEEDS 的順序就是執行順序（與拆分前 _exec_init 相同：RBAC 一次性相容遷移必須在 RBAC 預設之後）。
 """
+from types import MappingProxyType
+
 from app.db_schema import execute_script_in_transaction as _execute_script_in_transaction
 from app.models import PAGE_KEYS, initial_visible_page_keys
 from app.services.app_log import get_logger
@@ -40,58 +42,108 @@ def _seed_units(conn):
     """)
 
 
+# ---------- RBAC 種子資料（2026-08-13，與 docs/RBAC-帳號權限系統-設計文件 §5 矩陣一致）----------
+RBAC_SEED_SQL = """
+INSERT OR IGNORE INTO roles (name, label, is_system) VALUES
+    ('admin',  '🛡️ 管理員', 1),
+    ('user',   '👤 使用者', 1),
+    ('tech',   '🔧 工程師', 1),
+    ('viewer', '👀 檢視者', 1);
+INSERT OR IGNORE INTO permissions (key, label, module) VALUES
+    ('view',                 '庫存瀏覽/搜尋/看照片', 'view'),
+    ('stats',                '統計數字',             'view'),
+    ('kit-view',             '整組清單瀏覽',         'view'),
+    ('prepared',             '待領出/已領出瀏覽',    'view'),
+    ('export',               '匯出 Excel',           'view'),
+    ('item-mgmt',            '品項／報價單 CRUD + 單位快速新增',  'stock'),
+    ('stock-mgmt',           '庫存位置/數量調整',    'stock'),
+    ('batch-loc-mgmt',       '批量修改位置',         'stock'),
+    ('import',               '匯入 JSON',            'stock'),
+    ('stockout',             '出庫作業',             'stock'),
+    ('stocktake',            '盤點作業',             'stock'),
+    ('kit-mgmt',             '整組 建立/組裝/拆解',  'stock'),
+    ('photo',                '照片 上傳/刪除',       'stock'),
+    ('cal-mgmt',             '行事曆派工（新增/編輯/刪除）', 'calendar'),
+    ('svc-type-mgmt',        '服務項目管理',         'calendar'),
+    ('gcal-sync-manage',     '行事曆同步設定',       'calendar'),
+    ('gcal-sync-force',      '強制立即同步',         'calendar'),
+    ('gcal-sync-team-view',  '行事曆團隊同步狀態',   'calendar'),
+    ('gcal-keys-manage',     'Service Account Key 管理', 'calendar'),
+    ('unit-mgmt',            '單位整理（停用/排序/收編）', 'stock'),
+    ('user-mgmt',            '使用者管理',           'system'),
+    ('change-own-password',  '自行改密碼',           'system'),
+    ('signed-report-upload', '每日簽名日報表 上傳', 'reports'),
+    ('signed-report-edit', '簽名報表 編輯本人', 'reports'),
+    ('signed-report-delete', '簽名報表 刪除本人', 'reports'),
+    ('signed-report-delete-all', '簽名報表 全域管理範圍', 'reports'),
+    ('quotation-upload-manage', '報價單上傳 管理本人', 'reports'),
+    ('quotation-upload-manage-all', '報價單上傳 全域管理範圍', 'reports'),
+    ('petty-cash-delete-all', '零用金月報 全域刪除', 'reports'),
+    ('petty-cash-view', '零用金月報 檢視', 'reports'),
+    ('petty-cash-create', '零用金月報 新增', 'reports'),
+    ('petty-cash-edit', '零用金月報 編輯', 'reports'),
+    ('petty-cash-delete', '零用金月報 刪除本人', 'reports'),
+    ('petty-cash-config', '零用金下拉選單管理', 'reports'),
+    ('page-visibility-manage', '頁面可見性管理', 'system'),
+    ('work-progress-view', '工作進度回報 檢視', 'calendar'),
+    ('work-progress-create', '工作進度回報 新增', 'calendar'),
+    ('work-progress-edit', '工作進度回報 編輯本人', 'calendar'),
+    ('work-progress-edit-all', '工作進度回報 全域編輯', 'calendar'),
+    ('work-progress-delete', '工作進度回報 刪除本人', 'calendar'),
+    ('work-progress-delete-all', '工作進度回報 全域刪除', 'calendar');
+"""
+
+# 角色預設矩陣（與設計文件 §5 1:1）：permission key → 各角色可否；凍結避免被執行期意外修改
+RBAC_DEFAULT_MATRIX = MappingProxyType({key: MappingProxyType(perms) for key, perms in {
+    'view':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'stats':   {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'kit-view':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'prepared':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'export':  {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'item-mgmt':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'stock-mgmt':  {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'batch-loc-mgmt': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'import':      {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'stockout':    {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'stocktake':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'kit-mgmt':    {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'photo':       {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'cal-mgmt':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'svc-type-mgmt':      {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'gcal-sync-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'gcal-sync-force':    {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'gcal-sync-team-view':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'gcal-keys-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'change-own-password':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'signed-report-upload': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    # Preserve the former owner edit/delete behavior for upload-capable roles.
+    'signed-report-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'signed-report-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'signed-report-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    # Quotation upload remains login-gated for upload; these keys cover owner/global mutations.
+    'quotation-upload-manage': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'quotation-upload-manage-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'petty-cash-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'petty-cash-create': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
+    'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'page-visibility-manage': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'work-progress-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
+    'work-progress-create': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'work-progress-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'work-progress-edit-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+    'work-progress-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
+    'work-progress-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
+}.items()})
+
+
 def _seed_rbac_defaults(conn):
     """RBAC 角色 / 權限 / 角色預設矩陣種子"""
-    # ---------- RBAC seed（2026-08-13，與 docs/RBAC-帳號權限系統-設計文件 §5 矩陣一致）----------
-    _execute_script_in_transaction(conn, """
-    INSERT OR IGNORE INTO roles (name, label, is_system) VALUES
-        ('admin',  '🛡️ 管理員', 1),
-        ('user',   '👤 使用者', 1),
-        ('tech',   '🔧 工程師', 1),
-        ('viewer', '👀 檢視者', 1);
-    INSERT OR IGNORE INTO permissions (key, label, module) VALUES
-        ('view',                 '庫存瀏覽/搜尋/看照片', 'view'),
-        ('stats',                '統計數字',             'view'),
-        ('kit-view',             '整組清單瀏覽',         'view'),
-        ('prepared',             '待領出/已領出瀏覽',    'view'),
-        ('export',               '匯出 Excel',           'view'),
-        ('item-mgmt',            '品項／報價單 CRUD + 單位快速新增',  'stock'),
-        ('stock-mgmt',           '庫存位置/數量調整',    'stock'),
-        ('batch-loc-mgmt',       '批量修改位置',         'stock'),
-        ('import',               '匯入 JSON',            'stock'),
-        ('stockout',             '出庫作業',             'stock'),
-        ('stocktake',            '盤點作業',             'stock'),
-        ('kit-mgmt',             '整組 建立/組裝/拆解',  'stock'),
-        ('photo',                '照片 上傳/刪除',       'stock'),
-        ('cal-mgmt',             '行事曆派工（新增/編輯/刪除）', 'calendar'),
-        ('svc-type-mgmt',        '服務項目管理',         'calendar'),
-        ('gcal-sync-manage',     '行事曆同步設定',       'calendar'),
-        ('gcal-sync-force',      '強制立即同步',         'calendar'),
-        ('gcal-sync-team-view',  '行事曆團隊同步狀態',   'calendar'),
-        ('gcal-keys-manage',     'Service Account Key 管理', 'calendar'),
-        ('unit-mgmt',            '單位整理（停用/排序/收編）', 'stock'),
-        ('user-mgmt',            '使用者管理',           'system'),
-        ('change-own-password',  '自行改密碼',           'system'),
-        ('signed-report-upload', '每日簽名日報表 上傳', 'reports'),
-        ('signed-report-edit', '簽名報表 編輯本人', 'reports'),
-        ('signed-report-delete', '簽名報表 刪除本人', 'reports'),
-        ('signed-report-delete-all', '簽名報表 全域管理範圍', 'reports'),
-        ('quotation-upload-manage', '報價單上傳 管理本人', 'reports'),
-        ('quotation-upload-manage-all', '報價單上傳 全域管理範圍', 'reports'),
-        ('petty-cash-delete-all', '零用金月報 全域刪除', 'reports'),
-        ('petty-cash-view', '零用金月報 檢視', 'reports'),
-        ('petty-cash-create', '零用金月報 新增', 'reports'),
-        ('petty-cash-edit', '零用金月報 編輯', 'reports'),
-        ('petty-cash-delete', '零用金月報 刪除本人', 'reports'),
-        ('petty-cash-config', '零用金下拉選單管理', 'reports'),
-        ('page-visibility-manage', '頁面可見性管理', 'system'),
-        ('work-progress-view', '工作進度回報 檢視', 'calendar'),
-        ('work-progress-create', '工作進度回報 新增', 'calendar'),
-        ('work-progress-edit', '工作進度回報 編輯本人', 'calendar'),
-        ('work-progress-edit-all', '工作進度回報 全域編輯', 'calendar'),
-        ('work-progress-delete', '工作進度回報 刪除本人', 'calendar'),
-        ('work-progress-delete-all', '工作進度回報 全域刪除', 'calendar');
-    """)
+    _execute_script_in_transaction(conn, RBAC_SEED_SQL)
     # Metadata taxonomy normalization is idempotent and preserves permission overrides.
     conn.execute(
         "UPDATE permissions SET module='reports' WHERE key IN ("
@@ -101,56 +153,10 @@ def _seed_rbac_defaults(conn):
         "'petty-cash-create', 'petty-cash-edit', 'petty-cash-delete', 'petty-cash-config'"
         ")"
     )
-    # 角色預設矩陣（與設計文件 §5 1:1）：key → 各角色可否
-    _RBAC_DEFAULT = {
-        'view':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'stats':   {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'kit-view':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'prepared':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'export':  {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'item-mgmt':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'stock-mgmt':  {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'batch-loc-mgmt': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'import':      {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'stockout':    {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'stocktake':   {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'kit-mgmt':    {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'photo':       {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'cal-mgmt':    {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
-        'svc-type-mgmt':      {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'gcal-sync-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'gcal-sync-force':    {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'gcal-sync-team-view':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'gcal-keys-manage':   {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'unit-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'user-mgmt':          {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'change-own-password':{'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'signed-report-upload': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
-        # Preserve the former owner edit/delete behavior for upload-capable roles.
-        'signed-report-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
-        'signed-report-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
-        'signed-report-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        # Quotation upload remains login-gated for upload; these keys cover owner/global mutations.
-        'quotation-upload-manage': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'quotation-upload-manage-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'petty-cash-delete-all':{'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'petty-cash-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'petty-cash-create': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'petty-cash-edit': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'petty-cash-delete': {'admin': 1, 'user': 1, 'tech': 0, 'viewer': 0},
-        'petty-cash-config': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'page-visibility-manage': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'work-progress-view': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 1},
-        'work-progress-create': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
-        'work-progress-edit': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
-        'work-progress-edit-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-        'work-progress-delete': {'admin': 1, 'user': 1, 'tech': 1, 'viewer': 0},
-        'work-progress-delete-all': {'admin': 1, 'user': 0, 'tech': 0, 'viewer': 0},
-    }
     _role_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM roles").fetchall()}
     _perm_ids = {p["key"]: p["id"] for p in conn.execute("SELECT id, key FROM permissions").fetchall()}
     _rows = []
-    for _key, _perms in _RBAC_DEFAULT.items():
+    for _key, _perms in RBAC_DEFAULT_MATRIX.items():
         for _role, _on in _perms.items():
             if _on:
                 _rows.append((_role_ids[_role], _perm_ids[_key]))

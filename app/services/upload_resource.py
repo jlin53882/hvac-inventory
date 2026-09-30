@@ -138,6 +138,55 @@ def _precheck_update(res: UploadResource, rid: int, user: dict) -> None:
             raise HTTPException(403, res.edit_denied_msg)
 
 
+def _normalize_update_fields(row, report_date, uploader_name, note):
+    """編輯欄位：None 表示沿用原值，其餘去空白後驗證長度與日期格式 → (report_date, uploader_name, note)。"""
+    report_date = row["report_date"] if report_date is None else report_date.strip()
+    uploader_name = row["uploader_name"] if uploader_name is None else uploader_name.strip()
+    note = row["note"] or "" if note is None else note.strip()
+    if not (1 <= len(uploader_name) <= 50):
+        raise HTTPException(400, "上傳人需 1-50 字")
+    if len(note) > 500:
+        raise HTTPException(400, "備註最多 500 字")
+    try:
+        datetime.date.fromisoformat(report_date)
+    except Exception:
+        raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
+    return report_date, uploader_name, note
+
+
+def _stage_replacement_file(conn, res: UploadResource, rid: int, upload, report_date: str):
+    """把替換用的新檔寫入 asset（同一交易內建立 metadata）→ (new_asset, 額外 UPDATE 欄位, 對應值)。
+
+    upload 為 _read_and_prepare 的結果；若是 HTTPException（讀檔階段的錯誤）在這裡才拋出，
+    維持「先 404/403、後檔案錯誤」的錯誤優先順序。
+    """
+    if isinstance(upload, HTTPException):
+        raise upload
+    data, safe, mime, prepared = upload
+    ym = report_date[:7]
+    stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
+    new_asset = store_asset(
+        conn, category=res.asset_key, owner_type=res.asset_key, owner_id=rid,
+        data=data, original_name=safe, mime_type=mime, year_month=ym,
+        legacy_original_path=stored, upload_dir=_upload_dir(),
+        prepared=prepared,
+    )
+    return (
+        new_asset,
+        ["file_name=?", "stored_path=?", "file_size=?", "mime_type=?"],
+        [safe, new_asset.original_path, len(data), new_asset.mime_type],
+    )
+
+
+def _discard_uncommitted(conn, committed: bool, new_asset) -> None:
+    """交易尚未提交就失敗：rollback，並刪掉已寫入磁碟的新檔（已提交則什麼都不做）。"""
+    if committed:
+        return
+    conn.rollback()
+    if new_asset:
+        cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
+
+
 def _apply_update(res: UploadResource, rid: int, user: dict, report_date, uploader_name, note, upload):
     """編輯的同步主體（threadpool 執行）；upload 為 _read_and_prepare 結果或 None。"""
     new_asset = None
@@ -155,17 +204,7 @@ def _apply_update(res: UploadResource, rid: int, user: dict, report_date, upload
             capabilities = res.capabilities(conn, row, user)
             if not capabilities["can_edit"]:
                 raise HTTPException(403, res.edit_denied_msg)
-            report_date = row["report_date"] if report_date is None else report_date.strip()
-            uploader_name = row["uploader_name"] if uploader_name is None else uploader_name.strip()
-            note = row["note"] or "" if note is None else note.strip()
-            if not (1 <= len(uploader_name) <= 50):
-                raise HTTPException(400, "上傳人需 1-50 字")
-            if len(note) > 500:
-                raise HTTPException(400, "備註最多 500 字")
-            try:
-                datetime.date.fromisoformat(report_date)
-            except Exception:
-                raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
+            report_date, uploader_name, note = _normalize_update_fields(row, report_date, uploader_name, note)
 
             old_asset = get_owner_asset(conn, res.asset_key, res.asset_key, rid)
             if not old_asset and row["stored_path"]:
@@ -177,19 +216,9 @@ def _apply_update(res: UploadResource, rid: int, user: dict, report_date, upload
             update_fields = ["report_date=?", "uploader_name=?", "note=?"]
             update_values = [report_date, uploader_name, note]
             if upload is not None:
-                if isinstance(upload, HTTPException):
-                    raise upload
-                data, safe, mime, prepared = upload
-                ym = report_date[:7]
-                stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
-                new_asset = store_asset(
-                    conn, category=res.asset_key, owner_type=res.asset_key, owner_id=rid,
-                    data=data, original_name=safe, mime_type=mime, year_month=ym,
-                    legacy_original_path=stored, upload_dir=_upload_dir(),
-                    prepared=prepared,
-                )
-                update_fields.extend(["file_name=?", "stored_path=?", "file_size=?", "mime_type=?"])
-                update_values.extend([safe, new_asset.original_path, len(data), new_asset.mime_type])
+                new_asset, file_fields, file_values = _stage_replacement_file(conn, res, rid, upload, report_date)
+                update_fields.extend(file_fields)
+                update_values.extend(file_values)
             conn.execute(
                 f"UPDATE {res.table} SET {', '.join(update_fields)} WHERE id=?",
                 (*update_values, rid),
@@ -210,23 +239,269 @@ def _apply_update(res: UploadResource, rid: int, user: dict, report_date, upload
             updated = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
             return _row_to_out(updated, res.capabilities(conn, updated, user))
         except HTTPException:
-            if not committed:
-                conn.rollback()
-                if new_asset:
-                    cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
+            _discard_uncommitted(conn, committed, new_asset)
             raise
         except ValueError as exc:
-            if not committed:
-                conn.rollback()
-                if new_asset:
-                    cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
+            _discard_uncommitted(conn, committed, new_asset)
             raise HTTPException(400, str(exc)) from exc
         except Exception:
-            if not committed:
-                conn.rollback()
-                if new_asset:
-                    cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
+            _discard_uncommitted(conn, committed, new_asset)
             raise
+
+
+def _upload_impl(res, report_date, uploader_name, note, file, user):
+    if user is None:
+        raise HTTPException(401, "未登入")
+    # 驗證欄位
+    uploader_name = (uploader_name or "").strip()
+    note = (note or "").strip()
+    if not (1 <= len(uploader_name) <= 50):
+        raise HTTPException(400, "上傳人需 1-50 字")
+    if len(note) > 500:
+        raise HTTPException(400, "備註最多 500 字")
+    try:
+        datetime.date.fromisoformat(report_date)
+    except Exception:
+        raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
+    data, safe, mime = _read_upload(file)
+    try:
+        # 2026-09：影像處理在 INSERT（隱式開交易）之前完成，不佔 SQLite 寫鎖
+        prepared = prepare_media(data, safe)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    asset = None
+    with db_session() as conn:
+        try:
+            cur = conn.execute(
+                f"INSERT INTO {res.table}(report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size, mime_type, note) VALUES(?,?,?,?,?,?,?,?)",
+                (report_date, user["id"], uploader_name, safe, "", len(data), mime, note),
+            )
+            rid = cur.lastrowid
+            ym = report_date[:7]
+            stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
+            asset = store_asset(
+                conn,
+                category=res.asset_key,
+                owner_type=res.asset_key,
+                owner_id=rid,
+                data=data,
+                original_name=safe,
+                mime_type=mime,
+                year_month=ym,
+                legacy_original_path=stored,
+                upload_dir=_upload_dir(),
+                prepared=prepared,
+            )
+            conn.execute(
+                f"UPDATE {res.table} SET stored_path=?, mime_type=? WHERE id=?",
+                (asset.original_path, asset.mime_type, rid),
+            )
+            conn.commit()
+            finalize_asset_paths(asset, upload_dir=_upload_dir())
+            row = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
+            return _row_to_out(row, res.capabilities(conn, row, user))
+        except HTTPException:
+            conn.rollback()
+            if asset:
+                cleanup_asset_paths(asset, upload_dir=_upload_dir())
+            raise
+        except ValueError as exc:
+            conn.rollback()
+            if asset:
+                cleanup_asset_paths(asset, upload_dir=_upload_dir())
+            raise HTTPException(400, str(exc)) from exc
+        except Exception:
+            conn.rollback()
+            if asset:
+                cleanup_asset_paths(asset, upload_dir=_upload_dir())
+            raise
+
+
+def _kpi_impl(res, month, user):
+    if user is None:
+        raise HTTPException(401, "未登入")
+    now = datetime.datetime.now()
+    if not month:
+        month = f"{now.year}-{now.month:02d}"
+    try:
+        datetime.date.fromisoformat(month + "-01")
+    except Exception:
+        raise HTTPException(400, "月份格式需 YYYY-MM")
+    with db_session() as conn:
+        # 行事曆有派工的日期
+        appt_rows = conn.execute(
+            "SELECT DISTINCT date FROM appointments WHERE date LIKE ?",
+            (month + "%",),
+        ).fetchall()
+        appointment_dates = set(r["date"] for r in appt_rows)
+        # 已上傳的日期
+        report_rows = conn.execute(
+            f"SELECT DISTINCT report_date FROM {res.table} WHERE report_date LIKE ?",
+            (month + "%",),
+        ).fetchall()
+        archived_dates = set(r["report_date"] for r in report_rows)
+        archived = len(archived_dates)
+        # 缺檔日 = 行事曆有派工但未上傳的日期
+        missing_dates = appointment_dates - archived_dates
+        missing = len(missing_dates)
+        total = len(appointment_dates)
+        rate = round(archived / total * 100) if total > 0 else 0
+        return {"month": month, "archived": archived, "missing": missing, "rate": rate, "total": total}
+
+
+def _list_impl(res, from_date, to_date, q, page, page_size, user):
+    if user is None:
+        raise HTTPException(401, "未登入")
+    # 日期格式若有填需合法
+    for d in (from_date, to_date):
+        if d:
+            try:
+                datetime.date.fromisoformat(d)
+            except Exception:
+                raise HTTPException(400, f"日期格式需 YYYY-MM-DD：{d}")
+    q = (q or "").strip()
+    where, params = [], []
+    if from_date:
+        where.append("report_date >= ?")
+        params.append(from_date)
+    if to_date:
+        where.append("report_date <= ?")
+        params.append(to_date)
+    if q:
+        where.append("(uploader_name LIKE ? OR note LIKE ? OR file_name LIKE ? OR report_date LIKE ?)")
+        like = f"%{q}%"
+        params.extend([like, like, like, like])
+    sql_where = ("WHERE " + " AND ".join(where)) if where else ""
+    with db_session() as conn:
+        total = conn.execute(f"SELECT COUNT(*) FROM {res.table} {sql_where}", params).fetchone()[0]
+        rows = conn.execute(
+            f"SELECT * FROM {res.table} {sql_where} ORDER BY report_date DESC, id DESC LIMIT ? OFFSET ?",
+            (*params, page_size, (page - 1) * page_size),
+        ).fetchall()
+        items = []
+        for r in rows:
+            items.append(_row_to_out(r, res.capabilities(conn, r, user)))
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+async def _update_impl(res, rid, request, user):
+    if user is None:
+        raise HTTPException(401, "未登入")
+    file = None
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
+        form = await request.form()
+        report_date = _form_text(form, "report_date")
+        uploader_name = _form_text(form, "uploader_name")
+        note = _form_text(form, "note")
+        candidate = form.get("file")
+        if candidate is not None and getattr(candidate, "filename", None) is not None:
+            file = candidate
+    else:
+        try:
+            payload = res.update_model.model_validate(await request.json())
+        except Exception as exc:
+            raise HTTPException(422, "編輯資料格式錯誤") from exc
+        report_date = payload.report_date
+        uploader_name = payload.uploader_name
+        note = payload.note
+    # 2026-09：async handler 只做非同步讀取；讀檔/影像處理/SQLite 交易一律丟 threadpool，
+    # 否則會卡住 event loop（處理期間全站所有請求停住）。
+    # 先做便宜的存在/權限檢查，404/403 不先付出讀檔與影像處理成本；交易內仍會權威重驗。
+    await run_in_threadpool(_precheck_update, res, rid, user)
+    upload = await run_in_threadpool(_read_and_prepare, file) if file is not None else None
+    return await run_in_threadpool(_apply_update, res, rid, user, report_date, uploader_name, note, upload)
+
+
+def _preview_impl(res, rid, user):
+    if user is None:
+        raise HTTPException(401, "未登入")
+    with db_session() as conn:
+        row = conn.execute(
+            f"SELECT id, stored_path, file_name, mime_type FROM {res.table} WHERE id=?", (rid,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "報表不存在")
+        upload_dir = _upload_dir()
+        asset = get_owner_asset(conn, res.asset_key, res.asset_key, rid)
+        mime = (asset["mime_type"] if asset else row["mime_type"] or "").lower()
+        use_preview = bool(asset and asset["preview_path"] and mime.startswith("image/"))
+        try:
+            path = (
+                asset_variant_path(asset, "preview", upload_dir=upload_dir)
+                if use_preview
+                else safe_upload_path(row["stored_path"], upload_dir=upload_dir)
+            )
+        except (FileNotFoundError, TypeError, ValueError):
+            raise HTTPException(404, "檔案不存在")
+        if not path.exists():
+            raise HTTPException(404, "檔案遺失")
+        fname = (row["file_name"] or "").lower()
+        is_svg = mime == "image/svg+xml" or fname.endswith(".svg")
+        is_html = mime in ("text/html", "application/xhtml+xml") or fname.endswith((".html", ".htm"))
+        safe_inline = (mime in ("application/pdf",) or mime.startswith("image/")) and not is_svg and not is_html
+        disp = "inline" if safe_inline else "attachment"
+        response_mime = "image/jpeg" if use_preview else (
+            mime if mime == "application/pdf" or (mime.startswith("image/") and not is_svg and not is_html)
+            else "application/octet-stream"
+        )
+        return FileResponse(
+            path,
+            media_type=response_mime,
+            filename=row["file_name"],
+            content_disposition_type=disp,
+        )
+
+
+def _download_impl(res, rid, user):
+    if user is None:
+        raise HTTPException(401, "未登入")
+    with db_session() as conn:
+        row = conn.execute(f"SELECT stored_path, file_name FROM {res.table} WHERE id=?", (rid,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "報表不存在")
+        try:
+            path = safe_upload_path(row["stored_path"], upload_dir=_upload_dir())
+        except (FileNotFoundError, TypeError, ValueError):
+            raise HTTPException(404, "檔案不存在")
+        if not path.exists():
+            raise HTTPException(404, "檔案遺失")
+        # FileResponse handles non-ASCII filenames with RFC 5987 encoding.
+        return FileResponse(path, filename=row["file_name"], content_disposition_type="attachment")
+
+
+def _delete_impl(res, rid, user):
+    if user is None:
+        raise HTTPException(401, "未登入")
+    with db_session() as conn:
+        row = conn.execute(
+            f"SELECT uploader_user_id, stored_path FROM {res.table} WHERE id=?", (rid,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "報表不存在")
+        capabilities = res.capabilities(conn, row, user)
+        if not capabilities["can_delete"]:
+            raise HTTPException(403, res.delete_denied_msg)
+        asset = get_owner_asset(conn, res.asset_key, res.asset_key, rid)
+        fallback = None
+        if row["stored_path"]:
+            try:
+                fallback = safe_upload_path(row["stored_path"], upload_dir=_upload_dir())
+            except (FileNotFoundError, TypeError, ValueError):
+                fallback = None
+        conn.execute(f"DELETE FROM {res.table} WHERE id=?", (rid,))
+        if asset:
+            conn.execute("DELETE FROM file_assets WHERE asset_id=?", (asset["asset_id"],))
+        conn.commit()
+        if asset:
+            delete_asset_files(asset, upload_dir=_upload_dir())
+        elif fallback:
+            try:
+                fallback.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return {"ok": True}
 
 
 def build_upload_router(res: UploadResource) -> APIRouter:
@@ -244,72 +519,7 @@ def build_upload_router(res: UploadResource) -> APIRouter:
         user: dict = Depends(res.upload_dependency),
     ):
         """上傳（multipart），支援任意格式，單檔上限 20MB。"""
-        if user is None:
-            raise HTTPException(401, "未登入")
-        # 驗證欄位
-        uploader_name = (uploader_name or "").strip()
-        note = (note or "").strip()
-        if not (1 <= len(uploader_name) <= 50):
-            raise HTTPException(400, "上傳人需 1-50 字")
-        if len(note) > 500:
-            raise HTTPException(400, "備註最多 500 字")
-        try:
-            datetime.date.fromisoformat(report_date)
-        except Exception:
-            raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
-        data, safe, mime = _read_upload(file)
-        try:
-            # 2026-09：影像處理在 INSERT（隱式開交易）之前完成，不佔 SQLite 寫鎖
-            prepared = prepare_media(data, safe)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-
-        asset = None
-        with db_session() as conn:
-            try:
-                cur = conn.execute(
-                    f"INSERT INTO {res.table}(report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size, mime_type, note) VALUES(?,?,?,?,?,?,?,?)",
-                    (report_date, user["id"], uploader_name, safe, "", len(data), mime, note),
-                )
-                rid = cur.lastrowid
-                ym = report_date[:7]
-                stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
-                asset = store_asset(
-                    conn,
-                    category=key,
-                    owner_type=key,
-                    owner_id=rid,
-                    data=data,
-                    original_name=safe,
-                    mime_type=mime,
-                    year_month=ym,
-                    legacy_original_path=stored,
-                    upload_dir=_upload_dir(),
-                    prepared=prepared,
-                )
-                conn.execute(
-                    f"UPDATE {res.table} SET stored_path=?, mime_type=? WHERE id=?",
-                    (asset.original_path, asset.mime_type, rid),
-                )
-                conn.commit()
-                finalize_asset_paths(asset, upload_dir=_upload_dir())
-                row = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
-                return _row_to_out(row, res.capabilities(conn, row, user))
-            except HTTPException:
-                conn.rollback()
-                if asset:
-                    cleanup_asset_paths(asset, upload_dir=_upload_dir())
-                raise
-            except ValueError as exc:
-                conn.rollback()
-                if asset:
-                    cleanup_asset_paths(asset, upload_dir=_upload_dir())
-                raise HTTPException(400, str(exc)) from exc
-            except Exception:
-                conn.rollback()
-                if asset:
-                    cleanup_asset_paths(asset, upload_dir=_upload_dir())
-                raise
+        return _upload_impl(res, report_date, uploader_name, note, file, user)
 
     @router.get(f"{prefix}/kpi", name=f"{key}_kpi")
     def kpi(
@@ -319,35 +529,7 @@ def build_upload_router(res: UploadResource) -> APIRouter:
         """回傳月級 KPI：已歸檔日數、缺檔日、歸檔率。
         缺檔日 = 該月行事曆有派工但未上傳檔案的日期。
         """
-        if user is None:
-            raise HTTPException(401, "未登入")
-        now = datetime.datetime.now()
-        if not month:
-            month = f"{now.year}-{now.month:02d}"
-        try:
-            datetime.date.fromisoformat(month + "-01")
-        except Exception:
-            raise HTTPException(400, "月份格式需 YYYY-MM")
-        with db_session() as conn:
-            # 行事曆有派工的日期
-            appt_rows = conn.execute(
-                "SELECT DISTINCT date FROM appointments WHERE date LIKE ?",
-                (month + "%",),
-            ).fetchall()
-            appointment_dates = set(r["date"] for r in appt_rows)
-            # 已上傳的日期
-            report_rows = conn.execute(
-                f"SELECT DISTINCT report_date FROM {res.table} WHERE report_date LIKE ?",
-                (month + "%",),
-            ).fetchall()
-            archived_dates = set(r["report_date"] for r in report_rows)
-            archived = len(archived_dates)
-            # 缺檔日 = 行事曆有派工但未上傳的日期
-            missing_dates = appointment_dates - archived_dates
-            missing = len(missing_dates)
-            total = len(appointment_dates)
-            rate = round(archived / total * 100) if total > 0 else 0
-            return {"month": month, "archived": archived, "missing": missing, "rate": rate, "total": total}
+        return _kpi_impl(res, month, user)
 
     @router.get(prefix, name=f"list_{key}")
     def list_items(
@@ -358,38 +540,7 @@ def build_upload_router(res: UploadResource) -> APIRouter:
         page_size: int = Query(20, ge=1, le=50),
         user: dict = Depends(require_login),
     ):
-        if user is None:
-            raise HTTPException(401, "未登入")
-        # 日期格式若有填需合法
-        for d in (from_date, to_date):
-            if d:
-                try:
-                    datetime.date.fromisoformat(d)
-                except Exception:
-                    raise HTTPException(400, f"日期格式需 YYYY-MM-DD：{d}")
-        q = (q or "").strip()
-        where, params = [], []
-        if from_date:
-            where.append("report_date >= ?")
-            params.append(from_date)
-        if to_date:
-            where.append("report_date <= ?")
-            params.append(to_date)
-        if q:
-            where.append("(uploader_name LIKE ? OR note LIKE ? OR file_name LIKE ? OR report_date LIKE ?)")
-            like = f"%{q}%"
-            params.extend([like, like, like, like])
-        sql_where = ("WHERE " + " AND ".join(where)) if where else ""
-        with db_session() as conn:
-            total = conn.execute(f"SELECT COUNT(*) FROM {res.table} {sql_where}", params).fetchone()[0]
-            rows = conn.execute(
-                f"SELECT * FROM {res.table} {sql_where} ORDER BY report_date DESC, id DESC LIMIT ? OFFSET ?",
-                (*params, page_size, (page - 1) * page_size),
-            ).fetchall()
-            items = []
-            for r in rows:
-                items.append(_row_to_out(r, res.capabilities(conn, r, user)))
-            return {"items": items, "total": total, "page": page, "page_size": page_size}
+        return _list_impl(res, from_date, to_date, q, page, page_size, user)
 
     @router.patch(f"{prefix}/{{rid}}", name=f"update_{key}")
     async def update(
@@ -404,124 +555,21 @@ def build_upload_router(res: UploadResource) -> APIRouter:
         後搬移/清理檔案」：提交前失敗刪新檔，提交後清理失敗只記錄警告，
         不回滾已可讀取的新資料。
         """
-        if user is None:
-            raise HTTPException(401, "未登入")
-        file = None
-        content_type = request.headers.get("content-type", "")
-        if content_type.startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
-            form = await request.form()
-            report_date = _form_text(form, "report_date")
-            uploader_name = _form_text(form, "uploader_name")
-            note = _form_text(form, "note")
-            candidate = form.get("file")
-            if candidate is not None and getattr(candidate, "filename", None) is not None:
-                file = candidate
-        else:
-            try:
-                payload = res.update_model.model_validate(await request.json())
-            except Exception as exc:
-                raise HTTPException(422, "編輯資料格式錯誤") from exc
-            report_date = payload.report_date
-            uploader_name = payload.uploader_name
-            note = payload.note
-        # 2026-09：async handler 只做非同步讀取；讀檔/影像處理/SQLite 交易一律丟 threadpool，
-        # 否則會卡住 event loop（處理期間全站所有請求停住）。
-        # 先做便宜的存在/權限檢查，404/403 不先付出讀檔與影像處理成本；交易內仍會權威重驗。
-        await run_in_threadpool(_precheck_update, res, rid, user)
-        upload = await run_in_threadpool(_read_and_prepare, file) if file is not None else None
-        return await run_in_threadpool(_apply_update, res, rid, user, report_date, uploader_name, note, upload)
+        return await _update_impl(res, rid, request, user)
 
     @router.get(f"{prefix}/{{rid}}/preview", name=f"preview_{key}")
     def preview(rid: int, user: dict = Depends(require_login)):
         """線上預覽：圖片走壓縮 preview，PDF 保持原始檔。"""
-        if user is None:
-            raise HTTPException(401, "未登入")
-        with db_session() as conn:
-            row = conn.execute(
-                f"SELECT id, stored_path, file_name, mime_type FROM {res.table} WHERE id=?", (rid,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(404, "報表不存在")
-            upload_dir = _upload_dir()
-            asset = get_owner_asset(conn, key, key, rid)
-            mime = (asset["mime_type"] if asset else row["mime_type"] or "").lower()
-            use_preview = bool(asset and asset["preview_path"] and mime.startswith("image/"))
-            try:
-                path = (
-                    asset_variant_path(asset, "preview", upload_dir=upload_dir)
-                    if use_preview
-                    else safe_upload_path(row["stored_path"], upload_dir=upload_dir)
-                )
-            except (FileNotFoundError, TypeError, ValueError):
-                raise HTTPException(404, "檔案不存在")
-            if not path.exists():
-                raise HTTPException(404, "檔案遺失")
-            fname = (row["file_name"] or "").lower()
-            is_svg = mime == "image/svg+xml" or fname.endswith(".svg")
-            is_html = mime in ("text/html", "application/xhtml+xml") or fname.endswith((".html", ".htm"))
-            safe_inline = (mime in ("application/pdf",) or mime.startswith("image/")) and not is_svg and not is_html
-            disp = "inline" if safe_inline else "attachment"
-            response_mime = "image/jpeg" if use_preview else (
-                mime if mime == "application/pdf" or (mime.startswith("image/") and not is_svg and not is_html)
-                else "application/octet-stream"
-            )
-            return FileResponse(
-                path,
-                media_type=response_mime,
-                filename=row["file_name"],
-                content_disposition_type=disp,
-            )
+        return _preview_impl(res, rid, user)
 
     @router.get(f"{prefix}/{{rid}}/download", name=f"download_{key}")
     def download(rid: int, user: dict = Depends(require_login)):
         """下載原檔（attachment）。"""
-        if user is None:
-            raise HTTPException(401, "未登入")
-        with db_session() as conn:
-            row = conn.execute(f"SELECT stored_path, file_name FROM {res.table} WHERE id=?", (rid,)).fetchone()
-            if row is None:
-                raise HTTPException(404, "報表不存在")
-            try:
-                path = safe_upload_path(row["stored_path"], upload_dir=_upload_dir())
-            except (FileNotFoundError, TypeError, ValueError):
-                raise HTTPException(404, "檔案不存在")
-            if not path.exists():
-                raise HTTPException(404, "檔案遺失")
-            # FileResponse handles non-ASCII filenames with RFC 5987 encoding.
-            return FileResponse(path, filename=row["file_name"], content_disposition_type="attachment")
+        return _download_impl(res, rid, user)
 
     @router.delete(f"{prefix}/{{rid}}", name=f"delete_{key}")
     def delete(rid: int, user: dict = Depends(require_login)):
         """刪除資料列、original 與所有媒體變體。"""
-        if user is None:
-            raise HTTPException(401, "未登入")
-        with db_session() as conn:
-            row = conn.execute(
-                f"SELECT uploader_user_id, stored_path FROM {res.table} WHERE id=?", (rid,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(404, "報表不存在")
-            capabilities = res.capabilities(conn, row, user)
-            if not capabilities["can_delete"]:
-                raise HTTPException(403, res.delete_denied_msg)
-            asset = get_owner_asset(conn, key, key, rid)
-            fallback = None
-            if row["stored_path"]:
-                try:
-                    fallback = safe_upload_path(row["stored_path"], upload_dir=_upload_dir())
-                except (FileNotFoundError, TypeError, ValueError):
-                    fallback = None
-            conn.execute(f"DELETE FROM {res.table} WHERE id=?", (rid,))
-            if asset:
-                conn.execute("DELETE FROM file_assets WHERE asset_id=?", (asset["asset_id"],))
-            conn.commit()
-            if asset:
-                delete_asset_files(asset, upload_dir=_upload_dir())
-            elif fallback:
-                try:
-                    fallback.unlink(missing_ok=True)
-                except OSError:
-                    pass
-            return {"ok": True}
+        return _delete_impl(res, rid, user)
 
     return router

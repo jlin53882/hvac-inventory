@@ -246,12 +246,61 @@ def update_kit(kit_id: int, kit: KitCreate):
                 "brand": saved["brand"] or "", "code": saved["code"] or ""}
 
 
+def _zero_out_kit_stock(conn, item_id: int) -> None:
+    """刪除整組前把庫存清零：每個正數位置各記一筆「品項刪除清零」異動，保留稽核軌跡，並讓 persisted 庫存真的歸零。"""
+    kit_stocks = conn.execute(
+        "SELECT location, qty FROM item_stocks WHERE item_id=? AND qty != 0",
+        (item_id,)).fetchall()
+    movement_ts = movement_time.now_sql() if kit_stocks else None
+    for s in kit_stocks:
+        if s["qty"] > 0:
+            conn.execute(
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
+    if kit_stocks:
+        conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
+
+
+def _find_shared_photo_paths(conn, item_id: int, photo_assets):
+    """找出「其他 asset 也在用」的照片檔 → (shared_asset_paths, legacy_path_shared)；共用的檔案刪除時要保留。"""
+    from pathlib import Path
+    from app import config as app_config
+    from app.services.file_storage import safe_upload_path
+
+    shared_asset_paths = set()
+    legacy_path_shared = False
+    own_asset_ids = {asset["asset_id"] for asset in photo_assets}
+    own_paths_by_resolved = {}
+    path_columns = ("original_path", "preview_path", "thumbnail_path")
+    for asset in photo_assets:
+        for column in path_columns:
+            relative = asset[column]
+            if relative:
+                resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
+                own_paths_by_resolved.setdefault(resolved, set()).add(relative)
+    legacy_path = Path(legacy_photo_path(item_id)).resolve()
+    for reference in conn.execute(
+        "SELECT asset_id, original_path, preview_path, thumbnail_path FROM file_assets"
+    ).fetchall():
+        if reference["asset_id"] in own_asset_ids:
+            continue
+        for column in path_columns:
+            relative = reference[column]
+            if not relative:
+                continue
+            resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
+            if resolved in own_paths_by_resolved:
+                shared_asset_paths.update(own_paths_by_resolved[resolved])
+            if resolved == legacy_path:
+                legacy_path_shared = True
+    return shared_asset_paths, legacy_path_shared
+
+
 @router.delete("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
 def delete_kit(kit_id: int):
     """Delete a Kit definition and its photo assets while retaining inventory audit history."""
-    from pathlib import Path
     from app import config as app_config
-    from app.services.file_storage import delete_asset_files, safe_upload_path
+    from app.services.file_storage import delete_asset_files
     import os
 
     photo_assets = []
@@ -267,45 +316,12 @@ def delete_kit(kit_id: int):
         kit_item = conn.execute("SELECT prepared_qty FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if kit_item and canonical_qty(kit_item["prepared_qty"] or 0) > 0:
             raise HTTPException(400, f"該整組有待領出數量 {kit_item['prepared_qty']}，請先處理待領出再刪除")
-        kit_stocks = conn.execute(
-            "SELECT location, qty FROM item_stocks WHERE item_id=? AND qty != 0",
-            (item_id,)).fetchall()
-        movement_ts = movement_time.now_sql() if kit_stocks else None
-        for s in kit_stocks:
-            if s["qty"] > 0:
-                conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
-        if kit_stocks:
-            conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
+        _zero_out_kit_stock(conn, item_id)
         photo_assets = conn.execute(
             "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
             ("item_photo", "item", str(item_id)),
         ).fetchall()
-        own_asset_ids = {asset["asset_id"] for asset in photo_assets}
-        own_paths_by_resolved = {}
-        path_columns = ("original_path", "preview_path", "thumbnail_path")
-        for asset in photo_assets:
-            for column in path_columns:
-                relative = asset[column]
-                if relative:
-                    resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
-                    own_paths_by_resolved.setdefault(resolved, set()).add(relative)
-        legacy_path = Path(legacy_photo_path(item_id)).resolve()
-        for reference in conn.execute(
-            "SELECT asset_id, original_path, preview_path, thumbnail_path FROM file_assets"
-        ).fetchall():
-            if reference["asset_id"] in own_asset_ids:
-                continue
-            for column in path_columns:
-                relative = reference[column]
-                if not relative:
-                    continue
-                resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
-                if resolved in own_paths_by_resolved:
-                    shared_asset_paths.update(own_paths_by_resolved[resolved])
-                if resolved == legacy_path:
-                    legacy_path_shared = True
+        shared_asset_paths, legacy_path_shared = _find_shared_photo_paths(conn, item_id, photo_assets)
         conn.execute(
             "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
             ("item_photo", "item", str(item_id)),
