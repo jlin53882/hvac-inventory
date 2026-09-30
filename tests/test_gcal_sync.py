@@ -779,10 +779,10 @@ class TestSyncPending:
         """空 due 不查 DB，並回傳三值零結果。"""
         from app.services import gcal_sync
 
-        def fail_get_db():
+        def fail_db_session():
             raise AssertionError("sync_pending([]) must not access the database")
 
-        monkeypatch.setattr(gcal_sync, "get_db", fail_get_db)
+        monkeypatch.setattr(gcal_sync, "db_session", fail_db_session)
         ok, fail, error_summary = gcal_sync.sync_pending([])
         assert (ok, fail, error_summary) == (0, 0, {})
 
@@ -1328,7 +1328,7 @@ class TestErrorSummary:
     def test_error_summary_classifies_http_error(self, client, monkeypatch):
         """HttpError 被分類為 'HttpError NNN'"""
         from app.services import gcal_sync
-        conn = gcal_sync.get_db()
+        conn = app_db.get_db()
         try:
             conn.execute("INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
                          ("test_key", "fake.json", "test@gmail.com"))
@@ -1363,7 +1363,7 @@ class TestErrorSummary:
     def test_error_summary_classifies_network_error(self, client, monkeypatch):
         """network down 被分類"""
         from app.services import gcal_sync
-        conn = gcal_sync.get_db()
+        conn = app_db.get_db()
         try:
             conn.execute("INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
                          ("test_net", "fake.json", "net@gmail.com"))
@@ -1393,7 +1393,7 @@ class TestErrorSummary:
     def test_error_summary_groups_by_key(self, client, monkeypatch):
         """多個 appointment 同 key 的錯誤被分組計數"""
         from app.services import gcal_sync
-        conn = gcal_sync.get_db()
+        conn = app_db.get_db()
         try:
             conn.execute("INSERT INTO gcal_keys (name, credentials_path, calendar_id) VALUES (?, ?, ?)",
                          ("test_grp", "fake.json", "grp@gmail.com"))
@@ -1429,10 +1429,10 @@ class TestErrorSummary:
         """空 due 不查 DB，並回傳空 error_summary。"""
         from app.services import gcal_sync
 
-        def fail_get_db():
+        def fail_db_session():
             raise AssertionError("sync_pending([]) must not access the database")
 
-        monkeypatch.setattr(gcal_sync, "get_db", fail_get_db)
+        monkeypatch.setattr(gcal_sync, "db_session", fail_db_session)
         ok, fail, error_summary = gcal_sync.sync_pending([])
         assert (ok, fail, error_summary) == (0, 0, {})
 
@@ -1970,6 +1970,8 @@ def test_insert_then_local_delete_creates_compensating_delete_queue(client, monk
 
 def test_late_local_delete_during_map_write_preserves_delete_queue(client, monkeypatch):
     """map upsert 前的 committed delete 也必須保留 remote id 與 D queue。"""
+    from contextlib import contextmanager
+
     from app.database import get_db
     from app.services import gcal_sync, sync_scheduler
     from unittest.mock import MagicMock
@@ -1994,7 +1996,8 @@ def test_late_local_delete_during_map_write_preserves_delete_queue(client, monke
     finally:
         conn.close()
 
-    real_get_db=gcal_sync.get_db
+    real_get_db=app_db.get_db
+    real_db_session=gcal_sync.db_session
     class ConnectionProxy:
         def __init__(self, connection):
             self.connection=connection
@@ -2020,12 +2023,14 @@ def test_late_local_delete_during_map_write_preserves_delete_queue(client, monke
         def __getattr__(self, name):
             return getattr(self.connection, name)
 
-    def wrapped_get_db():
-        return ConnectionProxy(real_get_db())
+    @contextmanager
+    def wrapped_db_session():
+        with real_db_session() as connection:
+            yield ConnectionProxy(connection)
 
     service=MagicMock()
     service.events().insert.return_value.execute.return_value={"id":"late-race-event"}
-    monkeypatch.setattr(gcal_sync,"get_db",wrapped_get_db)
+    monkeypatch.setattr(gcal_sync,"db_session",wrapped_db_session)
     monkeypatch.setattr(gcal_sync,"get_service_for_key",lambda row: service)
     ok,fail,_=gcal_sync.sync_pending([{
         "appointment_id":appt_id,"key_id":key_id,"op_type":"C",

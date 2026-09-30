@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""db_session() 連線生命週期 + 「不得手寫 get_db/try/finally 樣板」守衛。"""
+"""db_session() 連線生命週期 + 「app/ 內只有 database.py 可直接呼叫 get_db()」守衛。"""
 import ast
 import sqlite3
 from pathlib import Path
@@ -10,12 +10,9 @@ import app.database as app_db
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 刻意不遷移的檔案：這些模組的測試需要 patch「該模組自己的 get_db」來注入假連線 / 追蹤 / 失敗
-#（例如 sync_scheduler 用 _FakeConn 驗證排程流程、gcal_keys 驗證 DB 失敗時不留孤兒憑證檔）。
-# 換成 db_session 後 patch 會失效，需連同測試一起改；改完請從這裡移除。
-NOT_MIGRATED = {
-    "app/services/gcal_sync.py",
-}
+# 刻意不遷移（仍直接使用 get_db）的檔案白名單：目前為空。
+# 新增例外前請先想能不能改用 db_session；確實不行才加入並註明原因，改完務必移除。
+NOT_MIGRATED: set[str] = set()
 
 
 @pytest.fixture()
@@ -84,44 +81,38 @@ def test_db_session_releases_write_lock_after_error(isolated_db):
         other.close()
 
 
-# ---------- 守衛：不得再手寫連線樣板 ----------
+# ---------- 守衛：連線只能經由 db_session() 取得 ----------
 
-def _is_close(stmt):
-    return isinstance(stmt, ast.Expr) and ast.unparse(stmt.value) == "conn.close()"
-
-
-def _hand_written_sessions(path: Path):
-    """找出 `conn = get_db()` 緊接 try，且 finally 只做 conn.close() 的樣板（可帶 rollback-raise handler）。"""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+def _direct_get_db_calls(path: Path) -> list[int]:
+    """找出檔案裡所有 `get_db()` / `xxx.get_db()` 呼叫的行號（含函式內、含各種寫法，不只 try/finally 樣板）。"""
     hits = []
-    for node in ast.walk(tree):
-        body = getattr(node, "body", None)
-        if not isinstance(body, list):
-            continue
-        for i, stmt in enumerate(body[:-1]):
-            nxt = body[i + 1]
-            if (
-                isinstance(stmt, ast.Assign)
-                and ast.unparse(stmt.value) == "get_db()"
-                and [ast.unparse(t) for t in stmt.targets] == ["conn"]
-                and isinstance(nxt, ast.Try)
-                and len(nxt.finalbody) == 1
-                and _is_close(nxt.finalbody[0])
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Call):
+            func = node.func
+            if (isinstance(func, ast.Name) and func.id == "get_db") or (
+                isinstance(func, ast.Attribute) and func.attr == "get_db"
             ):
-                hits.append(stmt.lineno)
+                hits.append(node.lineno)
     return hits
 
 
-def test_no_new_hand_written_connection_boilerplate():
+def test_get_db_is_only_called_by_database_module():
+    """app/ 內只有 database.py（db_session 本身）可以直接呼叫 get_db()；其餘一律 `with db_session() as conn:`。
+
+    白名單 NOT_MIGRATED 目前為空。這個守衛掃的是「任何 get_db 呼叫」，不是特定的樣板寫法，
+    所以像「conn = get_db(); asset = None; try: ...」這種變形也擋得住。
+    """
     offenders = []
     stale = []
     for path in sorted((ROOT / "app").rglob("*.py")):
         rel = path.relative_to(ROOT).as_posix()
-        hits = _hand_written_sessions(path)
+        if rel == "app/database.py":
+            continue
+        hits = _direct_get_db_calls(path)
         if rel in NOT_MIGRATED:
             if not hits:
                 stale.append(rel)
-        elif rel != "app/database.py" and hits:
+        elif hits:
             offenders += [f"{rel}:{n}" for n in hits]
     assert not offenders, "請改用 `with db_session() as conn:`（app.database）：\n" + "\n".join(offenders)
     assert not stale, f"已遷移完成，請從 NOT_MIGRATED 移除：{stale}"
