@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """前端 ES module 依賴方向的架構守衛（issue #39 / PR #42 收尾）。
 
-依賴方向：pages → features → components → core。
+依賴方向：pages → shell 組裝層（shell composition）→ features → components → core。
 - core 只放跨頁、不認識任何業務 feature 的基礎能力；不可 import components / features / pages。
 - components 是可重用的呈現元件；不可 import features / pages（業務行為由呼叫端以設定 / callback 傳入）。
 - features 不可 import pages（page entry 只負責組裝與掛 window 命名空間）。
+- features/shell/app.js 是組裝層（composition layer），只有 pages 可以 import；它的 configureShell()
+  由 pages/main.js 最先呼叫，把 data-refresh 的畫面更新 hook 與切頁實作注入 port。
+- feature 需要切頁時使用 features/shell/navigation.js 的 navigateToTab，不 import shell/app.js。
+- 整個 static/js 的 import 圖不允許任何循環（feature 之間與 feature 內部都算）。
 （window.__hvac 只能由 pages/*.js 建立的守衛在 test_frontend_assets.py::test_debug_module_registry_is_only_defined_by_page_entries。）
 
 以正式檔案實際解析 import（含 export-from、side-effect import、動態 import()），不設白名單。

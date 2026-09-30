@@ -75,6 +75,31 @@
 - 手動備份：`.venv\Scripts\python.exe scripts\backup_db.py`
 - 安裝：`scripts/install-monitor.bat`（需系統管理員）
 
+### 前端開發（ES modules / Vite）
+
+`start.bat` / `scripts/start-server.ps1` **不會**自動執行前端 build（不跑 `npm ci` / `npm run build`）：前端建置結果 `static/dist/` 已提交進 repo，辦公室電腦不需要安裝 Node，正式啟動直接使用已提交的 `static/dist/`。
+
+如果修改 `static/js/**`：
+
+1. 開發途中可用原始碼模式，瀏覽器直接載入 `static/js/pages/*.js`（跳過 `static/dist/`），不必每改一次就重新 build。在 cmd 視窗執行（已有 server 在跑時先關閉）：
+
+   ```bat
+   set HVAC_FRONTEND_SOURCE=1
+   start.bat
+   ```
+
+   原始碼模式只適合開發 / 驗證；準備 commit 或正式部署前仍需重新 build。
+2. 準備提交前（需要 Node 22）執行：
+
+   ```bash
+   npm ci
+   npm run build
+   ```
+
+3. 將更新後的 `static/dist/` 與原始碼一起 commit。
+
+CI / Quality 會重新執行 build，並檢查 `static/dist/` 是否與原始碼一致。前端模組的依賴方向（pages → shell 組裝層 → features → components → core、import 不得循環）見 [`docs/新增內容與修改規範.md`](docs/新增內容與修改規範.md)。
+
 ### GitHub Actions CI
 
 CI 使用 GitHub Actions，在 Pull Request、`master` push、每週日排程與手動執行時驗證測試；穩定彙總檢查為 `CI / Gate`。完整 event、profile、concurrency、uv 與維護 SOP 見 [`docs/CI維護文件.md`](docs/CI維護文件.md)。CI 只驗證程式碼，不直接連線或部署正式機器；正式上線仍需依 Windows runtime 驗證流程處理。
