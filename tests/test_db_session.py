@@ -16,7 +16,6 @@ ROOT = Path(__file__).resolve().parent.parent
 NOT_MIGRATED = {
     "app/services/gcal_sync.py",
     "app/services/sync_scheduler.py",
-    "app/routes/gcal_keys.py",
 }
 
 

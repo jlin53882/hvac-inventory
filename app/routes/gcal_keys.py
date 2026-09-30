@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from app.config import BASE_DIR
-from app.database import get_db
+from app.database import db_session
 from app.models import GcalKeyIn, GcalKeyUpdate
 from app.services.auth import require_login, require_perm
 from app.services import gcal_sync, sync_scheduler
@@ -89,23 +89,16 @@ def _client_email_from_path(credentials_path: str) -> str:
 
 def _backfill_all_appointments(key_id: int):
     """新增/重新啟用 key 時，依 final payload hash 回填需要追上的行程。"""
-    conn = None
     try:
-        conn = get_db()
-        queued = gcal_sync.backfill_all_appointments_with_conn(conn, key_id)
-        conn.commit()
-        return queued
+        with db_session() as conn:
+            queued = gcal_sync.backfill_all_appointments_with_conn(conn, key_id)
+            conn.commit()
+            return queued
     except Exception as e:
-        if conn is not None:
-            conn.rollback()
-        import logging
-        logging.getLogger(__name__).error(
+        logger.error(
             "backfill sync_queue 失敗 key_id=%s: %s （新增 key 已成功但舊行程未加入同步佇列）",
             key_id, gcal_sync.safe_sync_error(e))
         return None
-    finally:
-        if conn is not None:
-            conn.close()
 
 
 router = APIRouter()
@@ -131,12 +124,9 @@ def _row_to_dict(r):
 @router.get("/api/gcal-keys", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def list_gcal_keys():
     """admin：回傳全部 gcal key（含停用）。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute("SELECT * FROM gcal_keys ORDER BY id").fetchall()
         return [_row_to_dict(r) for r in rows]
-    finally:
-        conn.close()
 
 
 _JSON_ERROR = object()
@@ -211,8 +201,7 @@ def _create_gcal_key_sync(body):
             raise HTTPException(400, "JSON 路徑或 Calendar ID 長度不合法")
         if uploaded_path is None:
             _client_email_from_path(credentials_path)  # 觸發檔案格式/存在性檢查結果由 email 顯示
-        conn = get_db()
-        try:
+        with db_session() as conn:
             if conn.execute("SELECT id FROM gcal_keys WHERE name=?", (name,)).fetchone():
                 raise HTTPException(400, f"Key「{name}」已存在")
             cur = conn.execute(
@@ -221,19 +210,11 @@ def _create_gcal_key_sync(body):
             )
             new_key_id = cur.lastrowid
             conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
         upload_committed = True
         _backfill_all_appointments(new_key_id)
         _wake_scheduler()
-        conn = get_db()
-        try:
+        with db_session() as conn:
             row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (new_key_id,)).fetchone()
-        finally:
-            conn.close()
         return _row_to_dict(row)
     finally:
         if uploaded_path is not None and not upload_committed:
@@ -320,13 +301,10 @@ def _build_key_updates(row, key_id: int, name, credentials_path, calendar_id, is
             raise HTTPException(400, "Key 名稱不可為空白")
         if len(name) > 100:
             raise HTTPException(400, "Key 名稱過長")
-        conn = get_db()
-        try:
+        with db_session() as conn:
             dup = conn.execute(
                 "SELECT id FROM gcal_keys WHERE name=? AND id!=?", (name, key_id)
             ).fetchone()
-        finally:
-            conn.close()
         if dup:
             raise HTTPException(400, f"Key「{name}」已被使用")
         updates.append("name=?")
@@ -490,16 +468,13 @@ def _finish_key_update(key_id: int, old_credentials_path: str, new_credentials_p
     """key 更新已提交後的收尾：清舊憑證檔並重置重試次數、完成 calendar migration 或回填，最後喚醒排程器。"""
     if new_credentials_path != old_credentials_path:
         _delete_uploaded_credentials(old_credentials_path)
-        conn = get_db()
-        try:
+        with db_session() as conn:
             conn.execute(
                 "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
                 "WHERE key_id=?",
                 (gcal_sync.sync_version_now(), key_id),
             )
             conn.commit()
-        finally:
-            conn.close()
     if calendar_changed:
         gcal_sync.maybe_finalize_calendar_migration(key_id, wake=_wake_scheduler)
     elif was_inactive and new_is_active:
@@ -511,11 +486,8 @@ def _update_gcal_key_locked(key_id: int, body):
     uploaded_path = None
     upload_committed = False
     try:
-        conn = get_db()
-        try:
+        with db_session() as conn:
             row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
-        finally:
-            conn.close()
         if not row:
             raise HTTPException(404, "Key 不存在")
 
@@ -527,8 +499,7 @@ def _update_gcal_key_locked(key_id: int, body):
         was_inactive = not bool(row["is_active"])
         new_is_active = bool(row["is_active"]) if is_active is None else bool(is_active)
 
-        conn = get_db()
-        try:
+        with db_session() as conn:
             if calendar_changed:
                 _stage_calendar_change(conn, key_id, calendar_id)
                 _delete_remote_events_for_calendar_change(conn, key_id, row)
@@ -540,21 +511,13 @@ def _update_gcal_key_locked(key_id: int, body):
                     "UPDATE users SET gcal_key=? WHERE gcal_key=?", (name, row["name"])
                 )
             conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
         upload_committed = True
 
         _finish_key_update(key_id, old_credentials_path, new_credentials_path,
                            calendar_changed, was_inactive, new_is_active)
 
-        conn = get_db()
-        try:
+        with db_session() as conn:
             final_row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
-        finally:
-            conn.close()
         return _row_to_dict(final_row)
     finally:
         if uploaded_path is not None and not upload_committed:
@@ -619,52 +582,47 @@ def delete_gcal_key(key_id: int):
     if key_id < 0:
         raise HTTPException(400, "key_id 不可為負數")
 
-    conn = get_db()
-    try:
-        with ExitStack() as process_locks:
-            process_locks.enter_context(gcal_sync._key_process_lock(key_id))
-            row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
-            if not row:
-                raise HTTPException(404, "Key 不存在")
+    with db_session() as conn:
+        try:
+            with ExitStack() as process_locks:
+                process_locks.enter_context(gcal_sync._key_process_lock(key_id))
+                row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+                if not row:
+                    raise HTTPException(404, "Key 不存在")
 
-            maps = conn.execute(
-                "SELECT appointment_id, google_event_id FROM appointment_gcal_map WHERE key_id=?",
-                (key_id,),
-            ).fetchall()
-            with ExitStack() as event_locks:
-                for mapped_appt_id, mapped_key_id in sorted(
-                    {(m["appointment_id"], key_id) for m in maps}
-                ):
-                    event_locks.enter_context(
-                        gcal_sync._event_process_lock(mapped_appt_id, mapped_key_id)
-                    )
-                remote_maps = [m for m in maps if m["google_event_id"]]
-                deleted_ok, failed_maps = _delete_remote_key_events(row, remote_maps) if remote_maps else (0, [])
-                if failed_maps:
-                    _keep_key_after_failed_deletes(conn, key_id, deleted_ok, failed_maps)
+                maps = conn.execute(
+                    "SELECT appointment_id, google_event_id FROM appointment_gcal_map WHERE key_id=?",
+                    (key_id,),
+                ).fetchall()
+                with ExitStack() as event_locks:
+                    for mapped_appt_id, mapped_key_id in sorted(
+                        {(m["appointment_id"], key_id) for m in maps}
+                    ):
+                        event_locks.enter_context(
+                            gcal_sync._event_process_lock(mapped_appt_id, mapped_key_id)
+                        )
+                    remote_maps = [m for m in maps if m["google_event_id"]]
+                    deleted_ok, failed_maps = _delete_remote_key_events(row, remote_maps) if remote_maps else (0, [])
+                    if failed_maps:
+                        _keep_key_after_failed_deletes(conn, key_id, deleted_ok, failed_maps)
 
-                conn.execute("DELETE FROM gcal_keys WHERE id=?", (key_id,))
-                conn.commit()
-                _delete_uploaded_credentials(row["credentials_path"])
-                msg = f"Key 已刪除（Google 事件：{deleted_ok} 成功 / 0 失敗）"
-                logger.info(msg)
-                return {"ok": True, "google_deleted": deleted_ok, "google_failed": 0}
-    except gcal_sync.GcalLockTimeout as exc:
-        conn.rollback()
-        raise HTTPException(503, _LOCK_BUSY_DETAIL) from exc
-    finally:
-        conn.close()
+                    conn.execute("DELETE FROM gcal_keys WHERE id=?", (key_id,))
+                    conn.commit()
+                    _delete_uploaded_credentials(row["credentials_path"])
+                    msg = f"Key 已刪除（Google 事件：{deleted_ok} 成功 / 0 失敗）"
+                    logger.info(msg)
+                    return {"ok": True, "google_deleted": deleted_ok, "google_failed": 0}
+        except gcal_sync.GcalLockTimeout as exc:
+            conn.rollback()
+            raise HTTPException(503, _LOCK_BUSY_DETAIL) from exc
 
 
 @router.get("/api/gcal-keys/options", dependencies=[Depends(require_perm("gcal-keys-manage"))])
 def gcal_key_options():
     """下拉選單用：回傳啟用中的 key（id + name）。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute("SELECT id, name FROM gcal_keys WHERE is_active=1 ORDER BY name").fetchall()
         return [{"id": r["id"], "name": r["name"]} for r in rows]
-    finally:
-        conn.close()
 
 
 @router.get(
@@ -675,13 +633,10 @@ def probe_remote_event_reminders(key_id: int, event_id: str):
     """診斷 Google remote reminders；可讀 inactive key，但不回傳憑證資料。"""
     if key_id < 0 or not event_id or len(event_id) > 1024:
         raise HTTPException(400, "key_id 或 event_id 格式不合法")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute(
             "SELECT * FROM gcal_keys WHERE id=?", (key_id,)
         ).fetchone()
-    finally:
-        conn.close()
     if row is None:
         raise HTTPException(404, "Key 不存在")
     try:
@@ -699,12 +654,9 @@ def probe_remote_event_reminders(key_id: int, event_id: str):
 @router.get("/api/gcal-sync-settings", dependencies=[Depends(require_perm("gcal-sync-manage"))])
 def get_gcal_sync_settings():
     """讀取全域同步設定。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute("SELECT key, value FROM gcal_sync_settings").fetchall()
         return {r["key"]: r["value"] for r in rows}
-    finally:
-        conn.close()
 
 
 @router.put("/api/gcal-sync-settings", dependencies=[Depends(require_perm("gcal-sync-manage"))])
@@ -718,8 +670,7 @@ def update_gcal_sync_settings(body: dict):
         raise HTTPException(400, "至少要提供一個同步設定")
     changed = False
     payload_changed = False
-    conn = get_db()
-    try:
+    with db_session() as conn:
         for k, v in body.items():
             if k not in allowed:
                 continue
@@ -750,8 +701,6 @@ def update_gcal_sync_settings(body: dict):
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (k, value))
         conn.commit()
-    finally:
-        conn.close()
     affected = gcal_sync.enqueue_existing_mappings() if payload_changed else 0
     if changed:
         _wake_scheduler()
@@ -774,8 +723,7 @@ def update_key_reminders(key_id: int, body: dict):
             raise HTTPException(400, "每筆通知只能是 popup 且需含 minutes")
         if isinstance(r["minutes"], bool) or not isinstance(r["minutes"], int) or r["minutes"] < 0 or r["minutes"] > 40320:
             raise HTTPException(400, "minutes 範圍 0~40320")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT id, reminders FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Key 不存在")
@@ -784,8 +732,6 @@ def update_key_reminders(key_id: int, body: dict):
         conn.execute("UPDATE gcal_keys SET reminders=? WHERE id=?",
                      (_json.dumps(reminders, ensure_ascii=False), key_id))
         conn.commit()
-    finally:
-        conn.close()
     affected = gcal_sync.enqueue_existing_mappings(key_id)
     _wake_scheduler()
     return {"ok": True, "reminders": reminders, "affected": affected}
@@ -827,26 +773,24 @@ def _reset_sync_queue_for_keys(appt_id: int, key_ids: list[int]) -> int:
     key_ids = sorted(set(int(key_id) for key_id in key_ids))
     if not key_ids:
         raise HTTPException(404, "沒有可重試的同步目標")
-    conn = get_db()
-    try:
-        actual_ids = gcal_sync.existing_queue_key_ids(conn, appt_id, key_ids)
-        if not actual_ids:
-            raise HTTPException(404, "找不到可重試的同步 Queue")
-        placeholders = ",".join("?" * len(actual_ids))
-        conn.execute(
-            "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
-            "WHERE appointment_id=? AND key_id IN (" + placeholders + ")",
-            [gcal_sync.sync_version_now(), appt_id, *actual_ids],
-        )
-        conn.commit()
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            actual_ids = gcal_sync.existing_queue_key_ids(conn, appt_id, key_ids)
+            if not actual_ids:
+                raise HTTPException(404, "找不到可重試的同步 Queue")
+            placeholders = ",".join("?" * len(actual_ids))
+            conn.execute(
+                "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
+                "WHERE appointment_id=? AND key_id IN (" + placeholders + ")",
+                [gcal_sync.sync_version_now(), appt_id, *actual_ids],
+            )
+            conn.commit()
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
     _wake_scheduler()
     return len(actual_ids)
 
@@ -854,11 +798,8 @@ def _reset_sync_queue_for_keys(appt_id: int, key_ids: list[int]) -> int:
 @router.put("/api/gcal-sync-queue/reset-mine")
 def reset_my_sync_queue(appt_id: int, user: dict = Depends(require_login)):
     """只重試目前登入者在該行程的同步 Queue。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         key_ids = _resolve_assigned_user_key_ids(conn, appt_id, user["id"])
-    finally:
-        conn.close()
     if not key_ids:
         raise HTTPException(404, "你不是此行程的有效同步人員")
     count = _reset_sync_queue_for_keys(appt_id, key_ids)
@@ -870,16 +811,13 @@ def reset_sync_queue_scope(appt_id: int, scope: str = "all", target_user_id: int
     """Admin 重試指定人員或該行程全部有效同步目標。"""
     if scope not in {"all", "user"}:
         raise HTTPException(400, "scope 只能是 all 或 user")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         if scope == "all":
             key_ids = _resolve_retry_all_key_ids(conn, appt_id)
         else:
             if target_user_id <= 0:
                 raise HTTPException(400, "指定人員時需要有效 target_user_id")
             key_ids = _resolve_assigned_user_key_ids(conn, appt_id, target_user_id)
-    finally:
-        conn.close()
     count = _reset_sync_queue_for_keys(appt_id, key_ids)
     return {"ok": True, "scope": scope, "reset": count}
 
@@ -889,8 +827,7 @@ def reset_sync_queue_scope(appt_id: int, scope: str = "all", target_user_id: int
 @router.get("/api/gcal-sync-queue", dependencies=[Depends(require_perm("gcal-sync-manage"))])
 def list_sync_queue():
     """列出同步隊列（含 retry/exhausted、Calendar 與已刪除行程資訊）。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             "SELECT q.appointment_id, q.key_id, q.op_type, q.google_event_id,"
             " q.attempts, q.last_error, q.last_modified_at,"
@@ -909,8 +846,6 @@ def list_sync_queue():
             item["is_deleted"] = item["client_name"] is None
             items.append(item)
         return {"items": items}
-    finally:
-        conn.close()
 
 
 @router.get("/api/gcal-sync-status", dependencies=[Depends(require_perm("gcal-sync-manage"))])
@@ -924,8 +859,7 @@ def reset_sync_queue(appt_id: int, key_id: int):
     """重置指定 queue 列；不會清除其他 exhausted/error 項目。"""
     if appt_id < 0 or key_id < 0:
         raise HTTPException(400, "appointment_id 與 key_id 不可為負數")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute(
             "SELECT appointment_id FROM appointment_sync_queue "
             "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)).fetchone()
@@ -936,7 +870,5 @@ def reset_sync_queue(appt_id: int, key_id: int):
             "WHERE appointment_id=? AND key_id=?",
             (gcal_sync.sync_version_now(), appt_id, key_id))
         conn.commit()
-    finally:
-        conn.close()
     _wake_scheduler()
     return {"ok": True}
