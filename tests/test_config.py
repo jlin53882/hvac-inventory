@@ -33,6 +33,22 @@ class TestParseEnvText:
         text = "export TOKEN=abc123   # 備註\nURL=https://x.test/path#frag\n"
         assert parse_env_text(text) == {"TOKEN": "abc123", "URL": "https://x.test/path#frag"}
 
+    def test_quoted_value_followed_by_inline_comment(self):
+        assert parse_env_text('A="hello world" # comment') == {"A": "hello world"}
+        assert parse_env_text("A='hello # world' # comment") == {"A": "hello # world"}
+        assert parse_env_text('export TOKEN="abc 123"   # 備註') == {"TOKEN": "abc 123"}
+
+    def test_quoted_webhook_url_with_comment_has_no_quotes(self):
+        text = 'DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/xxx" # 正式 webhook\n'
+        assert parse_env_text(text) == {"DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/xxx"}
+
+    def test_hash_without_leading_space_is_kept(self):
+        assert parse_env_text("URL=https://x.test/path#frag") == {"URL": "https://x.test/path#frag"}
+        assert parse_env_text('URL="https://x.test/p#f" # c') == {"URL": "https://x.test/p#f"}
+
+    def test_unbalanced_quote_is_kept_verbatim(self):
+        assert parse_env_text('C="unbalanced\nD=\'x # y\n') == {"C": '"unbalanced', "D": "'x"}
+
     def test_handles_crlf_line_endings(self):
         assert parse_env_text("K1=v1\r\nK2=v2\r\n") == {"K1": "v1", "K2": "v2"}
 

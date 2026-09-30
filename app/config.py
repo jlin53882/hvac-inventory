@@ -27,7 +27,9 @@ def parse_env_text(text: str) -> dict[str, str]:
     """解析 .env 內容 → {key: value}。
 
     支援：``KEY=value``、``export KEY=value``、單/雙引號包住的值（去引號，內含 # 保留）、
-    未加引號值的行內註解（空白 + ``#`` 之後）。跳過空行、``#`` 註解行、無 ``=`` 或空 key 的行。
+    行內註解（引號之外、空白 + ``#`` 之後；引號值後面接註解也可，例如 ``A="x y" # 備註``）。
+    未加引號值裡的 ``#``（如 URL fragment）若前面沒有空白則保留。
+    跳過空行、``#`` 註解行、無 ``=`` 或空 key 的行。
     """
     result: dict[str, str] = {}
     for raw in text.splitlines():
@@ -42,15 +44,27 @@ def parse_env_text(text: str) -> dict[str, str]:
         key = key.strip()
         if not key:
             continue
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
-        else:
-            match = _INLINE_COMMENT_RE.search(value)
-            if match:
-                value = value[:match.start()].rstrip()
-        result[key] = value
+        result[key] = _parse_env_value(value.strip())
     return result
+
+
+def _parse_env_value(value: str) -> str:
+    """去掉引號之外的行內註解，再去掉外層成對引號。
+
+    以引號開頭且有收尾引號時，只從收尾引號之後找註解（引號內的 # 一律保留）；
+    否則從頭找。引號沒收尾（例如 ``"abc``）維持原樣。
+    """
+    search_from = 0
+    if value[:1] in ("'", '"'):
+        close = value.find(value[0], 1)
+        if close != -1:
+            search_from = close + 1
+    match = _INLINE_COMMENT_RE.search(value, search_from)
+    if match:
+        value = value[:match.start()].rstrip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    return value
 
 
 def load_env_file(path: str, environ=None) -> list[str]:
