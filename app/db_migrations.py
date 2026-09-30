@@ -2,10 +2,23 @@
 """
 資料庫欄位遷移（ALTER TABLE 補欄位 + 必要的資料回填）
 =====================================================
-每個遷移都是冪等的（先用 PRAGMA table_info / sqlite_master 檢查再動手），可對任何版本的既有資料庫重複執行。
+MIGRATIONS 目前每次 init_db() 都會依序「重新執行」，因此所有遷移必須永遠是冪等的：
+- ALTER TABLE 前先用 PRAGMA table_info / sqlite_master 檢查欄位或物件是否存在
+- CREATE INDEX 用 IF NOT EXISTS 或等價檢查
+- 資料回填不得覆蓋使用者已修改的值
+- 一次性資料轉換要有持久的標記（durable marker）或 WHERE 條件保護
 MIGRATIONS 的順序就是執行順序（與拆分前 _exec_init 的順序完全一致，不要任意調換）。
 
-新增遷移：加一個函式、補進 MIGRATIONS 尾端；若遷移不冪等，務必同時把 SCHEMA_VERSION +1。
+SCHEMA_VERSION（PRAGMA user_version）只是：
+1. 資料庫 / 程式碼相容性標記
+2. 降版保護（資料庫比程式新就拒絕啟動）
+它「不」控制 MIGRATIONS 執行幾次，也不是「已跑到第幾個遷移」的游標；
+只把 SCHEMA_VERSION +1 無法讓不冪等的遷移變安全。
+
+新增遷移：加一個冪等函式、補進 MIGRATIONS 尾端。若 schema 的變化使舊程式不能安全讀寫，
+再把 SCHEMA_VERSION +1（讓回滾部署的舊程式拒絕啟動）。
+若未來真的需要不冪等的遷移，必須先另外實作 current_version -> target_version 的版本化 runner，
+不可直接放進目前的 MIGRATIONS。
 """
 from app.services.app_log import get_logger
 
@@ -192,6 +205,6 @@ MIGRATIONS = (
 
 
 def run_migrations(conn) -> None:
-    """依序執行全部欄位遷移（呼叫端負責交易邊界）。"""
+    """依序執行全部欄位遷移（呼叫端負責交易邊界）。每次啟動都會全部重跑，所以每個遷移都必須冪等。"""
     for migration in MIGRATIONS:
         migration(conn)

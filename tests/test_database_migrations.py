@@ -851,6 +851,9 @@ def test_init_db_refuses_database_newer_than_code(tmp_path, monkeypatch) -> None
 def test_init_db_twice_is_idempotent(tmp_path, monkeypatch) -> None:
     """schema / 遷移 / 種子全部冪等：第二次初始化不得改變任何資料表內容。
 
+    契約：MIGRATIONS 每次 init_db() 都會全部重跑（SCHEMA_VERSION 只是相容性標記 / 降版保護，
+    不是遷移游標），所以「重跑不改資料」是每個遷移必須滿足的條件，這個測試就是它的守衛。
+
     sqlite_sequence 例外：INSERT OR IGNORE 每次啟動都會讓 AUTOINCREMENT 計數器前進，
     這是 SQLite 既有行為、不影響資料，因此不納入比較。
     """
@@ -868,6 +871,26 @@ def test_init_db_twice_is_idempotent(tmp_path, monkeypatch) -> None:
     first = snapshot()
     app_db.init_db()
     assert snapshot() == first
+
+
+def test_schema_version_is_compatibility_marker_not_migration_cursor(tmp_path, monkeypatch) -> None:
+    """SCHEMA_VERSION 不控制遷移執行：user_version 已是最新時，MIGRATIONS 仍會全部重跑。
+
+    舊的註解曾寫「遷移不冪等就把 SCHEMA_VERSION +1」——那是錯的，+1 擋不住下次啟動再跑一次。
+    """
+    from app import db_migrations
+
+    database_path = tmp_path / "marker.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(database_path))
+    app_db.init_db()
+
+    calls: list[str] = []
+    probes = tuple(
+        (lambda conn, name=migration.__name__: calls.append(name)) for migration in db_migrations.MIGRATIONS
+    )
+    monkeypatch.setattr(db_migrations, "MIGRATIONS", probes)
+    app_db.init_db()  # user_version 已等於 SCHEMA_VERSION
+    assert len(calls) == len(probes), "MIGRATIONS 每次 init_db() 都應全部重跑，不依 user_version 跳過"
 
 
 def test_migrations_and_seeds_are_ordered_registries() -> None:
