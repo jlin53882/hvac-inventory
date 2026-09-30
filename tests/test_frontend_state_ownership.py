@@ -259,6 +259,72 @@ def find_getter_alias_mutations(source):
     return found
 
 
+_FUNCTION_DECL_RE = re.compile(r"\bfunction\s+(\w+)\s*\(([^)]*)\)\s*\{")
+_GETTER_CALL_RE = re.compile(r"\b(?:" + "|".join(sorted(GETTERS)) + r")\(\)")
+
+
+def _split_top_level_args(text):
+    """把呼叫的引數文字依「最外層逗號」切開（略過巢狀括號 / 陣列 / 物件內的逗號）。"""
+    args, depth, current = [], 0, []
+    for char in text:
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        if char == "," and depth == 0:
+            args.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    args.append("".join(current))
+    return args
+
+
+def _call_argument_text(source, open_paren):
+    """open_paren 是 '(' 的位置；回傳到對應 ')' 之前的引數文字（找不到回傳 None）。"""
+    depth = 0
+    for index in range(open_paren, len(source)):
+        char = source[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return source[open_paren + 1:index]
+    return None
+
+
+def find_getter_argument_mutations(source):
+    """找出「把 getter 回傳的 live reference 直接當引數傳給同檔函式，而該函式又原地修改這個參數」。
+
+    例：`renderFilterChips(id, counts, getCurrentBrands(), …)`，函式裡 `selectedArr.push(name)` / `selectedArr.length = 0`。
+    只做同一檔案內、函式宣告可直接對應的檢查（不做跨檔 data-flow）；回傳 [(函式名, 參數名, 修改片段)]。
+    """
+    definitions = {}
+    for match in _FUNCTION_DECL_RE.finditer(source):
+        body_start = match.end()
+        definitions.setdefault(match.group(1), []).append((
+            [param.strip().split("=")[0].strip() for param in match.group(2).split(",") if param.strip()],
+            source[body_start:_enclosing_scope_end(source, body_start)],
+        ))
+    found = []
+    for name, overloads in definitions.items():
+        for call in re.finditer(rf"(?<![\w.]){re.escape(name)}\s*\(", source):
+            if source[max(0, call.start() - len("function ")):call.start()] == "function ":
+                continue   # 這是函式宣告本身，不是呼叫
+            args_text = _call_argument_text(source, call.end() - 1)
+            if args_text is None:
+                continue
+            for index, arg in enumerate(_split_top_level_args(args_text)):
+                if not _GETTER_CALL_RE.fullmatch(arg.strip()):
+                    continue
+                for params, body in overloads:
+                    if index < len(params):
+                        for hit in _alias_mutation_re(params[index]).finditer(body):
+                            found.append((name, params[index], hit.group(0)))
+    return found
+
+
 def test_read_model_getters_are_not_mutated_by_consumers():
     """getter 回傳的是 live reference：不得 getAllItems().push(...)，也不得 `const x = getAllItems(); x.push(...)`（alias）。"""
     offenders = {}
@@ -268,6 +334,43 @@ def test_read_model_getters_are_not_mutated_by_consumers():
         if hits:
             offenders[os.path.relpath(path, JS_ROOT).replace(os.sep, "/")] = hits
     assert not offenders, f"透過 getter（含區域變數 alias）原地修改共用狀態（請改由 owner 提供 setter）：{offenders}"
+
+
+def test_getter_results_passed_to_helpers_are_not_mutated_there():
+    """getter 回傳值當引數傳給同檔函式時，函式不得原地修改該參數（filters.js 的 renderFilterChips 曾經這樣改 live array）。"""
+    offenders = {}
+    for path, source in _js_sources():
+        hits = find_getter_argument_mutations(source)
+        if hits:
+            offenders[os.path.relpath(path, JS_ROOT).replace(os.sep, "/")] = hits
+    assert not offenders, f"函式原地修改了傳入的 read-model 資料（請改由 owner setter / data-action 委派寫入）：{offenders}"
+
+
+def test_getter_argument_scanner_catches_parameter_mutations():
+    """scanner 自身的 regression：參數 alias 的原地修改要抓到，唯讀 / 已有其他來源的用法不誤判。"""
+    must_fail = [
+        "function draw(list, selected) { selected.push(1); }\ndraw(items, getCurrentBrands());",
+        "function draw(selected) {\n  el.onclick = function() { selected.length = 0; };\n}\ndraw(getCurrentBrands());",
+        "function draw(a, b, sel) { if (x) sel.splice(0, 1); }\ndraw(1, [1, 2], getCurrentCategories());",
+        "function patch(meta) { meta.page = 3; }\npatch(getInventoryMeta());",
+    ]
+    for source in must_fail:
+        assert find_getter_argument_mutations(source), f"參數 mutation 沒被抓到：{source!r}"
+    must_pass = [
+        "function draw(list, selected) { return selected.includes(list[0]); }\ndraw(items, getCurrentBrands());",
+        "function draw(selected) { selected.push(1); }\ndraw(localCopy);",
+        "function draw(selected) { const next = selected.concat(1); return next; }\ndraw(getCurrentBrands());",
+        "function draw(a, selected) { a.push(1); }\ndraw(list, getCurrentBrands());",
+    ]
+    for source in must_pass:
+        assert not find_getter_argument_mutations(source), f"合法用法被誤判：{source!r}"
+    old_filters = (
+        "function renderFilterChips(containerId, counts, selectedArr, type) {\n"
+        "  allChip.onclick = function() { selectedArr.length = 0; };\n"
+        "  chip.onclick = function() { if (i >= 0) selectedArr.splice(i, 1); else selectedArr.push(name); };\n"
+        "}\nrenderFilterChips('fp-brand-chips', brands, getCurrentBrands(), 'brand');"
+    )
+    assert find_getter_argument_mutations(old_filters), "filters.js 舊寫法（renderFilterChips 改傳入的 live array）必須被抓到"
 
 
 def test_getter_alias_scanner_catches_alias_mutations():

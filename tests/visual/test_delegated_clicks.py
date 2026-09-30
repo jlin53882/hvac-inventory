@@ -119,3 +119,30 @@ def test_permissions_page_tabs(page, live_server):
     _click(page, '[data-action="perms-add-user-close"]')
     page.wait_for_timeout(200)
     assert not page.evaluate("!!document.querySelector('[data-role=\"modal\"].is-open')")
+
+
+def test_filter_chips_toggle_through_delegation(page, live_server, viewport):
+    """品牌 chip（含「全部」）走 inventory-brand-toggle 委派：點選 → 只經 setter 寫入 read-model，再點 → 取消，「全部」→ 清空。"""
+    if viewport[0] != "desktop":
+        return   # 篩選面板 chips 只在桌面版顯示
+    harness.open_tab(page, live_server, "inventory")
+    page.wait_for_selector('#fp-brand-chips [data-action="inventory-brand-toggle"]')
+    brands = "hvac('core/shared-read-model.js').getCurrentBrands()"
+    before = page.evaluate(brands)
+    assert before == []
+    chips = page.locator('#fp-brand-chips [data-action="inventory-brand-toggle"]')
+    assert chips.first.get_attribute("data-value") == ""     # 「全部」
+    name = chips.nth(1).get_attribute("data-value")
+    assert name
+    chips.nth(1).click()
+    page.wait_for_load_state("networkidle")
+    assert page.evaluate(brands) == [name]
+    # setter 是整批換新陣列，舊 reference 不會被原地修改
+    page.locator(f'#fp-brand-chips [data-value="{name}"]').click()
+    page.wait_for_load_state("networkidle")
+    assert page.evaluate(brands) == []
+    page.locator(f'#fp-brand-chips [data-value="{name}"]').click()
+    page.wait_for_load_state("networkidle")
+    page.locator('#fp-brand-chips [data-action="inventory-brand-toggle"][data-value=""]').click()
+    page.wait_for_load_state("networkidle")
+    assert page.evaluate(brands) == []

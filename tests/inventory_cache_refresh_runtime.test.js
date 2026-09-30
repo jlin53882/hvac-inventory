@@ -9,7 +9,7 @@ const elements = {};
 function makeElement() {
   const classes = new Set();
   const element = {
-    innerHTML: '', textContent: '', value: '', children: [], offsetWidth: 1200,
+    innerHTML: '', textContent: '', value: '', children: [], offsetWidth: 1200, dataset: {},
     classList: {
       toggle(name, force) { if (force === undefined ? !classes.has(name) : force) classes.add(name); else classes.delete(name); return classes.has(name); },
       contains(name) { return classes.has(name); },
@@ -89,6 +89,8 @@ context.updateSubInfo = async () => {};
   assert.equal(context.getInventoryFacets().categories.NewCategory, 1, '篩選資料應替換為最新分類');
   assert.equal(context.getInventoryFacets().categories.OldCategory, undefined, '舊分類不應殘留');
   assert.ok(elements['fp-cat-chips'].children.some(chip => chip.innerHTML.includes('NewCategory')));
+  // chips 只帶 data-action / data-value（點擊由 inventory 的 delegate 處理），不再有 onclick property
+  assert.ok(elements['fp-cat-chips'].children.every(chip => chip.dataset.action === 'inventory-category-toggle' && typeof chip.dataset.value === 'string' && !chip.onclick));
   assert.ok(!elements['fp-cat-chips'].children.some(chip => chip.innerHTML.includes('OldCategory')));
 
   // Full item reloads while inventory is mounted (for example kit edit) also refresh facets.

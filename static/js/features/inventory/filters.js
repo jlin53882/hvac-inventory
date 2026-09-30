@@ -123,7 +123,8 @@ export function buildFilterPanel() {
  * 渲染篩選 chips，根據容器寬度動態決定是否截斷。
  * @param {string} containerId - 容器元素 ID
  * @param {Array} counts - [名稱, 計數] 的陣列
- * @param {Array} selectedArr - 目前選中的值陣列
+ * @param {Array} selectedArr - 目前選中的值陣列（read-model 的 live reference：這裡只讀，不得修改；
+ *   點擊 chip 由 data-action 委派到 toggleInventoryBrand / toggleInventoryCategory，經 setter 寫入）
  * @param {string} type - 篩選類型（'brand' 或 'category'）
  * @param {string} toggleBtnId - 展開/收合按鈕 ID
  */
@@ -132,6 +133,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
   var el = document.getElementById(containerId);
   if (!el) return;
 
+  var toggleAction = type === 'brand' ? 'inventory-brand-toggle' : 'inventory-category-toggle';
   el.innerHTML = '';
   el.classList.toggle('is-collapsed', !filterExpandedState[type]);
 
@@ -141,7 +143,8 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
   allChip.textContent = '全部';
 
-  allChip.onclick = function() { selectedArr.length = 0; loadInventoryPage(1); };
+  allChip.dataset.action = toggleAction;
+  allChip.dataset.value = '';
 
   el.appendChild(allChip);
 
@@ -169,17 +172,8 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
     chip.innerHTML = esc(name) + ' <span class="badge">' + count + '</span>';
 
-    chip.onclick = function() {
-
-      var idx = selectedArr.indexOf(name);
-
-      if (idx >= 0) selectedArr.splice(idx, 1);
-
-      else selectedArr.push(name);
-
-      loadInventoryPage(1);
-
-    };
+    chip.dataset.action = toggleAction;
+    chip.dataset.value = name;
 
     el.appendChild(chip);
     chipsAdded++;

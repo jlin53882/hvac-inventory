@@ -67,3 +67,49 @@ def test_no_dynamic_inline_handler_attributes():
             if name.endswith(".js") and pattern.search(open(os.path.join(base, name), encoding="utf-8").read()):
                 offenders.append(name)
     assert not offenders, f"這些檔案用 setAttribute('on…') 動態寫 inline handler：{offenders}"
+
+
+# ---- DOM property handler（`el.onclick = …`）----
+# 不是 HTML 屬性，上面的 inline handler 守衛看不到；但事件架構已統一為 data-action + createActionDelegate，
+# 所以新的 property handler 一律不准，現有的只准減少。下列是尚未遷移、且各有用途的舊寫法（動態建立的一次性 DOM 節點 /
+# 只綁在單一元素上的事件），遷移後請從這裡刪掉。
+PROPERTY_HANDLER = re.compile(r"\.on(?:click|change|input|submit|keydown|keyup)\s*=(?!=)")
+PROPERTY_HANDLER_BASELINE = {
+    "static/js/core/units.js": 2,                        # 單位快速新增的臨時輸入框（確定 / 取消）
+    "static/js/features/calendar/view.js": 1,
+    "static/js/features/inventory/photo.js": 1,          # 照片大圖 overlay：點照片本身不關閉
+    "static/js/features/stockout/modals.js": 1,          # kit-prepare 送出鈕綁定當下的整組 id
+    "static/js/features/upload-list/upload-list.js": 1,  # 預覽 modal 的下載鈕
+    "static/js/features/work-progress/detail.js": 1,     # 動態 file input 的 change
+}
+
+
+def _property_handler_counts() -> dict:
+    counts = {}
+    for base, _dirs, files in os.walk(STATIC):
+        if "dist" in base.split(os.sep) or "vendor" in base.split(os.sep):
+            continue
+        for name in files:
+            if not name.endswith(".js"):
+                continue
+            path = os.path.join(base, name)
+            with open(path, encoding="utf-8") as handle:
+                count = len(PROPERTY_HANDLER.findall(handle.read()))
+            if count:
+                counts[os.path.relpath(path, os.path.dirname(STATIC)).replace(os.sep, "/")] = count
+    return counts
+
+
+def test_property_handlers_never_increase():
+    """`el.onclick = …` 只准減少；filters.js 的 filter chips 已改走 inventory-brand/category-toggle 委派，基準為 0。"""
+    current = _property_handler_counts()
+    grew = {f: (PROPERTY_HANDLER_BASELINE.get(f, 0), n) for f, n in current.items() if n > PROPERTY_HANDLER_BASELINE.get(f, 0)}
+    assert not grew, (
+        "不要用 el.onclick = … 綁事件（請用 data-action + createActionDelegate）：\n"
+        + "\n".join(f"{f}: 基準 {old} → 現在 {new}" for f, (old, new) in sorted(grew.items()))
+    )
+    stale = {f: (n, current.get(f, 0)) for f, n in PROPERTY_HANDLER_BASELINE.items() if current.get(f, 0) < n}
+    assert not stale, (
+        "已減少 property handler，請調降 PROPERTY_HANDLER_BASELINE：\n"
+        + "\n".join(f"{f}: 基準 {old} → 現在 {new}" for f, (old, new) in sorted(stale.items()))
+    )
