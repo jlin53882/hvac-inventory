@@ -2,8 +2,11 @@
 // 只負責摘要 state、Popover/Bottom Sheet 與既有詳細 Dialog 的導流。
 // 不重新查詢商品、不複製庫存判定、不建立通知 API 或資料表。
 
+import { createActionDelegate } from '../../core/actions.js';
 import { canAccessPage, currentUser } from '../../core/session.js';
 import { appState } from '../../core/state.js';
+import { getCurrentKitItems, getFullItemsLoadedSite, getInventoryLoadedSite } from '../../core/shared-read-model.js';
+import { getAllItems, getInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems } from '../inventory/filters.js';
 import { getInventoryDashboardStats, getInventoryStatus, showInventoryStatusList } from '../inventory/status.js';
@@ -30,10 +33,10 @@ export function getStocktakeReminderState() {
 }
 
 function getNotificationSingleCounts() {
-  const stats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
+  const stats = getInventoryMeta().stats;
   const hasStatsItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
   if (appState.currentTab === 'inventory') {
-    if (typeof appState.inventoryLoadedSite !== 'undefined' && appState.inventoryLoadedSite !== appState.currentSite && !hasStatsItems) {
+    if (getInventoryLoadedSite() !== appState.currentSite && !hasStatsItems) {
       return { loading: true, out: 0, low: 0 };
     }
     const items = getFilteredInventoryItems();
@@ -48,10 +51,10 @@ function getNotificationSingleCounts() {
     };
   }
   if (appState.currentTab === 'stocktake') {
-    if (typeof appState.fullItemsLoadedSite !== 'undefined' && appState.fullItemsLoadedSite !== appState.currentSite && !(appState.ALL_ITEMS || []).length) {
+    if (getFullItemsLoadedSite() !== appState.currentSite && !(getAllItems() || []).length) {
       return { loading: true, out: 0, low: 0 };
     }
-    const items = Array.isArray(appState.ALL_ITEMS) ? appState.ALL_ITEMS : [];
+    const items = Array.isArray(getAllItems()) ? getAllItems() : [];
     const statusOf = getInventoryStatus;
     return {
       loading: false,
@@ -73,8 +76,8 @@ function getNotificationSummary() {
       if (counts.low > 0) categories.push({ kind: 'low', tone: 'low', icon: '⚠', label: '低庫存商品', count: counts.low, unit: '項', description: '有 ' + counts.low + ' 個品項低於安全庫存' });
     }
   } else if (appState.currentTab === 'kit') {
-    const kits = Array.isArray(appState.currentKitItems) ? appState.currentKitItems : [];
-    if (typeof appState.fullItemsLoadedSite !== 'undefined' && appState.fullItemsLoadedSite !== appState.currentSite && !kits.length) {
+    const kits = Array.isArray(getCurrentKitItems()) ? getCurrentKitItems() : [];
+    if (getFullItemsLoadedSite() !== appState.currentSite && !kits.length) {
       loading = true;
     } else {
       const shortage = kits.filter(function(kit) { return getKitStatus(kit).status === 'shortage'; }).length;
@@ -211,3 +214,15 @@ export function initNotifications() {
     });
   })();
 }
+
+// 通知中心的事件委派（data-action="notif-*"）
+const NOTIF_ACTIONS = {
+  'notif-toggle': { click: function() { toggleNotif(); } },
+  'notif-close': { click: function() { closeNotif(); } },
+};
+
+const notifDelegate = createActionDelegate('notif-', NOTIF_ACTIONS);
+
+export const handleNotifEvent = notifDelegate.handle;
+
+export const initNotifActions = notifDelegate.init;

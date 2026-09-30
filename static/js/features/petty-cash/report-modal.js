@@ -73,33 +73,33 @@ export async function pcOpenReportModal(id) {
   pcOpeningSource = d.opening_balance_source || 'manual';
   const el = document.getElementById('content');
   el.insertAdjacentHTML('beforeend', `
-    <div id="pc-report-overlay" class="pc-overlay is-open" onclick="if(event.target===this)PettyCash.pcCloseReportModal()">
+    <div id="pc-report-overlay" class="pc-overlay is-open" data-action="pc-report-modal-backdrop">
       <div class="pc-modal" role="dialog" aria-label="零用金月報">
-        <div class="pc-modal__hd"><h3 id="pc-modal-title">${id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'}</h3><button class="btn btn--secondary btn--sm btn--icon" onclick="PettyCash.pcCloseReportModal()">✕</button></div>
+        <div class="pc-modal__hd"><h3 id="pc-modal-title">${id ? '✏️ 編輯零用金月報' : '＋ 新增零用金月報'}</h3><button class="btn btn--secondary btn--sm btn--icon" data-action="pc-report-modal-close">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <button type="button" class="chip chip--seg pc-step is-active" id="pc-step-1-tab" onclick="PettyCash.pcModalGotoStep(1)">① 基本資料</button>
-            <button type="button" class="chip chip--seg pc-step" id="pc-step-2-tab" onclick="PettyCash.pcModalGotoStep(2)">② 收支明細</button>
+            <button type="button" class="chip chip--seg pc-step is-active" id="pc-step-1-tab" data-action="pc-modal-step" data-step="1">① 基本資料</button>
+            <button type="button" class="chip chip--seg pc-step" id="pc-step-2-tab" data-action="pc-modal-step" data-step="2">② 收支明細</button>
           </div>
           <div id="pc-step-1">
             <div class="pc-form-grid pc-form-grid--two">
               <div class="pc-field"><label>報表期間（起）<span class="pc-required">*</span></label><input id="pc-m-start" type="date" value="${esc(d.start_date)}"></div>
               <div class="pc-field"><label>報表期間（迄）<span class="pc-required">*</span></label><input id="pc-m-end" type="date" value="${esc(d.end_date)}"></div>
-              <div class="pc-field"><label>檔名文字<span class="pc-required">*</span></label><input id="pc-m-filetext" type="text" placeholder="例：資材" value="${esc(d.filename_text)}" oninput="PettyCash.pcUpdateFilenamePreview()"></div>
-              <div class="pc-field"><label>上傳人姓名<span class="pc-required">*</span></label><input id="pc-m-uploader" type="text" list="pc-persons-list" placeholder="例：王小明" value="${esc(d.upload_person)}" oninput="PettyCash.pcUploaderChanged()"></div>
+              <div class="pc-field"><label>檔名文字<span class="pc-required">*</span></label><input id="pc-m-filetext" type="text" placeholder="例：資材" value="${esc(d.filename_text)}" data-action="pc-filename-preview"></div>
+              <div class="pc-field"><label>上傳人姓名<span class="pc-required">*</span></label><input id="pc-m-uploader" type="text" list="pc-persons-list" placeholder="例：王小明" value="${esc(d.upload_person)}" data-action="pc-uploader-changed"></div>
               <div class="pc-field"><label>製表人<span class="pc-required">*</span></label><input id="pc-m-prepared" type="text" maxlength="50" placeholder="預設同上傳人，可修改" value="${esc(d.prepared_by)}"></div>
-              <div class="pc-field"><label>上期餘額(選填)</label><input id="pc-m-opening" type="number" min="0" step="0.01" value="${esc(d.opening_balance)}" oninput="PettyCash.pcOpeningEdited()"></div>
+              <div class="pc-field"><label>上期餘額(選填)</label><input id="pc-m-opening" type="number" min="0" step="0.01" value="${esc(d.opening_balance)}" data-action="pc-opening-edited"></div>
             </div>
             <datalist id="pc-persons-list">${pcPersons.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
             <div class="pc-filename-preview" id="pc-filename-preview"></div>
             <div class="pc-balance-hint" id="pc-opening-hint"></div>
             <div class="pc-inline-actions u-mt-10">
-              <button class="btn btn--secondary btn--sm" onclick="PettyCash.pcFetchPreviousBalance()">🔍 帶入上一期餘額</button>
+              <button class="btn btn--secondary btn--sm" data-action="pc-fetch-previous-balance">🔍 帶入上一期餘額</button>
             </div>
           </div>
           <div id="pc-step-2" style="display:none">
             <div class="pc-inline-actions pc-inline-actions--head">
-              <button class="btn btn--primary btn--sm" onclick="PettyCash.pcOpenEntryModal()">＋ 新增紀錄</button>
+              <button class="btn btn--primary btn--sm" data-action="pc-entry-open">＋ 新增紀錄</button>
             </div>
             <div id="pc-modal-entries"></div>
             <div class="pc-summary-bar">
@@ -111,14 +111,14 @@ export async function pcOpenReportModal(id) {
         </div>
         <div class="pc-modal__ft">
           <span id="pc-modal-step-ops-1">
-            <button class="btn btn--secondary btn--md pc-btn" onclick="PettyCash.pcCloseReportModal()">取消</button>
-            <button class="btn btn--primary btn--md pc-btn" onclick="PettyCash.pcModalGotoStep(2)">下一步：填寫明細 →</button>
+            <button class="btn btn--secondary btn--md pc-btn" data-action="pc-report-modal-close">取消</button>
+            <button class="btn btn--primary btn--md pc-btn" data-action="pc-modal-step" data-step="2">下一步：填寫明細 →</button>
           </span>
           <span id="pc-modal-step-ops-2" style="display:none">
-            <button class="btn btn--secondary btn--md pc-btn" onclick="PettyCash.pcModalGotoStep(1)">← 上一步</button>
-            <button class="btn btn--secondary btn--md pc-btn" onclick="PettyCash.pcCloseReportModal()">取消</button>
-            <button class="btn btn--secondary btn--md pc-btn" onclick="PettyCash.pcModalSave('draft')">儲存草稿</button>
-            <button class="btn btn--primary btn--md pc-btn" onclick="PettyCash.pcModalSave('completed')">儲存完成</button>
+            <button class="btn btn--secondary btn--md pc-btn" data-action="pc-modal-step" data-step="1">← 上一步</button>
+            <button class="btn btn--secondary btn--md pc-btn" data-action="pc-report-modal-close">取消</button>
+            <button class="btn btn--secondary btn--md pc-btn" data-action="pc-modal-save" data-status="draft">儲存草稿</button>
+            <button class="btn btn--primary btn--md pc-btn" data-action="pc-modal-save" data-status="completed">儲存完成</button>
           </span>
         </div>
       </div>
@@ -251,7 +251,7 @@ function pcModalRenderEntries() {
     const collapsible = entries.length > 1;
     html += '<div class="pc-entry-date-group">';
     html += '<div class="pc-entry-date-header' + (collapsible ? ' collapsible' : '') + '"'
-      + (collapsible ? " onclick=\"this.parentElement.classList.toggle('is-collapsed')\"" : '') + '>';
+      + (collapsible ? " data-action=\"pc-collapse-toggle\"" : '') + '>';
     html += '<span class="pc-entry-date-label">' + esc(_pcDate(date)) + '</span>';
     html += '<span class="pc-entry-date-count">' + entries.length + ' 筆</span>';
     if (collapsible) html += '<span class="pc-entry-date-toggle">▼</span>';
@@ -288,7 +288,7 @@ function pcModalEntryCardHtml(e, i) {
     ? `<ul class="pc-entry-card__items">${e.items.map(it =>
         `<li>${esc(it.item_name)} ${esc(Number(it.qty))}${esc(it.unit || '')}${it.amount == null || Number(it.amount) === 0 ? '' : ' $' + esc(it.amount)}</li>`).join('')}</ul>`
     : '';
-  return `<div class="pc-entry-card pc-entry-card--clickable" role="button" tabindex="0" onclick="PettyCash.pcOpenEntryModal(${i})" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){PettyCash.pcOpenEntryModal(${i})}">
+  return `<div class="pc-entry-card pc-entry-card--clickable" role="button" tabindex="0" data-action="pc-entry-open" data-index="${i}">
     <div class="pc-entry-card__top">
       <span class="pc-entry-card__date">${esc(_pcDate(e.entry_date))}</span>
       <span class="pc-entry-card__desc">${esc(e.description)}</span>
@@ -297,8 +297,8 @@ function pcModalEntryCardHtml(e, i) {
     </div>
     ${itemsHtml}
     <div class="pc-entry-card__ops">
-      <button class="btn btn--secondary btn--sm" onclick="event.stopPropagation();PettyCash.pcOpenEntryModal(${i})">✏️ 編輯</button>
-      <button class="btn btn--danger btn--sm pc-btn-sm--danger" onclick="event.stopPropagation();PettyCash.pcEntryDelete(${i})">🗑 刪除</button>
+      <button class="btn btn--secondary btn--sm" data-action="pc-entry-open" data-index="${i}">✏️ 編輯</button>
+      <button class="btn btn--danger btn--sm pc-btn-sm--danger" data-action="pc-entry-delete" data-index="${i}">🗑 刪除</button>
     </div>
   </div>`;
 }
@@ -315,24 +315,24 @@ export function pcOpenEntryModal(idx) {
     item_name: it.item_name, qty: it.qty, unit: it.unit || '', amount: it.amount
   }));
   document.getElementById('content').insertAdjacentHTML('beforeend', `
-    <div id="pc-entry-overlay" class="pc-overlay is-open" onclick="if(event.target===this)PettyCash.pcCloseEntryModal()">
+    <div id="pc-entry-overlay" class="pc-overlay is-open" data-action="pc-entry-modal-backdrop">
       <div class="pc-modal pc-modal--entry" role="dialog" aria-label="收支紀錄">
-        <div class="pc-modal__hd"><h3>${pcEntryEditIndex >= 0 ? '✏️ 編輯紀錄' : '＋ 新增紀錄'}</h3><button class="btn btn--secondary btn--sm btn--icon" onclick="PettyCash.pcCloseEntryModal()">✕</button></div>
+        <div class="pc-modal__hd"><h3>${pcEntryEditIndex >= 0 ? '✏️ 編輯紀錄' : '＋ 新增紀錄'}</h3><button class="btn btn--secondary btn--sm btn--icon" data-action="pc-entry-modal-close">✕</button></div>
         <div class="pc-modal__bd">
           <div class="pc-steps">
-            <button class="chip chip--seg chip--success pc-step pc-step--income${pcEntryType === 'income' ? ' is-active' : ''}" id="pc-type-income" onclick="PettyCash.pcEntrySetType('income')">💰 收入</button>
-            <button class="chip chip--seg chip--danger pc-step pc-step--expense${pcEntryType === 'expense' ? ' is-active' : ''}" id="pc-type-expense" onclick="PettyCash.pcEntrySetType('expense')">💸 支出</button>
+            <button class="chip chip--seg chip--success pc-step pc-step--income${pcEntryType === 'income' ? ' is-active' : ''}" id="pc-type-income" data-action="pc-entry-type" data-type="income">💰 收入</button>
+            <button class="chip chip--seg chip--danger pc-step pc-step--expense${pcEntryType === 'expense' ? ' is-active' : ''}" id="pc-type-expense" data-action="pc-entry-type" data-type="expense">💸 支出</button>
           </div>
           <div class="pc-form-grid pc-form-grid--two">
             <div class="pc-field"><label>日期<span class="pc-required">*</span></label><input id="pc-e-date" type="date" value="${esc(src.entry_date)}"></div>
-            <div class="pc-field"><label>科目(選填)</label><select id="pc-e-category" onchange="PettyCash.pcGeneralCategoryChanged(this)">${pcGeneralCategoryOptions(src.category || '')}</select></div>
+            <div class="pc-field"><label>科目(選填)</label><select id="pc-e-category" data-action="pc-general-category">${pcGeneralCategoryOptions(src.category || '')}</select></div>
           </div>
           <div class="pc-field u-mt-10"><label>摘要 <span class="pc-required" id="pc-e-desc-req">*</span></label><input id="pc-e-desc" type="text" placeholder="例：零用金 / 畚箕 ×1" value="${esc(src.description || '')}"></div>
-          <div class="pc-field u-mt-10"><label>總金額<span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" oninput="PettyCash.pcEntryAmountHint()"></div>
+          <div class="pc-field u-mt-10"><label>總金額<span class="pc-required">*</span></label><input id="pc-e-amount" type="number" min="0.01" step="0.01" placeholder="例：1334" value="${esc(src.amount)}" data-action="pc-entry-amount-hint"></div>
           <div id="pc-entry-items-wrap" class="u-mt-10" style="${pcEntryType === 'income' ? 'display:none' : ''}">
             <div class="pc-entry-items-head">
               <strong>明細項目</strong>
-              <button class="btn btn--secondary btn--sm" onclick="PettyCash.pcEntryAddItemRow()">＋ 新增項目</button>
+              <button class="btn btn--secondary btn--sm" data-action="pc-entry-add-item">＋ 新增項目</button>
             </div>
             <div class="pc-items-header"><span>項目名稱</span><span>數量</span><span>單位</span><span>金額<span class="pc-required pc-item-amount-required">*</span><span class="pc-item-amount-optional">（選填）</span></span><span>刪除</span></div>
             <div id="pc-entry-items"></div>
@@ -340,8 +340,8 @@ export function pcOpenEntryModal(idx) {
           </div>
         </div>
         <div class="pc-modal__ft">
-          <button class="btn btn--secondary btn--md pc-btn" onclick="PettyCash.pcCloseEntryModal()">取消</button>
-          <button class="btn btn--primary btn--md pc-btn" onclick="PettyCash.pcEntrySave()">確定</button>
+          <button class="btn btn--secondary btn--md pc-btn" data-action="pc-entry-modal-close">取消</button>
+          <button class="btn btn--primary btn--md pc-btn" data-action="pc-entry-save">確定</button>
         </div>
       </div>
     </div>`);
@@ -370,7 +370,7 @@ function pcEntryRenderItems() {
       <input data-k="qty" data-i="${i}" type="number" min="0.01" step="0.01" placeholder="數量" value="${esc(it.qty ?? '')}">
       <input data-k="unit" data-i="${i}" placeholder="單位" value="${esc(it.unit || '')}">
       <input data-k="amount" data-i="${i}" type="number" min="0.01" step="0.01" placeholder="金額" value="${esc(it.amount ?? '')}">
-      <button class="btn btn--danger btn--sm btn--icon pc-btn-sm--danger" onclick="PettyCash.pcEntryRemoveItem(${i})">✕</button>
+      <button class="btn btn--danger btn--sm btn--icon pc-btn-sm--danger" data-action="pc-entry-remove-item" data-index="${i}">✕</button>
     </div>`).join('');
   box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
     const row = pcEntryItemDraft[Number(inp.dataset.i)];

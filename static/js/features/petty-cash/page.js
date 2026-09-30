@@ -3,7 +3,7 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { createRequestGuard } from '../../core/request-guard.js';
-import { esc, jsStr, toast } from '../../core/utils.js';
+import { esc, toast } from '../../core/utils.js';
 import { pettyCashState } from './state.js';
 
 var pcReports = [];
@@ -42,7 +42,7 @@ export function _pcIsCurrentModal(token, type) {
 export function pcSetSaveButtonsDisabled(overlayId, disabled) {
   const overlay = document.getElementById(overlayId);
   if (!overlay) return;
-  overlay.querySelectorAll('button[onclick*="pcModalSave"], button[onclick*="engSave"]').forEach(button => {
+  overlay.querySelectorAll('button[data-action="pc-modal-save"], button[data-action="eng-save"]').forEach(button => {
     if (disabled) {
       if (button.dataset.pcOriginalLabel === undefined) button.dataset.pcOriginalLabel = button.textContent;
       button.disabled = true;
@@ -128,7 +128,7 @@ export async function renderPettyCash() {
           <p>記錄每月零用金收支，可建立多人員報表並匯出 Excel 交付主管。</p>
         </div>
         <div class="pc-page-actions">
-          <button class="btn btn--primary btn--md pc-btn" onclick="PettyCash.pcChooseReportType()">＋ 新增零用金月報</button>
+          <button class="btn btn--primary btn--md pc-btn" data-action="pc-choose-type">＋ 新增零用金月報</button>
         </div>
       </div>
 
@@ -153,15 +153,15 @@ export async function renderPettyCash() {
             <div class="pc-field"><label>報表類型</label><select id="pc-f-type"><option value="">全部</option><option value="general">一般零用金</option><option value="engineering">工程零用金</option></select></div><div class="pc-field"><label>狀態</label><select id="pc-f-status"><option value="">全部</option><option value="draft">草稿</option><option value="completed">已完成</option></select></div>
             <div class="pc-field pc-field--search"><label>檔名關鍵字</label><input id="pc-f-q" type="text" placeholder="檔名 / 歸屬人 / 製表人"></div>
             <div class="pc-filter-actions">
-              <button class="btn btn--primary btn--md pc-btn" onclick="PettyCash.pcLoadHistory(true)">搜尋</button>
-              <button class="btn btn--secondary btn--md pc-btn" onclick="PettyCash.pcResetFilter()">清除</button>
+              <button class="btn btn--primary btn--md pc-btn" data-action="pc-search">搜尋</button>
+              <button class="btn btn--secondary btn--md pc-btn" data-action="pc-reset-filter">清除</button>
             </div>
           </div>
           <div class="pc-chips">
-            <button class="chip pc-chip" data-role="pc-range" data-range="month" onclick="PettyCash.pcQuickRange('month',this)">本月</button>
-            <button class="chip pc-chip" data-role="pc-range" data-range="prev" onclick="PettyCash.pcQuickRange('prev',this)">上月</button>
-            <button class="chip pc-chip" data-role="pc-range" data-range="year" onclick="PettyCash.pcQuickRange('year',this)">今年</button>
-            <button class="chip pc-chip is-active" data-role="pc-range" data-range="all" onclick="PettyCash.pcQuickRange('all',this)">全部</button>
+            <button class="chip pc-chip" data-role="pc-range" data-range="month" data-action="pc-range">本月</button>
+            <button class="chip pc-chip" data-role="pc-range" data-range="prev" data-action="pc-range">上月</button>
+            <button class="chip pc-chip" data-role="pc-range" data-range="year" data-action="pc-range">今年</button>
+            <button class="chip pc-chip is-active" data-role="pc-range" data-range="all" data-action="pc-range">全部</button>
             <span class="pc-result-count"><span id="pc-result-count">0 筆</span></span>
           </div>
         </div>
@@ -180,8 +180,8 @@ export async function renderPettyCash() {
         <div class="pc-pagination">
           <span id="pc-page-info"></span>
           <span class="u-d-flex u-gap-6">
-            <button class="btn btn--secondary btn--sm" onclick="PettyCash.pcChangePage(-1)">‹ 上一頁</button>
-            <button class="btn btn--secondary btn--sm" onclick="PettyCash.pcChangePage(1)">下一頁 ›</button>
+            <button class="btn btn--secondary btn--sm" data-action="pc-page" data-delta="-1">‹ 上一頁</button>
+            <button class="btn btn--secondary btn--sm" data-action="pc-page" data-delta="1">下一頁 ›</button>
           </span>
         </div>
       </section>
@@ -272,7 +272,7 @@ function pcDesktopRowHtml(r, idx) {
 // Mobile report cards share one shell; only type and amount summary differ.
 function pcReportCardHtml(r, typeLabel, typeClass, summaryLabel, summaryValue, fileLabel, engineering) {
   const ops = pcMobileOpsHtml(r, engineering);
-  return `<div class="pc-report-card" onclick="PettyCash.pcOpenDetail(${r.id})">
+  return `<div class="pc-report-card" data-action="pc-report-op" data-op="detail" data-id="${r.id}">
     <div class="pc-report-card__top"><span class="pc-report-card__period">${_pcPeriodText(r)}</span><span class="pc-report-type ${esc(typeClass)}">${esc(typeLabel)}</span>${pcStatusBadge(r.status)}</div>
     <div class="pc-report-card__file">${esc(fileLabel)}</div>
     <div class="pc-report-card__meta">報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}</div>
@@ -286,21 +286,23 @@ function pcCardHtml(r) {
   return pcReportCardHtml(r, '一般零用金', 'pc-report-type--general', '本期餘額', r.closing_balance, _pcFileLabelRaw(r), false);
 }
 
-// 共用報表操作模型；Desktop／Mobile 只負責不同呈現方式
+// 共用報表操作模型（op 由 features/petty-cash/actions.js 的 pc-report-op 執行）；Desktop／Mobile 只負責不同呈現方式
+function pcOpAttrs(id, action) {
+  return `data-op="${esc(action.op)}" data-id="${esc(String(id))}"${action.back ? ' data-back="1"' : ''}`;
+}
 function pcReportActionEntries(r, engineering) {
-  const edit = engineering ? `PettyCash.pcOpenEngineeringModal(${r.id})` : `PettyCash.pcOpenReportModal(${r.id})`;
   const actions = [
-    { label: '👁 檢視', action: `PettyCash.pcOpenDetail(${r.id})` },
-    { label: '⬇️ 匯出', action: `PettyCash.pcExport(${r.id})` },
+    { label: '👁 檢視', op: 'detail' },
+    { label: '⬇️ 匯出', op: 'export' },
   ];
-  if (r.can_edit) actions.splice(1, 0, { label: '✏️ 編輯', action: edit });
-  if (r.can_delete) actions.push({ label: '🗑 刪除', action: `PettyCash.pcDelete(${r.id}${engineering ? ', true' : ''})`, danger: true });
+  if (r.can_edit) actions.splice(1, 0, { label: '✏️ 編輯', op: engineering ? 'edit-engineering' : 'edit-report' });
+  if (r.can_delete) actions.push({ label: '🗑 刪除', op: 'delete', back: engineering, danger: true });
   return actions;
 }
 
 function pcMoreMenuHtml(r, engineering) {
   const actions = pcReportActionEntries(r, engineering);
-  return `<span class="pc-report-actions"><details class="pc-more-menu" data-role="pc-more-menu" onclick="event.stopPropagation()"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list" data-role="pc-more-menu-list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" onclick="event.stopPropagation();PettyCash.pcCloseMoreMenuFromAction(this);${esc(action.action)}">${esc(action.label)}</button>`).join('')}</div></details></span>`;
+  return `<span class="pc-report-actions"><details class="pc-more-menu" data-role="pc-more-menu" data-action="pc-noop"><summary aria-label="更多操作">⋯</summary><div class="pc-more-menu__list" data-role="pc-more-menu-list">${actions.map(action => `<button type="button" class="${action.danger ? 'pc-more-menu__danger' : ''}" data-action="pc-menu-op" ${pcOpAttrs(r.id, action)}>${esc(action.label)}</button>`).join('')}</div></details></span>`;
 }
 var pcMoreMenuEventsBound = false;
 function pcPositionMoreMenu(menu, list) {
@@ -392,7 +394,7 @@ function pcBindMoreMenuEvents() {
 // Mobile 直接操作列：避免把常用操作藏在更多選單內
 function pcMobileOpsHtml(r, engineering) {
   const actions = pcReportActionEntries(r, engineering);
-  return `<span class="pc-report-actions pc-report-actions--mobile" onclick="event.stopPropagation()">${actions.map(action => `<button type="button" class="pc-mobile-action${action.danger ? ' pc-mobile-action--danger' : ''}" onclick="${esc(action.action)}">${esc(action.label)}</button>`).join('')}</span>`;
+  return `<span class="pc-report-actions pc-report-actions--mobile" data-action="pc-noop">${actions.map(action => `<button type="button" class="pc-mobile-action${action.danger ? ' pc-mobile-action--danger' : ''}" data-action="pc-report-op" ${pcOpAttrs(r.id, action)}>${esc(action.label)}</button>`).join('')}</span>`;
 }
 
 // 列操作（id 為 DB 數字主鍵；編輯鍵依後端 can_edit）
@@ -488,9 +490,8 @@ function pcDetailHeaderHtml(r, engineering) {
     ? (r.filename || '')
     : (r.filename || ('零用金-' + (r.filename_text || '') + _pcMD(r.start_date) + '~' + _pcMD(r.end_date) + '.xlsx'));
   const ownerMeta = `報表歸屬人：${esc(r.upload_person)} · 製表人：${esc(r.prepared_by)}`;
-  const edit = engineering ? `PettyCash.pcOpenEngineeringModal(${r.id})` : `PettyCash.pcOpenReportModal(${r.id})`;
-  const remove = `PettyCash.pcDelete(${r.id}, true)`;
-  return `<div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${esc(_pcPeriodText(r))} ${titleBadge}</h1>${engineering ? `<p>${ownerMeta}</p><p class="eng-file-label">${esc(fileLabel)}</p>` : `<p>${esc(fileLabel)} · ${ownerMeta}</p>`}</div><div class="pc-page-actions"><button class="btn btn--secondary btn--md pc-btn" onclick="PettyCash.renderPettyCash()">← 返回列表</button>${canEdit ? `<button class="btn btn--secondary btn--md pc-btn" onclick="${esc(edit)}">✏️ 編輯</button>` : ''}<button class="btn btn--primary btn--md pc-btn" onclick="PettyCash.pcExport(${esc(r.id)})">⬇️ ${engineering ? '匯出' : '匯出 Excel'}</button>${canDelete ? `<button class="btn btn--danger btn--md pc-btn" onclick="${esc(remove)}">🗑 刪除</button>` : ''}</div></div>`;
+  const editOp = engineering ? 'edit-engineering' : 'edit-report';
+  return `<div class="pc-page-header"><div class="pc-page-title"><h1>🪙 ${esc(_pcPeriodText(r))} ${titleBadge}</h1>${engineering ? `<p>${ownerMeta}</p><p class="eng-file-label">${esc(fileLabel)}</p>` : `<p>${esc(fileLabel)} · ${ownerMeta}</p>`}</div><div class="pc-page-actions"><button class="btn btn--secondary btn--md pc-btn" data-action="pc-back-to-list">← 返回列表</button>${canEdit ? `<button class="btn btn--secondary btn--md pc-btn" data-action="pc-report-op" data-op="${editOp}" data-id="${esc(String(r.id))}">✏️ 編輯</button>` : ''}<button class="btn btn--primary btn--md pc-btn" data-action="pc-report-op" data-op="export" data-id="${esc(String(r.id))}">⬇️ ${engineering ? '匯出' : '匯出 Excel'}</button>${canDelete ? `<button class="btn btn--danger btn--md pc-btn" data-action="pc-report-op" data-op="delete" data-id="${esc(String(r.id))}" data-back="1">🗑 刪除</button>` : ''}</div></div>`;
 }
 function pcDetailKpiCardHtml(card) {
   const icon = card.icon ? `<span class="ui-kpi-icon ${esc(card.iconClass || '')}">${esc(card.icon)}</span>` : '';
@@ -631,7 +632,7 @@ function engReceiptHtml(q, ri, groupKey) {
   const receiptKey = groupKey + ':' + ri;
   const details = q.details || [];
   const expanded = engExpandedReceipts.has(receiptKey);
-  const toggle = ` type="button" aria-expanded="${expanded}" onclick="PettyCash.engToggle('receipts','${jsStr(receiptKey)}')"`;
+  const toggle = ` type="button" aria-expanded="${expanded}" data-action="pc-eng-toggle" data-kind="receipts" data-key="${esc(receiptKey)}"`;
   const detailRow = expanded ? `<tr class="eng-receipt-detail-row"><td colspan="4">${engReceiptDetailsHtml(q)}</td></tr>` : '';
   return `<tr class="eng-receipt-row"><td><button class="eng-receipt-toggle"${toggle}><span class="eng-receipt-chevron">${expanded ? '▼' : '▶'}</span><span class="eng-receipt-no">${esc(q.receipt_number || '未填寫單據')}</span></button></td><td><span class="eng-tax-mark">${esc(q.tax_id_mark || '—')}</span></td><td class="eng-detail-count">${details.length ? `${esc(details.length)} 項明細` : '無細項'}</td><td class="pc-num"><strong>$${esc(_pcMoney(q.amount))}</strong></td></tr>${detailRow}`;
 }
@@ -639,7 +640,7 @@ function engGroupHtml(g, ci, gi) {
   const groupKey = ci + ':' + gi;
   const expanded = engExpandedGroups.has(groupKey);
   const receipts = (g.receipts || []).map((q,ri) => engReceiptHtml(q,ri,groupKey)).join('');
-  return `<section class="eng-group-block"><button class="eng-group-head${expanded ? ' is-open' : ''}" aria-expanded="${expanded}" onclick="PettyCash.engToggle('groups','${jsStr(groupKey)}')"><span><span class="eng-chevron">${expanded ? '▼' : '▶'}</span><b>${esc(g.name)}</b></span><strong>項目小計 $${esc(_pcMoney(g.subtotal))}</strong></button>${expanded ? `<div class="eng-group-body"><div class="eng-detail-table-wrap"><table class="eng-detail-table"><thead><tr><th>單據</th><th>統編</th><th>明細</th><th>金額</th></tr></thead><tbody>${receipts || '<tr><td colspan="4" class="pc-empty-cell">尚無單據</td></tr>'}</tbody></table></div></div>` : ''}</section>`;
+  return `<section class="eng-group-block"><button class="eng-group-head${expanded ? ' is-open' : ''}" aria-expanded="${expanded}" data-action="pc-eng-toggle" data-kind="groups" data-key="${esc(groupKey)}"><span><span class="eng-chevron">${expanded ? '▼' : '▶'}</span><b>${esc(g.name)}</b></span><strong>項目小計 $${esc(_pcMoney(g.subtotal))}</strong></button>${expanded ? `<div class="eng-group-body"><div class="eng-detail-table-wrap"><table class="eng-detail-table"><thead><tr><th>單據</th><th>統編</th><th>明細</th><th>金額</th></tr></thead><tbody>${receipts || '<tr><td colspan="4" class="pc-empty-cell">尚無單據</td></tr>'}</tbody></table></div></div>` : ''}</section>`;
 }
 function engRenderDetail() {
   const r = pettyCashState.pcDetail, cats = r.categories || [];
@@ -650,7 +651,7 @@ function engRenderDetail() {
   const totalReceipts = cats.reduce((n,c) => n + (c.groups || []).reduce((m,g) => m + (g.receipts || []).length,0),0);
   const categoryHtml = cats.map((c,ci) => {
     const key = String(c.id || ci), expanded = engExpandedCategories.has(key);
-    return `<section class="pc-card eng-category-card"><button class="eng-category-head" aria-expanded="${expanded}" onclick="PettyCash.engToggle('categories','${jsStr(key)}')"><span><span class="eng-chevron">${expanded ? '▼' : '▶'}</span><span class="eng-section-kicker">分類</span><h2>${esc(c.name)}</h2></span><strong class="eng-subtotal">分類小計 $${esc(_pcMoney(c.subtotal))}</strong></button>${expanded ? `<div class="pc-card__bd">${(c.groups || []).map((g,gi) => engGroupHtml(g,ci,gi)).join('') || '<div class="pc-empty-cell">此分類尚無項目</div>'}</div>` : ''}</section>`;
+    return `<section class="pc-card eng-category-card"><button class="eng-category-head" aria-expanded="${expanded}" data-action="pc-eng-toggle" data-kind="categories" data-key="${esc(key)}"><span><span class="eng-chevron">${expanded ? '▼' : '▶'}</span><span class="eng-section-kicker">分類</span><h2>${esc(c.name)}</h2></span><strong class="eng-subtotal">分類小計 $${esc(_pcMoney(c.subtotal))}</strong></button>${expanded ? `<div class="pc-card__bd">${(c.groups || []).map((g,gi) => engGroupHtml(g,ci,gi)).join('') || '<div class="pc-empty-cell">此分類尚無項目</div>'}</div>` : ''}</section>`;
   }).join('');
   const kpis = [
     { label: '總分類數', value: String(cats.length), colorClass: 'pc-kpi-blue', icon: '▦', iconClass: 'ui-kpi-icon--blue' },

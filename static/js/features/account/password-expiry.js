@@ -1,6 +1,7 @@
 // 庫存管理系統 - 密碼過期提示 modal（v11.2：6 個月未改密碼進站彈出，非強制）
 // 規則：按「立即改密碼」或「繼續使用原密碼」任一鍵 → 後端重置 180 天（帳號層級）
 
+import { createActionDelegate } from '../../core/actions.js';
 import { apiFetch } from '../../core/api-client.js';
 import { currentUser } from '../../core/session.js';
 import { closeModalForce, openModal } from '../../core/utils.js';
@@ -33,3 +34,15 @@ export async function ackPasswordExpiry() {
   } catch (e) { /* 失敗仍關閉提示，不擋使用 */ }
   closeModalForce('expiry-modal');
 }
+
+// 密碼過期提示的事件委派（data-action="expiry-*"）
+const EXPIRY_ACTIONS = {
+  'expiry-go-change-pw': { click: function() { expiryGoChangePw(); } },
+  'expiry-ack': { click: function() { ackPasswordExpiry(); } },
+};
+
+const expiryDelegate = createActionDelegate('expiry-', EXPIRY_ACTIONS);
+
+export const handleExpiryEvent = expiryDelegate.handle;
+
+export const initExpiryActions = expiryDelegate.init;

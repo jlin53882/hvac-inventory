@@ -3,6 +3,8 @@
 import { apiFetch } from '../../core/api-client.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { appState, INVENTORY_ALERT_ITEMS } from '../../core/state.js';
+import { getGlobalCabinetList, setGlobalCabinetList } from '../../core/shared-read-model.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, esc, hasPerm, openModal, toast } from '../../core/utils.js';
@@ -13,7 +15,7 @@ var editUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯 modal 時的 u
 // ========== 編輯品項 ==========
 function getInventoryEditableItem(id) {
   const numericId = Number(id);
-  const current = Array.isArray(appState.ALL_ITEMS) ? appState.ALL_ITEMS.find(i => Number(i.id) === numericId) : null;
+  const current = Array.isArray(getAllItems()) ? getAllItems().find(i => Number(i.id) === numericId) : null;
   if (current) return current;
   return INVENTORY_ALERT_ITEMS[String(numericId)] || null;
 }
@@ -50,7 +52,7 @@ export function openEditModal(id) {
   // 2026-09-27：編輯時也載入最新櫃子清單
   (async () => {
     try {
-      appState.globalCabinetList = await apiFetch('/api/cabinets');
+      setGlobalCabinetList(await apiFetch('/api/cabinets'));
       // 重新渲染位置列表（更新櫃子選項）
       renderEditStockRows(stocks, item.unit || '個');
     } catch (e) {
@@ -84,13 +86,13 @@ function renderEditStockRows(stocks, unit) {
       <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" value="${esc(subLocation)}" list="location-list" placeholder="位置"></label>
       <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="${esc(quantity)}" placeholder="數量（可輸 1/4）"></label>
       <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" value="${esc(stock.note || '')}" placeholder="備註（選填）"></label>
-      <button type="button" class="stock-remove" onclick="Inventory.deleteEditStockRow(this)" aria-label="移除第 ${esc(String(index + 1))} 個位置" title="移除此位置">✕</button>
+      <button type="button" class="stock-remove" data-action="inventory-edit-stock-remove" aria-label="移除第 ${esc(String(index + 1))} 個位置" title="移除此位置">✕</button>
     </div>`;
   }).join('');
 }
 export function _cabinetOptions(selected) {
   // 若全局清單為空，用預設值（應不會發生，除非 loadCabinets 還未完成）
-  const cabs = [{ name: '', note: '' }, ...appState.globalCabinetList];
+  const cabs = [{ name: '', note: '' }, ...getGlobalCabinetList()];
   // 已存的櫃子若不在目前清單（清單尚未載入或櫃子已改名/刪除）→ 保留為選項，避免儲存時被靜默清空
   if (selected && !cabs.some(c => (c.name || '') === selected)) {
     cabs.push({ name: selected, note: '不在櫃子清單' });
@@ -120,7 +122,7 @@ export function addEditStockRow() {
     <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="位置"></label>
     <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
     <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註（選填）"></label>
-    <button type="button" class="stock-remove" onclick="Inventory.deleteEditStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>
+    <button type="button" class="stock-remove" data-action="inventory-edit-stock-remove" aria-label="移除此位置" title="移除此位置">✕</button>
   `;
   box.appendChild(row);
   row.querySelector('[data-role="stock-sub"]').focus();

@@ -6,6 +6,8 @@ import { apiFetch } from '../../core/api-client.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, ITEMLESS_TABS, appState } from '../../core/state.js';
+import { getCurrentBrands, getCurrentCategories, setCurrentBrands, setCurrentCategories, setFullItemsLoadedSite, setInventoryLoadedSite } from '../../core/shared-read-model.js';
+import { getInventoryMeta, setAllItems, setInventoryFacets, setInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { shellState } from './state.js';
 
@@ -43,7 +45,7 @@ export async function loadData(options) {
   // P1-D：mutation 後的 loadData 預設刷新 global summary；搜尋/換頁/filter 走 wrapper（不刷）。
   const refreshSummary = !options || options.refreshSummary !== false;
   if (!full && appState.currentTab === 'inventory') {
-    await loadInventoryPageImpl(appState.INVENTORY_META.page || 1, refreshSummary, true, refreshDestinations);
+    await loadInventoryPageImpl(getInventoryMeta().page || 1, refreshSummary, true, refreshDestinations);
     return;
   }
   const controller = new AbortController();
@@ -53,8 +55,8 @@ export async function loadData(options) {
     const skipItems = !full && ITEMLESS_TABS.has(appState.currentTab);
     if (skipItems) {
       if (!dataGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
-      appState.ALL_ITEMS = [];
-      appState.fullItemsLoadedSite = '';
+      setAllItems([]);
+      setFullItemsLoadedSite('');
       view().updateNotifications();
       updateSubInfo();
       if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) view().remountTab(appState.currentTab);
@@ -71,11 +73,11 @@ export async function loadData(options) {
         : Promise.resolve(null),
     ]);
     if (!dataGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
-    appState.ALL_ITEMS = items;
-    appState.fullItemsLoadedSite = siteAtRequest;
-    appState.inventoryLoadedSite = '';
+    setAllItems(items);
+    setFullItemsLoadedSite(siteAtRequest);
+    setInventoryLoadedSite('');
     if (facets) {
-      appState.INVENTORY_FACETS = facets;
+      setInventoryFacets(facets);
       shellState.inventoryFacetsLoadedSite = siteAtRequest;
       reconcileInventoryFilters(facets);
     }
@@ -107,12 +109,10 @@ function reconcileInventoryFilters(facets) {
   let changed = false;
   const validBrands = new Set(Object.keys((facets && facets.brands) || {}));
   const validCategories = new Set(Object.keys((facets && facets.categories) || {}));
-  for (let i = appState.currentBrands.length - 1; i >= 0; i--) {
-    if (!validBrands.has(appState.currentBrands[i])) { appState.currentBrands.splice(i, 1); changed = true; }
-  }
-  for (let i = appState.currentCategories.length - 1; i >= 0; i--) {
-    if (!validCategories.has(appState.currentCategories[i])) { appState.currentCategories.splice(i, 1); changed = true; }
-  }
+  const brands = getCurrentBrands().filter(function(brand) { return validBrands.has(brand); });
+  const categories = getCurrentCategories().filter(function(category) { return validCategories.has(category); });
+  if (brands.length !== getCurrentBrands().length) { setCurrentBrands(brands); changed = true; }
+  if (categories.length !== getCurrentCategories().length) { setCurrentCategories(categories); changed = true; }
   return changed;
 }
 
@@ -130,13 +130,13 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     const params = new URLSearchParams({
       site: siteAtRequest,
       page: String(pageAtRequest),
-      page_size: String(appState.INVENTORY_META.page_size || 50),
+      page_size: String(getInventoryMeta().page_size || 50),
       sort: 'brand',
     });
     const search = document.getElementById('search-input');
     if (search && search.value.trim()) params.set('search', search.value.trim());
-    if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
-    if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
+    if (getCurrentBrands().length) params.set('brands', getCurrentBrands().join(','));
+    if (getCurrentCategories().length) params.set('categories', getCurrentCategories().join(','));
     const shouldLoadFacets = Boolean(refreshFacets) || shellState.inventoryFacetsLoadedSite !== siteAtRequest;
     // facets 失敗（HTTP 錯誤）不擋列表，只是篩選選項沿用舊資料；網路錯誤 / 取消則照常中止
     const facetsRequest = shouldLoadFacets
@@ -150,27 +150,27 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     let body = pageBody;
     if (!inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     if (facets && reconcileInventoryFilters(facets)) {
-      if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
+      if (getCurrentBrands().length) params.set('brands', getCurrentBrands().join(','));
       else params.delete('brands');
-      if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
+      if (getCurrentCategories().length) params.set('categories', getCurrentCategories().join(','));
       else params.delete('categories');
       body = await apiFetch(`/api/items?${params}`, { signal: controller.signal });
       if (!inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     }
-    appState.ALL_ITEMS = body.items || [];
-    appState.INVENTORY_META = {
+    setAllItems(body.items || []);
+    setInventoryMeta({
       page: body.page || pageAtRequest,
       page_size: body.page_size || 50,
       total: body.total || 0,
       stats: body.stats || null,
-    };
+    });
     if (facets) {
-      appState.INVENTORY_FACETS = facets;
+      setInventoryFacets(facets);
       shellState.inventoryFacetsLoadedSite = siteAtRequest;
       reconcileInventoryFilters(facets);
     }
-    appState.inventoryLoadedSite = siteAtRequest;
-    appState.fullItemsLoadedSite = '';
+    setInventoryLoadedSite(siteAtRequest);
+    setFullItemsLoadedSite('');
     if (refreshDestinations) await refreshDestinationsAfterMutation();
     view().buildDatalists(refreshDestinations);
     view().buildFilterPanel();
@@ -194,7 +194,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
 }
 
 export function changeInventoryPage(page) {
-  if (page < 1 || page > Math.ceil(appState.INVENTORY_META.total / appState.INVENTORY_META.page_size)) return;
+  if (page < 1 || page > Math.ceil(getInventoryMeta().total / getInventoryMeta().page_size)) return;
   loadInventoryPage(page);
 }
 

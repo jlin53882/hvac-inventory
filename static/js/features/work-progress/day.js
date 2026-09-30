@@ -42,6 +42,6 @@ export function wprRenderJobs() {
   list.innerHTML = workProgressState.wprAppointments.map(function(job) {
     var existing = workProgressState.wprReportsByAppointment[job.id];
     var selected = workProgressState.wprCurrentReport && workProgressState.wprCurrentReport.appointment_id === job.id;
-    return '<button type="button" class="wpr-job-card ' + (selected ? 'is-selected' : '') + '" onclick="WorkProgress.wprSelectJob(' + job.id + ')"><span class="wpr-job-radio">' + (selected ? '●' : '○') + '</span><span class="wpr-job-body"><strong>' + wprTimeText(job) + '</strong><b>' + esc(job.service_name || '未指定服務') + '</b><span>👤 ' + esc(job.client_name || '') + '</span>' + (job.address ? '<span>📍 ' + esc(job.address) + '</span>' : '') + '</span><span class="wpr-job-status">' + (existing ? '✅ 已回報' : '尚未回報') + '</span></button>';
+    return '<button type="button" class="wpr-job-card ' + (selected ? 'is-selected' : '') + '" data-action="wpr-select-job" data-id="' + job.id + '"><span class="wpr-job-radio">' + (selected ? '●' : '○') + '</span><span class="wpr-job-body"><strong>' + wprTimeText(job) + '</strong><b>' + esc(job.service_name || '未指定服務') + '</b><span>👤 ' + esc(job.client_name || '') + '</span>' + (job.address ? '<span>📍 ' + esc(job.address) + '</span>' : '') + '</span><span class="wpr-job-status">' + (existing ? '✅ 已回報' : '尚未回報') + '</span></button>';
   }).join('');
 }

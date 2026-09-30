@@ -1,9 +1,9 @@
 // features/permissions/page.js — 帳號與權限頁（RBAC 2026-08-13）
 // 桌面：左帳號列表 + 右側 Tab（3-B）；手機：chip 橫滑列（M1）
-// 安全守則：使用者可控資料內插一律 esc()/jsStr()
+// 安全守則：使用者可控資料內插一律 esc()
 
 import { apiFetch } from '../../core/api-client.js';
-import { apiErrorMessage, esc, jsStr, pwPolicyMsg, toast } from '../../core/utils.js';
+import { apiErrorMessage, esc, pwPolicyMsg, toast } from '../../core/utils.js';
 
 const ROLE_LABELS = { admin: '🛡️ 管理員', user: '👤 使用者', tech: '🔧 工程師', viewer: '👀 檢視者' };
 const GROUP_LABELS = {
@@ -92,7 +92,7 @@ function renderUserList() {
     const isMe = me.id === u.id;
     const cls = u.is_active ? 'is-active' : 'is-inactive';
     const badge = ROLE_LABELS[u.role] || u.role;
-    return `<div class="user-list-item ${u.id === curUid ? 'is-active' : ''}" data-uid="${u.id}" onclick="Perms.permSelect(${u.id})">
+    return `<div class="user-list-item ${u.id === curUid ? 'is-active' : ''}" data-uid="${u.id}" data-action="perms-select" data-id="${u.id}">
       <div class="user-avatar ${cls}">${esc(u.display_name ? u.display_name.charAt(0) : '?')}</div>
       <div class="user-meta">
         <div class="user-name">${esc(u.display_name)}${isMe ? ' <span class="me-tag">（自己）</span>' : ''}</div>
@@ -107,7 +107,7 @@ function renderChips() {
   const el = document.getElementById('chipBar');
   el.innerHTML = permUsers.map(u => {
     const isMe = me.id === u.id;
-    return `<button class="chip ${u.id === curUid ? 'is-active' : ''} ${u.is_active ? '' : 'is-inactive'}" onclick="Perms.permSelect(${u.id})">
+    return `<button class="chip ${u.id === curUid ? 'is-active' : ''} ${u.is_active ? '' : 'is-inactive'}" data-action="perms-select" data-id="${u.id}">
       <span class="status-dot ${u.is_active ? 'is-active' : 'is-inactive'}"></span>${esc(u.display_name)}${isMe ? '（自己）' : ''}
     </button>`;
   }).join('');
@@ -168,16 +168,16 @@ function renderPermissionShell() {
     ? '<div class="warn-box">⚠️ 不能修改自己的權限（系統保護）——你的權限由另一位管理員管理。</div>'
     : '';
   html += `<div class="perm-subtabs" role="tablist">
-    <button class="chip chip--seg perm-subtab ${esc(featureActive)}" onclick="Perms.permSubTab('features')">🔐 功能權限</button>
-    <button class="chip chip--seg perm-subtab ${esc(pageActive)}" onclick="Perms.permSubTab('pages')">🖥 頁面顯示</button>
+    <button class="chip chip--seg perm-subtab ${esc(featureActive)}" data-action="perms-subtab" data-view="features">🔐 功能權限</button>
+    <button class="chip chip--seg perm-subtab ${esc(pageActive)}" data-action="perms-subtab" data-view="pages">🖥 頁面顯示</button>
   </div><div id="permission-view"><div id="permission-toolbar"></div><div id="permission-results"></div></div>`;
   const pendingCount = Object.keys(permChanges).length + Object.keys(pageChanges).length;
   html += `<div class="save-bar">
     <div class="save-bar-inner">
       <span class="save-hint" id="saveHint">${pendingCount ? `有 ${pendingCount} 項未儲存變更` : '變更立即生效，不需重新登入'}</span>
       <div class="save-btns">
-        <button class="btn btn--secondary btn--md btn-ghost" onclick="Perms.openResetPermModal()" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
-        <button class="btn btn--primary btn--md btn-primary" onclick="Perms.permSave()" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
+        <button class="btn btn--secondary btn--md btn-ghost" data-action="perms-reset-perm-open" ${isMe ? 'disabled' : ''}>↩ 重設為角色預設</button>
+        <button class="btn btn--primary btn--md btn-primary" data-action="perms-save" ${isMe ? 'disabled' : ''}>💾 儲存變更</button>
       </div>
     </div>
   </div>`;
@@ -193,10 +193,10 @@ function renderPermissionToolbar() {
   const permissions = permissionDetail.permissions || [];
   const modules = [...new Set(permissions.map(p => p.module))];
   let html = `<label class="perm-search-label" for="permission-search">搜尋權限名稱或 key</label>
-    <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" oninput="Perms.permSearch(this.value)">
+    <input id="permission-search" class="perm-search" type="search" value="${esc(permissionSearch)}" placeholder="例如：日報、上傳、delete-all" data-action="perms-search">
     <div class="perm-module-filter" role="group" aria-label="權限分類">
-      <button class="chip perm-filter ${esc(permissionModule === 'all' ? 'is-active' : '')}" data-module="all" onclick="Perms.permFilter('all')">全部</button>
-      ${modules.map(mod => `<button class="chip perm-filter ${esc(permissionModule === mod ? 'is-active' : '')}" data-module="${esc(mod)}" onclick="Perms.permFilter('${jsStr(mod)}')">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
+      <button class="chip perm-filter ${esc(permissionModule === 'all' ? 'is-active' : '')}" data-module="all" data-action="perms-filter" data-module="all">全部</button>
+      ${modules.map(mod => `<button class="chip perm-filter ${esc(permissionModule === mod ? 'is-active' : '')}" data-module="${esc(mod)}" data-action="perms-filter">${esc(GROUP_LABELS[mod] || mod)}</button>`).join('')}
     </div>`;
   toolbar.innerHTML = html;
 }
@@ -257,7 +257,7 @@ function renderPermissionView() {
       html += `<div class="perm-row ${locked ? 'locked' : ''}" data-role="perm-row">
         <div class="perm-label">${esc(p.label)}<small>${esc(p.key)}<span class="perm-src ${esc(srcCls)}" data-role="perm-src">${srcLabel}</span></small></div>
         <label class="switch">
-          <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} onchange="Perms.permToggle('${jsStr(p.key)}', this.checked)">
+          <input type="checkbox" data-key="${esc(p.key)}" ${checked} ${disabled ? 'disabled' : ''} data-action="perms-toggle">
           <span class="slider"></span>
         </label>
       </div>`;
@@ -269,9 +269,9 @@ function renderPermissionView() {
   html += `<div class="perm-pagination">
     <span>顯示 ${esc(from)}–${esc(to)} / 共 ${esc(filtered.length)} 項</span>
     <div class="perm-page-buttons">
-      <button class="btn btn--secondary btn--sm perm-page-btn" onclick="Perms.permPage(-1)" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
+      <button class="btn btn--secondary btn--sm perm-page-btn" data-action="perms-page" data-delta="-1" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
       <span>第 ${esc(permissionPage)} / ${esc(pageCount)} 頁</span>
-      <button class="btn btn--secondary btn--sm perm-page-btn" onclick="Perms.permPage(1)" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
+      <button class="btn btn--secondary btn--sm perm-page-btn" data-action="perms-page" data-delta="1" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
     </div>
   </div>`;
   host.innerHTML = html;
@@ -287,7 +287,7 @@ function renderPageVisibilityView(host) {
     const checkedValue = Object.prototype.hasOwnProperty.call(pageChanges, key) ? pageChanges[key] : visiblePages.includes(key);
     html += `<div class="perm-row" data-role="perm-row">
       <div class="perm-label">${esc(PAGE_LABELS[key] || key)}<small>${esc(key)}</small></div>
-      <label class="switch"><input type="checkbox" data-page-key="${esc(key)}" ${esc(checkedValue ? 'checked' : '')} ${isMe ? 'disabled' : ''} onchange="Perms.permPageToggle('${jsStr(key)}', this.checked)"><span class="slider"></span></label>
+      <label class="switch"><input type="checkbox" data-page-key="${esc(key)}" ${esc(checkedValue ? 'checked' : '')} ${isMe ? 'disabled' : ''} data-action="perms-page-toggle"><span class="slider"></span></label>
     </div>`;
   }
   host.innerHTML = html + '</div></div>';
@@ -442,10 +442,10 @@ function renderAccount(detail) {
     html += `<div class="warn-box">⚠️ 不能停用、刪除或修改自己的帳號（系統保護）。</div>`;
   } else {
     html += `<div class="account-actions">
-      <button class="btn btn--secondary btn--md" onclick="Perms.permEditAccount(${u.id})">✏️ 編輯帳號</button>
-      <button class="btn btn--secondary btn--md" onclick="Perms.permResetPw(${u.id})">🔑 重設密碼</button>
-      <button class="btn btn--secondary btn--md" onclick="Perms.permToggleActive(${u.id}, ${u.is_active ? 0 : 1})">${u.is_active ? '⏸ 停用帳號' : '▶️ 啟用帳號'}</button>
-      <button class="btn btn--danger btn--md" onclick="Perms.permDelete(${u.id})">🗑 刪除帳號</button>
+      <button class="btn btn--secondary btn--md" data-action="perms-edit-account" data-id="${u.id}">✏️ 編輯帳號</button>
+      <button class="btn btn--secondary btn--md" data-action="perms-reset-pw" data-id="${u.id}">🔑 重設密碼</button>
+      <button class="btn btn--secondary btn--md" data-action="perms-toggle-active" data-id="${u.id}" data-next="${u.is_active ? 0 : 1}">${u.is_active ? '⏸ 停用帳號' : '▶️ 啟用帳號'}</button>
+      <button class="btn btn--danger btn--md" data-action="perms-delete" data-id="${u.id}">🗑 刪除帳號</button>
     </div>`;
     if (u.is_active) {
       html += `<div class="warn-box">💡 停用後該帳號立即無法登入（既有 session 也會失效）。離職員工請用「停用」而非「刪除」。</div>`;

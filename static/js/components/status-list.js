@@ -1,6 +1,7 @@
 // 共用商品 / 庫存異常清單 renderer
 // 只負責 Dialog、搜尋/位置 filter 與呈現；不處理庫存計算或 API mutation。
 
+import { createActionDelegate } from '../core/actions.js';
 import { buildThumb } from './card.js';
 import { Qty } from '../core/qty.js';
 import { esc, hasPerm } from '../core/utils.js';
@@ -48,7 +49,7 @@ function renderSharedStatusListModal() {
     ? `共 ${items.length} 項`
     : `顯示 ${items.length} / ${state.items.length} 項`;
   const locationFilter = locations.length > 1 ? `<label class="status-list-location">位置
-      <select onchange="Components.setSharedStatusListLocation(this.value)">
+      <select data-action="status-list-location">
         <option value="">全部位置</option>
         ${locations.map(function(location) {
           const selected = state.location === location ? ' selected' : '';
@@ -64,11 +65,11 @@ function renderSharedStatusListModal() {
 
   body.innerHTML = `<div class="inventory-status-header status-list-header ${esc(state.headerClass || '')}">
     <div><h2 id="inventory-status-modal-title">${esc(state.title)}</h2><p>${esc(state.intro)}</p></div>
-    <div class="status-list-header-actions"><strong>${esc(countText)}</strong><button type="button" class="inventory-status-close" onclick="Inventory.closeInventoryStatusModal()" aria-label="關閉">✕</button></div>
+    <div class="status-list-header-actions"><strong>${esc(countText)}</strong><button type="button" class="inventory-status-close" data-action="inventory-status-close" aria-label="關閉">✕</button></div>
   </div>
   <div class="status-list-toolbar">
     <label class="status-list-search">搜尋
-      <input type="search" value="${esc(state.search || '')}" placeholder="${esc(state.searchPlaceholder || '搜尋品項名稱、型號或位置…')}" oninput="Components.setSharedStatusListSearch(this.value)">
+      <input type="search" value="${esc(state.search || '')}" placeholder="${esc(state.searchPlaceholder || '搜尋品項名稱、型號或位置…')}" data-action="status-list-search">
     </label>
     ${locationFilter}
   </div>
@@ -126,7 +127,7 @@ export function renderSharedProductStatusItem(item, options) {
   const itemId = Number(item.id);
   const canEdit = config.editable && Number.isInteger(itemId) && hasPerm('item-mgmt');
   const editAction = canEdit
-    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" onclick="Inventory.closeInventoryStatusModal();Inventory.openEditModal(${itemId})">編輯</button>`
+    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" data-action="inventory-status-edit" data-id="${itemId}">編輯</button>`
     : '';
   const locations = statusListLocations(item).join('、');
   const threshold = !isOut && item.low_stock > 0
@@ -148,3 +149,15 @@ export function renderSharedProductStatusItem(item, options) {
     ${editAction}
   </article>`;
 }
+
+// 共用狀態清單的篩選控制（位置下拉、搜尋框）；關閉 / 編輯屬於各 feature，由呼叫端 feature 的 action 處理
+const STATUS_LIST_ACTIONS = {
+  'status-list-location': { change: function(el) { setSharedStatusListLocation(el.value); } },
+  'status-list-search': { input: function(el) { setSharedStatusListSearch(el.value); } },
+};
+
+const statusListDelegate = createActionDelegate('status-list-', STATUS_LIST_ACTIONS);
+
+export const handleStatusListEvent = statusListDelegate.handle;
+
+export const initStatusListActions = statusListDelegate.init;

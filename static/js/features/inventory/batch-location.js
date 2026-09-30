@@ -2,7 +2,7 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { loadData, renderInventoryView } from '../shell/data-refresh.js';
-import { appState } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';
 import { esc, toast } from '../../core/utils.js';
 import { getFilteredInventoryItems } from './filters.js';
@@ -30,7 +30,7 @@ export function toggleStockSelect(stockId) {
   if (String(stockId).startsWith('item-')) {
     // 整筆品項選取：切換該品項所有 stocks
     const itemId = parseInt(String(stockId).replace('item-', ''));
-    const item = appState.ALL_ITEMS.find(i => i.id === itemId);
+    const item = getAllItems().find(i => i.id === itemId);
     if (item) {
       const allSelected = (item.stocks || []).every(s => selectedStockIds.has(s.id));
       (item.stocks || []).forEach(s => {
@@ -88,7 +88,7 @@ export function showBatchConfirm() {
   document.getElementById('batch-confirm-count').textContent = selectedStockIds.size;
   document.getElementById('batch-confirm-loc').textContent = targetDisplay;
   var details = [];
-  appState.ALL_ITEMS.forEach(function(item) {
+  getAllItems().forEach(function(item) {
     (item.stocks || []).forEach(function(s) {
       if (selectedStockIds.has(s.id)) {
         details.push('<div class="modal-item-row"><span>' + esc(item.brand) + ' ' + esc(item.name) + '</span><span class="modal-item-from">' + esc(s.location) + ' \u2192 <b class="modal-item-to">' + esc(target) + '</b></span></div>');

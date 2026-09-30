@@ -55,10 +55,10 @@ function renderStockoutActions(o, isViewer) {
   const reverted = !!o.reverted_at;
   const isReturn = o.reason === '退回已領出';
   if (isReturn) {
-    return reverted ? '' : `<button type="button" class="btn btn--secondary btn--sm" onclick="Stockout.openEditStockoutReturnModal(${o.id})">✏️ 編輯</button><button type="button" class="btn btn--danger btn--sm" onclick="Stockout.deleteStockoutReturn(${o.id})">撤銷退回</button>`;
+    return reverted ? '' : `<button type="button" class="btn btn--secondary btn--sm" data-action="stockout-edit-return" data-id="${o.id}">✏️ 編輯</button><button type="button" class="btn btn--danger btn--sm" data-action="stockout-delete-return" data-id="${o.id}">撤銷退回</button>`;
   }
-  if (reverted) return `<button type="button" class="btn btn--danger btn--sm" onclick="Stockout.deleteStockoutRecord(${o.id})">刪除</button>`;
-  return `<button type="button" class="btn btn--secondary btn--sm" onclick="Stockout.openEditStockoutModal(${o.id})">✏️ 編輯</button><button type="button" class="btn btn--secondary btn--sm" onclick="Stockout.returnStockout(${o.id})">↩️ 退回</button><button type="button" class="btn btn--danger btn--sm" onclick="Stockout.deleteStockoutRecord(${o.id})">刪除</button>`;
+  if (reverted) return `<button type="button" class="btn btn--danger btn--sm" data-action="stockout-delete" data-id="${o.id}">刪除</button>`;
+  return `<button type="button" class="btn btn--secondary btn--sm" data-action="stockout-edit" data-id="${o.id}">✏️ 編輯</button><button type="button" class="btn btn--secondary btn--sm" data-action="stockout-return" data-id="${o.id}">↩️ 退回</button><button type="button" class="btn btn--danger btn--sm" data-action="stockout-delete" data-id="${o.id}">刪除</button>`;
 }
 
 /**
@@ -72,7 +72,7 @@ function renderStockoutDesktopRow(o, isViewer) {
   const isReturn = o.reason === '退回已領出';
   const returnReverted = isReturn && reverted;
   const rowClass = returnReverted ? 'is-reverted-return' : (isReturn ? 'is-return' : (reverted ? 'is-reverted' : ''));
-  const photo = o.has_photo ? `<img class="so-photo stockout-photo" src="${photoSrc(o.item_id, 'thumbnail')}" alt="" loading="lazy" onclick="Inventory.openPhotoLightbox(${o.item_id})" title="點擊看大圖">` : '<div class="so-photo stockout-photo stockout-photo-empty">📷</div>';
+  const photo = o.has_photo ? `<img class="so-photo stockout-photo" src="${photoSrc(o.item_id, 'thumbnail')}" alt="" loading="lazy" data-action="photo-lightbox" data-id="${o.item_id}" title="點擊看大圖">` : '<div class="so-photo stockout-photo stockout-photo-empty">📷</div>';
   const destination = o.destination ? `<span class="stockout-destination-badge">🏢 ${esc(o.destination)}</span>` : '';
   const returnSite = inventorySiteLabel(o.return_site || '');
   const returnSeparator = returnSite ? '／' : '';
@@ -96,7 +96,7 @@ function renderStockoutMobileCard(o, isViewer) {
   const returnSite = inventorySiteLabel(o.return_site || '');
   return mobileCardShell({
     reverted: reverted,
-    moreBtnHTML: `<button class="more-btn" onclick="Stockout.openStockoutSheet(${o.id})">⋯</button>`,
+    moreBtnHTML: `<button class="more-btn" data-action="stockout-sheet" data-id="${o.id}">⋯</button>`,
     thumb: buildThumb(o.item_id, o.has_photo, o.item_name, '📷'),
     nameHTML: `${esc(o.brand)} ${esc(o.item_name)}${o.item_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}${o.code ? `<small class="stockout-item-meta">型號 ${esc(o.code)}</small>` : ''}${returned}`,
     subHTML: esc(String(o.created_at || '').slice(5,10)),
@@ -119,7 +119,7 @@ function renderStockoutPageHeader(isViewer, kpis) {
   const globalSearchInput = document.getElementById('search-input');
   const globalSearchValue = globalSearchInput ? String(globalSearchInput.value || '') : '';
   const searchValue = String(stockoutState.stockoutPageSearch || globalSearchValue);
-  return `<section class="stockout-page-header"><div class="stockout-heading-copy"><div class="stockout-heading-icon" aria-hidden="true">🚚</div><div><h1>已領出</h1><p>查看所有已從庫存領出的品項紀錄。</p></div></div><div class="stockout-filter-bar"><label class="stockout-filter-field">開始日期<input type="date" value="${esc(stockoutState.stockoutDateFrom)}" onchange="Stockout.setStockoutFilter('from', this.value)"></label><label class="stockout-filter-field">結束日期<input type="date" value="${esc(stockoutState.stockoutDateTo)}" onchange="Stockout.setStockoutFilter('to', this.value)"></label><label class="stockout-filter-field search">關鍵字搜尋<input type="search" value="${esc(searchValue)}" placeholder="搜尋品項、型號、領用去向..." oninput="Stockout.setStockoutFilter('search', this.value)" onkeydown="if(event.key === 'Enter') Stockout.renderStockOuts()"></label><button type="button" class="btn btn--secondary btn--md stockout-filter-action" onclick="Stockout.renderStockOuts()">搜尋</button><button type="button" class="btn btn--secondary btn--md stockout-filter-action" onclick="Stockout.clearStockoutFilters()">清除</button>${isViewer ? '' : '<button type="button" class="btn btn--primary btn--md stockout-filter-action primary" onclick="Stockout.openNonStockOutModal()">＋ 新增已領出</button>'}</div></section><section class="stockout-kpi-grid ui-kpi-grid"><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--purple purple"><div class="stockout-kpi-icon ui-kpi-icon">📋</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">領出總筆數</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.recordCount))}</div><span class="ui-kpi-meta">目前篩選結果</span></div></div><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--green green"><div class="stockout-kpi-icon ui-kpi-icon">📦</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">總領出數量(個)</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.totalOutbound))}</div><span class="ui-kpi-meta">有效領出合計</span></div></div><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--blue blue"><div class="stockout-kpi-icon ui-kpi-icon">📅</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">領出日期 (天)</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.dateGroupCount))}</div><span class="ui-kpi-meta">去重日期</span></div></div><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--amber amber"><div class="stockout-kpi-icon ui-kpi-icon">🔧</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">品項種類</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.uniqueItemCount))}</div><span class="ui-kpi-meta">去重品項</span></div></div></section>`;
+  return `<section class="stockout-page-header"><div class="stockout-heading-copy"><div class="stockout-heading-icon" aria-hidden="true">🚚</div><div><h1>已領出</h1><p>查看所有已從庫存領出的品項紀錄。</p></div></div><div class="stockout-filter-bar"><label class="stockout-filter-field">開始日期<input type="date" value="${esc(stockoutState.stockoutDateFrom)}" data-action="stockout-filter" data-filter="from"></label><label class="stockout-filter-field">結束日期<input type="date" value="${esc(stockoutState.stockoutDateTo)}" data-action="stockout-filter" data-filter="to"></label><label class="stockout-filter-field search">關鍵字搜尋<input type="search" value="${esc(searchValue)}" placeholder="搜尋品項、型號、領用去向..." data-action="stockout-filter" data-filter="search"></label><button type="button" class="btn btn--secondary btn--md stockout-filter-action" data-action="stockout-search">搜尋</button><button type="button" class="btn btn--secondary btn--md stockout-filter-action" data-action="stockout-clear-filters">清除</button>${isViewer ? '' : '<button type="button" class="btn btn--primary btn--md stockout-filter-action primary" data-action="stockout-new-nonstock">＋ 新增已領出</button>'}</div></section><section class="stockout-kpi-grid ui-kpi-grid"><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--purple purple"><div class="stockout-kpi-icon ui-kpi-icon">📋</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">領出總筆數</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.recordCount))}</div><span class="ui-kpi-meta">目前篩選結果</span></div></div><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--green green"><div class="stockout-kpi-icon ui-kpi-icon">📦</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">總領出數量(個)</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.totalOutbound))}</div><span class="ui-kpi-meta">有效領出合計</span></div></div><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--blue blue"><div class="stockout-kpi-icon ui-kpi-icon">📅</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">領出日期 (天)</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.dateGroupCount))}</div><span class="ui-kpi-meta">去重日期</span></div></div><div class="stockout-kpi-card ui-kpi-card ui-kpi-card--amber amber"><div class="stockout-kpi-icon ui-kpi-icon">🔧</div><div class="ui-kpi-body"><div class="stockout-kpi-label ui-kpi-label">品項種類</div><div class="stockout-kpi-number ui-kpi-value">${esc(String(kpis.uniqueItemCount))}</div><span class="ui-kpi-meta">去重品項</span></div></div></section>`;
 }
 
 export function clearStockoutFilters() {
@@ -131,7 +131,7 @@ export function clearStockoutFilters() {
   renderStockOuts();
 }
 
-// 篩選列的 inline handler：日期變更即重新查詢；關鍵字只記錄，按 Enter 才查詢
+// 篩選列（features/stockout/actions.js 委派 data-action="stockout-filter"）：日期變更即重新查詢；關鍵字只記錄，按 Enter 才查詢
 export function setStockoutFilter(field, value) {
   if (field === 'search') { stockoutState.stockoutPageSearch = value; return; }
   if (field === 'from') stockoutState.stockoutDateFrom = value;
@@ -161,10 +161,10 @@ export async function renderStockOuts() {
     const kpis = getStockoutKpis(filteredOuts);
     const stockoutBar = renderStockoutPageHeader(isViewer, kpis);
     let html = stockoutBar;
-    html += `<div class="stockout-toolbar"><span>共 <strong>${esc(String(kpis.recordCount))}</strong> 筆</span>${filteredOuts.length !== outs.length ? `<span>已篩選 ${esc(String(filteredOuts.length))} / ${esc(String(outs.length))} 筆</span>` : ''}<button class="btn btn--export btn--md btn-export" onclick="Stockout.openStockoutExportDialog()">📊 匯出報表</button></div>`;
+    html += `<div class="stockout-toolbar"><span>共 <strong>${esc(String(kpis.recordCount))}</strong> 筆</span>${filteredOuts.length !== outs.length ? `<span>已篩選 ${esc(String(filteredOuts.length))} / ${esc(String(outs.length))} 筆</span>` : ''}<button class="btn btn--export btn--md btn-export" data-action="stockout-export">📊 匯出報表</button></div>`;
     if (!filteredOuts.length) {
       const filtered = outs.length > 0;
-      html += `<div class="stockout-empty-state"><span class="empty-icon">🚚</span><strong>${esc(filtered ? '沒有符合條件的已領出紀錄' : '目前沒有已領出的紀錄')}</strong><p>${esc(filtered ? '可以清除搜尋或日期篩選後再試一次。' : '當商品正式領出後，紀錄會顯示在這裡。')}</p>${filtered ? '<button type="button" class="btn btn--secondary btn--md stockout-filter-action" onclick="Stockout.clearStockoutFilters()">清除篩選</button>' : ''}</div>`;
+      html += `<div class="stockout-empty-state"><span class="empty-icon">🚚</span><strong>${esc(filtered ? '沒有符合條件的已領出紀錄' : '目前沒有已領出的紀錄')}</strong><p>${esc(filtered ? '可以清除搜尋或日期篩選後再試一次。' : '當商品正式領出後，紀錄會顯示在這裡。')}</p>${filtered ? '<button type="button" class="btn btn--secondary btn--md stockout-filter-action" data-action="stockout-clear-filters">清除篩選</button>' : ''}</div>`;
       if (!isCurrent()) return;
       content.innerHTML = html;
       return;
@@ -178,7 +178,7 @@ export async function renderStockOuts() {
   } catch (e) {
     if (!isCurrent()) return;
     console.error('[renderStockOuts] 已領出紀錄載入失敗', e);
-    content.innerHTML = `<div class="stockout-error-state"><h2>載入已領出紀錄失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button type="button" class="btn btn--secondary btn--md stockout-filter-action" onclick="Stockout.renderStockOuts()">重新載入</button></div>`;
+    content.innerHTML = `<div class="stockout-error-state"><h2>載入已領出紀錄失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button type="button" class="btn btn--secondary btn--md stockout-filter-action" data-action="stockout-search">重新載入</button></div>`;
   }
 }
 

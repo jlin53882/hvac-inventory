@@ -56,7 +56,7 @@ export function wprRenderPendingPhotos() {
   var grid = document.getElementById('wpr-pending-photos');
   if (!grid) return;
   var addDisabled = workProgressState.wprSelectedFiles.length >= WPR_MAX_FILES ? ' disabled' : '';
-  grid.innerHTML = workProgressState.wprSelectedFiles.map(function(item, index) { return '<div class="wpr-photo-tile"><button type="button" class="wpr-pending-preview" onclick="WorkProgress.wprOpenPendingGallery(' + index + ')" aria-label="預覽第 ' + (index + 1) + ' 張待上傳照片"><img src="' + esc(item.previewUrl) + '" alt="待上傳照片 ' + (index + 1) + '"></button><button type="button" class="wpr-photo-remove" onclick="event.stopPropagation();WorkProgress.wprRemovePending(' + index + ')" aria-label="移除第 ' + (index + 1) + ' 張照片">✕</button></div>'; }).join('') + '<button type="button" id="wpr-add-pending-button" class="wpr-add-tile" onclick="document.getElementById(\'wpr-album\').click()"' + addDisabled + '>＋新增</button>';
+  grid.innerHTML = workProgressState.wprSelectedFiles.map(function(item, index) { return '<div class="wpr-photo-tile"><button type="button" class="wpr-pending-preview" data-action="wpr-pending-open" data-index="' + index + '" aria-label="預覽第 ' + (index + 1) + ' 張待上傳照片"><img src="' + esc(item.previewUrl) + '" alt="待上傳照片 ' + (index + 1) + '"></button><button type="button" class="wpr-photo-remove" data-action="wpr-pending-remove" data-index="' + index + '" aria-label="移除第 ' + (index + 1) + ' 張照片">✕</button></div>'; }).join('') + '<button type="button" id="wpr-add-pending-button" class="wpr-add-tile" data-action="wpr-pick-album"' + addDisabled + '>＋新增</button>';
   wprUpdatePendingPhotoControls();
 }
 

@@ -1,6 +1,6 @@
 const assert = require('assert');
 const vm = require('vm');
-const { installApiClient, installNamespaces, loadModules, mockResponse } = require('./support/frontend-runtime');
+const { installApiClient, installNamespaces, loadModules, mockResponse, seedReadModels } = require('./support/frontend-runtime');
 
 function load(files, context) {
   installApiClient(context);
@@ -10,21 +10,21 @@ function load(files, context) {
 }
 
 /**
- * Extract a handler expression from production-generated desktop markup.
+ * Build the delegated click event the browser would dispatch for the generated delete-return button.
  * @param {string} html Rendered desktop action markup.
- * @returns {string} The generated inline handler expression.
+ * @returns {object} Event-like object accepted by handleStockoutEvent.
  */
-function extractDeleteReturnHandler(html) {
-  const match = html.match(/onclick="([^"]*deleteStockoutReturn\(7\)[^"]*)"/);
-  assert(match, 'desktop markup should contain a generated delete handler');
-  return match[1];
+function extractDeleteReturnEvent(html) {
+  const match = html.match(/data-action="(stockout-delete-return)" data-id="(7)"/);
+  assert(match, 'desktop markup should contain a generated delete-return action');
+  return { type: 'click', target: { closest: () => ({ dataset: { action: match[1], id: match[2] }, disabled: false }) } };
 }
 
 /**
- * Prove the desktop inline action executes the production delete handler.
+ * Prove the desktop delegated action executes the production delete handler.
  * @returns {Promise<void>} Resolves after the generated handler completes.
  */
-async function testDesktopInlineReturnDeleteExecutesHandler() {
+async function testDesktopDelegatedReturnDeleteExecutesHandler() {
   const calls = [];
   let refreshed = 0;
   let destinationsRefreshed = 0;
@@ -40,7 +40,7 @@ async function testDesktopInlineReturnDeleteExecutesHandler() {
       return mockResponse(({}));
     },
   });
-  load(['features/stockout/modals.js', 'features/stockout/page.js', 'features/stockout/sheet.js'], context);
+  load(['features/stockout/modals.js', 'features/stockout/page.js', 'features/stockout/sheet.js', 'features/stockout/actions.js'], context);
   context.renderStockOuts = () => { refreshed += 1; };
 
   const html = context.renderStockoutActions({
@@ -48,16 +48,17 @@ async function testDesktopInlineReturnDeleteExecutesHandler() {
     reason: '退回已領出',
     reverted_at: null,
   }, false);
-  const handler = extractDeleteReturnHandler(html);
   assert(!html.includes('revokeStockoutReturn'));
+  assert(!html.includes('onclick='), 'desktop actions must not use inline handlers');
 
-  await vm.runInContext(handler, context);
+  assert.strictEqual(context.handleStockoutEvent(extractDeleteReturnEvent(html)), true);
+  for (let i = 0; i < 5; i++) await new Promise(resolve => setTimeout(resolve, 0));
 
   assert.strictEqual(calls.length, 1);
   assert.strictEqual(calls[0].url, '/api/stockout-returns/7');
   assert.strictEqual(calls[0].options.method, 'DELETE');
-  assert.strictEqual(refreshed, 1, 'desktop inline delete should refresh exactly once');
-  assert.strictEqual(destinationsRefreshed, 1, 'desktop inline delete should refresh destination suggestions');
+  assert.strictEqual(refreshed, 1, 'desktop delegated delete should refresh exactly once');
+  assert.strictEqual(destinationsRefreshed, 1, 'desktop delegated delete should refresh destination suggestions');
 }
 
 /**
@@ -140,7 +141,6 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
   };
   const context = vm.createContext({
     console,
-    appState: { ALL_ITEMS: [], preparedItems: [{ id: 42, name: 'Prepared only', brand: 'PB', prepared_qty: 5, unit: '箱' }] },
     document: { getElementById: id => elements[id] },
     qtyInputOrToast: () => 2,
     closeModalForce: () => {},
@@ -153,6 +153,7 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
     },
   });
   load(['features/stockout/modals.js'], context);
+  seedReadModels(context, { allItems: [], preparedItems: [{ id: 42, name: 'Prepared only', brand: 'PB', prepared_qty: 5, unit: '箱' }] });
 
   context.openPreparedOutModal(42);
   assert.strictEqual(elements['po-item-name'].value, 'Prepared only (PB)');
@@ -169,7 +170,7 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
 (async () => {
   const selected = process.argv[2] || 'all';
   if (selected === 'c003' || selected === 'all') {
-    await testDesktopInlineReturnDeleteExecutesHandler();
+    await testDesktopDelegatedReturnDeleteExecutesHandler();
     await testMobileReturnDeleteExecutesHandler();
     await testReturnDeleteFailureDoesNotRefresh();
   }

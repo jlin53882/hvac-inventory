@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { extractFunction, installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
+const { extractFunction, installApiClient, loadModules, mockResponse, seedReadModels } = require('./support/frontend-runtime');
 
 const root = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -37,11 +37,12 @@ assert.match(build([
 assert.match(build([{ cabinet: '', sub: '', qty: 0, note: '' }]).error, /位置必填/, '至少需一個位置');
 
 // ---- 2. _cabinetOptions：清單外（未載入/已改名）的既有櫃子不可被靜默清空 ----
-const editContext = vm.createContext({ esc: escapeHtml, appState: { globalCabinetList: [] } });
+const editContext = vm.createContext({ esc: escapeHtml });
+seedReadModels(editContext, { globalCabinetList: [] });   // 正式的 core/shared-read-model.js
 vm.runInContext(extractFunction(read('static/js/features/inventory/edit-modal.js'), '_cabinetOptions'), editContext);
 const unloaded = editContext._cabinetOptions('編號B');
 assert.match(unloaded, /<option value="編號B" selected>/, '櫃子清單未載入時仍需保留已存櫃子並選取');
-editContext.appState.globalCabinetList = [{ name: '編號B', note: '二樓' }];
+editContext.setGlobalCabinetList([{ name: '編號B', note: '二樓' }]);
 const loaded = editContext._cabinetOptions('編號B');
 assert.equal((loaded.match(/value="編號B"/g) || []).length, 1, '櫃子已在清單內時不得重複');
 assert.ok(!editContext._cabinetOptions('').includes('不在櫃子清單'), '空值不得新增額外選項');
@@ -97,7 +98,6 @@ function parseRows(markup) {
 const kitContext = vm.createContext({
   console,
   esc: escapeHtml,
-  appState: { globalCabinetList: [] },
   document: {
     getElementById: id => (id === 'kit-location-rows' ? container : null),
     querySelectorAll: selector => (selector === '#kit-location-rows [data-role="kit-location-row"]' ? domRows : []),
@@ -105,6 +105,7 @@ const kitContext = vm.createContext({
   fetch: async () => mockResponse([{ name: '編號A' }, { name: '編號B' }]),
 });
 installApiClient(kitContext);
+seedReadModels(kitContext, { globalCabinetList: [] });
 vm.runInContext(extractFunction(read('static/js/features/inventory/edit-modal.js'), '_cabinetOptions'), kitContext);
 loadModules(kitContext, 'features/kits/state.js', 'features/kits/kit-modal.js');
 const render = () => { kitContext.renderKitLocationRows(); domRows = parseRows(container.html); };

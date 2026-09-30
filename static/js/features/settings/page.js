@@ -73,7 +73,7 @@ export function initSettingsPage() {
         ['petty-cash', '🪙 零用金選單'],
         ['pw', '🔑 修改密碼']
       ].filter(([p]) => (p !== 'units' || canUnits) && (p !== 'petty-cash' || canPettyOptions) && (p !== 'pw' || canChangePassword))
-       .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' is-active' : '') + '" data-panel="' + p + '" onclick="Settings.settingsSwitch(\'' + p + '\')">' + label + '</span>')
+       .map(([p, label]) => '<span class="chip' + (p === 'units' ? ' is-active' : '') + '" data-panel="' + p + '" data-action="settings-switch">' + label + '</span>')
        .join('');
     }
     // 行事曆同步資料由 loadGcalPanelData 載入並預選第一個 Key

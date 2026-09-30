@@ -4,6 +4,7 @@ import { apiFetch } from '../../core/api-client.js';
 import { loadData } from '../shell/data-refresh.js';
 import { qtyInputOrToast } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
+import { setGlobalCabinetList } from '../../core/shared-read-model.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, hasPerm, openModal, toast } from '../../core/utils.js';
 import { _cabinetOptions } from './edit-modal.js';
@@ -38,7 +39,7 @@ export function openAddModal() {
   // 2026-09-27：新增時也載入最新櫃子清單；載入後只更新下拉選項，保留使用者已輸入的值
   (async () => {
     try {
-      appState.globalCabinetList = await apiFetch('/api/cabinets');
+      setGlobalCabinetList(await apiFetch('/api/cabinets'));
       refreshAddStockCabinetOptions();
     } catch (e) {
       console.warn('新增 modal 載入櫃子清單失敗', e);
@@ -56,7 +57,7 @@ function addStockRowHtml() {
     <label class="stock-field stock-field-sub"><span class="stock-mobile-label">位置(選填)</span><input type="text" class="stock-sub" data-role="stock-sub" list="location-list" placeholder="例：1-1"></label>
     <label class="stock-field stock-field-qty"><span class="stock-mobile-label">數量(選填)</span><input type="text" inputmode="decimal" class="stock-qty" data-role="stock-qty" value="0" placeholder="數量（可輸 1/4）"></label>
     <label class="stock-field stock-field-note"><span class="stock-mobile-label">備註(選填)</span><input type="text" class="stock-note" data-role="stock-note" placeholder="備註"></label>
-    <button type="button" class="stock-remove" onclick="Inventory.removeAddStockRow(this)" aria-label="移除此位置" title="移除此位置">✕</button>`;
+    <button type="button" class="stock-remove" data-action="inventory-add-stock-remove" aria-label="移除此位置" title="移除此位置">✕</button>`;
 }
 
 /**

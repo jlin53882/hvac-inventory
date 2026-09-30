@@ -26,18 +26,18 @@ def _click_range(page, role: str, value: str) -> None:
 def test_kit_submit_button_follows_create_and_edit_mode(page, live_server):
     """整組 modal 的送出按鈕：新增 / 編輯模式各自換文字與動作；忙碌時鎖住，避免重複送出。"""
     harness.open_tab(page, live_server, "kit")
-    harness.run_action(page, "Kits.openKitModal()")
+    harness.run_action(page, "hvac('features/kits/kit-modal.js').openKitModal()")
     button = page.locator("#kit-modal #kit-submit")
     assert button.inner_text().strip() == "✅ 建立整組"
-    assert button.get_attribute("onclick") == "Kits.submitKit()"
+    assert button.get_attribute("data-action") == "kits-submit"
     page.evaluate("hvac('features/kits/kit-modal.js').setKitSubmitBusy(true)")
     assert button.is_disabled() and button.get_attribute("aria-busy") == "true"
     page.evaluate("hvac('features/kits/kit-modal.js').setKitSubmitBusy(false)")
     assert button.is_enabled() and button.get_attribute("aria-busy") == "false"
     page.evaluate("hvac('core/utils.js').closeModalForce('kit-modal')")
-    harness.run_action(page, "Kits.editKit(hvac('core/state.js').appState.currentKitItems[0].id)")
+    harness.run_action(page, "hvac('features/kits/page.js').editKit(hvac('core/shared-read-model.js').getCurrentKitItems()[0].id)")
     assert button.inner_text().strip() == "💾 儲存整組"
-    assert button.get_attribute("onclick") == "Kits.submitKitEdit()"
+    assert button.get_attribute("data-action") == "kits-submit-edit"
 
 
 def test_expiry_modal_buttons_follow_self_service_permission(page, live_server):
@@ -56,14 +56,14 @@ def test_expiry_modal_buttons_follow_self_service_permission(page, live_server):
 def test_prepared_edit_submit_is_single_flight(page, live_server):
     """待領出修改：送出按鈕忙碌中再按不會送第二次；完成後解鎖並關閉 modal。"""
     harness.open_tab(page, live_server, "prepared")
-    harness.run_action(page, "Stockout.openPreparedEditModal(hvac('core/state.js').appState.preparedItems[0].id)")
+    harness.run_action(page, "hvac('features/stockout/modals.js').openPreparedEditModal(hvac('core/shared-read-model.js').getPreparedItems()[0].id)")
     patches = []
     page.on("request", lambda req: patches.append(req.url) if req.method == "PATCH" else None)
     page.evaluate("document.getElementById('prepared-edit-submit').disabled = true")
-    harness.run_action(page, "Stockout.submitPreparedEdit()")
+    harness.run_action(page, "hvac('features/stockout/modals.js').submitPreparedEdit()")
     assert patches == [], "忙碌中的送出按鈕不應再送出"
     page.evaluate("document.getElementById('prepared-edit-submit').disabled = false")
-    harness.run_action(page, "Stockout.submitPreparedEdit()")
+    harness.run_action(page, "hvac('features/stockout/modals.js').submitPreparedEdit()")
     assert len(patches) == 1 and "/api/prepared/" in patches[0]
     assert page.locator("#prepared-edit-submit").is_enabled()
     assert not page.locator("#prepared-edit-modal").is_visible()
@@ -72,10 +72,10 @@ def test_prepared_edit_submit_is_single_flight(page, live_server):
 def test_quick_range_chips_track_selection_and_reset(page, live_server):
     """各頁快捷期間 chip：點選後只有該 chip 選取；重設後回到預設期間。"""
     cases = [
-        ("petty-cash", None, "pc-range", "all", "prev", "PettyCash.pcResetFilter()"),
-        ("work-progress", None, "wpr-range", "month", "today", "WorkProgress.wprResetFilter()"),
-        ("signed-reports", None, "upl-range", "month", "week", "SignedReports.resetFilter()"),
-        ("quotation", "Quotation.quoteSwitchMode('upload')", "upl-range", "month", "all", "QuotationUploads.resetFilter()"),
+        ("petty-cash", None, "pc-range", "all", "prev", "hvac('features/petty-cash/page.js').pcResetFilter()"),
+        ("work-progress", None, "wpr-range", "month", "today", "hvac('features/work-progress/history.js').wprResetFilter()"),
+        ("signed-reports", None, "upl-range", "month", "week", "hvac('features/upload-list/signed-reports.js').SignedReports.resetFilter()"),
+        ("quotation", "hvac('features/quotation/page.js').quoteSwitchMode('upload')", "upl-range", "month", "all", "hvac('features/upload-list/quotation-upload.js').QuotationUploads.resetFilter()"),
     ]
     for tab, action, role, default, other, reset in cases:
         harness.open_tab(page, live_server, tab)
@@ -103,7 +103,7 @@ def test_settings_chip_bar_follows_panel(page, live_server):
     """設定頁（手機 chip 列）切換面板後，只有目前面板的 chip 呈現選取狀態。"""
     _open_settings(page, live_server)
     for panel in ("cabinets", "gcal", "units"):
-        page.evaluate("p => Settings.settingsSwitch(p)", panel)
+        page.evaluate("p => hvac('features/settings/page.js').settingsSwitch(p)", panel)
         page.wait_for_load_state("networkidle")
         active = page.evaluate(
             "() => [...document.querySelectorAll('#settingsChipBar [data-panel]')]"
@@ -128,9 +128,9 @@ def test_settings_unit_consolidation_reads_row_controls(page, live_server):
     page.route("**/api/units/consolidate*", capture)
     page.evaluate("""() => {
         window.confirm = () => true;
-        Settings.settingsSwitch('units');
+        hvac('features/settings/page.js').settingsSwitch('units');
     }""")
-    target = page.evaluate("() => hvac('core/state.js').appState.unitListActive[0].name")
+    target = page.evaluate("() => hvac('core/shared-read-model.js').getActiveUnitList()[0].name")
     page.locator(".grp-head").first.click()
     row = page.locator("tr", has=page.locator("td.p-name", has_text="舊冷媒"))
     row.locator("select").select_option(target)

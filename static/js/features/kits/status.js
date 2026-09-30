@@ -2,7 +2,8 @@
 
 import { buildThumb } from '../../components/card.js';
 import { openSharedStatusListModal, statusListFormatQuantity } from '../../components/status-list.js';
-import { appState } from '../../core/state.js';
+import { getCurrentKitItems } from '../../core/shared-read-model.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { esc, hasPerm } from '../../core/utils.js';
 
 export function getKitStatus(kit) {
@@ -22,7 +23,7 @@ export function getKitStatus(kit) {
 
 function renderKitStatusItem(kit, type) {
   const stock = Number(kit.stock_qty || 0);
-  const source = Array.isArray(appState.ALL_ITEMS) ? appState.ALL_ITEMS.find(function(item) { return Number(item.id) === Number(kit.item_id); }) || {} : {};
+  const source = Array.isArray(getAllItems()) ? getAllItems().find(function(item) { return Number(item.id) === Number(kit.item_id); }) || {} : {};
   const location = kit.location || source.location || (source.stocks && source.stocks[0] && source.stocks[0].location) || '未標示';
   const isShortage = type === 'shortage';
   const statusLabel = isShortage ? '缺料' : '庫存不足';
@@ -33,7 +34,7 @@ function renderKitStatusItem(kit, type) {
     ? `<div class="kit-status-missing">${esc(missingLabel)} ${missing.length} 項：${missing.map(function(c) { return `<span>${esc(c.name || '未命名材料')}</span>`; }).join('')}</div>`
     : '';
   const editAction = hasPerm('kit-mgmt') && Number.isInteger(Number(kit.id))
-    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" onclick="Inventory.closeInventoryStatusModal();Kits.editKit(${esc(String(Number(kit.id)))})">編輯</button>`
+    ? `<button type="button" class="btn btn--secondary btn--sm inventory-status-edit" data-action="kits-edit-from-status" data-id="${esc(String(Number(kit.id)))}">編輯</button>`
     : '';
   return `<article class="inventory-status-item status-list-mobile-row kit-status-item ${esc(statusClass)}">
     <div class="inventory-status-thumb">${buildThumb(kit.item_id, !!kit.has_photo, kit.name, '🔧', kit.thumbnail_url)}</div>
@@ -52,7 +53,7 @@ function renderKitStatusItem(kit, type) {
 }
 export function showKitStatusList(type) {
   const validType = type === 'shortage' ? 'shortage' : 'insufficient';
-  const items = appState.currentKitItems.filter(function(k) { return getKitStatus(k).status === validType; });
+  const items = getCurrentKitItems().filter(function(k) { return getKitStatus(k).status === validType; });
   const isShortage = validType === 'shortage';
   openSharedStatusListModal({
     title: isShortage ? '⛔ 缺料的整組' : '⚠ 庫存不足的整組',

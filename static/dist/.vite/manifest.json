@@ -1,51 +1,62 @@
 {
-  "_api-client-3bmOLXBs.js": {
-    "file": "assets/api-client-3bmOLXBs.js",
+  "_api-client-DYnNJvCF.js": {
+    "file": "assets/api-client-DYnNJvCF.js",
     "name": "api-client"
   },
-  "_change-password-9w2lYdsI.js": {
-    "file": "assets/change-password-9w2lYdsI.js",
+  "_change-password-pIC3VO99.js": {
+    "file": "assets/change-password-pIC3VO99.js",
     "name": "change-password",
     "imports": [
-      "_api-client-3bmOLXBs.js"
+      "_api-client-DYnNJvCF.js",
+      "_ui-actions-CPAv7AF2.js"
+    ]
+  },
+  "_ui-actions-CPAv7AF2.js": {
+    "file": "assets/ui-actions-CPAv7AF2.js",
+    "name": "ui-actions",
+    "imports": [
+      "_api-client-DYnNJvCF.js"
     ]
   },
   "static/js/pages/login.js": {
-    "file": "assets/login-CFes2rbp.js",
+    "file": "assets/login-tOW4DnQk.js",
     "name": "login",
     "src": "static/js/pages/login.js",
     "isEntry": true,
     "imports": [
-      "_api-client-3bmOLXBs.js"
+      "_api-client-DYnNJvCF.js"
     ]
   },
   "static/js/pages/main.js": {
-    "file": "assets/main-DFYemUy1.js",
+    "file": "assets/main-CdAd_k5e.js",
     "name": "main",
     "src": "static/js/pages/main.js",
     "isEntry": true,
     "imports": [
-      "_api-client-3bmOLXBs.js",
-      "_change-password-9w2lYdsI.js"
+      "_api-client-DYnNJvCF.js",
+      "_ui-actions-CPAv7AF2.js",
+      "_change-password-pIC3VO99.js"
     ]
   },
   "static/js/pages/permissions.js": {
-    "file": "assets/permissions-CwaDU3mJ.js",
+    "file": "assets/permissions-BSglVoJ7.js",
     "name": "permissions",
     "src": "static/js/pages/permissions.js",
     "isEntry": true,
     "imports": [
-      "_api-client-3bmOLXBs.js"
+      "_api-client-DYnNJvCF.js",
+      "_ui-actions-CPAv7AF2.js"
     ]
   },
   "static/js/pages/settings.js": {
-    "file": "assets/settings-CSMmrzzV.js",
+    "file": "assets/settings-duhMb6-L.js",
     "name": "settings",
     "src": "static/js/pages/settings.js",
     "isEntry": true,
     "imports": [
-      "_api-client-3bmOLXBs.js",
-      "_change-password-9w2lYdsI.js"
+      "_api-client-DYnNJvCF.js",
+      "_ui-actions-CPAv7AF2.js",
+      "_change-password-pIC3VO99.js"
     ]
   }
 }

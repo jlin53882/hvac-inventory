@@ -2,7 +2,7 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { Qty } from '../../core/qty.js';
-import { appState } from '../../core/state.js';
+import { getActiveUnitList, setActiveUnitList } from '../../core/shared-read-model.js';
 import { loadUnits, unitList } from '../../core/units.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
 import { loadCabinets } from './cabinets.js';
@@ -49,20 +49,20 @@ export function renderUnitsPanel() {
   if (canAdd) {
     html += '<div class="u-add-row"><input id="u-new-name" placeholder="新單位名稱（例：顆）" maxlength="20">' +
             '<select id="u-new-type" title="數量輸入類型"><option value="integer">整數</option><option value="decimal">小數</option><option value="fraction">分數/小數</option></select>' +
-            '<button class="btn btn--primary btn--md btn-primary" onclick="Settings.addUnitFromSettings()">＋ 新增</button></div>';
+            '<button class="btn btn--primary btn--md btn-primary" data-action="settings-unit-add">＋ 新增</button></div>';
   }
   html += '<table class="u-table"><thead><tr><th>單位名稱</th><th>數量類型</th><th class="u-ta-right">操作</th></tr></thead>';
   unitList.forEach(u => {
     const _tl = qtyTypeLabel(u.qty_type);
     const _typeCell = canManage
-      ? '<select class="u-qty-type" onchange="Settings.setUnitQtyType(' + u.id + ', this.value)" title="數量輸入類型">' +
+      ? '<select class="u-qty-type" data-action="settings-unit-qty-type" data-id="' + u.id + '" title="數量輸入類型">' +
         ['integer', 'decimal', 'fraction'].map(t => '<option value="' + t + '"' + ((u.qty_type || 'integer') === t ? ' selected' : '') + '>' + qtyTypeLabel(t) + '</option>').join('') + '</select>'
       : '<span class="u-qty-label">' + esc(_tl) + '</span>';
     html += '<tr data-unit-row="' + u.id + '"><td class="u-name ' + (u.is_active ? '' : 'is-inactive') + '">' + esc(u.name) + (u.is_active ? '' : ' <small>（停用）</small>') + '</td><td>' + _typeCell + '</td><td class="u-ta-right">';
     if (canManage) {
-      html += '<a class="updown" onclick="Settings.moveUnit(' + u.id + ', -1)" title="上移">↑</a>' +
-              '<a class="updown" onclick="Settings.moveUnit(' + u.id + ', 1)" title="下移">↓</a> ' +
-              '<label class="settings-switch"><input type="checkbox" ' + (u.is_active ? 'checked' : '') + ' onchange="Settings.toggleUnit(' + u.id + ', this.checked)"><span class="slider"></span></label>';
+      html += '<a class="updown" data-action="settings-unit-move" data-id="' + u.id + '" data-dir="-1" title="上移">↑</a>' +
+              '<a class="updown" data-action="settings-unit-move" data-id="' + u.id + '" data-dir="1" title="下移">↓</a> ' +
+              '<label class="settings-switch"><input type="checkbox" ' + (u.is_active ? 'checked' : '') + ' data-action="settings-unit-toggle" data-id="' + u.id + '"><span class="slider"></span></label>';
     }
     html += '</td></tr>';
   });
@@ -73,25 +73,25 @@ export function renderUnitsPanel() {
       html += '<div class="hist-clean"><b>⚠️ 歷史單位待處理（點開逐筆處理）</b>';
       html += '<div class="hist-clean-desc">這些資料可能包含舊式「數量 + 單位」混合格式，需要轉換成標準數量與正式單位。有轉換建議的可一鍵套用；判斷不出的請手填確認，處理完自動消失。</div>';
       groups.forEach(g => {
-        html += '<div class="grp"><div class="grp-head" onclick="this.parentElement.classList.toggle(\'is-open\')">' +
+        html += '<div class="grp"><div class="grp-head" data-action="settings-unit-group-toggle">' +
           '<span class="grp-title"><span class="arrow">▶</span> ' + esc(g.label) + '</span>' +
           '<span class="grp-count">' + g.items.length + ' 筆</span></div>' +
           '<div class="grp-body"><table class="g-table">';
         g.items.forEach(it => {
           const _sg = suggestQtyConvert(it.unit, it.total_qty);
           const _sgHtml = _sg
-            ? '<div class="u-suggest">建議：' + esc(String(_sg.qty)) + ' ' + esc(_sg.unit) + ' <button class="btn btn--primary btn--sm btn-primary" onclick="Settings.applyQtySuggest(' + it.item_id + ', this)" data-qty="' + esc(String(_sg.qty)) + '" data-to="' + esc(_sg.unit) + '">套用建議</button></div>'
+            ? '<div class="u-suggest">建議：' + esc(String(_sg.qty)) + ' ' + esc(_sg.unit) + ' <button class="btn btn--primary btn--sm btn-primary" data-action="settings-unit-apply-suggest" data-id="' + it.item_id + '" data-qty="' + esc(String(_sg.qty)) + '" data-to="' + esc(_sg.unit) + '">套用建議</button></div>'
             : '<div class="u-suggest u-ambiguous">⚠ 需人工確認（無法自動判讀）</div>';
           html += '<tr><td class="p-name" data-role="item-name">' + esc(it.name) + (it.is_deleted ? ' <small>（非庫存）</small>' : '') + '</td>' +
             '<td class="qty">×' + absNum(it.total_qty) + '</td>' +
             '<td>' + _sgHtml +
             '<div class="u-manual"><select class="u-ci-to" data-role="unit-consolidate-to" required><option value="">— 請選擇 —</option>';
-          appState.unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
-          html += '</select><input class="u-ci-qty" data-role="unit-consolidate-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn btn--primary btn--sm btn-primary" onclick="Settings.consolidateItem(' + it.item_id + ', this)">改為</button></div></td></tr>';
+          getActiveUnitList().forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
+          html += '</select><input class="u-ci-qty" data-role="unit-consolidate-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn btn--primary btn--sm btn-primary" data-action="settings-unit-consolidate-item" data-id="' + it.item_id + '">改為</button></div></td></tr>';
         });
         html += '</table><div class="grp-fast" data-role="unit-group-fast">整組快速套用：<select class="u-ci-fast" data-role="unit-consolidate-fast" required><option value="">— 請選擇 —</option>';
-        appState.unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
-        html += '</select><button class="btn btn--primary btn--sm btn-primary" data-from="' + esc(g.unit) + '" onclick="Settings.consolidateGroup(this)">套用全部</button></div></div></div>';
+        getActiveUnitList().forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
+        html += '</select><button class="btn btn--primary btn--sm btn-primary" data-from="' + esc(g.unit) + '" data-action="settings-unit-consolidate-group">套用全部</button></div></div></div>';
       });
       html += '</div>';
     } else if (orphanLoadFailed) {
@@ -114,7 +114,7 @@ export async function addUnitFromSettings() {
       method: 'POST', json: { name: name, qty_type: qtyType }, fallback: '新增失敗'
     });
     unitList.push(data);
-    appState.unitListActive = unitList.filter(u => u.is_active);
+    setActiveUnitList(unitList.filter(u => u.is_active));
     if (inp) inp.value = '';
     renderUnitsPanel();
     toast('✅ 單位「' + name + '」已新增', 'success');
@@ -140,7 +140,7 @@ export async function toggleUnit(id, on) {
     });
     const u = unitList.find(x => x.id === id);
     if (u) u.is_active = on;
-    appState.unitListActive = unitList.filter(x => x.is_active);
+    setActiveUnitList(unitList.filter(x => x.is_active));
     renderUnitsPanel();
     toast(on ? '✅ 已啟用' : '已停用', on ? 'success' : '');
   } catch (e) { toast(e.message, 'error'); renderUnitsPanel(); }

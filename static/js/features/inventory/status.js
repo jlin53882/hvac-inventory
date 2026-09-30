@@ -3,6 +3,8 @@
 import { clearSharedStatusListModal, renderSharedProductStatusItem, setSharedStatusListContext, statusListLocations } from '../../components/status-list.js';
 import { apiFetch } from '../../core/api-client.js';
 import { INVENTORY_ALERT_ITEMS, INVENTORY_PENDING_ITEMS, appState, pending } from '../../core/state.js';
+import { getCurrentBrands, getCurrentCategories } from '../../core/shared-read-model.js';
+import { getInventoryMeta, setInventoryStats } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems, getInventoryFilterKeywords, inventoryItemMatchesCurrentFilters } from './filters.js';
 import { inventoryState } from './state.js';
@@ -95,11 +97,11 @@ export function renderInventoryDashboard(list, aggregateStats) {
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">🗄️</span>
       <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">庫存總數</div><div class="inventory-kpi-number ui-kpi-value">${esc(formatInventoryQuantity(totalQty))}</div><span class="ui-kpi-meta">目前篩選結果合計</span></div>
     </div>
-    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--amber inventory-kpi-low" onclick="Inventory.showInventoryStatusList('low')" aria-label="查看低庫存商品">
+    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--amber inventory-kpi-low" data-action="inventory-status-list" data-type="low" aria-label="查看低庫存商品">
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">⚠</span>
       <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">低庫存</div><div class="inventory-kpi-number ui-kpi-value">${esc(String(lowCount))}</div><span class="ui-kpi-meta">低於警示值 · <span class="inventory-kpi-action">查看清單</span></span></div>
     </button>
-    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--red inventory-kpi-out" onclick="Inventory.showInventoryStatusList('out')" aria-label="查看缺貨商品">
+    <button type="button" class="inventory-kpi-card ui-kpi-card ui-kpi-card--red inventory-kpi-out" data-action="inventory-status-list" data-type="out" aria-label="查看缺貨商品">
       <span class="inventory-kpi-icon ui-kpi-icon" aria-hidden="true">⛔</span>
       <div class="ui-kpi-body"><div class="inventory-kpi-label ui-kpi-label">缺貨</div><div class="inventory-kpi-number ui-kpi-value">${esc(String(zeroCount))}</div><span class="ui-kpi-meta">數量為 0 · <span class="inventory-kpi-action">查看清單</span></span></div>
     </button>
@@ -109,7 +111,7 @@ export function renderInventoryDashboard(list, aggregateStats) {
 function getInventoryStatusItems(type) {
   const isLow = type === 'low';
   const pageItems = getFilteredInventoryItems();
-  const aggregateStats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
+  const aggregateStats = getInventoryMeta().stats;
   const dashboard = getInventoryDashboardStats(pageItems, aggregateStats);
   return (isLow ? dashboard.lowItems : dashboard.zeroItems)
     .slice()
@@ -118,8 +120,8 @@ function getInventoryStatusItems(type) {
 
 function getInventoryFilterStateKey() {
   const search = document.getElementById('search-input');
-  const brands = typeof appState.currentBrands !== 'undefined' ? appState.currentBrands : [];
-  const categories = typeof appState.currentCategories !== 'undefined' ? appState.currentCategories : [];
+  const brands = getCurrentBrands();
+  const categories = getCurrentCategories();
   return JSON.stringify([
     typeof appState.currentSite !== 'undefined' ? appState.currentSite : '',
     search ? search.value.trim() : '',
@@ -138,8 +140,8 @@ function buildInventoryAlertParams() {
   });
   const search = document.getElementById('search-input');
   if (search && search.value.trim()) params.set('search', search.value.trim());
-  if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
-  if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
+  if (getCurrentBrands().length) params.set('brands', getCurrentBrands().join(','));
+  if (getCurrentCategories().length) params.set('categories', getCurrentCategories().join(','));
   return params;
 }
 
@@ -158,12 +160,10 @@ async function loadInventoryAlertItems(type, requestId) {
     low_items: stats.low_items,
   });
   const adjustedStats = getInventoryDashboardStats(getFilteredInventoryItems(), mergedStats);
-  if (typeof appState.INVENTORY_META !== 'undefined') {
-    appState.INVENTORY_META.stats = Object.assign({}, mergedStats, {
-      zero_items: adjustedStats.zeroItems,
-      low_items: adjustedStats.lowItems,
-    });
-  }
+  setInventoryStats(Object.assign({}, mergedStats, {
+    zero_items: adjustedStats.zeroItems,
+    low_items: adjustedStats.lowItems,
+  }));
   return (type === 'low' ? adjustedStats.lowItems : adjustedStats.zeroItems).slice();
 }
 
@@ -210,7 +210,7 @@ export async function showInventoryStatusList(type) {
   const requestId = inventoryState.inventoryStatusGuard.next();
   inventoryState.inventoryStatusModalType = type;
   let items = getInventoryStatusItems(type);
-  const stats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
+  const stats = getInventoryMeta().stats;
   const hasAlertItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
   modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');

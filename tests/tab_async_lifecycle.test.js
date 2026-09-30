@@ -46,7 +46,7 @@ function baseContext({ currentTab = 'stockout', ...overrides } = {}) {
     console: { error() {}, log() {} },
     URLSearchParams,
     // 跨模組狀態（issue #39：原本是全域變數）
-    appState: { currentTab, currentSite: 'office', ALL_ITEMS: [] },
+    appState: { currentTab, currentSite: 'office' },
     stocktakeState: { stocktakeKits: [], stocktakeValues: {} },
     stockoutState: { stockoutRecords: [], stockoutDateFrom: '', stockoutDateTo: '', stockoutPageSearch: '' },
     currentUser: { permissions: { stocktake: false } },

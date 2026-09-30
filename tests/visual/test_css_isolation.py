@@ -35,7 +35,7 @@ def _computed(page, selector: str, prop: str) -> str:
 
 
 @pytest.mark.parametrize("tab", ["inventory", "kit"])
-@pytest.mark.parametrize("modal,opener", [("#add-modal", "Inventory.openAddModal()"), ("#edit-modal", "Inventory.openEditModal(1)")])
+@pytest.mark.parametrize("modal,opener", [("#add-modal", "hvac('features/inventory/add-modal.js').openAddModal()"), ("#edit-modal", "hvac('features/inventory/edit-modal.js').openEditModal(1)")])
 def test_item_modal_location_headers_grid(page, live_server, viewport, tab, modal, opener):
     """新增 / 編輯品項 modal 的位置欄標頭：桌機 5 欄 grid、手機隱藏；不論從哪一頁開啟都一樣。"""
     harness.open_tab(page, live_server, tab)
@@ -52,7 +52,7 @@ def test_item_modal_location_headers_grid(page, live_server, viewport, tab, moda
 def test_kit_modal_location_headers_flex(page, live_server):
     """整組 modal 的建議存放位置標頭維持 flex 比例欄寬。"""
     harness.open_tab(page, live_server, "kit")
-    harness.run_action(page, "Kits.openKitModal()")
+    harness.run_action(page, "hvac('features/kits/kit-modal.js').openKitModal()")
     headers = "#kit-modal .col-headers"
     assert _computed(page, headers, "display") == "flex"
     assert _computed(page, f"{headers} .ch-cabinet", "flex-basis") == "25%"
@@ -61,9 +61,9 @@ def test_kit_modal_location_headers_flex(page, live_server):
 
 
 @pytest.mark.parametrize("tab,dialog,opener", [
-    ("inventory", "#inventory-export-dialog", "Inventory.openInventoryExportDialog()"),
-    ("kit", "#kit-export-dialog", "Kits.openKitExportDialog()"),
-    ("stockout", "#stockout-export-dialog", "Stockout.openStockoutExportDialog()"),
+    ("inventory", "#inventory-export-dialog", "hvac('features/inventory/export-dialog.js').openInventoryExportDialog()"),
+    ("kit", "#kit-export-dialog", "hvac('features/kits/export-dialog.js').openKitExportDialog()"),
+    ("stockout", "#stockout-export-dialog", "hvac('features/stockout/export-dialog.js').openStockoutExportDialog()"),
 ])
 def test_export_dialog_styled_on_every_page(page, live_server, viewport, tab, dialog, opener):
     """匯出報表對話框三頁共用：每一頁開啟都要有同一套版面
@@ -88,7 +88,7 @@ def _goto_settings(page, live_server, action):
 def test_gcal_key_panel_layout(page, live_server, viewport):
     """設定頁行事曆同步：桌機 Key 列表 220px + 右側詳情並排；手機改為上下排列、滿版
     （回歸：inline style 蓋過手機規則，手機版被擠成左右兩欄、文字一字一行）。"""
-    _goto_settings(page, live_server, "Settings.settingsSwitch('gcal'); Settings.selectGcalKey(1);")
+    _goto_settings(page, live_server, "hvac('features/settings/page.js').settingsSwitch('gcal'); hvac('features/settings/gcal.js').selectGcalKey(1);")
     layout, keys, panel = "#panel-gcal .gcal-layout", "#panel-gcal .gcal-key-list", "#panel-gcal .gcal-detail-panel"
     if viewport[0] == "desktop":
         assert _computed(page, layout, "display") == "flex"
@@ -104,7 +104,7 @@ def test_gcal_key_panel_layout(page, live_server, viewport):
 
 def test_cabinet_actions_stay_inline(page, live_server, viewport):
     """櫃子設定的「編輯 / 刪除」在桌機與手機都維持同一列靠右（回歸：改 class 後被 .u-table td 蓋過）。"""
-    _goto_settings(page, live_server, "Settings.settingsSwitch('cabinets');")
+    _goto_settings(page, live_server, "hvac('features/settings/page.js').settingsSwitch('cabinets');")
     cell = "#cabinetList td.cabinet-actions"
     assert _computed(page, cell, "display") == "flex"
     assert _computed(page, cell, "justify-content") == "flex-end"
@@ -113,7 +113,7 @@ def test_cabinet_actions_stay_inline(page, live_server, viewport):
 def test_stock_location_picker_keeps_its_width(page, live_server):
     """入庫位置選擇視窗維持 420px 寬（回歸：與 .modal 同層同特異度，被較晚載入的 modal.css 蓋成 520px）。"""
     harness.open_tab(page, live_server, "inventory")
-    harness.run_action(page, "hvac('features/inventory/location-adjustments.js').openStockLocationPicker(hvac('core/state.js').appState.ALL_ITEMS.find(i => i.id === 1), 1)")
+    harness.run_action(page, "hvac('features/inventory/location-adjustments.js').openStockLocationPicker(hvac('core/inventory-read-model.js').getAllItems().find(i => i.id === 1), 1)")
     width = page.eval_on_selector(".modal.stock-adjust-modal", "el => el.getBoundingClientRect().width")
     assert width <= 420, width
 
@@ -121,7 +121,7 @@ def test_stock_location_picker_keeps_its_width(page, live_server):
 def test_kit_prepare_component_list_layout(page, live_server):
     """整組待領出視窗的材料清單：縮圖、名稱、需要 / 庫存同一列（回歸：樣式誤限定在待領出頁）。"""
     harness.open_tab(page, live_server, "kit")
-    harness.run_action(page, "Stockout.openKitPrepareModal(1, '標準安裝包')")
+    harness.run_action(page, "hvac('features/stockout/modals.js').openKitPrepareModal(1, '標準安裝包')")
     assert _computed(page, "#kit-prepare-list .kit-prepare-row", "display") == "flex"
     assert _computed(page, "#kit-prepare-list .kit-prepare-qty", "text-align") == "right"
 
@@ -174,7 +174,7 @@ def test_mobile_calendar_busy_day(page, live_server, viewport):
 def test_modal_overlay_stacks_above_shell(page, live_server):
     """modal 疊層高於 header / sidebar。"""
     harness.open_tab(page, live_server, "inventory")
-    harness.run_action(page, "Inventory.openAddModal()")
+    harness.run_action(page, "hvac('features/inventory/add-modal.js').openAddModal()")
     overlay = int(_computed(page, "#add-modal", "z-index"))
     assert overlay > int(_computed(page, ".header", "z-index"))
     assert overlay > int(_computed(page, ".sidebar", "z-index"))
@@ -196,12 +196,12 @@ def test_tab_switch_leaves_no_page_scope_behind(page, live_server, tab):
     direct = page.evaluate(_SCOPE_JS)
     assert direct["page"] == tab
     for other in _TABS:
-        page.evaluate("t => App.switchTab(t)", other)
+        page.evaluate("t => hvac('features/shell/app.js').switchTab(t)", other)
         page.wait_for_load_state("networkidle")
         if other == "quotation":
-            harness.run_action(page, "Quotation.quoteSwitchMode('upload')")
+            harness.run_action(page, "hvac('features/quotation/page.js').quoteSwitchMode('upload')")
             assert page.evaluate(_SCOPE_JS)["page"] == "quotation-upload"
-    page.evaluate("t => App.switchTab(t)", tab)
+    page.evaluate("t => hvac('features/shell/app.js').switchTab(t)", tab)
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(200)
     assert page.evaluate(_SCOPE_JS) == direct
@@ -265,7 +265,7 @@ def test_prepared_mobile_card_viewer_has_no_actions(page, live_server, viewport)
         pytest.skip("只適用手機卡片")
     harness.open_tab(page, live_server, "prepared")
     # 唯讀：登入者除了 stockout 以外的權限不變（hasPerm 讀 core/session.js 的 currentUser.permissions）
-    page.evaluate("hvac('core/session.js').currentUser.permissions.stockout = false; Prepared.renderPrepared()")
+    page.evaluate("hvac('core/session.js').currentUser.permissions.stockout = false; hvac('features/prepared/page.js').renderPrepared()")
     page.wait_for_selector(".prepared-mobile-card .prepared-mobile-stock")
     assert page.locator(".prepared-mobile-meta .btn").count() == 0
     assert page.locator(".prepared-mobile-card .prepared-mobile-qty").count() >= 1

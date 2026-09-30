@@ -161,13 +161,13 @@ def test_engineering_frontend_contract():
     modal_text = modal.read_text(encoding='utf-8')
     index_text = index.read_text(encoding='utf-8')
     assert "report_type" in render_text and "engineering" in render_text
-    assert "pcChooseReportType" in render_text and "engRenderDetail" in render_text
+    assert "pc-choose-type" in render_text and "engRenderDetail" in render_text
     assert "engAddCategory" in modal_text and "tax_id_mark" in modal_text
     assert "JSON.parse(JSON.stringify(d))" in modal_text
     assert 'engToggleEditorReceipt' in modal_text
     assert 'eng-editor-receipt-toggle' in modal_text
     assert 'engEditorExpandedReceipts' in modal_text
-    assert 'id="eng-owner"' in modal_text and 'oninput="PettyCash.engFilenamePreview()"' in modal_text
+    assert 'id="eng-owner"' in modal_text and 'data-action="eng-filename-preview"' in modal_text
     assert 'src="/static/js/pages/main.js"' in index_text
     assert "features/petty-cash/engineering-modal.js" in page_modules(index)
 

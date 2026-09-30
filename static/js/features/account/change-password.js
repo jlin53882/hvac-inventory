@@ -1,5 +1,6 @@
 // 庫存管理系統 - 個人改密碼 modal（v11.2 變體 B：密碼強度即時打勾）
 
+import { createActionDelegate } from '../../core/actions.js';
 import { apiFetch } from '../../core/api-client.js';
 import { closeModalForce, openModal, pwPolicyMsg, toast } from '../../core/utils.js';
 
@@ -69,3 +70,17 @@ export async function submitChangePw() {
     toast(e.status ? '⚠️ ' + e.message : '⚠️ 修改失敗，請稍後再試', 'error');
   }
 }
+
+// 改密碼 modal 的事件委派（data-action="account-*"；由 pages/main.js、pages/settings.js 呼叫 initAccountActions）
+const ACCOUNT_ACTIONS = {
+  'account-open-change-pw': { click: function() { openChangePwModal(); } },
+  'account-pw-strength': { input: function() { cpwCheckStrength(); } },
+  'account-pw-match': { input: function() { cpwCheckMatch(); } },
+  'account-pw-submit': { click: function() { submitChangePw(); } },
+};
+
+const accountDelegate = createActionDelegate('account-', ACCOUNT_ACTIONS);
+
+export const handleAccountEvent = accountDelegate.handle;
+
+export const initAccountActions = accountDelegate.init;

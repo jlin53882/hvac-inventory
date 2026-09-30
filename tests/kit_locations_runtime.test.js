@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { loadModules } = require('./support/frontend-runtime');
+const { loadModules, seedReadModels } = require('./support/frontend-runtime');
 
 let rowValues = {};
 const rendered = {
@@ -51,7 +51,6 @@ function querySelectorAllForTest(selector) {
 
 const context = vm.createContext({
   console,
-  appState: { globalCabinetList: [{ name: '編號A' }] },
   esc: escapeForTest,
   _cabinetOptions: cabinetOptionsForTest,
   document: {
@@ -61,6 +60,7 @@ const context = vm.createContext({
 });
 
 loadModules(context, 'features/kits/state.js', 'features/kits/kit-modal.js');
+seedReadModels(context, { globalCabinetList: [{ name: '編號A' }] });
 
 context.kitsState.kitLocationRows = [{ cabinet: '編號A', position: '1-1', note: '主存區' }];
 context.renderKitLocationRows();

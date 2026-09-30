@@ -3,7 +3,7 @@
 import { apiFetch } from '../../core/api-client.js';
 import { openSheet } from '../../core/bottomsheet.js';
 import { loadData } from '../shell/data-refresh.js';
-import { appState } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { hasPerm } from '../../core/utils.js';
 import { openEditModal } from './edit-modal.js';
 import { openTransferModal } from './transfer-modal.js';
@@ -23,10 +23,9 @@ export function buildInventoryItemActionMenu(itemId, isViewer) {
   const actions = getInventoryItemActions(itemId, isViewer, false);
   if (!actions.length) return '';
   const buttons = actions.map(a => {
-    const command = a.key === 'edit' ? 'Inventory.openEditModal(' + itemId + ')' : (a.key === 'transfer' ? 'Inventory.openTransferModal(' + itemId + ')' : 'Inventory.deleteItem(' + itemId + ')');
-    return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" onclick="' + command + ';Inventory.closeInventoryActionMenus()">' + a.icon + ' ' + a.label + '</button>';
+    return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" data-action="inventory-menu-' + a.key + '" data-id="' + itemId + '">' + a.icon + ' ' + a.label + '</button>';
   }).join('');
-  return '<div class="inventory-action-menu" data-role="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" onclick="Inventory.openInventoryActionMenu(this, event)">⋮</button><div class="inventory-action-dropdown" data-role="inventory-action-dropdown">' + buttons + '</div></div>';
+  return '<div class="inventory-action-menu" data-role="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" data-action="inventory-menu-open">⋮</button><div class="inventory-action-dropdown" data-role="inventory-action-dropdown">' + buttons + '</div></div>';
 }
 
 
@@ -56,7 +55,7 @@ export async function deleteItem(itemId) {
 
 export function openItemSheet(itemId) {
 
-  const item = appState.ALL_ITEMS.find(i => i.id === itemId);
+  const item = getAllItems().find(i => i.id === itemId);
 
   if (!item) return;
 

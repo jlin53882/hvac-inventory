@@ -6,6 +6,8 @@ import { setPageScope, syncViewUrl } from './page-scope.js';
 import { getStocktakeReminderState, updateNotifications } from '../notifications/center.js';
 import { canAccessPage, checkAuth, firstAccessiblePageTab, resolveAccessiblePageTab } from '../../core/session.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, INVENTORY_SITES, appState, pending } from '../../core/state.js';
+import { getFullItemsLoadedSite, getInventoryLoadedSite, setFullItemsLoadedSite, setInventoryLoadedSite } from '../../core/shared-read-model.js';
+import { setAllItems, setInventoryFacets, setInventoryPage, setInventoryStats } from '../../core/inventory-read-model.js';
 import { inventoryState } from '../inventory/state.js';
 import { shellState } from './state.js';
 import { loadUnits } from '../../core/units.js';
@@ -83,13 +85,13 @@ export function switchSite(site) {
   if (site === appState.currentSite) return;
   if (hasPending() && !confirm('⚠️ 有未儲存的數量調整，切換分片將遺失。確定要切換嗎？')) return;
   appState.currentSite = site;
-  appState.inventoryLoadedSite = '';
-  appState.fullItemsLoadedSite = '';
-  appState.INVENTORY_META.page = 1;
-  appState.INVENTORY_META.stats = null;
-  appState.INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
+  setInventoryLoadedSite('');
+  setFullItemsLoadedSite('');
+  setInventoryPage(1);
+  setInventoryStats(null);
+  setInventoryFacets({ brands: {}, categories: {}, locations: [] });
   shellState.inventoryFacetsLoadedSite = '';
-  appState.ALL_ITEMS = [];
+  setAllItems([]);
   shellState.ALERTS_BY_SITE = {};
   updateNotifications();
   document.querySelectorAll('[data-role="header-site"] button').forEach(function(t){ t.classList.remove('is-active'); });
@@ -229,12 +231,12 @@ export function switchTab(tab) {
     if (sub) sub.value = '';
   }
   if (tab === 'inventory') {
-    if (appState.inventoryLoadedSite !== appState.currentSite) {
+    if (getInventoryLoadedSite() !== appState.currentSite) {
       loadInventoryPage(1);
       return;
     }
     renderInventory();
-  } else if (['prepared', 'stockout', 'stocktake', 'kit'].indexOf(tab) >= 0 && appState.fullItemsLoadedSite !== appState.currentSite) {
+  } else if (['prepared', 'stockout', 'stocktake', 'kit'].indexOf(tab) >= 0 && getFullItemsLoadedSite() !== appState.currentSite) {
     loadData({ full: true });
     return;
   } else if (tab === 'prepared') renderPrepared();

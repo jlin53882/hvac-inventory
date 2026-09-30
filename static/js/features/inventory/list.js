@@ -5,8 +5,10 @@ import { isMobileView } from '../../core/bottomsheet.js';
 import { loadDestinations } from '../../core/data.js';
 import { Qty } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
+import { getCurrentBrands, getCurrentCategories, getDestinationsLoadedSite, getInventoryLoadedSite } from '../../core/shared-read-model.js';
+import { getAllItems, getInventoryFacets, getInventoryMeta } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';
-import { esc, hasPerm, jsStr } from '../../core/utils.js';
+import { esc, hasPerm } from '../../core/utils.js';
 import { buildInventoryItemActionMenu } from './actions.js';
 import { updateSaveBar } from './adjust.js';
 import { _allSelected, selectedStockIds } from './batch-location.js';
@@ -23,16 +25,16 @@ import { closeInventoryStatusModal, getInventoryStatus, renderInventoryDashboard
 // 從 ALL_ITEMS 建立廠牌與位置的 datalist 建議清單，並載入去向建議
 
 export function buildDatalists(skipDestinationLoad) {
-  const facetReady = appState.inventoryLoadedSite === appState.currentSite && appState.INVENTORY_FACETS;
-  const brands = facetReady && Object.keys(appState.INVENTORY_FACETS.brands || {}).length
-    ? Object.keys(appState.INVENTORY_FACETS.brands).sort()
-    : [...new Set(appState.ALL_ITEMS.map(i => i.brand))].sort();
-  const locs = facetReady && (appState.INVENTORY_FACETS.locations || []).length
-    ? appState.INVENTORY_FACETS.locations
-    : [...new Set(appState.ALL_ITEMS.flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
+  const facetReady = getInventoryLoadedSite() === appState.currentSite && getInventoryFacets();
+  const brands = facetReady && Object.keys(getInventoryFacets().brands || {}).length
+    ? Object.keys(getInventoryFacets().brands).sort()
+    : [...new Set(getAllItems().map(i => i.brand))].sort();
+  const locs = facetReady && (getInventoryFacets().locations || []).length
+    ? getInventoryFacets().locations
+    : [...new Set(getAllItems().flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
   document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
   document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${esc(l)}">`).join('');
-  if (!skipDestinationLoad && appState.destinationsLoadedSite !== appState.currentSite) loadDestinations();
+  if (!skipDestinationLoad && getDestinationsLoadedSite() !== appState.currentSite) loadDestinations();
 }
 
 
@@ -62,7 +64,7 @@ export function renderInventory() {
 
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = isMobileView();
-  const aggregateStats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
+  const aggregateStats = getInventoryMeta().stats;
   let html = renderInventoryDashboard(list, aggregateStats);
   html += renderInventoryToolbar(list, isViewer);
   if (viewMode === 'table') {
@@ -88,9 +90,9 @@ function renderInventoryPageHeading() {
 
 function renderInventoryEmptyState(isViewer) {
   const search = document.getElementById('search-input');
-  const hasFilter = appState.currentBrands.length > 0 || appState.currentCategories.length > 0 || (search && search.value.trim());
-  const clearButton = hasFilter ? '<button class="btn btn--secondary btn--md" onclick="Inventory.clearFilterPanel()">清除篩選</button>' : '';
-  const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="Inventory.openAddModal()">＋ 新增品項</button>';
+  const hasFilter = getCurrentBrands().length > 0 || getCurrentCategories().length > 0 || (search && search.value.trim());
+  const clearButton = hasFilter ? '<button class="btn btn--secondary btn--md" data-action="inventory-filter-clear">清除篩選</button>' : '';
+  const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" data-action="inventory-add-open">＋ 新增品項</button>';
   return `<div class="inventory-empty-state">
     <div class="inventory-empty-icon" aria-hidden="true">📦</div>
     <h2>${hasFilter ? '沒有符合條件的庫存品項' : '目前沒有庫存品項'}</h2>
@@ -104,19 +106,19 @@ function renderInventoryToolbar(list, isViewer) {
   const viewMode = localStorage.getItem('inventoryViewMode') || 'card';
   const isM = isMobileView();
   let h = '<div class="loc-export-bar">';
-  if (inventoryState.batchMode) h += '<button class="btn btn--secondary btn--md btn-select-all" id="btn-select-toggle" onclick="Inventory.selectAllStocks()">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
-  h += '<span class="loc-export-count">共 ' + (appState.INVENTORY_META.total || list.length) + ' 項</span>';
-  h += '<div class="view-toggle"><button onclick="Inventory.setInventoryView(\'table\')" class="chip chip--seg' + (viewMode === 'table' ? ' is-active' : '') + '">📊 表格</button><button onclick="Inventory.setInventoryView(\'card\')" class="chip chip--seg' + (viewMode === 'card' ? ' is-active' : '') + '">🃏 卡片</button></div>';
-  if (!isViewer) h += '<button class="btn btn--primary btn--md btn-add-inv" onclick="Inventory.openAddModal()">＋ 新增</button>';
+  if (inventoryState.batchMode) h += '<button class="btn btn--secondary btn--md btn-select-all" id="btn-select-toggle" data-action="inventory-select-all">' + (_allSelected() ? '☐ 取消全選' : '☑ 全選') + '</button>';
+  h += '<span class="loc-export-count">共 ' + (getInventoryMeta().total || list.length) + ' 項</span>';
+  h += '<div class="view-toggle"><button data-action="inventory-view" data-view="table" class="chip chip--seg' + (viewMode === 'table' ? ' is-active' : '') + '">📊 表格</button><button data-action="inventory-view" data-view="card" class="chip chip--seg' + (viewMode === 'card' ? ' is-active' : '') + '">🃏 卡片</button></div>';
+  if (!isViewer) h += '<button class="btn btn--primary btn--md btn-add-inv" data-action="inventory-add-open">＋ 新增</button>';
   if (isM) {
-    h += '<div class="more-actions-wrap" data-role="more-actions"><button class="btn btn--secondary btn--md btn--icon" onclick="Inventory.toggleMoreActions()">⋮</button>';
+    h += '<div class="more-actions-wrap" data-role="more-actions"><button class="btn btn--secondary btn--md btn--icon" data-action="inventory-more-toggle">⋮</button>';
     h += '<div class="more-actions-dropdown" id="moreActionsDropdown">';
-    if (hasPerm('batch-loc-mgmt')) h += '<button onclick="Inventory.toggleBatchMode();Inventory.closeMoreActions()">📦 批次改位置</button>';
-    h += '<button onclick="Inventory.openInventoryExportDialog();Inventory.closeMoreActions()">⬇️ 匯出庫存</button>';
+    if (hasPerm('batch-loc-mgmt')) h += '<button data-action="inventory-batch-from-menu">📦 批次改位置</button>';
+    h += '<button data-action="inventory-export-from-menu">⬇️ 匯出庫存</button>';
     h += '</div></div>';
   } else {
-    if (hasPerm('batch-loc-mgmt')) h += '<button class="btn btn--secondary btn--md btn-batch" id="batch-toggle" onclick="Inventory.toggleBatchMode()">📦 批次改位置</button>';
-    h += '<button class="btn btn--export btn--md btn-export" onclick="Inventory.openInventoryExportDialog()">⬇️ 匯出庫存</button>';
+    if (hasPerm('batch-loc-mgmt')) h += '<button class="btn btn--secondary btn--md btn-batch" id="batch-toggle" data-action="inventory-batch-toggle">📦 批次改位置</button>';
+    h += '<button class="btn btn--export btn--md btn-export" data-action="inventory-export">⬇️ 匯出庫存</button>';
   }
   h += '</div>';
   return h;
@@ -142,9 +144,9 @@ function renderInventoryTable(list, isViewer, canStockout) {
       const statusHTML = isZero ? '<span class="status-danger">⛔ 缺貨</span>' : (isLow ? '<span class="status-warn">⚠ 低庫存</span>' : '<span class="status-ok">✓ 正常</span>');
       const stocks = i.stocks && i.stocks.length ? i.stocks : [{location: i.location || '未標示', note: i.note || ''}];
       const locStr = stocks.map(s => esc(s.location)).join(', ');
-      const photoHTML = i.has_photo ? '<span class="cphoto"><img src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="" onclick="Inventory.openPhotoLightbox(' + i.id + ')" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
+      const photoHTML = i.has_photo ? '<span class="cphoto"><img src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="" data-action="photo-lightbox" data-id="' + i.id + '" title="點擊看大圖"></span>' : '<span class="cphoto"><span class="cphoto-empty">📷</span></span>';
       h += '<tr class="' + rowClass + '">';
-      if (inventoryState.batchMode && hasPerm('batch-loc-mgmt')) h += '<td class="u-ta-center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(' + i.id + ')"></td>';
+      if (inventoryState.batchMode && hasPerm('batch-loc-mgmt')) h += '<td class="u-ta-center"><input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' data-action="inventory-stock-select" data-key="' + i.id + '"></td>';
       h += '<td class="photo-cell">' + photoHTML + '</td>';
       h += '<td class="col-name">' + esc(i.name) + (i.code ? '<br><small class="col-name-code">型號： ' + esc(i.code) + '</small>' : '') + '</td>';
       h += '<td>' + esc(i.brand) + '</td>';
@@ -165,8 +167,8 @@ function renderInventoryTable(list, isViewer, canStockout) {
 // 單一庫存的待領出／已領出入口：卡片與表格共用，避免手機與桌面分支漂移。
 function buildInventoryStockoutActions(i, canStockout, mobile) {
   if (!canStockout) return '';
-  const prepare = i.is_kit ? '' : '<button class="btn btn--prepare btn--sm btn-prepare" onclick="Stockout.openPrepareModal(' + i.id + ', event)">📤 待領出</button>';
-  const out = '<button class="btn btn--out btn--sm btn-out" onclick="Stockout.openOutModal(' + i.id + ', event)">🚚 已領出</button>';
+  const prepare = i.is_kit ? '' : '<button class="btn btn--prepare btn--sm btn-prepare" data-action="stockout-prepare" data-id="' + i.id + '">📤 待領出</button>';
+  const out = '<button class="btn btn--out btn--sm btn-out" data-action="stockout-out" data-id="' + i.id + '">🚚 已領出</button>';
   return '<div class="' + (mobile ? 'm-card-actions' : 'inventory-stockout-actions') + '">' + prepare + out + '</div>';
 }
 
@@ -183,7 +185,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
   Object.keys(byLoc).sort().forEach(loc => {
     const locItems = byLoc[loc];
     const locCollapsed = collapsedLocs.indexOf(loc) >= 0;
-    h += '<div class="section-title' + (locCollapsed ? ' is-collapsed' : '') + '" data-loc="' + esc(loc) + '" onclick="Inventory.toggleLoc(this, \'' + esc(jsStr(loc)) + '\')">';
+    h += '<div class="section-title' + (locCollapsed ? ' is-collapsed' : '') + '" data-loc="' + esc(loc) + '" data-action="inventory-loc-toggle">';
     h += '<button class="collapse-btn" type="button" aria-label="折疊/展開">▾</button>';
     h += '<span class="loc">位置：' + esc(loc) + '</span><span>' + locItems.length + ' 項</span>';
     h += '</div>';
@@ -206,8 +208,8 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
           reverted: false,
           // 手機外框不可再掛 desktop .item-card：該 class 是 flex row，會把底部 actions 擠到右側。
           cardClass: isZero ? 'danger' : (isLow ? 'warn' : ''),
-          moreBtnHTML: isViewer ? '' : '<button class="more-btn" onclick="Inventory.openItemSheet(' + i.id + ')">⋯</button>',
-          checkboxHTML: inventoryState.batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(\'item-' + i.id + '\')">' : '',
+          moreBtnHTML: isViewer ? '' : '<button class="more-btn" data-action="inventory-item-sheet" data-id="' + i.id + '">⋯</button>',
+          checkboxHTML: inventoryState.batchMode ? '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' data-action="inventory-stock-select" data-key="item-' + i.id + '">' : '',
           thumb: buildThumb(i.id, i.has_photo, i.name, '📦', i.thumbnail_url),
           nameHTML: esc(i.brand || '無廠牌') + ' ' + esc(i.name || '未命名') + (i.site === 'warehouse' ? ' 🏭' : ''),
           subHTML: (prepared > 0 ? '<span class="m-tag green">待領出 ' + prepared + '</span> ' : '') + (i.code ? '<span class="inventory-mobile-model">型號： ' + esc(i.code) + '</span>' : ''),
@@ -221,10 +223,10 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         const locHtml = buildLocHTML(stocks);
         const noteHtml = buildNoteHTML(stocks);
         h += '<div class="' + cardClass + '" id="card-' + i.id + '"' + (inventoryState.batchMode ? ' data-batch="1"' : '') + '>';
-        if (inventoryState.batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' onchange="Inventory.toggleStockSelect(\'item-' + i.id + '\')">';
-        if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" onclick="Inventory.openPhotoLightbox(' + i.id + ')" title="點擊看大圖" onerror="this.style.display=\'none\'">';
+        if (inventoryState.batchMode) h += '<input type="checkbox" class="stock-checkbox" ' + (selectedStockIds.has(i.stocks && i.stocks.length ? i.stocks[0].id : 0) ? 'checked' : '') + ' data-action="inventory-stock-select" data-key="item-' + i.id + '">';
+        if (i.has_photo) h += '<img class="item-photo" src="' + (i.thumbnail_url || photoSrc(i.id, 'thumbnail')) + '" alt="' + esc(i.name) + '" loading="lazy" data-action="photo-lightbox" data-id="' + i.id + '" title="點擊看大圖" data-fallback="hide">';
         else h += '<span class="item-photo item-photo-empty" aria-hidden="true">📷</span>';
-        h += '<div class="item-info"' + (isViewer ? '' : ' onclick="Inventory.openEditModal(' + i.id + ')"') + '>';
+        h += '<div class="item-info"' + (isViewer ? '' : ' data-action="inventory-edit" data-id="' + i.id + '"') + '>';
         h += '<div class="item-name">' + esc(i.brand || '無廠牌') + ' ' + (esc(i.name) || '—') + (i.site === 'warehouse' ? '<span class="site-badge wh">🏭 倉庫</span>' : '') + statusBadge + '</div>';
         h += '<div class="item-code">' + (i.code ? '型號： ' + esc(i.code) : '') + '</div>';
         h += locHtml;
@@ -233,11 +235,11 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + (Qty.format(prepared, Qty.unitTypeOf(i.unit))) + ' ' + esc(i.unit) + '</div>';
         h += '</div>';
         h += buildInventoryStockoutActions(i, canStockout, false);
-        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="btn btn--secondary btn--sm edit-btn" onclick="Inventory.openEditModal(' + i.id + ')" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="btn btn--danger btn--sm del-btn" onclick="Inventory.deleteItem(' + i.id + ')" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
+        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="btn btn--secondary btn--sm edit-btn" data-action="inventory-edit" data-id="' + i.id + '" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="btn btn--danger btn--sm del-btn" data-action="inventory-delete" data-id="' + i.id + '" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
         if (isViewer) {
           h += '<div class="qty-control"><div class="qty-value is-readonly" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
         } else {
-          h += '<div class="qty-control"><button class="qty-btn qty-minus" onclick="Inventory.changeQty(' + i.id + ', -1)"' + (isZero && delta <= 0 ? ' disabled' : '') + '>−</button><div class="qty-value" onclick="Inventory.quickSet(' + i.id + ')" title="點數字可輸入">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div><button class="qty-btn qty-plus" onclick="Inventory.changeQty(' + i.id + ', 1)">+</button></div>';
+          h += '<div class="qty-control"><button class="qty-btn qty-minus" data-action="inventory-qty-change" data-id="' + i.id + '" data-delta="-1"' + (isZero && delta <= 0 ? ' disabled' : '') + '>−</button><div class="qty-value" data-action="inventory-qty-quickset" data-id="' + i.id + '" title="點數字可輸入">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div><button class="qty-btn qty-plus" data-action="inventory-qty-change" data-id="' + i.id + '" data-delta="1">+</button></div>';
         }
         h += '</div>';
       }
@@ -248,13 +250,13 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
 }
 
 function renderInventoryPagination() {
-  const totalPages = Math.ceil((appState.INVENTORY_META.total || 0) / (appState.INVENTORY_META.page_size || 50));
+  const totalPages = Math.ceil((getInventoryMeta().total || 0) / (getInventoryMeta().page_size || 50));
   if (totalPages <= 1) return '';
-  const current = appState.INVENTORY_META.page || 1;
+  const current = getInventoryMeta().page || 1;
   let h = '<div class="inventory-pagination">';
-  h += '<button type="button" class="btn btn--secondary btn--sm" onclick="Data.changeInventoryPage(' + (current - 1) + ')"' + (current <= 1 ? ' disabled' : '') + '>上一頁</button>';
+  h += '<button type="button" class="btn btn--secondary btn--sm" data-action="inventory-page" data-page="' + (current - 1) + '"' + (current <= 1 ? ' disabled' : '') + '>上一頁</button>';
   h += '<span>第 ' + current + ' / ' + totalPages + ' 頁</span>';
-  h += '<button type="button" class="btn btn--secondary btn--sm" onclick="Data.changeInventoryPage(' + (current + 1) + ')"' + (current >= totalPages ? ' disabled' : '') + '>下一頁</button>';
+  h += '<button type="button" class="btn btn--secondary btn--sm" data-action="inventory-page" data-page="' + (current + 1) + '"' + (current >= totalPages ? ' disabled' : '') + '>下一頁</button>';
   return h + '</div>';
 }
 

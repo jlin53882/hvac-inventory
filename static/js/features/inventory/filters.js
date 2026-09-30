@@ -2,7 +2,9 @@
 
 import { loadInventoryPage } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
-import { esc, jsStr } from '../../core/utils.js';
+import { getCurrentBrands, getCurrentCategories, setCurrentBrands, setCurrentCategories } from '../../core/shared-read-model.js';
+import { getAllItems, getInventoryFacets, getInventoryMeta } from '../../core/inventory-read-model.js';
+import { esc } from '../../core/utils.js';
 
 export function getInventoryFilterKeywords() {
   const searchInput = document.getElementById('search-input');
@@ -13,8 +15,8 @@ export function getInventoryFilterKeywords() {
 export function inventoryItemMatchesCurrentFilters(item, keywords) {
   if (item.is_kit) return false;
   if (typeof appState.currentSite !== 'undefined' && item.site && item.site !== appState.currentSite) return false;
-  if (appState.currentBrands.length > 0 && appState.currentBrands.indexOf(item.brand || '無廠牌') < 0) return false;
-  if (appState.currentCategories.length > 0 && appState.currentCategories.indexOf(item.category || '') < 0) return false;
+  if (getCurrentBrands().length > 0 && getCurrentBrands().indexOf(item.brand || '無廠牌') < 0) return false;
+  if (getCurrentCategories().length > 0 && getCurrentCategories().indexOf(item.category || '') < 0) return false;
   if (keywords.length > 0) {
     const stockStr = (item.stocks || []).map(function(s) { return s.location + ' ' + s.note; }).join(' ').toLowerCase();
     let hay = (item.name || '') + ' ' + (item.code || '') + ' ' + (item.brand || '') + ' ' + stockStr;
@@ -27,22 +29,22 @@ export function inventoryItemMatchesCurrentFilters(item, keywords) {
 // 回傳符合當前搜尋 + 品牌 + 分類篩選的非整組品項（供全選 / render 共用）
 export function getFilteredInventoryItems() {
   const keywords = getInventoryFilterKeywords();
-  return appState.ALL_ITEMS.filter(function(item) {
+  return getAllItems().filter(function(item) {
     return inventoryItemMatchesCurrentFilters(item, keywords);
   });
 }
 
 
 function renderInventoryChips() {
-  const brands = [...new Set(appState.ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
-  const cats = [...new Set(appState.ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
+  const brands = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
+  const cats = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
   let h = '<div class="chip-bar">';
-  h += '<span class="chip' + (appState.currentBrands.length === 0 ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryBrand(\'\')">全部廠牌</span>';
-  brands.forEach(b => { h += '<span class="chip' + (appState.currentBrands.includes(b) ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
+  h += '<span class="chip' + (getCurrentBrands().length === 0 ? ' is-active' : '') + '" data-action="inventory-brand-toggle" data-value="">全部廠牌</span>';
+  brands.forEach(b => { h += '<span class="chip' + (getCurrentBrands().includes(b) ? ' is-active' : '') + '" data-action="inventory-brand-toggle" data-value="' + esc(b) + '">' + esc(b) + '</span>'; });
   h += '</div>';
   h += '<div class="chip-bar">';
-  h += '<span class="chip' + (appState.currentCategories.length === 0 ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryCategory(\'\')">全部分類</span>';
-  cats.forEach(c => { h += '<span class="chip' + (appState.currentCategories.includes(c) ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryCategory(\'' + esc(jsStr(c)) + '\')">' + esc(c) + '</span>'; });
+  h += '<span class="chip' + (getCurrentCategories().length === 0 ? ' is-active' : '') + '" data-action="inventory-category-toggle" data-value="">全部分類</span>';
+  cats.forEach(c => { h += '<span class="chip' + (getCurrentCategories().includes(c) ? ' is-active' : '') + '" data-action="inventory-category-toggle" data-value="' + esc(c) + '">' + esc(c) + '</span>'; });
   h += '</div>';
   return h;
 }
@@ -84,33 +86,33 @@ export function buildFilterPanel() {
   }
 
   try {
-    var brandCounts = appState.INVENTORY_FACETS && appState.INVENTORY_FACETS.brands && Object.keys(appState.INVENTORY_FACETS.brands).length
-      ? appState.INVENTORY_FACETS.brands
-      : {};
-    if (!Object.keys(brandCounts).length) {
-      appState.ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+    var facets = getInventoryFacets();
+    // facets 是 read-model 的 live reference：只讀。沒有 facets 時才用品項自己算，且必須算進新物件，不能寫進 facets.brands
+    var brandCounts = facets && facets.brands && Object.keys(facets.brands).length ? facets.brands : null;
+    if (!brandCounts) {
+      brandCounts = {};
+      getAllItems().filter(function(i) { return !i.is_kit; }).forEach(function(i) {
         var b = i.brand || '無廠牌';
         brandCounts[b] = (brandCounts[b] || 0) + 1;
       });
     }
     var brands = Object.entries(brandCounts).sort(function(a, b) { return b[1] - a[1]; });
     document.getElementById('fp-brand-count').textContent = '(' + brands.length + ' 個品牌)';
-    renderFilterChips('fp-brand-chips', brands, appState.currentBrands, 'brand', 'fp-brand-toggle');
+    renderFilterChips('fp-brand-chips', brands, getCurrentBrands(), 'brand', 'fp-brand-toggle');
 
-    var catCounts = appState.INVENTORY_FACETS && appState.INVENTORY_FACETS.categories && Object.keys(appState.INVENTORY_FACETS.categories).length
-      ? appState.INVENTORY_FACETS.categories
-      : {};
-    if (!Object.keys(catCounts).length) {
-      appState.ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+    var catCounts = facets && facets.categories && Object.keys(facets.categories).length ? facets.categories : null;
+    if (!catCounts) {
+      catCounts = {};
+      getAllItems().filter(function(i) { return !i.is_kit; }).forEach(function(i) {
         var c = i.category || '';
         if (c) catCounts[c] = (catCounts[c] || 0) + 1;
       });
     }
     var cats = Object.entries(catCounts).sort(function(a, b) { return b[1] - a[1]; });
     document.getElementById('fp-cat-count').textContent = '(' + cats.length + ' 類)';
-    renderFilterChips('fp-cat-chips', cats, appState.currentCategories, 'category', 'fp-cat-toggle');
+    renderFilterChips('fp-cat-chips', cats, getCurrentCategories(), 'category', 'fp-cat-toggle');
     var list = getFilteredItems();
-    document.getElementById('fp-summary').textContent = '共 ' + (appState.INVENTORY_META.total || list.length) + ' 項';
+    document.getElementById('fp-summary').textContent = '共 ' + (getInventoryMeta().total || list.length) + ' 項';
   } catch (e) {
     console.warn('buildFilterPanel error:', e.message);
   }
@@ -121,7 +123,8 @@ export function buildFilterPanel() {
  * 渲染篩選 chips，根據容器寬度動態決定是否截斷。
  * @param {string} containerId - 容器元素 ID
  * @param {Array} counts - [名稱, 計數] 的陣列
- * @param {Array} selectedArr - 目前選中的值陣列
+ * @param {Array} selectedArr - 目前選中的值陣列（read-model 的 live reference：這裡只讀，不得修改；
+ *   點擊 chip 由 data-action 委派到 toggleInventoryBrand / toggleInventoryCategory，經 setter 寫入）
  * @param {string} type - 篩選類型（'brand' 或 'category'）
  * @param {string} toggleBtnId - 展開/收合按鈕 ID
  */
@@ -130,6 +133,7 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
   var el = document.getElementById(containerId);
   if (!el) return;
 
+  var toggleAction = type === 'brand' ? 'inventory-brand-toggle' : 'inventory-category-toggle';
   el.innerHTML = '';
   el.classList.toggle('is-collapsed', !filterExpandedState[type]);
 
@@ -139,7 +143,8 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
   allChip.textContent = '全部';
 
-  allChip.onclick = function() { selectedArr.length = 0; loadInventoryPage(1); };
+  allChip.dataset.action = toggleAction;
+  allChip.dataset.value = '';
 
   el.appendChild(allChip);
 
@@ -167,17 +172,8 @@ function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId) 
 
     chip.innerHTML = esc(name) + ' <span class="badge">' + count + '</span>';
 
-    chip.onclick = function() {
-
-      var idx = selectedArr.indexOf(name);
-
-      if (idx >= 0) selectedArr.splice(idx, 1);
-
-      else selectedArr.push(name);
-
-      loadInventoryPage(1);
-
-    };
+    chip.dataset.action = toggleAction;
+    chip.dataset.value = name;
 
     el.appendChild(chip);
     chipsAdded++;
@@ -216,11 +212,11 @@ function getFilteredItems() {
 
   var kws = raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
 
-  var list = appState.ALL_ITEMS.filter(function(i) { return !i.is_kit; });
+  var list = getAllItems().filter(function(i) { return !i.is_kit; });
 
-  if (appState.currentBrands.length > 0) list = list.filter(function(i) { return appState.currentBrands.includes(i.brand || '無廠牌'); });
+  if (getCurrentBrands().length > 0) list = list.filter(function(i) { return getCurrentBrands().includes(i.brand || '無廠牌'); });
 
-  if (appState.currentCategories.length > 0) list = list.filter(function(i) { return appState.currentCategories.includes(i.category || ''); });
+  if (getCurrentCategories().length > 0) list = list.filter(function(i) { return getCurrentCategories().includes(i.category || ''); });
 
   if (kws.length > 0) {
 
@@ -260,8 +256,8 @@ export function toggleFilterCollapse(containerId, toggleBtnId) {
 
 
 export function clearFilterPanel() {
-  appState.currentBrands.length = 0;
-  appState.currentCategories.length = 0;
+  setCurrentBrands([]);
+  setCurrentCategories([]);
   document.getElementById('search-input').value = '';
   loadInventoryPage(1);
 }
@@ -269,18 +265,18 @@ export function clearFilterPanel() {
 
 // ========== Chip 篩選 toggler ==========
 export function toggleInventoryBrand(brand) {
-  if (!brand) { appState.currentBrands = []; }
+  if (!brand) { setCurrentBrands([]); }
   else {
-    var idx = appState.currentBrands.indexOf(brand);
-    if (idx >= 0) appState.currentBrands.splice(idx, 1); else appState.currentBrands.push(brand);
+    var brands = getCurrentBrands();
+    setCurrentBrands(brands.includes(brand) ? brands.filter(function(b) { return b !== brand; }) : brands.concat(brand));
   }
   loadInventoryPage(1);
 }
 export function toggleInventoryCategory(cat) {
-  if (!cat) { appState.currentCategories = []; }
+  if (!cat) { setCurrentCategories([]); }
   else {
-    var idx = appState.currentCategories.indexOf(cat);
-    if (idx >= 0) appState.currentCategories.splice(idx, 1); else appState.currentCategories.push(cat);
+    var cats = getCurrentCategories();
+    setCurrentCategories(cats.includes(cat) ? cats.filter(function(c) { return c !== cat; }) : cats.concat(cat));
   }
   loadInventoryPage(1);
 }

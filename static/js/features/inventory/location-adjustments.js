@@ -2,6 +2,7 @@
 
 import { Qty } from '../../core/qty.js';
 import { INVENTORY_PENDING_ITEMS, appState, pending, pendingByStock } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
 import { inventoryState } from './state.js';
 import { renderInventoryView } from '../shell/data-refresh.js';
@@ -105,8 +106,8 @@ export function openStockLocationPicker(item, delta) {
   options.innerHTML = stocks.map(function(stock) {
     const location = stock.location || '未標示位置';
     const current = Qty.format(stock.qty || 0, Qty.unitTypeOf(item.unit));
-    return '<button type="button" class="stock-adjust-location-option" onclick="Inventory.queueStockLocationAdjustment(' +
-      Number(item.id) + ',' + Number(stock.id) + ')"><span class="stock-adjust-location-name">' + esc(location) +
+    return '<button type="button" class="stock-adjust-location-option" data-action="inventory-location-adjust" data-item-id="' +
+      Number(item.id) + '" data-stock-id="' + Number(stock.id) + '"><span class="stock-adjust-location-name">' + esc(location) +
       '</span><span class="stock-adjust-location-qty">目前 ' + esc(current) + ' ' + esc(item.unit || '') +
       '</span></button>';
   }).join('');
@@ -125,7 +126,7 @@ export function queueStockLocationAdjustment(itemId, stockId) {
     return;
   }
   const state = inventoryState.stockLocationPickerState;
-  const item = appState.ALL_ITEMS.find(function(candidate) { return Number(candidate.id) === Number(itemId); });
+  const item = getAllItems().find(function(candidate) { return Number(candidate.id) === Number(itemId); });
   const stock = item && Array.isArray(item.stocks)
     ? item.stocks.find(function(candidate) { return Number(candidate.id) === Number(stockId); }) : null;
   if (!state || Number(state.itemId) !== Number(itemId) || !stock) {

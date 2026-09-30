@@ -94,7 +94,7 @@ export function calSetLoadState(state, message) {
     calRenderLoadingUi();
   } else if (state === 'error') {
     el.className = 'cal-load-state is-error';
-    el.innerHTML = `<span>⚠️ ${esc(message || '載入失敗')}</span><button class="btn btn--secondary btn--sm btn-sm" onclick="Calendar.calRetryLoad()">重新載入</button>`;
+    el.innerHTML = `<span>⚠️ ${esc(message || '載入失敗')}</span><button class="btn btn--secondary btn--sm btn-sm" data-action="cal-retry-load">重新載入</button>`;
     calRenderErrorUi(message);
   } else {
     el.className = 'cal-load-state';
@@ -272,15 +272,15 @@ export function calRenderDay() {
     const isAssigned = e.is_assigned_to_me !== false;
     const personalSync = isAssigned && personal.status && personal.status !== 'none'
       ? (hasSyncErr
-        ? `<button type="button" class="cal-sync-status cal-sync-${esc(personal.status)} cal-sync-clickable" onclick="Calendar.calShowSyncError(${e.id})" title="點擊查看我的同步錯誤">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(personalLabel)}</span></button>`
+        ? `<button type="button" class="cal-sync-status cal-sync-${esc(personal.status)} cal-sync-clickable" data-action="cal-sync-error" data-id="${e.id}" title="點擊查看我的同步錯誤">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(personalLabel)}</span></button>`
         : `<span class="cal-sync-status cal-sync-${esc(personal.status)}" title="${esc(personalLabel)}">${esc(calSyncStatusIcon(personal.status))}<span class="cal-sync-label">${esc(personalLabel)}</span></span>`)
       : (isAssigned ? '' : '');
     const myRetry = isAssigned && calCanRetryPersonal(personal)
-      ? `<button type="button" class="btn btn--secondary btn--sm" onclick="Calendar.calRetryMySync(${e.id})">重試我的</button>` : '';
+      ? `<button type="button" class="btn btn--secondary btn--sm" data-action="cal-my-sync-retry" data-id="${e.id}">重試我的</button>` : '';
     const canViewTeamSync = hasPerm('gcal-sync-team-view');
     const teamLabel = canViewTeamSync ? calTeamSyncLabel(e.team_sync) : '';
     const teamSync = teamLabel
-      ? `<button type="button" class="cal-sync-status cal-sync-team cal-sync-clickable" onclick="Calendar.calShowTeamSyncDetails(${e.id})" title="查看全員同步細節">${esc(teamLabel)}</button>` : '';
+      ? `<button type="button" class="cal-sync-status cal-sync-team cal-sync-clickable" data-action="cal-team-sync-details" data-id="${e.id}" title="查看全員同步細節">${esc(teamLabel)}</button>` : '';
     const sync = personalSync || myRetry || teamSync ? `${personalSync}${myRetry}${teamSync}` : '';
 
     const updated = e.updated_by_name && e.updated_by_name !== (e.created_by_name || '系統')
@@ -300,8 +300,8 @@ export function calRenderDay() {
         <div class="cal-event-footer">
           <div class="cal-created-meta"><span>建立：${esc(e.created_by_name || '系統')} · ${esc(calFmtCreatedAt(e.created_at))}</span>${updated}</div>
           ${isViewer ? '' : `<div class="cal-card-actions">
-            <button class="btn btn--secondary btn--sm cal-icon-btn btn-edit" onclick="Calendar.calOpenAppt(${e.id})" aria-label="編輯派工" title="編輯派工"><span class="cal-action-icon">✏️</span><span class="cal-action-label">編輯</span></button>
-            <button class="btn btn--danger btn--sm cal-icon-btn btn-delete" onclick="Calendar.calDeleteAppt(${e.id})" aria-label="刪除派工" title="刪除派工"><span class="cal-action-icon">🗑</span><span class="cal-action-label">刪除</span></button>
+            <button class="btn btn--secondary btn--sm cal-icon-btn btn-edit" data-action="cal-appt-open" data-id="${e.id}" aria-label="編輯派工" title="編輯派工"><span class="cal-action-icon">✏️</span><span class="cal-action-label">編輯</span></button>
+            <button class="btn btn--danger btn--sm cal-icon-btn btn-delete" data-action="cal-appt-delete" data-id="${e.id}" aria-label="刪除派工" title="刪除派工"><span class="cal-action-icon">🗑</span><span class="cal-action-label">刪除</span></button>
           </div>`}
         </div>
       </div>

@@ -43,7 +43,7 @@ def test_notification_summary_runtime_has_no_item_rows_and_caps_badge():
     """Node VM：badge 使用異常摘要總數，popover 不列出商品名稱，99 以上顯示 99+。"""
     script = r"""
 const vm = require('vm');
-const { moduleScript } = require('./tests/support/frontend-runtime');
+const { moduleScript, seedReadModels } = require('./tests/support/frontend-runtime');
 function classes() {
   const set = new Set();
   return { add(v) { set.add(v); }, remove(v) { set.delete(v); }, contains(v) { return set.has(v); }, _set: set };
@@ -75,16 +75,7 @@ const context = {
   },
   localStorage: { getItem() { return '2026-09'; } },
   currentUser: { permissions: { stocktake: true } },
-  appState: {
-    currentTab: 'inventory', currentSite: 'office',
-    inventoryLoadedSite: 'office', fullItemsLoadedSite: '',
-    INVENTORY_META: { stats: {
-      item_count: 5, total_qty: 10, low_stock: 3, zero_stock: 14,
-      zero_items: Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `商品${i + 1}`, qty: 0 })),
-      low_items: [{ id: 50, name: '低庫存商品', qty: 2 }],
-    } },
-    ALL_ITEMS: [], currentKitItems: [],
-  },
+  appState: { currentTab: 'inventory', currentSite: 'office' },
   getFilteredInventoryItems() { return []; },
   getInventoryDashboardStats(_items, stats) { return {
     zeroCount: stats.zero_items.length, lowCount: stats.low_items.length,
@@ -96,17 +87,25 @@ const context = {
 vm.createContext(context);
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
 vm.runInContext(moduleScript('features/notifications/center.js'), context);
+seedReadModels(context, {
+  inventoryLoadedSite: 'office', fullItemsLoadedSite: '', allItems: [], currentKitItems: [],
+  inventoryMeta: { stats: {
+    item_count: 5, total_qty: 10, low_stock: 3, zero_stock: 14,
+    zero_items: Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `商品${i + 1}`, qty: 0 })),
+    low_items: [{ id: 50, name: '低庫存商品', qty: 2 }],
+  } },
+});
 context.updateNotifications();
 if (!elements.notifList.innerHTML.includes('缺貨商品')) throw new Error('out summary missing');
 if (!elements.notifList.innerHTML.includes('低庫存商品')) throw new Error('low summary missing');
 if (elements.notifList.innerHTML.includes('商品1')) throw new Error('notification leaked item rows');
 if (elements.notifBadge.textContent !== '15') throw new Error(`badge mismatch: ${elements.notifBadge.textContent}`);
-context.appState.INVENTORY_META.stats.zero_items = Array.from({ length: 120 }, () => ({ qty: 0 }));
-context.appState.INVENTORY_META.stats.low_items = [];
+context.getInventoryMeta().stats.zero_items = Array.from({ length: 120 }, () => ({ qty: 0 }));
+context.getInventoryMeta().stats.low_items = [];
 context.updateNotifications();
 if (elements.notifBadge.textContent !== '99+') throw new Error('badge cap missing');
-context.appState.INVENTORY_META.stats.zero_items = [];
-context.appState.INVENTORY_META.stats.low_items = [];
+context.getInventoryMeta().stats.zero_items = [];
+context.getInventoryMeta().stats.low_items = [];
 context.updateNotifications();
 if (!elements.notifList.innerHTML.includes('目前沒有庫存異常')) throw new Error('normal empty state missing');
 if (elements.notifBadge.style.display !== 'none') throw new Error('zero badge should be hidden');
@@ -201,7 +200,7 @@ def test_status_list_locations_joins_multiple_stocks():
 const vm = require('vm');
 const { moduleScript } = require('./tests/support/frontend-runtime');
 const el = { classList: { add(){}, remove(){}, contains(){ return false; } }, style: {}, setAttribute(){}, getAttribute(){ return ''; }, addEventListener(){} };
-const context = { document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } }, window: { innerWidth: 1024, addEventListener(){} }, localStorage: { getItem(){ return null; } }, currentUser: { permissions: {} }, appState: { currentTab: 'inventory', currentSite: '', INVENTORY_META: { stats: null }, ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '' } };
+const context = { document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } }, window: { innerWidth: 1024, addEventListener(){} }, localStorage: { getItem(){ return null; } }, currentUser: { permissions: {} }, appState: { currentTab: 'inventory', currentSite: '' } };
 vm.createContext(context);
 vm.runInContext(moduleScript('components/status-list.js'), context);
 const locs = context.statusListLocations;
@@ -254,7 +253,7 @@ const context = {
   Date: Date,
   document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } },
   window: { innerWidth: 1024, addEventListener(){} },
-  appState: { currentTab: 'inventory', currentSite: '', INVENTORY_META: { stats: null }, ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '' },
+  appState: { currentTab: 'inventory', currentSite: '' },
 };
 vm.createContext(context);
 { const user = context.currentUser; vm.runInContext(moduleScript('core/session.js'), context); context.currentUser = user; }  // 正式的 canAccessPage
@@ -276,11 +275,7 @@ const vm = require('vm');
 const { moduleScript } = require('./tests/support/frontend-runtime');
 const el = { classList: { add(){}, remove(){}, contains(){ return false; } }, style: {}, setAttribute(){}, getAttribute(){ return ''; }, addEventListener(){} };
 const context = {
-  appState: {
-    currentTab: 'calendar',
-    INVENTORY_META: { stats: { zero_items: [{id:1}], low_items: [] } },
-    ALL_ITEMS: [], currentKitItems: [], fullItemsLoadedSite: '',
-  },
+  appState: { currentTab: 'calendar' },
   currentUser: { permissions: { stocktake: true } },
   localStorage: { getItem() { return '2026-09'; } },
   document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } },

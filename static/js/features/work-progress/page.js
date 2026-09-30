@@ -27,7 +27,7 @@ export async function renderWorkProgress() {
     <div class="wpr-wrap">
       <section class="wpr-page-header">
         <div><div class="wpr-eyebrow">📸 現場紀錄</div><h1>每日工作進度回報</h1><p>記錄每日工作進度、備註及施工現場照片。</p></div>
-        <button class="btn btn--secondary btn--md wpr-history-jump" type="button" onclick="document.getElementById('wpr-history').scrollIntoView({behavior:'smooth'})">查看歷史 ↓</button>
+        <button class="btn btn--secondary btn--md wpr-history-jump" type="button" data-action="wpr-scroll-history">查看歷史 ↓</button>
       </section>
       <div class="wpr-layout">
         <section class="wpr-card wpr-create-card" id="wpr-create"></section>
@@ -59,14 +59,14 @@ export async function renderWorkProgress() {
           <div class="wpr-history-filters">
             <div class="wpr-filter-field"><label for="wpr-from">起始日</label><input type="date" id="wpr-from" aria-label="起始日期"></div>
             <div class="wpr-filter-field"><label for="wpr-to">迄止日</label><input type="date" id="wpr-to" aria-label="迄止日期"></div>
-            <div class="wpr-filter-field wpr-filter-field--search"><label for="wpr-query">關鍵字（客戶／服務／地址／備註／回報人）</label><input type="search" id="wpr-query" placeholder="例：王先生、安裝、配管" aria-label="搜尋工作進度" onkeydown="if(event.key==='Enter') WorkProgress.wprLoadHistory(1)"></div>
-            <div class="wpr-filter-actions"><button type="button" class="btn btn--primary btn--md" onclick="WorkProgress.wprLoadHistory(1)">搜尋</button><button type="button" class="btn btn--secondary btn--md" onclick="WorkProgress.wprResetFilter()">清除</button></div>
+            <div class="wpr-filter-field wpr-filter-field--search"><label for="wpr-query">關鍵字（客戶／服務／地址／備註／回報人）</label><input type="search" id="wpr-query" placeholder="例：王先生、安裝、配管" aria-label="搜尋工作進度" data-action="wpr-query"></div>
+            <div class="wpr-filter-actions"><button type="button" class="btn btn--primary btn--md" data-action="wpr-search">搜尋</button><button type="button" class="btn btn--secondary btn--md" data-action="wpr-reset-filter">清除</button></div>
           </div>
           <div class="wpr-quick-filters">
-            <button type="button" class="chip wpr-chip" data-role="wpr-range" data-range="today" onclick="WorkProgress.wprQuickRange('today', this)">今天</button>
-            <button type="button" class="chip wpr-chip" data-role="wpr-range" data-range="week" onclick="WorkProgress.wprQuickRange('week', this)">本週</button>
-            <button type="button" class="chip wpr-chip is-active" data-role="wpr-range" data-range="month" onclick="WorkProgress.wprQuickRange('month', this)">本月</button>
-            <button type="button" class="chip wpr-chip" data-role="wpr-range" data-range="all" onclick="WorkProgress.wprQuickRange('all', this)">全部</button>
+            <button type="button" class="chip wpr-chip" data-role="wpr-range" data-range="today" data-action="wpr-range">今天</button>
+            <button type="button" class="chip wpr-chip" data-role="wpr-range" data-range="week" data-action="wpr-range">本週</button>
+            <button type="button" class="chip wpr-chip is-active" data-role="wpr-range" data-range="month" data-action="wpr-range">本月</button>
+            <button type="button" class="chip wpr-chip" data-role="wpr-range" data-range="all" data-action="wpr-range">全部</button>
             <span class="wpr-result-count"><span id="wpr-result-count">0 筆</span></span>
           </div>
           <div id="wpr-history-list"></div>
@@ -104,25 +104,25 @@ export function wprRenderCreate() {
   }
   create.innerHTML = `
     <div class="wpr-section-heading"><div><h2>建立工作進度</h2><p>選擇行事曆工作後填寫現場回報。</p></div></div>
-    <div class="wpr-field"><label for="wpr-date">工作日期<b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" onchange="WorkProgress.wprHandleDateChange()"></div>
+    <div class="wpr-field"><label for="wpr-date">工作日期<b>*</b></label><input type="date" id="wpr-date" value="${esc(wprIsoDate())}" data-action="wpr-date-change"></div>
     <div class="wpr-field"><label>選擇工作內容<b>*</b></label><div id="wpr-job-list" class="wpr-job-list"></div></div>
     <div id="wpr-selected-area" hidden></div>
     <section class="wpr-create-progress-section" aria-labelledby="wpr-create-progress-title">
       <h3 id="wpr-create-progress-title">工作進度資料</h3>
       <div class="wpr-field"><label for="wpr-uploader">回報人顯示名稱<b>*</b></label><input id="wpr-uploader" type="text" maxlength="50"><div class="wpr-create-creator" id="wpr-create-creator"></div><div class="wpr-hint">修改回報人顯示名稱不會變更原始建立帳號與 ownership（權限）。</div></div>
-      <div class="wpr-field"><label for="wpr-note">工作進度(選填)</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" oninput="WorkProgress.wprUpdateNoteCount()"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
+      <div class="wpr-field"><label for="wpr-note">工作進度(選填)</label><textarea id="wpr-note" maxlength="1000" rows="5" placeholder="記錄今日完成內容、未完成項目或明日安排" data-action="wpr-note-input"></textarea><div class="wpr-counter" id="wpr-note-count">0 / 1000</div></div>
       <div class="wpr-field"><label>施工照片（選填）</label>
         <div class="wpr-photo-limit-copy">JPG、PNG、WebP · 單張最多 20MB · 每份最多 20 張</div>
         <div id="wpr-drop" class="wpr-drop">
           <div class="wpr-drop-icon">📸</div><div class="wpr-drop-title">拖曳多張圖片到此</div><div class="wpr-drop-sub">支援 JPG、PNG、WebP；也可以使用相簿或手機相機連續新增</div>
-          <div class="wpr-photo-actions"><button id="wpr-album-button" type="button" class="btn btn--secondary btn--md" onclick="document.getElementById('wpr-album').click()">🖼 從相簿選擇</button><button id="wpr-camera-button" type="button" class="btn btn--secondary btn--md" onclick="document.getElementById('wpr-camera').click()">📷 拍照新增</button></div>
-          <input id="wpr-album" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onchange="WorkProgress.wprAddPendingFiles(this.files);this.value=''"><input id="wpr-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onchange="WorkProgress.wprAddPendingFiles(this.files);this.value=''">
+          <div class="wpr-photo-actions"><button id="wpr-album-button" type="button" class="btn btn--secondary btn--md" data-action="wpr-pick-album">🖼 從相簿選擇</button><button id="wpr-camera-button" type="button" class="btn btn--secondary btn--md" data-action="wpr-pick-camera">📷 拍照新增</button></div>
+          <input id="wpr-album" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden data-action="wpr-add-files"><input id="wpr-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden data-action="wpr-add-files">
         </div>
         <div class="wpr-photo-counter" id="wpr-photo-counter">已選 0 / 20 張</div>
         <div id="wpr-pending-photos" class="wpr-photo-grid"></div>
       </div>
     </section>
-    <button id="wpr-save" type="button" class="btn btn--primary btn--md wpr-save-button" disabled onclick="WorkProgress.wprSubmit()">儲存工作進度回報</button>`;
+    <button id="wpr-save" type="button" class="btn btn--primary btn--md wpr-save-button" disabled data-action="wpr-submit">儲存工作進度回報</button>`;
   var uploaderInput = document.getElementById('wpr-uploader');
   var creatorIdentity = document.getElementById('wpr-create-creator');
   var currentUserName = wprCurrentUserName();
@@ -184,7 +184,7 @@ export async function wprSelectJob(id) {
   var save = document.getElementById('wpr-save');
   if (existing) {
     area.hidden = false;
-    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong>' + wprOptionalNoteHtml('工作進度', existing.note) + '<button type="button" class="btn btn--secondary btn--sm" onclick="WorkProgress.wprOpenHistoryDetail(' + existing.id + ',\'wpr-selected-report-detail-' + existing.id + '\')">查看工作進度</button><div id="wpr-selected-report-detail-' + existing.id + '" class="wpr-selected-report-detail"></div></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
+    area.innerHTML = '<div class="wpr-selected-summary"><strong>✓ 此工作已有工作進度回報</strong>' + wprOptionalNoteHtml('工作進度', existing.note) + '<button type="button" class="btn btn--secondary btn--sm" data-action="wpr-history-detail" data-id="' + existing.id + '" data-target="wpr-selected-report-detail-' + existing.id + '">查看工作進度</button><div id="wpr-selected-report-detail-' + existing.id + '" class="wpr-selected-report-detail"></div></div>' + wprCalendarReadonlyHtml(job, document.getElementById('wpr-date').value);
     save.disabled = true;
   } else {
     area.hidden = false;

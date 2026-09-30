@@ -45,8 +45,8 @@ def test_inventory_page_load_and_startup_skip_full_items():
     assert "DATA_REFRESH_PRESERVE_MOUNT_TABS" in globals
     assert "'calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash'" in globals
     inventory = read(INVENTORY_RENDER_JS)
-    assert "destinationsLoadedSite" in globals
-    assert "appState.destinationsLoadedSite !== appState.currentSite" in inventory
+    assert "destinationsLoadedSite" in read("static/js/core/shared-read-model.js")
+    assert "getDestinationsLoadedSite() !== appState.currentSite" in inventory
     assert "stats: body.stats || null" in api
     assert "renderInventoryDashboard(list, aggregateStats)" in inventory
     assert "getInventoryDashboardStats" in inventory
@@ -79,12 +79,13 @@ def test_photo_lightbox_uses_preview_variant():
 
 
 def test_photo_replace_updates_item_state_before_modal_render():
+    """照片上傳成功後，先透過 read-model 的 patchItem 更新品項縮圖狀態，再重繪編輯 modal（避免暫留舊縮圖）。"""
     source = (ROOT / "static/js/features/inventory/photo.js").read_text(encoding="utf-8")
-    state_update = source.index("const item = appState.ALL_ITEMS.find(i => i.id === itemId);")
+    state_update = source.index("patchItem(itemId, { has_photo: true")
     modal_render = source.index("renderPhotoBox(itemId, true);")
     assert state_update < modal_render
-    assert source.index("item.thumbnail_url = body.thumbnail_url", state_update) < modal_render
-    assert source.index("item.preview_url = body.preview_url", state_update) < modal_render
+    assert source.index("thumbnail_url: body.thumbnail_url", state_update) < modal_render
+    assert source.index("preview_url: body.preview_url", state_update) < modal_render
 
 
 def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():
@@ -100,8 +101,8 @@ def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():
     assert "ALERTS_BY_SITE" in (ROOT / "static/js/features/shell/state.js").read_text(encoding="utf-8")
     notif = (ROOT / "static/js/features/notifications/center.js").read_text(encoding="utf-8")
     assert "zero_items" in notif and "low_items" in notif
-    assert "jsStr(loc)" in inventory
-    assert "onclick=\\'Inventory.toggleLoc" not in inventory
+    assert 'data-action="inventory-loc-toggle"' in inventory  # loc 由 data-loc 帶（不再進 inline JS 字串）
+    assert "jsStr(loc)" not in inventory
 
 
 

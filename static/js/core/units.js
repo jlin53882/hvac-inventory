@@ -1,7 +1,8 @@
 // core/units.js — 單位動態清單共用元件（2026-08-16）
 
+import { createActionDelegate } from './actions.js';
 import { apiFetch } from './api-client.js';
-import { appState } from './state.js';
+import { getActiveUnitList, setActiveUnitList } from './shared-read-model.js';
 import { toast } from './utils.js';
 
 export var unitList = [];          // 全量（含停用）
@@ -9,7 +10,7 @@ export var unitList = [];          // 全量（含停用）
 export async function loadUnits() {
   try {
     unitList = await apiFetch('/api/units');
-    appState.unitListActive = unitList.filter(u => u.is_active);
+    setActiveUnitList(unitList.filter(u => u.is_active));
   } catch (e) { console.error('[loadUnits] /api/units 失敗', e.status, e.message); }
 }
 
@@ -17,13 +18,13 @@ export async function loadUnits() {
 export function fillUnitSelect(sel, current) {
   if (!sel) { console.error('[fillUnitSelect] select 元素不存在（id 打錯或 DOM 未建立）'); return; }
   sel.innerHTML = '';
-  appState.unitListActive.forEach(u => {
+  getActiveUnitList().forEach(u => {
     const o = document.createElement('option');
     o.value = u.name; o.textContent = u.name;
     sel.appendChild(o);
   });
   const cur = (current || '').trim();
-  if (cur && !appState.unitListActive.some(u => u.name === cur)) {
+  if (cur && !getActiveUnitList().some(u => u.name === cur)) {
     const o = document.createElement('option');
     o.value = cur; o.textContent = `（歷史）${cur}`;
     sel.appendChild(o);
@@ -40,7 +41,7 @@ export function filterUnitSelect(input, selId) {
   if (!kw) { fillUnitSelect(sel, sel.value); return; }  // 清空 → 還原全部
   const cur = sel.value;
   sel.innerHTML = '';
-  appState.unitListActive.filter(u => u.name.includes(kw)).forEach(u => {
+  getActiveUnitList().filter(u => u.name.includes(kw)).forEach(u => {
     const o = document.createElement('option');
     o.value = u.name; o.textContent = u.name;
     sel.appendChild(o);
@@ -83,7 +84,7 @@ export function openUnitQuickAdd(sel, addBtn) {
         fallback: '新增失敗'
       });
       unitList.push(data);
-      appState.unitListActive = unitList.filter(u => u.is_active);
+      setActiveUnitList(unitList.filter(u => u.is_active));
       box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = '';
       fillUnitSelect(sel, name);
       toast(`✅ 單位「${name}」已新增`, 'success');
@@ -91,3 +92,15 @@ export function openUnitQuickAdd(sel, addBtn) {
   };
   cancel.onclick = () => { box.remove(); sel.style.display = ''; if (addBtn) addBtn.style.display = ''; };
 }
+
+// 單位下拉的事件委派（data-action="core-unit-*"；data-target 是目標 <select> 的 id）
+const UNIT_ACTIONS = {
+  'core-unit-filter': { input: function(el) { filterUnitSelect(el, el.dataset.target); } },
+  'core-unit-quick-add': { click: function(el) { openUnitQuickAdd(document.getElementById(el.dataset.target), el); } },
+};
+
+const unitDelegate = createActionDelegate('core-unit-', UNIT_ACTIONS);
+
+export const handleUnitEvent = unitDelegate.handle;
+
+export const initUnitActions = unitDelegate.init;

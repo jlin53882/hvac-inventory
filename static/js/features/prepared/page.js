@@ -8,12 +8,13 @@ import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
+import { setPreparedItems } from '../../core/shared-read-model.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
 
 // ========== 待領出頁籤 ==========
 
 function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
-  const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="Stockout.openNonStockPrepareModal()">＋ 新增待領出</button>';
+  const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" data-action="stockout-prepare-nonstock">＋ 新增待領出</button>';
   return `<section class="prepared-page-header">
     <div class="prepared-heading-copy">
       <div class="prepared-heading-icon" aria-hidden="true">📤</div>
@@ -32,12 +33,12 @@ function renderPreparedPageHeader(itemCount, totalPrepared, isViewer) {
 // ========== 整組子品項展開 ==========
 function renderKitSubItems(item) {
   if (!item.is_kit || !item.components || !item.components.length) return '';
-  let html = '<tr class="kit-subitems-row"><td colspan="6"><div class="kit-subitems-toggle" onclick="Prepared.toggleKitSubItems(this)">';
+  let html = '<tr class="kit-subitems-row"><td colspan="6"><div class="kit-subitems-toggle" data-action="prepared-toggle-subitems">';
   html += '<span class="kit-subitems-arrow" data-role="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" class="prepared-kit-thumb" loading="lazy" onclick="Inventory.openPhotoLightbox(' + c.item_id + ')">'
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" class="prepared-kit-thumb" loading="lazy" data-action="photo-lightbox" data-id="' + c.item_id + '">'
       : '<div class="prepared-kit-thumb prepared-kit-thumb--empty">📷</div>';
     html += '<div class="kit-subitem">';
     html += photo;
@@ -54,12 +55,12 @@ function renderKitSubItems(item) {
 export function renderKitSubItemsMobile(item) {
   if (!item.is_kit || !item.components || !item.components.length) return '';
   let html = '<div class="kit-subitems-mobile-wrap">';
-  html += '<div class="kit-subitems-toggle" onclick="Prepared.toggleKitSubItems(this)">';
+  html += '<div class="kit-subitems-toggle" data-action="prepared-toggle-subitems">';
   html += '<span class="kit-subitems-arrow" data-role="kit-subitems-arrow">▶</span> 整組包含 ' + item.components.length + ' 個品項';
   html += '</div><div class="kit-subitems-list" style="display:none">';
   item.components.forEach(c => {
     const photo = c.has_photo
-      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" class="prepared-kit-thumb" loading="lazy" onclick="Inventory.openPhotoLightbox(' + c.item_id + ')">'
+      ? '<img src="' + photoSrc(c.item_id, 'thumbnail') + '" class="prepared-kit-thumb" loading="lazy" data-action="photo-lightbox" data-id="' + c.item_id + '">'
       : '<div class="prepared-kit-thumb prepared-kit-thumb--empty">📷</div>';
     html += '<div class="kit-subitem">';
     html += photo;
@@ -95,15 +96,15 @@ function kitModelHTML(item) {
 
 function renderPreparedDesktopRow(item, isViewer) {
   const photo = item.has_photo
-    ? `<img class="prepared-photo" src="${photoSrc(item.id, 'thumbnail')}" alt="" loading="lazy" onclick="Inventory.openPhotoLightbox(${item.id})" title="點擊看大圖">`
+    ? `<img class="prepared-photo" src="${photoSrc(item.id, 'thumbnail')}" alt="" loading="lazy" data-action="photo-lightbox" data-id="${item.id}" title="點擊看大圖">`
     : '<div class="prepared-photo prepared-photo-empty" aria-hidden="true">📷</div>';
   const nonStock = item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : '';
   const location = item.location || '未標示';
   const actions = isViewer ? '' : `<td class="prepared-actions-cell"><div class="prepared-row-actions">
-    <button class="btn btn--secondary btn--sm btn-prepare" onclick="Stockout.openPreparedEditModal(${item.id})">✏️ 編輯</button>
-    <button class="btn btn--out btn--sm btn-out" onclick="Stockout.openPreparedOutModal(${item.id})">🚚 已領出</button>
-    ${item.is_deleted ? '' : `<button class="btn btn--secondary btn--sm btn-prepare" onclick="Stockout.returnPrepared(${item.id})">↩ 退回</button>`}
-    <button class="btn btn--danger btn--sm btn-del" onclick="Prepared.clearPrepared(${item.id}, ${item.prepared_qty})">🗑 刪除</button>
+    <button class="btn btn--secondary btn--sm btn-prepare" data-action="stockout-prepared-edit" data-id="${item.id}">✏️ 編輯</button>
+    <button class="btn btn--out btn--sm btn-out" data-action="stockout-prepared-out" data-id="${item.id}">🚚 已領出</button>
+    ${item.is_deleted ? '' : `<button class="btn btn--secondary btn--sm btn-prepare" data-action="stockout-prepared-return" data-id="${item.id}">↩ 退回</button>`}
+    <button class="btn btn--danger btn--sm btn-del" data-action="prepared-clear" data-id="${item.id}" data-qty="${item.prepared_qty}">🗑 刪除</button>
   </div></td>`;
   return `<tr class="prepared-row">
     <td class="prepared-photo-cell">${photo}</td>
@@ -130,7 +131,7 @@ export async function renderPrepared() {
   try {
     let items = await apiFetch(`/api/prepared?site=${siteAtRequest}`);
     if (!preparedRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
-    appState.preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
+    setPreparedItems(items);  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
     items = filterBySearch(items, function(i) {
       return [i.name, i.code, i.brand, i.note, i.destination].join(' ');
@@ -144,7 +145,7 @@ export async function renderPrepared() {
         <div class="prepared-empty-icon" aria-hidden="true">📦</div>
         <h2>目前沒有待領出的品項</h2>
         <p>拿出商品後，可以在這裡管理尚未正式出庫的項目。</p>
-        ${isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="Stockout.openNonStockPrepareModal()">＋ 新增待領出</button>'}
+        ${isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" data-action="stockout-prepare-nonstock">＋ 新增待領出</button>'}
       </div></section>`;
       content.innerHTML = html;
       updatePreparedBadge(0);
@@ -169,7 +170,7 @@ export async function renderPrepared() {
           subHTML: `<span class="prepared-mobile-model">${kitModelHTML(item)}</span>`,
           extraHTML: `<div class="prepared-mobile-location">📍 ${esc(item.location || '未標示')}</div>${item.destination ? '<div class="prepared-card-dest">📋 ' + esc(item.destination) + '</div>' : ''}`,
           qtyHTML: `<div class="prepared-mobile-qty"><b>${esc(qtyText)}</b><small>待領出 ${esc(item.unit)}</small></div>`,
-          actionsHTML: renderKitSubItemsMobile(item) + `<div class="prepared-mobile-meta"><span class="prepared-mobile-stock">庫存 ${esc(stockText)} ${esc(item.unit)}</span>${isViewer ? '' : `<button class="btn btn--out btn--sm" onclick="Stockout.openPreparedOutModal(${item.id})">🚚 已領出</button><button class="btn btn--secondary btn--sm" onclick="Prepared.openPreparedSheet(${item.id})" aria-label="更多操作">⋯</button>`}</div>`
+          actionsHTML: renderKitSubItemsMobile(item) + `<div class="prepared-mobile-meta"><span class="prepared-mobile-stock">庫存 ${esc(stockText)} ${esc(item.unit)}</span>${isViewer ? '' : `<button class="btn btn--out btn--sm" data-action="stockout-prepared-out" data-id="${item.id}">🚚 已領出</button><button class="btn btn--secondary btn--sm" data-action="prepared-sheet" data-id="${item.id}" aria-label="更多操作">⋯</button>`}</div>`
         });
       });
       html += '</div>';
@@ -185,7 +186,7 @@ export async function renderPrepared() {
     updatePreparedBadge(items.length);
   } catch (e) {
     if (!preparedRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
-    content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--md btn-cancel" onclick="Prepared.renderPrepared()">重新載入</button></div>`;
+    content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--md btn-cancel" data-action="prepared-reload">重新載入</button></div>`;
   }
 }
 

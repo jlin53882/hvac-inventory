@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
+const { installApiClient, loadModules, mockResponse, seedReadModels } = require('./support/frontend-runtime');
 
 const box = { innerHTML: '' };
 const elements = Object.fromEntries(
@@ -28,6 +28,7 @@ const calls = { media: [], fetch: [], openedModal: false };
 const formButton = {
   textContent: '',
   setAttribute() {},
+  dataset: {},
 };
 const title = { textContent: '' };
 const overlay = { id: '', innerHTML: '', remove() {} };
@@ -52,7 +53,7 @@ class TestFormData {
 
 const context = vm.createContext({
   console,
-  appState: { ALL_ITEMS: [unrelatedItem, { id: 42, has_photo: true }], currentKitItems: [kit], currentSite: 'office', globalCabinetList: [] },
+  appState: { currentSite: 'office' },
   document: {
     addEventListener() {},
     getElementById,
@@ -97,6 +98,7 @@ const context = vm.createContext({
 
 installApiClient(context);
 loadModules(context, 'features/inventory/photo.js', 'features/kits/state.js', 'features/kits/kit-modal.js', 'features/kits/page.js');
+seedReadModels(context, { allItems: [unrelatedItem, { id: 42, has_photo: true }], currentKitItems: [kit], globalCabinetList: [] });
 context.renderKitCompRows = () => {};
 context.renderKitLocationRows = () => {};
 
@@ -105,11 +107,11 @@ async function verifyEditAndDisplayContract() {
   await context.editKit(7);
   assert.equal(calls.openedModal, true, 'editKit should open the production modal');
   assert.deepEqual(calls.media[0], { itemId: 42, size: 'thumbnail' });
-  assert.match(box.innerHTML, /openPhotoLightbox\(42\)/);
-  assert.match(box.innerHTML, /deleteKitPhoto\(7,\s*42\)/);
+  assert.match(box.innerHTML, /data-action="photo-lightbox" data-id="42"/);
+  assert.match(box.innerHTML, /data-action="inventory-kit-photo-delete" data-kit-id="7" data-id="42"/);
   assert.doesNotMatch(box.innerHTML, /deleteItemPhoto\(/);
 
-  const lightboxId = Number(box.innerHTML.match(/openPhotoLightbox\((\d+)\)/)[1]);
+  const lightboxId = Number(box.innerHTML.match(/data-action="photo-lightbox" data-id="(\d+)"/)[1]);
   context.openPhotoLightbox(lightboxId);
   assert.deepEqual(calls.media[1], { itemId: 42, size: 'preview' });
 }

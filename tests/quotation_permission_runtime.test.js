@@ -66,24 +66,24 @@ function renderWithPermission(allowed) {
   assert.ok(readOnlyHistoryHtml.includes('測試客戶'), 'read-only history row must render customer');
   assert.ok(readOnlyHistoryHtml.includes('Excel'), 'read-only history row must render Excel');
   assert.ok(readOnlyHistoryHtml.includes('PDF'), 'read-only history row must render PDF');
-  assert.ok(!readOnlyFormHtml.includes('onclick="Quotation.quoteSave()"'), 'save control must be hidden without item-mgmt');
-  assert.ok(!readOnlyFormHtml.includes('onclick="Quotation.quoteAddItem()"'), 'add-line control must be hidden without item-mgmt');
-  assert.ok(!readOnlyFormHtml.includes('onclick="Quotation.quoteOpenInventory()"'), 'inventory import control must be hidden without item-mgmt');
-  assert.ok(!readOnlyHistoryHtml.includes('quoteEdit('), 'history edit control must be hidden without item-mgmt');
-  assert.ok(!readOnlyHistoryHtml.includes('quoteDelete('), 'history delete control must be hidden without item-mgmt');
+  assert.ok(!readOnlyFormHtml.includes('data-action="quote-save"'), 'save control must be hidden without item-mgmt');
+  assert.ok(!readOnlyFormHtml.includes('data-action="quote-add-item"'), 'add-line control must be hidden without item-mgmt');
+  assert.ok(!readOnlyFormHtml.includes('data-action="quote-inventory-open"'), 'inventory import control must be hidden without item-mgmt');
+  assert.ok(!readOnlyHistoryHtml.includes('data-action="quote-edit"'), 'history edit control must be hidden without item-mgmt');
+  assert.ok(!readOnlyHistoryHtml.includes('data-action="quote-delete"'), 'history delete control must be hidden without item-mgmt');
 
   const writable = renderWithPermission(true);
   await writable.context.quoteLoadHistory();
   const writableFormHtml = writable.document.getElementById('content').innerHTML;
   const writableHistoryHtml = writable.document.getElementById('quote-history-list').innerHTML;
   assert.ok(writableHistoryHtml.includes('Q001'), 'writable history row must render quote number');
-  assert.ok(writableHistoryHtml.includes('quoteEdit(100)'), 'history edit control must show with item-mgmt');
-  assert.ok(writableHistoryHtml.includes('quoteDelete(100)'), 'history delete control must show with item-mgmt');
+  assert.ok(writableHistoryHtml.includes('data-action="quote-edit" data-id="100"'), 'history edit control must show with item-mgmt');
+  assert.ok(writableHistoryHtml.includes('data-action="quote-delete" data-id="100"'), 'history delete control must show with item-mgmt');
   assert.ok(writableHistoryHtml.includes('Excel'), 'writable history row must render Excel');
   assert.ok(writableHistoryHtml.includes('PDF'), 'writable history row must render PDF');
-  assert.ok(writableFormHtml.includes('onclick="Quotation.quoteSave()"'), 'save control must show with item-mgmt');
-  assert.ok(writableFormHtml.includes('onclick="Quotation.quoteAddItem()"'), 'add-line control must show with item-mgmt');
-  assert.ok(writableFormHtml.includes('onclick="Quotation.quoteOpenInventory()"'), 'inventory import control must show with item-mgmt');
+  assert.ok(writableFormHtml.includes('data-action="quote-save"'), 'save control must show with item-mgmt');
+  assert.ok(writableFormHtml.includes('data-action="quote-add-item"'), 'add-line control must show with item-mgmt');
+  assert.ok(writableFormHtml.includes('data-action="quote-inventory-open"'), 'inventory import control must show with item-mgmt');
 
   console.log('quotation permission runtime: PASS');
 })().catch(error => {

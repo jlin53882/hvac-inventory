@@ -101,15 +101,18 @@ def test_source_main_page_boots_and_mounts_every_tab(browser, source_server):
         # 主頁載入的原始模組數（import closure）要和 ESM linker 看到的一致：少載代表某條 import 沒被瀏覽器解析到
         loaded = {url.split("/static/js/", 1)[1].split("?", 1)[0] for url, _ in watch.js_responses if "/static/js/" in url}
         assert len(loaded) == len(page.evaluate("Object.keys(window.__hvac)")) + 1, sorted(loaded)
-        for ns, fn in (("Inventory", "openAddModal"), ("Calendar", "calChangeMonth"),
-                       ("WorkProgress", "wprSubmit"), ("App", "switchTab")):
-            assert page.evaluate(f"typeof window.{ns}.{fn}") == "function", ns
+        for module, fn in (("features/inventory/add-modal.js", "openAddModal"), ("features/calendar/view.js", "calChangeMonth"),
+                           ("features/work-progress/upload.js", "wprSubmit"), ("features/shell/app.js", "switchTab")):
+            assert page.evaluate(f"typeof hvac('{module}').{fn}") == "function", module
+        # 事件全走 data-action 委派：不再有 window 命名空間，也沒有 inline handler
+        assert page.evaluate("Object.keys(window).filter(k => ['Inventory', 'Calendar', 'WorkProgress', 'App', 'Stockout', 'Kits'].includes(k)).length") == 0
+        assert page.evaluate("document.querySelectorAll('[onclick], [onchange], [oninput], [onkeydown]').length") == 0
         state = "hvac('core/state.js').appState"
         assert page.evaluate(f"{state}.currentTab") == "inventory"
-        assert page.evaluate(f"{state}.ALL_ITEMS.length") > 0, "庫存頁沒有載入資料"
+        assert page.evaluate("hvac('core/inventory-read-model.js').getAllItems().length") > 0, "庫存頁沒有載入資料"
         assert page.evaluate("document.getElementById('content').children.length") > 0, "庫存頁沒有掛載"
         for tab in _MAIN_TABS:
-            page.evaluate("t => App.switchTab(t)", tab)
+            page.evaluate("t => hvac('features/shell/app.js').switchTab(t)", tab)
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(100)
             assert page.evaluate(f"{state}.currentTab") == tab
@@ -117,7 +120,7 @@ def test_source_main_page_boots_and_mounts_every_tab(browser, source_server):
 
         # 來回切頁：切頁 port 與組裝層在多次往返後仍掛載正確頁面與頁面範圍
         for tab in ("inventory", "calendar", "prepared", "inventory"):
-            page.evaluate("t => App.switchTab(t)", tab)
+            page.evaluate("t => hvac('features/shell/app.js').switchTab(t)", tab)
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(100)
             assert page.evaluate(f"{state}.currentTab") == tab
@@ -131,16 +134,16 @@ def test_source_main_page_boots_and_mounts_every_tab(browser, source_server):
         assert page.evaluate("document.body.dataset.page") == "stocktake"
 
         # 資料重新整理：loadData 經 data-refresh 注入的畫面 hook 重建並重新掛載目前頁籤
-        page.evaluate("t => App.switchTab(t)", "inventory")
+        page.evaluate("t => hvac('features/shell/app.js').switchTab(t)", "inventory")
         page.wait_for_load_state("networkidle")
         page.evaluate("() => hvac('features/shell/data-refresh.js').loadData()")
         page.wait_for_load_state("networkidle")
         assert page.evaluate(f"{state}.currentTab") == "inventory"
-        assert page.evaluate(f"{state}.ALL_ITEMS.length") > 0
+        assert page.evaluate("hvac('core/inventory-read-model.js').getAllItems().length") > 0
         assert page.evaluate("document.getElementById('content').children.length") > 0
 
         # 保留掛載的頁籤（DATA_REFRESH_PRESERVE_MOUNT_TABS）重新整理資料時不可重新掛載
-        page.evaluate("t => App.switchTab(t)", "quotation")
+        page.evaluate("t => hvac('features/shell/app.js').switchTab(t)", "quotation")
         page.wait_for_load_state("networkidle")
         page.evaluate("() => { window.__mountedBefore = document.getElementById('content').firstElementChild; }")
         page.evaluate("() => hvac('features/shell/data-refresh.js').loadData()")
@@ -156,13 +159,15 @@ def test_source_settings_page_boots(browser, source_server):
     page, watch = _open(browser, source_server, "/settings.html")
     try:
         _entry(page, "settings")
-        for ns, fn in (("Settings", "addCabinet"), ("Account", "cpwCheckStrength"), ("Auth", "logout")):
-            assert page.evaluate(f"typeof window.{ns}.{fn}") == "function", ns
+        for module, fn in (("features/settings/cabinets.js", "addCabinet"), ("features/account/change-password.js", "cpwCheckStrength"),
+                           ("core/session.js", "logout")):
+            assert page.evaluate(f"typeof hvac('{module}').{fn}") == "function", module
+        assert page.evaluate("document.querySelectorAll('[onclick], [onchange], [oninput]').length") == 0
         assert page.evaluate("typeof window.__hvac") == "object"
         assert page.evaluate("document.getElementById('settingsChipBar').children.length") > 0, "設定頁分類沒有掛載"
         # 面板切換（settings/page.js 的啟動流程與各面板模組之間已無循環 import）
         for panel in ("cabinets", "gcal", "petty-cash", "pw", "units"):
-            page.evaluate("p => Settings.settingsSwitch(p)", panel)
+            page.evaluate("p => hvac('features/settings/page.js').settingsSwitch(p)", panel)
             page.wait_for_load_state("networkidle")
             shown = page.evaluate("""() => ['units', 'cabinets', 'gcal', 'petty-cash', 'pw']
                 .filter(p => document.getElementById('panel-' + p).style.display !== 'none')""")
@@ -177,7 +182,8 @@ def test_source_permissions_page_boots(browser, source_server):
     page, watch = _open(browser, source_server, "/permissions.html")
     try:
         _entry(page, "permissions")
-        assert page.evaluate("typeof window.Perms.submitAddUser") == "function"
+        assert page.evaluate("typeof hvac('features/permissions/page.js').submitAddUser") == "function"
+        assert page.evaluate("typeof window.Perms") == "undefined"  # 不再掛 window 命名空間
         assert page.evaluate("typeof window.__hvac") == "object"
         page.wait_for_function("document.getElementById('userList').children.length > 0")
         assert page.evaluate("document.getElementById('chipBar').children.length") > 0, "權限頁角色篩選沒有掛載"

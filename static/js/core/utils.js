@@ -1,5 +1,5 @@
 // 庫存管理系統 - 工具函式（v8 拆分）
-// esc / jsStr / absNum / todayStr / Modal 開關 / toast
+// esc / absNum / todayStr / Modal 開關 / toast
 // RBAC（2026-08-13）：前端權限判斷 helper——currentUser.permissions 由 /api/auth/me 回傳
 
 import { currentUser } from './session.js';
@@ -21,16 +21,6 @@ export function pwPolicyMsg(pw) {
 export function esc(s) {
   return (s === null || s === undefined) ? '' :
     String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-// JS 字串 literal escape（用在 inline handler 的 '...' 內，防單引號/反斜線注入 XSS）
-export function jsStr(s) {
-  return String(s == null ? '' : s)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r');
 }
 
 // 取絕對值、四捨五入到小數 3 位並去掉結尾的 .0（例如 -3.0 → 3、0.30000000000000004 → 0.3），回傳字串

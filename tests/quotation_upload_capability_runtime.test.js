@@ -35,19 +35,19 @@ function render(capabilities) {
 
 let html = render({ can_edit: true, can_delete: false });
 assert.ok(html.includes('Q001.pdf'));
-assert.ok(html.includes('QuotationUploads.edit(100)'));
-assert.ok(!html.includes('QuotationUploads.remove(100)'));
+assert.ok(html.includes('data-action="upl-edit" data-id="100"'));
+assert.ok(!html.includes('data-action="upl-remove" data-id="100"'));
 
 html = render({ can_edit: false, can_delete: true });
-assert.ok(!html.includes('QuotationUploads.edit(100)'));
-assert.ok(html.includes('QuotationUploads.remove(100)'));
+assert.ok(!html.includes('data-action="upl-edit" data-id="100"'));
+assert.ok(html.includes('data-action="upl-remove" data-id="100"'));
 
 html = render({ can_edit: false, can_delete: false });
-assert.ok(!html.includes('QuotationUploads.edit(100)'));
-assert.ok(!html.includes('QuotationUploads.remove(100)'));
+assert.ok(!html.includes('data-action="upl-edit" data-id="100"'));
+assert.ok(!html.includes('data-action="upl-remove" data-id="100"'));
 
 html = render({ can_edit: true, can_delete: true });
-assert.ok(html.includes('QuotationUploads.edit(100)'));
-assert.ok(html.includes('QuotationUploads.remove(100)'));
+assert.ok(html.includes('data-action="upl-edit" data-id="100"'));
+assert.ok(html.includes('data-action="upl-remove" data-id="100"'));
 
 console.log('quotation upload capability runtime: PASS');

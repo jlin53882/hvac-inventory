@@ -3,6 +3,7 @@
 import { apiFetch } from '../../core/api-client.js';
 import { loadData } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
+import { setGlobalCabinetList } from '../../core/shared-read-model.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
 import { _cabinetOptions } from '../inventory/edit-modal.js';
 import { renderKitPhotoBox } from '../inventory/photo.js';
@@ -11,7 +12,7 @@ import { kitsState } from './state.js';
 
 export async function loadKitCabinetOptions() {
   try {
-    appState.globalCabinetList = await apiFetch('/api/cabinets');
+    setGlobalCabinetList(await apiFetch('/api/cabinets'));
     syncKitLocationRowsFromDom();  // 櫃子清單晚到時，先保留使用者已輸入的值再重繪
     renderKitLocationRows();
   } catch (e) {
@@ -30,7 +31,7 @@ export function openKitModal() {
   document.querySelector('#kit-modal h3').textContent = '🔧 新增整組';
   const btn = document.getElementById('kit-submit');
   btn.textContent = '✅ 建立整組';
-  btn.setAttribute('onclick', 'Kits.submitKit()');
+  btn.dataset.action = 'kits-submit';
   renderKitCompRows();  // 顯示「尚未加入材料」+ 搜尋框（同 demo）
   renderKitLocationRows();  // 顯示位置清單（初始為空）
   loadKitCabinetOptions();
@@ -159,7 +160,7 @@ export function renderKitLocationRows() {
       <select class="kit-loc-cabinet" data-role="kit-loc-cabinet">${_cabinetOptions(row.cabinet || '')}</select>
       <input type="text" class="kit-loc-pos" data-role="kit-loc-pos" value="${esc(row.position || '')}" placeholder="1-1" list="location-list">
       <input type="text" class="kit-loc-note" data-role="kit-loc-note" value="${esc(row.note || '')}" placeholder="（可選）">
-      <button type="button" class="btn-remove" onclick="Kits.removeKitLocationRow(${idx})">🗑</button>
+      <button type="button" class="btn-remove" data-action="kits-location-remove" data-idx="${idx}">🗑</button>
     </div>
   `).join('');
 }
