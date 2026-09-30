@@ -18,9 +18,9 @@ import tarfile
 import threading
 from datetime import datetime
 
-# 專案根目錄（logs/ 的上層）
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-_LOG_BASE = os.path.join(_PROJECT_ROOT, "logs")
+from app.config import LOG_BASE
+
+_LOG_BASE = str(LOG_BASE)   # 測試可 monkeypatch 此名稱；預設值來自 app.config（HVAC_LOG_DIR 可覆寫）
 
 # 格式器（共用）
 _FORMATTER = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")

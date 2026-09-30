@@ -22,9 +22,8 @@ NOT_MIGRATED = {
 
 
 @pytest.fixture()
-def tracked_conn(tmp_path, monkeypatch):
+def tracked_conn(isolated_db, monkeypatch):
     """讓 get_db 回傳可觀察 close / rollback 的連線。"""
-    monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "s.db"))
     events = []
     real_get_db = app_db.get_db
 
@@ -61,8 +60,7 @@ def test_db_session_rolls_back_then_closes_and_reraises(tracked_conn):
     assert tracked_conn == ["rollback", "close"]
 
 
-def test_db_session_does_not_autocommit(tmp_path, monkeypatch):
-    monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "s.db"))
+def test_db_session_does_not_autocommit(isolated_db):
     with app_db.db_session() as conn:
         conn.execute("CREATE TABLE t(x)")
         conn.commit()
@@ -72,9 +70,8 @@ def test_db_session_does_not_autocommit(tmp_path, monkeypatch):
         assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 0
 
 
-def test_db_session_releases_write_lock_after_error(tmp_path, monkeypatch):
+def test_db_session_releases_write_lock_after_error(isolated_db):
     """鎖洩漏回歸：BEGIN IMMEDIATE 後拋例外，別的連線必須能立刻取得寫鎖。"""
-    monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "s.db"))
     with app_db.db_session() as conn:
         conn.execute("CREATE TABLE t(x)")
         conn.commit()

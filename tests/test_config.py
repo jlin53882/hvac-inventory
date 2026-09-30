@@ -1,103 +1,102 @@
 # -*- coding: utf-8 -*-
-"""app/config.py 環境變數與 .env 讀取測試"""
+"""app/config.py 環境變數與 .env 讀取測試（直接測試真實函式，不重寫一份解析邏輯）"""
 import os
-import tempfile
 
 
-class TestLoadEnv:
-    """_load_env() .env 讀取邏輯"""
+from app.config import load_env_file, parse_env_text
 
-    def test_reads_env_file(self, tmp_path):
-        """正確讀取 .env 檔案中的鍵值"""
+
+class TestParseEnvText:
+    """parse_env_text() 純函式解析"""
+
+    def test_reads_key_values(self):
+        assert parse_env_text("TEST_KEY_1=hello\nTEST_KEY_2=world\n") == {
+            "TEST_KEY_1": "hello", "TEST_KEY_2": "world",
+        }
+
+    def test_skips_comments_and_blank_lines(self):
+        text = "# comment\n\nREAL_KEY=real_value\n# ANOTHER=yes\n  \nSECOND_KEY=second\n"
+        assert parse_env_text(text) == {"REAL_KEY": "real_value", "SECOND_KEY": "second"}
+
+    def test_skips_malformed_lines_and_keeps_extra_equals(self):
+        text = "VALID_KEY=valid\nNO_EQUALS_SIGN\n=empty_key\nKEY_WITH_EQUALS=val=ue\n"
+        result = parse_env_text(text)
+        assert result == {"VALID_KEY": "valid", "KEY_WITH_EQUALS": "val=ue"}
+
+    def test_strips_matching_quotes_and_keeps_hash_inside(self):
+        text = "A=\"hello world\"\nB='single # not comment'\nC=\"unbalanced\n"
+        assert parse_env_text(text) == {
+            "A": "hello world", "B": "single # not comment", "C": "\"unbalanced",
+        }
+
+    def test_export_prefix_and_inline_comment_on_unquoted_value(self):
+        text = "export TOKEN=abc123   # 備註\nURL=https://x.test/path#frag\n"
+        assert parse_env_text(text) == {"TOKEN": "abc123", "URL": "https://x.test/path#frag"}
+
+    def test_handles_crlf_line_endings(self):
+        assert parse_env_text("K1=v1\r\nK2=v2\r\n") == {"K1": "v1", "K2": "v2"}
+
+
+class TestLoadEnvFile:
+    """load_env_file() 寫入 environ 的規則"""
+
+    def test_loads_into_given_environ(self, tmp_path):
         env_file = tmp_path / ".env"
-        env_file.write_text("TEST_KEY_1=hello\nTEST_KEY_2=world\n", encoding="utf-8")
+        env_file.write_text("A=1\nB=2\n", encoding="utf-8")
+        environ = {}
+        assert sorted(load_env_file(str(env_file), environ)) == ["A", "B"]
+        assert environ == {"A": "1", "B": "2"}
 
-        from app.config import _load_env
-        # 臨時修改 .env 路徑：_load_env 讀的是專案根的 .env，
-        # 這裡直接測試其解析邏輯
-        result = {}
-        with open(env_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                result[key.strip()] = value.strip()
-
-        assert result["TEST_KEY_1"] == "hello"
-        assert result["TEST_KEY_2"] == "world"
-
-    def test_skips_comments_and_blank_lines(self, tmp_path):
-        """跳過註解行和空行"""
+    def test_does_not_overwrite_existing_env(self, tmp_path):
         env_file = tmp_path / ".env"
-        env_file.write_text(
-            "# This is a comment\n"
-            "\n"
-            "REAL_KEY=real_value\n"
-            "# ANOTHER_COMMENT=yes\n"
-            "  \n"
-            "SECOND_KEY=second\n",
-            encoding="utf-8",
-        )
+        env_file.write_text("DISCORD_WEBHOOK_URL=should-not-overwrite\nNEW=1\n", encoding="utf-8")
+        environ = {"DISCORD_WEBHOOK_URL": "existing-value"}
+        assert load_env_file(str(env_file), environ) == ["NEW"]
+        assert environ["DISCORD_WEBHOOK_URL"] == "existing-value"
 
-        result = {}
-        with open(env_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                result[key.strip()] = value.strip()
+    def test_missing_file_is_noop(self, tmp_path):
+        environ = {}
+        assert load_env_file(str(tmp_path / "nope.env"), environ) == []
+        assert environ == {}
 
-        assert result == {"REAL_KEY": "real_value", "SECOND_KEY": "second"}
-
-    def test_does_not_overwrite_existing_env(self, monkeypatch):
-        """已存在的環境變數不被 .env 覆蓋"""
-        monkeypatch.setenv("DISCORD_WEBHOOK_URL", "existing-value")
-
-        from app.config import _load_env
-        # _load_env 只在 import 時跑一次，這裡手動測試其邏輯
-        # 模擬：環境變數已存在 → .env 的值不覆蓋
-        os.environ["DISCORD_WEBHOOK_URL"] = "existing-value"
-        new_value = "should-not-overwrite"
-        if "DISCORD_WEBHOOK_URL" not in os.environ:
-            os.environ["DISCORD_WEBHOOK_URL"] = new_value
-        assert os.environ["DISCORD_WEBHOOK_URL"] == "existing-value"
-        del os.environ["DISCORD_WEBHOOK_URL"]
-
-    def test_missing_env_file_no_crash(self, tmp_path):
-        """缺少 .env 檔案不報錯"""
-        # _load_env 在 .env 不存在時直接 return
-        env_path = tmp_path / ".env"
-        assert not env_path.exists()  # 確認不存在
-        # 不應抛異常
-
-    def test_skips_malformed_lines(self, tmp_path):
-        """格式異常的行（無 = 號）被跳過"""
+    def test_utf8_bom_is_ignored(self, tmp_path):
         env_file = tmp_path / ".env"
-        env_file.write_text(
-            "VALID_KEY=valid\n"
-            "NO_EQUALS_SIGN\n"
-            "=empty_key\n"
-            "KEY_WITH_EQUALS=val=ue\n",
-            encoding="utf-8",
-        )
+        env_file.write_bytes("\ufeffFIRST=ok\n".encode("utf-8"))
+        environ = {}
+        load_env_file(str(env_file), environ)
+        assert environ == {"FIRST": "ok"}    # 沒處理 BOM 時 key 會變成 "\ufeffFIRST"
 
-        result = {}
-        with open(env_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                if key:  # 與 _load_env 一致：空 key 跳過
-                    result[key] = value.strip()
 
-        assert result["VALID_KEY"] == "valid"
-        assert result["KEY_WITH_EQUALS"] == "val=ue"
-        # "=empty_key" 的 key 是 "" → _load_env 的 `if key` 會跳過
-        assert "" not in result
+class TestRuntimeSettings:
+    def test_importing_config_does_not_create_dirs(self, tmp_path, monkeypatch):
+        """import config 不得有目錄副作用；建立目錄是 ensure_runtime_dirs() 的事。"""
+
+        import app.config as cfg
+
+        source = open(cfg.__file__, encoding="utf-8").read()
+        top_level_calls = [line for line in source.splitlines() if line.startswith("os.makedirs")]
+        assert top_level_calls == []
+        monkeypatch.setattr(cfg, "STATIC_DIR", str(tmp_path / "static"))
+        monkeypatch.setattr(cfg, "UPLOAD_DIR", str(tmp_path / "static" / "uploads"))
+        cfg.ensure_runtime_dirs()
+        assert (tmp_path / "static" / "uploads").is_dir()
+
+    def test_use_frontend_source_reads_env_at_call_time(self, monkeypatch):
+        import app.config as cfg
+
+        monkeypatch.delenv("HVAC_FRONTEND_SOURCE", raising=False)
+        assert cfg.use_frontend_source() is False
+        monkeypatch.setenv("HVAC_FRONTEND_SOURCE", "1")
+        assert cfg.use_frontend_source() is True
+        monkeypatch.setenv("HVAC_FRONTEND_SOURCE", "0")
+        assert cfg.use_frontend_source() is False
+
+    def test_tests_write_logs_under_logs_test(self):
+        """conftest 已把 HVAC_LOG_DIR 指向 logs/test，測試不會污染正式 logs/。"""
+        import app.config as cfg
+
+        assert os.environ["HVAC_LOG_DIR"].replace("\\", "/").endswith("logs/test")
+        assert cfg.LOG_BASE == os.environ["HVAC_LOG_DIR"]
 
 
 class TestDiscordConfig:
