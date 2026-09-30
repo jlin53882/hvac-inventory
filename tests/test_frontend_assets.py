@@ -2392,7 +2392,7 @@ def test_api_js_core_functions():
     for fn in ("loadData", "loadPreparedBadge", "saveAll"):
         assert fn in js, f"api.js 缺 {fn}"
     export_js = read(os.path.join(STATIC, "js", "features", "inventory", "export-dialog.js"))
-    assert "exportExcel" in export_js
+    assert "openInventoryExportDialog" in export_js
 
 
 def test_app_js_core_functions():
@@ -3004,8 +3004,8 @@ def test_search_handlers_all_tabs():
 def test_filter_panel_only_inventory_tab():
     """篩選面板（chip bar）只在 inventory 頁渲染"""
     js = read(INVENTORY_RENDER_JS)
-    assert "function renderInventoryChips" in js, "renderInventoryChips 函式缺失"
-    assert "chip-bar" in js, "chip-bar class 引用缺失"
+    assert "function buildFilterPanel" in js, "buildFilterPanel 函式缺失"
+    assert "filter-chip" in js, "filter-chip class 引用缺失"
 
 
 def test_batch_bar_only_inventory_tab():
@@ -3401,7 +3401,7 @@ def test_dashboard_css_exists():
 def test_chip_bar_filter():
     """Phase 3：Chip 即時篩選列存在"""
     js = read(INVENTORY_RENDER_JS)
-    assert "chip-bar" in js, "chip-bar class 引用缺失"
+    assert "filter-chip" in js, "filter-chip class 引用缺失"
     assert "toggleInventoryBrand" in js, "toggleInventoryBrand 函式缺失"
     assert "toggleInventoryCategory" in js, "toggleInventoryCategory 函式缺失"
 
@@ -4142,6 +4142,8 @@ def test_data_actions_and_delegate_handlers_match():
     markup.add("kits-submit-edit")
     # 動態組出的名稱：庫存項目選單 inventory-menu-<key>（key = edit / transfer / delete）
     markup |= {"inventory-menu-edit", "inventory-menu-transfer", "inventory-menu-delete"}
+    # 篩選 chips：inventory/filters.js renderFilterChips 依 type（brand / category）組出 inventory-<type>-toggle
+    markup |= {"inventory-brand-toggle", "inventory-category-toggle"}
     assert markup - handlers == set(), f"這些 data-action 沒有 handler：{sorted(markup - handlers)}"
     handlers = {name for name in handlers if name.startswith(DELEGATE_PREFIXES)}
     assert handlers - markup == set(), f"這些 handler 沒有任何標記使用（死碼）：{sorted(handlers - markup)}"

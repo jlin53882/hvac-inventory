@@ -35,20 +35,6 @@ export function getFilteredInventoryItems() {
 }
 
 
-function renderInventoryChips() {
-  const brands = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
-  const cats = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
-  let h = '<div class="chip-bar">';
-  h += '<span class="chip' + (getCurrentBrands().length === 0 ? ' is-active' : '') + '" data-action="inventory-brand-toggle" data-value="">全部廠牌</span>';
-  brands.forEach(b => { h += '<span class="chip' + (getCurrentBrands().includes(b) ? ' is-active' : '') + '" data-action="inventory-brand-toggle" data-value="' + esc(b) + '">' + esc(b) + '</span>'; });
-  h += '</div>';
-  h += '<div class="chip-bar">';
-  h += '<span class="chip' + (getCurrentCategories().length === 0 ? ' is-active' : '') + '" data-action="inventory-category-toggle" data-value="">全部分類</span>';
-  cats.forEach(c => { h += '<span class="chip' + (getCurrentCategories().includes(c) ? ' is-active' : '') + '" data-action="inventory-category-toggle" data-value="' + esc(c) + '">' + esc(c) + '</span>'; });
-  h += '</div>';
-  return h;
-}
-
 
 
 // ========== 篩選面板（品牌+分類 chips） ==========
@@ -241,8 +227,6 @@ function getFilteredItems() {
 export function toggleFilterCollapse(containerId, toggleBtnId) {
 
   var el = document.getElementById(containerId);
-
-  var btn = document.getElementById(toggleBtnId);
 
   var isCollapsed = el.classList.toggle('is-collapsed');
   var filterType = containerId === 'fp-brand-chips' ? 'brand' : 'category';

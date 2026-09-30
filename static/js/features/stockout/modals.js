@@ -366,6 +366,7 @@ export async function submitEditStockout() {
 }
 
 
+// eslint-disable-next-line no-unused-vars -- 預留：舊退回資料修復入口（後端 /repair 與提交分支仍在，UI 入口待產品決定）
 function openRepairStockoutReturnModal(movementId) {
   const rec = (stockoutState.stockoutRecords || []).find(r => r.id === movementId);
   if (!rec || rec.reason !== '退回已領出' || rec.reverted_at) return;
@@ -448,8 +449,6 @@ export async function deleteStockoutReturn(movementId) {
 
 
 // ========== 待領出編輯（pre-built modal） ==========
-var _preparedEditContext = false;  // 標記從待領出頁開啟
-
 function canEditPreparedMaster(item) {
   return !item.is_kit && (Boolean(item.is_deleted) || hasPerm('item-mgmt'));
 }
@@ -459,7 +458,6 @@ export function openPreparedEditModal(id) {
     ? getPreparedItems().find(i => i.id === id)
     : null;
   if (!item) return;
-  _preparedEditContext = true;
   stockoutState.editPreparedId = id;
   const canEditMaster = canEditPreparedMaster(item);
   const nameLabel = document.getElementById('pe-name-label');

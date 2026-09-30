@@ -116,7 +116,6 @@ export async function calRetryLoad() {
 }
 
 export function calRenderKpi() {
-  const selectedStr = _iso(calendarState.calSelected);
   const cards = [
     { label: '今日派工', value: calendarState.calTodayEvents.length, meta: `今日共 ${calendarState.calTodayEvents.length} 筆派工`, tone: 'blue' },
     { label: '本月派工', value: calendarState.calEvents.length, meta: `${calendarState.calMonth.getFullYear()} 年 ${calendarState.calMonth.getMonth() + 1} 月（共 ${calendarState.calEvents.length} 筆）`, tone: 'indigo' },

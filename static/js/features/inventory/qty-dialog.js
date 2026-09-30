@@ -2,7 +2,7 @@
 // 非整數單位 +/- 按鈕固定方向輸入；多位置品項點總數時可在 Dialog 選擇 +/−。
 
 import { Qty } from '../../core/qty.js';
-import { appState, pending } from '../../core/state.js';
+import { pending } from '../../core/state.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { closeModalForce, openModal, toast } from '../../core/utils.js';
 import { queueInventoryAdjustment } from './location-adjustments.js';

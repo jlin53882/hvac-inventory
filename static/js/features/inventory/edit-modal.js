@@ -2,7 +2,7 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
-import { appState, INVENTORY_ALERT_ITEMS } from '../../core/state.js';
+import { INVENTORY_ALERT_ITEMS } from '../../core/state.js';
 import { getGlobalCabinetList, setGlobalCabinetList } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';

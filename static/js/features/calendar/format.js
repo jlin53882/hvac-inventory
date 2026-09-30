@@ -27,11 +27,6 @@ export function _syncCalendarDateControls() {
   if (picker) picker.value = selected;
 }
 
-function calFormatKpiDate(date) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} · 週${CAL_WEEK[date.getDay()]}`;
-}
-
 // ========== 當日明細 ==========
 export function calFmtCreatedAt(s) {
   // created_at 為 UTC（sqlite CURRENT_TIMESTAMP）→ 轉本地顯示

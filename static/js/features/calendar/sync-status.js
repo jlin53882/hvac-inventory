@@ -34,10 +34,6 @@ export function calPersonalSync(e) {
   };
 }
 
-function calCanRetrySyncStatus(status) {
-  return ['pending', 'retrying', 'partial_retrying', 'failed', 'partial_failed'].includes(status);
-}
-
 export function calCanRetryPersonal(personal) {
   return Boolean(personal && personal.can_retry === true);
 }
