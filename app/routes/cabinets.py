@@ -4,7 +4,6 @@
 ====================================
 2026-09-27 多位置管理：單一庫存與整組庫存共用的全球櫃子設定。
 """
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 import sqlite3

@@ -256,6 +256,240 @@ def _update_gcal_key_sync(key_id: int, body):
         raise HTTPException(503, _LOCK_BUSY_DETAIL) from exc
 
 
+def _parse_key_update(body):
+    """解析 PUT body（form / JSON 兩種）→ (name, credentials_path, calendar_id, is_active, uploaded_path)。
+
+    form 若附上傳的 Service Account JSON，會先驗證再寫入 secrets/gcal/；uploaded_path 為新寫入的檔案（沒有則 None），
+    呼叫端負責在後續失敗時清掉它。
+    """
+    uploaded_path = None
+    kind, content = body
+    if kind == "form":
+        form = content
+        name = str(form.get("name") or "").strip()
+        credentials_path = str(form.get("credentials_path") or "").strip()
+        calendar_id = str(form.get("calendar_id") or "").strip()
+        is_active_raw = form.get("is_active")
+        is_active = None if is_active_raw is None else (
+            str(is_active_raw).lower() in ("true", "1", "on")
+        )
+        uploaded = form.get("credentials_file")
+        if uploaded is not None and getattr(uploaded, "filename", None) is not None:
+            filename = str(uploaded.filename or "")
+            if Path(filename).suffix.lower() != ".json":
+                raise HTTPException(400, "Service Account 檔案必須是 .json")
+            data = uploaded.file.read(MAX_CREDENTIALS_SIZE + 1)
+            credentials = _credentials_data(data)
+            storage_dir = UPLOADED_CREDENTIALS_DIR
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            uploaded_path = storage_dir / f"{uuid.uuid4().hex}.json"
+            try:
+                uploaded_path.write_text(
+                    json.dumps(credentials, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            except OSError:
+                uploaded_path.unlink(missing_ok=True)
+                raise
+            credentials_path = str(uploaded_path)
+    else:
+        try:
+            if content is _JSON_ERROR:
+                raise ValueError("invalid json")
+            k = GcalKeyUpdate.model_validate(content)
+        except Exception as exc:
+            raise HTTPException(422, "Key 資料格式錯誤") from exc
+        name = k.name.strip() if k.name else None
+        credentials_path = k.credentials_path.strip() if k.credentials_path else None
+        calendar_id = k.calendar_id.strip() if k.calendar_id else None
+        is_active = k.is_active
+    return name, credentials_path, calendar_id, is_active, uploaded_path
+
+
+def _build_key_updates(row, key_id: int, name, credentials_path, calendar_id, is_active):
+    """驗證欄位並組出 UPDATE 子句 → (updates, params, new_credentials_path, calendar_changed)。
+
+    calendar_id 變更時不直接寫入（舊 calendar 在所有遠端事件清乾淨前仍是權威），改由 calendar migration 流程處理。
+    """
+    updates, params = [], []
+    new_credentials_path = row["credentials_path"]
+    if name is not None:
+        if not name:
+            raise HTTPException(400, "Key 名稱不可為空白")
+        if len(name) > 100:
+            raise HTTPException(400, "Key 名稱過長")
+        conn = get_db()
+        try:
+            dup = conn.execute(
+                "SELECT id FROM gcal_keys WHERE name=? AND id!=?", (name, key_id)
+            ).fetchone()
+        finally:
+            conn.close()
+        if dup:
+            raise HTTPException(400, f"Key「{name}」已被使用")
+        updates.append("name=?")
+        params.append(name)
+    if credentials_path is not None:
+        if not credentials_path or len(credentials_path) > 500:
+            raise HTTPException(400, "JSON 路徑長度不合法")
+        new_credentials_path = credentials_path
+        updates.append("credentials_path=?")
+        params.append(credentials_path)
+    calendar_changed = calendar_id is not None and calendar_id != row["calendar_id"]
+    if calendar_id is not None:
+        if not calendar_id or len(calendar_id) > 300:
+            raise HTTPException(400, "Calendar ID 長度不合法")
+        if calendar_changed:
+            # Keep old calendar_id authoritative until every old remote event is cleaned.
+            pass
+        else:
+            updates.append("calendar_id=?")
+            params.append(calendar_id)
+    if is_active is not None:
+        updates.append("is_active=?")
+        params.append(1 if is_active else 0)
+    if not updates and not calendar_changed:
+        raise HTTPException(400, "無可更新欄位")
+    return updates, params, new_credentials_path, calendar_changed
+
+
+def _stage_calendar_change(conn, key_id: int, calendar_id: str) -> None:
+    """calendar_id 變更第一步：記下 pending_calendar_id，把既有遠端事件的 C/U 轉成 D 清除任務，並提交。"""
+    conn.execute(
+        "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?",
+        (calendar_id, key_id),
+    )
+    conn.execute(
+        "UPDATE appointment_sync_queue SET op_type='D', last_modified_at=?, "
+        "attempts=0, last_error='' WHERE key_id=? "
+        "AND op_type IN ('C','U') AND COALESCE(google_event_id,'')<>''",
+        (gcal_sync.sync_version_now(), key_id),
+    )
+    conn.execute(
+        "DELETE FROM appointment_sync_queue WHERE key_id=? "
+        "AND op_type IN ('C','U') AND COALESCE(google_event_id,'')=''",
+        (key_id,),
+    )
+    conn.commit()
+
+
+def _delete_remote_events_for_calendar_change(conn, key_id: int, row) -> None:
+    """calendar_id 變更第二步：刪除舊 calendar 上的遠端事件。
+
+    全部成功 → 清掉 map；有失敗 → 保留失敗列為可 retry 的 D queue、其餘 map 刪除，並回 409（不更新 key）。
+    """
+    maps = []
+    deleted_ok = 0
+    failed_maps = {}
+    maps = conn.execute(
+        "SELECT appointment_id, key_id, google_event_id "
+        "FROM appointment_gcal_map WHERE key_id=?",
+        (key_id,),
+    ).fetchall()
+    with ExitStack() as event_locks:
+        for mapped_appt_id, mapped_key_id in sorted(
+            {(m["appointment_id"], m["key_id"]) for m in maps}
+        ):
+            event_locks.enter_context(
+                gcal_sync._event_process_lock(mapped_appt_id, mapped_key_id)
+            )
+        remote_maps = [m for m in maps if m["google_event_id"]]
+        if remote_maps:
+            try:
+                service = gcal_sync.get_service_for_key(dict(row))
+            except Exception as exc:
+                safe_error = gcal_sync.safe_sync_error(exc)
+                failed_maps = {
+                    (m["appointment_id"], m["key_id"]): safe_error
+                    for m in remote_maps
+                }
+            else:
+                for map_row in remote_maps:
+                    identity = (map_row["appointment_id"], map_row["key_id"])
+                    try:
+                        service.events().delete(
+                            calendarId=row["calendar_id"],
+                            eventId=map_row["google_event_id"],
+                        ).execute()
+                        deleted_ok += 1
+                    except Exception as exc:
+                        status = getattr(getattr(exc, "resp", None), "status", None)
+                        if status == 410:
+                            deleted_ok += 1
+                            continue
+                        failed_maps[identity] = gcal_sync.safe_sync_error(exc)
+
+        if failed_maps:
+            version = gcal_sync.sync_version_now()
+            failed_identities = set(failed_maps)
+            for map_row in maps:
+                identity = (map_row["appointment_id"], map_row["key_id"])
+                if identity not in failed_identities:
+                    conn.execute(
+                        "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+                        identity,
+                    )
+                    continue
+                existing = conn.execute(
+                    "SELECT attempts FROM appointment_sync_queue "
+                    "WHERE appointment_id=? AND key_id=?",
+                    identity,
+                ).fetchone()
+                attempts = min(
+                    gcal_sync.MAX_ATTEMPTS,
+                    (int(existing["attempts"] or 0) if existing else 0) + 1,
+                )
+                conn.execute(
+                    "INSERT INTO appointment_sync_queue "
+                    "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
+                    "VALUES(?,?, 'D', ?, ?, ?, ?) "
+                    "ON CONFLICT(appointment_id,key_id) DO UPDATE SET "
+                    "op_type='D', google_event_id=excluded.google_event_id, "
+                    "last_modified_at=excluded.last_modified_at, attempts=excluded.attempts, "
+                    "last_error=excluded.last_error",
+                    (
+                        map_row["appointment_id"], key_id, map_row["google_event_id"],
+                        version, attempts, failed_maps[identity],
+                    ),
+                )
+            conn.commit()
+            # Partial migration must not backfill against the still-old
+            # calendar_id: successful deletes must stay deleted.  Wake
+            # only so the retained D rows can retry their remote delete.
+            _wake_scheduler()
+            raise HTTPException(
+                409,
+                {
+                    "ok": False,
+                    "key_updated": False,
+                    "google_deleted": deleted_ok,
+                    "google_failed": len(failed_maps),
+                },
+            )
+        conn.execute("DELETE FROM appointment_gcal_map WHERE key_id=?", (key_id,))
+
+
+def _finish_key_update(key_id: int, old_credentials_path: str, new_credentials_path: str,
+                     calendar_changed: bool, was_inactive: bool, new_is_active: bool) -> None:
+    """key 更新已提交後的收尾：清舊憑證檔並重置重試次數、完成 calendar migration 或回填，最後喚醒排程器。"""
+    if new_credentials_path != old_credentials_path:
+        _delete_uploaded_credentials(old_credentials_path)
+        conn = get_db()
+        try:
+            conn.execute(
+                "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
+                "WHERE key_id=?",
+                (gcal_sync.sync_version_now(), key_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    if calendar_changed:
+        gcal_sync.maybe_finalize_calendar_migration(key_id)
+    elif was_inactive and new_is_active:
+        _backfill_all_appointments(key_id)
+    _wake_scheduler()
+
+
 def _update_gcal_key_locked(key_id: int, body):
     uploaded_path = None
     upload_committed = False
@@ -268,199 +502,19 @@ def _update_gcal_key_locked(key_id: int, body):
         if not row:
             raise HTTPException(404, "Key 不存在")
 
-        kind, content = body
         old_credentials_path = row["credentials_path"]
-        if kind == "form":
-            form = content
-            name = str(form.get("name") or "").strip()
-            credentials_path = str(form.get("credentials_path") or "").strip()
-            calendar_id = str(form.get("calendar_id") or "").strip()
-            is_active_raw = form.get("is_active")
-            is_active = None if is_active_raw is None else (
-                str(is_active_raw).lower() in ("true", "1", "on")
-            )
-            uploaded = form.get("credentials_file")
-            if uploaded is not None and getattr(uploaded, "filename", None) is not None:
-                filename = str(uploaded.filename or "")
-                if Path(filename).suffix.lower() != ".json":
-                    raise HTTPException(400, "Service Account 檔案必須是 .json")
-                data = uploaded.file.read(MAX_CREDENTIALS_SIZE + 1)
-                credentials = _credentials_data(data)
-                storage_dir = UPLOADED_CREDENTIALS_DIR
-                storage_dir.mkdir(parents=True, exist_ok=True)
-                uploaded_path = storage_dir / f"{uuid.uuid4().hex}.json"
-                try:
-                    uploaded_path.write_text(
-                        json.dumps(credentials, ensure_ascii=False, indent=2), encoding="utf-8"
-                    )
-                except OSError:
-                    uploaded_path.unlink(missing_ok=True)
-                    raise
-                credentials_path = str(uploaded_path)
-        else:
-            try:
-                if content is _JSON_ERROR:
-                    raise ValueError("invalid json")
-                k = GcalKeyUpdate.model_validate(content)
-            except Exception as exc:
-                raise HTTPException(422, "Key 資料格式錯誤") from exc
-            name = k.name.strip() if k.name else None
-            credentials_path = k.credentials_path.strip() if k.credentials_path else None
-            calendar_id = k.calendar_id.strip() if k.calendar_id else None
-            is_active = k.is_active
+        name, credentials_path, calendar_id, is_active, uploaded_path = _parse_key_update(body)
 
-        updates, params = [], []
-        new_credentials_path = old_credentials_path
-        if name is not None:
-            if not name:
-                raise HTTPException(400, "Key 名稱不可為空白")
-            if len(name) > 100:
-                raise HTTPException(400, "Key 名稱過長")
-            conn = get_db()
-            try:
-                dup = conn.execute(
-                    "SELECT id FROM gcal_keys WHERE name=? AND id!=?", (name, key_id)
-                ).fetchone()
-            finally:
-                conn.close()
-            if dup:
-                raise HTTPException(400, f"Key「{name}」已被使用")
-            updates.append("name=?")
-            params.append(name)
-        if credentials_path is not None:
-            if not credentials_path or len(credentials_path) > 500:
-                raise HTTPException(400, "JSON 路徑長度不合法")
-            new_credentials_path = credentials_path
-            updates.append("credentials_path=?")
-            params.append(credentials_path)
+        updates, params, new_credentials_path, calendar_changed = _build_key_updates(
+            row, key_id, name, credentials_path, calendar_id, is_active)
         was_inactive = not bool(row["is_active"])
         new_is_active = bool(row["is_active"]) if is_active is None else bool(is_active)
-        calendar_changed = calendar_id is not None and calendar_id != row["calendar_id"]
-        if calendar_id is not None:
-            if not calendar_id or len(calendar_id) > 300:
-                raise HTTPException(400, "Calendar ID 長度不合法")
-            if calendar_changed:
-                # Keep old calendar_id authoritative until every old remote event is cleaned.
-                pass
-            else:
-                updates.append("calendar_id=?")
-                params.append(calendar_id)
-        if is_active is not None:
-            updates.append("is_active=?")
-            params.append(1 if is_active else 0)
-        if not updates and not calendar_changed:
-            raise HTTPException(400, "無可更新欄位")
 
         conn = get_db()
         try:
             if calendar_changed:
-                conn.execute(
-                    "UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?",
-                    (calendar_id, key_id),
-                )
-                conn.execute(
-                    "UPDATE appointment_sync_queue SET op_type='D', last_modified_at=?, "
-                    "attempts=0, last_error='' WHERE key_id=? "
-                    "AND op_type IN ('C','U') AND COALESCE(google_event_id,'')<>''",
-                    (gcal_sync.sync_version_now(), key_id),
-                )
-                conn.execute(
-                    "DELETE FROM appointment_sync_queue WHERE key_id=? "
-                    "AND op_type IN ('C','U') AND COALESCE(google_event_id,'')=''",
-                    (key_id,),
-                )
-                conn.commit()
-            maps = []
-            deleted_ok = 0
-            failed_maps = {}
-            if calendar_changed:
-                maps = conn.execute(
-                    "SELECT appointment_id, key_id, google_event_id "
-                    "FROM appointment_gcal_map WHERE key_id=?",
-                    (key_id,),
-                ).fetchall()
-                with ExitStack() as event_locks:
-                    for mapped_appt_id, mapped_key_id in sorted(
-                        {(m["appointment_id"], m["key_id"]) for m in maps}
-                    ):
-                        event_locks.enter_context(
-                            gcal_sync._event_process_lock(mapped_appt_id, mapped_key_id)
-                        )
-                    remote_maps = [m for m in maps if m["google_event_id"]]
-                    if remote_maps:
-                        try:
-                            service = gcal_sync.get_service_for_key(dict(row))
-                        except Exception as exc:
-                            safe_error = gcal_sync.safe_sync_error(exc)
-                            failed_maps = {
-                                (m["appointment_id"], m["key_id"]): safe_error
-                                for m in remote_maps
-                            }
-                        else:
-                            for map_row in remote_maps:
-                                identity = (map_row["appointment_id"], map_row["key_id"])
-                                try:
-                                    service.events().delete(
-                                        calendarId=row["calendar_id"],
-                                        eventId=map_row["google_event_id"],
-                                    ).execute()
-                                    deleted_ok += 1
-                                except Exception as exc:
-                                    status = getattr(getattr(exc, "resp", None), "status", None)
-                                    if status == 410:
-                                        deleted_ok += 1
-                                        continue
-                                    failed_maps[identity] = gcal_sync.safe_sync_error(exc)
-
-                    if failed_maps:
-                        version = gcal_sync.sync_version_now()
-                        failed_identities = set(failed_maps)
-                        for map_row in maps:
-                            identity = (map_row["appointment_id"], map_row["key_id"])
-                            if identity not in failed_identities:
-                                conn.execute(
-                                    "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
-                                    identity,
-                                )
-                                continue
-                            existing = conn.execute(
-                                "SELECT attempts FROM appointment_sync_queue "
-                                "WHERE appointment_id=? AND key_id=?",
-                                identity,
-                            ).fetchone()
-                            attempts = min(
-                                gcal_sync.MAX_ATTEMPTS,
-                                (int(existing["attempts"] or 0) if existing else 0) + 1,
-                            )
-                            conn.execute(
-                                "INSERT INTO appointment_sync_queue "
-                                "(appointment_id,key_id,op_type,google_event_id,last_modified_at,attempts,last_error) "
-                                "VALUES(?,?, 'D', ?, ?, ?, ?) "
-                                "ON CONFLICT(appointment_id,key_id) DO UPDATE SET "
-                                "op_type='D', google_event_id=excluded.google_event_id, "
-                                "last_modified_at=excluded.last_modified_at, attempts=excluded.attempts, "
-                                "last_error=excluded.last_error",
-                                (
-                                    map_row["appointment_id"], key_id, map_row["google_event_id"],
-                                    version, attempts, failed_maps[identity],
-                                ),
-                            )
-                        conn.commit()
-                        # Partial migration must not backfill against the still-old
-                        # calendar_id: successful deletes must stay deleted.  Wake
-                        # only so the retained D rows can retry their remote delete.
-                        _wake_scheduler()
-                        raise HTTPException(
-                            409,
-                            {
-                                "ok": False,
-                                "key_updated": False,
-                                "google_deleted": deleted_ok,
-                                "google_failed": len(failed_maps),
-                            },
-                        )
-                    conn.execute("DELETE FROM appointment_gcal_map WHERE key_id=?", (key_id,))
-
+                _stage_calendar_change(conn, key_id, calendar_id)
+                _delete_remote_events_for_calendar_change(conn, key_id, row)
             if updates:
                 params.append(key_id)
                 conn.execute(f"UPDATE gcal_keys SET {','.join(updates)} WHERE id=?", params)
@@ -476,23 +530,8 @@ def _update_gcal_key_locked(key_id: int, body):
             conn.close()
         upload_committed = True
 
-        if new_credentials_path != old_credentials_path:
-            _delete_uploaded_credentials(old_credentials_path)
-            conn = get_db()
-            try:
-                conn.execute(
-                    "UPDATE appointment_sync_queue SET attempts=0, last_error='', last_modified_at=? "
-                    "WHERE key_id=?",
-                    (gcal_sync.sync_version_now(), key_id),
-                )
-                conn.commit()
-            finally:
-                conn.close()
-        if calendar_changed:
-            gcal_sync.maybe_finalize_calendar_migration(key_id)
-        elif was_inactive and new_is_active:
-            _backfill_all_appointments(key_id)
-        _wake_scheduler()
+        _finish_key_update(key_id, old_credentials_path, new_credentials_path,
+                           calendar_changed, was_inactive, new_is_active)
 
         conn = get_db()
         try:
