@@ -25,7 +25,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
-from app.database import db_session, get_db
+from app.database import db_session
 from app.services.auth import require_login
 from app.services.file_storage import (
     asset_variant_path,
@@ -140,95 +140,93 @@ def _precheck_update(res: UploadResource, rid: int, user: dict) -> None:
 
 def _apply_update(res: UploadResource, rid: int, user: dict, report_date, uploader_name, note, upload):
     """編輯的同步主體（threadpool 執行）；upload 為 _read_and_prepare 結果或 None。"""
-    conn = get_db()
     new_asset = None
     old_asset = None
     old_fallback = None
     committed = False
-    try:
-        # 先鎖定寫入交易，避免兩個替換同時讀到同一個舊 asset 而留下孤兒檔。
-        # asset 的 DB 對映在同一交易內切換；檔案本體則在 commit 後 finalize。
-        conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
-        if row is None:
-            raise HTTPException(404, "報表不存在")
-        capabilities = res.capabilities(conn, row, user)
-        if not capabilities["can_edit"]:
-            raise HTTPException(403, res.edit_denied_msg)
-        report_date = row["report_date"] if report_date is None else report_date.strip()
-        uploader_name = row["uploader_name"] if uploader_name is None else uploader_name.strip()
-        note = row["note"] or "" if note is None else note.strip()
-        if not (1 <= len(uploader_name) <= 50):
-            raise HTTPException(400, "上傳人需 1-50 字")
-        if len(note) > 500:
-            raise HTTPException(400, "備註最多 500 字")
+    with db_session() as conn:
         try:
-            datetime.date.fromisoformat(report_date)
-        except Exception:
-            raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
-
-        old_asset = get_owner_asset(conn, res.asset_key, res.asset_key, rid)
-        if not old_asset and row["stored_path"]:
+            # 先鎖定寫入交易，避免兩個替換同時讀到同一個舊 asset 而留下孤兒檔。
+            # asset 的 DB 對映在同一交易內切換；檔案本體則在 commit 後 finalize。
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
+            if row is None:
+                raise HTTPException(404, "報表不存在")
+            capabilities = res.capabilities(conn, row, user)
+            if not capabilities["can_edit"]:
+                raise HTTPException(403, res.edit_denied_msg)
+            report_date = row["report_date"] if report_date is None else report_date.strip()
+            uploader_name = row["uploader_name"] if uploader_name is None else uploader_name.strip()
+            note = row["note"] or "" if note is None else note.strip()
+            if not (1 <= len(uploader_name) <= 50):
+                raise HTTPException(400, "上傳人需 1-50 字")
+            if len(note) > 500:
+                raise HTTPException(400, "備註最多 500 字")
             try:
-                old_fallback = safe_upload_path(row["stored_path"], upload_dir=_upload_dir())
-            except (FileNotFoundError, TypeError, ValueError):
-                old_fallback = None
+                datetime.date.fromisoformat(report_date)
+            except Exception:
+                raise HTTPException(400, "報表日期格式需 YYYY-MM-DD")
 
-        update_fields = ["report_date=?", "uploader_name=?", "note=?"]
-        update_values = [report_date, uploader_name, note]
-        if upload is not None:
-            if isinstance(upload, HTTPException):
-                raise upload
-            data, safe, mime, prepared = upload
-            ym = report_date[:7]
-            stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
-            new_asset = store_asset(
-                conn, category=res.asset_key, owner_type=res.asset_key, owner_id=rid,
-                data=data, original_name=safe, mime_type=mime, year_month=ym,
-                legacy_original_path=stored, upload_dir=_upload_dir(),
-                prepared=prepared,
+            old_asset = get_owner_asset(conn, res.asset_key, res.asset_key, rid)
+            if not old_asset and row["stored_path"]:
+                try:
+                    old_fallback = safe_upload_path(row["stored_path"], upload_dir=_upload_dir())
+                except (FileNotFoundError, TypeError, ValueError):
+                    old_fallback = None
+
+            update_fields = ["report_date=?", "uploader_name=?", "note=?"]
+            update_values = [report_date, uploader_name, note]
+            if upload is not None:
+                if isinstance(upload, HTTPException):
+                    raise upload
+                data, safe, mime, prepared = upload
+                ym = report_date[:7]
+                stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
+                new_asset = store_asset(
+                    conn, category=res.asset_key, owner_type=res.asset_key, owner_id=rid,
+                    data=data, original_name=safe, mime_type=mime, year_month=ym,
+                    legacy_original_path=stored, upload_dir=_upload_dir(),
+                    prepared=prepared,
+                )
+                update_fields.extend(["file_name=?", "stored_path=?", "file_size=?", "mime_type=?"])
+                update_values.extend([safe, new_asset.original_path, len(data), new_asset.mime_type])
+            conn.execute(
+                f"UPDATE {res.table} SET {', '.join(update_fields)} WHERE id=?",
+                (*update_values, rid),
             )
-            update_fields.extend(["file_name=?", "stored_path=?", "file_size=?", "mime_type=?"])
-            update_values.extend([safe, new_asset.original_path, len(data), new_asset.mime_type])
-        conn.execute(
-            f"UPDATE {res.table} SET {', '.join(update_fields)} WHERE id=?",
-            (*update_values, rid),
-        )
-        if old_asset and new_asset:
-            conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old_asset["asset_id"],))
-        conn.commit()
-        committed = True
-        if new_asset:
-            try:
-                finalize_asset_paths(new_asset, upload_dir=_upload_dir())
-                if old_asset:
-                    delete_asset_files(old_asset, upload_dir=_upload_dir())
-                elif old_fallback:
-                    old_fallback.unlink(missing_ok=True)
-            except OSError as exc:
-                logger.warning("%s舊檔清理失敗 rid=%s: %s", res.label, rid, exc)
-        updated = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
-        return _row_to_out(updated, res.capabilities(conn, updated, user))
-    except HTTPException:
-        if not committed:
-            conn.rollback()
+            if old_asset and new_asset:
+                conn.execute("DELETE FROM file_assets WHERE asset_id=?", (old_asset["asset_id"],))
+            conn.commit()
+            committed = True
             if new_asset:
-                cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
-        raise
-    except ValueError as exc:
-        if not committed:
-            conn.rollback()
-            if new_asset:
-                cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
-        raise HTTPException(400, str(exc)) from exc
-    except Exception:
-        if not committed:
-            conn.rollback()
-            if new_asset:
-                cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
-        raise
-    finally:
-        conn.close()
+                try:
+                    finalize_asset_paths(new_asset, upload_dir=_upload_dir())
+                    if old_asset:
+                        delete_asset_files(old_asset, upload_dir=_upload_dir())
+                    elif old_fallback:
+                        old_fallback.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.warning("%s舊檔清理失敗 rid=%s: %s", res.label, rid, exc)
+            updated = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
+            return _row_to_out(updated, res.capabilities(conn, updated, user))
+        except HTTPException:
+            if not committed:
+                conn.rollback()
+                if new_asset:
+                    cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
+            raise
+        except ValueError as exc:
+            if not committed:
+                conn.rollback()
+                if new_asset:
+                    cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
+            raise HTTPException(400, str(exc)) from exc
+        except Exception:
+            if not committed:
+                conn.rollback()
+                if new_asset:
+                    cleanup_asset_paths(new_asset, upload_dir=_upload_dir())
+            raise
 
 
 def build_upload_router(res: UploadResource) -> APIRouter:
@@ -266,54 +264,52 @@ def build_upload_router(res: UploadResource) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
-        conn = get_db()
         asset = None
-        try:
-            cur = conn.execute(
-                f"INSERT INTO {res.table}(report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size, mime_type, note) VALUES(?,?,?,?,?,?,?,?)",
-                (report_date, user["id"], uploader_name, safe, "", len(data), mime, note),
-            )
-            rid = cur.lastrowid
-            ym = report_date[:7]
-            stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
-            asset = store_asset(
-                conn,
-                category=key,
-                owner_type=key,
-                owner_id=rid,
-                data=data,
-                original_name=safe,
-                mime_type=mime,
-                year_month=ym,
-                legacy_original_path=stored,
-                upload_dir=_upload_dir(),
-                prepared=prepared,
-            )
-            conn.execute(
-                f"UPDATE {res.table} SET stored_path=?, mime_type=? WHERE id=?",
-                (asset.original_path, asset.mime_type, rid),
-            )
-            conn.commit()
-            finalize_asset_paths(asset, upload_dir=_upload_dir())
-            row = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
-            return _row_to_out(row, res.capabilities(conn, row, user))
-        except HTTPException:
-            conn.rollback()
-            if asset:
-                cleanup_asset_paths(asset, upload_dir=_upload_dir())
-            raise
-        except ValueError as exc:
-            conn.rollback()
-            if asset:
-                cleanup_asset_paths(asset, upload_dir=_upload_dir())
-            raise HTTPException(400, str(exc)) from exc
-        except Exception:
-            conn.rollback()
-            if asset:
-                cleanup_asset_paths(asset, upload_dir=_upload_dir())
-            raise
-        finally:
-            conn.close()
+        with db_session() as conn:
+            try:
+                cur = conn.execute(
+                    f"INSERT INTO {res.table}(report_date, uploader_user_id, uploader_name, file_name, stored_path, file_size, mime_type, note) VALUES(?,?,?,?,?,?,?,?)",
+                    (report_date, user["id"], uploader_name, safe, "", len(data), mime, note),
+                )
+                rid = cur.lastrowid
+                ym = report_date[:7]
+                stored = f"{res.storage_dir}/{ym}/{rid}_{uuid.uuid4().hex[:8]}_{safe}"
+                asset = store_asset(
+                    conn,
+                    category=key,
+                    owner_type=key,
+                    owner_id=rid,
+                    data=data,
+                    original_name=safe,
+                    mime_type=mime,
+                    year_month=ym,
+                    legacy_original_path=stored,
+                    upload_dir=_upload_dir(),
+                    prepared=prepared,
+                )
+                conn.execute(
+                    f"UPDATE {res.table} SET stored_path=?, mime_type=? WHERE id=?",
+                    (asset.original_path, asset.mime_type, rid),
+                )
+                conn.commit()
+                finalize_asset_paths(asset, upload_dir=_upload_dir())
+                row = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
+                return _row_to_out(row, res.capabilities(conn, row, user))
+            except HTTPException:
+                conn.rollback()
+                if asset:
+                    cleanup_asset_paths(asset, upload_dir=_upload_dir())
+                raise
+            except ValueError as exc:
+                conn.rollback()
+                if asset:
+                    cleanup_asset_paths(asset, upload_dir=_upload_dir())
+                raise HTTPException(400, str(exc)) from exc
+            except Exception:
+                conn.rollback()
+                if asset:
+                    cleanup_asset_paths(asset, upload_dir=_upload_dir())
+                raise
 
     @router.get(f"{prefix}/kpi", name=f"{key}_kpi")
     def kpi(

@@ -116,9 +116,8 @@ def upload_photo(item_id: int, file: UploadFile):
 @router.delete("/api/items/{item_id}/photo", dependencies=[Depends(require_perm("photo"))])
 def delete_photo(item_id: int):
     """刪除照片與所有變體（冪等）。"""
-    conn = get_db()
     rows = []
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
             ("item_photo", "item", str(item_id)),
@@ -128,11 +127,6 @@ def delete_photo(item_id: int):
             ("item_photo", "item", str(item_id)),
         )
         conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
     for row in rows:
         delete_asset_files(row, upload_dir=app_config.UPLOAD_DIR)
     # 舊版本沒有 metadata，仍清理 legacy preview。

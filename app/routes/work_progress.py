@@ -19,7 +19,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
-from app.database import db_session, get_db
+from app.database import db_session
 from app.models import WorkProgressNoteUpdate, WorkProgressPhotoBatchDeleteRequest
 from app.services.auth import get_user_permissions, require_db_perm
 from app.services.file_storage import (
@@ -424,62 +424,60 @@ def create_work_progress(
         # 先做不上鎖的快速檢查，避免對必定失敗的請求白做影像處理；交易內仍會再檢查一次。
         _precheck_create(appointment_id)
         prepared = _prepare_uploads(uploads)
-    conn = get_db()
     assets = []
     committed = False
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        appointment = conn.execute(
-            """SELECT a.*, s.name AS service_name
+    with db_session() as conn:
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            appointment = conn.execute(
+                """SELECT a.*, s.name AS service_name
                FROM appointments a LEFT JOIN service_types s ON s.id=a.service_type_id
                WHERE a.id=?""",
-            (appointment_id,),
-        ).fetchone()
-        if appointment is None:
-            raise HTTPException(404, "行事曆工作不存在")
-        report_date = _validate_date(appointment["date"], "工作日期")
-        try:
-            cur = conn.execute(
-                """INSERT INTO daily_work_progress_reports
+                (appointment_id,),
+            ).fetchone()
+            if appointment is None:
+                raise HTTPException(404, "行事曆工作不存在")
+            report_date = _validate_date(appointment["date"], "工作日期")
+            try:
+                cur = conn.execute(
+                    """INSERT INTO daily_work_progress_reports
                    (appointment_id, report_date, uploader_user_id, uploader_name, note,
                     client_name_snapshot, address_snapshot, service_name_snapshot,
                     start_time_snapshot, end_time_snapshot, appointment_note_snapshot)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    appointment_id, report_date, user["id"], uploader_name,
-                    note, appointment["client_name"], appointment["address"] or "",
-                    appointment["service_name"] or "", appointment["start_time"] or "",
-                    appointment["end_time"] or "", appointment["note"] or "",
-                ),
-            )
-        except sqlite3.IntegrityError as exc:
-            if "daily_work_progress_reports.appointment_id" in str(exc) or "UNIQUE constraint" in str(exc):
-                raise HTTPException(409, "此工作已有工作進度回報") from exc
+                    (
+                        appointment_id, report_date, user["id"], uploader_name,
+                        note, appointment["client_name"], appointment["address"] or "",
+                        appointment["service_name"] or "", appointment["start_time"] or "",
+                        appointment["end_time"] or "", appointment["note"] or "",
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                if "daily_work_progress_reports.appointment_id" in str(exc) or "UNIQUE constraint" in str(exc):
+                    raise HTTPException(409, "此工作已有工作進度回報") from exc
+                raise
+            report_id = cur.lastrowid
+            assets = _store_batch(conn, report_id, report_date, uploads, prepared)
+            conn.commit()
+            committed = True
+            _finalize(assets)
+            row = _get_report(conn, report_id)
+            return _report_out(conn, row, user, include_photos=True)
+        except HTTPException:
+            if not committed:
+                conn.rollback()
+                _cleanup_assets(assets)
             raise
-        report_id = cur.lastrowid
-        assets = _store_batch(conn, report_id, report_date, uploads, prepared)
-        conn.commit()
-        committed = True
-        _finalize(assets)
-        row = _get_report(conn, report_id)
-        return _report_out(conn, row, user, include_photos=True)
-    except HTTPException:
-        if not committed:
-            conn.rollback()
-            _cleanup_assets(assets)
-        raise
-    except ValueError as exc:
-        if not committed:
-            conn.rollback()
-            _cleanup_assets(assets)
-        raise HTTPException(400, str(exc)) from exc
-    except Exception:
-        if not committed:
-            conn.rollback()
-            _cleanup_assets(assets)
-        raise
-    finally:
-        conn.close()
+        except ValueError as exc:
+            if not committed:
+                conn.rollback()
+                _cleanup_assets(assets)
+            raise HTTPException(400, str(exc)) from exc
+        except Exception:
+            if not committed:
+                conn.rollback()
+                _cleanup_assets(assets)
+            raise
 
 
 @router.patch("/{report_id}")
@@ -531,48 +529,46 @@ def add_work_progress_photos(
     uploads = _read_image_uploads(files)
     _precheck_add_photos(report_id, user, len(uploads))
     prepared = _prepare_uploads(uploads)
-    conn = get_db()
     assets = []
     committed = False
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        row = _get_report(conn, report_id)
-        can_edit, _ = _flags(conn, row, user)
-        if not can_edit:
-            raise HTTPException(403, "沒有新增照片的權限")
-        existing_count = conn.execute(
-            """SELECT COUNT(*) FROM file_assets
+    with db_session() as conn:
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = _get_report(conn, report_id)
+            can_edit, _ = _flags(conn, row, user)
+            if not can_edit:
+                raise HTTPException(403, "沒有新增照片的權限")
+            existing_count = conn.execute(
+                """SELECT COUNT(*) FROM file_assets
                WHERE category=? AND owner_type=? AND owner_id=?""",
-            (CATEGORY, OWNER_TYPE, str(report_id)),
-        ).fetchone()[0]
-        if existing_count + len(uploads) > MAX_FILES:
-            raise HTTPException(400, "每份工作進度最多保留 20 張照片")
-        assets = _store_batch(conn, report_id, row["report_date"], uploads, prepared)
-        conn.execute(
-            "UPDATE daily_work_progress_reports SET updated_at=datetime('now','localtime') WHERE id=?",
-            (report_id,),
-        )
-        conn.commit()
-        committed = True
-        _finalize(assets)
-        return _report_out(conn, _get_report(conn, report_id), user, include_photos=True)
-    except HTTPException:
-        if not committed:
-            conn.rollback()
-            _cleanup_assets(assets)
-        raise
-    except ValueError as exc:
-        if not committed:
-            conn.rollback()
-            _cleanup_assets(assets)
-        raise HTTPException(400, str(exc)) from exc
-    except Exception:
-        if not committed:
-            conn.rollback()
-            _cleanup_assets(assets)
-        raise
-    finally:
-        conn.close()
+                (CATEGORY, OWNER_TYPE, str(report_id)),
+            ).fetchone()[0]
+            if existing_count + len(uploads) > MAX_FILES:
+                raise HTTPException(400, "每份工作進度最多保留 20 張照片")
+            assets = _store_batch(conn, report_id, row["report_date"], uploads, prepared)
+            conn.execute(
+                "UPDATE daily_work_progress_reports SET updated_at=datetime('now','localtime') WHERE id=?",
+                (report_id,),
+            )
+            conn.commit()
+            committed = True
+            _finalize(assets)
+            return _report_out(conn, _get_report(conn, report_id), user, include_photos=True)
+        except HTTPException:
+            if not committed:
+                conn.rollback()
+                _cleanup_assets(assets)
+            raise
+        except ValueError as exc:
+            if not committed:
+                conn.rollback()
+                _cleanup_assets(assets)
+            raise HTTPException(400, str(exc)) from exc
+        except Exception:
+            if not committed:
+                conn.rollback()
+                _cleanup_assets(assets)
+            raise
 
 
 def _restore_staged_deletions(staged: list[tuple[Path, Path]]) -> None:
@@ -734,28 +730,26 @@ def delete_work_progress(
     user: dict = Depends(require_db_perm("work-progress-view")),
 ):
     """Delete a report and all of its scoped media files."""
-    conn = get_db()
     assets = []
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        row = _get_report(conn, report_id)
-        _, can_delete = _flags(conn, row, user)
-        if not can_delete:
-            raise HTTPException(403, "沒有刪除此工作進度的權限")
-        assets = conn.execute(
-            """SELECT * FROM file_assets
+    with db_session() as conn:
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = _get_report(conn, report_id)
+            _, can_delete = _flags(conn, row, user)
+            if not can_delete:
+                raise HTTPException(403, "沒有刪除此工作進度的權限")
+            assets = conn.execute(
+                """SELECT * FROM file_assets
                WHERE category=? AND owner_type=? AND owner_id=?""",
-            (CATEGORY, OWNER_TYPE, str(report_id)),
-        ).fetchall()
-        conn.execute("DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
-                     (CATEGORY, OWNER_TYPE, str(report_id)))
-        conn.execute("DELETE FROM daily_work_progress_reports WHERE id=?", (report_id,))
-        conn.commit()
-    except HTTPException:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+                (CATEGORY, OWNER_TYPE, str(report_id)),
+            ).fetchall()
+            conn.execute("DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
+                         (CATEGORY, OWNER_TYPE, str(report_id)))
+            conn.execute("DELETE FROM daily_work_progress_reports WHERE id=?", (report_id,))
+            conn.commit()
+        except HTTPException:
+            conn.rollback()
+            raise
     for asset in assets:
         delete_asset_files(asset, upload_dir=_upload_dir())
     return {"ok": True, "id": report_id}

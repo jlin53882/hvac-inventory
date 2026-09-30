@@ -16,7 +16,7 @@ from typing import Optional
 
 from fastapi import Depends, APIRouter, HTTPException
 
-from app.database import db_session, get_db
+from app.database import db_session
 from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
 from app.services import movement_time
 from app.services.auth import require_perm
@@ -254,11 +254,10 @@ def delete_kit(kit_id: int):
     from app.services.file_storage import delete_asset_files, safe_upload_path
     import os
 
-    conn = get_db()
     photo_assets = []
     shared_asset_paths = set()
     legacy_path_shared = False
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not row:
@@ -317,11 +316,6 @@ def delete_kit(kit_id: int):
         conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
                      (datetime.datetime.now().isoformat(), item_id))
         conn.commit()
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
     # Remove only unshared asset variants after the metadata transaction commits.
     for asset in photo_assets:
         delete_asset_files(asset, exclude_paths=shared_asset_paths, upload_dir=app_config.UPLOAD_DIR)

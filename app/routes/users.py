@@ -116,9 +116,8 @@ def _audit(conn, operator_id: int, target_id: int, action: str, detail: str = ""
 
 def _reconcile_user_calendar_assignments(user_id: int) -> int:
     """重新啟用使用者時，只補目前指派且缺失或落後的同步。"""
-    conn = get_db()
     queued = 0
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         user = conn.execute("SELECT * FROM users WHERE id=? AND is_active=1", (user_id,)).fetchone()
         if user is None or not user["gcal_key"]:
@@ -166,11 +165,6 @@ def _reconcile_user_calendar_assignments(user_id: int) -> int:
             )
             queued += 1
         conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
     if queued:
         from app.services import sync_scheduler
         sync_scheduler.start_and_wake()

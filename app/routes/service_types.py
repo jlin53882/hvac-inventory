@@ -4,7 +4,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.database import db_session, get_db
+from app.database import db_session
 from app.models import ServiceTypeIn
 from app.services.auth import require_perm
 from app.services import gcal_sync
@@ -42,9 +42,8 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
     name = body.name.strip()
     if not name:
         raise HTTPException(400, "名稱不可空白")
-    conn = get_db()
     affected_ids = []
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT id, name FROM service_types WHERE id=?", (svc_id,)).fetchone()
         if row is None:
@@ -64,11 +63,6 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
                 sync_work_progress_snapshot_for_appointment(conn, appointment_id)
         conn.commit()
         result = dict(conn.execute("SELECT * FROM service_types WHERE id=?", (svc_id,)).fetchone())
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
     # Commit DB consistency before touching scheduler/GCal state.
     if old_name != name:
