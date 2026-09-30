@@ -167,3 +167,27 @@ def test_only_page_entries_import_shell_composition():
     其他 feature 需要切頁時用 features/shell/navigation.js 的 navigateToTab。"""
     importers = sorted(m for m, targets in _graph().items() if "features/shell/app.js" in targets and _layer(m) != "pages")
     assert importers == [], f"只有頁面進入點可以 import features/shell/app.js：{importers}"
+
+
+def test_debug_registry_lists_every_module_of_the_page_import_closure():
+    """pages/*.js 的 window.__hvac（除錯 / Playwright 入口）必須列出該頁 import closure 裡的每個模組。
+
+    新增模組、或某個頁面開始 import 新模組時，registry 沒補會讓 browser visual 測試（載入的原始模組數 ==
+    registry 數 + 進入點）紅燈；這裡在沒有瀏覽器的環境也能先抓到。
+    """
+    graph = _graph()
+    for page in ("main", "settings", "permissions"):
+        entry = f"pages/{page}.js"
+        closure, stack = set(), [entry]
+        while stack:
+            module = stack.pop()
+            if module in closure:
+                continue
+            closure.add(module)
+            stack.extend(graph[module])
+        with open(os.path.join(JS_ROOT, entry), encoding="utf-8") as fh:
+            registry = set(re.findall(r"^  '([^']+)': m\d+", fh.read(), re.M))
+        assert registry == closure - {entry}, (
+            f"{entry} 的 window.__hvac 與 import closure 不一致："
+            f"缺少 {sorted(closure - registry - {entry})}，多出 {sorted(registry - closure)}"
+        )
