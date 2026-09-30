@@ -47,11 +47,12 @@ const LEAF_MODULES = {
   createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js', createActionDelegate: 'core/actions.js',
 };
 for (const name of ['getAllItems', 'getInventoryMeta', 'getInventoryFacets', 'setAllItems', 'setInventoryMeta', 'setInventoryFacets',
-  'setInventoryPage', 'setInventoryStats']) LEAF_MODULES[name] = INVENTORY_MODEL;
+  'setInventoryPage', 'setInventoryStats', 'patchItem']) LEAF_MODULES[name] = INVENTORY_MODEL;
 for (const name of ['getPreparedItems', 'getCurrentKitItems', 'getGlobalCabinetList', 'getDestinations', 'getActiveUnitList',
   'getInventoryLoadedSite', 'getFullItemsLoadedSite', 'getDestinationsLoadedSite', 'getCurrentBrands', 'getCurrentCategories',
   'setPreparedItems', 'setCurrentKitItems', 'setGlobalCabinetList', 'setDestinations', 'setActiveUnitList',
-  'setInventoryLoadedSite', 'setFullItemsLoadedSite', 'setDestinationsLoadedSite', 'setCurrentBrands', 'setCurrentCategories']) LEAF_MODULES[name] = SHARED_MODEL;
+  'setInventoryLoadedSite', 'setFullItemsLoadedSite', 'setDestinationsLoadedSite', 'setCurrentBrands', 'setCurrentCategories',
+  'patchCurrentKit']) LEAF_MODULES[name] = SHARED_MODEL;
 const LEAF_FILES = new Set(Object.values(LEAF_MODULES));
 
 /**

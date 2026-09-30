@@ -93,6 +93,20 @@ export function setDestinationsLoadedSite(site) {
   sharedData.destinationsLoadedSite = site;
 }
 
+/**
+ * 更新目前整組清單裡單一整組的欄位（例如刪除整組照片後同步縮圖狀態）；整組是 read-model 內的資料，
+ * consumer 不可自己 `getCurrentKitItems().find(...)` 之後直接改欄位。
+ * @param {number} kitId 整組 id（kits.id）。
+ * @param {object} patch 要合併進整組的欄位。
+ * @returns {boolean} 有找到並更新時為 true。
+ */
+export function patchCurrentKit(kitId, patch) {
+  const kit = sharedData.currentKitItems.find(entry => Number(entry.id) === Number(kitId));
+  if (!kit) return false;
+  Object.assign(kit, patch);
+  return true;
+}
+
 export function setCurrentBrands(brands) {
   sharedData.currentBrands = brands;
 }

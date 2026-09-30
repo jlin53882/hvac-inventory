@@ -10,8 +10,8 @@ import { loadData, renderInventoryView } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { appState } from '../../core/state.js';
-import { getCurrentKitItems } from '../../core/shared-read-model.js';
-import { getAllItems } from '../../core/inventory-read-model.js';
+import { patchCurrentKit } from '../../core/shared-read-model.js';
+import { patchItem } from '../../core/inventory-read-model.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
 
 let similarTimer = null;          // 相似查詢 debounce timer
@@ -79,8 +79,8 @@ export async function uploadItemPhoto(itemId, input) {
     }
     toast('✅ 照片已更新', 'success');
     // 先更新列表狀態，再重繪編輯 modal，避免 modal 暫留舊縮圖
-    const item = getAllItems().find(i => i.id === itemId);
-    if (item) { item.has_photo = true; item.photo_asset_id = body.asset_id || null; item.thumbnail_url = body.thumbnail_url || null; item.preview_url = body.preview_url || null; renderInventoryView(); }
+    const patched = patchItem(itemId, { has_photo: true, photo_asset_id: body.asset_id || null, thumbnail_url: body.thumbnail_url || null, preview_url: body.preview_url || null });
+    if (patched) renderInventoryView();
     renderPhotoBox(itemId, true);
   } catch { toast('上傳失敗', 'error'); }
   input.value = '';  // 允許重選同一檔案
@@ -92,8 +92,7 @@ export async function deleteItemPhoto(itemId) {
     await apiFetch(`/api/items/${itemId}/photo`, { method: 'DELETE' });
     toast('🗑 照片已刪除', 'success');
     renderPhotoBox(itemId, false);
-    const item = getAllItems().find(i => i.id === itemId);
-    if (item) { item.has_photo = false; renderInventoryView(); }
+    if (patchItem(itemId, { has_photo: false })) renderInventoryView();
   } catch { toast('刪除失敗', 'error'); }
 }
 
@@ -252,22 +251,9 @@ export async function deleteKitPhoto(kitId, itemId) {
   try {
     await apiFetch(`/api/kits/${kitId}/photo`, { method: 'DELETE' });
 
-    const kit = Array.isArray(getCurrentKitItems())
-      ? getCurrentKitItems().find(entry => Number(entry.id) === Number(kitId))
-      : null;
-    if (kit) {
-      kit.has_photo = false;
-      kit.thumbnail_url = null;
-      kit.preview_url = null;
-    }
-    const item = Array.isArray(getAllItems())
-      ? getAllItems().find(entry => Number(entry.id) === Number(itemId))
-      : null;
-    if (item) {
-      item.has_photo = false;
-      item.thumbnail_url = null;
-      item.preview_url = null;
-    }
+    const clearedPhoto = { has_photo: false, thumbnail_url: null, preview_url: null };
+    patchCurrentKit(kitId, clearedPhoto);
+    patchItem(itemId, clearedPhoto);
     renderKitPhotoBox(kitId, itemId, false);
     toast('🗑 照片已刪除', 'success');
     await loadData();

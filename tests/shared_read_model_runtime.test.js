@@ -41,6 +41,12 @@ assert.deepStrictEqual(Array.from(before), [], '舊陣列不得被原地修改')
 context.setCurrentBrands([]);
 assert.strictEqual(context.getCurrentBrands().length, 0);
 
+// patchCurrentKit：更新目前整組清單內單一整組，找不到回傳 false
+context.setCurrentKitItems([{ id: 7, has_photo: true, thumbnail_url: '/t' }]);
+assert.strictEqual(context.patchCurrentKit(7, { has_photo: false, thumbnail_url: null }), true);
+assert.deepStrictEqual(plain(context.getCurrentKitItems()), [{ id: 7, has_photo: false, thumbnail_url: null }]);
+assert.strictEqual(context.patchCurrentKit(8, { has_photo: true }), false);
+
 // 資料不在 appState 上
 assert.strictEqual(context.appState, undefined);
 

@@ -34,6 +34,12 @@ assert.strictEqual(context.getInventoryMeta().total, 2, 'setter 不得動到其�
 context.setInventoryStats({ zero_items: 3 });
 assert.strictEqual(context.getInventoryMeta().stats.zero_items, 3);
 
+// patchItem：更新清單內單一品項（Number 比對 id），找不到回傳 false，且只改該品項
+context.setAllItems([{ id: 1, has_photo: false }, { id: 2, has_photo: false }]);
+assert.strictEqual(context.patchItem('2', { has_photo: true, thumbnail_url: '/t' }), true);
+assert.deepStrictEqual(plain(context.getAllItems()), [{ id: 1, has_photo: false }, { id: 2, has_photo: true, thumbnail_url: '/t' }]);
+assert.strictEqual(context.patchItem(99, { has_photo: true }), false);
+
 // 資料不在 appState 上
 assert.strictEqual(context.appState, undefined);
 

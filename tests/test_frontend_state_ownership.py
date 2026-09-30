@@ -70,6 +70,8 @@ ALLOWED_SETTERS = {
     "setInventoryFacets": {"features/shell"},
     "setInventoryPage": {"features/shell"},               # 切換分片時回到第 1 頁
     "setInventoryStats": {"features/inventory", "features/shell"},   # inventory：待存調整後重算 KPI；shell：切換分片清空
+    "patchItem": {"features/inventory"},                  # 照片上傳 / 刪除後同步品項縮圖狀態（不可自己 find() 後改欄位）
+    "patchCurrentKit": {"features/inventory"},            # 刪除整組照片後同步整組縮圖狀態
     "setInventoryLoadedSite": {"features/shell"},
     "setFullItemsLoadedSite": {"features/shell"},
     "setPreparedItems": {"features/prepared"},
@@ -83,6 +85,10 @@ ALLOWED_SETTERS = {
 }
 
 _SETTER_CALL_RE = re.compile(r"\b(" + "|".join(ALLOWED_SETTERS) + r")\(")
+# getter 回傳資料中的「單筆元素」被指派給區域變數（getAllItems().find(…) / getCurrentKitItems()[i]，含放在條件運算式裡）
+_GETTER_ELEMENT_ALIAS_DECL_RE = re.compile(
+    r"\b(?:const|let|var)\s+(\w+)\s*=[^;]*?\b(?:" + "|".join(sorted(GETTERS)) + r")\(\)\s*(?:\.find\(|\[)[^;]*;", re.S
+)
 # 透過 getter 拿到 reference 後原地修改（繞過 owner）
 _GETTER_MUTATE_RE = re.compile(
     r"\b(?:" + "|".join(sorted(GETTERS)) + r")\(\)\s*(?:"
@@ -240,10 +246,12 @@ def find_getter_alias_mutations(source):
     """找出「const x = getXxx(); … x.push(…)」這類經由區域變數 alias 原地修改 read-model 的寫法。
 
     只看 getter 回傳值「直接」指派的變數（含 `getXxx() && …` / `getXxx() ? … : …` 這種可能回傳 live reference 的運算式），
-    並且只在該變數宣告所在的區塊內找修改，避免把同名的其他變數誤判。回傳 [(alias, 修改片段)]。
+    以及取出單筆元素的變數（`const item = getAllItems().find(…)`、`getXxx()[i]`，含放在條件運算式裡；`.filter` / `.map` 等
+    產生新陣列的用法不算），並且只在該變數宣告所在的區塊內找修改，避免把同名的其他變數誤判。回傳 [(alias, 修改片段)]。
     """
     found = []
-    for decl in _GETTER_ALIAS_DECL_RE.finditer(source):
+    decls = list(_GETTER_ALIAS_DECL_RE.finditer(source)) + list(_GETTER_ELEMENT_ALIAS_DECL_RE.finditer(source))
+    for decl in decls:
         alias = decl.group(1)
         scope = source[decl.end():_enclosing_scope_end(source, decl.end())]
         for hit in _alias_mutation_re(alias).finditer(scope):
@@ -279,6 +287,11 @@ def test_getter_alias_scanner_catches_alias_mutations():
         # 條件運算式仍可能回傳 live reference（filters.js 曾經的寫法）
         "var counts = getInventoryFacets() && getInventoryFacets().brands ? getInventoryFacets().brands : {};\ncounts[b] = 1;",
         "function render() {\n  const list = getAllItems();\n  if (x) { list.sort(cmp); }\n}",
+        # 從 getter 資料取出的單筆元素（photo.js 曾經的寫法）：直接改欄位也是改 read-model
+        "const item = getAllItems().find(i => i.id === id);\nif (item) { item.has_photo = true; }",
+        "const kit = Array.isArray(getCurrentKitItems())\n  ? getCurrentKitItems().find(k => k.id === id)\n  : null;\nif (kit) {\n  kit.thumbnail_url = null;\n}",
+        "const first = getAllItems()[0];\nfirst.qty += 1;",
+        "const item = getAllItems().find(i => i.id === id);\nObject.assign(item, patch);",
     ]
     for source in must_fail:
         assert find_getter_alias_mutations(source), f"alias mutation 沒被抓到：{source!r}"
@@ -295,6 +308,10 @@ def test_getter_alias_scanner_catches_alias_mutations():
         # 同名但不是 getter alias 的變數，或在別的區塊：不得誤判
         "function a() { const items = getAllItems(); return items.length; }\nfunction b() { const items = []; items.push(1); return items; }",
         "const items = getAllItems();\nconst rows = items.map(i => i.id);\nrows.push(0);",
+        "const item = getAllItems().find(i => i.id === id);\nreturn item ? item.qty : 0;",
+        "const item = getAllItems().find(i => i.id === id);\nconst copy = Object.assign({}, item);\ncopy.qty = 1;",
+        "const hits = getAllItems().filter(i => i.qty > 0);\nhits.push(extra);",
+        "if (patchItem(itemId, { has_photo: false })) renderInventoryView();",
     ]
     for source in must_pass:
         assert not find_getter_alias_mutations(source), f"合法的 read-only 用法被誤判：{source!r}"

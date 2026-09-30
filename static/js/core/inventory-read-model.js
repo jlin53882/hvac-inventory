@@ -45,3 +45,17 @@ export function setInventoryPage(page) {
 export function setInventoryStats(stats) {
   inventoryData.meta.stats = stats;
 }
+
+/**
+ * 更新清單裡單一品項的欄位（例如照片上傳 / 刪除後同步縮圖狀態）。品項是 read-model 內的資料，
+ * consumer 不可自己 `getAllItems().find(...)` 之後直接改欄位，一律走這裡。
+ * @param {number} itemId 品項 id。
+ * @param {object} patch 要合併進品項的欄位。
+ * @returns {boolean} 有找到並更新該品項時為 true（清單沒載入該品項時為 false）。
+ */
+export function patchItem(itemId, patch) {
+  const item = inventoryData.items.find(entry => Number(entry.id) === Number(itemId));
+  if (!item) return false;
+  Object.assign(item, patch);
+  return true;
+}
