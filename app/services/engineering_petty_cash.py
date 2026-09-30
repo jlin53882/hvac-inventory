@@ -6,6 +6,7 @@ import re
 import datetime
 import io
 import math
+from typing import NamedTuple
 
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -210,11 +211,18 @@ def _write_engineering_header(ws, styles, report):
     _apply_engineering_presentation(ws, 2, "header")
 
 
-def _plan_engineering_rows(report):
-    """把 類別 → 項目 → 單據 → 細項 的階層攤平成列，並算出各層的合併範圍與小計列位置。
+class _EngineeringPlan(NamedTuple):
+    """階層攤平後的列規劃：只含計算結果，尚未碰工作表。next_row 為資料與小計之後的第一個空列。"""
+    data_rows: list
+    receipt_merges: list
+    group_merges: list
+    category_merges: list
+    subtotal_rows: list
+    next_row: int
 
-    只做計算、不碰工作表 → (data_rows, receipt_merges, group_merges, category_merges, subtotal_rows, current_row)。
-    """
+
+def _plan_engineering_rows(report) -> _EngineeringPlan:
+    """把 類別 → 項目 → 單據 → 細項 的階層攤平成列，並算出各層的合併範圍與小計列位置。"""
     categories = report.get("categories") or []
     calculated = calculate_engineering_totals(categories)
     categories = calculated["categories"]
@@ -273,12 +281,12 @@ def _plan_engineering_rows(report):
             category_merges.append((category_start, category_end, 1))
         subtotal_rows.append((current_row, category.get("name", ""), category_start, category_end))
         current_row += 1
-    return data_rows, receipt_merges, group_merges, category_merges, subtotal_rows, current_row
+    return _EngineeringPlan(data_rows, receipt_merges, group_merges, category_merges, subtotal_rows, current_row)
 
 
-def _write_engineering_rows(ws, styles, data_rows, receipt_merges, group_merges, category_merges, subtotal_rows):
+def _write_engineering_rows(ws, styles, plan: _EngineeringPlan):
     """依規劃寫入資料列、跨列合併與各類別小計。"""
-    for record in data_rows:
+    for record in plan.data_rows:
         row_number = record["row_number"]
         copy_role_style(styles, "engineering_data", ws, row_number)
         if record["category_anchor"]:
@@ -293,10 +301,10 @@ def _write_engineering_rows(ws, styles, data_rows, receipt_merges, group_merges,
         ws.row_dimensions[row_number].height = _detail_row_height(record["detail"])
         _apply_engineering_presentation(ws, row_number, "data")
 
-    for first, last, col in receipt_merges + group_merges + category_merges:
+    for first, last, col in plan.receipt_merges + plan.group_merges + plan.category_merges:
         _merge(ws, first, last, col)
 
-    for row_number, category_name, data_start, data_end in subtotal_rows:
+    for row_number, category_name, data_start, data_end in plan.subtotal_rows:
         copy_role_style(styles, "engineering_subtotal", ws, row_number)
         ws.cell(row_number, 1).value = excel_safe(f"{category_name} 小計")
         ws.cell(row_number, 6).value = f"=SUM(F{data_start}:F{data_end})"
@@ -304,9 +312,9 @@ def _write_engineering_rows(ws, styles, data_rows, receipt_merges, group_merges,
         _apply_engineering_presentation(ws, row_number, "subtotal")
 
 
-def _write_engineering_footer(ws, styles, subtotal_rows, current_row):
+def _write_engineering_footer(ws, styles, plan: _EngineeringPlan):
     """註記列與總計列 → 總計列號。"""
-    note_row = current_row
+    note_row = plan.next_row
     copy_role_style(styles, "engineering_spacer", ws, note_row)
     ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=6)
     ws.cell(note_row, 1).value = "註：V＝有統編"
@@ -315,7 +323,7 @@ def _write_engineering_footer(ws, styles, subtotal_rows, current_row):
     total_row = note_row + 1
     copy_role_style(styles, "engineering_total_top", ws, total_row)
     ws.cell(total_row, 1).value = "總計"
-    subtotal_refs = ",".join(f"F{row_number}" for row_number, *_ in subtotal_rows)
+    subtotal_refs = ",".join(f"F{row_number}" for row_number, *_ in plan.subtotal_rows)
     ws.cell(total_row, 6).value = f"=SUM({subtotal_refs})" if subtotal_refs else f"=SUM(F{note_row}:F{note_row})"
     ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=5)
     _apply_engineering_presentation(ws, total_row, "total")
@@ -330,10 +338,9 @@ def build_engineering_report(report):
 
     _write_engineering_header(ws, styles, report)
 
-    (data_rows, receipt_merges, group_merges, category_merges,
-     subtotal_rows, current_row) = _plan_engineering_rows(report)
-    _write_engineering_rows(ws, styles, data_rows, receipt_merges, group_merges, category_merges, subtotal_rows)
-    total_row = _write_engineering_footer(ws, styles, subtotal_rows, current_row)
+    plan = _plan_engineering_rows(report)
+    _write_engineering_rows(ws, styles, plan)
+    total_row = _write_engineering_footer(ws, styles, plan)
 
     ws.title = engineering_sheet_title(report["start_date"], report["end_date"])
     ws.sheet_view.showGridLines = False

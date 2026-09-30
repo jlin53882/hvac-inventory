@@ -8,7 +8,7 @@ import re
 import unicodedata
 from copy import copy
 from types import MappingProxyType
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException
 from openpyxl import Workbook
@@ -639,7 +639,9 @@ def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inve
     _style_title(ws, "庫存統計", period, header_count=7)
     _write_stats_headers(ws)
     quantity_by_item = _quantity_by_item(positions)
-    _write_site_stats(ws, items, quantity_by_item, inventory_available)
+    for site in SITE_ORDER:
+        row = ws.max_row + 1
+        ws.append([SITES[site], *_site_measures(site, row, items, quantity_by_item, inventory_available)])
     category_totals, brand_totals = _aggregate_category_brand_totals(items, quantity_by_item)
     _write_category_brand_rows(ws, category_totals, brand_totals, inventory_available)
     if not items:
@@ -694,12 +696,6 @@ def _site_measures(site: str, row: int, items: Iterable, quantity_by_item: dict,
         sum(1 for item in site_items if 0 < quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) <= (item["low_stock"] or 0) and (item["low_stock"] or 0) > 0),
         sum(1 for item in site_items if quantity_by_item.get(item["id"], 0) - (item["prepared_qty"] or 0) == 0),
     ]
-
-
-def _write_site_stats(ws: Worksheet, items: Iterable, quantity_by_item: dict, inventory_available: bool) -> None:
-    for site in SITE_ORDER:
-        row = ws.max_row + 1
-        ws.append([SITES[site], *_site_measures(site, row, items, quantity_by_item, inventory_available)])
 
 
 def _aggregate_category_brand_totals(items: Iterable, quantity_by_item: dict) -> tuple[dict, dict]:
@@ -828,8 +824,28 @@ def _filter_inventory_movements(movements):
     return filtered_movements
 
 
-def _query_inventory_export(selected_sites, start, end):
-    """單一庫存匯出所需資料 → (items, positions, movements, qty_types, cabinet_notes)。"""
+class _InventoryExportData(NamedTuple):
+    """單一庫存匯出所需資料：查詢與建表之間的傳遞單位。"""
+    items: list
+    positions: list
+    movements: list
+    qty_types: dict
+    cabinet_notes: dict
+
+
+class _KitExportData(NamedTuple):
+    """整組匯出所需資料：查詢與建表之間的傳遞單位。"""
+    kit_items: list
+    kit_positions: list
+    suggested_by_kit: dict
+    components_by_kit: dict
+    movements: list
+    qty_types: dict
+    cabinet_notes: dict
+
+
+def _query_inventory_export(selected_sites, start, end) -> _InventoryExportData:
+    """單一庫存匯出所需資料。"""
     with db_session() as conn:
         items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
         positions = conn.execute("SELECT i.id, i.site, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
@@ -851,11 +867,12 @@ def _query_inventory_export(selected_sites, start, end):
         movements = _filter_inventory_movements(movements)
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
         cabinet_notes = _load_cabinet_notes(conn)
-    return items, positions, movements, qty_types, cabinet_notes
+    return _InventoryExportData(items, positions, movements, qty_types, cabinet_notes)
 
 
-def _build_inventory_workbook(selected_sections, period_text, items, positions, movements, qty_types, cabinet_notes):
+def _build_inventory_workbook(selected_sections, period_text, data: _InventoryExportData):
     """依所選工作表建立單一庫存活頁簿（尚未套用全域樣式）。"""
+    items, positions, movements, qty_types, cabinet_notes = data
     wb = _new_workbook()
     if "overview" in selected_sections:
         overview = wb.create_sheet("01 總覽")
@@ -905,17 +922,14 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     selected_sites = list(SITE_ORDER) if not sites else [s for s in sites.split(",") if s]
     if not selected_sites or any(s not in SITES for s in selected_sites):
         raise HTTPException(400, "sites 含有不合法的庫存區")
-    items, positions, movements, qty_types, cabinet_notes = _query_inventory_export(selected_sites, start, end)
-    wb = _build_inventory_workbook(
-        selected_sections, _period_text(period, display_period),
-        items, positions, movements, qty_types, cabinet_notes,
-    )
+    data = _query_inventory_export(selected_sites, start, end)
+    wb = _build_inventory_workbook(selected_sections, _period_text(period, display_period), data)
     content = _finalize_workbook(wb, {"庫存總表(單一庫存)": 1, "位置明細(單一庫存)": 1, "庫存警示(單一庫存)": 2, "異動紀錄(單一庫存)": 3})
     return xlsx_download(content, _report_filename("庫存報表", month, start_date, end_date))
 
 
-def _query_kit_export(start, end):
-    """整組匯出所需資料 → (kit_items, kit_positions, suggested_by_kit, components_by_kit, movements, qty_types, cabinet_notes)。"""
+def _query_kit_export(start, end) -> _KitExportData:
+    """整組匯出所需資料。"""
     with db_session() as conn:
         # 查詢整組品項（is_kit=1）；kits 定義提供 kit_id / 備註，庫存區與品牌型號以 items 為準
         kit_items = conn.execute(
@@ -968,12 +982,13 @@ def _query_kit_export(start, end):
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
         cabinet_notes = _load_cabinet_notes(conn)
     
-    return kit_items, kit_positions, suggested_by_kit, components_by_kit, movements, qty_types, cabinet_notes
+    return _KitExportData(kit_items, kit_positions, suggested_by_kit, components_by_kit, movements, qty_types, cabinet_notes)
 
 
-def _build_kit_workbook(selected_sections, period_text, kit_items, kit_positions, suggested_by_kit,
-                        components_by_kit, movements, qty_types, cabinet_notes):
+def _build_kit_workbook(selected_sections, period_text, data: _KitExportData):
     """依所選工作表建立整組活頁簿（尚未套用全域樣式）。"""
+    (kit_items, kit_positions, suggested_by_kit, components_by_kit,
+     movements, qty_types, cabinet_notes) = data
     wb = _new_workbook()
     
     
@@ -1042,12 +1057,8 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     selected_sections = _parse_export_sections(sections, DEFAULT_EXPORT_SECTIONS, KIT_EXPORT_SECTIONS)
     start, end, period, display_period = _resolve_export_period(month, start_date, end_date, days)
     
-    (kit_items, kit_positions, suggested_by_kit, components_by_kit,
-     movements, qty_types, cabinet_notes) = _query_kit_export(start, end)
-    wb = _build_kit_workbook(
-        selected_sections, _period_text(period, display_period),
-        kit_items, kit_positions, suggested_by_kit, components_by_kit, movements, qty_types, cabinet_notes,
-    )
+    data = _query_kit_export(start, end)
+    wb = _build_kit_workbook(selected_sections, _period_text(period, display_period), data)
     content = _finalize_workbook(wb, {"庫存總表(整組)": 1, "位置明細(整組)": 1, "組成材料(整組)": 1, "庫存警示(整組)": 1, "異動紀錄(整組)": 3})
     return xlsx_download(content, _report_filename("整組報表", month, start_date, end_date))
 

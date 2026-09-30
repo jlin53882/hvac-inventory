@@ -206,9 +206,25 @@ def _load_sync_rows(conn, ids):
     return map_rows, queue_rows, assignee_rows
 
 
-def _viewer_sync_info(viewer_user, viewer_user_id, appt_id, assigned, mapped, queue, map_rows) -> dict:
+def _person_sync_info(appt_id, person, mapped, queue) -> dict:
+    """單一行程、單一已綁定且啟用 key 的指派者同步狀態（登入者本人與團隊摘要共用）。"""
+    key_id = person["key_id"]
+    entries = queue.get((appt_id, key_id), [])
+    info = _single_sync_info((appt_id, key_id) in mapped, entries)
+    if not entries and (appt_id, key_id) not in mapped:
+        info["status"] = "not_targeted"
+    info["migration_pending"] = bool(person["pending_calendar_id"])
+    info["can_retry"] = (
+        not info["migration_pending"]
+        and info["status"] in _RETRYABLE_SYNC_STATUSES
+        and bool(entries)
+    )
+    return info
+
+
+def _viewer_sync_info(viewer_user, appt_id, assigned, mapped, queue, map_rows) -> dict:
     """單一行程「登入者本人」的同步狀態；viewer_user 為 None（內部相容）時彙總全部 key。"""
-    me = next((row for row in assigned if row["user_id"] == viewer_user_id), None) if viewer_user else None
+    me = next((row for row in assigned if row["user_id"] == viewer_user["id"]), None) if viewer_user else None
     if viewer_user is None:
         return _single_sync_info(
             any((appt_id, key_id) in mapped for key_id in {r["key_id"] for r in map_rows if r["appointment_id"] == appt_id}),
@@ -220,19 +236,9 @@ def _viewer_sync_info(viewer_user, viewer_user_id, appt_id, assigned, mapped, qu
         return _empty_sync_info("not_bound")
     if not me["key_id"] or not me["key_active"]:
         return _empty_sync_info("paused", me["gcal_key"])
-    key_id = me["key_id"]
-    entries = queue.get((appt_id, key_id), [])
-    info = _single_sync_info((appt_id, key_id) in mapped, entries)
-    if not entries and (appt_id, key_id) not in mapped:
-        info["status"] = "not_targeted"
+    info = _person_sync_info(appt_id, me, mapped, queue)
     info["key_name"] = me["key_name"] or ""
     info["cal_id"] = me["calendar_id"] or ""
-    info["migration_pending"] = bool(me["pending_calendar_id"])
-    info["can_retry"] = (
-        not info["migration_pending"]
-        and info["status"] in _RETRYABLE_SYNC_STATUSES
-        and bool(entries)
-    )
     return info
 
 
@@ -253,18 +259,7 @@ def _team_sync_summary(conn, appt_id, assigned, mapped, queue) -> dict:
         if not person["key_id"] or not person["key_active"]:
             excluded["paused"] += 1
             continue
-        person_info = _single_sync_info(
-            (appt_id, person["key_id"]) in mapped,
-            queue.get((appt_id, person["key_id"]), []),
-        )
-        if not queue.get((appt_id, person["key_id"]), []) and (appt_id, person["key_id"]) not in mapped:
-            person_info["status"] = "not_targeted"
-        person_info["migration_pending"] = bool(person["pending_calendar_id"])
-        person_info["can_retry"] = (
-            not person_info["migration_pending"]
-            and person_info["status"] in _RETRYABLE_SYNC_STATUSES
-            and bool(queue.get((appt_id, person["key_id"]), []))
-        )
+        person_info = _person_sync_info(appt_id, person, mapped, queue)
         team_people.append({
             "user_id": person["user_id"],
             "display_name": person["display_name"] or "",
@@ -309,13 +304,9 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
         return {}
     if viewer_user is None:
         # 保留內部相容性；API 路由一律傳入登入者，避免一般請求暴露全體狀態。
-        viewer_user_id = None
         can_view_team_sync = False
     else:
-        viewer_user_id = viewer_user["id"]
-        can_view_team_sync = bool(
-            viewer_user and viewer_user.get("permissions", {}).get("gcal-sync-team-view")
-        )
+        can_view_team_sync = bool(viewer_user.get("permissions", {}).get("gcal-sync-team-view"))
 
     map_rows, queue_rows, assignee_rows = _load_sync_rows(conn, ids)
     mapped = {(row["appointment_id"], row["key_id"]) for row in map_rows}
@@ -330,7 +321,7 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
     result = {}
     for appt_id in ids:
         assigned = people.get(appt_id, [])
-        info = _viewer_sync_info(viewer_user, viewer_user_id, appt_id, assigned, mapped, queue, map_rows)
+        info = _viewer_sync_info(viewer_user, appt_id, assigned, mapped, queue, map_rows)
         team = _team_sync_summary(conn, appt_id, assigned, mapped, queue) if can_view_team_sync else None
         if viewer_user is None:
             info["error"] = info["error"] or None

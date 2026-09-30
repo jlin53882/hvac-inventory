@@ -15,7 +15,7 @@ import shutil
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -319,10 +319,8 @@ def _plan_asset_paths(category: str, year_month: str, asset_id: str, ext: str, i
     return original_rel, preview_rel, thumbnail_rel
 
 
-def _insert_asset_row(conn, *, asset_id, category, owner_type, owner_id, original_name, mime_type,
-                      original_rel, preview_rel, thumbnail_rel, original_size, preview_size,
-                      thumbnail_size, width, height, is_image, sha256) -> None:
-    """在呼叫端的交易內建立 file_assets metadata（不 commit）。"""
+def _insert_asset_row(conn, asset: Asset, *, category, owner_type, owner_id, original_name, width, height) -> None:
+    """在呼叫端的交易內建立 file_assets metadata（不 commit）；檔案相關欄位取自 `asset`。"""
     conn.execute(
         """INSERT INTO file_assets(
             asset_id, category, owner_type, owner_id, original_name,
@@ -331,23 +329,23 @@ def _insert_asset_row(conn, *, asset_id, category, owner_type, owner_id, origina
             compression_method, compression_version, sha256
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            asset_id,
+            asset.asset_id,
             category,
             owner_type,
             str(owner_id),
             original_name,
-            mime_type,
-            original_rel,
-            preview_rel,
-            thumbnail_rel,
-            original_size,
-            preview_size,
-            thumbnail_size,
+            asset.mime_type,
+            asset.original_path,
+            asset.preview_path,
+            asset.thumbnail_path,
+            asset.original_size,
+            asset.preview_size,
+            asset.thumbnail_size,
             width,
             height,
-            "jpeg-preview" if is_image else "none",
-            COMPRESSION_VERSION if is_image else "original-v1",
-            sha256,
+            "jpeg-preview" if asset.is_image else "none",
+            COMPRESSION_VERSION if asset.is_image else "original-v1",
+            asset.sha256,
         ),
     )
 
@@ -428,12 +426,21 @@ def store_asset(
         else:
             thumbnail_path = None
 
+        asset = Asset(
+            asset_id=asset_id,
+            original_path=original_rel,
+            preview_path=preview_rel,
+            thumbnail_path=thumbnail_rel,
+            original_size=len(data),
+            preview_size=preview_size,
+            thumbnail_size=thumbnail_size,
+            sha256=prepared.sha256,
+            mime_type=safe_mime,
+            is_image=is_image,
+        )
         _insert_asset_row(
-            conn, asset_id=asset_id, category=category, owner_type=owner_type, owner_id=owner_id,
-            original_name=original_name, mime_type=safe_mime, original_rel=original_rel,
-            preview_rel=preview_rel, thumbnail_rel=thumbnail_rel, original_size=len(data),
-            preview_size=preview_size, thumbnail_size=thumbnail_size, width=width, height=height,
-            is_image=is_image, sha256=prepared.sha256,
+            conn, asset, category=category, owner_type=owner_type, owner_id=owner_id,
+            original_name=original_name, width=width, height=height,
         )
     except Exception:
         for path in reversed(written):
@@ -444,20 +451,7 @@ def store_asset(
         _restore_backups(backups)
         raise
 
-    backup_paths = _relative_backup_paths(backups, upload_dir)
-    return Asset(
-        asset_id=asset_id,
-        original_path=original_rel,
-        preview_path=preview_rel,
-        thumbnail_path=thumbnail_rel,
-        original_size=len(data),
-        preview_size=preview_size,
-        thumbnail_size=thumbnail_size,
-        sha256=prepared.sha256,
-        mime_type=safe_mime,
-        is_image=is_image,
-        backup_paths=backup_paths,
-    )
+    return replace(asset, backup_paths=_relative_backup_paths(backups, upload_dir))
 
 
 def _restore_asset_backups(

@@ -11,6 +11,7 @@
 import datetime
 import io
 from pathlib import Path
+from typing import NamedTuple
 
 from openpyxl import load_workbook
 
@@ -67,8 +68,16 @@ def _write_header(ws, start, end, opening):
         ws.cell(3, col).value = value
 
 
-def _expand_entries(report):
-    """依日期排序，並把多項目支出展開成多列 → [(entry, item 或 None, item_index, item_count)]。"""
+class _BodyRow(NamedTuple):
+    """明細表的一列：多項目支出會展開成多列，item 為 None 表示單列（收入或無項目的支出）。"""
+    entry: dict
+    item: dict | None
+    item_index: int
+    item_count: int
+
+
+def _expand_entries(report) -> list[_BodyRow]:
+    """依日期排序，並把多項目支出展開成多列。"""
     entries = sorted(
         report.get("entries") or [],
         key=lambda entry: (entry.get("entry_date") or "", entry.get("sort_order") or 0, entry.get("id") or 0),
@@ -80,14 +89,15 @@ def _expand_entries(report):
             key=lambda item: (item.get("sort_order") or 0, item.get("id") or 0),
         )
         if entry.get("entry_type") == "expense" and items:
-            expanded.extend((entry, item, index, len(items)) for index, item in enumerate(items))
+            expanded.extend(_BodyRow(entry, item, index, len(items)) for index, item in enumerate(items))
         else:
-            expanded.append((entry, None, 0, 1))
+            expanded.append(_BodyRow(entry, None, 0, 1))
     return expanded
 
 
-def _write_entry_row(ws, styles, row_number, seq, entry, item, item_index, item_count):
+def _write_entry_row(ws, styles, row_number, seq, body_row: _BodyRow):
     """寫一列明細（含多項目支出的跨列合併）；樣式依單項 / 多項的首中尾決定。"""
+    entry, item, item_index, item_count = body_row
     if item_count == 1:
         role = "general_data"
     elif item_index == 0:
@@ -160,8 +170,8 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
     label_row = closing_row + 2
     ws.insert_rows(4, body_count + 3)
 
-    for index, (entry, item, item_index, item_count) in enumerate(expanded):
-        _write_entry_row(ws, styles, 4 + index, index + 1, entry, item, item_index, item_count)
+    for index, body_row in enumerate(expanded):
+        _write_entry_row(ws, styles, 4 + index, index + 1, body_row)
 
     _write_footer(ws, styles, report, closing_row, label_row, body_count)
 

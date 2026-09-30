@@ -724,29 +724,27 @@ def list_prepared(site: Optional[InventorySiteQuery] = None):
             p["destination"] = destinations.get(p["id"]) or ""
         return payloads
 
-def _check_prepared_update_allowed(row, upd, user):
-    """檢查此人能否改這個待領出品項 → (is_nonstock, metadata_fields, has_metadata)。
+def _metadata_updates(upd) -> dict:
+    """請求中有帶值的品項主檔欄位（name/brand/code/unit）。"""
+    fields = {"name": upd.name, "brand": upd.brand, "code": upd.code, "unit": upd.unit}
+    return {key: value for key, value in fields.items() if value is not None}
+
+
+def _check_prepared_update_allowed(row, upd, user) -> None:
+    """檢查此人能否改這個待領出品項。
 
     整組主檔不可在這裡改；非庫存品項可自由改 metadata，庫存品項需要品項管理權限。
     """
-    is_nonstock = bool(row["is_deleted"])
-    is_kit = bool(row["is_kit"])
-    metadata_fields = {
-        "name": upd.name,
-        "brand": upd.brand,
-        "code": upd.code,
-        "unit": upd.unit,
-    }
-    has_metadata = any(value is not None for value in metadata_fields.values())
-    if is_kit and has_metadata:
+    has_metadata = bool(_metadata_updates(upd))
+    if row["is_kit"] and has_metadata:
         raise HTTPException(400, "整組主檔請至整組庫存頁編輯")
-    if has_metadata and not is_nonstock and not user.get("permissions", {}).get("item-mgmt"):
+    if has_metadata and not row["is_deleted"] and not user.get("permissions", {}).get("item-mgmt"):
         raise HTTPException(403, "修改庫存品項主檔需要品項管理權限")
-    return is_nonstock, metadata_fields, has_metadata
 
 
-def _prepared_update_fields(conn, item_id, row, upd, metadata_fields, has_metadata, is_nonstock):
+def _prepared_update_fields(conn, item_id, row, upd):
     """整理要 UPDATE 的欄位（metadata 去空白、prepared_qty 標準化並檢查預計庫存）。"""
+    is_nonstock = bool(row["is_deleted"])
     old_prepared = _canonical_qty(row["prepared_qty"] or 0)
     new_prepared = old_prepared
     if upd.prepared_qty is not None:
@@ -759,14 +757,11 @@ def _prepared_update_fields(conn, item_id, row, upd, metadata_fields, has_metada
             )
 
     fields = {}
-    if has_metadata:
-        for key, value in metadata_fields.items():
-            if value is None:
-                continue
-            normalized = value.strip()
-            if key in ("name", "unit") and not normalized:
-                raise HTTPException(400, f"{key}不可空白")
-            fields[key] = normalized
+    for key, value in _metadata_updates(upd).items():
+        normalized = value.strip()
+        if key in ("name", "unit") and not normalized:
+            raise HTTPException(400, f"{key}不可空白")
+        fields[key] = normalized
     if upd.prepared_qty is not None:
         fields["prepared_qty"] = new_prepared
     return fields
@@ -813,8 +808,8 @@ def update_prepared_item(
         if upd.updated_at and row["updated_at"] and upd.updated_at != row["updated_at"]:
             raise HTTPException(409, "該品項已被其他人修改，請重新整理後再編輯")
 
-        is_nonstock, metadata_fields, has_metadata = _check_prepared_update_allowed(row, upd, user)
-        fields = _prepared_update_fields(conn, item_id, row, upd, metadata_fields, has_metadata, is_nonstock)
+        _check_prepared_update_allowed(row, upd, user)
+        fields = _prepared_update_fields(conn, item_id, row, upd)
 
         movement = None
         if upd.destination is not None:
