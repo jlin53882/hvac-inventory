@@ -203,14 +203,101 @@ def test_navigation_state_readers_only_shrink():
     assert not stale, f"導覽欄位的 direct reader 已減少，請調降 NAVIGATION_READER_BASELINE：{stale}"
 
 
+# ---- getter 回傳值被指派給區域變數（alias）後再原地修改 ----
+_GETTER_ALIAS_DECL_RE = re.compile(
+    r"\b(?:const|let|var)\s+(\w+)\s*=\s*(?:" + "|".join(sorted(GETTERS)) + r")\(\)\s*(?=;|\n|\|\||&&|\?|,)"
+)
+_MUTATING_METHODS = r"(?:push|pop|shift|unshift|splice|sort|reverse|fill|copyWithin)"
+_ACCESS_CHAIN = r"(?:\.\w+|\[[^\]\n]*\])"
+
+
+def _alias_mutation_re(alias):
+    """alias 的原地修改：alias.push(…) / alias[k] = … / alias.a.b = … / alias.n++ / Object.assign(alias, …) / delete alias.x。"""
+    name = re.escape(alias)
+    return re.compile(
+        rf"\b{name}{_ACCESS_CHAIN}*\.{_MUTATING_METHODS}\s*\("
+        rf"|\b{name}{_ACCESS_CHAIN}+\s*(?:[+\-*/%]?=(?![=>])|\+\+|--)"
+        rf"|\bObject\.(?:assign|defineProperty|defineProperties|setPrototypeOf)\(\s*{name}\b"
+        rf"|\bdelete\s+{name}\b"
+    )
+
+
+def _enclosing_scope_end(source, pos):
+    """從 pos 往後找到「包住它的區塊」結尾（大括號配對；找不到就到檔尾）。"""
+    depth = 0
+    for index in range(pos, len(source)):
+        char = source[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            if depth == 0:
+                return index
+            depth -= 1
+    return len(source)
+
+
+def find_getter_alias_mutations(source):
+    """找出「const x = getXxx(); … x.push(…)」這類經由區域變數 alias 原地修改 read-model 的寫法。
+
+    只看 getter 回傳值「直接」指派的變數（含 `getXxx() && …` / `getXxx() ? … : …` 這種可能回傳 live reference 的運算式），
+    並且只在該變數宣告所在的區塊內找修改，避免把同名的其他變數誤判。回傳 [(alias, 修改片段)]。
+    """
+    found = []
+    for decl in _GETTER_ALIAS_DECL_RE.finditer(source):
+        alias = decl.group(1)
+        scope = source[decl.end():_enclosing_scope_end(source, decl.end())]
+        for hit in _alias_mutation_re(alias).finditer(scope):
+            found.append((alias, hit.group(0)))
+    return found
+
+
 def test_read_model_getters_are_not_mutated_by_consumers():
-    """getter 回傳的是 live reference：不得 getAllItems().push(...) / getInventoryMeta().x = … 這類繞過 owner 的修改。"""
+    """getter 回傳的是 live reference：不得 getAllItems().push(...)，也不得 `const x = getAllItems(); x.push(...)`（alias）。"""
     offenders = {}
     for path, source in _js_sources():
         hits = [m.group(0) for m in _GETTER_MUTATE_RE.finditer(source)]
+        hits += [f"{alias}: {snippet}" for alias, snippet in find_getter_alias_mutations(source)]
         if hits:
             offenders[os.path.relpath(path, JS_ROOT).replace(os.sep, "/")] = hits
-    assert not offenders, f"透過 getter 原地修改共用狀態（請改由 owner 提供 setter）：{offenders}"
+    assert not offenders, f"透過 getter（含區域變數 alias）原地修改共用狀態（請改由 owner 提供 setter）：{offenders}"
+
+
+def test_getter_alias_scanner_catches_alias_mutations():
+    """scanner 自身的 regression：舊 guard（只看 getXxx().push）漏掉的 alias 寫法，新 scanner 必須抓到。"""
+    must_fail = [
+        "const items = getAllItems();\nitems.push(newItem);",
+        "let items = getPreparedItems();\nitems.splice(0, 1);",
+        "const meta = getInventoryMeta();\nmeta.page = 2;",
+        "const facets = getInventoryFacets();\nfacets.locations = [];",
+        "const brands = getCurrentBrands();\nbrands.splice(0);",
+        "const brands = getCurrentBrands();\nbrands[0] = 'x';",
+        "const items = getAllItems();\nObject.assign(items, extra);",
+        "const meta = getInventoryMeta();\ndelete meta.stats;",
+        "const meta = getInventoryMeta();\nmeta.stats.zero_items = [];",
+        "const meta = getInventoryMeta();\nmeta.total += 1;",
+        "const meta = getInventoryMeta();\nmeta.page++;",
+        # 條件運算式仍可能回傳 live reference（filters.js 曾經的寫法）
+        "var counts = getInventoryFacets() && getInventoryFacets().brands ? getInventoryFacets().brands : {};\ncounts[b] = 1;",
+        "function render() {\n  const list = getAllItems();\n  if (x) { list.sort(cmp); }\n}",
+    ]
+    for source in must_fail:
+        assert find_getter_alias_mutations(source), f"alias mutation 沒被抓到：{source!r}"
+    # 舊 guard 對這些 alias 寫法確實是漏的（證明新 scanner 補的是真缺口）
+    assert not any(_GETTER_MUTATE_RE.search(source) for source in must_fail[:10])
+
+    must_pass = [
+        "const items = getAllItems();\nreturn items.filter(i => i.qty > 0);",
+        "const meta = getInventoryMeta();\nconst page = meta.page;",
+        "const meta = getInventoryMeta();\nif (meta.page === 2 && meta.total >= 1) render(meta.stats);",
+        "const brands = getCurrentBrands();\nconst next = brands.concat('x');\nsetCurrentBrands(next);",
+        "setCurrentBrands(nextBrands);",
+        "const items = getAllItems();\nconst copy = items.slice();\ncopy.push(x);",
+        # 同名但不是 getter alias 的變數，或在別的區塊：不得誤判
+        "function a() { const items = getAllItems(); return items.length; }\nfunction b() { const items = []; items.push(1); return items; }",
+        "const items = getAllItems();\nconst rows = items.map(i => i.id);\nrows.push(0);",
+    ]
+    for source in must_pass:
+        assert not find_getter_alias_mutations(source), f"合法的 read-only 用法被誤判：{source!r}"
 
 
 def test_read_model_setters_stay_with_their_owners():

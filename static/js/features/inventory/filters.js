@@ -86,10 +86,11 @@ export function buildFilterPanel() {
   }
 
   try {
-    var brandCounts = getInventoryFacets() && getInventoryFacets().brands && Object.keys(getInventoryFacets().brands).length
-      ? getInventoryFacets().brands
-      : {};
-    if (!Object.keys(brandCounts).length) {
+    var facets = getInventoryFacets();
+    // facets 是 read-model 的 live reference：只讀。沒有 facets 時才用品項自己算，且必須算進新物件，不能寫進 facets.brands
+    var brandCounts = facets && facets.brands && Object.keys(facets.brands).length ? facets.brands : null;
+    if (!brandCounts) {
+      brandCounts = {};
       getAllItems().filter(function(i) { return !i.is_kit; }).forEach(function(i) {
         var b = i.brand || '無廠牌';
         brandCounts[b] = (brandCounts[b] || 0) + 1;
@@ -99,10 +100,9 @@ export function buildFilterPanel() {
     document.getElementById('fp-brand-count').textContent = '(' + brands.length + ' 個品牌)';
     renderFilterChips('fp-brand-chips', brands, getCurrentBrands(), 'brand', 'fp-brand-toggle');
 
-    var catCounts = getInventoryFacets() && getInventoryFacets().categories && Object.keys(getInventoryFacets().categories).length
-      ? getInventoryFacets().categories
-      : {};
-    if (!Object.keys(catCounts).length) {
+    var catCounts = facets && facets.categories && Object.keys(facets.categories).length ? facets.categories : null;
+    if (!catCounts) {
+      catCounts = {};
       getAllItems().filter(function(i) { return !i.is_kit; }).forEach(function(i) {
         var c = i.category || '';
         if (c) catCounts[c] = (catCounts[c] || 0) + 1;
