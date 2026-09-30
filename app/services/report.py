@@ -10,6 +10,7 @@
 import datetime
 import io
 from pathlib import Path
+from types import MappingProxyType
 
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment
@@ -22,17 +23,17 @@ TEMPLATE_PATH = ASSETS_DIR / "工程日誌範本.xlsx"
 
 # service_types → 日報表勾選 ✓ 欄位（欄位名 保養/維修/施工/場勘 由範本印在 D/F/H/J）
 # 2026-08-13 Sarah：工程項目「安裝/配管」→「施工/場勘」；對應 id 1/2/5/6
-SVC_CHECK_COL = {1: "E", 2: "G", 5: "I", 6: "K"}
+SVC_CHECK_COL = MappingProxyType({1: "E", 2: "G", 5: "I", 6: "K"})
 # 5 個預留區塊：資料列 + 備註區第 1 列（第 2 列 = 第 1 列 +1 列）
-BLOCKS = [
-    {"data": 4, "note": "B5"},
-    {"data": 11, "note": "B12"},
-    {"data": 18, "note": "B19"},
-    {"data": 25, "note": "B26"},
-    {"data": 32, "note": "B33"},
-]
+BLOCKS = (
+    MappingProxyType({"data": 4, "note": "B5"}),
+    MappingProxyType({"data": 11, "note": "B12"}),
+    MappingProxyType({"data": 18, "note": "B19"}),
+    MappingProxyType({"data": 25, "note": "B26"}),
+    MappingProxyType({"data": 32, "note": "B33"}),
+)
 # 勾選 ✓ 所在欄（清空區塊時要清的資料格；欄位名 D/F/H/J 不動）
-CHECK_COLS = ["E", "G", "I", "K"]
+CHECK_COLS = ("E", "G", "I", "K")
 
 
 def build_daily_report(date_str: str, day_events: list, engineers: list = None):

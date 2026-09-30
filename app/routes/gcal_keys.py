@@ -16,12 +16,12 @@ from app.services.gcal_sync import parse_popup_reminders
 
 MAX_CREDENTIALS_SIZE = 1024 * 1024
 CLIENT_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-PAYLOAD_AFFECTING_SETTINGS = {
+PAYLOAD_AFFECTING_SETTINGS = frozenset({
     "gcal_default_duration_min",
     "gcal_use_location",
     "gcal_transparency",
-}
-SCHEDULER_ONLY_SETTINGS = {"gcal_sync_interval_min"}
+})
+SCHEDULER_ONLY_SETTINGS = frozenset({"gcal_sync_interval_min"})
 UPLOADED_CREDENTIALS_DIR = (Path(BASE_DIR) / "secrets" / "gcal").resolve()
 _UPLOADED_CREDENTIAL_NAME_RE = re.compile(r"^[0-9a-f]{32}\.json$")
 

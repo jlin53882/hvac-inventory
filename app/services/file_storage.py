@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from PIL import Image, ImageOps
@@ -30,8 +31,8 @@ THUMBNAIL_WIDTH = 320
 COMPRESSION_VERSION = "image-jpeg-v1"
 _CATEGORY_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
-_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff"}
-_MIME_BY_EXT = {
+_IMAGE_EXTS = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff"})
+_MIME_BY_EXT = MappingProxyType({
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".png": "image/png",
@@ -41,8 +42,8 @@ _MIME_BY_EXT = {
     ".tif": "image/tiff",
     ".tiff": "image/tiff",
     ".pdf": "application/pdf",
-}
-_IMAGE_FORMAT_BY_EXT = {
+})
+_IMAGE_FORMAT_BY_EXT = MappingProxyType({
     ".jpg": "JPEG",
     ".jpeg": "JPEG",
     ".png": "PNG",
@@ -51,7 +52,7 @@ _IMAGE_FORMAT_BY_EXT = {
     ".bmp": "BMP",
     ".tif": "TIFF",
     ".tiff": "TIFF",
-}
+})
 
 
 @dataclass(frozen=True)
@@ -172,7 +173,7 @@ def _restore_backups(backups: list[tuple[Path, Path]]) -> None:
 
 
 _EXIF_ORIENTATION = 0x0112
-_ROTATED_ORIENTATIONS = {5, 6, 7, 8}
+_ROTATED_ORIENTATIONS = frozenset({5, 6, 7, 8})
 
 
 def _resize_to_width(image: Image.Image, width: int) -> Image.Image:

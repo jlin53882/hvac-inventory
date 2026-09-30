@@ -7,6 +7,7 @@ import io
 import re
 import unicodedata
 from copy import copy
+from types import MappingProxyType
 from typing import Iterable
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,7 +24,7 @@ from app.services.auth import require_perm
 from app.services.safety import excel_safe, xlsx_download
 
 router = APIRouter()
-SITES = {"office": "公司", "warehouse": "倉庫", "van": "廂型車", "truck": "貨車"}
+SITES = MappingProxyType({"office": "公司", "warehouse": "倉庫", "van": "廂型車", "truck": "貨車"})
 SITE_ORDER = tuple(SITES)
 MAX_RANGE_DAYS = 366
 DEFAULT_EXPORT_SECTIONS = ("inventory", "positions", "movements")
@@ -35,7 +36,7 @@ KIT_EXPORT_SECTIONS = ("overview", "inventory", "positions", "components", "aler
 STOCKOUT_EXPORT_SECTIONS = ("overview", "movements")
 HEADER_FILL = "2E5C8A"
 TITLE_FILL = "163B63"
-STATUS_FILLS = {"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"}
+STATUS_FILLS = MappingProxyType({"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"})
 
 
 def _parse_export_range(month: str | None, start_date: str | None, end_date: str | None, now: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, str, str]:

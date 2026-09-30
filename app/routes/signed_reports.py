@@ -16,6 +16,7 @@ import datetime
 import logging
 import uuid
 from pathlib import Path
+from types import MappingProxyType
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.concurrency import run_in_threadpool
@@ -27,15 +28,15 @@ from app.services.auth import require_login, require_perm
 from app.services.safety import has_perm, safe_download_name
 from app.services.file_storage import asset_variant_path, cleanup_asset_paths, delete_asset_files, finalize_asset_paths, get_owner_asset, prepare_media, safe_upload_path, store_asset
 from app.models import SignedReportUpdate
+from app.services.upload_policy import DOCUMENT_UPLOAD_EXTS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 MAX_SIZE = 20 * 1024 * 1024  # 20MB
-ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"}  # 副檔名白名單防 XSS
 
 # 錯誤訊息顯示給使用者：表單欄位名稱轉成畫面上的中文標籤
-_FIELD_LABELS = {"report_date": "報表日期", "uploader_name": "上傳人姓名", "note": "備註"}
+_FIELD_LABELS = MappingProxyType({"report_date": "報表日期", "uploader_name": "上傳人姓名", "note": "備註"})
 
 def _form_text(form, field: str) -> str | None:
     """讀取表單文字欄位，拒絕以檔案物件冒充文字而造成 500。"""
@@ -55,7 +56,7 @@ def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
         raise HTTPException(400, "單檔上限 20MB")
     safe = safe_download_name(file.filename or "file")
     ext = Path(safe).suffix.lower()
-    if ext not in ALLOWED_EXTS:
+    if ext not in DOCUMENT_UPLOAD_EXTS:
         raise HTTPException(400, f"不支援的檔案格式 {ext}，僅允許 PDF/PNG/JPG/GIF/WebP")
     return data, safe, (file.content_type or "").strip()[:120]
 

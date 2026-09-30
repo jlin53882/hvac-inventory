@@ -32,12 +32,12 @@ from app.services.file_storage import (
     store_asset,
 )
 from app.services.safety import safe_download_name
+from app.services.upload_policy import IMAGE_UPLOAD_EXTS
 
 router = APIRouter(prefix="/api/work-progress", tags=["work-progress"])
 
 CATEGORY = "work_progress"
 OWNER_TYPE = "work_progress_report"
-ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_NOTE_LENGTH = 1000
 MAX_FILES = 20
 MAX_FILE_BYTES = 20 * 1024 * 1024
@@ -117,7 +117,7 @@ def _read_image_uploads(
     for file in uploads:
         safe_name = safe_download_name(file.filename or "photo.jpg")
         ext = Path(safe_name).suffix.lower()
-        if ext not in ALLOWED_EXTS:
+        if ext not in IMAGE_UPLOAD_EXTS:
             raise HTTPException(400, "僅允許 JPG、JPEG、PNG、WebP 圖片")
         data = file.file.read(MAX_FILE_BYTES + 1)
         if not data:

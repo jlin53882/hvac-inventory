@@ -14,6 +14,7 @@ import hashlib
 import re
 import secrets
 import sqlite3
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -38,11 +39,13 @@ IP_FAIL_WINDOW_SEC = 60   # 觀察窗（秒）
 IP_FAIL_MAX = 10          # 視窗內失敗次數上限（超過 → 429）
 # 純 in-memory：單機部署夠用；成功登入即清空該 IP；重啟自動歸零
 _ip_fail_times: dict = {}
+# 同步路由跑在 threadpool，多個請求會同時「讀出 list → 過濾 → 寫回」；沒有鎖會少算失敗次數
+_ip_fail_lock = threading.Lock()
 IP_FAIL_PRUNE_THRESHOLD = 256   # 紀錄的 IP 數超過此值時，順手清掉觀察窗外的過期 IP（防記憶體無限成長）
 
 
 def _prune_ip_fails(now: float) -> None:
-    """移除所有已無觀察窗內失敗紀錄的 IP。"""
+    """移除所有已無觀察窗內失敗紀錄的 IP（呼叫端須已持有 _ip_fail_lock）。"""
     for ip in [ip for ip, times in _ip_fail_times.items() if not times or now - times[-1] >= IP_FAIL_WINDOW_SEC]:
         _ip_fail_times.pop(ip, None)
 
@@ -50,25 +53,28 @@ def _prune_ip_fails(now: float) -> None:
 def check_ip_rate_limit(ip: str) -> bool:
     """該 IP 是否已超過失敗次數上限（True = 應拒絕）"""
     now = time.time()
-    times = [t for t in _ip_fail_times.get(ip, []) if now - t < IP_FAIL_WINDOW_SEC]
-    if times:
-        _ip_fail_times[ip] = times
-    else:
-        _ip_fail_times.pop(ip, None)   # 不為從未失敗/已過期的 IP 保留空紀錄
-    return len(times) >= IP_FAIL_MAX
+    with _ip_fail_lock:
+        times = [t for t in _ip_fail_times.get(ip, []) if now - t < IP_FAIL_WINDOW_SEC]
+        if times:
+            _ip_fail_times[ip] = times
+        else:
+            _ip_fail_times.pop(ip, None)   # 不為從未失敗/已過期的 IP 保留空紀錄
+        return len(times) >= IP_FAIL_MAX
 
 
 def record_ip_fail(ip: str) -> None:
     """記錄一次該 IP 的登入失敗"""
     now = time.time()
-    if len(_ip_fail_times) > IP_FAIL_PRUNE_THRESHOLD:
-        _prune_ip_fails(now)
-    _ip_fail_times.setdefault(ip, []).append(now)
+    with _ip_fail_lock:
+        if len(_ip_fail_times) > IP_FAIL_PRUNE_THRESHOLD:
+            _prune_ip_fails(now)
+        _ip_fail_times.setdefault(ip, []).append(now)
 
 
 def clear_ip_fail(ip: str) -> None:
     """登入成功 → 清空該 IP 的失敗記錄"""
-    _ip_fail_times.pop(ip, None)
+    with _ip_fail_lock:
+        _ip_fail_times.pop(ip, None)
 
 # ---------- 密碼處理 ----------
 

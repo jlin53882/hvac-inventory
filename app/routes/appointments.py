@@ -14,6 +14,7 @@
 """
 import datetime
 import re
+from types import MappingProxyType
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -172,7 +173,7 @@ def _sync_status(conn, appt_id: int) -> str:
     ).fetchall()
     return gcal_sync.appointment_sync_status(mapped, rows)
 
-_TEAM_STATUS_BUCKET = {
+_TEAM_STATUS_BUCKET = MappingProxyType({
     "synced": "synced",
     "pending": "pending",
     "not_targeted": "pending",
@@ -180,9 +181,9 @@ _TEAM_STATUS_BUCKET = {
     "partial_retrying": "retrying",
     "failed": "failed",
     "partial_failed": "failed",
-}
+})
 
-_RETRYABLE_SYNC_STATUSES = {"pending", "retrying", "partial_retrying", "failed", "partial_failed"}
+_RETRYABLE_SYNC_STATUSES = frozenset({"pending", "retrying", "partial_retrying", "failed", "partial_failed"})
 
 
 def _team_status_bucket(status: str) -> str:

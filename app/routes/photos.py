@@ -25,11 +25,9 @@ from app.services.file_storage import (
     prepare_media,
     store_asset,
 )
+from app.services.upload_policy import IMAGE_UPLOAD_EXTS, ITEM_PHOTO_MAX_BYTES
 
 router = APIRouter()
-
-ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def _photo_path(item_id: int) -> str:
@@ -94,10 +92,10 @@ def upload_photo(item_id: int, file: UploadFile):
 
         original_name = file.filename or "photo.jpg"
         ext = os.path.splitext(original_name)[1].lower()
-        if ext not in ALLOWED_EXT:
+        if ext not in IMAGE_UPLOAD_EXTS:
             raise HTTPException(400, f"不支援的圖片格式：{ext}（限 jpg/png/webp）")
-        data = file.file.read(MAX_UPLOAD_BYTES + 1)
-        if len(data) > MAX_UPLOAD_BYTES:
+        data = file.file.read(ITEM_PHOTO_MAX_BYTES + 1)
+        if len(data) > ITEM_PHOTO_MAX_BYTES:
             raise HTTPException(400, "圖片超過 10MB 上限")
         if not data:
             raise HTTPException(400, "空檔案")
@@ -210,10 +208,10 @@ def upload_kit_photo(kit_id: int, file: UploadFile):
         item_id = row["item_id"]
         original_name = file.filename or "kit_photo.jpg"
         ext = os.path.splitext(original_name)[1].lower()
-        if ext not in ALLOWED_EXT:
+        if ext not in IMAGE_UPLOAD_EXTS:
             raise HTTPException(400, f"不支援的圖片格式：{ext}（限 jpg/png/webp）")
-        data = file.file.read(MAX_UPLOAD_BYTES + 1)
-        if len(data) > MAX_UPLOAD_BYTES:
+        data = file.file.read(ITEM_PHOTO_MAX_BYTES + 1)
+        if len(data) > ITEM_PHOTO_MAX_BYTES:
             raise HTTPException(400, "圖片超過 10MB 上限")
         if not data:
             raise HTTPException(400, "空檔案")

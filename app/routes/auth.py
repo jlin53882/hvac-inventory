@@ -43,7 +43,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # 信任的 proxy 白名單：僅本機 cloudflared tunnel（127.0.0.1）才採信 X-Forwarded-For，
 # 其餘來源一律用直連 IP——防止攻擊者偽造 XFF 繞過 per-IP rate limit（2026-08-11 補）
-TRUSTED_PROXIES = {"127.0.0.1", "::1"}
+TRUSTED_PROXIES = frozenset({"127.0.0.1", "::1"})
 
 
 def _client_ip(request: Request) -> str:

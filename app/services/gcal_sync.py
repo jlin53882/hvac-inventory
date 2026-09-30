@@ -149,7 +149,7 @@ LOCK_WAIT_TIMEOUT_SECONDS = 120
 _LOCK_POLL_MIN_SECONDS = 0.05
 _LOCK_POLL_MAX_SECONDS = 0.5
 # Windows msvcrt 非阻塞取鎖失敗回 EACCES；舊版阻塞模式重試 10 次後回 EDEADLOCK（Errno 36）。
-_LOCK_BUSY_ERRNOS = {errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLOCK", errno.EDEADLK)}
+_LOCK_BUSY_ERRNOS = frozenset({errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLOCK", errno.EDEADLK)})
 
 
 class GcalLockTimeout(TimeoutError):
