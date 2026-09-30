@@ -14,7 +14,7 @@ export async function renderCalendar() {
   calendarState.calSearchMode = false;
   calendarState.calSearchItems = [];
   calendarState.calSearchMeta = { from: '', to: '', q: '' };
-  calendarState.calSearchRequestToken += 1;
+  calendarState.calSearchGuard.invalidate();
   calendarState.calSearchState = 'idle';
   const el = document.getElementById('content');
   const isAdmin = hasPerm('svc-type-mgmt');

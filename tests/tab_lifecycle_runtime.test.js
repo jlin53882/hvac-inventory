@@ -78,9 +78,7 @@ function createContext(tab) {
     appState: {
       currentTab: 'inventory',
       currentSite: 'office',
-      dataRequestSeq: 0,
       dataAbortController: null,
-      statsRequestSeq: 0,
       statsAbortController: null,
       ALL_ITEMS: ['stale-item'],
       fullItemsLoadedSite: 'office',

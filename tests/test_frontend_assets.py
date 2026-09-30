@@ -842,18 +842,23 @@ def test_request_guard_runtime_contract():
 
 
 def test_page_render_races_use_shared_request_guard():
-    """各頁「最新請求優先」一律用 createRequestGuard，不得再手寫模組層 Seq 計數器。"""
+    """各頁「最新請求優先」一律用 createRequestGuard，不得再手寫 Seq/Token 計數器
+    （模組層 `var xxxSeq = 0` 或狀態物件裡的 `xxxRequestSeq: 0`）。"""
     import re
 
+    module_level = re.compile(r"^(?:var|let)\s+(\w*(?:RequestSeq|ReqSeq|RequestToken))\s*=\s*0\s*;", re.M)
+    in_state = re.compile(r"^\s+(\w*(?:RequestSeq|ReqSeq|RequestToken)):\s*0\s*,", re.M)   # wprDetailRequestTokens（複數 dict）不在此列
     offenders = []
-    for root, _dirs, files in os.walk(os.path.join(STATIC, "js", "features")):
-        for name in files:
-            if not name.endswith(".js"):
-                continue
-            path = os.path.join(root, name)
-            src = read(path)
-            for match in re.finditer(r"^(?:var|let)\s+(\w*(?:RequestSeq|ReqSeq|RequestToken))\s*=\s*0\s*;", src, re.M):
-                offenders.append(f"{os.path.relpath(path, STATIC)}: {match.group(1)}")
+    for top in ("features", "core"):
+        for root, _dirs, files in os.walk(os.path.join(STATIC, "js", top)):
+            for name in files:
+                if not name.endswith(".js"):
+                    continue
+                path = os.path.join(root, name)
+                src = read(path)
+                for pattern in (module_level, in_state):
+                    for match in pattern.finditer(src):
+                        offenders.append(f"{os.path.relpath(path, STATIC)}: {match.group(1)}")
     assert not offenders, "請改用 core/request-guard.js 的 createRequestGuard：\n" + "\n".join(offenders)
 
 
@@ -5062,17 +5067,17 @@ def test_work_progress_frontend_identity_pagination_url_and_race_contract():
     assert "URL.revokeObjectURL" in js
     assert "wprClearPendingFiles" in js
 
-    assert "wprDayRequestToken" in globals_js
-    assert "wprHistoryRequestToken" in globals_js
-    assert "wprKpiRequestToken" in globals_js
+    assert "wprDayGuard" in globals_js
+    assert "wprHistoryGuard" in globals_js
+    assert "wprKpiGuard" in globals_js
     assert "wprDetailRequestTokens" in globals_js
-    assert "wprSelectRequestToken" in globals_js
-    assert "++workProgressState.wprSelectRequestToken" in js
-    assert "token !== workProgressState.wprSelectRequestToken" in js
+    assert "wprSelectGuard" in globals_js
+    assert "workProgressState.wprSelectGuard.next()" in js
+    assert "!workProgressState.wprSelectGuard.isCurrent(token)" in js
     assert "var report =" in select_block
     assert "wprCurrentReport = report;" in select_block
     assert "workProgressState.wprCurrentReport = await apiFetch('/api/work-progress/' + existing.id)" not in select_block
-    guard_pos = select_block.index("if (token !== workProgressState.wprSelectRequestToken) return;")
+    guard_pos = select_block.index("if (!workProgressState.wprSelectGuard.isCurrent(token)) return;")
     assignment_pos = select_block.index("wprCurrentReport = report;")
     assert guard_pos < assignment_pos
 
@@ -5108,9 +5113,9 @@ def test_frontend_async_lifecycle_contracts():
     # 簽名報表 / 報價單上傳共用 upload-list.js（issue #39）：掛載世代與請求序號在元件 state，頁面只提供 isActive / api
     component = read(UPLOAD_LIST_RENDER_JS)
     assert "renderSeq: 0," in component
-    assert "historyRequestSeq: 0," in component
+    assert "historyGuard: createRequestGuard()," in component
     assert "const isCurrent = renderSeq => renderSeq === state.renderSeq && config.isActive();" in component
-    assert "requestSeq !== state.historyRequestSeq" in component
+    assert "!state.historyGuard.isCurrent(requestSeq)" in component
     assert "apiFetch(api + '?' + p)" in component
     assert "updateKPI(renderSeq)" in component
     for path, tab, endpoint in (
@@ -5191,7 +5196,7 @@ def test_inventory_page_load_does_not_render_after_tab_left():
     api = read(API_JS)
     body = api[api.index("async function loadInventoryPageImpl"):]
     body = body[body.index("await updateSubInfo();"):body.index("renderInventory();")]
-    assert "if (requestId !== appState.inventoryRequestSeq || appState.currentTab !== 'inventory') return;" in body
+    assert "if (!inventoryGuard.isCurrent(requestId) || appState.currentTab !== 'inventory') return;" in body
 
 
 

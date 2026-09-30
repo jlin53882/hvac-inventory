@@ -19,7 +19,7 @@ export async function renderWorkProgress() {
   var el = document.getElementById('content');
   if (!el) return;
   wprClearPendingFiles();
-  workProgressState.wprDayRequestToken++; workProgressState.wprHistoryRequestToken++; workProgressState.wprKpiRequestToken++; workProgressState.wprDetailRequestTokens = {}; workProgressState.wprPhotoManageStates = {}; workProgressState.wprPhotoManageReports = {}; workProgressState.wprSuppressHistoryToggle = {}; workProgressState.wprSelectRequestToken++;
+  workProgressState.wprDayGuard.invalidate(); workProgressState.wprHistoryGuard.invalidate(); workProgressState.wprKpiGuard.invalidate(); workProgressState.wprDetailRequestTokens = {}; workProgressState.wprPhotoManageStates = {}; workProgressState.wprPhotoManageReports = {}; workProgressState.wprSuppressHistoryToggle = {}; workProgressState.wprSelectGuard.invalidate();
   workProgressState.wprAppointments = [];
   workProgressState.wprReportsByAppointment = {};
   workProgressState.wprCurrentReport = null;
@@ -153,7 +153,7 @@ function wprCalendarReadonlyHtml(job, dateValue) {
  * @returns {void} Function result.
  */
 export async function wprSelectJob(id) {
-  var token = ++workProgressState.wprSelectRequestToken;
+  var token = workProgressState.wprSelectGuard.next();
   var job = workProgressState.wprAppointments.find(function(item) { return item.id === id; });
   if (!job) return;
   if (workProgressState.wprCurrentReport && workProgressState.wprCurrentReport.appointment_id !== id && wprHasUnsavedChanges()) {
@@ -165,10 +165,10 @@ export async function wprSelectJob(id) {
   if (existing) {
     try {
       var report = await apiFetch('/api/work-progress/' + existing.id);
-      if (token !== workProgressState.wprSelectRequestToken) return;
+      if (!workProgressState.wprSelectGuard.isCurrent(token)) return;
       workProgressState.wprCurrentReport = report;
     } catch (error) {
-      if (token !== workProgressState.wprSelectRequestToken) return;
+      if (!workProgressState.wprSelectGuard.isCurrent(token)) return;
       toast(error.message, 'error');
       return;
     }

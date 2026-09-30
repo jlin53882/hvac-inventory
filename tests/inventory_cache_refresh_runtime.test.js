@@ -27,8 +27,6 @@ function makeElement() {
 const context = {
   // 跨模組狀態（issue #39：原本是全域變數）
   appState: {
-    dataRequestSeq: 0,
-    inventoryRequestSeq: 0,
     dataAbortController: null,
     inventoryAbortController: null,
     currentTab: 'inventory',

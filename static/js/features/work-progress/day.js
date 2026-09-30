@@ -13,19 +13,19 @@ export async function wprLoadDay() {
   var dateInput = document.getElementById('wpr-date');
   if (!dateInput) return;
   var dateValue = dateInput.value;
-  var token = ++workProgressState.wprDayRequestToken;
+  var token = workProgressState.wprDayGuard.next();
   try {
     var jobs = await apiFetch('/api/appointments?date=' + encodeURIComponent(dateValue));
-    if (token !== workProgressState.wprDayRequestToken) return;
+    if (!workProgressState.wprDayGuard.isCurrent(token)) return;
     var reports = await apiFetch('/api/work-progress?from_date=' + encodeURIComponent(dateValue) + '&to_date=' + encodeURIComponent(dateValue) + '&page_size=100');
-    if (token !== workProgressState.wprDayRequestToken) return;
+    if (!workProgressState.wprDayGuard.isCurrent(token)) return;
     workProgressState.wprAppointments = jobs || [];
     workProgressState.wprCurrentDateValue = dateValue;
     workProgressState.wprReportsByAppointment = {};
     (reports.items || []).forEach(function(report) { if (report.appointment_id !== null) workProgressState.wprReportsByAppointment[report.appointment_id] = report; });
     wprRenderJobs();
   } catch (error) {
-    if (token !== workProgressState.wprDayRequestToken) return;
+    if (!workProgressState.wprDayGuard.isCurrent(token)) return;
     workProgressState.wprAppointments = [];
     var list = document.getElementById('wpr-job-list');
     if (list) list.innerHTML = '<div class="wpr-empty">⚠️ 無法載入當日工作：' + esc(error.message) + '</div>';

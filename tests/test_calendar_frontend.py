@@ -220,8 +220,8 @@ def test_calendar_desktop_dispatch_layout():
     assert "cal-combined-search" not in js  # 舊深色工具列已移除
     assert '<button class="cal-quick-filter"' not in js
     assert "cal-today-inline" in js
-    assert "calLoadRequestToken" in js
-    assert "if (requestToken !== calendarState.calLoadRequestToken) return null;" in js
+    assert "calLoadGuard" in js
+    assert "if (!calendarState.calLoadGuard.isCurrent(requestToken)) return null;" in js
     assert "const weeks = Math.ceil((first + total) / 7);" in js
     assert "const trailing = weeks * 7 - first - total;" in js
     assert "setProperty('--cal-week-count', String(weeks))" in js
@@ -299,8 +299,8 @@ def test_calendar_search_uses_right_panel_mode():
     assert "calIsDesktopViewport" in js
     assert "calMountSearchResults" in js
     assert "calSearchMode" in js
-    assert "calSearchRequestToken" in js
-    assert "requestToken !== calendarState.calSearchRequestToken" in js
+    assert "calSearchGuard" in js
+    assert "!calendarState.calSearchGuard.isCurrent(requestToken)" in js
     assert "calSearchState" in js
     assert "calBindSearchViewportListener" in js
     assert "calHandleSearchViewportChange" in js
