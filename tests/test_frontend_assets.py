@@ -823,6 +823,15 @@ def test_api_fetch_runtime_contract():
     assert result.returncode == 0, f"apiFetch 測試失敗：\n{result.stdout}\n{result.stderr}"
 
 
+def test_state_runtime_contract():
+    """core/state.js：parseCalendarMonth（網址 ?month=）與共用常數不可變。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "state_runtime.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,
+    )
+    assert result.returncode == 0, f"state 測試失敗：\n{result.stdout}\n{result.stderr}"
+
+
 def test_request_guard_runtime_contract():
     """createRequestGuard（core/request-guard.js）：next / isCurrent / invalidate，守衛之間互相獨立。"""
     result = subprocess.run(

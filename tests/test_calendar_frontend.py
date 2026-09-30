@@ -422,7 +422,8 @@ def test_calendar_js_optimistic_lock_snapshot():
 def test_calendar_js_month_url():
     """calendar.js：行事曆月份從 URL 讀（F5 停在原本月份）"""
     js = read_calendar_js_all()
-    assert "new URLSearchParams(location.search).get('month')" in js, "calendar.js 未從 URL 讀 month"
+    assert "new URLSearchParams(search).get('month')" in js, "calendar.js 未從 URL 讀 month"
+    assert "parseCalendarMonth(location.search)" in js, "calMonth 初始值應由 parseCalendarMonth(location.search) 決定"
     assert "syncViewUrl" in js, "calendar.js 切月後未同步 URL"
 
 def test_calendar_date_required_validation():

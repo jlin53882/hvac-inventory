@@ -1,51 +1,51 @@
 {
-  "_api-client-Bi-0AO4W.js": {
-    "file": "assets/api-client-Bi-0AO4W.js",
+  "_api-client-BONt4_ll.js": {
+    "file": "assets/api-client-BONt4_ll.js",
     "name": "api-client"
   },
-  "_change-password-Bjry5-2c.js": {
-    "file": "assets/change-password-Bjry5-2c.js",
+  "_change-password-DbGdVxhh.js": {
+    "file": "assets/change-password-DbGdVxhh.js",
     "name": "change-password",
     "imports": [
-      "_api-client-Bi-0AO4W.js"
+      "_api-client-BONt4_ll.js"
     ]
   },
   "static/js/pages/login.js": {
-    "file": "assets/login-DOggel_p.js",
+    "file": "assets/login-DAp-OGp1.js",
     "name": "login",
     "src": "static/js/pages/login.js",
     "isEntry": true,
     "imports": [
-      "_api-client-Bi-0AO4W.js"
+      "_api-client-BONt4_ll.js"
     ]
   },
   "static/js/pages/main.js": {
-    "file": "assets/main-DPC40Hxp.js",
+    "file": "assets/main-BspXWpld.js",
     "name": "main",
     "src": "static/js/pages/main.js",
     "isEntry": true,
     "imports": [
-      "_api-client-Bi-0AO4W.js",
-      "_change-password-Bjry5-2c.js"
+      "_api-client-BONt4_ll.js",
+      "_change-password-DbGdVxhh.js"
     ]
   },
   "static/js/pages/permissions.js": {
-    "file": "assets/permissions-GJd_J4gm.js",
+    "file": "assets/permissions-AEIQiuOL.js",
     "name": "permissions",
     "src": "static/js/pages/permissions.js",
     "isEntry": true,
     "imports": [
-      "_api-client-Bi-0AO4W.js"
+      "_api-client-BONt4_ll.js"
     ]
   },
   "static/js/pages/settings.js": {
-    "file": "assets/settings-Ds11fzmL.js",
+    "file": "assets/settings-CkMQTb2j.js",
     "name": "settings",
     "src": "static/js/pages/settings.js",
     "isEntry": true,
     "imports": [
-      "_api-client-Bi-0AO4W.js",
-      "_change-password-Bjry5-2c.js"
+      "_api-client-BONt4_ll.js",
+      "_change-password-DbGdVxhh.js"
     ]
   }
 }
