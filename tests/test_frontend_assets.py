@@ -823,6 +823,31 @@ def test_api_fetch_runtime_contract():
     assert result.returncode == 0, f"apiFetch 測試失敗：\n{result.stdout}\n{result.stderr}"
 
 
+def test_request_guard_runtime_contract():
+    """createRequestGuard（core/request-guard.js）：next / isCurrent / invalidate，守衛之間互相獨立。"""
+    result = subprocess.run(
+        ["node", os.path.join(BASE_DIR, "tests", "request_guard.test.js")],
+        capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=BASE_DIR,
+    )
+    assert result.returncode == 0, f"request guard 測試失敗：\n{result.stdout}\n{result.stderr}"
+
+
+def test_page_render_races_use_shared_request_guard():
+    """各頁「最新請求優先」一律用 createRequestGuard，不得再手寫模組層 Seq 計數器。"""
+    import re
+
+    offenders = []
+    for root, _dirs, files in os.walk(os.path.join(STATIC, "js", "features")):
+        for name in files:
+            if not name.endswith(".js"):
+                continue
+            path = os.path.join(root, name)
+            src = read(path)
+            for match in re.finditer(r"^(?:var|let)\s+(\w*(?:RequestSeq|ReqSeq|RequestToken))\s*=\s*0\s*;", src, re.M):
+                offenders.append(f"{os.path.relpath(path, STATIC)}: {match.group(1)}")
+    assert not offenders, "請改用 core/request-guard.js 的 createRequestGuard：\n" + "\n".join(offenders)
+
+
 def test_api_fetch_migrated_callers_keep_requests_and_messages():
     """設定頁 / 單位 / 行事曆 Key 改用 apiFetch 後，請求內容與各自的成功 / 失敗訊息不變。"""
     result = subprocess.run(
@@ -1362,13 +1387,13 @@ def test_kit_edit_rerenders_directly_after_save():
             "loadData({ full: true })" in body), "submitKitEdit must call loadData({ full: true })"
     assert "await renderKits();" not in body
     render = read(os.path.join(STATIC, "js", "features", "kits", "page.js"))
-    assert "kitRenderRequestSeq" in render
-    assert "renderRequestId !== kitRenderRequestSeq" in render
+    assert "kitRenderGuard = createRequestGuard()" in render
+    assert "!kitRenderGuard.isCurrent(renderRequestId)" in render
     assert "'${esc(jsStr(k.name))}'" in render
     assert "siteAtRequest !== appState.currentSite" in render
     prepared = read(PREPARED_RENDER_JS)
-    assert "preparedRenderRequestSeq" in prepared
-    assert "renderRequestId !== preparedRenderRequestSeq" in prepared
+    assert "preparedRenderGuard = createRequestGuard()" in prepared
+    assert "!preparedRenderGuard.isCurrent(renderRequestId)" in prepared
     assert "siteAtRequest !== appState.currentSite" in prepared
     render = read(KITS_RENDER_JS)  # issue #39：缺料 / 不足清單在 kits/status.js
     assert "kit-code" in render                                      # 新結構用 kit-code
@@ -2013,11 +2038,21 @@ def test_unsaved_changes_guard_present():
 
 
 def test_401_redirect_guard_present():
-    """M17：fetch 401 攔截資產（登入頁不載入 auth.js，登入失敗不會誤跳）"""
+    """M17：401 守衛（登入頁不註冊 handler，登入失敗不會誤跳）。
+    改為在 api-client 註冊 handler，不再覆寫全域 window.fetch。"""
     au = read(AUTH_JS)
-    assert "window.fetch" in au
-    assert "401" in au
+    assert "export function handleUnauthorized" in au
     assert "login.html" in au
+    assert "window.fetch" not in au and "__authRedirecting" not in au
+    api_client = read(os.path.join(STATIC, "js", "core", "api-client.js"))
+    assert "401" in api_client and "export function setUnauthorizedHandler" in api_client
+    assert "window.fetch =" not in api_client
+    for entry in ("main.js", "settings.js"):
+        src = read(os.path.join(STATIC, "js", "pages", entry))
+        assert "setUnauthorizedHandler(handleUnauthorized)" in src, f"{entry} 必須註冊 401 handler"
+    for entry in ("login.js", "permissions.js"):
+        src = read(os.path.join(STATIC, "js", "pages", entry))
+        assert "setUnauthorizedHandler(" not in src, f"{entry} 不得註冊 401 handler"
 
     utils = read(UTILS_JS)
     assert "function jsStr(" in utils  # JS literal escape helper 存在
@@ -5047,7 +5082,7 @@ def test_frontend_async_lifecycle_contracts():
     """守護跨頁、跨案場與 out-of-order response 的 freshness contract。"""
     stockout = read(STOCKOUT_RENDER_JS)
     stockout_render = stockout.split("async function renderStockOuts()", 1)[1].split("// 分組：按日", 1)[0]
-    assert "var stockoutRenderRequestSeq" in stockout
+    assert "stockoutRenderGuard = createRequestGuard()" in stockout
     assert "const siteAtRequest = appState.currentSite" in stockout_render
     assert "currentTab === 'stockout'" in stockout_render
     assert "encodeURIComponent(siteAtRequest)" in stockout_render
@@ -5055,7 +5090,7 @@ def test_frontend_async_lifecycle_contracts():
 
     stocktake = read(STOCKTAKE_JS)
     stocktake_render = stocktake.split("async function renderStocktake()", 1)[1].split("// ========== 盤點輸入表", 1)[0]
-    assert "var stocktakeRenderRequestSeq" in stocktake
+    assert "stocktakeRenderGuard = createRequestGuard()" in stocktake
     assert "const siteAtRequest = appState.currentSite" in stocktake_render
     assert stocktake_render.count("encodeURIComponent(siteAtRequest)") == 2
     assert "appState.currentSite)}`" not in stocktake_render

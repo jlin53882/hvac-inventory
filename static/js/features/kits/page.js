@@ -6,6 +6,7 @@ import { isMobileView, openSheet } from '../../core/bottomsheet.js';
 import { loadData } from '../shell/data-refresh.js';
 import { updateNotifications } from '../notifications/center.js';
 import { Qty } from '../../core/qty.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
 import { esc, hasPerm, jsStr, openModal, toast } from '../../core/utils.js';
@@ -16,10 +17,10 @@ import { getKitStatus } from './status.js';
 import { renderKitCompRows } from './component-rows.js';
 
 // ========== 整組（套件）頁籤 ==========
-var kitRenderRequestSeq = 0;
+const kitRenderGuard = createRequestGuard();
 
 export async function renderKits() {
-  var renderRequestId = ++kitRenderRequestSeq;
+  var renderRequestId = kitRenderGuard.next();
   var siteAtRequest = appState.currentSite;
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入整組清單…</div></div>';
@@ -27,7 +28,7 @@ export async function renderKits() {
 
   try {
     const kits = await apiFetch(`/api/kits?site=${siteAtRequest}`);
-    if (renderRequestId !== kitRenderRequestSeq || appState.currentTab !== 'kit' || siteAtRequest !== appState.currentSite) return;
+    if (!kitRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'kit' || siteAtRequest !== appState.currentSite) return;
     appState.currentKitItems = filterBySearch(kits, function(k) {
       return [k.name, k.brand, k.code, k.note, (k.components || []).map(function(c) {
         return c.brand + ' ' + c.name + ' ' + (c.code || '');
@@ -53,7 +54,7 @@ export async function renderKits() {
     }
     content.innerHTML = html;
   } catch (e) {
-    if (renderRequestId !== kitRenderRequestSeq || appState.currentTab !== 'kit' || siteAtRequest !== appState.currentSite) return;
+    if (!kitRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'kit' || siteAtRequest !== appState.currentSite) return;
     content.innerHTML = `<div class="kit-empty-state"><div class="kit-empty-icon" aria-hidden="true">⚠️</div><h2>載入整組庫存失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--sm kit-action" onclick="Kits.renderKits()">重新載入</button></div>`;
   }
 }

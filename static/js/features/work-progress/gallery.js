@@ -1,12 +1,13 @@
 // 庫存管理系統 - 工作進度：照片檢視器（含預載）
 
 import { apiFetch } from '../../core/api-client.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { appState } from '../../core/state.js';
 import { toast } from '../../core/utils.js';
 import { workProgressState } from './state.js';
 
 var wprGallery = { report: null, index: 0 };
-var wprGalleryRequestToken = 0;
+const wprGalleryGuard = createRequestGuard();
 var wprGalleryPreloadState = wprCreateGalleryPreloadState();
 var wprPendingGallery = { index: -1 };
 /**
@@ -144,13 +145,13 @@ function wprPreloadGalleryAround(report, index, direction) {
  * @returns {void} Nothing; the gallery opens after the report is available.
  */
 export function wprOpenGallery(id, index) {
-  var token = ++wprGalleryRequestToken;
+  var token = wprGalleryGuard.next();
   wprCloseGallery(false);
   var reportPromise = workProgressState.wprLastDetailReport && workProgressState.wprLastDetailReport.id === id
     ? Promise.resolve(workProgressState.wprLastDetailReport.report)
     : apiFetch('/api/work-progress/' + id);
   reportPromise.then(function(report) {
-    if (token !== wprGalleryRequestToken) return;
+    if (!wprGalleryGuard.isCurrent(token)) return;
     if (typeof appState.currentTab !== 'undefined' && appState.currentTab !== 'work-progress') return;
     wprGallery.report = report;
     wprGallery.index = index;
@@ -160,7 +161,7 @@ export function wprOpenGallery(id, index) {
     overlay.innerHTML = '<div class="wpr-gallery-dialog"><button type="button" class="wpr-gallery-close" onclick="WorkProgress.wprCloseGallery()">✕</button><div class="wpr-gallery-count" id="wpr-gallery-count"></div><div class="wpr-gallery-stage"><img id="wpr-gallery-image" alt="施工照片"></div><div class="wpr-gallery-caption" id="wpr-gallery-caption"></div><div class="wpr-gallery-nav"><button type="button" onclick="WorkProgress.wprGalleryMove(-1)">← 上一張</button><a id="wpr-gallery-download" class="wpr-gallery-download">原圖下載</a><button type="button" onclick="WorkProgress.wprGalleryMove(1)">下一張 →</button></div></div>';
     document.body.appendChild(overlay);
     wprRenderGallery();
-  }).catch(function(error) { if (token !== wprGalleryRequestToken) return; toast(error.message, 'error'); });
+  }).catch(function(error) { if (!wprGalleryGuard.isCurrent(token)) return; toast(error.message, 'error'); });
 }
 /**
  * Render the current gallery photo and navigation controls.
@@ -195,7 +196,7 @@ export function wprGalleryMove(delta) {
  * @returns {void} Nothing.
  */
 export function wprCloseGallery(invalidateRequest) {
-  if (invalidateRequest !== false) ++wprGalleryRequestToken;
+  if (invalidateRequest !== false) wprGalleryGuard.invalidate();
   var overlay = document.getElementById('wpr-gallery-overlay');
   if (overlay) overlay.remove();
   wprGallery.report = null;

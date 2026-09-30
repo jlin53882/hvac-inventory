@@ -26,7 +26,19 @@ function extractFunction(source, name) {
 function moduleScript(relative) {
   // 接受 static/js 之下的相對路徑，也接受 'static/js/...' 或絕對路徑（Python 測試內嵌的 node 腳本會傳完整路徑）
   const file = path.isAbsolute(relative) ? relative : path.join(ROOT, relative.startsWith('static/') ? relative : `static/js/${relative}`);
-  return fs.readFileSync(file, 'utf8')
+  const script = strip(fs.readFileSync(file, 'utf8'));
+  // 零依賴的葉節點模組：harness 會去掉 import，頁面模組用到它們時在同一支 script 前面補上，
+  // 各測試不必手動把它們加進載入清單（葉節點只含 function 宣告，重複載入無害）。
+  const leaves = Object.entries(LEAF_MODULES)
+    .filter(([name, leaf]) => script.includes(`${name}(`) && !file.endsWith(leaf))
+    .map(([, leaf]) => strip(fs.readFileSync(path.join(ROOT, 'static/js', leaf), 'utf8')));
+  return leaves.concat(script).join('\n');
+}
+
+const LEAF_MODULES = { createRequestGuard: 'core/request-guard.js' };
+
+function strip(source) {
+  return source
     .replace(/^import [^;]+;\n/gm, '')
     .replace(/^export (const|let) /gm, 'var ')
     .replace(/^export (?=(async )?function|var |class )/gm, '');

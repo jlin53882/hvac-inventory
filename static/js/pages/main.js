@@ -41,7 +41,8 @@ import { filterUnitSelect, openUnitQuickAdd } from '../core/units.js';
 import { initBottomsheet } from '../core/bottomsheet.js';
 import { appState } from '../core/state.js';
 import { initQuotationPage, quoteAddItem, quoteCloseInventory, quoteDelete, quoteDownload, quoteEdit, quoteLoadHistory, quoteOpenInventory, quoteReset, quoteSave, quoteSearchInventory, quoteSwitchMode, quoteUseInventory } from '../features/quotation/page.js';
-import { initSession, logout } from '../core/session.js';
+import { handleUnauthorized, logout } from '../core/session.js';
+import { setUnauthorizedHandler } from '../core/api-client.js';
 import { initWorkProgressGallery, wprCloseGallery, wprClosePendingGallery, wprGalleryMove, wprOpenGallery, wprOpenPendingGallery, wprPendingGalleryMove } from '../features/work-progress/gallery.js';
 import { pcCloseEntryModal, pcCloseReportModal, pcEntryAddItemRow, pcEntryAmountHint, pcEntryDelete, pcEntryRemoveItem, pcEntrySave, pcEntrySetType, pcFetchPreviousBalance, pcGeneralCategoryChanged, pcModalGotoStep, pcModalSave, pcOpenEntryModal, pcOpenReportModal, pcOpeningEdited, pcUpdateFilenamePreview, pcUploaderChanged } from '../features/petty-cash/report-modal.js';
 import { qtydQuick, setQtyDialogMode, submitQtyDialog } from '../features/inventory/qty-dialog.js';
@@ -232,7 +233,7 @@ window.__hvac = Object.freeze({
 
 // 先組裝 shell 的 port（切頁、資料重新整理後的畫面更新），之後各模組的 init 與使用者操作才可能用到
 configureShell();
-initSession();
+setUnauthorizedHandler(handleUnauthorized);   // 401 一律跳登入（登入頁 / 權限頁不註冊）
 initUtils();
 initInventoryExportDialog();
 initKitsExportDialog();

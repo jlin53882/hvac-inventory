@@ -121,11 +121,34 @@ async function rejects(call) {
   error = await rejects(() => context.apiFetch('/api/units', { fallback: '新增失敗' }));
   assert.strictEqual(error, abort);
 
-  // 401：auth.js 的 fetch 攔截負責轉登入；apiFetch 只回報 status，不自行導頁
+  // 401：未註冊 handler 時 apiFetch 只回報 status，不自行導頁（登入頁 / 權限頁的行為）
   nextFetch = json({ detail: '未登入' }, 401);
   error = await rejects(() => context.apiFetch('/api/units'));
   assert.strictEqual(error.status, 401);
   assert.strictEqual(error.message, '未登入');
+
+  // 註冊 setUnauthorizedHandler 後：任何 401 都先呼叫 handler，之後仍照常丟 ApiError；非 401 不觸發
+  const unauthorized = [];
+  context.setUnauthorizedHandler(res => unauthorized.push(res.status));
+  nextFetch = json({ detail: '未登入' }, 401);
+  error = await rejects(() => context.apiFetch('/api/units'));
+  assert.deepStrictEqual(unauthorized, [401]);
+  assert.strictEqual(error.status, 401);
+  nextFetch = json({ detail: '權限不足' }, 403);
+  await rejects(() => context.apiFetch('/api/units'));
+  nextFetch = json({ ok: true });
+  await context.apiFetch('/api/units');
+  assert.deepStrictEqual(unauthorized, [401], 'only 401 triggers the handler');
+  // 下載也走同一個守衛
+  nextFetch = json({ detail: '未登入' }, 401);
+  await rejects(() => context.apiDownload('/api/export', { filename: 'x.xlsx' }));
+  assert.deepStrictEqual(unauthorized, [401, 401]);
+  // 傳 null 取消；handler 拋錯以外的路徑不影響全域 fetch
+  context.setUnauthorizedHandler(null);
+  nextFetch = json({ detail: '未登入' }, 401);
+  await rejects(() => context.apiFetch('/api/units'));
+  assert.deepStrictEqual(unauthorized, [401, 401]);
+  assert.strictEqual(typeof context.fetch, 'function');
 
   // json 選項：自動帶 Content-Type 並序列化；呼叫端自帶的 header 保留
   nextFetch = json({ ok: true });

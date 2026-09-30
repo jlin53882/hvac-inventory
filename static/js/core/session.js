@@ -1,6 +1,6 @@
 // 庫存管理系統 - 登入守衛（v11 → Shell v2 2026-09-06）
 // =====================================
-// 1) 攔截 window.fetch：任何 API 回 401 → 跳轉登入頁
+// 1) 401 守衛：handleUnauthorized 由頁面入口用 setUnauthorizedHandler 註冊到 api-client（不覆寫全域 fetch）
 // 2) 載入時檢查 /api/auth/me：未登入 → 進登入頁；已登入 → 頭像下拉選單顯示
 // 3) 提供登出 / 使用者管理入口
 
@@ -72,20 +72,14 @@ export function resolveAccessiblePageTab(requestedTab) {
   return canAccessPage(requestedTab) ? requestedTab : firstAccessiblePageTab();
 }
 
-// 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）
-export function initSession() {
-  // ---------- 攔截 fetch：401 一律跳登入 ----------
-  (function () {
-    var _origFetch = window.fetch;
-    window.fetch = async function (url, opts) {
-      var res = await _origFetch(url, opts);
-      if (res.status === 401 && !window.__authRedirecting) {
-        var hasUnsaved = Object.keys(pending).length > 0;
-        if (hasUnsaved) alert('⚠️ 登入已過期，部分調整可能未儲存。請重新登入。');
-        window.__authRedirecting = true;
-        window.location.href = '/login.html';
-      }
-      return res;
-    };
-  })();
+// 只跳轉一次：多個並行請求同時 401 時避免重複 alert / 導頁
+let authRedirecting = false;
+
+/** 401 處理：有未儲存的調整先提醒，再導向登入頁。 */
+export function handleUnauthorized() {
+  if (authRedirecting) return;
+  authRedirecting = true;
+  var hasUnsaved = Object.keys(pending).length > 0;
+  if (hasUnsaved) alert('⚠️ 登入已過期，部分調整可能未儲存。請重新登入。');
+  window.location.href = '/login.html';
 }

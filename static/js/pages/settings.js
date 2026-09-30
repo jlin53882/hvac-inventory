@@ -8,7 +8,8 @@ import { clearPwForm, initSettingsPage, settingsSubmitPw, settingsSwitch } from 
 import { closeModalForce, initUtils } from '../core/utils.js';
 import { cpwCheckMatch, cpwCheckStrength } from '../features/account/change-password.js';
 import { createPettyOptionKind } from '../features/settings/petty-options.js';
-import { initSession, logout } from '../core/session.js';
+import { handleUnauthorized, logout } from '../core/session.js';
+import { setUnauthorizedHandler } from '../core/api-client.js';
 
 // 除錯 / 自動化測試入口（瀏覽器 console、Playwright）：依模組路徑取用本頁模組；正式程式碼不得依賴
 import * as m0 from '../core/api-client.js';
@@ -45,7 +46,7 @@ window.__hvac = Object.freeze({
   'features/settings/units.js': m12,
 });
 
-initSession();
+setUnauthorizedHandler(handleUnauthorized);   // 401 一律跳登入（登入頁 / 權限頁不註冊）
 initUtils();
 initSettingsPage();
 initSettingsUnits();

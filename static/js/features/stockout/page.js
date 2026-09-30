@@ -5,6 +5,7 @@ import { apiFetch } from '../../core/api-client.js';
 import { isMobileView } from '../../core/bottomsheet.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { Qty } from '../../core/qty.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { appState } from '../../core/state.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
@@ -138,13 +139,13 @@ export function setStockoutFilter(field, value) {
   renderStockOuts();
 }
 
-var stockoutRenderRequestSeq = 0;
+const stockoutRenderGuard = createRequestGuard();
 
 export async function renderStockOuts() {
-  const requestId = ++stockoutRenderRequestSeq;
+  const requestId = stockoutRenderGuard.next();
   const siteAtRequest = appState.currentSite;
   const isCurrent = function() {
-    return requestId === stockoutRenderRequestSeq
+    return stockoutRenderGuard.isCurrent(requestId)
       && appState.currentTab === 'stockout'
       && siteAtRequest === appState.currentSite;
   };

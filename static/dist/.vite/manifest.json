@@ -1,51 +1,51 @@
 {
-  "_api-client-C08BjMsR.js": {
-    "file": "assets/api-client-C08BjMsR.js",
+  "_api-client-Bi-0AO4W.js": {
+    "file": "assets/api-client-Bi-0AO4W.js",
     "name": "api-client"
   },
-  "_change-password-BjZb_heP.js": {
-    "file": "assets/change-password-BjZb_heP.js",
+  "_change-password-Bjry5-2c.js": {
+    "file": "assets/change-password-Bjry5-2c.js",
     "name": "change-password",
     "imports": [
-      "_api-client-C08BjMsR.js"
+      "_api-client-Bi-0AO4W.js"
     ]
   },
   "static/js/pages/login.js": {
-    "file": "assets/login-CDXxo3jZ.js",
+    "file": "assets/login-DOggel_p.js",
     "name": "login",
     "src": "static/js/pages/login.js",
     "isEntry": true,
     "imports": [
-      "_api-client-C08BjMsR.js"
+      "_api-client-Bi-0AO4W.js"
     ]
   },
   "static/js/pages/main.js": {
-    "file": "assets/main-ChkI05P3.js",
+    "file": "assets/main-DPC40Hxp.js",
     "name": "main",
     "src": "static/js/pages/main.js",
     "isEntry": true,
     "imports": [
-      "_api-client-C08BjMsR.js",
-      "_change-password-BjZb_heP.js"
+      "_api-client-Bi-0AO4W.js",
+      "_change-password-Bjry5-2c.js"
     ]
   },
   "static/js/pages/permissions.js": {
-    "file": "assets/permissions-DUXIf4is.js",
+    "file": "assets/permissions-GJd_J4gm.js",
     "name": "permissions",
     "src": "static/js/pages/permissions.js",
     "isEntry": true,
     "imports": [
-      "_api-client-C08BjMsR.js"
+      "_api-client-Bi-0AO4W.js"
     ]
   },
   "static/js/pages/settings.js": {
-    "file": "assets/settings-CmgU-qcE.js",
+    "file": "assets/settings-Ds11fzmL.js",
     "name": "settings",
     "src": "static/js/pages/settings.js",
     "isEntry": true,
     "imports": [
-      "_api-client-C08BjMsR.js",
-      "_change-password-BjZb_heP.js"
+      "_api-client-Bi-0AO4W.js",
+      "_change-password-Bjry5-2c.js"
     ]
   }
 }

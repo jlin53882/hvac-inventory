@@ -1,8 +1,16 @@
 // 共用 API 呼叫（issue #39）：所有頁面的 fetch 都經這裡，錯誤訊息只在一個地方處理
-// 401 轉登入由 core/session.js 的 initSession 攔截 window.fetch（主頁與設定頁；登入頁、權限頁不攔截）
+// 401 轉登入：主頁與設定頁的 pages/*.js 入口用 setUnauthorizedHandler 註冊處理函式（登入頁、權限頁不註冊）；
+// 這裡不再覆寫 window.fetch，全域 fetch 維持原樣。
 // 呼叫端負責畫面：本檔不 toast、不碰 currentTab / requestSeq 等頁面狀態
 
 import { apiErrorMessage } from './utils.js';
+
+let _onUnauthorized = null;
+
+/** 註冊「任何 API 回 401」時的處理函式（例如跳登入頁）；傳 null 取消。處理後仍會照常丟出 ApiError。 */
+export function setUnauthorizedHandler(handler) {
+  _onUnauthorized = typeof handler === 'function' ? handler : null;
+}
 
 /** 建立 ApiError：message 已格式化可直接顯示；status 為 HTTP 狀態（網路錯誤 0）；detail 為後端原始 detail。 */
 function _apiError(message, status, detail) {
@@ -33,6 +41,7 @@ async function _apiRead(res, read, fallback) {
 async function _apiSend(url, options) {
   const { fallback, init } = _apiInit(options);
   const res = await _apiRead(null, () => fetch(url, init), fallback);
+  if (res.status === 401 && _onUnauthorized) _onUnauthorized(res);
   if (!res.ok) {
     const text = await _apiRead(res, () => res.text(), fallback);
     let body = null;

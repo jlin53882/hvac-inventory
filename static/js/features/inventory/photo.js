@@ -7,11 +7,12 @@ import { photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
 import { loadData, renderInventoryView } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { appState } from '../../core/state.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
 
 let similarTimer = null;          // 相似查詢 debounce timer
-let similarReqSeq = 0;            // 請求序號：防舊回應覆蓋新輸入（競態防護）
+const similarGuard = createRequestGuard();   // 防舊回應覆蓋新輸入（競態防護）
 
 // ========== 照片（編輯 modal） ==========
 export function renderPhotoBox(itemId, hasPhoto) {
@@ -145,7 +146,7 @@ export function bindSimilarCheck(nameId, codeId, warnId, excludeId) {
 
 // 查詢相似品項（debounce 後呼叫）；seq 序號防舊回應覆蓋新輸入
 async function checkSimilar(name, code, warnId, excludeId) {
-  const seq = ++similarReqSeq;
+  const seq = similarGuard.next();
   const params = new URLSearchParams();
   if (name) params.set('name', name);
   if (code) params.set('code', code);
@@ -153,7 +154,7 @@ async function checkSimilar(name, code, warnId, excludeId) {
   if (excludeId) params.set('exclude_id', excludeId);
   try {
     const hits = await apiFetch(`/api/items/similar?${params}`);
-    if (seq !== similarReqSeq) return;  // 已有更新的輸入 → 丟棄這次結果
+    if (!similarGuard.isCurrent(seq)) return;  // 已有更新的輸入 → 丟棄這次結果
     renderSimilarWarn(warnId, hits);
   } catch {}
 }
