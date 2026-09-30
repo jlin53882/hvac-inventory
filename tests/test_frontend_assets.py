@@ -131,6 +131,56 @@ def test_settings_and_permissions_share_css_partial():
         assert shared_link.findall(app_main._expand_includes(html)) == shared, f"{name} 展開後共用 CSS 與 partial 不一致"
 
 
+def _served_stylesheet_hrefs(page: str) -> list:
+    """呼叫 production 的 main._versioned_html 取得實際送出的 HTML，回傳 <link rel=stylesheet> 的 href（依出現順序）。"""
+    import main as app_main
+    html = app_main._versioned_html(os.path.join(STATIC, page)).body.decode("utf-8")
+    assert "<!-- include:" not in html, f"{page} 送出的 HTML 不該殘留 include 標記"
+    return re.findall(r'<link rel="stylesheet" href="([^"]+)">', html)
+
+
+def _versioned(path: str) -> str:
+    """預期的 ?v=<mtime_ns> URL（版本號一律由檔案 mtime 決定，與 main._versioned_html 的契約一致）。"""
+    fp = os.path.join(STATIC, path[len("/static/"):])
+    return f"{path}?v={os.stat(fp).st_mtime_ns}"
+
+
+def test_versioned_html_serves_shared_css_partial_for_settings_and_permissions():
+    """production regression contract：settings / permissions 實際送出的 HTML（_versioned_html 完整流程），
+    共用 CSS 來自 partial、順序與 partial 一致、全部帶 ?v=mtime、頁面專屬 CSS 與 utilities 在其後、沒有重複。"""
+    partial_hrefs = re.findall(r'<link rel="stylesheet" href="([^"]+)">', read(os.path.join(STATIC, "partials", "shared-css.html")))
+    assert len(partial_hrefs) >= 20
+    expected_shared = [_versioned(href) for href in partial_hrefs]
+    served_shared = {}
+    for page, page_css in (("settings.html", "/static/css/4-pages/settings.css"), ("permissions.html", "/static/css/4-pages/permissions.css")):
+        hrefs = _served_stylesheet_hrefs(page)
+        # 共用 CSS 順序與 partial 完全一致，之後依序是頁面專屬 CSS、utilities；不多不少
+        assert hrefs == expected_shared + [_versioned(page_css), _versioned("/static/css/5-utilities/utilities.css")], f"{page} 送出的 CSS 清單不符"
+        assert len(hrefs) == len(set(hrefs)), f"{page} 有重複的 CSS <link>"
+        assert all(re.search(r"\?v=\d+$", href) for href in hrefs), f"{page} 有 CSS 沒帶 ?v=mtime"
+        served_shared[page] = hrefs[:len(expected_shared)]
+    assert served_shared["settings.html"] == served_shared["permissions.html"], "兩頁共用 CSS 清單必須相同"
+
+
+def test_versioned_html_pages_without_include_are_unchanged_by_partial_support():
+    """沒有 include 標記的頁面（index / login）：展開步驟是 no-op，且各自的 CSS 仍全部帶 ?v=mtime。"""
+    import main as app_main
+    for page in ("index.html", "login.html"):
+        raw = read(os.path.join(STATIC, page))
+        assert "<!-- include:" not in raw
+        assert app_main._expand_includes(raw) == raw, f"{page} 沒有 include 標記，展開後不該有任何變化"
+        raw_hrefs = re.findall(r'<link rel="stylesheet" href="([^"?]+)"', raw)
+        assert _served_stylesheet_hrefs(page) == [_versioned(href) for href in raw_hrefs], f"{page} 送出的 CSS 清單改變"
+
+
+def test_include_name_cannot_traverse_paths(tmp_path):
+    """include 名稱只接受 [\\w-]+：含 ../、/、\\ 的標記不會被展開（不會去讀 partials 以外的檔案）。"""
+    import main as app_main
+    for name in ("../index", "../../main", "/etc/passwd", "a/b", "a\\b", "a.b"):
+        marker = f"<!-- include: {name} -->"
+        assert app_main._expand_includes(marker) == marker, f"{name!r} 不該被當成 include"
+
+
 def test_every_html_include_has_a_partial():
     """每個 <!-- include: name --> 都要有對應的 static/partials/name.html（缺檔時頁面會 500，測試先擋）。"""
     for page in Path(STATIC).glob("*.html"):

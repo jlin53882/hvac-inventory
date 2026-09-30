@@ -138,13 +138,11 @@ def page_modules(html_path) -> set:
     return seen
 
 
-_INCLUDE_RE = re.compile(r"<!-- include: ([\w-]+) -->")
-
-
 def read_page_served(html_path: str) -> str:
-    """HTML 原文並展開 <!-- include: name --> 為 static/partials/name.html（與 main._expand_includes 相同）；
+    """HTML 原文並展開 <!-- include: name -->（直接呼叫 production 的 main._expand_includes，不在測試裡再寫一份）；
     檢查「頁面實際載入了哪些 CSS」時用這個，不要直接讀磁碟上的頁面檔（共用 <link> 在 partial 裡）。"""
-    return _INCLUDE_RE.sub(lambda m: read(os.path.join(STATIC, "partials", m.group(1) + ".html")).rstrip("\n"), read(html_path))
+    import main as app_main  # 延後匯入：只有這個 helper 需要，其餘純檔案讀取的測試不必載入 app
+    return app_main._expand_includes(read(html_path))
 
 
 def read_shared_css() -> str:
