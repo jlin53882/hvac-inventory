@@ -27,14 +27,11 @@ function makeElement() {
 const context = {
   // 跨模組狀態（issue #39：原本是全域變數）
   appState: {
-    dataAbortController: null,
-    inventoryAbortController: null,
     currentTab: 'inventory',
     currentSite: 'office',
     INVENTORY_META: { page: 1, page_size: 50, total: 1, stats: null },
     INVENTORY_FACETS: { brands: { Old: 1 }, categories: { OldCategory: 1 }, locations: ['OldLocation'] },
     inventoryLoadedSite: 'office',
-    inventoryFacetsLoadedSite: 'office',
     fullItemsLoadedSite: '',
     destinationsLoadedSite: 'office',
     DESTINATIONS: ['舊案場'],
@@ -42,9 +39,11 @@ const context = {
     currentBrands: [],
     currentCategories: [],
   },
+  // features/shell/state.js：shell 內部的重新載入 controller / 警示快取
+  shellState: { dataAbortController: null, inventoryAbortController: null, statsAbortController: null,
+    ALERTS_BY_SITE: { office: {} }, inventoryFacetsLoadedSite: 'office' },
   ITEMLESS_TABS: new Set(),
   DATA_REFRESH_PRESERVE_MOUNT_TABS: new Set(),
-  ALERTS_BY_SITE: { office: {} },
   document: {
     getElementById: id => elements[id] || (elements[id] = makeElement()),
     createElement: () => makeElement(),

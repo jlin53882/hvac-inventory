@@ -1,6 +1,7 @@
 // 跨模組共用、會被其他模組改寫的狀態（issue #39：原本是全域變數）
 import { createRequestGuard } from '../../core/request-guard.js';
 export const inventoryState = {
+  editItemId: null,  // 編輯 modal 正在編輯的品項 id
   batchMode: false,  // 批次改位置模式（2026-09-06 方案 A；切離庫存頁時由 shell 關閉）
   stockLocationPickerState: null, // pending item and delta while choosing a location
   inventoryStatusGuard: createRequestGuard(),

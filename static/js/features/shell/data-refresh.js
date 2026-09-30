@@ -7,6 +7,7 @@ import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, ITEMLESS_TABS, appState } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
+import { shellState } from './state.js';
 
 // 「最新請求優先」：資料載入 / 庫存分頁 / 統計各自一個守衛（AbortController 仍放在 appState，供切頁時中止）
 const dataGuard = createRequestGuard();
@@ -38,7 +39,7 @@ export async function loadData(options) {
   const full = Boolean(options && options.full);
   const refreshDestinations = Boolean(options && options.refreshDestinations);
   const requestId = dataGuard.next();
-  if (appState.dataAbortController) appState.dataAbortController.abort();
+  if (shellState.dataAbortController) shellState.dataAbortController.abort();
   // P1-D：mutation 後的 loadData 預設刷新 global summary；搜尋/換頁/filter 走 wrapper（不刷）。
   const refreshSummary = !options || options.refreshSummary !== false;
   if (!full && appState.currentTab === 'inventory') {
@@ -46,7 +47,7 @@ export async function loadData(options) {
     return;
   }
   const controller = new AbortController();
-  appState.dataAbortController = controller;
+  shellState.dataAbortController = controller;
   const siteAtRequest = appState.currentSite;
   try {
     const skipItems = !full && ITEMLESS_TABS.has(appState.currentTab);
@@ -75,7 +76,7 @@ export async function loadData(options) {
     appState.inventoryLoadedSite = '';
     if (facets) {
       appState.INVENTORY_FACETS = facets;
-      appState.inventoryFacetsLoadedSite = siteAtRequest;
+      shellState.inventoryFacetsLoadedSite = siteAtRequest;
       reconcileInventoryFilters(facets);
     }
     if (refreshDestinations) await refreshDestinationsAfterMutation();
@@ -92,7 +93,7 @@ export async function loadData(options) {
     document.getElementById('content').innerHTML =
       `<div class="empty">⚠️ 無法連線伺服器<br><small>${esc(e.message)}</small></div>`;
   } finally {
-    if (appState.dataAbortController === controller) appState.dataAbortController = null;
+    if (shellState.dataAbortController === controller) shellState.dataAbortController = null;
   }
 }
 
@@ -118,11 +119,11 @@ function reconcileInventoryFilters(facets) {
 // refreshSummary=true：mutation 成功後，global summary cache 已過期才重刷。
 async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refreshDestinations) {
   dataGuard.invalidate();
-  if (appState.dataAbortController) appState.dataAbortController.abort();
+  if (shellState.dataAbortController) shellState.dataAbortController.abort();
   const requestId = inventoryGuard.next();
-  if (appState.inventoryAbortController) appState.inventoryAbortController.abort();
+  if (shellState.inventoryAbortController) shellState.inventoryAbortController.abort();
   const controller = new AbortController();
-  appState.inventoryAbortController = controller;
+  shellState.inventoryAbortController = controller;
   const siteAtRequest = appState.currentSite;
   const pageAtRequest = Math.max(1, page || 1);
   try {
@@ -136,7 +137,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     if (search && search.value.trim()) params.set('search', search.value.trim());
     if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
     if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
-    const shouldLoadFacets = Boolean(refreshFacets) || appState.inventoryFacetsLoadedSite !== siteAtRequest;
+    const shouldLoadFacets = Boolean(refreshFacets) || shellState.inventoryFacetsLoadedSite !== siteAtRequest;
     // facets 失敗（HTTP 錯誤）不擋列表，只是篩選選項沿用舊資料；網路錯誤 / 取消則照常中止
     const facetsRequest = shouldLoadFacets
       ? apiFetch(`/api/items/facets?site=${encodeURIComponent(siteAtRequest)}`, { signal: controller.signal })
@@ -165,7 +166,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     };
     if (facets) {
       appState.INVENTORY_FACETS = facets;
-      appState.inventoryFacetsLoadedSite = siteAtRequest;
+      shellState.inventoryFacetsLoadedSite = siteAtRequest;
       reconcileInventoryFilters(facets);
     }
     appState.inventoryLoadedSite = siteAtRequest;
@@ -188,7 +189,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     document.getElementById('content').innerHTML =
       `<div class="empty">⚠️ 無法載入庫存<br><small>${esc(e.message)}</small></div>`;
   } finally {
-    if (appState.inventoryAbortController === controller) appState.inventoryAbortController = null;
+    if (shellState.inventoryAbortController === controller) shellState.inventoryAbortController = null;
   }
 }
 
@@ -209,19 +210,19 @@ async function loadPreparedBadge() {
 
 // P1-D：global summary 渲染只吃 cache（ALERTS_BY_SITE），body.stats 是 filter dataset，兩者語意不同不可互蓋。
 function hasSummaryCache() {
-  return typeof appState.ALERTS_BY_SITE !== 'undefined' && appState.ALERTS_BY_SITE && appState.ALERTS_BY_SITE.all &&
-    typeof appState.ALERTS_BY_SITE.all.single_items !== 'undefined';
+  return typeof shellState.ALERTS_BY_SITE !== 'undefined' && shellState.ALERTS_BY_SITE && shellState.ALERTS_BY_SITE.all &&
+    typeof shellState.ALERTS_BY_SITE.all.single_items !== 'undefined';
 }
 
 function renderSubInfo() {
   if (!hasSummaryCache()) return;
-  const current = appState.ALERTS_BY_SITE[appState.currentSite] || appState.ALERTS_BY_SITE.all;
+  const current = shellState.ALERTS_BY_SITE[appState.currentSite] || shellState.ALERTS_BY_SITE.all;
   document.getElementById('sub-info').textContent =
     `單一材料 ${current.single_items} 項 · 整組 ${current.kit_items} 組 · ${current.brands} 種廠牌 · 缺貨 ${current.zero_stock} 項`;
-  const officeStats = appState.ALERTS_BY_SITE.office;
-  const warehouseStats = appState.ALERTS_BY_SITE.warehouse;
-  const vanStats = appState.ALERTS_BY_SITE.van;
-  const truckStats = appState.ALERTS_BY_SITE.truck;
+  const officeStats = shellState.ALERTS_BY_SITE.office;
+  const warehouseStats = shellState.ALERTS_BY_SITE.warehouse;
+  const vanStats = shellState.ALERTS_BY_SITE.van;
+  const truckStats = shellState.ALERTS_BY_SITE.truck;
   document.getElementById('site-office-sub').textContent =
     `${officeStats.total_items} 項 · ${officeStats.total_qty}`;
   document.getElementById('site-warehouse-sub').textContent =
@@ -235,14 +236,14 @@ function renderSubInfo() {
 // 更新頂部統計資訊（單一材料/整組/廠牌/缺貨數 + 分片按鈕數字）
 async function updateSubInfo() {
   const requestId = statsGuard.next();
-  if (appState.statsAbortController) appState.statsAbortController.abort();
+  if (shellState.statsAbortController) shellState.statsAbortController.abort();
   const controller = new AbortController();
-  appState.statsAbortController = controller;
+  shellState.statsAbortController = controller;
   const siteAtRequest = appState.currentSite;
   try {
     const summary = await apiFetch('/api/stats/summary', { signal: controller.signal });
     if (!statsGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
-    appState.ALERTS_BY_SITE = {
+    shellState.ALERTS_BY_SITE = {
       all: summary.all || {},
       office: summary.office || {},
       warehouse: summary.warehouse || {},
@@ -256,6 +257,6 @@ async function updateSubInfo() {
       console.error('[updateSubInfo] 統計失敗', e);
     }
   } finally {
-    if (appState.statsAbortController === controller) appState.statsAbortController = null;
+    if (shellState.statsAbortController === controller) shellState.statsAbortController = null;
   }
 }

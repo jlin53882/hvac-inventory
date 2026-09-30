@@ -3,6 +3,7 @@
 import { apiFetch } from '../../core/api-client.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { appState, INVENTORY_ALERT_ITEMS } from '../../core/state.js';
+import { inventoryState } from './state.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, esc, hasPerm, openModal, toast } from '../../core/utils.js';
 import { loadData } from '../shell/data-refresh.js';
@@ -20,7 +21,7 @@ function getInventoryEditableItem(id) {
 export function openEditModal(id) {
   const item = getInventoryEditableItem(id);
   if (!item) return;
-  appState.editItemId = id;
+  inventoryState.editItemId = id;
   editUpdatedAt = item.updated_at || null;  // 快照：儲存時帶回後端做 WHERE 守衛
   document.getElementById('e-brand').value = item.brand || '';
   document.getElementById('e-code').value = item.code || '';
@@ -201,7 +202,7 @@ export async function submitEdit() {
     updated_at: editUpdatedAt,
   };
   try {
-    await apiFetch(`/api/items/${appState.editItemId}`, { method: 'PATCH', json: payload, fallback: '儲存失敗' });
+    await apiFetch(`/api/items/${inventoryState.editItemId}`, { method: 'PATCH', json: payload, fallback: '儲存失敗' });
     closeModalForce('edit-modal');
     toast('✅ 已儲存修改', 'success');
     await loadData();

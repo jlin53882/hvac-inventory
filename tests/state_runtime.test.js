@@ -27,7 +27,7 @@ loadModules(ctx2, 'features/calendar/state.js');
 assert.deepStrictEqual([ctx2.calendarState.calMonth.getFullYear(), ctx2.calendarState.calMonth.getMonth()], [2024, 1]);
 
 // state 所有權：只有單一 feature 使用的值住在該 feature（或該模組私有），不在跨 feature 共用的 appState
-for (const moved of ['calMonth', 'batchMode', 'toastTimer', 'STATUS_LIST_CONTEXT']) {
+for (const moved of ['calMonth', 'batchMode', 'toastTimer', 'STATUS_LIST_CONTEXT', 'editItemId', 'dataAbortController', 'ALERTS_BY_SITE']) {
   assert.ok(!(moved in context.appState), `${moved} 不應留在 appState`);
 }
 assert.strictEqual(context.inventoryState.batchMode, false);

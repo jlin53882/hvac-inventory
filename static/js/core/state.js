@@ -19,12 +19,7 @@ export const appState = {
   ALL_ITEMS: [],
   INVENTORY_META: { page: 1, page_size: 50, total: 0, stats: null },
   INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
-  inventoryAbortController: null,
-  dataAbortController: null,
-  statsAbortController: null,
-  ALERTS_BY_SITE: {},
   inventoryLoadedSite: '',
-  inventoryFacetsLoadedSite: '',
   fullItemsLoadedSite: '',
   preparedItems: [], // 待領出清單（含非庫存品項；openPreparedSheet 資料源，2026-08-16 家豪）
   currentBrands: [], // 多選品牌篩選（空=全部）
@@ -33,8 +28,6 @@ export const appState = {
   // 2026-08-13 Sarah：登入預設顯示行事曆（原本 inventory）
   currentTab: 'calendar',
   currentSite: 'office', // office=公司 / warehouse=倉庫 / van=廂型車 / truck=貨車
-  // 正在編輯的品項 id（編輯 modal）
-  editItemId: null,
   currentKitItems: [], // 整組頁目前篩選結果，異常 KPI 明細使用同一份資料
   // 去向下拉建議清單（loadDestinations 填入）
   DESTINATIONS: [],

@@ -7,6 +7,7 @@ import { getStocktakeReminderState, updateNotifications } from '../notifications
 import { canAccessPage, checkAuth, firstAccessiblePageTab, resolveAccessiblePageTab } from '../../core/session.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, INVENTORY_SITES, appState, pending } from '../../core/state.js';
 import { inventoryState } from '../inventory/state.js';
+import { shellState } from './state.js';
 import { loadUnits } from '../../core/units.js';
 import { openExpiryModal } from '../account/password-expiry.js';
 import { renderCalendar } from '../calendar/page.js';
@@ -87,9 +88,9 @@ export function switchSite(site) {
   appState.INVENTORY_META.page = 1;
   appState.INVENTORY_META.stats = null;
   appState.INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
-  appState.inventoryFacetsLoadedSite = '';
+  shellState.inventoryFacetsLoadedSite = '';
   appState.ALL_ITEMS = [];
-  appState.ALERTS_BY_SITE = {};
+  shellState.ALERTS_BY_SITE = {};
   updateNotifications();
   document.querySelectorAll('[data-role="header-site"] button').forEach(function(t){ t.classList.remove('is-active'); });
   var el = document.getElementById('site-' + site);

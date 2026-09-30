@@ -78,15 +78,14 @@ function createContext(tab) {
     appState: {
       currentTab: 'inventory',
       currentSite: 'office',
-      dataAbortController: null,
-      statsAbortController: null,
       ALL_ITEMS: ['stale-item'],
       fullItemsLoadedSite: 'office',
       inventoryLoadedSite: '',
       INVENTORY_META: { page: 1, stats: null },
       INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
-      ALERTS_BY_SITE: {},
     },
+    // features/shell/state.js：shell 內部的重新載入 controller / 警示快取
+    shellState: { inventoryAbortController: null, dataAbortController: null, statsAbortController: null, ALERTS_BY_SITE: {}, inventoryFacetsLoadedSite: '' },
     pending: {},
     calendarState: { calMonth: new Date(2026, 8, 1) },   // features/calendar/state.js（syncViewUrl 讀 calMonth）
     inventoryState: { batchMode: false },   // features/inventory/state.js（切離庫存頁時關閉批次模式）
