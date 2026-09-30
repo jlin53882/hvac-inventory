@@ -147,8 +147,8 @@ from dataclasses import dataclass
 
 from PIL import Image
 
-from app.routes import signed_reports, work_progress
-from app.services import file_storage
+from app.routes import work_progress
+from app.services import file_storage, upload_resource
 
 SLOW_VARIANT_SECONDS = 0.8
 
@@ -177,7 +177,7 @@ def slow_media(client, tmp_path, monkeypatch):
     (static_dir / "uploads").mkdir(parents=True)
     monkeypatch.setattr(app_config, "STATIC_DIR", str(static_dir))
     monkeypatch.setattr(work_progress, "STATIC_DIR", str(static_dir))
-    monkeypatch.setattr(signed_reports, "STATIC_DIR", str(static_dir))
+    monkeypatch.setattr(upload_resource, "STATIC_DIR", str(static_dir))
     real = file_storage._image_variants
     media = SlowMedia(item_id=None, processing_started=threading.Event())
 

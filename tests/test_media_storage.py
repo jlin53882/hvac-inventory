@@ -15,8 +15,7 @@ from PIL import Image
 
 import app.config as app_config
 import app.database as app_db
-import app.routes.quotation_uploads as quotation_uploads
-import app.routes.signed_reports as signed_reports
+import app.services.upload_resource as upload_resource
 import main as app_main
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
 
@@ -42,8 +41,7 @@ def media_env(tmp_path, monkeypatch):
     monkeypatch.setattr(static_mount, "directory", str(static_dir))
     monkeypatch.setattr(static_mount, "all_directories", [str(static_dir)])
     monkeypatch.setattr(app_config, "UPLOAD_DIR", str(upload_dir))
-    monkeypatch.setattr(signed_reports, "STATIC_DIR", str(static_dir))
-    monkeypatch.setattr(quotation_uploads, "STATIC_DIR", str(static_dir))
+    monkeypatch.setattr(upload_resource, "STATIC_DIR", str(static_dir))
     app_db.init_db()
 
     conn = app_db.get_db()

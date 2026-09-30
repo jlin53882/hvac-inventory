@@ -560,8 +560,8 @@ def test_delete_cascade_no_orphans(pc_env):
 
 def test_daily_signed_reports_still_work(pc_env, tmp_path, monkeypatch):
     """§43-27：每日簽名日報表未被破壞。"""
-    import app.routes.signed_reports as signed_reports
-    monkeypatch.setattr(signed_reports, "STATIC_DIR", str(tmp_path / "static"))
+    import app.services.upload_resource as upload_resource
+    monkeypatch.setattr(upload_resource, "STATIC_DIR", str(tmp_path / "static"))
     c = pc_env()
     r = c.post(
         "/api/signed-reports",
