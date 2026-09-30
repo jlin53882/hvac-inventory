@@ -862,6 +862,95 @@ def test_versioned_html_falls_back_to_source_when_manifest_unusable(media_env, m
     assert any("serving source module" in record.getMessage() for record in caplog.records), label
 
 
+def _dist_fixture(static_dir, manifest_content, built_files):
+    """建立首頁、原始進入點、指定的建置檔與 manifest；回傳 manifest 路徑。"""
+    index = static_dir / "index.html"
+    index.write_text('<script type="module" src="/static/js/pages/main.js"></script>', encoding="utf-8")
+    source_entry = static_dir / "js" / "pages" / "main.js"
+    source_entry.parent.mkdir(parents=True)
+    source_entry.write_text("import './x.js';", encoding="utf-8")
+    assets = static_dir / "dist" / "assets"
+    assets.mkdir(parents=True)
+    for name in built_files:
+        (assets / name).write_text("export {};", encoding="utf-8")
+    manifest = static_dir / "dist" / ".vite" / "manifest.json"
+    manifest.parent.mkdir()
+    manifest.write_text(json.dumps(manifest_content), encoding="utf-8")
+    return manifest
+
+
+def _dist_warnings(caplog):
+    return [r for r in caplog.records if "serving source modules" in r.getMessage()]
+
+
+@pytest.mark.parametrize("label, manifest_content, built_files", [
+    ("nested import key missing", {
+        "static/js/pages/main.js": {"file": "assets/main.js", "imports": ["_a.js"]},
+        "_a.js": {"file": "assets/a.js", "imports": ["_gone.js"]},
+    }, ["main.js", "a.js"]),
+    ("nested built file missing", {
+        "static/js/pages/main.js": {"file": "assets/main.js", "imports": ["_a.js"]},
+        "_a.js": {"file": "assets/a.js", "imports": ["_b.js"]},
+        "_b.js": {"file": "assets/b.js"},
+    }, ["main.js", "a.js"]),
+])
+def test_versioned_html_validates_transitive_manifest_closure(media_env, monkeypatch, caplog, label, manifest_content, built_files):
+    """issue #39：dist 使用前驗證進入點的完整遞迴 import closure；深層 import 缺項目或建置檔時改載原始模組（不等瀏覽器 404）。"""
+    client, static_dir, _upload_dir = media_env
+    monkeypatch.delenv("HVAC_FRONTEND_SOURCE", raising=False)
+    _dist_fixture(static_dir, manifest_content, built_files)
+    with caplog.at_level("WARNING"):
+        response = client.get("/")
+    assert response.status_code == 200, label
+    assert '<script type="module" src="/static/js/pages/main.js?v=' in response.text, label
+    assert "/static/dist/" not in response.text, label
+    assert len(_dist_warnings(caplog)) == 1, label
+
+
+def test_versioned_html_manifest_cycle_and_shared_imports_preload_once(media_env, monkeypatch):
+    """manifest 的 import 循環（A → B → A）不可無限迴圈；共用 chunk（entry → A、entry → B、A → B）只 modulepreload 一次，順序固定。"""
+    client, static_dir, _upload_dir = media_env
+    monkeypatch.delenv("HVAC_FRONTEND_SOURCE", raising=False)
+    _dist_fixture(static_dir, {
+        "static/js/pages/main.js": {"file": "assets/main.js", "isEntry": True, "imports": ["_a.js", "_b.js"]},
+        "_a.js": {"file": "assets/a.js", "imports": ["_b.js"]},
+        "_b.js": {"file": "assets/b.js", "imports": ["_a.js"]},
+    }, ["main.js", "a.js", "b.js"])
+    html = client.get("/").text
+    assert '<script type="module" src="/static/dist/assets/main.js?v=' in html
+    assert html.count('href="/static/dist/assets/a.js') == 1
+    assert html.count('href="/static/dist/assets/b.js') == 1
+    assert html.index("assets/a.js") < html.index("assets/b.js") < html.index("assets/main.js")
+    assert 'rel="modulepreload" href="/static/dist/assets/main.js' not in html
+
+
+def test_dist_fallback_warns_once_per_manifest_version(media_env, monkeypatch, caplog):
+    """同一版壞掉的 manifest 連續請求只警告一次；部署新版（mtime 改變）仍壞掉時要再警告。"""
+    client, static_dir, _upload_dir = media_env
+    monkeypatch.delenv("HVAC_FRONTEND_SOURCE", raising=False)
+    manifest = _dist_fixture(static_dir, {
+        "static/js/pages/main.js": {"file": "assets/main.js", "imports": ["_gone.js"]},
+    }, ["main.js"])
+    with caplog.at_level("WARNING"):
+        for _ in range(3):
+            assert client.get("/").status_code == 200
+    assert len(_dist_warnings(caplog)) == 1
+    stat = manifest.stat()
+    os.utime(manifest, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    with caplog.at_level("WARNING"):
+        assert client.get("/").status_code == 200
+    assert len(_dist_warnings(caplog)) == 2
+
+    # manifest 本身損毀：同樣每一版只警告一次
+    caplog.clear()
+    manifest.write_text("{broken", encoding="utf-8")
+    os.utime(manifest, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000))
+    with caplog.at_level("WARNING"):
+        for _ in range(3):
+            assert client.get("/").status_code == 200
+    assert len(_dist_warnings(caplog)) == 1
+
+
 def test_appointment_batch_formatter_chunks_large_id_lists(media_env):
     _client, _static_dir, _upload_dir = media_env
     conn = app_db.get_db()
