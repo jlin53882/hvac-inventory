@@ -295,6 +295,30 @@ def prepare_media_batch(items: list[tuple[bytes, str]]) -> list[PreparedMedia]:
         raise
 
 
+def _plan_asset_paths(category: str, year_month: str, asset_id: str, ext: str, is_image: bool,
+                      base_relative_dir, legacy_original_path, legacy_preview_path):
+    """規劃 asset 各變體的相對路徑 → (original_rel, preview_rel, thumbnail_rel)。
+
+    預設版型 assets/<category>/<年月>/<asset_id>/；`base_relative_dir` 可自訂資料夾層級（不可為絕對路徑或含 ..）。
+    legacy 路徑優先（既有 URL 相容）；非圖片沒有 preview / thumbnail。
+    """
+    if base_relative_dir is None:
+        base = Path("assets") / category / year_month / asset_id
+    else:
+        custom_base = Path(base_relative_dir)
+        if custom_base.is_absolute() or ".." in custom_base.parts:
+            raise ValueError("不合法的媒體儲存目錄")
+        base = custom_base / asset_id
+    original_rel = legacy_original_path or str(base / f"original{ext}").replace("\\", "/")
+    preview_rel = legacy_preview_path
+    thumbnail_rel = str(base / "thumbnail.jpg").replace("\\", "/")
+    if is_image:
+        preview_rel = preview_rel or str(base / "preview.jpg").replace("\\", "/")
+    else:
+        thumbnail_rel = None
+    return original_rel, preview_rel, thumbnail_rel
+
+
 def store_asset(
     conn: Any,
     *,
@@ -330,26 +354,15 @@ def store_asset(
         raise ValueError("prepared media 與檔名不一致")
 
     asset_id = uuid.uuid4().hex
-    ext = prepared.ext
     safe_mime = prepared.mime_type
-    if base_relative_dir is None:
-        base = Path("assets") / category / year_month / asset_id
-    else:
-        custom_base = Path(base_relative_dir)
-        if custom_base.is_absolute() or ".." in custom_base.parts:
-            raise ValueError("不合法的媒體儲存目錄")
-        base = custom_base / asset_id
-    original_rel = legacy_original_path or str(base / f"original{ext}").replace("\\", "/")
-    preview_rel = legacy_preview_path
-    thumbnail_rel = str(base / "thumbnail.jpg").replace("\\", "/")
     is_image = prepared.is_image
     preview_data = prepared.preview_data
     thumbnail_data = prepared.thumbnail_data
     width, height = prepared.width, prepared.height
-    if is_image:
-        preview_rel = preview_rel or str(base / "preview.jpg").replace("\\", "/")
-    else:
-        thumbnail_rel = None
+    original_rel, preview_rel, thumbnail_rel = _plan_asset_paths(
+        category, year_month, asset_id, prepared.ext, is_image,
+        base_relative_dir, legacy_original_path, legacy_preview_path,
+    )
 
     written: list[Path] = []
     backups: list[tuple[Path, Path]] = []
