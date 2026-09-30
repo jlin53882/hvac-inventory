@@ -12,7 +12,7 @@ from app.config import BASE_DIR
 from app.database import get_db
 from app.models import GcalKeyIn, GcalKeyUpdate
 from app.services.auth import require_login, require_perm
-from app.services import gcal_sync
+from app.services import gcal_sync, sync_scheduler
 from app.services.gcal_sync import parse_popup_reminders
 # 名稱保留 _wake_scheduler：tests 以 monkeypatch.setattr(gcal_keys, "_wake_scheduler", ...) 靜音 route 端喚醒
 from app.services.sync_scheduler import start_and_wake as _wake_scheduler
@@ -501,7 +501,7 @@ def _finish_key_update(key_id: int, old_credentials_path: str, new_credentials_p
         finally:
             conn.close()
     if calendar_changed:
-        gcal_sync.maybe_finalize_calendar_migration(key_id)
+        gcal_sync.maybe_finalize_calendar_migration(key_id, wake=_wake_scheduler)
     elif was_inactive and new_is_active:
         _backfill_all_appointments(key_id)
     _wake_scheduler()
@@ -796,7 +796,6 @@ def update_key_reminders(key_id: int, body: dict):
 @router.post("/api/gcal-sync-now", dependencies=[Depends(require_perm("gcal-sync-force"))])
 def force_sync_now():
     """立即觸發同步（忽略 debounce，但不自動重設 exhausted queue）。"""
-    from app.services import sync_scheduler
     sync_scheduler.reset_now()
     return {"ok": True, "message": "立即同步已排入處理（已耗盡項目需先按重新嘗試）"}
 
@@ -917,7 +916,6 @@ def list_sync_queue():
 @router.get("/api/gcal-sync-status", dependencies=[Depends(require_perm("gcal-sync-manage"))])
 def gcal_sync_status():
     """回傳 scheduler/thread 與 queue health 摘要。"""
-    from app.services import sync_scheduler
     return sync_scheduler.get_health()
 
 

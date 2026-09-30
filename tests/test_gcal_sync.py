@@ -1235,7 +1235,7 @@ class TestDiscordNotification:
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (1, 0, {}))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: (1, 0, {}))
 
         sync_scheduler._run_once()
         assert len(notified) == 0  # 成功不通知
@@ -1252,7 +1252,7 @@ class TestDiscordNotification:
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (4, 0, {
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: (4, 0, {
             1: {"key_name": "GoneKey", "cal_id": "gone@cal", "errors": {},
                 "resolved": {"appointment_deleted": 1}}
         }))
@@ -1277,7 +1277,7 @@ class TestDiscordNotification:
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: (0, 1, {}))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: (0, 1, {}))
 
         sync_scheduler._run_once()
         assert len(notified) == 1
@@ -1501,7 +1501,7 @@ class TestDiscordNotificationFormat:
             1: {"cal_id": "test@gmail.com", "errors": {"HttpError 404": 5, "network down": 2}}
         }
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending",
-                            lambda due: (0, 7, error_summary))
+                            lambda due, wake=None: (0, 7, error_summary))
 
         sync_scheduler._run_once()
         assert len(notified) == 1
@@ -1523,7 +1523,7 @@ class TestDiscordNotificationFormat:
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending",
-                            lambda due: (5, 0, {}))
+                            lambda due, wake=None: (5, 0, {}))
 
         sync_scheduler._run_once()
         assert len(notified) == 0
@@ -1685,7 +1685,7 @@ class TestSchedulerReliability:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=False)
         assert called == []
 
@@ -1698,7 +1698,7 @@ class TestSchedulerReliability:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=True)
         assert len(called) == 1
         assert called[0][0]["appointment_id"] == 1
@@ -1710,7 +1710,7 @@ class TestSchedulerReliability:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(attempts=5)))
-        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due: called.append(due) or (1, 0, {}))
+        monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=True)
         assert called == []
 
@@ -1729,7 +1729,7 @@ class TestSchedulerReliability:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows()))
 
-        def fake_sync(due):
+        def fake_sync(due, wake=None):
             nonlocal active, max_active, calls
             with state_lock:
                 calls += 1
@@ -2673,6 +2673,69 @@ def test_calendar_finalize_rolls_back_when_backfill_fails(client, monkeypatch):
     finally:
         conn.close()
 
+
+
+def test_finalize_calls_injected_wake_only_when_finalized(client):
+    """gcal_sync 不再 import 排程器：finalize 成功才呼叫呼叫端傳入的 wake；沒有可 finalize 的就不叫。"""
+    from app.database import get_db
+    from app.services import gcal_sync, sync_scheduler
+
+    key_id = client.post("/api/gcal-keys", json={
+        "name": "wake-callback", "credentials_path": "calendar.json", "calendar_id": "old@cal",
+    }).json()["id"]
+    sync_scheduler.stop()
+    woke = []
+
+    assert gcal_sync.maybe_finalize_calendar_migration(key_id, wake=lambda: woke.append(1)) is False
+    assert woke == [], "沒有 pending Calendar 時不應喚醒"
+
+    conn = get_db()
+    try:
+        conn.execute("UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?", ("new@cal", key_id))
+        conn.commit()
+    finally:
+        conn.close()
+    assert gcal_sync.maybe_finalize_calendar_migration(key_id, wake=lambda: woke.append(1)) is True
+    assert woke == [1]
+    # 不傳 wake（None）也能 finalize，只是不喚醒
+    conn = get_db()
+    try:
+        conn.execute("UPDATE gcal_keys SET pending_calendar_id=? WHERE id=?", ("newer@cal", key_id))
+        conn.commit()
+    finally:
+        conn.close()
+    assert gcal_sync.maybe_finalize_calendar_migration(key_id) is True
+
+
+def test_enqueue_sync_pending_never_touches_scheduler(client, monkeypatch):
+    """gcal_sync.enqueue_sync_pending 只寫 queue；不論結果如何都不啟動 / 喚醒排程器。"""
+    from app.services import gcal_sync, sync_scheduler
+
+    monkeypatch.setattr(sync_scheduler, "start", lambda: pytest.fail("gcal_sync 不得啟動排程器"))
+    monkeypatch.setattr(sync_scheduler, "wake", lambda *a, **k: pytest.fail("gcal_sync 不得喚醒排程器"))
+    monkeypatch.setattr(gcal_sync, "is_enabled", lambda: False)
+    assert gcal_sync.enqueue_sync_pending(1, "C") is False          # 未啟用 → 不入 queue
+    assert gcal_sync.enqueue_sync_pending(1, "D") is False          # D 沒有 map_rows → 不入 queue
+
+
+def test_scheduler_mark_sync_pending_wakes_only_after_committed_queue(monkeypatch):
+    """sync_scheduler.mark_sync_pending：queue 有提交才喚醒；沒提交（未啟用 / 行程已刪）不喚醒。"""
+    from app.services import gcal_sync, sync_scheduler
+
+    calls = []
+    monkeypatch.setattr(sync_scheduler, "start_and_wake", lambda: calls.append("wake"))
+    monkeypatch.setattr(gcal_sync, "enqueue_sync_pending", lambda *a, **k: False)
+    sync_scheduler.mark_sync_pending(1, "C")
+    assert calls == []
+    monkeypatch.setattr(gcal_sync, "enqueue_sync_pending", lambda *a, **k: True)
+    sync_scheduler.mark_sync_pending(1, "C")
+    assert calls == ["wake"]
+
+    def boom():
+        raise RuntimeError("wake failed")
+
+    monkeypatch.setattr(sync_scheduler, "start_and_wake", boom)
+    sync_scheduler.mark_sync_pending(1, "C")   # 喚醒失敗只記 log，不影響主操作
 
 
 def test_scheduler_finalize_rechecks_pending_target_after_key_lock(client, monkeypatch):

@@ -129,6 +129,19 @@ def start_and_wake() -> None:
     wake()
 
 
+def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
+    """行程寫入 queue 並喚醒 worker（queue 已提交後才喚醒；normal run 仍遵守 debounce）。
+
+    這是 routes 標記「行程需要同步」的入口；gcal_sync 只負責寫 queue，喚醒屬於排程器的責任。
+    """
+    if not gcal_sync.enqueue_sync_pending(appt_id, op, map_rows):
+        return
+    try:
+        start_and_wake()
+    except Exception as error:
+        logger.warning("gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, gcal_sync.safe_sync_error(error))
+
+
 def reset_now():
     """立即觸發 force sync（不自動重設 attempts >= MAX_ATTEMPTS）。"""
     start()
@@ -256,7 +269,7 @@ def _finalize_pending_migrations():
         except (KeyError, IndexError, TypeError):
             continue
         with gcal_sync._key_process_lock(key_id):
-            gcal_sync.maybe_finalize_calendar_migration(key_id)
+            gcal_sync.maybe_finalize_calendar_migration(key_id, wake=start_and_wake)
 
 def _load_eligible_queue_rows() -> list:
     """讀出可同步的 queue 列（key 啟用中、attempts 未達上限）。
@@ -343,7 +356,7 @@ def _run_once(force: bool = False):
             _set_health(last_success_at=health_now, last_error=None)
             return
 
-        ok, fail, error_summary = gcal_sync.sync_pending(due)
+        ok, fail, error_summary = gcal_sync.sync_pending(due, wake=start_and_wake)
         resolved_total = sum(
             sum(info.get("resolved", {}).values())
             for info in error_summary.values()

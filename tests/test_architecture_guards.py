@@ -5,7 +5,8 @@
 不必等到下一次大重構才發現。
 
 1. 模組層 ALL_CAPS 常數必須是不可變型別（frozenset / tuple / MappingProxyType）
-2. 依賴方向 routes → services → database：services 不得 import routes（含函式內 lazy import）
+2. 依賴方向 routes → services → database：services 不得 import routes（含函式內 lazy import）；
+   全部 import（含函式內延後 import）必須是 DAG，gcal_sync 不得 import sync_scheduler
 3. routes 之間不得互相 import（共用邏輯放 services）
 4. 上傳副檔名 / 大小上限只在 services/upload_policy.py 定義
 
@@ -154,10 +155,11 @@ def _module_name(path: Path) -> str:
     return ".".join(parts)
 
 
-def _top_level_imports(path: Path, known: set[str]) -> set[str]:
-    """只看模組最上層的 import（函式內的延後 import 是刻意打斷循環的手段，不算）。"""
+def _imports(path: Path, known: set[str], include_lazy: bool = False) -> set[str]:
+    """模組的 import 邊。include_lazy=False 只看最上層；True 連函式內的延後 import 一起算。"""
     edges: set[str] = set()
-    for node in _parse(path).body:
+    nodes = ast.walk(_parse(path)) if include_lazy else _parse(path).body
+    for node in nodes:
         if isinstance(node, ast.Import):
             edges.update(a.name for a in node.names if a.name in known)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
@@ -169,15 +171,10 @@ def _top_level_imports(path: Path, known: set[str]) -> set[str]:
     return edges
 
 
-def test_python_module_level_imports_have_no_cycles():
-    """app/ 內的模組層 import 圖必須是 DAG。
-
-    已知的雙向依賴 gcal_sync ↔ sync_scheduler 以「gcal_sync 內延後 import」處理，不出現在模組層；
-    若有人把它改成模組層 import，或新增其他循環，這裡會紅燈。
-    """
+def _assert_import_graph_is_dag(include_lazy: bool) -> None:
     files = _py_files(APP) + [ROOT / "main.py"]
     known = {_module_name(p) for p in files}
-    graph = {_module_name(p): _top_level_imports(p, known) - {_module_name(p)} for p in files}
+    graph = {_module_name(p): _imports(p, known, include_lazy) - {_module_name(p)} for p in files}
 
     visiting: list[str] = []
     done: set[str] = set()
@@ -197,4 +194,26 @@ def test_python_module_level_imports_have_no_cycles():
 
     for name in sorted(graph):
         visit(name)
-    assert not cycles, "模組層 import 循環：\n" + "\n".join(" → ".join(c) for c in cycles)
+    kind = "含函式內延後 import 的" if include_lazy else "模組層"
+    assert not cycles, f"{kind} import 循環：\n" + "\n".join(" → ".join(c) for c in cycles)
+
+
+def test_python_module_level_imports_have_no_cycles():
+    """app/ 內的模組層 import 圖必須是 DAG。"""
+    _assert_import_graph_is_dag(include_lazy=False)
+
+
+def test_python_imports_including_lazy_have_no_cycles():
+    """連函式內的延後 import 也算：不可用「搬進函式裡」來掩蓋循環依賴。
+
+    gcal_sync 是下層（只寫 queue / 呼叫 Google），排程器（sync_scheduler）在它之上；
+    需要喚醒排程器的地方由上層傳入 wake 回呼或改呼叫 sync_scheduler 的入口，gcal_sync 不得反向 import。
+    """
+    _assert_import_graph_is_dag(include_lazy=True)
+
+
+def test_gcal_sync_does_not_depend_on_scheduler():
+    """gcal_sync → sync_scheduler 的依賴方向明確禁止（含延後 import）。"""
+    known = {_module_name(p) for p in _py_files(APP)}
+    edges = _imports(APP / "services" / "gcal_sync.py", known, include_lazy=True)
+    assert "app.services.sync_scheduler" not in edges, "gcal_sync 不得 import sync_scheduler（改由呼叫端傳 wake）"

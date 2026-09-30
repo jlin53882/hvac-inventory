@@ -31,7 +31,7 @@ from app.services.auth import (
     require_perm,
     set_user_page_visibility,
 )
-from app.services import gcal_sync
+from app.services import gcal_sync, sync_scheduler
 
 # 使用者管理 API 路由
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -166,7 +166,6 @@ def _reconcile_user_calendar_assignments(user_id: int) -> int:
             queued += 1
         conn.commit()
     if queued:
-        from app.services import sync_scheduler
         sync_scheduler.start_and_wake()
     return queued
 
@@ -192,9 +191,9 @@ def _reconcile_user_gcal_key(user_id: int) -> None:
 
     # 只在讀取/計算完成後寫 queue，避免持 DB 連線跨任何外部工作。
     for appt_id, orphan_rows in changes:
-        gcal_sync.mark_sync_pending(appt_id, "U")
+        sync_scheduler.mark_sync_pending(appt_id, "U")
         if orphan_rows:
-            gcal_sync.mark_sync_pending(appt_id, "D", map_rows=orphan_rows)
+            sync_scheduler.mark_sync_pending(appt_id, "D", map_rows=orphan_rows)
 
 
 def _reconcile_user_calendar_transition(
@@ -311,7 +310,6 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
                 "SELECT DISTINCT appointment_id FROM appointment_assignees WHERE user_id=?", (user_id,)
             ).fetchall()]
         if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
-            from app.services import sync_scheduler
             sync_scheduler.start_and_wake()
     return result
 

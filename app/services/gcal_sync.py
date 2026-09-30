@@ -580,16 +580,18 @@ def calendar_migration_pending(key_row) -> bool:
     return bool((key_row or {}).get("pending_calendar_id"))
 
 
-def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
-    """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
-    獨立短連線，失敗不影響主操作。
-    A4：C/U op 每次都進 queue（hash-skip 已移除——queue 是暫態，不值得為省 row 引入 op_type 錯位風險）。"""
+def enqueue_sync_pending(appt_id: int, op: str, map_rows=()) -> bool:
+    """把行程標記待同步到所有目標 key，回傳 queue 是否已提交（呼叫端據此決定要不要喚醒排程）。
+
+    map_rows：刪除時帶 [(key_id, google_event_id)]。獨立短連線，失敗不影響主操作（回傳 False）。
+    A4：C/U op 每次都進 queue（hash-skip 已移除——queue 是暫態，不值得為省 row 引入 op_type 錯位風險）。
+    本函式只寫 queue、不碰排程器：上層請用 sync_scheduler.mark_sync_pending（寫入後自動喚醒）。"""
     # C/U 需要 active key 才有目標；D 則依賴保留下來的 map/event id，
     # 即使唯一 key 已停用也必須保留刪除任務，不能把本地刪除當成遠端成功。
     if op in ("C", "U") and not is_enabled():
-        return
+        return False
     if op == "D" and not map_rows:
-        return
+        return False
     try:
         c = get_db()
         try:
@@ -599,7 +601,7 @@ def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
             if op in ("C", "U"):
                 if c.execute("SELECT 1 FROM appointments WHERE id=?", (appt_id,)).fetchone() is None:
                     c.rollback()
-                    return
+                    return False
                 keys = resolve_effective_target_keys(c, appt_id)
             else:  # D
                 keys = [r[0] for r in map_rows] if map_rows else []
@@ -617,13 +619,12 @@ def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
             c.commit()
         finally:
             c.close()
-        # queue 已提交後只喚醒既有 worker；normal run 仍遵守 debounce。
-        from app.services import sync_scheduler
-        sync_scheduler.start_and_wake()
+        return True
     except Exception as e:
         logger.warning(
             "gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, safe_sync_error(e)
         )
+        return False
 
 
 def backfill_all_appointments_with_conn(conn, key_id: int):
@@ -682,7 +683,7 @@ def backfill_all_appointments_with_conn(conn, key_id: int):
     return queued
 
 
-def maybe_finalize_calendar_migration(key_id: int) -> bool:
+def maybe_finalize_calendar_migration(key_id: int, wake=None) -> bool:
     """D queue 全部完成後切換 Calendar，並只在新 Calendar 上 backfill。"""
     conn = get_db()
     try:
@@ -715,9 +716,10 @@ def maybe_finalize_calendar_migration(key_id: int) -> bool:
     finally:
         conn.close()
 
-    # sync_scheduler 本身 import gcal_sync，這裡延後 import 以避開 service 內部循環。
-    from app.services import sync_scheduler
-    sync_scheduler.start_and_wake()
+    # finalize 後 backfill queue 已提交；由呼叫端（排程器 / 路由）傳入 wake 來喚醒 worker，
+    # gcal_sync 是下層，不 import 排程器。
+    if wake is not None:
+        wake()
     return True
 
 
@@ -776,10 +778,12 @@ _RATE_WINDOW = 60          # 秒
 _SYNC_LOCK = threading.RLock()
 
 
-def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
-    """以 process-level lock 序列化所有同步 caller，避免 duplicate insert/patch。"""
+def sync_pending(due: List[dict], wake=None) -> Tuple[int, int, dict]:
+    """以 process-level lock 序列化所有同步 caller，避免 duplicate insert/patch。
+
+    wake：Calendar migration finalize 後要呼叫的喚醒函式（排程器傳入 start_and_wake；None = 不喚醒）。"""
     with _SYNC_LOCK:
-        return _sync_pending_unlocked(due)
+        return _sync_pending_unlocked(due, wake)
 
 
 def _load_active_keys() -> dict:
@@ -1031,7 +1035,7 @@ def _record_sync_failure(ref: _QueueRef, error_summary: dict, key_row: dict, cal
 
 
 def _handle_sync_exception(error: Exception, ref: _QueueRef, gid: str, *,
-                           cal_id: str, key_row: dict, error_summary: dict) -> str:
+                           cal_id: str, key_row: dict, error_summary: dict, wake=None) -> str:
     """單列同步失敗後的處置 → "ok"（視為成功，計 ok）/ "resolved"（已自動解決，不計數）/ "fail"（計 fail）。
 
     順序：先補「遠端已建立但本地行程消失」的 D queue → 依錯誤類型判斷是否其實已解決
@@ -1056,14 +1060,14 @@ def _handle_sync_exception(error: Exception, ref: _QueueRef, gid: str, *,
                            key_row.get("name", "") if key_row else "")
         if outcome == "remote_already_deleted":
             if op == "D":
-                maybe_finalize_calendar_migration(key_id)
+                maybe_finalize_calendar_migration(key_id, wake)
             return "ok"
         return "resolved"
     _record_sync_failure(ref, error_summary, key_row, cal_id, error)
     return "fail"
 
 
-def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
+def _sync_pending_unlocked(due: List[dict], wake=None) -> Tuple[int, int, dict]:
     """對 due（每列對應一個 appointment + key）逐列同步。
 
     網路呼叫永遠在 SQLite 連線關閉後執行；C/U 先以 canonical payload hash
@@ -1141,10 +1145,10 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
                     _commit_sync_result(ref, gid, current_hash)
                     ok += 1
                     if op == "D":
-                        maybe_finalize_calendar_migration(key_id)
+                        maybe_finalize_calendar_migration(key_id, wake)
                 except Exception as e:
                     result = _handle_sync_exception(
-                        e, ref, gid, cal_id=cal_id, key_row=key_row, error_summary=error_summary,
+                        e, ref, gid, cal_id=cal_id, key_row=key_row, error_summary=error_summary, wake=wake,
                     )
                     if result == "ok":
                         ok += 1

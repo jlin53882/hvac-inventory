@@ -26,7 +26,7 @@ from app.services.report import build_daily_report
 from app.services.work_progress import sync_work_progress_snapshot_for_appointment
 from app.services.safety import xlsx_download
 from app.services import gcal_sync
-from app.services.gcal_sync import mark_sync_pending
+from app.services.sync_scheduler import mark_sync_pending
 
 router = APIRouter()
 
