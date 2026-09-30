@@ -5,6 +5,7 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { isMobileView } from '../../core/bottomsheet.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { esc, toast } from '../../core/utils.js';
 
 const UPLOAD_LIST_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
@@ -55,8 +56,8 @@ export function createUploadListPage(config) {
     total: 0,
     selectedFile: null,
     renderSeq: 0,
-    historyRequestSeq: 0,
-    kpiRequestSeq: 0,
+    historyGuard: createRequestGuard(),
+    kpiGuard: createRequestGuard(),
   };
   const $ = id => document.getElementById(id);
   const isCurrent = renderSeq => renderSeq === state.renderSeq && config.isActive();
@@ -331,7 +332,7 @@ export function createUploadListPage(config) {
     const to = $('upl-f-to').value || '';
     const q = $('upl-f-q').value.trim();
     const pageAtRequest = state.page;
-    const requestSeq = ++state.historyRequestSeq;
+    const requestSeq = state.historyGuard.next();
     const p = new URLSearchParams({ from_date: from, to_date: to, q, page: pageAtRequest, page_size: state.pageSize });
     let data;
     try {
@@ -339,7 +340,7 @@ export function createUploadListPage(config) {
     } catch(e) {
       return;
     }
-    if (!isCurrent(renderSeq) || requestSeq !== state.historyRequestSeq) return;
+    if (!isCurrent(renderSeq) || !state.historyGuard.isCurrent(requestSeq)) return;
     state.reports = data.items || [];
     state.total = data.total || 0;
     state.page = data.page || pageAtRequest;
@@ -393,7 +394,7 @@ export function createUploadListPage(config) {
 
   // 從伺服器載入月級 KPI 統計；只採用本頁、最新一次請求的回應
   async function updateKPI(renderSeq) {
-    const requestSeq = ++state.kpiRequestSeq;
+    const requestSeq = state.kpiGuard.next();
     if (!isCurrent(renderSeq)) return;
     let k;
     try {
@@ -401,7 +402,7 @@ export function createUploadListPage(config) {
     } catch(e) {
       return;
     }
-    if (!isCurrent(renderSeq) || requestSeq !== state.kpiRequestSeq) return;
+    if (!isCurrent(renderSeq) || !state.kpiGuard.isCurrent(requestSeq)) return;
     $('upl-kpi-month').textContent = k.month;
     $('upl-kpi-total').textContent = k.archived;
     $('upl-kpi-missing').textContent = k.missing;

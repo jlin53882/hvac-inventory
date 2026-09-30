@@ -31,7 +31,6 @@ from frontend_test_support import (
 
 GCAL_KEY_JS = os.path.join(STATIC, "js", "features", "settings", "gcal-key-modal.js")
 GCAL_KEYS_PY = os.path.join(BASE_DIR, "app", "routes", "gcal_keys.py")
-DATABASE_PY = os.path.join(BASE_DIR, "app", "database.py")
 
 
 def read_calendar_js_all() -> str:
@@ -221,8 +220,8 @@ def test_calendar_desktop_dispatch_layout():
     assert "cal-combined-search" not in js  # 舊深色工具列已移除
     assert '<button class="cal-quick-filter"' not in js
     assert "cal-today-inline" in js
-    assert "calLoadRequestToken" in js
-    assert "if (requestToken !== calendarState.calLoadRequestToken) return null;" in js
+    assert "calLoadGuard" in js
+    assert "if (!calendarState.calLoadGuard.isCurrent(requestToken)) return null;" in js
     assert "const weeks = Math.ceil((first + total) / 7);" in js
     assert "const trailing = weeks * 7 - first - total;" in js
     assert "setProperty('--cal-week-count', String(weeks))" in js
@@ -300,8 +299,8 @@ def test_calendar_search_uses_right_panel_mode():
     assert "calIsDesktopViewport" in js
     assert "calMountSearchResults" in js
     assert "calSearchMode" in js
-    assert "calSearchRequestToken" in js
-    assert "requestToken !== calendarState.calSearchRequestToken" in js
+    assert "calSearchGuard" in js
+    assert "!calendarState.calSearchGuard.isCurrent(requestToken)" in js
     assert "calSearchState" in js
     assert "calBindSearchViewportListener" in js
     assert "calHandleSearchViewportChange" in js
@@ -423,7 +422,8 @@ def test_calendar_js_optimistic_lock_snapshot():
 def test_calendar_js_month_url():
     """calendar.js：行事曆月份從 URL 讀（F5 停在原本月份）"""
     js = read_calendar_js_all()
-    assert "new URLSearchParams(location.search).get('month')" in js, "calendar.js 未從 URL 讀 month"
+    assert "new URLSearchParams(search).get('month')" in js, "calendar.js 未從 URL 讀 month"
+    assert "parseCalendarMonth(location.search)" in js, "calMonth 初始值應由 parseCalendarMonth(location.search) 決定"
     assert "syncViewUrl" in js, "calendar.js 切月後未同步 URL"
 
 def test_calendar_date_required_validation():
@@ -493,15 +493,36 @@ def test_gcal_keys_route_has_crud():
     assert '"/api/gcal-keys"' in code
     assert '"/api/gcal-keys/options"' in code
 
-def test_database_has_gcal_keys_table():
-    """database.py 建立 gcal_keys 表"""
-    code = read(DATABASE_PY)
-    assert "CREATE TABLE IF NOT EXISTS gcal_keys" in code, "database.py 缺 gcal_keys 表"
+def _init_temp_db(tmp_path, monkeypatch):
+    """實際初始化一個空資料庫（行為測試，不依賴 DDL 寫在哪個檔案）。"""
+    import sqlite3
 
-def test_database_has_users_gcal_key():
-    """database.py migration 加 users.gcal_key"""
-    code = read(DATABASE_PY)
-    assert "gcal_key" in code, "database.py 缺 users.gcal_key migration"
+    import app.database as app_db
+
+    path = tmp_path / "gcal.db"
+    monkeypatch.setattr(app_db, "DB_PATH", str(path))
+    app_db.init_db()
+    return sqlite3.connect(path)
+
+
+def test_database_has_gcal_keys_table(tmp_path, monkeypatch):
+    """初始化後存在 gcal_keys 表"""
+    conn = _init_temp_db(tmp_path, monkeypatch)
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(gcal_keys)").fetchall()]
+    finally:
+        conn.close()
+    assert cols, "初始化後缺 gcal_keys 表"
+
+
+def test_database_has_users_gcal_key(tmp_path, monkeypatch):
+    """初始化後 users 表有 gcal_key 欄位"""
+    conn = _init_temp_db(tmp_path, monkeypatch)
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    finally:
+        conn.close()
+    assert "gcal_key" in cols, "初始化後 users 缺 gcal_key 欄位"
 
 def test_settings_panel_script_includes_gcal_key_js():
     """settings.html 引入 Google 行事曆金鑰 modal（原 gcal-key.js；issue #39 起由 pages/settings.js import）"""

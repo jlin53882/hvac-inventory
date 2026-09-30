@@ -158,7 +158,7 @@ export async function calSearch() {
   const from = document.getElementById('cal-search-from').value;
   const to = document.getElementById('cal-search-to').value;
   const q = document.getElementById('cal-search-q').value.trim();
-  const requestToken = ++calendarState.calSearchRequestToken;
+  const requestToken = calendarState.calSearchGuard.next();
   if (!from && !to && !q) { toast('請輸入搜尋條件', 'error'); return; }
   const desktop = calIsDesktopViewport();
   calendarState.calSearchMeta = { from, to, q };
@@ -169,12 +169,12 @@ export async function calSearch() {
   if (q) params.set('q', q);
   try {
     const items = await apiFetch('/api/appointments/search?' + params);
-    if (requestToken !== calendarState.calSearchRequestToken) return;
+    if (!calendarState.calSearchGuard.isCurrent(requestToken)) return;
     calendarState.calSearchItems = Array.isArray(items) ? items : [];
     if (calIsDesktopViewport()) calRenderSearchResults(calendarState.calSearchItems);
     else calRenderMobileSearchResults(calendarState.calSearchItems);
   } catch (err) {
-    if (requestToken !== calendarState.calSearchRequestToken) return;
+    if (!calendarState.calSearchGuard.isCurrent(requestToken)) return;
     console.error('[calSearch]', err);
     if (calIsDesktopViewport()) calRenderSearchError();
     else toast('搜尋失敗', 'error');

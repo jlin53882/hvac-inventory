@@ -9,23 +9,34 @@ export var INVENTORY_ALERT_ITEMS = {};  // lazy 警示清單快取，供跨頁�
 // Tab lifecycle contract：兩份名單故意分開，避免資料載入與頁面 mount 語意混用。
 // ITEMLESS_TABS：不需要載入 inventory ALL_ITEMS 的頁面。
 // DATA_REFRESH_PRESERVE_MOUNT_TABS：背景 loadData refresh 不得重新 mount 的 stateful 頁面。
-export var ITEMLESS_TABS = new Set(['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash']);
-export var DATA_REFRESH_PRESERVE_MOUNT_TABS = new Set(['work-progress', 'signed-reports', 'quotation', 'petty-cash']);
-export var INVENTORY_SITES = ['office', 'warehouse', 'van', 'truck'];
+export const ITEMLESS_TABS = new Set(['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash']);
+export const DATA_REFRESH_PRESERVE_MOUNT_TABS = new Set(['work-progress', 'signed-reports', 'quotation', 'petty-cash']);
+export const INVENTORY_SITES = Object.freeze(['office', 'warehouse', 'van', 'truck']);
 
 // 行事曆（網址 ?month= 的初始月份；features/calendar/* 共用）
-var _calM = new URLSearchParams(location.search).get('month');   // 原 calendar.js：?month=YYYY-MM（F5 保留月份）
+/**
+ * 解析網址 ?month=YYYY-MM（F5 保留月份）；格式不合或月份不在 1–12 一律回到「本月」。
+ * @param {string} search location.search（例如 '?month=2026-09'）。
+ * @param {Date} [now] 測試用：指定「現在」。
+ * @returns {Date} 該月 1 號。
+ */
+export function parseCalendarMonth(search, now) {
+  const raw = new URLSearchParams(search).get('month');
+  if (raw && /^\d{4}-\d{2}$/.test(raw)) {
+    const year = parseInt(raw.slice(0, 4));
+    const month = Number(raw.slice(5, 7));
+    if (month >= 1 && month <= 12) return new Date(year, month - 1, 1);
+  }
+  return now || new Date();
+}
 // 跨模組共用、會被其他模組改寫的狀態（issue #39：原本是全域變數）
 export const appState = {
   // 品項資料與狀態
   ALL_ITEMS: [],
   INVENTORY_META: { page: 1, page_size: 50, total: 0, stats: null },
   INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
-  inventoryRequestSeq: 0,
   inventoryAbortController: null,
-  dataRequestSeq: 0,
   dataAbortController: null,
-  statsRequestSeq: 0,
   statsAbortController: null,
   ALERTS_BY_SITE: {},
   inventoryLoadedSite: '',
@@ -47,13 +58,13 @@ export const appState = {
   destinationsLoadedSite: '',
   // toast
   toastTimer: undefined,
-  calMonth: _calM && /^\d{4}-\d{2}$/.test(_calM) && Number(_calM.slice(5,7)) >= 1 && Number(_calM.slice(5,7)) <= 12 ? new Date(parseInt(_calM.slice(0,4)), parseInt(_calM.slice(5,7))-1, 1) : new Date(),
+  calMonth: parseCalendarMonth(location.search),
   unitListActive: [], // 啟用中（select 用）
   // ========== 批次改位置（2026-09-06 方案 A） ==========
   batchMode: false,
   // 2026-09-27：產生櫃子下拉 options（從 API 動態載入，不用硬編碼）
   globalCabinetList: [], // 全局存放櫃子清單
 };
-export var wprHistoryPageSize = 20;
-export var CAL_PALETTE = ['#1a73e8', '#e91e63', '#9c27b0', '#2e7d32', '#f57c00', '#00838f', '#c62828', '#5d4037'];
-export var CAL_WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+export const wprHistoryPageSize = 20;
+export const CAL_PALETTE = Object.freeze(['#1a73e8', '#e91e63', '#9c27b0', '#2e7d32', '#f57c00', '#00838f', '#c62828', '#5d4037']);
+export const CAL_WEEK = Object.freeze(['日', '一', '二', '三', '四', '五', '六']);

@@ -19,7 +19,7 @@ from app.services.app_log import reset_request_id, set_request_id
 _access_logger = logging.getLogger("hvac.access")
 _error_logger = logging.getLogger("hvac.error")
 _BINARY_MIME_PREFIXES = ("image/", "audio/", "video/")
-_BINARY_MIME_TYPES = {"application/pdf", "application/zip", "application/gzip", "application/octet-stream"}
+_BINARY_MIME_TYPES = frozenset({"application/pdf", "application/zip", "application/gzip", "application/octet-stream"})
 
 
 class _BinarySafeGZipResponder(GZipResponder):

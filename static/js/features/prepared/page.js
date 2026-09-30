@@ -5,6 +5,7 @@ import { apiFetch } from '../../core/api-client.js';
 import { isMobileView } from '../../core/bottomsheet.js';
 import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
@@ -117,10 +118,10 @@ function renderPreparedDesktopRow(item, isViewer) {
 }
 
 // ========== 待領出頁籤 ==========
-var preparedRenderRequestSeq = 0;
+const preparedRenderGuard = createRequestGuard();
 
 export async function renderPrepared() {
-  const renderRequestId = ++preparedRenderRequestSeq;
+  const renderRequestId = preparedRenderGuard.next();
   const siteAtRequest = appState.currentSite;
   const content = document.getElementById('content');
   const isViewer = !hasPerm('stockout');
@@ -128,7 +129,7 @@ export async function renderPrepared() {
 
   try {
     let items = await apiFetch(`/api/prepared?site=${siteAtRequest}`);
-    if (renderRequestId !== preparedRenderRequestSeq || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
+    if (!preparedRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
     appState.preparedItems = items;  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
     items = filterBySearch(items, function(i) {
@@ -183,7 +184,7 @@ export async function renderPrepared() {
     content.innerHTML = html;
     updatePreparedBadge(items.length);
   } catch (e) {
-    if (renderRequestId !== preparedRenderRequestSeq || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
+    if (!preparedRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
     content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--md btn-cancel" onclick="Prepared.renderPrepared()">重新載入</button></div>`;
   }
 }

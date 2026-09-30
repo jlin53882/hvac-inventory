@@ -12,7 +12,8 @@ from fastapi.testclient import TestClient
 import app.config as app_config
 import app.database as app_db
 import main as app_main
-from app.routes import photos, stats
+from app.routes import stats
+from app.services import photo_store
 
 
 @pytest.fixture()
@@ -22,7 +23,7 @@ def client(tmp_path, monkeypatch):
     upload = tmp_path / "uploads"
     upload.mkdir()
     monkeypatch.setattr(app_config, "UPLOAD_DIR", str(upload))
-    photos.invalidate_photo_ids_cache()
+    photo_store.invalidate_photo_ids_cache()
     app_db.init_db()
     from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
     conn = app_db.get_db()
@@ -34,7 +35,7 @@ def client(tmp_path, monkeypatch):
     with TestClient(app_main.app) as c:
         c.cookies.set(SESSION_COOKIE, token)
         yield c
-    photos.invalidate_photo_ids_cache()
+    photo_store.invalidate_photo_ids_cache()
 
 
 def _seed(conn):
@@ -89,23 +90,23 @@ def test_stats_summary_matches_per_site_stats(client):
 
 def test_photo_id_cache_invalidates_on_new_file(client):
     upload = app_config.UPLOAD_DIR
-    assert photos.list_photo_ids() == set()
+    assert photo_store.list_photo_ids() == set()
     with open(os.path.join(upload, "7.jpg"), "wb") as fh:
         fh.write(b"x")
-    photos.invalidate_photo_ids_cache()
-    assert photos.has_photo(7)
+    photo_store.invalidate_photo_ids_cache()
+    assert photo_store.has_photo(7)
     os.remove(os.path.join(upload, "7.jpg"))
-    photos.invalidate_photo_ids_cache()
-    assert not photos.has_photo(7)
+    photo_store.invalidate_photo_ids_cache()
+    assert not photo_store.has_photo(7)
 
 
 def test_photo_id_cache_reuses_scan_when_directory_unchanged(client, monkeypatch):
-    photos.list_photo_ids()
+    photo_store.list_photo_ids()
     calls = []
     real_listdir = os.listdir
-    monkeypatch.setattr(photos.os, "listdir", lambda p: calls.append(p) or real_listdir(p))
+    monkeypatch.setattr(photo_store.os, "listdir", lambda p: calls.append(p) or real_listdir(p))
     for _ in range(3):
-        photos.list_photo_ids()
+        photo_store.list_photo_ids()
     assert calls == []
 
 
@@ -146,8 +147,8 @@ from dataclasses import dataclass
 
 from PIL import Image
 
-from app.routes import signed_reports, work_progress
-from app.services import file_storage
+from app.routes import work_progress
+from app.services import file_storage, upload_resource
 
 SLOW_VARIANT_SECONDS = 0.8
 
@@ -176,7 +177,7 @@ def slow_media(client, tmp_path, monkeypatch):
     (static_dir / "uploads").mkdir(parents=True)
     monkeypatch.setattr(app_config, "STATIC_DIR", str(static_dir))
     monkeypatch.setattr(work_progress, "STATIC_DIR", str(static_dir))
-    monkeypatch.setattr(signed_reports, "STATIC_DIR", str(static_dir))
+    monkeypatch.setattr(upload_resource, "STATIC_DIR", str(static_dir))
     real = file_storage._image_variants
     media = SlowMedia(item_id=None, processing_started=threading.Event())
 

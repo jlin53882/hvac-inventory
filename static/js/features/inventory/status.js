@@ -148,7 +148,7 @@ async function loadInventoryAlertItems(type, requestId) {
   const filterKeyAtRequest = getInventoryFilterStateKey();
   const body = await apiFetch(`/api/items?${buildInventoryAlertParams()}`);
   if (siteAtRequest !== appState.currentSite || filterKeyAtRequest !== getInventoryFilterStateKey()
-      || (requestId !== undefined && requestId !== inventoryState.inventoryStatusRequestSeq)) return null;
+      || (requestId !== undefined && !inventoryState.inventoryStatusGuard.isCurrent(requestId))) return null;
   const stats = body.stats || {};
   if (!Array.isArray(stats.zero_items) || !Array.isArray(stats.low_items)) {
     throw new Error('庫存警示清單回應格式錯誤');
@@ -200,14 +200,14 @@ function renderInventoryStatusModal(type, items) {
 function isInventoryStatusRequestCurrent(requestId, modal, type) {
   const isOpen = modal && modal.classList && typeof modal.classList.contains === 'function'
     ? modal.classList.contains('is-open') : true;
-  return requestId === inventoryState.inventoryStatusRequestSeq && inventoryState.inventoryStatusModalType === type && isOpen;
+  return inventoryState.inventoryStatusGuard.isCurrent(requestId) && inventoryState.inventoryStatusModalType === type && isOpen;
 }
 
 export async function showInventoryStatusList(type) {
   const modal = document.getElementById('inventory-status-modal');
   const body = document.getElementById('inventory-status-modal-body');
   if (!modal || !body) return;
-  const requestId = ++inventoryState.inventoryStatusRequestSeq;
+  const requestId = inventoryState.inventoryStatusGuard.next();
   inventoryState.inventoryStatusModalType = type;
   let items = getInventoryStatusItems(type);
   const stats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
@@ -231,7 +231,7 @@ export async function showInventoryStatusList(type) {
 }
 
 export function closeInventoryStatusModal() {
-  inventoryState.inventoryStatusRequestSeq += 1;
+  inventoryState.inventoryStatusGuard.invalidate();
   inventoryState.inventoryStatusModalType = '';
   clearSharedStatusListModal();
   const modal = document.getElementById('inventory-status-modal');

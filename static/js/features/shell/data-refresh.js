@@ -4,8 +4,14 @@
 
 import { apiFetch } from '../../core/api-client.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, ITEMLESS_TABS, appState } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
+
+// 「最新請求優先」：資料載入 / 庫存分頁 / 統計各自一個守衛（AbortController 仍放在 appState，供切頁時中止）
+const dataGuard = createRequestGuard();
+const inventoryGuard = createRequestGuard();
+const statsGuard = createRequestGuard();
 
 // 資料載入後要更新的畫面（庫存篩選 / 清單、通知、盤點提醒、待領出小標、重新掛載目前頁籤）由組裝層注入：
 // 本模組只 import core，feature 可以 import loadData 而不會和各頁 renderer 互相 import（issue #39 消除循環）。
@@ -31,7 +37,7 @@ export function renderInventoryView() {
 export async function loadData(options) {
   const full = Boolean(options && options.full);
   const refreshDestinations = Boolean(options && options.refreshDestinations);
-  const requestId = ++appState.dataRequestSeq;
+  const requestId = dataGuard.next();
   if (appState.dataAbortController) appState.dataAbortController.abort();
   // P1-D：mutation 後的 loadData 預設刷新 global summary；搜尋/換頁/filter 走 wrapper（不刷）。
   const refreshSummary = !options || options.refreshSummary !== false;
@@ -45,7 +51,7 @@ export async function loadData(options) {
   try {
     const skipItems = !full && ITEMLESS_TABS.has(appState.currentTab);
     if (skipItems) {
-      if (requestId !== appState.dataRequestSeq || siteAtRequest !== appState.currentSite) return;
+      if (!dataGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
       appState.ALL_ITEMS = [];
       appState.fullItemsLoadedSite = '';
       view().updateNotifications();
@@ -63,7 +69,7 @@ export async function loadData(options) {
           .catch(e => (e.status ? null : Promise.reject(e)))
         : Promise.resolve(null),
     ]);
-    if (requestId !== appState.dataRequestSeq || siteAtRequest !== appState.currentSite) return;
+    if (!dataGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     appState.ALL_ITEMS = items;
     appState.fullItemsLoadedSite = siteAtRequest;
     appState.inventoryLoadedSite = '';
@@ -82,7 +88,7 @@ export async function loadData(options) {
     if (!DATA_REFRESH_PRESERVE_MOUNT_TABS.has(appState.currentTab)) view().remountTab(appState.currentTab);
     loadPreparedBadge();
   } catch (e) {
-    if (e.name === 'AbortError' || requestId !== appState.dataRequestSeq || siteAtRequest !== appState.currentSite) return;
+    if (e.name === 'AbortError' || !dataGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     document.getElementById('content').innerHTML =
       `<div class="empty">⚠️ 無法連線伺服器<br><small>${esc(e.message)}</small></div>`;
   } finally {
@@ -111,9 +117,9 @@ function reconcileInventoryFilters(facets) {
 
 // refreshSummary=true：mutation 成功後，global summary cache 已過期才重刷。
 async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refreshDestinations) {
-  appState.dataRequestSeq++;
+  dataGuard.invalidate();
   if (appState.dataAbortController) appState.dataAbortController.abort();
-  const requestId = ++appState.inventoryRequestSeq;
+  const requestId = inventoryGuard.next();
   if (appState.inventoryAbortController) appState.inventoryAbortController.abort();
   const controller = new AbortController();
   appState.inventoryAbortController = controller;
@@ -141,14 +147,14 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
       facetsRequest,
     ]);
     let body = pageBody;
-    if (requestId !== appState.inventoryRequestSeq || siteAtRequest !== appState.currentSite) return;
+    if (!inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     if (facets && reconcileInventoryFilters(facets)) {
       if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
       else params.delete('brands');
       if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
       else params.delete('categories');
       body = await apiFetch(`/api/items?${params}`, { signal: controller.signal });
-      if (requestId !== appState.inventoryRequestSeq || siteAtRequest !== appState.currentSite) return;
+      if (!inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     }
     appState.ALL_ITEMS = body.items || [];
     appState.INVENTORY_META = {
@@ -175,10 +181,10 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
       renderSubInfo();
     }
     // await updateSubInfo 期間可能已切頁或有新請求：不可把庫存頁畫進別頁的 #content
-    if (requestId !== appState.inventoryRequestSeq || appState.currentTab !== 'inventory') return;
+    if (!inventoryGuard.isCurrent(requestId) || appState.currentTab !== 'inventory') return;
     view().renderInventory();
   } catch (e) {
-    if (e.name === 'AbortError' || requestId !== appState.inventoryRequestSeq || siteAtRequest !== appState.currentSite) return;
+    if (e.name === 'AbortError' || !inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     document.getElementById('content').innerHTML =
       `<div class="empty">⚠️ 無法載入庫存<br><small>${esc(e.message)}</small></div>`;
   } finally {
@@ -228,14 +234,14 @@ function renderSubInfo() {
 
 // 更新頂部統計資訊（單一材料/整組/廠牌/缺貨數 + 分片按鈕數字）
 async function updateSubInfo() {
-  const requestId = ++appState.statsRequestSeq;
+  const requestId = statsGuard.next();
   if (appState.statsAbortController) appState.statsAbortController.abort();
   const controller = new AbortController();
   appState.statsAbortController = controller;
   const siteAtRequest = appState.currentSite;
   try {
     const summary = await apiFetch('/api/stats/summary', { signal: controller.signal });
-    if (requestId !== appState.statsRequestSeq || siteAtRequest !== appState.currentSite) return;
+    if (!statsGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     appState.ALERTS_BY_SITE = {
       all: summary.all || {},
       office: summary.office || {},
@@ -246,7 +252,7 @@ async function updateSubInfo() {
     renderSubInfo();
     view().updateNotifications();
   } catch (e) {
-    if (e.name !== 'AbortError' && requestId === appState.statsRequestSeq && siteAtRequest === appState.currentSite) {
+    if (e.name !== 'AbortError' && statsGuard.isCurrent(requestId) && siteAtRequest === appState.currentSite) {
       console.error('[updateSubInfo] 統計失敗', e);
     }
   } finally {

@@ -14,7 +14,7 @@ from xml.sax.saxutils import escape as xml_escape
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from app.database import get_db
+from app.database import db_session
 from app.models import QuotationIn
 from app.services.auth import require_perm
 from app.services.safety import excel_safe, parse_ymd, xlsx_download
@@ -162,8 +162,7 @@ def _write_quote(conn, body: QuotationIn, user_id: int, quote_id: int | None = N
 
 @router.get("/api/quotations/inventory-items", dependencies=[Depends(require_perm("view"))])
 def quotation_inventory_items(q: str = Query("", max_length=100), limit: int = Query(30, ge=1, le=100)):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         like = f"%{q.strip()}%"
         rows = conn.execute(
             """SELECT i.id, i.brand, i.code, i.name, i.unit, i.site,
@@ -175,25 +174,21 @@ def quotation_inventory_items(q: str = Query("", max_length=100), limit: int = Q
             (like, like, like, limit),
         ).fetchall()
         return [dict(row) for row in rows]
-    finally:
-        conn.close()
 
 
 @router.post("/api/quotations", status_code=201, dependencies=[Depends(require_perm("item-mgmt"))])
 def create_quotation(body: QuotationIn, user: dict = Depends(require_perm("item-mgmt"))):
-    conn = get_db()
-    try:
-        quote_id = _write_quote(conn, body, user["id"])
-        conn.commit()
-        return _quote_dict(conn, quote_id)
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            quote_id = _write_quote(conn, body, user["id"])
+            conn.commit()
+            return _quote_dict(conn, quote_id)
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
 
 
 @router.get("/api/quotations", dependencies=[Depends(require_perm("view"))])
@@ -204,8 +199,7 @@ def list_quotations(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         clauses = ["1=1"]
         params = []
         if q.strip():
@@ -230,58 +224,46 @@ def list_quotations(
             quote = _quote_dict(conn, row["id"])
             items.append({k: quote[k] for k in ("id", "quote_number", "quote_date", "customer_name", "contact", "total", "tax_type", "updated_at")})
         return {"items": items, "total": total, "page": page, "page_size": page_size}
-    finally:
-        conn.close()
 
 
 @router.get("/api/quotations/{quote_id}", dependencies=[Depends(require_perm("view"))])
 def get_quotation(quote_id: int):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         return _quote_dict(conn, quote_id)
-    finally:
-        conn.close()
 
 
 @router.put("/api/quotations/{quote_id}", dependencies=[Depends(require_perm("item-mgmt"))])
 def update_quotation(quote_id: int, body: QuotationIn, user: dict = Depends(require_perm("item-mgmt"))):
-    conn = get_db()
-    try:
-        _write_quote(conn, body, user["id"], quote_id)
-        conn.commit()
-        return _quote_dict(conn, quote_id)
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            _write_quote(conn, body, user["id"], quote_id)
+            conn.commit()
+            return _quote_dict(conn, quote_id)
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
 
 
 @router.delete("/api/quotations/{quote_id}", dependencies=[Depends(require_perm("item-mgmt"))])
 def delete_quotation(quote_id: int):
-    conn = get_db()
-    try:
-        cur = conn.execute("DELETE FROM quotations WHERE id=?", (quote_id,))
-        if cur.rowcount == 0:
-            raise HTTPException(404, "報價單不存在")
-        conn.commit()
-        return {"ok": True, "deleted": quote_id}
-    except HTTPException:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            cur = conn.execute("DELETE FROM quotations WHERE id=?", (quote_id,))
+            if cur.rowcount == 0:
+                raise HTTPException(404, "報價單不存在")
+            conn.commit()
+            return {"ok": True, "deleted": quote_id}
+        except HTTPException:
+            conn.rollback()
+            raise
 
 
 def _load_for_export(quote_id: int):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         return _quote_dict(conn, quote_id)
-    finally:
-        conn.close()
 
 
 @router.get("/api/quotations/{quote_id}/export.xlsx", dependencies=[Depends(require_perm("export"))])

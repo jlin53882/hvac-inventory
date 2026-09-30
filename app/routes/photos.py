@@ -10,12 +10,11 @@
 仍指向 800px JPEG preview，並另外建立 320px thumbnail 供列表使用。
 """
 import os
-import re
 
 from fastapi import Depends, APIRouter, HTTPException, UploadFile
 
 import app.config as app_config
-from app.database import get_db
+from app.database import db_session, get_db
 from app.services.auth import require_perm
 from app.services.file_storage import (
     cleanup_asset_paths,
@@ -25,59 +24,14 @@ from app.services.file_storage import (
     prepare_media,
     store_asset,
 )
+from app.services.photo_store import invalidate_photo_ids_cache, legacy_photo_path
+from app.services.upload_policy import IMAGE_UPLOAD_EXTS, ITEM_PHOTO_MAX_BYTES
 
 router = APIRouter()
-
-ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-
-
-def _photo_path(item_id: int) -> str:
-    """舊相容 URL 對應的 preview 路徑。"""
-    return os.path.join(app_config.UPLOAD_DIR, f"{item_id}.jpg")
 
 
 def _photo_asset(conn, item_id: int):
     return get_owner_asset(conn, "item_photo", "item", item_id)
-
-
-# legacy preview id 快取：key = (UPLOAD_DIR, 目錄 mtime_ns)。新增/刪除/改名檔案會改變目錄 mtime，
-# 照片上傳/刪除 route 另外主動 invalidate，避免同一 mtime tick 內的變動漏更新。
-_photo_ids_cache: tuple | None = None
-
-
-def invalidate_photo_ids_cache() -> None:
-    """照片新增/刪除後呼叫，強制下次 list_photo_ids 重掃目錄。"""
-    global _photo_ids_cache
-    _photo_ids_cache = None
-
-
-def has_photo(item_id: int) -> bool:
-    """檢查品項是否有照片；保留舊檔案相容性（走目錄快取，不逐筆 stat）。"""
-    return int(item_id) in list_photo_ids()
-
-
-def list_photo_ids() -> set:
-    """回傳有 legacy preview 的品項 id；目錄未變動時直接用快取（2026-09 效能：原本每次請求 listdir）。"""
-    global _photo_ids_cache
-    upload_dir = app_config.UPLOAD_DIR
-    try:
-        mtime = os.stat(upload_dir).st_mtime_ns
-    except OSError:
-        return set()
-    cached = _photo_ids_cache
-    if cached is not None and cached[0] == upload_dir and cached[1] == mtime:
-        return cached[2]
-    try:
-        ids = frozenset(
-            int(f.split(".")[0])
-            for f in os.listdir(upload_dir)
-            if re.fullmatch(r"[0-9]+\.jpg", f)
-        )
-    except OSError:
-        return set()
-    _photo_ids_cache = (upload_dir, mtime, ids)
-    return ids
 
 
 @router.post("/api/items/{item_id}/photo", status_code=200, dependencies=[Depends(require_perm("photo"))])
@@ -94,10 +48,10 @@ def upload_photo(item_id: int, file: UploadFile):
 
         original_name = file.filename or "photo.jpg"
         ext = os.path.splitext(original_name)[1].lower()
-        if ext not in ALLOWED_EXT:
+        if ext not in IMAGE_UPLOAD_EXTS:
             raise HTTPException(400, f"不支援的圖片格式：{ext}（限 jpg/png/webp）")
-        data = file.file.read(MAX_UPLOAD_BYTES + 1)
-        if len(data) > MAX_UPLOAD_BYTES:
+        data = file.file.read(ITEM_PHOTO_MAX_BYTES + 1)
+        if len(data) > ITEM_PHOTO_MAX_BYTES:
             raise HTTPException(400, "圖片超過 10MB 上限")
         if not data:
             raise HTTPException(400, "空檔案")
@@ -162,9 +116,8 @@ def upload_photo(item_id: int, file: UploadFile):
 @router.delete("/api/items/{item_id}/photo", dependencies=[Depends(require_perm("photo"))])
 def delete_photo(item_id: int):
     """刪除照片與所有變體（冪等）。"""
-    conn = get_db()
     rows = []
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
             ("item_photo", "item", str(item_id)),
@@ -174,16 +127,11 @@ def delete_photo(item_id: int):
             ("item_photo", "item", str(item_id)),
         )
         conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
     for row in rows:
         delete_asset_files(row, upload_dir=app_config.UPLOAD_DIR)
     # 舊版本沒有 metadata，仍清理 legacy preview。
     try:
-        os.remove(_photo_path(item_id))
+        os.remove(legacy_photo_path(item_id))
     except FileNotFoundError:
         pass
     except OSError:
@@ -210,10 +158,10 @@ def upload_kit_photo(kit_id: int, file: UploadFile):
         item_id = row["item_id"]
         original_name = file.filename or "kit_photo.jpg"
         ext = os.path.splitext(original_name)[1].lower()
-        if ext not in ALLOWED_EXT:
+        if ext not in IMAGE_UPLOAD_EXTS:
             raise HTTPException(400, f"不支援的圖片格式：{ext}（限 jpg/png/webp）")
-        data = file.file.read(MAX_UPLOAD_BYTES + 1)
-        if len(data) > MAX_UPLOAD_BYTES:
+        data = file.file.read(ITEM_PHOTO_MAX_BYTES + 1)
+        if len(data) > ITEM_PHOTO_MAX_BYTES:
             raise HTTPException(400, "圖片超過 10MB 上限")
         if not data:
             raise HTTPException(400, "空檔案")
@@ -276,33 +224,31 @@ def upload_kit_photo(kit_id: int, file: UploadFile):
 @router.delete("/api/kits/{kit_id}/photo", dependencies=[Depends(require_perm("photo"))])
 def delete_kit_photo(kit_id: int):
     """刪除整組照片。"""
-    conn = get_db()
-    try:
-        row = conn.execute(
-            "SELECT item_id FROM kits WHERE id=?", (kit_id,)
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "整組不存在")
+    with db_session() as conn:
+        try:
+            row = conn.execute(
+                "SELECT item_id FROM kits WHERE id=?", (kit_id,)
+            ).fetchone()
+            if not row:
+                raise HTTPException(404, "整組不存在")
         
-        item_id = row["item_id"]
-        rows = conn.execute(
-            "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? RETURNING asset_id, original_path, preview_path, thumbnail_path",
-            ("item_photo", "item", str(item_id)),
-        ).fetchall()
-        conn.commit()
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+            item_id = row["item_id"]
+            rows = conn.execute(
+                "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? RETURNING asset_id, original_path, preview_path, thumbnail_path",
+                ("item_photo", "item", str(item_id)),
+            ).fetchall()
+            conn.commit()
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
     for row in rows:
         delete_asset_files(row, upload_dir=app_config.UPLOAD_DIR)
     # 舊版本沒有 metadata，仍清理 legacy preview。
     try:
-        os.remove(_photo_path(item_id))
+        os.remove(legacy_photo_path(item_id))
     except FileNotFoundError:
         pass
     except OSError:

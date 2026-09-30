@@ -20,7 +20,7 @@ export function calRenderReminder() {
 }
 
 export async function calLoadData() {
-  const requestToken = ++calendarState.calLoadRequestToken;
+  const requestToken = calendarState.calLoadGuard.next();
   const y = appState.calMonth.getFullYear(), m = appState.calMonth.getMonth() + 1;
   const today = new Date();
   const todayStr = _iso(today);
@@ -36,14 +36,14 @@ export async function calLoadData() {
       apiFetch('/api/assignable-users'),
       todayEventsPromise,
     ]);
-    if (requestToken !== calendarState.calLoadRequestToken) return null;
+    if (!calendarState.calLoadGuard.isCurrent(requestToken)) return null;
     calendarState.calEvents = ev;
     calendarState.calTodayEvents = todayEv.filter(e => e.date === todayStr);
     calendarState.calSvc = svc;
     calendarState.calAssignable = ppl;
     return true;
   } catch (e) {
-    if (requestToken !== calendarState.calLoadRequestToken) return null;
+    if (!calendarState.calLoadGuard.isCurrent(requestToken)) return null;
     calendarState.calLoadError = '行事曆資料載入失敗，請重新載入。';
     console.error('[calLoadData] 行事曆資料載入失敗', e);
     calendarState.calEvents = [];
@@ -372,7 +372,7 @@ export function calClearSearch() {
   document.getElementById('cal-search-to').value = '';
   document.getElementById('cal-search-q').value = '';
   // Preserve existing semantics: the start date defaults to calSelected via sync below.
-  calendarState.calSearchRequestToken += 1;
+  calendarState.calSearchGuard.invalidate();
   calendarState.calSearchMode = false;
   calendarState.calSearchItems = [];
   calendarState.calSearchMeta = { from: '', to: '', q: '' };
@@ -383,7 +383,7 @@ export function calClearSearch() {
 }
 
 export function calJumpToDate(dateStr) {
-  calendarState.calSearchRequestToken += 1;
+  calendarState.calSearchGuard.invalidate();
   calendarState.calSearchMode = false;
   calendarState.calSearchItems = [];
   calendarState.calSearchMeta = { from: '', to: '', q: '' };

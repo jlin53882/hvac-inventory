@@ -16,12 +16,12 @@ from typing import Optional
 
 from fastapi import Depends, APIRouter, HTTPException
 
-from app.database import get_db
+from app.database import db_session
 from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
-from app.routes.photos import has_photo
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, chunked_ids, current_state, total_qty_map
+from app.services.photo_store import has_photo, invalidate_photo_ids_cache, legacy_photo_path
 from app.services.quantity import canonical_qty
 
 # 整組 API 路由
@@ -37,8 +37,7 @@ def _total(conn, item_id) -> float:
 @router.get("/api/kits", dependencies=[Depends(require_perm("kit-view"))])
 def list_kits(site: Optional[InventorySiteQuery] = None):
     """套件清單（含組成材料）；零件與庫存總量批次查詢（2026-09 效能：原本每組/每零件各查一次）。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         where = ""
         params = ()
         if site and site != "all":
@@ -115,8 +114,6 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
             d["components"] = comps
             result.append(d)
         return result
-    finally:
-        conn.close()
 
 
 @router.post("/api/kits", status_code=201, dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -124,52 +121,50 @@ def create_kit(kit: KitCreate):
     """新增套件定義：建立套件品項 + 組成材料"""
     if not kit.name or not kit.items:
         raise HTTPException(400, "套件名稱與材料都不能空白")
-    conn = get_db()
-    try:
-        site: InventorySite = kit.site or "office"
-        # 先驗證材料存在且與整組同一分片，避免留下跨區 BOM
-        for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i, site)
-        # 建立套件品項（v10：主檔 + 一筆空位置 stock）
-        cur = conn.execute(
-            "INSERT INTO items (brand, code, name, unit, is_kit, site) VALUES (?,?,?,?,1,?)",
-            (kit.brand.strip(), kit.code.strip(), kit.name, "組", site),
-        )
-        kit_item_id = cur.lastrowid
-        conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                     (kit_item_id, "", 0, kit.note))
-        # 建立套件定義
-        cur2 = conn.execute(
-            "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
-            (kit_item_id, kit.name, kit.note),
-        )
-        kit_id = cur2.lastrowid
-        seen_items: set = set()
-        for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i)
-            cid = comp["item_id"]
-            if cid in seen_items:
-                raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
-            seen_items.add(cid)
-            conn.execute(
-                "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                (kit_id, cid, canonical_qty(comp.get("qty", 1))),
+    with db_session() as conn:
+        try:
+            site: InventorySite = kit.site or "office"
+            # 先驗證材料存在且與整組同一分片，避免留下跨區 BOM
+            for i, comp in enumerate(kit.items, 1):
+                _validate_kit_comp(conn, comp, i, site)
+            # 建立套件品項（v10：主檔 + 一筆空位置 stock）
+            cur = conn.execute(
+                "INSERT INTO items (brand, code, name, unit, is_kit, site) VALUES (?,?,?,?,1,?)",
+                (kit.brand.strip(), kit.code.strip(), kit.name, "組", site),
             )
-        # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
-        _save_kit_locations(conn, kit_id, kit.locations)
-        conn.commit()
-        return {"id": kit_id, "item_id": kit_item_id, "name": kit.name,
-                "brand": kit.brand.strip(), "code": kit.code.strip()}
-    except sqlite3.IntegrityError as exc:
-        conn.rollback()
-        if "idx_items_unique" in str(exc):
-            raise HTTPException(400, "相同的整組已存在，請調整品牌、型號或名稱") from exc
-        raise
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
+            kit_item_id = cur.lastrowid
+            conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                         (kit_item_id, "", 0, kit.note))
+            # 建立套件定義
+            cur2 = conn.execute(
+                "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
+                (kit_item_id, kit.name, kit.note),
+            )
+            kit_id = cur2.lastrowid
+            seen_items: set = set()
+            for i, comp in enumerate(kit.items, 1):
+                _validate_kit_comp(conn, comp, i)
+                cid = comp["item_id"]
+                if cid in seen_items:
+                    raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
+                seen_items.add(cid)
+                conn.execute(
+                    "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                    (kit_id, cid, canonical_qty(comp.get("qty", 1))),
+                )
+            # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
+            _save_kit_locations(conn, kit_id, kit.locations)
+            conn.commit()
+            return {"id": kit_id, "item_id": kit_item_id, "name": kit.name,
+                    "brand": kit.brand.strip(), "code": kit.code.strip()}
+        except sqlite3.IntegrityError as exc:
+            conn.rollback()
+            if "idx_items_unique" in str(exc):
+                raise HTTPException(400, "相同的整組已存在，請調整品牌、型號或名稱") from exc
+            raise
+        except Exception:
+            conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+            raise
 
 
 def _validate_kit_comp(conn, comp, i, site: Optional[InventorySite] = None) -> None:
@@ -200,8 +195,7 @@ def update_kit(kit_id: int, kit: KitCreate):
     """更新整組定義（名稱/備註 + 全量替換材料；不影響已組裝的整組庫存）"""
     if not kit.name or not kit.items:
         raise HTTPException(400, "套件名稱與材料都不能空白")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not row:
             raise HTTPException(404, "整組不存在")
@@ -250,27 +244,69 @@ def update_kit(kit_id: int, kit: KitCreate):
         """, (kit_id,)).fetchone()
         return {"ok": True, "id": saved["id"], "name": saved["name"],
                 "brand": saved["brand"] or "", "code": saved["code"] or ""}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
+
+
+def _zero_out_kit_stock(conn, item_id: int) -> None:
+    """刪除整組前把庫存清零：每個正數位置各記一筆「品項刪除清零」異動，保留稽核軌跡，並讓 persisted 庫存真的歸零。"""
+    kit_stocks = conn.execute(
+        "SELECT location, qty FROM item_stocks WHERE item_id=? AND qty != 0",
+        (item_id,)).fetchall()
+    movement_ts = movement_time.now_sql() if kit_stocks else None
+    for s in kit_stocks:
+        if s["qty"] > 0:
+            conn.execute(
+                "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
+    if kit_stocks:
+        conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
+
+
+def _find_shared_photo_paths(conn, item_id: int, photo_assets):
+    """找出「其他 asset 也在用」的照片檔 → (shared_asset_paths, legacy_path_shared)；共用的檔案刪除時要保留。"""
+    from pathlib import Path
+    from app import config as app_config
+    from app.services.file_storage import safe_upload_path
+
+    shared_asset_paths = set()
+    legacy_path_shared = False
+    own_asset_ids = {asset["asset_id"] for asset in photo_assets}
+    own_paths_by_resolved = {}
+    path_columns = ("original_path", "preview_path", "thumbnail_path")
+    for asset in photo_assets:
+        for column in path_columns:
+            relative = asset[column]
+            if relative:
+                resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
+                own_paths_by_resolved.setdefault(resolved, set()).add(relative)
+    legacy_path = Path(legacy_photo_path(item_id)).resolve()
+    for reference in conn.execute(
+        "SELECT asset_id, original_path, preview_path, thumbnail_path FROM file_assets"
+    ).fetchall():
+        if reference["asset_id"] in own_asset_ids:
+            continue
+        for column in path_columns:
+            relative = reference[column]
+            if not relative:
+                continue
+            resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
+            if resolved in own_paths_by_resolved:
+                shared_asset_paths.update(own_paths_by_resolved[resolved])
+            if resolved == legacy_path:
+                legacy_path_shared = True
+    return shared_asset_paths, legacy_path_shared
 
 
 @router.delete("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
 def delete_kit(kit_id: int):
     """Delete a Kit definition and its photo assets while retaining inventory audit history."""
-    from pathlib import Path
     from app import config as app_config
-    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
-    from app.services.file_storage import delete_asset_files, safe_upload_path
+    from app.services.file_storage import delete_asset_files
     import os
 
-    conn = get_db()
     photo_assets = []
     shared_asset_paths = set()
     legacy_path_shared = False
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not row:
@@ -280,45 +316,12 @@ def delete_kit(kit_id: int):
         kit_item = conn.execute("SELECT prepared_qty FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if kit_item and canonical_qty(kit_item["prepared_qty"] or 0) > 0:
             raise HTTPException(400, f"該整組有待領出數量 {kit_item['prepared_qty']}，請先處理待領出再刪除")
-        kit_stocks = conn.execute(
-            "SELECT location, qty FROM item_stocks WHERE item_id=? AND qty != 0",
-            (item_id,)).fetchall()
-        movement_ts = movement_time.now_sql() if kit_stocks else None
-        for s in kit_stocks:
-            if s["qty"] > 0:
-                conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-                    (item_id, -s["qty"], s["qty"], 0, "品項刪除清零", s["location"] or "", movement_ts))
-        if kit_stocks:
-            conn.execute("UPDATE item_stocks SET qty=0, updated_at=datetime('now') WHERE item_id=?", (item_id,))
+        _zero_out_kit_stock(conn, item_id)
         photo_assets = conn.execute(
             "SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
             ("item_photo", "item", str(item_id)),
         ).fetchall()
-        own_asset_ids = {asset["asset_id"] for asset in photo_assets}
-        own_paths_by_resolved = {}
-        path_columns = ("original_path", "preview_path", "thumbnail_path")
-        for asset in photo_assets:
-            for column in path_columns:
-                relative = asset[column]
-                if relative:
-                    resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
-                    own_paths_by_resolved.setdefault(resolved, set()).add(relative)
-        legacy_path = Path(_photo_path(item_id)).resolve()
-        for reference in conn.execute(
-            "SELECT asset_id, original_path, preview_path, thumbnail_path FROM file_assets"
-        ).fetchall():
-            if reference["asset_id"] in own_asset_ids:
-                continue
-            for column in path_columns:
-                relative = reference[column]
-                if not relative:
-                    continue
-                resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
-                if resolved in own_paths_by_resolved:
-                    shared_asset_paths.update(own_paths_by_resolved[resolved])
-                if resolved == legacy_path:
-                    legacy_path_shared = True
+        shared_asset_paths, legacy_path_shared = _find_shared_photo_paths(conn, item_id, photo_assets)
         conn.execute(
             "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?",
             ("item_photo", "item", str(item_id)),
@@ -329,17 +332,12 @@ def delete_kit(kit_id: int):
         conn.execute("UPDATE items SET is_deleted=1, updated_at=? WHERE id=?",
                      (datetime.datetime.now().isoformat(), item_id))
         conn.commit()
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
     # Remove only unshared asset variants after the metadata transaction commits.
     for asset in photo_assets:
         delete_asset_files(asset, exclude_paths=shared_asset_paths, upload_dir=app_config.UPLOAD_DIR)
     if not legacy_path_shared:
         try:
-            os.remove(_photo_path(item_id))
+            os.remove(legacy_photo_path(item_id))
         except FileNotFoundError:
             pass
         except OSError as exc:
@@ -411,8 +409,7 @@ def assemble_kit(kit_id: int, req: KitAssemble):
         raise HTTPException(400, "組裝數量格式錯誤")
     if qty <= 0:
         raise HTTPException(400, "組裝數量正規化後必須大於 0")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         movement_ts = movement_time.now_sql()
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
@@ -450,11 +447,6 @@ def assemble_kit(kit_id: int, req: KitAssemble):
         _add_total(conn, kit["item_id"], qty, f"組裝完成:{kit['name']}", movement_ts)
         conn.commit()
         return {"ok": True, "kit": kit["name"], "qty": qty}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.post("/api/kits/{kit_id}/disassemble", dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -466,8 +458,7 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         raise HTTPException(400, "拆解數量格式錯誤")
     if qty <= 0:
         raise HTTPException(400, "拆解數量正規化後必須大於 0")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         movement_ts = movement_time.now_sql()
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
@@ -488,11 +479,6 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
             _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}", movement_ts)
         conn.commit()
         return {"ok": True, "kit": kit["name"], "qty": qty}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 

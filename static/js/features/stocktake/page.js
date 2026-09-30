@@ -6,6 +6,7 @@ import { openSharedStatusListModal, renderSharedProductStatusItem, statusListLoc
 import { apiFetch } from '../../core/api-client.js';
 import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { currentUser } from '../../core/session.js';
 import { appState } from '../../core/state.js';
@@ -13,14 +14,14 @@ import { esc, jsStr, toast, todayStr } from '../../core/utils.js';
 import { getInventoryStatus, rememberInventoryAlertItem } from '../inventory/status.js';
 import { stocktakeState } from './state.js';
 
-var stocktakeRenderRequestSeq = 0;
+const stocktakeRenderGuard = createRequestGuard();
 
 export async function renderStocktake() {
   // 盤點頁瀏覽掛 view；實際盤點操作仍由 stocktake 權限控制
-  const requestId = ++stocktakeRenderRequestSeq;
+  const requestId = stocktakeRenderGuard.next();
   const siteAtRequest = appState.currentSite;
   const isCurrent = function() {
-    return requestId === stocktakeRenderRequestSeq
+    return stocktakeRenderGuard.isCurrent(requestId)
       && appState.currentTab === 'stocktake'
       && siteAtRequest === appState.currentSite;
   };

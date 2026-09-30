@@ -2,6 +2,7 @@
 // 權限：登入可查/建；編輯/刪除限本人或具 petty-cash-delete-all 者
 
 import { apiFetch } from '../../core/api-client.js';
+import { createRequestGuard } from '../../core/request-guard.js';
 import { esc, jsStr, toast } from '../../core/utils.js';
 import { pettyCashState } from './state.js';
 
@@ -10,9 +11,9 @@ var pcPage = 1;
 var pcPageSize = 20;
 var pcTotal = 0;
 export var pcPersons = [];
-var pcHistoryRequestSeq = 0;
-var pcKpiRequestSeq = 0;
-var pcDetailRequestSeq = 0;
+const pcHistoryGuard = createRequestGuard();
+const pcKpiGuard = createRequestGuard();
+const pcDetailGuard = createRequestGuard();
 
 function _pcFilterSnapshot() {
   const value = id => {
@@ -115,7 +116,7 @@ export function pcSwitchModalStep(step, config) {
 // 渲染零用金月報首頁（含 KPI、篩選、列表）
 export async function renderPettyCash() {
   pcCloseAllMoreMenus();
-  pcDetailRequestSeq += 1;
+  pcDetailGuard.invalidate();
   pettyCashState.pcModalOpenSeq += 1;
   pettyCashState.pcModalSessionType = '';
   const el = document.getElementById('content');
@@ -214,7 +215,7 @@ export async function pcLoadHistory(resetPage) {
   const filters = _pcFilterSnapshot();
   const filterKey = _pcFilterKey(filters);
   const requestPage = pcPage;
-  const requestSeq = ++pcHistoryRequestSeq;
+  const requestSeq = pcHistoryGuard.next();
   const p = new URLSearchParams({
     ...filters,
     page: requestPage,
@@ -222,7 +223,7 @@ export async function pcLoadHistory(resetPage) {
   });
   try {
     const data = await apiFetch('/api/petty-cash-reports?' + p);
-    if (requestSeq !== pcHistoryRequestSeq || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
+    if (!pcHistoryGuard.isCurrent(requestSeq) || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
     pcReports = data.items || [];
     pcTotal = data.total || 0;
     pcPage = data.page || requestPage;
@@ -403,11 +404,11 @@ function pcRowOpsHtml(r) {
 async function pcUpdateKPI(filterSnapshot) {
   const snapshot = filterSnapshot || _pcFilterSnapshot();
   const filterKey = _pcFilterKey(snapshot);
-  const requestSeq = ++pcKpiRequestSeq;
+  const requestSeq = pcKpiGuard.next();
   const p = new URLSearchParams(snapshot);
   try {
     const k = await apiFetch('/api/petty-cash/kpi?' + p);
-    if (requestSeq !== pcKpiRequestSeq || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
+    if (!pcKpiGuard.isCurrent(requestSeq) || _pcFilterKey(_pcFilterSnapshot()) !== filterKey) return;
     document.getElementById('pc-kpi-total').textContent = k.total;
     document.getElementById('pc-kpi-done').textContent = k.completed;
     document.getElementById('pc-kpi-draft').textContent = k.draft;
@@ -460,10 +461,10 @@ export function pcChangePage(d) {
 // 開啟單份月報檢視
 export async function pcOpenDetail(id) {
   pcCloseAllMoreMenus();
-  const requestSeq = ++pcDetailRequestSeq;
+  const requestSeq = pcDetailGuard.next();
   try {
     const detail = await apiFetch('/api/petty-cash-reports/' + id);
-    if (requestSeq !== pcDetailRequestSeq) return;
+    if (!pcDetailGuard.isCurrent(requestSeq)) return;
     pettyCashState.pcDetail = detail;
     pcDetailExpanded = new Set();
     engExpandedCategories = new Set();
@@ -472,7 +473,7 @@ export async function pcOpenDetail(id) {
     engUiInitialized = false;
     pcRenderDetail();
   } catch(e) {
-    if (requestSeq === pcDetailRequestSeq) toast(e.status ? '⚠️ 讀取失敗' : '⚠️ 網路錯誤：' + e.message);
+    if (pcDetailGuard.isCurrent(requestSeq)) toast(e.status ? '⚠️ 讀取失敗' : '⚠️ 網路錯誤：' + e.message);
   }
 }
 

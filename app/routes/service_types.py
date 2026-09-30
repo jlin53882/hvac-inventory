@@ -4,7 +4,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.database import get_db
+from app.database import db_session
 from app.models import ServiceTypeIn
 from app.services.auth import require_perm
 from app.services import gcal_sync
@@ -16,12 +16,9 @@ router = APIRouter()
 @router.get("/api/service-types")
 def list_service_types():
     """全部服務項目（含停用；前端新增下拉只顯示 is_active=1）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute("SELECT * FROM service_types ORDER BY sort_order, id").fetchall()
         return [dict(r) for r in rows]
-    finally:
-        conn.close()
 
 
 @router.post("/api/service-types", dependencies=[Depends(require_perm("svc-type-mgmt"))])
@@ -29,8 +26,7 @@ def create_service_type(body: ServiceTypeIn):
     name = body.name.strip()
     if not name:
         raise HTTPException(400, "名稱不可空白")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         try:
             cur = conn.execute("INSERT INTO service_types (name, sort_order, is_active) VALUES (?,?,?)",
                                (name, body.sort_order, body.is_active))
@@ -39,11 +35,6 @@ def create_service_type(body: ServiceTypeIn):
             conn.rollback()   # 2026-08-14 鎖洩漏根治：同名衝突轉 400 前先釋放鎖
             raise HTTPException(400, "同名服務項目已存在")
         return dict(conn.execute("SELECT * FROM service_types WHERE id=?", (cur.lastrowid,)).fetchone())
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
 
 @router.put("/api/service-types/{svc_id}", dependencies=[Depends(require_perm("svc-type-mgmt"))])
@@ -51,9 +42,8 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
     name = body.name.strip()
     if not name:
         raise HTTPException(400, "名稱不可空白")
-    conn = get_db()
     affected_ids = []
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT id, name FROM service_types WHERE id=?", (svc_id,)).fetchone()
         if row is None:
@@ -73,34 +63,22 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
                 sync_work_progress_snapshot_for_appointment(conn, appointment_id)
         conn.commit()
         result = dict(conn.execute("SELECT * FROM service_types WHERE id=?", (svc_id,)).fetchone())
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
     # Commit DB consistency before touching scheduler/GCal state.
     if old_name != name:
         if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
             from app.services import sync_scheduler
-            sync_scheduler.start()
-            sync_scheduler.wake()
+            sync_scheduler.start_and_wake()
     return result
 
 
 @router.delete("/api/service-types/{svc_id}", dependencies=[Depends(require_perm("svc-type-mgmt"))])
 def deactivate_service_type(svc_id: int):
     """停用（is_active=0，不真刪：舊行程的類別仍顯示）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT id FROM service_types WHERE id=?", (svc_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "服務項目不存在")
         conn.execute("UPDATE service_types SET is_active=0 WHERE id=?", (svc_id,))
         conn.commit()
         return {"ok": True}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()

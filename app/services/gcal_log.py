@@ -15,11 +15,12 @@ import logging
 import os
 import shutil
 import tarfile
+import threading
 from datetime import datetime
 
-# 專案根目錄（logs/ 的上層）
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-_LOG_BASE = os.path.join(_PROJECT_ROOT, "logs")
+from app.config import LOG_BASE
+
+_LOG_BASE = str(LOG_BASE)   # 測試可 monkeypatch 此名稱；預設值來自 app.config（HVAC_LOG_DIR 可覆寫）
 
 # 格式器（共用）
 _FORMATTER = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
@@ -119,7 +120,9 @@ def setup_gcal_logging():
 
 
 # 模組級別：確保只初始化一次
+# setup_gcal_logging() 會做歸檔（打包/刪除舊日誌目錄），兩個 thread 同時首次呼叫不可重複執行，故加鎖
 _handler = None
+_handler_lock = threading.Lock()
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -132,9 +135,11 @@ def get_logger(name: str) -> logging.Logger:
     global _handler
     logger = logging.getLogger(name)
 
-    # 避免重複加 handler（模組重載時）
+    # 避免重複加 handler（模組重載時）；double-checked：已初始化的常態路徑不搶鎖
     if _handler is None:
-        _handler = setup_gcal_logging()
+        with _handler_lock:
+            if _handler is None:
+                _handler = setup_gcal_logging()
 
     # 檢查是否已有 handler（避免重複加）
     has_file_handler = any(

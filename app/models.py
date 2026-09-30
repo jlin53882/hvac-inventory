@@ -6,6 +6,7 @@ Pydantic 請求模型
 """
 from datetime import date
 from decimal import Decimal
+from types import MappingProxyType
 from typing import Annotated, Any, List, Literal, Optional
 
 from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
@@ -27,7 +28,7 @@ PAGE_KEYS = (
 )
 DEFAULT_VISIBLE_PAGE_KEYS = frozenset({"calendar", "signed-reports", "inventory", "kit"})
 
-ROLE_DEFAULT_VISIBLE_PAGE_KEYS = {
+ROLE_DEFAULT_VISIBLE_PAGE_KEYS = MappingProxyType({
     "admin": frozenset(PAGE_KEYS),
     "user": frozenset({
         "calendar", "work-progress", "signed-reports", "quotation", "petty-cash",
@@ -42,7 +43,7 @@ ROLE_DEFAULT_VISIBLE_PAGE_KEYS = {
     "viewer": frozenset({
         "calendar", "work-progress", "signed-reports", "inventory", "kit",
     }),
-}
+})
 
 
 def initial_visible_page_keys(role: str) -> set[str]:

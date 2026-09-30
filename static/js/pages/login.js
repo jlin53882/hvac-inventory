@@ -1,5 +1,5 @@
 // login.html 的進入點（issue #39：原 login.html 內嵌 script）：已登入直接進主頁、記住帳號、密碼顯示切換、登入送出。
-// 登入頁不呼叫 initSession（不攔截 401 跳轉），API 一律經 core/api-client.js。
+// 登入頁不註冊 setUnauthorizedHandler（不攔截 401 跳轉），API 一律經 core/api-client.js。
 
 import { apiFetch } from '../core/api-client.js';
 

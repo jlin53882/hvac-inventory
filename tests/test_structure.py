@@ -99,8 +99,8 @@ def test_calendar_js_split_three_files():
 def test_calendar_state_in_globals():
     """A2：行事曆狀態 8 項集中在共用狀態模組（issue #39：原 globals.js → core/state.js 與 features/calendar/state.js）"""
     g = read_js(js_modules("core/state.js", "features/calendar/state.js"))
-    for v in ("var _calM", "  calMonth: ", "  calSelected: ", "  calEvents: ",
-              "  calSvc: ", "  calAssignable: ", "export var CAL_PALETTE", "export var CAL_WEEK"):
+    for v in ("export function parseCalendarMonth", "  calMonth: ", "  calSelected: ", "  calEvents: ",
+              "  calSvc: ", "  calAssignable: ", "export const CAL_PALETTE", "export const CAL_WEEK"):
         assert v in g, f"共用狀態缺 {v.strip()}"
     render = read_js(js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/view.js", "features/calendar/sync-status.js"))
     for gone in ("let calMonth", "let calEvents", "var calMonth", "var calEvents"):

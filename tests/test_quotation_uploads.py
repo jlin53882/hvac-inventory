@@ -6,7 +6,7 @@
 """
 
 import app.database as app_db
-import app.routes.quotation_uploads as quotation_uploads
+import app.services.upload_resource as upload_resource
 import inspect
 import main as app_main
 import pytest
@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 def signed_env(tmp_path, monkeypatch):
     """隔離 DB 與上傳目錄，回傳可建立已登入 client 的工廠。"""
     monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "quotation_uploads.db"))
-    monkeypatch.setattr(quotation_uploads, "STATIC_DIR", str(tmp_path / "static"))
+    monkeypatch.setattr(upload_resource, "STATIC_DIR", str(tmp_path / "static"))
     app_db.init_db()
     conn = app_db.get_db()
     try:
@@ -53,11 +53,15 @@ def signed_env(tmp_path, monkeypatch):
 
 
 def test_shared_safety_helpers_are_the_only_quotation_helpers():
-    source = inspect.getsource(quotation_uploads)
-    assert "def _safe_name" not in source
-    assert "def _can_delete_all" not in source
-    assert "safe_download_name" in source
-    assert "has_perm" in source
+    import app.routes.quotation_uploads as quotation_route
+
+    shared = inspect.getsource(upload_resource)
+    route = inspect.getsource(quotation_route)
+    for source in (shared, route):
+        assert "def _safe_name" not in source
+        assert "def _can_delete_all" not in source
+    assert "safe_download_name" in shared   # 檔名清理走共用 helper
+    assert "has_perm" in route              # 權限規則留在資源自己的 route
 
 
 def _upload(client, *, report_date="2026-09-07", filename="daily.pdf", content=b"%PDF-signed"):
@@ -448,7 +452,7 @@ def test_edit_keeps_committed_replacement_when_old_cleanup_fails(signed_env, mon
     def fail_cleanup(*args, **kwargs):
         raise OSError("simulated cleanup failure")
 
-    monkeypatch.setattr(quotation_uploads, "delete_asset_files", fail_cleanup)
+    monkeypatch.setattr(upload_resource, "delete_asset_files", fail_cleanup)
     updated = owner.patch(
         f"/api/quotation-uploads/{report['id']}",
         data={"note": "新版本"},
@@ -485,7 +489,7 @@ def prepare_spy(monkeypatch):
         raise ValueError("無法解析圖片")
 
     def arm():
-        monkeypatch.setattr(quotation_uploads, "prepare_media", exploding_prepare)
+        monkeypatch.setattr(upload_resource, "prepare_media", exploding_prepare)
         return calls
 
     return arm
@@ -543,7 +547,7 @@ def test_replace_quotation_upload_rechecks_permission_inside_transaction(signed_
     owner = make_client("owner", "user")
     make_client("other", "user")
     report = _upload(owner).json()
-    real_read_and_prepare = quotation_uploads._read_and_prepare
+    real_read_and_prepare = upload_resource._read_and_prepare
 
     def revoke_after_prepare(file):
         result = real_read_and_prepare(file)
@@ -558,7 +562,7 @@ def test_replace_quotation_upload_rechecks_permission_inside_transaction(signed_
             conn.close()
         return result
 
-    monkeypatch.setattr(quotation_uploads, "_read_and_prepare", revoke_after_prepare)
+    monkeypatch.setattr(upload_resource, "_read_and_prepare", revoke_after_prepare)
     response = owner.patch(
         f"/api/quotation-uploads/{report['id']}", data={"note": "不應寫入"},
         files={"file": ("photo.png", _png_bytes(), "image/png")},

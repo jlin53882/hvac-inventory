@@ -26,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 import app.config as app_config
 from app.config import STATIC_DIR
 from app.middleware import BinarySafeGZipMiddleware, cache_control_middleware, csrf_origin_middleware, request_logging_middleware, security_headers_middleware
-from app.database import get_db, init_db
+from app.database import db_session, init_db
 from app.routes import appointments, auth, cabinets, export, items, gcal_keys, kits, lookup, movements, petty_cash, photos, quotations, quotation_uploads, service_types, signed_reports, stats, stockout, stocktake, transfers, users, units, work_progress
 from app.services.auth import cleanup_expired, init_admin_if_missing, require_login
 from app.services.file_storage import asset_media_type, asset_variant_path, get_asset
@@ -40,16 +40,14 @@ async def lifespan(app: FastAPI):
     """啟動時初始化 DB schema + 首次 admin + 清理過期 session；shutdown 無需清理。
     2026-08-14 移入 lifespan：`import main` 不再觸發 DB 寫入（測試側 database is locked 根治）
     2026-08-15：cleanup_expired 落地（docstring 原聲稱「啟動時與登入時呼叫」但啟動時漏呼叫）"""
+    app_config.ensure_runtime_dirs()   # import config 不再建目錄；統一在啟動時建立
     setup_logging()
     logger.info("server startup cwd=%s", os.getcwd())
     init_db()
-    _conn = get_db()
-    try:
+    with db_session() as _conn:
         cleanup_expired(_conn)      # 2026-08-15：啟動時清理過期 session（避免 sessions 表無限增長）
         init_admin_if_missing(_conn)
         sync_scheduler.start()   # worker 一律啟動；無啟用 key 時單輪 no-op
-    finally:
-        _conn.close()
     yield
     sync_scheduler.stop()
     logger.info("server shutdown")
@@ -108,7 +106,7 @@ def _dist_warn_once(version, entry, reason: str) -> None:
 
 def _dist_manifest() -> tuple[dict, tuple]:
     """讀取 Vite manifest（依 mtime 快取），回傳 (manifest, 版本鍵)；不存在、損毀或指定使用原始碼時 manifest 為空 dict"""
-    if os.environ.get("HVAC_FRONTEND_SOURCE") == "1":
+    if app_config.use_frontend_source():
         return {}, ()
     path = os.path.join(STATIC_DIR, "dist", ".vite", "manifest.json")
     try:
@@ -273,8 +271,7 @@ def read_media(asset_id: str, variant: str, user: dict = Depends(require_login))
     """回傳登入者可讀的 original/preview/thumbnail 媒體變體。"""
     if not re.fullmatch(r"[0-9a-f]{32}", asset_id) or variant not in ("original", "preview", "thumbnail"):
         raise HTTPException(status_code=404, detail="找不到媒體")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = get_asset(conn, asset_id)
         if row is None:
             raise HTTPException(status_code=404, detail="找不到媒體")
@@ -297,8 +294,6 @@ def read_media(asset_id: str, variant: str, user: dict = Depends(require_login))
                 content_disposition_type="attachment",
             )
         return FileResponse(path, **response_kwargs)
-    finally:
-        conn.close()
 
 if __name__ == "__main__":
     # 直接執行 main.py 也必須走 single-instance launcher；不要再建立裸 uvicorn。

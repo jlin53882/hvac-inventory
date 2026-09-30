@@ -12,8 +12,8 @@ import { wprCreatedByText, wprIsoDate, wprMonth, wprTimeText } from './format.js
  */
 export async function wprLoadKpi() {
   var el = document.getElementById('wpr-kpi'); if (!el) return;
-  var token = ++workProgressState.wprKpiRequestToken;
-  try { var data = await apiFetch('/api/work-progress/kpi?month=' + encodeURIComponent(wprMonth())); if (token !== workProgressState.wprKpiRequestToken) return; el.innerHTML = [{label:'已回報',value:data.reported},{label:'待回報',value:data.missing},{label:'回報率',value:data.rate === null ? '—' : data.rate + '%'}].map(function(item) { return '<div class="wpr-kpi"><span>' + item.label + '</span><strong>' + item.value + '</strong></div>'; }).join('') + '<div class="wpr-kpi-meta">本月目前 ' + data.total + ' 筆行事曆工作 · ' + data.photo_count + ' 張照片</div>'; } catch (error) { if (token === workProgressState.wprKpiRequestToken) el.innerHTML = ''; }
+  var token = workProgressState.wprKpiGuard.next();
+  try { var data = await apiFetch('/api/work-progress/kpi?month=' + encodeURIComponent(wprMonth())); if (!workProgressState.wprKpiGuard.isCurrent(token)) return; el.innerHTML = [{label:'已回報',value:data.reported},{label:'待回報',value:data.missing},{label:'回報率',value:data.rate === null ? '—' : data.rate + '%'}].map(function(item) { return '<div class="wpr-kpi"><span>' + item.label + '</span><strong>' + item.value + '</strong></div>'; }).join('') + '<div class="wpr-kpi-meta">本月目前 ' + data.total + ' 筆行事曆工作 · ' + data.photo_count + ' 張照片</div>'; } catch (error) { if (workProgressState.wprKpiGuard.isCurrent(token)) el.innerHTML = ''; }
 }
 /**
  * Initialize history filters to the current calendar month.
@@ -73,12 +73,12 @@ function wprRenderHistoryPagination() {
 export async function wprLoadHistory(page) {
   var list = document.getElementById('wpr-history-list'); if (!list) return;
   page = Number.isInteger(page) && page > 0 ? page : 1;
-  var token = ++workProgressState.wprHistoryRequestToken;
+  var token = workProgressState.wprHistoryGuard.next();
   var p = new URLSearchParams({ page: String(page), page_size: String(wprHistoryPageSize) }); var from = document.getElementById('wpr-from').value; var to = document.getElementById('wpr-to').value; var q = document.getElementById('wpr-query').value.trim();
   if (from) p.set('from_date', from); if (to) p.set('to_date', to); if (q) p.set('q', q);
   try {
     var data = await apiFetch('/api/work-progress?' + p);
-    if (token !== workProgressState.wprHistoryRequestToken) return;
+    if (!workProgressState.wprHistoryGuard.isCurrent(token)) return;
     workProgressState.wprHistoryTotal = Number(data.total) || 0;
     var resultCount = document.getElementById('wpr-result-count'); if (resultCount) resultCount.textContent = workProgressState.wprHistoryTotal + ' 筆';
     var lastPage = Math.max(1, Math.ceil(workProgressState.wprHistoryTotal / wprHistoryPageSize));
@@ -87,6 +87,6 @@ export async function wprLoadHistory(page) {
     wprClearPhotoManageStates(function(targetId) { return targetId.indexOf('wpr-detail-') === 0; });
     if (!data.items.length) { list.innerHTML = '<div class="wpr-empty wpr-history-empty">📸 尚無工作進度<br><small>目前沒有符合條件的工作進度回報。</small></div>'; return; }
     list.innerHTML = data.items.map(wprHistoryCard).join('') + wprRenderHistoryPagination();
-  } catch (error) { if (token === workProgressState.wprHistoryRequestToken) list.innerHTML = '<div class="wpr-empty">⚠️ ' + esc(error.message) + '</div>'; }
+  } catch (error) { if (workProgressState.wprHistoryGuard.isCurrent(token)) list.innerHTML = '<div class="wpr-empty">⚠️ ' + esc(error.message) + '</div>'; }
 }
 function wprHistoryCard(report) { return '<details class="wpr-history-item" ontoggle="WorkProgress.wprHistoryToggled(this, ' + report.id + ')"><summary><span class="wpr-history-date">' + esc(report.report_date) + '</span><span><b>' + esc(report.service_name || '未指定服務') + ' · ' + esc(report.client_name) + '</b><small>' + wprTimeText(report) + ' · 回報人：' + esc(report.uploader_name) + ' · 建立帳號：' + esc(wprCreatedByText(report)) + '</small></span><span class="wpr-history-photo-count">📷 ' + report.photo_count + '</span></summary><div class="wpr-history-detail" id="wpr-detail-' + report.id + '">載入詳情中…</div></details>'; }

@@ -19,9 +19,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_LOG_BASE = str(_PROJECT_ROOT / "logs")
-_DEFAULT_LOG_BASE = _LOG_BASE
+from app.config import LOG_BASE
+
+_LOG_BASE = str(LOG_BASE)   # 測試可 monkeypatch 此名稱；預設值來自 app.config（HVAC_LOG_DIR 可覆寫）
 _REQUEST_ID: ContextVar[str] = ContextVar("hvac_request_id", default="-")
 _FORMAT = "%(asctime)s [%(levelname)s] [%(name)s] [request_id=%(request_id)s] %(message)s"
 LOG_RETENTION_DAYS = 30
@@ -125,11 +125,9 @@ class _MaxLevelFilter(logging.Filter):
 
 
 def _today_dir() -> Path:
-    base = Path(_LOG_BASE)
-    # pytest 的 TestClient request 不得污染正式 server log。
-    if os.environ.get("PYTEST_CURRENT_TEST") and os.path.abspath(_LOG_BASE) == os.path.abspath(_DEFAULT_LOG_BASE):
-        base = base / "test"
-    return base / datetime.now().strftime("%m%d")
+    # 測試不得污染正式 server log：由 tests/conftest.py 設 HVAC_LOG_DIR 指向 logs/test，
+    # 正式碼不再判斷自己是否在 pytest 底下。
+    return Path(_LOG_BASE) / datetime.now().strftime("%m%d")
 
 
 def _cleanup_rotated(new_dir: Path) -> None:
@@ -155,8 +153,7 @@ def setup_logging() -> Path:
 
     def file_handler(filename: str, level: int = logging.INFO) -> logging.Handler:
         # server.log 負責跨日清理（每次切日只需觸發一次）
-        # 基底目錄（含 pytest 的 logs/test/）在 setup 時固定，之後只隨日期換 MMDD；
-        # 不在每次 emit 重判 PYTEST_CURRENT_TEST，避免測試之間背景執行緒的 log 寫進正式 logs/。
+        # 基底目錄在 setup 時固定，之後只隨日期換 MMDD（測試的基底目錄由 HVAC_LOG_DIR 決定）。
         handler = DailyDirFileHandler(
             filename, lambda: log_base / datetime.now().strftime("%m%d"),
             on_rollover=_cleanup_rotated if filename == "server.log" else None,

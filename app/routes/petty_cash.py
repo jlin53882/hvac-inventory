@@ -27,7 +27,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.database import get_db
+from app.database import db_session
 from app.models import EngineeringReportIn, PettyCashOptionIn, PettyCashOptionUpdate, PettyCashReportIn, PettyCashReportPayload
 from app.services.engineering_petty_cash import (
     _engineering_row, build_engineering_report, engineering_filename, engineering_safe_filename,
@@ -364,20 +364,16 @@ def _validate_option_filters(report_type, option_type):
 def list_petty_cash_options(
     report_type: str = Query(...), option_type: str = Query(...), user: dict = Depends(require_login)
 ):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-view")
         _validate_option_filters(report_type, option_type)
         rows = conn.execute("SELECT id, report_type, option_type, name, sort_order, is_active FROM petty_cash_master_options WHERE report_type=? AND option_type=? ORDER BY sort_order,id", (report_type, option_type)).fetchall()
         return {"items": [dict(row) for row in rows]}
-    finally:
-        conn.close()
 
 
 @router.post("/api/petty-cash-options", status_code=201)
 def create_petty_cash_option(body: PettyCashOptionIn, user: dict = Depends(require_login)):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-config")
         try:
             cur = conn.execute("INSERT INTO petty_cash_master_options(report_type,option_type,name,sort_order) VALUES(?,?,?,?)", (body.report_type,body.option_type,body.name,body.sort_order))
@@ -385,14 +381,11 @@ def create_petty_cash_option(body: PettyCashOptionIn, user: dict = Depends(requi
         except sqlite3.IntegrityError:
             conn.rollback(); raise HTTPException(409, "已存在相同的零用金選單項目")
         return dict(conn.execute("SELECT id,report_type,option_type,name,sort_order,is_active FROM petty_cash_master_options WHERE id=?", (cur.lastrowid,)).fetchone())
-    finally:
-        conn.close()
 
 
 @router.put("/api/petty-cash-options/{option_id}")
 def update_petty_cash_option(option_id: int, body: PettyCashOptionUpdate, user: dict = Depends(require_login)):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-config")
         row = conn.execute("SELECT * FROM petty_cash_master_options WHERE id=?", (option_id,)).fetchone()
         if row is None: raise HTTPException(404, "零用金選單不存在")
@@ -405,19 +398,14 @@ def update_petty_cash_option(option_id: int, body: PettyCashOptionUpdate, user: 
             try: conn.execute(f"UPDATE petty_cash_master_options SET {','.join(fields)},updated_at=datetime('now') WHERE id=?", params); conn.commit()
             except sqlite3.IntegrityError: conn.rollback(); raise HTTPException(409, "已存在相同的零用金選單項目")
         return dict(conn.execute("SELECT id,report_type,option_type,name,sort_order,is_active FROM petty_cash_master_options WHERE id=?", (option_id,)).fetchone())
-    finally:
-        conn.close()
 
 
 @router.delete("/api/petty-cash-options/{option_id}")
 def delete_petty_cash_option(option_id: int, user: dict = Depends(require_login)):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-config")
         if conn.execute("DELETE FROM petty_cash_master_options WHERE id=?", (option_id,)).rowcount == 0: raise HTTPException(404, "零用金選單不存在")
         conn.commit(); return {"ok": True, "deleted": option_id}
-    finally:
-        conn.close()
 
 
 @router.get("/api/petty-cash/kpi")
@@ -429,8 +417,7 @@ def petty_cash_kpi(
     if user is None:
         raise HTTPException(401, "未登入")
     sql_where, params = filters
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-view")
         row = conn.execute(
             f"""SELECT COUNT(*) AS total,
@@ -440,8 +427,6 @@ def petty_cash_kpi(
             params,
         ).fetchone()
         return {"total": row["total"], "completed": row["completed"], "draft": row["draft"]}
-    finally:
-        conn.close()
 
 
 @router.get("/api/petty-cash-persons")
@@ -449,8 +434,7 @@ def petty_cash_persons(user: dict = Depends(require_login)):
     """上傳人候選：歷史報表上傳人 + 啟用中使用者顯示名（供篩選下拉與新增報表選擇既有人員）。"""
     if user is None:
         raise HTTPException(401, "未登入")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-view")
         names = set()
         for r in conn.execute("SELECT DISTINCT upload_person FROM petty_cash_reports").fetchall():
@@ -460,8 +444,6 @@ def petty_cash_persons(user: dict = Depends(require_login)):
             if (r["display_name"] or "").strip():
                 names.add(r["display_name"].strip())
         return {"persons": sorted(names)}
-    finally:
-        conn.close()
 
 
 @router.get("/api/petty-cash-reports/previous-balance")
@@ -474,8 +456,7 @@ def previous_balance(
     if user is None:
         raise HTTPException(401, "未登入")
     before = parse_ymd(before, "開始日期")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-view")
         income_expr = "COALESCE((SELECT SUM(amount) FROM petty_cash_entries WHERE report_id=r.id AND entry_type='income'), 0)"
         expense_expr = "COALESCE((SELECT SUM(amount) FROM petty_cash_entries WHERE report_id=r.id AND entry_type!='income'), 0)"
@@ -498,8 +479,6 @@ def previous_balance(
             "previous_id": prev["id"],
             "previous_period": f"{prev['start_date']}～{prev['end_date']}",
         }
-    finally:
-        conn.close()
 
 
 @router.get("/api/petty-cash-reports")
@@ -512,8 +491,7 @@ def list_petty_cash_reports(
     if user is None:
         raise HTTPException(401, "未登入")
     sql_where, params = filters
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-view")
         total = conn.execute(
             f"SELECT COUNT(*) FROM petty_cash_reports {sql_where}", params
@@ -532,8 +510,6 @@ def list_petty_cash_reports(
             summary.update(_report_capabilities(conn, r, user))
             items.append(summary)
         return {"items": items, "total": total, "page": page, "page_size": page_size}
-    finally:
-        conn.close()
 
 
 @router.post("/api/petty-cash-reports", status_code=201)
@@ -552,37 +528,34 @@ def create_petty_cash_report(body: PettyCashReportPayload, user: dict = Depends(
     """
     if user is None:
         raise HTTPException(401, "未登入")
-    conn = get_db()
-    try:
-        _require_pc_perm(conn, user, "petty-cash-create")
-        # Serialize duplicate check + insert/update so concurrent clients cannot both pass SELECT.
-        conn.execute("BEGIN IMMEDIATE")
-        if isinstance(body, EngineeringReportIn):
-            _check_engineering_duplicate(conn, body)
-            report_id = write_engineering(conn, body, user["id"])
-        else:
-            report_id = _write_report(conn, body, user["id"])
-        conn.commit()
-        return _report_dict(conn, report_id)
-    except HTTPException:
-        conn.rollback()
-        raise
-    except (ValueError, KeyError) as exc:
-        conn.rollback()
-        raise HTTPException(400 if isinstance(exc, ValueError) else 404, str(exc))
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            _require_pc_perm(conn, user, "petty-cash-create")
+            # Serialize duplicate check + insert/update so concurrent clients cannot both pass SELECT.
+            conn.execute("BEGIN IMMEDIATE")
+            if isinstance(body, EngineeringReportIn):
+                _check_engineering_duplicate(conn, body)
+                report_id = write_engineering(conn, body, user["id"])
+            else:
+                report_id = _write_report(conn, body, user["id"])
+            conn.commit()
+            return _report_dict(conn, report_id)
+        except HTTPException:
+            conn.rollback()
+            raise
+        except (ValueError, KeyError) as exc:
+            conn.rollback()
+            raise HTTPException(400 if isinstance(exc, ValueError) else 404, str(exc))
+        except Exception:
+            conn.rollback()
+            raise
 
 
 @router.get("/api/petty-cash-reports/{report_id}")
 def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
     if user is None:
         raise HTTPException(401, "未登入")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-view")
         data = _report_dict(conn, report_id)
         row = conn.execute(
@@ -591,8 +564,6 @@ def get_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
         ).fetchone()
         data.update(_report_capabilities(conn, row, user))
         return data
-    finally:
-        conn.close()
 
 
 @router.put("/api/petty-cash-reports/{report_id}")
@@ -614,83 +585,78 @@ def update_petty_cash_report(
     """
     if user is None:
         raise HTTPException(401, "未登入")
-    conn = get_db()
-    try:
-        _require_pc_perm(conn, user, "petty-cash-edit")
-        row = conn.execute(
-            "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
-            (report_id,),
-        ).fetchone()
-        if row is None:
-            raise HTTPException(404, "零用金月報不存在")
-        can_all = has_perm(conn, user, "petty-cash-delete-all")
-        if not (
-            can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
-        ):
-            raise HTTPException(403, "僅建立者或具全域刪除權限者可編輯")
-        # Keep type validation, duplicate check, and full replacement in one writer transaction.
-        conn.execute("BEGIN IMMEDIATE")
-        existing_type = row["report_type"] or "general"
-        requested_type = "engineering" if isinstance(body, EngineeringReportIn) else "general"
-        if existing_type != requested_type:
-            raise HTTPException(409, "不可用不同報表類型更新既有零用金月報")
-        if isinstance(body, EngineeringReportIn):
-            _check_engineering_duplicate(conn, body, exclude_id=report_id)
-            write_engineering(conn, body, user["id"], report_id)
-        else:
-            _write_report(conn, body, user["id"], report_id)
-        conn.commit()
-        return _report_dict(conn, report_id)
-    except HTTPException:
-        conn.rollback()
-        raise
-    except (ValueError, KeyError) as exc:
-        conn.rollback()
-        raise HTTPException(400 if isinstance(exc, ValueError) else 404, str(exc))
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            _require_pc_perm(conn, user, "petty-cash-edit")
+            row = conn.execute(
+                "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
+                (report_id,),
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, "零用金月報不存在")
+            can_all = has_perm(conn, user, "petty-cash-delete-all")
+            if not (
+                can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
+            ):
+                raise HTTPException(403, "僅建立者或具全域刪除權限者可編輯")
+            # Keep type validation, duplicate check, and full replacement in one writer transaction.
+            conn.execute("BEGIN IMMEDIATE")
+            existing_type = row["report_type"] or "general"
+            requested_type = "engineering" if isinstance(body, EngineeringReportIn) else "general"
+            if existing_type != requested_type:
+                raise HTTPException(409, "不可用不同報表類型更新既有零用金月報")
+            if isinstance(body, EngineeringReportIn):
+                _check_engineering_duplicate(conn, body, exclude_id=report_id)
+                write_engineering(conn, body, user["id"], report_id)
+            else:
+                _write_report(conn, body, user["id"], report_id)
+            conn.commit()
+            return _report_dict(conn, report_id)
+        except HTTPException:
+            conn.rollback()
+            raise
+        except (ValueError, KeyError) as exc:
+            conn.rollback()
+            raise HTTPException(400 if isinstance(exc, ValueError) else 404, str(exc))
+        except Exception:
+            conn.rollback()
+            raise
 
 
 @router.delete("/api/petty-cash-reports/{report_id}")
 def delete_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
     if user is None:
         raise HTTPException(401, "未登入")
-    conn = get_db()
-    try:
-        _require_pc_perm(conn, user, "petty-cash-delete")
-        row = conn.execute(
-            "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
-            (report_id,),
-        ).fetchone()
-        if row is None:
-            raise HTTPException(404, "零用金月報不存在")
-        can_all = has_perm(conn, user, "petty-cash-delete-all")
-        if not (
-            can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
-        ):
-            raise HTTPException(403, "僅建立者或具全域刪除權限者可刪除")
-        conn.execute("DELETE FROM petty_cash_reports WHERE id=?", (report_id,))
-        conn.commit()
-        return {"ok": True, "deleted": report_id}
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            _require_pc_perm(conn, user, "petty-cash-delete")
+            row = conn.execute(
+                "SELECT report_type, uploader_user_id, created_by FROM petty_cash_reports WHERE id=?",
+                (report_id,),
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, "零用金月報不存在")
+            can_all = has_perm(conn, user, "petty-cash-delete-all")
+            if not (
+                can_all or row["uploader_user_id"] == user["id"] or row["created_by"] == user["id"]
+            ):
+                raise HTTPException(403, "僅建立者或具全域刪除權限者可刪除")
+            conn.execute("DELETE FROM petty_cash_reports WHERE id=?", (report_id,))
+            conn.commit()
+            return {"ok": True, "deleted": report_id}
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
 
 
 @router.get("/api/petty-cash-reports/{report_id}/export.xlsx")
 def export_petty_cash_report(report_id: int, user: dict = Depends(require_login)):
     if user is None:
         raise HTTPException(401, "未登入")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _require_pc_perm(conn, user, "petty-cash-view")
         data = _report_dict(conn, report_id)
         buf = build_engineering_report(data) if data.get("report_type") == "engineering" else build_petty_cash_report(data)
@@ -699,8 +665,6 @@ def export_petty_cash_report(report_id: int, user: dict = Depends(require_login)
             (datetime.datetime.now().isoformat(), report_id),
         )
         conn.commit()
-    finally:
-        conn.close()
     raw_name = data.get("filename") if data.get("report_type") == "engineering" else download_filename(data["filename_text"], data["start_date"], data["end_date"])
     filename = engineering_safe_filename(raw_name) if data.get("report_type") == "engineering" else safe_download_name(excel_safe(raw_name))
     return xlsx_download(buf.getvalue(), filename)

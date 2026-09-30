@@ -2502,6 +2502,7 @@ def test_recovered_d_success_finalizes_and_backfills_new_calendar(client, monkey
     from app.services import gcal_sync, sync_scheduler
 
     monkeypatch.setattr(gcal_keys, "_wake_scheduler", lambda: None)
+    monkeypatch.setattr(sync_scheduler, "start_and_wake", lambda: None)
     key_id = client.post("/api/gcal-keys", json={
         "name": "recovery-finalize", "credentials_path": "calendar.json", "calendar_id": "old@cal",
     }).json()["id"]
@@ -2638,7 +2639,6 @@ def test_scheduler_restart_finalizes_empty_pending_migration(client, monkeypatch
 def test_calendar_finalize_rolls_back_when_backfill_fails(client, monkeypatch):
     """finalize 與 new Calendar backfill 必須同一 transaction。"""
     from app.database import get_db
-    from app.routes import gcal_keys
     from app.services import gcal_sync, sync_scheduler
 
     key_id = client.post("/api/gcal-keys", json={
@@ -2657,7 +2657,7 @@ def test_calendar_finalize_rolls_back_when_backfill_fails(client, monkeypatch):
     def fail_backfill(conn, key_id):
         raise RuntimeError("forced backfill failure")
 
-    monkeypatch.setattr(gcal_keys, "_backfill_all_appointments_with_conn", fail_backfill)
+    monkeypatch.setattr(gcal_sync, "backfill_all_appointments_with_conn", fail_backfill)
 
     assert gcal_sync.maybe_finalize_calendar_migration(key_id) is False
 

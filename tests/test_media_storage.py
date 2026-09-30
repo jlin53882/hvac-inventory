@@ -15,8 +15,7 @@ from PIL import Image
 
 import app.config as app_config
 import app.database as app_db
-import app.routes.quotation_uploads as quotation_uploads
-import app.routes.signed_reports as signed_reports
+import app.services.upload_resource as upload_resource
 import main as app_main
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
 
@@ -42,8 +41,7 @@ def media_env(tmp_path, monkeypatch):
     monkeypatch.setattr(static_mount, "directory", str(static_dir))
     monkeypatch.setattr(static_mount, "all_directories", [str(static_dir)])
     monkeypatch.setattr(app_config, "UPLOAD_DIR", str(upload_dir))
-    monkeypatch.setattr(signed_reports, "STATIC_DIR", str(static_dir))
-    monkeypatch.setattr(quotation_uploads, "STATIC_DIR", str(static_dir))
+    monkeypatch.setattr(upload_resource, "STATIC_DIR", str(static_dir))
     app_db.init_db()
 
     conn = app_db.get_db()
@@ -278,17 +276,15 @@ def test_calendar_month_list_uses_batch_row_queries(media_env, monkeypatch):
     body["end_time"] = "12:00"
     assert client.post("/api/appointments", json=body).status_code == 200
 
-    import app.routes.appointments as appointments_route
-
     statements = []
-    original_get_db = appointments_route.get_db
+    original_get_db = app_db.get_db
 
     def traced_get_db():
         conn = original_get_db()
         conn.set_trace_callback(statements.append)
         return conn
 
-    monkeypatch.setattr(appointments_route, "get_db", traced_get_db)
+    monkeypatch.setattr(app_db, "get_db", traced_get_db)   # appointments 已改用 db_session → 在 app.database 層追蹤
     response = client.get("/api/appointments?year=2026&month=9")
     assert response.status_code == 200
     assert len(response.json()) == 2
@@ -1054,7 +1050,7 @@ def test_unpaged_items_chunks_photo_metadata_ids(media_env, monkeypatch):
 
     import app.routes.items as item_routes
 
-    monkeypatch.setattr(item_routes, "get_db", lambda: conn)
+    monkeypatch.setattr(app_db, "get_db", lambda: conn)   # items 已改用 db_session → 在 app.database 層注入
     monkeypatch.setattr(item_routes, "list_photo_ids", lambda: set())
     result = json.loads(item_routes.list_items(site="office").body)
     assert len(result) == 501
@@ -1091,7 +1087,7 @@ def test_items_rejects_combined_csv_filters_over_bind_budget(media_env, monkeypa
     conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 500)
     import app.routes.items as item_routes
 
-    monkeypatch.setattr(item_routes, "get_db", lambda: conn)
+    monkeypatch.setattr(app_db, "get_db", lambda: conn)   # items 已改用 db_session → 在 app.database 層注入
     brands = ",".join(f"brand-{index}" for index in range(400))
     categories = ",".join(f"category-{index}" for index in range(400))
     with pytest.raises(HTTPException) as error:

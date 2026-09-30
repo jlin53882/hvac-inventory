@@ -14,67 +14,21 @@
 """
 import datetime
 import re
+from types import MappingProxyType
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.database import get_db
+from app.database import db_session
 from app.models import AppointmentIn
 from app.services.auth import require_login, require_perm
 from app.services.report import build_daily_report
 from app.services.work_progress import sync_work_progress_snapshot_for_appointment
 from app.services.safety import xlsx_download
 from app.services import gcal_sync
+from app.services.gcal_sync import mark_sync_pending
 
 router = APIRouter()
-
-
-def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
-    """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
-    獨立短連線，失敗不影響主操作。
-    A4：C/U op 每次都進 queue（hash-skip 已移除——queue 是暫態，不值得為省 row 引入 op_type 錯位風險）。"""
-    # C/U 需要 active key 才有目標；D 則依賴保留下來的 map/event id，
-    # 即使唯一 key 已停用也必須保留刪除任務，不能把本地刪除當成遠端成功。
-    if op in ("C", "U") and not gcal_sync.is_enabled():
-        return
-    if op == "D" and not map_rows:
-        return
-    try:
-        c = get_db()
-        try:
-            # Serialize the existence check and queue upsert with appointment writes.
-            # A delayed C/U after DELETE must not resurrect the deleted appointment.
-            c.execute("BEGIN IMMEDIATE")
-            if op in ("C", "U"):
-                if c.execute("SELECT 1 FROM appointments WHERE id=?", (appt_id,)).fetchone() is None:
-                    c.rollback()
-                    return
-                keys = gcal_sync.resolve_effective_target_keys(c, appt_id)
-            else:  # D
-                keys = [r[0] for r in map_rows] if map_rows else []
-            version = gcal_sync.sync_version_now()
-            for key_id in keys:
-                gid = next((g for (k, g) in map_rows if k == key_id), "") if map_rows else ""
-                c.execute(
-                    "INSERT INTO appointment_sync_queue(appointment_id, key_id, op_type,"
-                    " google_event_id, last_modified_at, attempts, last_error) "
-                    " VALUES(?,?,?,?,?,0,'') "
-                    " ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
-                    " op_type=excluded.op_type, google_event_id=excluded.google_event_id,"
-                    " last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
-                    (appt_id, key_id, op, gid, version))
-            c.commit()
-        finally:
-            c.close()
-        # queue 已提交後只喚醒既有 worker；normal run 仍遵守 debounce。
-        from app.services import sync_scheduler
-        sync_scheduler.start()
-        sync_scheduler.wake()
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(
-            "gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, gcal_sync.safe_sync_error(e)
-        )
 
 
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -172,7 +126,7 @@ def _sync_status(conn, appt_id: int) -> str:
     ).fetchall()
     return gcal_sync.appointment_sync_status(mapped, rows)
 
-_TEAM_STATUS_BUCKET = {
+_TEAM_STATUS_BUCKET = MappingProxyType({
     "synced": "synced",
     "pending": "pending",
     "not_targeted": "pending",
@@ -180,9 +134,9 @@ _TEAM_STATUS_BUCKET = {
     "partial_retrying": "retrying",
     "failed": "failed",
     "partial_failed": "failed",
-}
+})
 
-_RETRYABLE_SYNC_STATUSES = {"pending", "retrying", "partial_retrying", "failed", "partial_failed"}
+_RETRYABLE_SYNC_STATUSES = frozenset({"pending", "retrying", "partial_retrying", "failed", "partial_failed"})
 
 
 def _team_status_bucket(status: str) -> str:
@@ -218,21 +172,14 @@ def _retryable_effective_queue_key_ids(conn, appt_id: int, effective_targets, ma
     ]
 
 
-def _sync_statuses(conn, appt_ids, viewer_user=None):
-    """批次回傳登入者個人狀態；Admin 另附指派團隊人員摘要。"""
-    ids = list(appt_ids)
-    if not ids:
-        return {}
-    if viewer_user is None:
-        # 保留內部相容性；API 路由一律傳入登入者，避免一般請求暴露全體狀態。
-        viewer_user_id = None
-        can_view_team_sync = False
-    else:
-        viewer_user_id = viewer_user["id"]
-        can_view_team_sync = bool(
-            viewer_user and viewer_user.get("permissions", {}).get("gcal-sync-team-view")
-        )
+def _empty_sync_info(status: str, key_name: str = "") -> dict:
+    """沒有實際 queue/map 可看時的同步狀態（未指派 / 未綁定 / 已暫停）。"""
+    return {"status": status, "error": "", "key_name": key_name, "cal_id": "", "attempts": 0,
+            "op_type": "", "migration_pending": False, "can_retry": False}
 
+
+def _load_sync_rows(conn, ids):
+    """分批載入一批行程的同步資料 → (map_rows, queue_rows, assignee_rows)。"""
     map_rows = []
     queue_rows = []
     assignee_rows = []
@@ -256,6 +203,112 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
             "LEFT JOIN gcal_keys k ON k.name=u.gcal_key "
             "WHERE aa.appointment_id IN (" + placeholders + ") ORDER BY aa.id", chunk,
         ).fetchall())
+    return map_rows, queue_rows, assignee_rows
+
+
+def _person_sync_info(appt_id, person, mapped, queue) -> dict:
+    """單一行程、單一已綁定且啟用 key 的指派者同步狀態（登入者本人與團隊摘要共用）。"""
+    key_id = person["key_id"]
+    entries = queue.get((appt_id, key_id), [])
+    info = _single_sync_info((appt_id, key_id) in mapped, entries)
+    if not entries and (appt_id, key_id) not in mapped:
+        info["status"] = "not_targeted"
+    info["migration_pending"] = bool(person["pending_calendar_id"])
+    info["can_retry"] = (
+        not info["migration_pending"]
+        and info["status"] in _RETRYABLE_SYNC_STATUSES
+        and bool(entries)
+    )
+    return info
+
+
+def _viewer_sync_info(viewer_user, appt_id, assigned, mapped, queue, map_rows) -> dict:
+    """單一行程「登入者本人」的同步狀態；viewer_user 為 None（內部相容）時彙總全部 key。"""
+    me = next((row for row in assigned if row["user_id"] == viewer_user["id"]), None) if viewer_user else None
+    if viewer_user is None:
+        return _single_sync_info(
+            any((appt_id, key_id) in mapped for key_id in {r["key_id"] for r in map_rows if r["appointment_id"] == appt_id}),
+            [row for (aid, _), rows_for_key in queue.items() if aid == appt_id for row in rows_for_key],
+        )
+    if me is None:
+        return _empty_sync_info("not_assigned")
+    if not me["gcal_key"]:
+        return _empty_sync_info("not_bound")
+    if not me["key_id"] or not me["key_active"]:
+        return _empty_sync_info("paused", me["gcal_key"])
+    info = _person_sync_info(appt_id, me, mapped, queue)
+    info["key_name"] = me["key_name"] or ""
+    info["cal_id"] = me["calendar_id"] or ""
+    return info
+
+
+def _team_sync_summary(conn, appt_id, assigned, mapped, queue) -> dict:
+    """單一行程「指派團隊人員」的同步摘要（僅具 gcal-sync-team-view 權限者）。"""
+    team_people = []
+    excluded = {"not_bound": 0, "paused": 0, "inactive": 0}
+    effective_targets = gcal_sync.resolve_effective_target_keys(conn, appt_id)
+    has_bound_assignee_key = any(person["gcal_key"] for person in assigned)
+    fallback_targets = effective_targets if not has_bound_assignee_key else []
+    for person in assigned:
+        if not person["user_active"]:
+            excluded["inactive"] += 1
+            continue
+        if not person["gcal_key"]:
+            excluded["not_bound"] += 1
+            continue
+        if not person["key_id"] or not person["key_active"]:
+            excluded["paused"] += 1
+            continue
+        person_info = _person_sync_info(appt_id, person, mapped, queue)
+        team_people.append({
+            "user_id": person["user_id"],
+            "display_name": person["display_name"] or "",
+            **person_info,
+        })
+    counts = {"synced": 0, "pending": 0, "retrying": 0, "failed": 0}
+    unknown_people = 0
+    for person in team_people:
+        status = person["status"]
+        bucket = _team_status_bucket(status)
+        counts[bucket] += 1
+        if status not in _TEAM_STATUS_BUCKET:
+            unknown_people += 1
+    retryable_all_targets = _retryable_effective_queue_key_ids(
+        conn, appt_id, effective_targets, mapped, queue,
+    )
+    retryable_all_target_set = set(retryable_all_targets)
+    fallback_retryable_count = sum(
+        1 for key_id in fallback_targets if key_id in retryable_all_target_set
+    )
+    return {
+        "eligible_people": len(team_people),
+        "synced_people": counts["synced"],
+        "pending_people": counts["pending"],
+        "retrying_people": counts["retrying"],
+        "failed_people": counts["failed"],
+        "unknown_status_people": unknown_people,
+        "unbound_people": excluded["not_bound"],
+        "paused_people": excluded["paused"],
+        "inactive_people": excluded["inactive"],
+        "fallback_target_count": len(fallback_targets),
+        "fallback_retryable_count": fallback_retryable_count,
+        "can_retry_all": bool(retryable_all_targets),
+        "details": team_people,
+    }
+
+
+def _sync_statuses(conn, appt_ids, viewer_user=None):
+    """批次回傳登入者個人狀態；Admin 另附指派團隊人員摘要。"""
+    ids = list(appt_ids)
+    if not ids:
+        return {}
+    if viewer_user is None:
+        # 保留內部相容性；API 路由一律傳入登入者，避免一般請求暴露全體狀態。
+        can_view_team_sync = False
+    else:
+        can_view_team_sync = bool(viewer_user.get("permissions", {}).get("gcal-sync-team-view"))
+
+    map_rows, queue_rows, assignee_rows = _load_sync_rows(conn, ids)
     mapped = {(row["appointment_id"], row["key_id"]) for row in map_rows}
     queue = {}
     for row in queue_rows:
@@ -268,97 +321,8 @@ def _sync_statuses(conn, appt_ids, viewer_user=None):
     result = {}
     for appt_id in ids:
         assigned = people.get(appt_id, [])
-        me = next((row for row in assigned if row["user_id"] == viewer_user_id), None) if viewer_user else None
-        if viewer_user is None:
-            info = _single_sync_info(
-                any((appt_id, key_id) in mapped for key_id in {r["key_id"] for r in map_rows if r["appointment_id"] == appt_id}),
-                [row for (aid, _), rows_for_key in queue.items() if aid == appt_id for row in rows_for_key],
-            )
-        elif me is None:
-            info = {"status": "not_assigned", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": "", "migration_pending": False, "can_retry": False}
-        elif not me["gcal_key"]:
-            info = {"status": "not_bound", "error": "", "key_name": "", "cal_id": "", "attempts": 0, "op_type": "", "migration_pending": False, "can_retry": False}
-        elif not me["key_id"] or not me["key_active"]:
-            info = {"status": "paused", "error": "", "key_name": me["gcal_key"], "cal_id": "", "attempts": 0, "op_type": "", "migration_pending": False, "can_retry": False}
-        else:
-            key_id = me["key_id"]
-            entries = queue.get((appt_id, key_id), [])
-            info = _single_sync_info((appt_id, key_id) in mapped, entries)
-            if not entries and (appt_id, key_id) not in mapped:
-                info["status"] = "not_targeted"
-            info["key_name"] = me["key_name"] or ""
-            info["cal_id"] = me["calendar_id"] or ""
-            info["migration_pending"] = bool(me["pending_calendar_id"])
-            info["can_retry"] = (
-                not info["migration_pending"]
-                and info["status"] in _RETRYABLE_SYNC_STATUSES
-                and bool(entries)
-            )
-
-        team = None
-        if can_view_team_sync:
-            team_people = []
-            excluded = {"not_bound": 0, "paused": 0, "inactive": 0}
-            effective_targets = gcal_sync.resolve_effective_target_keys(conn, appt_id)
-            has_bound_assignee_key = any(person["gcal_key"] for person in assigned)
-            fallback_targets = effective_targets if not has_bound_assignee_key else []
-            for person in assigned:
-                if not person["user_active"]:
-                    excluded["inactive"] += 1
-                    continue
-                if not person["gcal_key"]:
-                    excluded["not_bound"] += 1
-                    continue
-                if not person["key_id"] or not person["key_active"]:
-                    excluded["paused"] += 1
-                    continue
-                person_info = _single_sync_info(
-                    (appt_id, person["key_id"]) in mapped,
-                    queue.get((appt_id, person["key_id"]), []),
-                )
-                if not queue.get((appt_id, person["key_id"]), []) and (appt_id, person["key_id"]) not in mapped:
-                    person_info["status"] = "not_targeted"
-                person_info["migration_pending"] = bool(person["pending_calendar_id"])
-                person_info["can_retry"] = (
-                    not person_info["migration_pending"]
-                    and person_info["status"] in _RETRYABLE_SYNC_STATUSES
-                    and bool(queue.get((appt_id, person["key_id"]), []))
-                )
-                team_people.append({
-                    "user_id": person["user_id"],
-                    "display_name": person["display_name"] or "",
-                    **person_info,
-                })
-            counts = {"synced": 0, "pending": 0, "retrying": 0, "failed": 0}
-            unknown_people = 0
-            for person in team_people:
-                status = person["status"]
-                bucket = _team_status_bucket(status)
-                counts[bucket] += 1
-                if status not in _TEAM_STATUS_BUCKET:
-                    unknown_people += 1
-            retryable_all_targets = _retryable_effective_queue_key_ids(
-                conn, appt_id, effective_targets, mapped, queue,
-            )
-            retryable_all_target_set = set(retryable_all_targets)
-            fallback_retryable_count = sum(
-                1 for key_id in fallback_targets if key_id in retryable_all_target_set
-            )
-            team = {
-                "eligible_people": len(team_people),
-                "synced_people": counts["synced"],
-                "pending_people": counts["pending"],
-                "retrying_people": counts["retrying"],
-                "failed_people": counts["failed"],
-                "unknown_status_people": unknown_people,
-                "unbound_people": excluded["not_bound"],
-                "paused_people": excluded["paused"],
-                "inactive_people": excluded["inactive"],
-                "fallback_target_count": len(fallback_targets),
-                "fallback_retryable_count": fallback_retryable_count,
-                "can_retry_all": bool(retryable_all_targets),
-                "details": team_people,
-            }
+        info = _viewer_sync_info(viewer_user, appt_id, assigned, mapped, queue, map_rows)
+        team = _team_sync_summary(conn, appt_id, assigned, mapped, queue) if can_view_team_sync else None
         if viewer_user is None:
             info["error"] = info["error"] or None
         result[appt_id] = {**info, "team": team}
@@ -454,8 +418,7 @@ def _appt_row(conn, appt_id: int, viewer_user=None) -> dict:
 @router.get("/api/appointments")
 def list_appointments(year: int = 0, month: int = 0, date: str = "", user: dict = Depends(require_login)):
     """月曆（year+month）或當日（date）行程清單"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         if date:
             rows = conn.execute("SELECT id FROM appointments WHERE date=?", (date,)).fetchall()
         else:
@@ -471,15 +434,12 @@ def list_appointments(year: int = 0, month: int = 0, date: str = "", user: dict 
             rows = conn.execute("SELECT id FROM appointments WHERE date BETWEEN ? AND ?",
                                 (start, end.isoformat())).fetchall()
         return _appt_rows(conn, [r["id"] for r in rows], user)
-    finally:
-        conn.close()
 
 
 @router.get("/api/appointments/search")
 def search_appointments(date_from: str = "", date_to: str = "", q: str = "", user: dict = Depends(require_login)):
     """搜尋行程（日期範圍 + 關鍵字）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         sql = "SELECT id FROM appointments WHERE 1=1"
         params = []
         if date_from:
@@ -513,8 +473,6 @@ def search_appointments(date_from: str = "", date_to: str = "", q: str = "", use
         sql += " ORDER BY date DESC, start_time ASC"
         rows = conn.execute(sql, params).fetchall()
         return _appt_rows(conn, [r["id"] for r in rows], user)
-    finally:
-        conn.close()
 
 
 @router.post("/api/appointments")
@@ -522,35 +480,33 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("c
     _validate_time(body.start_time, body.end_time)
     if not body.client_name.strip():
         raise HTTPException(400, "請填客戶 / 案場")
-    conn = get_db()
-    try:
-        # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句（SELECT 不觸發 auto-BEGIN）——
-        # 衝突檢查+寫入持 RESERVED 鎖同一交易，防雙重派工（TO-1）。依賴 Task 0.1 busy_timeout。
-        conn.execute("BEGIN IMMEDIATE")
-        _validate_users(conn, body.user_ids)
-        _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
-        conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time)
-        if conflict:
-            raise HTTPException(409, conflict)
-        cur = conn.execute(
-            """INSERT INTO appointments
+    with db_session() as conn:
+        try:
+            # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句（SELECT 不觸發 auto-BEGIN）——
+            # 衝突檢查+寫入持 RESERVED 鎖同一交易，防雙重派工（TO-1）。依賴 Task 0.1 busy_timeout。
+            conn.execute("BEGIN IMMEDIATE")
+            _validate_users(conn, body.user_ids)
+            _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
+            conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time)
+            if conflict:
+                raise HTTPException(409, conflict)
+            cur = conn.execute(
+                """INSERT INTO appointments
                (client_name, address, service_type_id, date, start_time, end_time, note, created_by)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (body.client_name.strip(), body.address.strip(), body.service_type_id,
-             body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"]),
-        )
-        appt_id = cur.lastrowid
-        for uid in body.user_ids:
-            conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
-                         (appt_id, uid))
-        conn.commit()
-        mark_sync_pending(appt_id, "C")
-        return _appt_row(conn, appt_id, user)
-    except:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+                (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"]),
+            )
+            appt_id = cur.lastrowid
+            for uid in body.user_ids:
+                conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
+                             (appt_id, uid))
+            conn.commit()
+            mark_sync_pending(appt_id, "C")
+            return _appt_row(conn, appt_id, user)
+        except:
+            conn.rollback()
+            raise
 
 
 @router.put("/api/appointments/{appt_id}")
@@ -558,74 +514,71 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
     _validate_time(body.start_time, body.end_time)
     if not body.client_name.strip():
         raise HTTPException(400, "請填客戶 / 案場")
-    conn = get_db()
-    try:
-        # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句——衝突檢查+寫入同一交易（TO-1）
-        conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
-        if row is None:
-            raise HTTPException(404, "行程不存在")
-        _validate_users_for_update(conn, appt_id, body.user_ids)
-        _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
-        conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time,
-                                  exclude_id=appt_id)
-        if conflict:
-            raise HTTPException(409, conflict)
-        # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
-        if body.updated_at:
-            cur = conn.execute(
-                """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
+    with db_session() as conn:
+        try:
+            # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句——衝突檢查+寫入同一交易（TO-1）
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
+            if row is None:
+                raise HTTPException(404, "行程不存在")
+            _validate_users_for_update(conn, appt_id, body.user_ids)
+            _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
+            conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time,
+                                      exclude_id=appt_id)
+            if conflict:
+                raise HTTPException(409, conflict)
+            # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
+            if body.updated_at:
+                cur = conn.execute(
+                    """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
                    start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=? AND updated_at=?""",
-                (body.client_name.strip(), body.address.strip(), body.service_type_id,
-                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id, body.updated_at),
-            )
-            if cur.rowcount == 0:
-                raise HTTPException(409, "該行程已被他人修改，請重新整理後再編輯")
-        else:
-            conn.execute(
-                """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
+                    (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                     body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id, body.updated_at),
+                )
+                if cur.rowcount == 0:
+                    raise HTTPException(409, "該行程已被他人修改，請重新整理後再編輯")
+            else:
+                conn.execute(
+                    """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
                    start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=?""",
-                (body.client_name.strip(), body.address.strip(), body.service_type_id,
-                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id),
-            )
-        conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
-        for uid in body.user_ids:
-            conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
-                         (appt_id, uid))
-        sync_work_progress_snapshot_for_appointment(conn, appt_id)
-        assignee_count = conn.execute(
-            "SELECT COUNT(*) AS c FROM appointment_assignees WHERE appointment_id=?",
-            (appt_id,),
-        ).fetchone()["c"]
-        assigned_key_ids = set(gcal_sync.resolve_assigned_key_ids(conn, appt_id)) if assignee_count else set()
-        map_rows_all = conn.execute(
-            "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
-            (appt_id,),
-        ).fetchall()
-        # D only means the current relationship was explicitly removed.  An empty
-        # assignee list is the intentional fallback-all domain, not an orphan set.
-        orphan_d_rows = []
-        if assignee_count > 0:
-            orphan_d_rows = [
-                (mr["key_id"], mr["google_event_id"])
-                for mr in map_rows_all if mr["key_id"] not in assigned_key_ids
-            ]
-        conn.commit()
-        mark_sync_pending(appt_id, "U")
-        if orphan_d_rows:
-            mark_sync_pending(appt_id, "D", map_rows=orphan_d_rows)
-        return _appt_row(conn, appt_id, user)
-    except:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+                    (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                     body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id),
+                )
+            conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
+            for uid in body.user_ids:
+                conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
+                             (appt_id, uid))
+            sync_work_progress_snapshot_for_appointment(conn, appt_id)
+            assignee_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM appointment_assignees WHERE appointment_id=?",
+                (appt_id,),
+            ).fetchone()["c"]
+            assigned_key_ids = set(gcal_sync.resolve_assigned_key_ids(conn, appt_id)) if assignee_count else set()
+            map_rows_all = conn.execute(
+                "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
+                (appt_id,),
+            ).fetchall()
+            # D only means the current relationship was explicitly removed.  An empty
+            # assignee list is the intentional fallback-all domain, not an orphan set.
+            orphan_d_rows = []
+            if assignee_count > 0:
+                orphan_d_rows = [
+                    (mr["key_id"], mr["google_event_id"])
+                    for mr in map_rows_all if mr["key_id"] not in assigned_key_ids
+                ]
+            conn.commit()
+            mark_sync_pending(appt_id, "U")
+            if orphan_d_rows:
+                mark_sync_pending(appt_id, "D", map_rows=orphan_d_rows)
+            return _appt_row(conn, appt_id, user)
+        except:
+            conn.rollback()
+            raise
 
 
 @router.delete("/api/appointments/{appt_id}")
 def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt"))):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "行程不存在")
@@ -644,11 +597,6 @@ def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt
         conn.commit()
         mark_sync_pending(appt_id, "D", map_rows=map_rows)
         return {"ok": True}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
 
 @router.get("/api/appointments/export")
@@ -658,8 +606,7 @@ def export_daily_report(date: str):
         datetime.date.fromisoformat(date)
     except ValueError:
         raise HTTPException(400, "日期格式錯誤（需 YYYY-MM-DD）")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             """SELECT a.*, s.name AS service_name FROM appointments a
                LEFT JOIN service_types s ON s.id = a.service_type_id
@@ -675,16 +622,13 @@ def export_daily_report(date: str):
         buf, mmdd = build_daily_report(date, day_events)
         filename = f"工程日報表{mmdd}.xlsx"
         return xlsx_download(buf.getvalue(), filename)
-    finally:
-        conn.close()
 
 
 
 @router.get("/api/assignable-users")
 def list_assignable_users():
     """可指派人員：啟用中且非 viewer（行事曆勾選清單用）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             """SELECT id, username, display_name, color, role FROM users
                WHERE is_active=1 AND role != 'viewer' ORDER BY display_name, id""").fetchall()
@@ -692,5 +636,3 @@ def list_assignable_users():
                  "display_name": r["display_name"] or r["username"],
                  "color": r["color"] or "#1a73e8",
                  "role": r["role"]} for r in rows]
-    finally:
-        conn.close()

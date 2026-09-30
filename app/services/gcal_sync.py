@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Tuple
@@ -149,7 +150,7 @@ LOCK_WAIT_TIMEOUT_SECONDS = 120
 _LOCK_POLL_MIN_SECONDS = 0.05
 _LOCK_POLL_MAX_SECONDS = 0.5
 # Windows msvcrt 非阻塞取鎖失敗回 EACCES；舊版阻塞模式重試 10 次後回 EDEADLOCK（Errno 36）。
-_LOCK_BUSY_ERRNOS = {errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLOCK", errno.EDEADLK)}
+_LOCK_BUSY_ERRNOS = frozenset({errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLOCK", errno.EDEADLK)})
 
 
 class GcalLockTimeout(TimeoutError):
@@ -579,6 +580,108 @@ def calendar_migration_pending(key_row) -> bool:
     return bool((key_row or {}).get("pending_calendar_id"))
 
 
+def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
+    """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
+    獨立短連線，失敗不影響主操作。
+    A4：C/U op 每次都進 queue（hash-skip 已移除——queue 是暫態，不值得為省 row 引入 op_type 錯位風險）。"""
+    # C/U 需要 active key 才有目標；D 則依賴保留下來的 map/event id，
+    # 即使唯一 key 已停用也必須保留刪除任務，不能把本地刪除當成遠端成功。
+    if op in ("C", "U") and not is_enabled():
+        return
+    if op == "D" and not map_rows:
+        return
+    try:
+        c = get_db()
+        try:
+            # Serialize the existence check and queue upsert with appointment writes.
+            # A delayed C/U after DELETE must not resurrect the deleted appointment.
+            c.execute("BEGIN IMMEDIATE")
+            if op in ("C", "U"):
+                if c.execute("SELECT 1 FROM appointments WHERE id=?", (appt_id,)).fetchone() is None:
+                    c.rollback()
+                    return
+                keys = resolve_effective_target_keys(c, appt_id)
+            else:  # D
+                keys = [r[0] for r in map_rows] if map_rows else []
+            version = sync_version_now()
+            for key_id in keys:
+                gid = next((g for (k, g) in map_rows if k == key_id), "") if map_rows else ""
+                c.execute(
+                    "INSERT INTO appointment_sync_queue(appointment_id, key_id, op_type,"
+                    " google_event_id, last_modified_at, attempts, last_error) "
+                    " VALUES(?,?,?,?,?,0,'') "
+                    " ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+                    " op_type=excluded.op_type, google_event_id=excluded.google_event_id,"
+                    " last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+                    (appt_id, key_id, op, gid, version))
+            c.commit()
+        finally:
+            c.close()
+        # queue 已提交後只喚醒既有 worker；normal run 仍遵守 debounce。
+        from app.services import sync_scheduler
+        sync_scheduler.start_and_wake()
+    except Exception as e:
+        logger.warning(
+            "gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, safe_sync_error(e)
+        )
+
+
+def backfill_all_appointments_with_conn(conn, key_id: int):
+    """在 caller transaction 內依既有規則建立 backfill queue。"""
+    key_row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+    if key_row is None:
+        return 0
+    key_data = dict(key_row)
+    if calendar_migration_pending(key_data):
+        # 舊 Calendar cleanup 未完成，不得建立任何 C/U 到舊 Calendar。
+        return 0
+    appt_ids = [r["id"] for r in conn.execute("SELECT id FROM appointments").fetchall()]
+    queued = 0
+    version = sync_version_now()
+    for appt_id in appt_ids:
+        queued_row = conn.execute(
+            "SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()
+        if queued_row and queued_row["op_type"] == "D":
+            # assignment loss already requested a remote DELETE; re-enable must not revive it.
+            continue
+        existing = conn.execute(
+            "SELECT google_event_id, data_hash FROM appointment_gcal_map "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone()
+        target_ids = set(resolve_target_keys(conn, appt_id))
+        if key_id not in target_ids:
+            if existing and existing["google_event_id"]:
+                conn.execute(
+                    "INSERT INTO appointment_sync_queue "
+                    "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
+                    "VALUES(?, ?, 'D', ?, ?, 0, '') "
+                    "ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+                    "op_type='D', google_event_id=excluded.google_event_id, "
+                    "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+                    (appt_id, key_id, existing["google_event_id"], version),
+                )
+                queued += 1
+            continue
+        _, payload_hash = load_event_payload(conn, appt_id, key_data)
+        if existing and existing["google_event_id"] and existing["data_hash"] == payload_hash:
+            continue
+        op_type = "U" if existing and existing["google_event_id"] else "C"
+        google_event_id = existing["google_event_id"] if existing else ""
+        conn.execute(
+            "INSERT INTO appointment_sync_queue "
+            "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
+            "VALUES(?, ?, ?, ?, ?, 0, '') "
+            "ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+            "op_type=excluded.op_type, google_event_id=excluded.google_event_id, "
+            "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+            (appt_id, key_id, op_type, google_event_id or "", version),
+        )
+        queued += 1
+    return queued
+
+
 def maybe_finalize_calendar_migration(key_id: int) -> bool:
     """D queue 全部完成後切換 Calendar，並只在新 Calendar 上 backfill。"""
     conn = get_db()
@@ -604,8 +707,7 @@ def maybe_finalize_calendar_migration(key_id: int) -> bool:
             (target, key_id),
         )
         # Backfill 使用同一 transaction；任何 queue 寫入失敗都 rollback Calendar 切換。
-        from app.routes import gcal_keys
-        gcal_keys._backfill_all_appointments_with_conn(conn, key_id)
+        backfill_all_appointments_with_conn(conn, key_id)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -613,9 +715,9 @@ def maybe_finalize_calendar_migration(key_id: int) -> bool:
     finally:
         conn.close()
 
-    # Import lazily to avoid the existing routes -> service import cycle.
-    from app.routes import gcal_keys
-    gcal_keys._wake_scheduler()
+    # sync_scheduler 本身 import gcal_sync，這裡延後 import 以避開 service 內部循環。
+    from app.services import sync_scheduler
+    sync_scheduler.start_and_wake()
     return True
 
 
@@ -680,25 +782,302 @@ def sync_pending(due: List[dict]) -> Tuple[int, int, dict]:
         return _sync_pending_unlocked(due)
 
 
+def _load_active_keys() -> dict:
+    """讀取所有啟用中的 key（id → row dict）；連線用完即關，網路呼叫一律在連線關閉後。"""
+    conn = get_db()
+    try:
+        return {
+            r["id"]: dict(r)
+            for r in conn.execute("SELECT * FROM gcal_keys WHERE is_active=1").fetchall()
+        }
+    finally:
+        conn.close()
+
+
+def _fetch_active_key(key_id: int):
+    """取得單一啟用中 key 的最新資料（拿到 key 鎖之後才讀，避免用到過期設定）；不存在/已停用回傳 None。"""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM gcal_keys WHERE id=? AND is_active=1", (key_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row is not None else None
+
+
+def _throttle(key_id: int, num_keys: int, rate_timestamps: dict) -> list:
+    """Google API 速率限制：回傳該 key 觀察窗內的時間戳清單；已達上限就 sleep 到有額度。"""
+    import time as _time
+
+    per_key_limit = min(_RATE_PER_USER, _RATE_PROJECT // max(num_keys, 1))
+    now_ts = _time.time()
+    timestamps = rate_timestamps.get(key_id, [])
+    timestamps = [t for t in timestamps if now_ts - t < _RATE_WINDOW]
+    if len(timestamps) >= per_key_limit:
+        wait = _RATE_WINDOW - (now_ts - timestamps[0])
+        if wait > 0:
+            logger.info("速率限制：key=%s（%d/%d）等待 %.0f 秒",
+                        key_id, len(timestamps), per_key_limit, wait)
+            _time.sleep(wait)
+        timestamps = [t for t in timestamps if _time.time() - t < _RATE_WINDOW]
+    return timestamps
+
+
+def _load_payload_and_map(appt_id: int, key_id: int, key_row: dict):
+    """C/U 用：算出最終 event payload 與 hash，並讀出既有 map（Google 端最後一次成功同步的紀錄）。"""
+    conn = get_db()
+    try:
+        event, current_hash = load_event_payload(conn, appt_id, key_row)
+        map_row = conn.execute(
+            "SELECT google_event_id, data_hash FROM appointment_gcal_map "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone()
+    finally:
+        conn.close()
+    return event, current_hash, map_row
+
+
+@dataclass(frozen=True)
+class _QueueRef:
+    """本次處理的 queue 快照身分（appointment + key + op + 快照時的 last_modified_at）。
+
+    同步過程中 queue 可能被較新的寫入覆蓋；所有「只動本次快照」的 SQL 都靠這四個值比對版本。
+    """
+    appt_id: int
+    key_id: int
+    op: str
+    la_orig: str
+
+
+def _read_current_queue(conn, ref: _QueueRef):
+    """讀取該 (appointment, key) 目前的 queue 列，回傳 (row 或 None, 是否仍為本次快照)。"""
+    current_queue = conn.execute(
+        "SELECT op_type, last_modified_at, google_event_id "
+        "FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+        (ref.appt_id, ref.key_id),
+    ).fetchone()
+    is_current = bool(
+        current_queue
+        and current_queue["last_modified_at"] == ref.la_orig
+        and current_queue["op_type"] == ref.op
+    )
+    return current_queue, is_current
+
+
+def _delete_snapshot_queue_row(conn, ref: _QueueRef) -> None:
+    """只在 queue 仍是本次 snapshot 的同一版本時刪除該列（不吞掉較新的 queue）。"""
+    conn.execute(
+        "DELETE FROM appointment_sync_queue "
+        "WHERE appointment_id=? AND key_id=? AND last_modified_at=? AND op_type=?",
+        (ref.appt_id, ref.key_id, ref.la_orig, ref.op),
+    )
+
+
+def _delete_gcal_map(conn, ref: _QueueRef) -> None:
+    conn.execute(
+        "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
+        (ref.appt_id, ref.key_id),
+    )
+
+
+def _dequeue_snapshot(ref: _QueueRef) -> None:
+    conn = get_db()
+    try:
+        _delete_snapshot_queue_row(conn, ref)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _remote_upsert(svc, cal_id: str, appt_id: int, key_id: int, gid: str, event: dict):
+    """C/U 的遠端寫入：有 remote id → patch；沒有 → 以穩定 id insert。回傳 (gid, created_new)。"""
+    if gid:
+        svc.events().patch(calendarId=cal_id, eventId=gid, body=event).execute()
+        return gid, False
+    stable_id = stable_event_id(appt_id, key_id)
+    # 2026-09-16 fix：events().insert() 的 Python client 不接受
+    # eventId keyword argument（會抛 TypeError）。
+    # 正確做法是把 stable_id 放入 Event body 的 id 欄位，
+    # REST API 會以該 id 建立 event（官方文件明確支援）。
+    # 多 process 同時 C 時，先成功者已建立相同 ID → 409 → 改 patch 收斂。
+    event_with_id = dict(event)
+    event_with_id["id"] = stable_id
+    try:
+        created = svc.events().insert(
+            calendarId=cal_id, body=event_with_id
+        ).execute()
+    except Exception as insert_error:
+        if _http_status(insert_error) != 409:
+            raise
+        svc.events().patch(
+            calendarId=cal_id, eventId=stable_id, body=event
+        ).execute()
+        return stable_id, False
+    return (created.get("id") if isinstance(created, dict) else None) or stable_id, True
+
+
+def _checkpoint_created_event_id(ref: _QueueRef, gid: str) -> None:
+    """C insert 先把 remote id 寫回 queue；若接著 map upsert 失敗，
+    下一輪可由 queue 的 id 改用 patch，避免再次 insert duplicate event。"""
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE appointment_sync_queue SET google_event_id=? "
+            "WHERE appointment_id=? AND key_id=? AND last_modified_at=? "
+            "AND op_type='C' AND COALESCE(google_event_id,'')=''",
+            (gid, ref.appt_id, ref.key_id, ref.la_orig),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _commit_sync_result(ref: _QueueRef, gid: str, current_hash) -> None:
+    """遠端成功後寫本地結果：更新/刪除 map，並刪掉本次 queue。
+
+    只在 queue 仍是本次 snapshot 的同一版本時寫 map/刪 queue。
+    BEGIN IMMEDIATE 只包本地短 DB 操作，不跨 Google network call。
+    """
+    op = ref.op
+    wc = get_db()
+    try:
+        wc.execute("BEGIN IMMEDIATE")
+        current_queue, is_current = _read_current_queue(wc, ref)
+        if is_current and op in ("C", "U"):
+            wc.execute(
+                "INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
+                "VALUES(?,?,?,?) ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+                "google_event_id=excluded.google_event_id, data_hash=excluded.data_hash, synced_at=datetime('now')",
+                (ref.appt_id, ref.key_id, gid, current_hash),
+            )
+        elif is_current and op == "D":
+            _delete_gcal_map(wc, ref)
+        elif (
+            op == "D"
+            and current_queue
+            and current_queue["op_type"] in ("C", "U")
+            and current_queue["google_event_id"] in ("", gid)
+        ):
+            # 舊 D 已刪掉 remote event，但較新的 C/U 還要重建；
+            # 清掉它持有的 remote id，避免下一輪對已刪 Event 做 patch。
+            wc.execute(
+                "UPDATE appointment_sync_queue SET google_event_id='' "
+                "WHERE appointment_id=? AND key_id=? AND last_modified_at=? "
+                "AND op_type IN ('C','U') AND google_event_id=?",
+                (ref.appt_id, ref.key_id, current_queue["last_modified_at"], gid),
+            )
+            _delete_gcal_map(wc, ref)
+        # 版本不符時這個 DELETE 不會吞掉 newer queue；C/U 也不覆蓋 newer map。
+        _delete_snapshot_queue_row(wc, ref)
+        wc.commit()
+    finally:
+        wc.close()
+
+
+def _settle_resolved_error(ref: _QueueRef, gid: str, outcome: str) -> None:
+    """錯誤已被歸類為「已解決」（例如 remote 已不存在）時，收斂本地 map 與 queue。"""
+    resolved = get_db()
+    try:
+        resolved.execute("BEGIN IMMEDIATE")
+        current_queue, is_current = _read_current_queue(resolved, ref)
+        if outcome == "remote_already_deleted":
+            if is_current and ref.op == "D":
+                _delete_gcal_map(resolved, ref)
+            elif (
+                current_queue
+                and current_queue["op_type"] in ("C", "U")
+                and current_queue["google_event_id"] in ("", gid)
+            ):
+                # 舊 D 已確認 remote id 不存在；新的 C/U 必須重新 insert。
+                resolved.execute(
+                    "UPDATE appointment_sync_queue SET google_event_id='' "
+                    "WHERE appointment_id=? AND key_id=? AND last_modified_at=? "
+                    "AND op_type IN ('C','U') AND google_event_id IN ('', ?)",
+                    (ref.appt_id, ref.key_id, current_queue["last_modified_at"], gid),
+                )
+                _delete_gcal_map(resolved, ref)
+        _delete_snapshot_queue_row(resolved, ref)
+        resolved.commit()
+    finally:
+        resolved.close()
+
+
+def _record_sync_failure(ref: _QueueRef, error_summary: dict, key_row: dict, cal_id: str, error: Exception) -> None:
+    """真正的失敗：記錄摘要（依錯誤類型計數）並把該列 queue 的 attempts +1。"""
+    key_id = ref.key_id
+    logger.warning("gcal 同步失敗 appointment=%s key=%s (%s) cal=%s: %s", ref.appt_id, key_id, ref.op, cal_id, safe_sync_error(error))
+    err_type = safe_sync_error(error)
+    if key_id not in error_summary:
+        error_summary[key_id] = {
+            "key_name": key_row.get("name", "") if key_row else "",
+            "cal_id": cal_id,
+            "errors": {},
+            "resolved": {},
+        }
+    error_summary[key_id]["errors"][err_type] = (
+        error_summary[key_id]["errors"].get(err_type, 0) + 1
+    )
+    wc = get_db()
+    try:
+        wc.execute(
+            "UPDATE appointment_sync_queue SET attempts=attempts+1, last_error=? "
+            "WHERE appointment_id=? AND key_id=? AND last_modified_at=?",
+            (safe_sync_error(error), ref.appt_id, key_id, ref.la_orig),
+        )
+        wc.commit()
+    finally:
+        wc.close()
+
+
+def _handle_sync_exception(error: Exception, ref: _QueueRef, gid: str, *,
+                           cal_id: str, key_row: dict, error_summary: dict) -> str:
+    """單列同步失敗後的處置 → "ok"（視為成功，計 ok）/ "resolved"（已自動解決，不計數）/ "fail"（計 fail）。
+
+    順序：先補「遠端已建立但本地行程消失」的 D queue → 依錯誤類型判斷是否其實已解決
+    （例如 remote 已刪除）→ 都不是才記為真正失敗並 attempts +1。
+    """
+    appt_id, key_id, op = ref.appt_id, ref.key_id, ref.op
+    # map upsert 與本地 delete 之間仍可能有極窄 race；若 remote side effect
+    # 已完成，先補 D queue，再進一般錯誤分類，避免把 orphan 當成 resolved。
+    if op in ("C", "U") and gid:
+        try:
+            if _queue_delete_for_missing_appointment(appt_id, key_id, gid):
+                return "ok"
+        except Exception as cleanup_error:
+            logger.error(
+                "gcal remote event cleanup queue 建立失敗 appointment=%s key=%s: %s",
+                appt_id, key_id, safe_sync_error(cleanup_error),
+            )
+    outcome = classify_sync_exception(op, error)
+    if outcome != "failed":
+        _settle_resolved_error(ref, gid, outcome)
+        _record_resolution(error_summary, key_id, cal_id, outcome,
+                           key_row.get("name", "") if key_row else "")
+        if outcome == "remote_already_deleted":
+            if op == "D":
+                maybe_finalize_calendar_migration(key_id)
+            return "ok"
+        return "resolved"
+    _record_sync_failure(ref, error_summary, key_row, cal_id, error)
+    return "fail"
+
+
 def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
     """對 due（每列對應一個 appointment + key）逐列同步。
 
     網路呼叫永遠在 SQLite 連線關閉後執行；C/U 先以 canonical payload hash
     比對既有 map，hash 相同時只收斂 queue，不重複 PATCH/INSERT。
+
+    流程（每列）：取 key 鎖 → 讀最新 key → 取 event 鎖 → 節流 → 遠端寫入 → 本地收斂；
+    各步驟的細節在上面的 _xxx helper，這裡只保留判斷順序與 ok/fail 計數。
     """
     if not due:
         return 0, 0, {}
 
     ok = fail = 0
     error_summary = {}
-    conn = get_db()
-    try:
-        key_rows = {
-            r["id"]: dict(r)
-            for r in conn.execute("SELECT * FROM gcal_keys WHERE is_active=1").fetchall()
-        }
-    finally:
-        conn.close()
+    key_rows = _load_active_keys()
     svc_cache = {}
     rate_timestamps = {}
 
@@ -709,19 +1088,12 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
         key_id = item["key_id"]
         op = item["op_type"]
         gid = item.get("google_event_id") or ""
-        la_orig = item.get("last_modified_at") or ""
+        ref = _QueueRef(appt_id, key_id, op, item.get("last_modified_at") or "")
         cal_id = ""
         with _key_process_lock(key_id):
-            fresh_conn = get_db()
-            try:
-                fresh_key_row = fresh_conn.execute(
-                    "SELECT * FROM gcal_keys WHERE id=? AND is_active=1", (key_id,)
-                ).fetchone()
-            finally:
-                fresh_conn.close()
-            if fresh_key_row is None:
+            key_row = _fetch_active_key(key_id)
+            if key_row is None:
                 continue
-            key_row = dict(fresh_key_row)
             if calendar_migration_pending(key_row) and op != "D":
                 # Migration cleanup owns the old Calendar; C/U must wait for finalize.
                 continue
@@ -733,76 +1105,22 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
                         svc = get_service_for_key(key_row)
                         svc_cache[key_id] = svc
 
-                    num_keys = len(key_rows)
-                    per_key_limit = min(_RATE_PER_USER, _RATE_PROJECT // max(num_keys, 1))
-                    now_ts = _time.time()
-                    timestamps = rate_timestamps.get(key_id, [])
-                    timestamps = [t for t in timestamps if now_ts - t < _RATE_WINDOW]
-                    if len(timestamps) >= per_key_limit:
-                        wait = _RATE_WINDOW - (now_ts - timestamps[0])
-                        if wait > 0:
-                            logger.info("速率限制：key=%s（%d/%d）等待 %.0f 秒",
-                                        key_id, len(timestamps), per_key_limit, wait)
-                            _time.sleep(wait)
-                        timestamps = [t for t in timestamps if _time.time() - t < _RATE_WINDOW]
+                    timestamps = _throttle(key_id, len(key_rows), rate_timestamps)
 
-                    event = None
                     current_hash = None
-                    map_row = None
                     created_new = False
                     if op in ("C", "U"):
-                        pc = get_db()
-                        try:
-                            event, current_hash = load_event_payload(pc, appt_id, key_row)
-                            map_row = pc.execute(
-                                "SELECT google_event_id, data_hash FROM appointment_gcal_map "
-                                "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
-                            ).fetchone()
-                            if not gid and map_row:
-                                gid = map_row["google_event_id"] or ""
-                        finally:
-                            pc.close()
+                        event, current_hash, map_row = _load_payload_and_map(appt_id, key_id, key_row)
+                        if not gid and map_row:
+                            gid = map_row["google_event_id"] or ""
 
                         if map_row and map_row["google_event_id"] and map_row["data_hash"] == current_hash:
                             # payload 已是 Google 端最後一次成功同步的內容；只收斂目前 queue。
-                            wc = get_db()
-                            try:
-                                wc.execute(
-                                    "DELETE FROM appointment_sync_queue "
-                                    "WHERE appointment_id=? AND key_id=? AND last_modified_at=? AND op_type=?",
-                                    (appt_id, key_id, la_orig, op),
-                                )
-                                wc.commit()
-                            finally:
-                                wc.close()
+                            _dequeue_snapshot(ref)
                             ok += 1
                             continue
 
-                        if gid:
-                            svc.events().patch(calendarId=cal_id, eventId=gid, body=event).execute()
-                        else:
-                            stable_id = stable_event_id(appt_id, key_id)
-                            # 2026-09-16 fix：events().insert() 的 Python client 不接受
-                            # eventId keyword argument（會抛 TypeError）。
-                            # 正確做法是把 stable_id 放入 Event body 的 id 欄位，
-                            # REST API 會以該 id 建立 event（官方文件明確支援）。
-                            # 多 process 同時 C 時，先成功者已建立相同 ID → 409 → 改 patch 收斂。
-                            event_with_id = dict(event)
-                            event_with_id["id"] = stable_id
-                            try:
-                                created = svc.events().insert(
-                                    calendarId=cal_id, body=event_with_id
-                                ).execute()
-                            except Exception as insert_error:
-                                if _http_status(insert_error) != 409:
-                                    raise
-                                svc.events().patch(
-                                    calendarId=cal_id, eventId=stable_id, body=event
-                                ).execute()
-                                gid = stable_id
-                            else:
-                                gid = (created.get("id") if isinstance(created, dict) else None) or stable_id
-                                created_new = True
+                        gid, created_new = _remote_upsert(svc, cal_id, appt_id, key_id, gid, event)
                         timestamps.append(_time.time())
                         rate_timestamps[key_id] = timestamps
                     elif op == "D":
@@ -813,169 +1131,23 @@ def _sync_pending_unlocked(due: List[dict]) -> Tuple[int, int, dict]:
                     else:
                         continue
 
-                    # C insert 先把 remote id 寫回 queue；若接著 map upsert 失敗，
-                    # 下一輪可由 queue 的 id 改用 patch，避免再次 insert duplicate event。
                     if created_new:
-                        checkpoint = get_db()
-                        try:
-                            checkpoint.execute(
-                                "UPDATE appointment_sync_queue SET google_event_id=? "
-                                "WHERE appointment_id=? AND key_id=? AND last_modified_at=? "
-                                "AND op_type='C' AND COALESCE(google_event_id,'')=''",
-                                (gid, appt_id, key_id, la_orig),
-                            )
-                            checkpoint.commit()
-                        finally:
-                            checkpoint.close()
+                        _checkpoint_created_event_id(ref, gid)
 
                     if op in ("C", "U") and _queue_delete_for_missing_appointment(appt_id, key_id, gid):
                         ok += 1
                         continue
 
-                    wc = get_db()
-                    try:
-                        # 只在 queue 仍是本次 snapshot 的同一版本時寫 map/刪 queue。
-                        # BEGIN IMMEDIATE 只包本地短 DB 操作，不跨 Google network call。
-                        wc.execute("BEGIN IMMEDIATE")
-                        current_queue = wc.execute(
-                            "SELECT op_type, last_modified_at, google_event_id "
-                            "FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
-                            (appt_id, key_id),
-                        ).fetchone()
-                        is_current = bool(
-                            current_queue
-                            and current_queue["last_modified_at"] == la_orig
-                            and current_queue["op_type"] == op
-                        )
-                        if is_current and op in ("C", "U"):
-                            wc.execute(
-                                "INSERT INTO appointment_gcal_map(appointment_id, key_id, google_event_id, data_hash) "
-                                "VALUES(?,?,?,?) ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
-                                "google_event_id=excluded.google_event_id, data_hash=excluded.data_hash, synced_at=datetime('now')",
-                                (appt_id, key_id, gid, current_hash),
-                            )
-                        elif is_current and op == "D":
-                            wc.execute(
-                                "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
-                                (appt_id, key_id),
-                            )
-                        elif (
-                            op == "D"
-                            and current_queue
-                            and current_queue["op_type"] in ("C", "U")
-                            and current_queue["google_event_id"] in ("", gid)
-                        ):
-                            # 舊 D 已刪掉 remote event，但較新的 C/U 還要重建；
-                            # 清掉它持有的 remote id，避免下一輪對已刪 Event 做 patch。
-                            wc.execute(
-                                "UPDATE appointment_sync_queue SET google_event_id='' "
-                                "WHERE appointment_id=? AND key_id=? AND last_modified_at=? "
-                                "AND op_type IN ('C','U') AND google_event_id=?",
-                                (appt_id, key_id, current_queue["last_modified_at"], gid),
-                            )
-                            wc.execute(
-                                "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
-                                (appt_id, key_id),
-                            )
-                        # 版本不符時這個 DELETE 不會吞掉 newer queue；C/U 也不覆蓋 newer map。
-                        wc.execute(
-                            "DELETE FROM appointment_sync_queue "
-                            "WHERE appointment_id=? AND key_id=? AND last_modified_at=? AND op_type=?",
-                            (appt_id, key_id, la_orig, op),
-                        )
-                        wc.commit()
-                    finally:
-                        wc.close()
+                    _commit_sync_result(ref, gid, current_hash)
                     ok += 1
                     if op == "D":
                         maybe_finalize_calendar_migration(key_id)
                 except Exception as e:
-                    # map upsert 與本地 delete 之間仍可能有極窄 race；若 remote side effect
-                    # 已完成，先補 D queue，再進一般錯誤分類，避免把 orphan 當成 resolved。
-                    if op in ("C", "U") and gid:
-                        try:
-                            if _queue_delete_for_missing_appointment(appt_id, key_id, gid):
-                                ok += 1
-                                continue
-                        except Exception as cleanup_error:
-                            logger.error(
-                                "gcal remote event cleanup queue 建立失敗 appointment=%s key=%s: %s",
-                                appt_id, key_id, safe_sync_error(cleanup_error),
-                            )
-                    outcome = classify_sync_exception(op, e)
-                    if outcome != "failed":
-                        resolved = get_db()
-                        try:
-                            resolved.execute("BEGIN IMMEDIATE")
-                            current_queue = resolved.execute(
-                                "SELECT op_type, last_modified_at, google_event_id "
-                                "FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
-                                (appt_id, key_id),
-                            ).fetchone()
-                            is_current = bool(
-                                current_queue
-                                and current_queue["last_modified_at"] == la_orig
-                                and current_queue["op_type"] == op
-                            )
-                            if outcome == "remote_already_deleted":
-                                if is_current and op == "D":
-                                    resolved.execute(
-                                        "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
-                                        (appt_id, key_id),
-                                    )
-                                elif (
-                                    current_queue
-                                    and current_queue["op_type"] in ("C", "U")
-                                    and current_queue["google_event_id"] in ("", gid)
-                                ):
-                                    # 舊 D 已確認 remote id 不存在；新的 C/U 必須重新 insert。
-                                    resolved.execute(
-                                        "UPDATE appointment_sync_queue SET google_event_id='' "
-                                        "WHERE appointment_id=? AND key_id=? AND last_modified_at=? "
-                                        "AND op_type IN ('C','U') AND google_event_id IN ('', ?)",
-                                        (appt_id, key_id, current_queue["last_modified_at"], gid),
-                                    )
-                                    resolved.execute(
-                                        "DELETE FROM appointment_gcal_map WHERE appointment_id=? AND key_id=?",
-                                        (appt_id, key_id),
-                                    )
-                            resolved.execute(
-                                "DELETE FROM appointment_sync_queue "
-                                "WHERE appointment_id=? AND key_id=? AND last_modified_at=? AND op_type=?",
-                                (appt_id, key_id, la_orig, op),
-                            )
-                            resolved.commit()
-                        finally:
-                            resolved.close()
-                        _record_resolution(error_summary, key_id, cal_id, outcome,
-                                           key_row.get("name", "") if key_row else "")
-                        if outcome == "remote_already_deleted":
-                            ok += 1
-                            if op == "D":
-                                maybe_finalize_calendar_migration(key_id)
-                        continue
-
-                    logger.warning("gcal 同步失敗 appointment=%s key=%s (%s) cal=%s: %s", appt_id, key_id, op, cal_id, safe_sync_error(e))
-                    err_type = safe_sync_error(e)
-                    if key_id not in error_summary:
-                        error_summary[key_id] = {
-                            "key_name": key_row.get("name", "") if key_row else "",
-                            "cal_id": cal_id,
-                            "errors": {},
-                            "resolved": {},
-                        }
-                    error_summary[key_id]["errors"][err_type] = (
-                        error_summary[key_id]["errors"].get(err_type, 0) + 1
+                    result = _handle_sync_exception(
+                        e, ref, gid, cal_id=cal_id, key_row=key_row, error_summary=error_summary,
                     )
-                    wc = get_db()
-                    try:
-                        wc.execute(
-                            "UPDATE appointment_sync_queue SET attempts=attempts+1, last_error=? "
-                            "WHERE appointment_id=? AND key_id=? AND last_modified_at=?",
-                            (safe_sync_error(e), appt_id, key_id, la_orig),
-                        )
-                        wc.commit()
-                    finally:
-                        wc.close()
-                    fail += 1
+                    if result == "ok":
+                        ok += 1
+                    elif result == "fail":
+                        fail += 1
     return ok, fail, error_summary

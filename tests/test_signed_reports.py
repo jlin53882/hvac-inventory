@@ -6,7 +6,7 @@
 """
 
 import app.database as app_db
-import app.routes.signed_reports as signed_reports
+import app.services.upload_resource as upload_resource
 import main as app_main
 import pytest
 from app.services.auth import SESSION_COOKIE, create_session, init_admin_if_missing
@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 def signed_env(tmp_path, monkeypatch):
     """隔離 DB 與上傳目錄，回傳可建立已登入 client 的工廠。"""
     monkeypatch.setattr(app_db, "DB_PATH", str(tmp_path / "signed_reports.db"))
-    monkeypatch.setattr(signed_reports, "STATIC_DIR", str(tmp_path / "static"))
+    monkeypatch.setattr(upload_resource, "STATIC_DIR", str(tmp_path / "static"))
     app_db.init_db()
     conn = app_db.get_db()
     try:
@@ -489,7 +489,7 @@ def test_edit_keeps_committed_replacement_when_old_cleanup_fails(signed_env, mon
     def fail_cleanup(*args, **kwargs):
         raise OSError("simulated cleanup failure")
 
-    monkeypatch.setattr(signed_reports, "delete_asset_files", fail_cleanup)
+    monkeypatch.setattr(upload_resource, "delete_asset_files", fail_cleanup)
     updated = owner.patch(
         f"/api/signed-reports/{report['id']}",
         data={"note": "新版本"},
@@ -537,7 +537,7 @@ def prepare_spy(monkeypatch):
         raise ValueError("無法解析圖片")
 
     def arm():
-        monkeypatch.setattr(signed_reports, "prepare_media", exploding_prepare)
+        monkeypatch.setattr(upload_resource, "prepare_media", exploding_prepare)
         return calls
 
     return arm
@@ -595,7 +595,7 @@ def test_replace_signed_report_rechecks_permission_inside_transaction(signed_env
     owner = make_client("owner", "user")
     make_client("other", "user")
     report = _upload(owner).json()
-    real_read_and_prepare = signed_reports._read_and_prepare
+    real_read_and_prepare = upload_resource._read_and_prepare
 
     def revoke_after_prepare(file):
         result = real_read_and_prepare(file)
@@ -610,7 +610,7 @@ def test_replace_signed_report_rechecks_permission_inside_transaction(signed_env
             conn.close()
         return result
 
-    monkeypatch.setattr(signed_reports, "_read_and_prepare", revoke_after_prepare)
+    monkeypatch.setattr(upload_resource, "_read_and_prepare", revoke_after_prepare)
     response = owner.patch(
         f"/api/signed-reports/{report['id']}", data={"note": "不應寫入"},
         files={"file": ("photo.png", _png_bytes(), "image/png")},

@@ -47,7 +47,7 @@ const WORK_PROGRESS_DEPENDENT_KEYS = [
   'work-progress-delete', 'work-progress-delete-all',
 ];
 
-// ---------- fetch 封裝（apiFetch：core/api-client.js；本頁不呼叫 initSession，401 在這裡轉登入） ----------
+// ---------- fetch 封裝（apiFetch：core/api-client.js；本頁不註冊 setUnauthorizedHandler，401 在這裡轉登入） ----------
 async function permRequest(url, init) {
   try {
     return await apiFetch(url, init);
