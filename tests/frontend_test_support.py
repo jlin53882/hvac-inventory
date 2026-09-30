@@ -138,6 +138,13 @@ def page_modules(html_path) -> set:
     return seen
 
 
+def read_page_served(html_path: str) -> str:
+    """HTML 原文並展開 <!-- include: name -->（直接呼叫 production 的 main._expand_includes，不在測試裡再寫一份）；
+    檢查「頁面實際載入了哪些 CSS」時用這個，不要直接讀磁碟上的頁面檔（共用 <link> 在 partial 裡）。"""
+    import main as app_main  # 延後匯入：只有這個 helper 需要，其餘純檔案讀取的測試不必載入 app
+    return app_main._expand_includes(read(html_path))
+
+
 def read_shared_css() -> str:
     """全部共用樣式（base / layout / components）依檔名順序串接。"""
     parts = []

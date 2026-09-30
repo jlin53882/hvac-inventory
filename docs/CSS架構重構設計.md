@@ -162,7 +162,7 @@ static/
 
 ### 4.1 載入方式
 
-維持多個 `<link>`（沿用 `main._versioned_html` 的 `?v=mtime` 自動版本號，不引入 build 工具、不改 `@import`，避免 `@import` 的子檔拿不到版本號而被快取 1 小時）。每個檔**自己包在對應的 layer 內**：
+維持多個 `<link>`（沿用 `main._versioned_html` 的 `?v=mtime` 自動版本號，不引入 build 工具、不改 `@import`，避免 `@import` 的子檔拿不到版本號而被快取 1 小時）。settings / permissions 兩頁的共用 `<link>`（0-tokens ~ 3-components）集中在 `static/partials/shared-css.html`，頁面以 `<!-- include: shared-css -->` 引入，由 `main._expand_includes` 在版本號注入前展開（新增共用 CSS 只改 partial 一處；頁面專屬 4-pages 與 utilities 仍寫在各頁；`index.html` 因載入清單不同維持自己的 `<link>`）。每個檔**自己包在對應的 layer 內**：
 
 ```css
 /* 0-tokens/tokens.css — 必須第一個載入，宣告全部 layer 的順序 */

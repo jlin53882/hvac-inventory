@@ -112,10 +112,6 @@ function renderKitToolbar(count) {
   const search = document.getElementById('search-input');
   const query = search ? search.value.trim() : '';
   const searchText = query ? `目前搜尋：${query}` : '使用上方搜尋框搜尋整組、材料、型號';
-  // 2026-09-27 整組庫存匯出（預設本月）
-  const now = new Date();
-  const month_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const month_end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
   return `<div class="kit-toolbar"><span class="kit-toolbar-count">共 ${esc(formatKitNumber(count))} 組</span><span class="kit-toolbar-search">🔍 <b>${esc(searchText)}</b></span><button class="btn btn--export btn--md btn-export" data-action="kits-export">📊 匯出報表</button></div>`;
 }
 

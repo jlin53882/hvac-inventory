@@ -64,7 +64,6 @@ export function engGotoStep(n){return pcSwitchModalStep(n,{validate:engValidateB
 export function engAddCategory(){engData.categories.push({name:'',groups:[{name:'',receipts:[]}]});engActiveCategory=engData.categories.length-1;engRenderEditor();}
 export function engSelectCategory(i){engActiveCategory=i;engRenderEditor();}
 export function engDeleteDetail(ci,gi,ri,di){engData.categories[ci].groups[gi].receipts[ri].details.splice(di,1);engRenderEditor();}
-function engAddGroup(ci){engData.categories[ci].groups.push({name:'',receipts:[]});engRenderEditor();}
 var engEditorExpandedReceipts = new Set();
 function engEditorReceiptKey(ci, gi, ri) { return `${ci}:${gi}:${ri}`; }
 export function engToggleEditorReceipt(ci, gi, ri) {

@@ -3,9 +3,12 @@
   "private": true,
   "description": "前端建置：Vite 把 static/js 的 ES modules 打包成 static/dist（建置結果進 repo，辦公室電腦不需安裝 Node）",
   "scripts": {
-    "build": "vite build"
+    "build": "vite build",
+    "lint": "eslint static/js"
   },
   "devDependencies": {
+    "eslint": "10.11.0",
+    "globals": "17.12.0",
     "vite": "8.3.1"
   }
 }

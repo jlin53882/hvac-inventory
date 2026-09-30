@@ -203,9 +203,11 @@ Quality 至少涵蓋：
 uv lock --check
 python -m compileall -q app tests main.py
 git diff --check
-npm ci && npm run build          # Node 22（actions/setup-node）
+npm ci && npm run lint && npm run build   # Node 22（actions/setup-node）
 git diff --exit-code -- static/dist
 ```
+
+前端 lint：`npm run lint`（ESLint，設定在 `eslint.config.mjs`）只檢查 `static/js` 的 `no-undef`（未定義識別字）與 `no-unused-vars`（未使用的 import / 變數 / 函式），不管程式風格；在 build 之前執行，失敗時先修 lint。原因是 ES module 搬移或遷移 handler 後，漏改的識別字只有實際點到才會發現，殘留的未使用程式也會變成 dead code。確定要保留的預留符號，用 `// eslint-disable-next-line no-unused-vars -- 原因` 逐行標註，不放寬全域規則。
 
 前端 JS 以 Vite 打包（issue #39），建置結果 `static/dist/` 提交進 repo，辦公室電腦不需安裝 Node。Quality 重新建置後若 `static/dist` 與提交內容不同（含新增檔案），代表有人改了 `static/js` 卻沒重建，job 失敗；修正方式是本機執行 `npm run build` 並提交結果。`.gitattributes` 把 `static/js/**`、`static/dist/**` 固定為 LF，Windows 與 Linux 建置出相同 hash。
 

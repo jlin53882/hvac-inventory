@@ -63,6 +63,7 @@ jobs:
         shell: bash
         run: |
           npm ci
+          npm run lint
           npm run build
           git diff --exit-code --stat -- static/dist
           test -z "$(git status --porcelain -- static/dist)" || { git status --porcelain -- static/dist; echo "static/dist 與原始碼不一致：請執行 npm run build 並提交結果"; exit 1; }

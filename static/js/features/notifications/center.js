@@ -3,7 +3,7 @@
 // 不重新查詢商品、不複製庫存判定、不建立通知 API 或資料表。
 
 import { createActionDelegate } from '../../core/actions.js';
-import { canAccessPage, currentUser } from '../../core/session.js';
+import { canAccessPage } from '../../core/session.js';
 import { appState } from '../../core/state.js';
 import { getCurrentKitItems, getFullItemsLoadedSite, getInventoryLoadedSite } from '../../core/shared-read-model.js';
 import { getAllItems, getInventoryMeta } from '../../core/inventory-read-model.js';
@@ -17,8 +17,6 @@ import { showStocktakeList } from '../stocktake/page.js';
 var NOTIFICATION_OPEN = false;
 
 export function getStocktakeReminderState() {
-  const user = currentUser;
-  const permissions = user && user.permissions ? user.permissions : {};
   const canOperate = canAccessPage('stocktake', 'operate');
   if (!canOperate) return { visible: false, count: 0 };
   const now = new Date();

@@ -1,7 +1,7 @@
 // 庫存管理系統 - 多位置品項的數量調整（選擇位置後排入待儲存）
 
 import { Qty } from '../../core/qty.js';
-import { INVENTORY_PENDING_ITEMS, appState, pending, pendingByStock } from '../../core/state.js';
+import { INVENTORY_PENDING_ITEMS, pending, pendingByStock } from '../../core/state.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
 import { inventoryState } from './state.js';

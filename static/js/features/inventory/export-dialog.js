@@ -57,8 +57,6 @@ export function syncInventoryExportAllSites() {
   document.getElementById('inventory-export-all-sites').checked = inputs.every(input => input.checked);
 }
 
-function exportExcel() { openInventoryExportDialog(); }
-
 /**
  * 驗證所選篩選條件，並下載指定的活頁簿工作表。
  * @returns {Promise<void>} 完成請求並清理介面後結束。

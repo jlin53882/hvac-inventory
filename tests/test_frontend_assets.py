@@ -25,6 +25,7 @@ import pytest
 from frontend_test_support import (
     page_modules,
     js_modules,
+    read_page_served,
     read_page_with_css,
     ADD_JS,
     API_JS,
@@ -111,6 +112,80 @@ def test_index_has_no_manual_version_params():
     assert refs, "找不到資源引用"
     bad = [x for x in refs if "?v=" in x]
     assert not bad, f"資源引用有手動版本號: {bad}"
+
+
+def test_settings_and_permissions_share_css_partial():
+    """settings / permissions 的共用 CSS（0-tokens ~ 3-components）只寫在 static/partials/shared-css.html，
+    兩頁用 <!-- include: shared-css --> 引入，不得各自複製 <link>（新增共用 CSS 只改一處）。
+    送出的 HTML 兩頁展開後的共用清單必須一致；頁面專屬 CSS（4-pages）與 utilities 仍寫在各頁。"""
+    import main as app_main
+    shared_link = re.compile(r'<link rel="stylesheet" href="/static/css/[0-3]-[^"]+">')
+    partial = read(os.path.join(STATIC, "partials", "shared-css.html"))
+    shared = shared_link.findall(partial)
+    assert len(shared) >= 20 and partial.count("<link") == len(shared), "partial 只放 0~3 層的共用 <link>"
+    for name, page_css in (("settings.html", "4-pages/settings.css"), ("permissions.html", "4-pages/permissions.css")):
+        html = read(os.path.join(STATIC, name))
+        assert html.count("<!-- include: shared-css -->") == 1, f"{name} 沒有引入 shared-css"
+        assert not shared_link.search(html), f"{name} 不應再自己寫共用 CSS <link>（放進 partials/shared-css.html）"
+        assert f'href="/static/css/{page_css}"' in html and 'href="/static/css/5-utilities/utilities.css"' in html
+        assert shared_link.findall(app_main._expand_includes(html)) == shared, f"{name} 展開後共用 CSS 與 partial 不一致"
+
+
+def _served_stylesheet_hrefs(page: str) -> list:
+    """呼叫 production 的 main._versioned_html 取得實際送出的 HTML，回傳 <link rel=stylesheet> 的 href（依出現順序）。"""
+    import main as app_main
+    html = app_main._versioned_html(os.path.join(STATIC, page)).body.decode("utf-8")
+    assert "<!-- include:" not in html, f"{page} 送出的 HTML 不該殘留 include 標記"
+    return re.findall(r'<link rel="stylesheet" href="([^"]+)">', html)
+
+
+def _versioned(path: str) -> str:
+    """預期的 ?v=<mtime_ns> URL（版本號一律由檔案 mtime 決定，與 main._versioned_html 的契約一致）。"""
+    fp = os.path.join(STATIC, path[len("/static/"):])
+    return f"{path}?v={os.stat(fp).st_mtime_ns}"
+
+
+def test_versioned_html_serves_shared_css_partial_for_settings_and_permissions():
+    """production regression contract：settings / permissions 實際送出的 HTML（_versioned_html 完整流程），
+    共用 CSS 來自 partial、順序與 partial 一致、全部帶 ?v=mtime、頁面專屬 CSS 與 utilities 在其後、沒有重複。"""
+    partial_hrefs = re.findall(r'<link rel="stylesheet" href="([^"]+)">', read(os.path.join(STATIC, "partials", "shared-css.html")))
+    assert len(partial_hrefs) >= 20
+    expected_shared = [_versioned(href) for href in partial_hrefs]
+    served_shared = {}
+    for page, page_css in (("settings.html", "/static/css/4-pages/settings.css"), ("permissions.html", "/static/css/4-pages/permissions.css")):
+        hrefs = _served_stylesheet_hrefs(page)
+        # 共用 CSS 順序與 partial 完全一致，之後依序是頁面專屬 CSS、utilities；不多不少
+        assert hrefs == expected_shared + [_versioned(page_css), _versioned("/static/css/5-utilities/utilities.css")], f"{page} 送出的 CSS 清單不符"
+        assert len(hrefs) == len(set(hrefs)), f"{page} 有重複的 CSS <link>"
+        assert all(re.search(r"\?v=\d+$", href) for href in hrefs), f"{page} 有 CSS 沒帶 ?v=mtime"
+        served_shared[page] = hrefs[:len(expected_shared)]
+    assert served_shared["settings.html"] == served_shared["permissions.html"], "兩頁共用 CSS 清單必須相同"
+
+
+def test_versioned_html_pages_without_include_are_unchanged_by_partial_support():
+    """沒有 include 標記的頁面（index / login）：展開步驟是 no-op，且各自的 CSS 仍全部帶 ?v=mtime。"""
+    import main as app_main
+    for page in ("index.html", "login.html"):
+        raw = read(os.path.join(STATIC, page))
+        assert "<!-- include:" not in raw
+        assert app_main._expand_includes(raw) == raw, f"{page} 沒有 include 標記，展開後不該有任何變化"
+        raw_hrefs = re.findall(r'<link rel="stylesheet" href="([^"?]+)"', raw)
+        assert _served_stylesheet_hrefs(page) == [_versioned(href) for href in raw_hrefs], f"{page} 送出的 CSS 清單改變"
+
+
+def test_include_name_cannot_traverse_paths(tmp_path):
+    """include 名稱只接受 [\\w-]+：含 ../、/、\\ 的標記不會被展開（不會去讀 partials 以外的檔案）。"""
+    import main as app_main
+    for name in ("../index", "../../main", "/etc/passwd", "a/b", "a\\b", "a.b"):
+        marker = f"<!-- include: {name} -->"
+        assert app_main._expand_includes(marker) == marker, f"{name!r} 不該被當成 include"
+
+
+def test_every_html_include_has_a_partial():
+    """每個 <!-- include: name --> 都要有對應的 static/partials/name.html（缺檔時頁面會 500，測試先擋）。"""
+    for page in Path(STATIC).glob("*.html"):
+        for name in re.findall(r"<!-- include: ([\w-]+) -->", read(str(page))):
+            assert (Path(STATIC) / "partials" / f"{name}.html").is_file(), f"{page.name} include 的 {name} 沒有 partial 檔"
 
 
 def test_index_html_div_balanced():
@@ -2392,7 +2467,7 @@ def test_api_js_core_functions():
     for fn in ("loadData", "loadPreparedBadge", "saveAll"):
         assert fn in js, f"api.js 缺 {fn}"
     export_js = read(os.path.join(STATIC, "js", "features", "inventory", "export-dialog.js"))
-    assert "exportExcel" in export_js
+    assert "openInventoryExportDialog" in export_js
 
 
 def test_app_js_core_functions():
@@ -3004,8 +3079,8 @@ def test_search_handlers_all_tabs():
 def test_filter_panel_only_inventory_tab():
     """篩選面板（chip bar）只在 inventory 頁渲染"""
     js = read(INVENTORY_RENDER_JS)
-    assert "function renderInventoryChips" in js, "renderInventoryChips 函式缺失"
-    assert "chip-bar" in js, "chip-bar class 引用缺失"
+    assert "function buildFilterPanel" in js, "buildFilterPanel 函式缺失"
+    assert "filter-chip" in js, "filter-chip class 引用缺失"
 
 
 def test_batch_bar_only_inventory_tab():
@@ -3401,7 +3476,7 @@ def test_dashboard_css_exists():
 def test_chip_bar_filter():
     """Phase 3：Chip 即時篩選列存在"""
     js = read(INVENTORY_RENDER_JS)
-    assert "chip-bar" in js, "chip-bar class 引用缺失"
+    assert "filter-chip" in js, "filter-chip class 引用缺失"
     assert "toggleInventoryBrand" in js, "toggleInventoryBrand 函式缺失"
     assert "toggleInventoryCategory" in js, "toggleInventoryCategory 函式缺失"
 
@@ -4142,6 +4217,8 @@ def test_data_actions_and_delegate_handlers_match():
     markup.add("kits-submit-edit")
     # 動態組出的名稱：庫存項目選單 inventory-menu-<key>（key = edit / transfer / delete）
     markup |= {"inventory-menu-edit", "inventory-menu-transfer", "inventory-menu-delete"}
+    # 篩選 chips：inventory/filters.js renderFilterChips 依 type（brand / category）組出 inventory-<type>-toggle
+    markup |= {"inventory-brand-toggle", "inventory-category-toggle"}
     assert markup - handlers == set(), f"這些 data-action 沒有 handler：{sorted(markup - handlers)}"
     handlers = {name for name in handlers if name.startswith(DELEGATE_PREFIXES)}
     assert handlers - markup == set(), f"這些 handler 沒有任何標記使用（死碼）：{sorted(handlers - markup)}"
@@ -5227,7 +5304,7 @@ def test_page_scope_contract():
     tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
     assert "@layer tokens, base, layout, components, pages, utilities;" in tokens
     for page in ("index.html", "settings.html", "permissions.html", "login.html"):
-        html = read(os.path.join(STATIC, page))
+        html = read_page_served(os.path.join(STATIC, page))
         first_css = html.index('<link rel="stylesheet"')
         assert html.index("/static/css/0-tokens/tokens.css") == html.index("/static/css/", first_css), f"{page} 必須最先載入 tokens.css"
     for page, scope in (("settings.html", "settings"), ("permissions.html", "permissions"), ("login.html", "login")):

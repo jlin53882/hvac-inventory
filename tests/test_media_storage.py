@@ -790,6 +790,34 @@ def test_versioned_static_url_uses_subsecond_mtime(media_env):
     assert f"/static/js/features/shell/app.js?v={js.stat().st_mtime_ns}" in response.body.decode("utf-8")
 
 
+def test_versioned_html_expands_partial_includes(media_env):
+    """<!-- include: name --> 換成 static/partials/name.html；partial 內的 /static/ 資源同樣帶 ?v=mtime，且只展開一層。"""
+    _client, static_dir, _upload_dir = media_env
+    css = static_dir / "css" / "3-components" / "table.css"
+    css.parent.mkdir(parents=True)
+    css.write_text("@layer components {}", encoding="utf-8")
+    partials = static_dir / "partials"
+    partials.mkdir()
+    (partials / "shared-css.html").write_text(
+        '<link rel="stylesheet" href="/static/css/3-components/table.css">\n<!-- include: other -->\n', encoding="utf-8")
+    page = static_dir / "page.html"
+    page.write_text("<head>\n<!-- include: shared-css -->\n</head>", encoding="utf-8")
+
+    html = app_main._versioned_html(str(page)).body.decode("utf-8")
+    assert f'href="/static/css/3-components/table.css?v={css.stat().st_mtime_ns}"' in html
+    assert html.startswith("<head>\n<link") and html.endswith("</head>")
+    assert "<!-- include: other -->" in html  # 不巢狀展開
+
+
+def test_versioned_html_missing_partial_fails_loudly(media_env):
+    """partial 檔案不存在代表部署不完整：直接丟錯，不送出缺樣式的頁面。"""
+    _client, static_dir, _upload_dir = media_env
+    page = static_dir / "page.html"
+    page.write_text("<!-- include: nope -->", encoding="utf-8")
+    with pytest.raises(FileNotFoundError):
+        app_main._versioned_html(str(page))
+
+
 def test_versioned_html_serves_vite_build_when_manifest_exists(media_env, monkeypatch):
     """issue #39：HTML 寫原始進入點，送出時依 Vite manifest 換成建置檔並預載共用 chunk；
     沒有建置結果或 HVAC_FRONTEND_SOURCE=1 時維持原始 ES module。"""
