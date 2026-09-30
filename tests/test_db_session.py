@@ -10,14 +10,13 @@ import app.database as app_db
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 尚未遷移的檔案：測試會 patch 這些模組自己的 get_db（假連線 / 追蹤 / 注入失敗），
-# 貿然換成 db_session 會讓 patch 失效。遷移時需連同測試一起改，改完請從這裡移除。
+# 刻意不遷移的檔案：這些模組的測試需要 patch「該模組自己的 get_db」來注入假連線 / 追蹤 / 失敗
+#（例如 sync_scheduler 用 _FakeConn 驗證排程流程、gcal_keys 驗證 DB 失敗時不留孤兒憑證檔）。
+# 換成 db_session 後 patch 會失效，需連同測試一起改；改完請從這裡移除。
 NOT_MIGRATED = {
     "app/services/gcal_sync.py",
     "app/services/sync_scheduler.py",
     "app/routes/gcal_keys.py",
-    "app/routes/appointments.py",
-    "app/routes/items.py",
 }
 
 

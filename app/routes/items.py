@@ -22,7 +22,7 @@ from typing import Optional
 from fastapi import Depends, APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
-from app.database import get_db
+from app.database import db_session
 from app.models import (
     AdjustRequest,
     BatchLocationRequest,
@@ -202,8 +202,7 @@ def list_items(
         raise HTTPException(400, f"page 不可超過 {MAX_PAGE}")
     if page_size < 1 or page_size > 100:
         raise HTTPException(400, "page_size 必須在 1-100")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         from_sql = " FROM items i LEFT JOIN item_stocks s ON s.item_id = i.id"
         where = ["i.is_deleted = 0"]
         params = []
@@ -279,15 +278,12 @@ def list_items(
         if page is not None:
             return JSONResponse({"items": result, "total": total, "page": page, "page_size": page_size, "stats": page_stats})
         return JSONResponse(result)
-    finally:
-        conn.close()
 
 
 @router.get("/api/items/facets")
 def item_facets(site: Optional[InventorySiteQuery] = None):
     """回傳庫存篩選 facets，不需把完整品項清單送到瀏覽器。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         where = " WHERE i.is_deleted=0 AND i.is_kit=0"
         params = []
         if site and site != "all":
@@ -313,15 +309,12 @@ def item_facets(site: Optional[InventorySiteQuery] = None):
             "categories": {r["name"]: r["count"] for r in categories},
             "locations": [r["location"] for r in locations],
         }
-    finally:
-        conn.close()
 
 
 @router.post("/api/items", status_code=201, dependencies=[Depends(require_perm("item-mgmt"))])
 def create_item(item: ItemCreate):
     """新增品項主檔 + 位置庫存（v10 去重：同鍵已存在則 400 拒絕）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         # ===== v10 去重規則 =====
         exists = conn.execute(
             "SELECT id FROM items WHERE brand=? AND code=? AND name=? AND unit=? AND site=? AND is_deleted=0",
@@ -356,18 +349,12 @@ def create_item(item: ItemCreate):
         row = conn.execute("SELECT * FROM items WHERE id=?", (new_id,)).fetchone()
         full = _item_full(conn, row)
         return full
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.patch("/api/items/{item_id}", dependencies=[Depends(require_perm("item-mgmt"))])
 def update_item(item_id: int, upd: ItemUpdate):
-    try:
-        """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
-        conn = get_db()
+    """更新品項主檔欄位；stocks 有給則全量替換位置庫存（同位置去重）"""
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row0 = conn.execute("SELECT id, site, updated_at FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row0:
@@ -509,19 +496,13 @@ def update_item(item_id: int, upd: ItemUpdate):
         row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         full = _item_full(conn, row)
         return full
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.delete("/api/items/{item_id}", dependencies=[Depends(require_perm("item-mgmt"))])
 def delete_item(item_id: int):
     """刪除品項（M6 soft-delete：保留 movements/stocktakes 稽核軌跡與 kit 引用，只標 is_deleted=1）"""
-    conn = get_db()
     photo_assets = []
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         movement_ts = movement_time.now_sql()
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
@@ -556,11 +537,6 @@ def delete_item(item_id: int):
             ("item_photo", "item", str(item_id)),
         )
         conn.commit()
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
     # commit 成功後再刪除 original/preview/thumbnail，避免 rollback 留下 metadata 與檔案不一致。
     for asset in photo_assets:
         delete_asset_files(asset)
@@ -579,8 +555,7 @@ def delete_item(item_id: int):
 @router.post("/api/items/{item_id}/stocks", status_code=201, dependencies=[Depends(require_perm("stock-mgmt"))])
 def add_stock(item_id: int, st: StockUpdate):
     """新增位置庫存（同位置重複 → 400 拒絕），回傳該品項全部位置清單"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         item = conn.execute("SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not item:
@@ -607,11 +582,6 @@ def add_stock(item_id: int, st: StockUpdate):
         conn.commit()
         row = conn.execute("SELECT * FROM item_stocks WHERE item_id=? ORDER BY id", (item_id,)).fetchall()
         return [dict(r) for r in row]
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.patch("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])
@@ -621,55 +591,52 @@ def update_stock(stock_id: int, st: StockUpdate):
     2026-08-14 併發修復：qty 改「相對差額」寫回（併發不互相覆蓋）+ 補 movements 流水
     （原本絕對值寫回且零流水）；負數調整以品項「總量」比對待領出（與 adjust_qty 語意一致）。
     """
-    conn = get_db()
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        fields = {k: v for k, v in st.model_dump().items() if v is not None}
-        row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
-        if not row:
-            raise HTTPException(404, "位置庫存不存在")
-        if "location" in fields and fields["location"] != row["location"]:
-            dup = conn.execute(
-                "SELECT id FROM item_stocks WHERE item_id=? AND location=? AND id!=?",
-                (row["item_id"], fields["location"], stock_id),
-            ).fetchone()
-            if dup:
-                raise HTTPException(400, f"該位置「{fields['location']}」已存在")
-        # qty 差額處理（2026-08-14：併發 lost update 防護 + 補流水）
-        if "qty" in fields:
-            target_qty = canonical_qty(fields["qty"])
-            diff = canonical_qty(target_qty - canonical_qty(row["qty"]))
-            fields.pop("qty")  # qty 已抽離，避免下方動態 UPDATE 覆寫
-            if diff != 0:
-                # P0-C：整個 item 的 new total 不得低於 prepared（同一 writer transaction 內驗證）
-                assert_projected_inventory(conn, row["item_id"], stock_delta=diff)
-                now = datetime.datetime.now().isoformat()
-                conn.execute(
-                    "UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
-                    (diff, now, stock_id),
-                )
-                conn.execute(
-                    "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
-                    (row["item_id"], diff, row["qty"], canonical_qty(row["qty"] + diff), "編輯位置調整", "", movement_time.now_sql()),
-                )
-        if fields:
-            fields["updated_at"] = datetime.datetime.now().isoformat()
-            sets = ", ".join(f"{k}=?" for k in fields)
-            conn.execute(f"UPDATE item_stocks SET {sets} WHERE id=?", (*fields.values(), stock_id))
-        conn.commit()
-        return {"ok": True}
-    except:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            fields = {k: v for k, v in st.model_dump().items() if v is not None}
+            row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, "位置庫存不存在")
+            if "location" in fields and fields["location"] != row["location"]:
+                dup = conn.execute(
+                    "SELECT id FROM item_stocks WHERE item_id=? AND location=? AND id!=?",
+                    (row["item_id"], fields["location"], stock_id),
+                ).fetchone()
+                if dup:
+                    raise HTTPException(400, f"該位置「{fields['location']}」已存在")
+            # qty 差額處理（2026-08-14：併發 lost update 防護 + 補流水）
+            if "qty" in fields:
+                target_qty = canonical_qty(fields["qty"])
+                diff = canonical_qty(target_qty - canonical_qty(row["qty"]))
+                fields.pop("qty")  # qty 已抽離，避免下方動態 UPDATE 覆寫
+                if diff != 0:
+                    # P0-C：整個 item 的 new total 不得低於 prepared（同一 writer transaction 內驗證）
+                    assert_projected_inventory(conn, row["item_id"], stock_delta=diff)
+                    now = datetime.datetime.now().isoformat()
+                    conn.execute(
+                        "UPDATE item_stocks SET qty=ROUND(qty+?,3), updated_at=? WHERE id=?",
+                        (diff, now, stock_id),
+                    )
+                    conn.execute(
+                        "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,?,?,?,?,?)",
+                        (row["item_id"], diff, row["qty"], canonical_qty(row["qty"] + diff), "編輯位置調整", "", movement_time.now_sql()),
+                    )
+            if fields:
+                fields["updated_at"] = datetime.datetime.now().isoformat()
+                sets = ", ".join(f"{k}=?" for k in fields)
+                conn.execute(f"UPDATE item_stocks SET {sets} WHERE id=?", (*fields.values(), stock_id))
+            conn.commit()
+            return {"ok": True}
+        except:
+            conn.rollback()
+            raise
 
 
 @router.delete("/api/stocks/{stock_id}", dependencies=[Depends(require_perm("stock-mgmt"))])
 def delete_stock(stock_id: int):
     """刪除指定位置庫存（P0-A：非 0 數量拒絕，避免總庫存無流水消失）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM item_stocks WHERE id=?", (stock_id,)).fetchone()
         if not row:
@@ -679,18 +646,12 @@ def delete_stock(stock_id: int):
         conn.execute("DELETE FROM item_stocks WHERE id=?", (stock_id,))
         conn.commit()
         return {"ok": True}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.post("/api/items/{item_id}/adjust", dependencies=[Depends(require_perm("stock-mgmt"))])
 def adjust_qty(item_id: int, req: AdjustRequest):
     """加減庫存：正數=盤點補入、負數=扣減"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         item_row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not item_row:
@@ -731,11 +692,6 @@ def adjust_qty(item_id: int, req: AdjustRequest):
         )
         conn.commit()
         return {"ok": True, "before": total_before, "after": total_after}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.post("/api/stocks/{stock_id}/adjust", dependencies=[Depends(require_perm("stock-mgmt"))])
@@ -752,8 +708,7 @@ def adjust_stock_qty(stock_id: int, req: StockAdjustRequest) -> dict:
     Raises:
         HTTPException: If the location is missing, the delta is invalid, or stock invariants fail.
     """
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         stock = conn.execute(
             "SELECT s.id, s.item_id, s.location, s.qty FROM item_stocks s "
@@ -804,18 +759,12 @@ def adjust_stock_qty(stock_id: int, req: StockAdjustRequest) -> dict:
             "before": before,
             "after": after,
         }
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.post("/api/import", dependencies=[Depends(require_perm("import"))])
 def import_items(items: list = Body(..., embed=True)):
     """批量匯入（v10：自動去重，重複則合併到既有主檔的庫存）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         # M8：筆數上限（防一次塞爆）
         if len(items) > 500:
             raise HTTPException(400, "一次最多匯入 500 筆")
@@ -881,64 +830,57 @@ def import_items(items: list = Body(..., embed=True)):
                 inserted += 1
         conn.commit()
         return {"ok": True, "inserted": inserted, "merged": merged}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.post("/api/stocks/batch-location", dependencies=[Depends(require_perm("batch-loc-mgmt"))])
 def batch_update_location(body: BatchLocationRequest):
     """批量更新多筆 stock 記錄的位置。"""
-    conn = get_db()
-    try:
-        # 驗證所有 stock_ids 存在
-        placeholders = ",".join("?" * len(body.stock_ids))
-        rows = conn.execute(
-            f"SELECT id, item_id, location FROM item_stocks WHERE id IN ({placeholders})",
-            body.stock_ids
-        ).fetchall()
-        if len(rows) != len(body.stock_ids):
-            found_ids = {r["id"] for r in rows}
-            missing = [i for i in body.stock_ids if i not in found_ids]
-            raise HTTPException(400, f"找不到 stock IDs: {missing}")
+    with db_session() as conn:
+        try:
+            # 驗證所有 stock_ids 存在
+            placeholders = ",".join("?" * len(body.stock_ids))
+            rows = conn.execute(
+                f"SELECT id, item_id, location FROM item_stocks WHERE id IN ({placeholders})",
+                body.stock_ids
+            ).fetchall()
+            if len(rows) != len(body.stock_ids):
+                found_ids = {r["id"] for r in rows}
+                missing = [i for i in body.stock_ids if i not in found_ids]
+                raise HTTPException(400, f"找不到 stock IDs: {missing}")
 
-        # 檢查目標位置衝突（同一品項不能有兩筆相同位置）
-        for row in rows:
-            conflict = conn.execute(
-                "SELECT id FROM item_stocks WHERE item_id=? AND location=? AND id!=?",
-                (row["item_id"], body.new_location, row["id"])
-            ).fetchone()
-            if conflict:
-                item = conn.execute("SELECT name FROM items WHERE id=?", (row["item_id"],)).fetchone()
-                raise HTTPException(400, f"「{item['name']}」在「{body.new_location}」已有庫存記錄")
+            # 檢查目標位置衝突（同一品項不能有兩筆相同位置）
+            for row in rows:
+                conflict = conn.execute(
+                    "SELECT id FROM item_stocks WHERE item_id=? AND location=? AND id!=?",
+                    (row["item_id"], body.new_location, row["id"])
+                ).fetchone()
+                if conflict:
+                    item = conn.execute("SELECT name FROM items WHERE id=?", (row["item_id"],)).fetchone()
+                    raise HTTPException(400, f"「{item['name']}」在「{body.new_location}」已有庫存記錄")
 
-        # new_site 僅保留向後相容驗證；跨 site 必須使用正式 transfer API。
-        if body.new_site:
-            item_ids = list({row["item_id"] for row in rows})
-            item_placeholders = ",".join("?" * len(item_ids))
-            item_sites = {
-                item["site"] for item in conn.execute(
-                    "SELECT DISTINCT site FROM items WHERE id IN (" + item_placeholders + ") AND is_deleted=0",
-                    item_ids,
-                ).fetchall()
-            }
-            if any(site != body.new_site for site in item_sites):
-                raise HTTPException(400, "品項不能直接變更庫存區，請使用庫存調撥")
+            # new_site 僅保留向後相容驗證；跨 site 必須使用正式 transfer API。
+            if body.new_site:
+                item_ids = list({row["item_id"] for row in rows})
+                item_placeholders = ",".join("?" * len(item_ids))
+                item_sites = {
+                    item["site"] for item in conn.execute(
+                        "SELECT DISTINCT site FROM items WHERE id IN (" + item_placeholders + ") AND is_deleted=0",
+                        item_ids,
+                    ).fetchall()
+                }
+                if any(site != body.new_site for site in item_sites):
+                    raise HTTPException(400, "品項不能直接變更庫存區，請使用庫存調撥")
 
-        # 批次更新位置；此 API 永遠不修改 items.site。
-        now = datetime.datetime.now().isoformat()
-        conn.execute(
-            f"UPDATE item_stocks SET location=?, updated_at=? WHERE id IN ({placeholders})",
-            [body.new_location, now] + body.stock_ids
-        )
-        conn.commit()
-        return {"ok": True, "updated": len(body.stock_ids)}
-    except HTTPException:
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+            # 批次更新位置；此 API 永遠不修改 items.site。
+            now = datetime.datetime.now().isoformat()
+            conn.execute(
+                f"UPDATE item_stocks SET location=?, updated_at=? WHERE id IN ({placeholders})",
+                [body.new_location, now] + body.stock_ids
+            )
+            conn.commit()
+            return {"ok": True, "updated": len(body.stock_ids)}
+        except HTTPException:
+            raise
+        except Exception:
+            conn.rollback()
+            raise

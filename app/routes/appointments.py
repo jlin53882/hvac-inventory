@@ -19,7 +19,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.database import get_db
+from app.database import db_session
 from app.models import AppointmentIn
 from app.services.auth import require_login, require_perm
 from app.services.report import build_daily_report
@@ -408,8 +408,7 @@ def _appt_row(conn, appt_id: int, viewer_user=None) -> dict:
 @router.get("/api/appointments")
 def list_appointments(year: int = 0, month: int = 0, date: str = "", user: dict = Depends(require_login)):
     """月曆（year+month）或當日（date）行程清單"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         if date:
             rows = conn.execute("SELECT id FROM appointments WHERE date=?", (date,)).fetchall()
         else:
@@ -425,15 +424,12 @@ def list_appointments(year: int = 0, month: int = 0, date: str = "", user: dict 
             rows = conn.execute("SELECT id FROM appointments WHERE date BETWEEN ? AND ?",
                                 (start, end.isoformat())).fetchall()
         return _appt_rows(conn, [r["id"] for r in rows], user)
-    finally:
-        conn.close()
 
 
 @router.get("/api/appointments/search")
 def search_appointments(date_from: str = "", date_to: str = "", q: str = "", user: dict = Depends(require_login)):
     """搜尋行程（日期範圍 + 關鍵字）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         sql = "SELECT id FROM appointments WHERE 1=1"
         params = []
         if date_from:
@@ -467,8 +463,6 @@ def search_appointments(date_from: str = "", date_to: str = "", q: str = "", use
         sql += " ORDER BY date DESC, start_time ASC"
         rows = conn.execute(sql, params).fetchall()
         return _appt_rows(conn, [r["id"] for r in rows], user)
-    finally:
-        conn.close()
 
 
 @router.post("/api/appointments")
@@ -476,35 +470,33 @@ def create_appointment(body: AppointmentIn, user: dict = Depends(require_perm("c
     _validate_time(body.start_time, body.end_time)
     if not body.client_name.strip():
         raise HTTPException(400, "請填客戶 / 案場")
-    conn = get_db()
-    try:
-        # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句（SELECT 不觸發 auto-BEGIN）——
-        # 衝突檢查+寫入持 RESERVED 鎖同一交易，防雙重派工（TO-1）。依賴 Task 0.1 busy_timeout。
-        conn.execute("BEGIN IMMEDIATE")
-        _validate_users(conn, body.user_ids)
-        _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
-        conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time)
-        if conflict:
-            raise HTTPException(409, conflict)
-        cur = conn.execute(
-            """INSERT INTO appointments
+    with db_session() as conn:
+        try:
+            # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句（SELECT 不觸發 auto-BEGIN）——
+            # 衝突檢查+寫入持 RESERVED 鎖同一交易，防雙重派工（TO-1）。依賴 Task 0.1 busy_timeout。
+            conn.execute("BEGIN IMMEDIATE")
+            _validate_users(conn, body.user_ids)
+            _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
+            conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time)
+            if conflict:
+                raise HTTPException(409, conflict)
+            cur = conn.execute(
+                """INSERT INTO appointments
                (client_name, address, service_type_id, date, start_time, end_time, note, created_by)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (body.client_name.strip(), body.address.strip(), body.service_type_id,
-             body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"]),
-        )
-        appt_id = cur.lastrowid
-        for uid in body.user_ids:
-            conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
-                         (appt_id, uid))
-        conn.commit()
-        mark_sync_pending(appt_id, "C")
-        return _appt_row(conn, appt_id, user)
-    except:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+                (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"]),
+            )
+            appt_id = cur.lastrowid
+            for uid in body.user_ids:
+                conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
+                             (appt_id, uid))
+            conn.commit()
+            mark_sync_pending(appt_id, "C")
+            return _appt_row(conn, appt_id, user)
+        except:
+            conn.rollback()
+            raise
 
 
 @router.put("/api/appointments/{appt_id}")
@@ -512,74 +504,71 @@ def update_appointment(appt_id: int, body: AppointmentIn, user: dict = Depends(r
     _validate_time(body.start_time, body.end_time)
     if not body.client_name.strip():
         raise HTTPException(400, "請填客戶 / 案場")
-    conn = get_db()
-    try:
-        # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句——衝突檢查+寫入同一交易（TO-1）
-        conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
-        if row is None:
-            raise HTTPException(404, "行程不存在")
-        _validate_users_for_update(conn, appt_id, body.user_ids)
-        _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
-        conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time,
-                                  exclude_id=appt_id)
-        if conflict:
-            raise HTTPException(409, conflict)
-        # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
-        if body.updated_at:
-            cur = conn.execute(
-                """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
+    with db_session() as conn:
+        try:
+            # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個語句——衝突檢查+寫入同一交易（TO-1）
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
+            if row is None:
+                raise HTTPException(404, "行程不存在")
+            _validate_users_for_update(conn, appt_id, body.user_ids)
+            _validate_service_type(conn, body.service_type_id)  # 2026-08-12 補：防 FK 500
+            conflict = _find_conflict(conn, body.user_ids, body.date, body.start_time, body.end_time,
+                                      exclude_id=appt_id)
+            if conflict:
+                raise HTTPException(409, conflict)
+            # 2026-08-14 樂觀鎖：前端帶 updated_at 快照 → WHERE 守衛，被他人改過 → rowcount=0 → 409
+            if body.updated_at:
+                cur = conn.execute(
+                    """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
                    start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=? AND updated_at=?""",
-                (body.client_name.strip(), body.address.strip(), body.service_type_id,
-                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id, body.updated_at),
-            )
-            if cur.rowcount == 0:
-                raise HTTPException(409, "該行程已被他人修改，請重新整理後再編輯")
-        else:
-            conn.execute(
-                """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
+                    (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                     body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id, body.updated_at),
+                )
+                if cur.rowcount == 0:
+                    raise HTTPException(409, "該行程已被他人修改，請重新整理後再編輯")
+            else:
+                conn.execute(
+                    """UPDATE appointments SET client_name=?, address=?, service_type_id=?, date=?,
                    start_time=?, end_time=?, note=?, updated_at=datetime('now'), updated_by=? WHERE id=?""",
-                (body.client_name.strip(), body.address.strip(), body.service_type_id,
-                 body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id),
-            )
-        conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
-        for uid in body.user_ids:
-            conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
-                         (appt_id, uid))
-        sync_work_progress_snapshot_for_appointment(conn, appt_id)
-        assignee_count = conn.execute(
-            "SELECT COUNT(*) AS c FROM appointment_assignees WHERE appointment_id=?",
-            (appt_id,),
-        ).fetchone()["c"]
-        assigned_key_ids = set(gcal_sync.resolve_assigned_key_ids(conn, appt_id)) if assignee_count else set()
-        map_rows_all = conn.execute(
-            "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
-            (appt_id,),
-        ).fetchall()
-        # D only means the current relationship was explicitly removed.  An empty
-        # assignee list is the intentional fallback-all domain, not an orphan set.
-        orphan_d_rows = []
-        if assignee_count > 0:
-            orphan_d_rows = [
-                (mr["key_id"], mr["google_event_id"])
-                for mr in map_rows_all if mr["key_id"] not in assigned_key_ids
-            ]
-        conn.commit()
-        mark_sync_pending(appt_id, "U")
-        if orphan_d_rows:
-            mark_sync_pending(appt_id, "D", map_rows=orphan_d_rows)
-        return _appt_row(conn, appt_id, user)
-    except:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+                    (body.client_name.strip(), body.address.strip(), body.service_type_id,
+                     body.date, body.start_time or "", body.end_time or "", body.note.strip(), user["id"], appt_id),
+                )
+            conn.execute("DELETE FROM appointment_assignees WHERE appointment_id=?", (appt_id,))
+            for uid in body.user_ids:
+                conn.execute("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (?,?)",
+                             (appt_id, uid))
+            sync_work_progress_snapshot_for_appointment(conn, appt_id)
+            assignee_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM appointment_assignees WHERE appointment_id=?",
+                (appt_id,),
+            ).fetchone()["c"]
+            assigned_key_ids = set(gcal_sync.resolve_assigned_key_ids(conn, appt_id)) if assignee_count else set()
+            map_rows_all = conn.execute(
+                "SELECT key_id, google_event_id FROM appointment_gcal_map WHERE appointment_id=?",
+                (appt_id,),
+            ).fetchall()
+            # D only means the current relationship was explicitly removed.  An empty
+            # assignee list is the intentional fallback-all domain, not an orphan set.
+            orphan_d_rows = []
+            if assignee_count > 0:
+                orphan_d_rows = [
+                    (mr["key_id"], mr["google_event_id"])
+                    for mr in map_rows_all if mr["key_id"] not in assigned_key_ids
+                ]
+            conn.commit()
+            mark_sync_pending(appt_id, "U")
+            if orphan_d_rows:
+                mark_sync_pending(appt_id, "D", map_rows=orphan_d_rows)
+            return _appt_row(conn, appt_id, user)
+        except:
+            conn.rollback()
+            raise
 
 
 @router.delete("/api/appointments/{appt_id}")
 def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt"))):
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT id FROM appointments WHERE id=?", (appt_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "行程不存在")
@@ -598,11 +587,6 @@ def delete_appointment(appt_id: int, user: dict = Depends(require_perm("cal-mgmt
         conn.commit()
         mark_sync_pending(appt_id, "D", map_rows=map_rows)
         return {"ok": True}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
 
 @router.get("/api/appointments/export")
@@ -612,8 +596,7 @@ def export_daily_report(date: str):
         datetime.date.fromisoformat(date)
     except ValueError:
         raise HTTPException(400, "日期格式錯誤（需 YYYY-MM-DD）")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             """SELECT a.*, s.name AS service_name FROM appointments a
                LEFT JOIN service_types s ON s.id = a.service_type_id
@@ -629,16 +612,13 @@ def export_daily_report(date: str):
         buf, mmdd = build_daily_report(date, day_events)
         filename = f"工程日報表{mmdd}.xlsx"
         return xlsx_download(buf.getvalue(), filename)
-    finally:
-        conn.close()
 
 
 
 @router.get("/api/assignable-users")
 def list_assignable_users():
     """可指派人員：啟用中且非 viewer（行事曆勾選清單用）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             """SELECT id, username, display_name, color, role FROM users
                WHERE is_active=1 AND role != 'viewer' ORDER BY display_name, id""").fetchall()
@@ -646,5 +626,3 @@ def list_assignable_users():
                  "display_name": r["display_name"] or r["username"],
                  "color": r["color"] or "#1a73e8",
                  "role": r["role"]} for r in rows]
-    finally:
-        conn.close()
