@@ -3,8 +3,8 @@
     "file": "assets/api-client-3bmOLXBs.js",
     "name": "api-client"
   },
-  "_change-password-9w2lYdsI.js": {
-    "file": "assets/change-password-9w2lYdsI.js",
+  "_change-password-DyEuQAVi.js": {
+    "file": "assets/change-password-DyEuQAVi.js",
     "name": "change-password",
     "imports": [
       "_api-client-3bmOLXBs.js"
@@ -20,13 +20,13 @@
     ]
   },
   "static/js/pages/main.js": {
-    "file": "assets/main-BwUNaubg.js",
+    "file": "assets/main-BcUcxb6a.js",
     "name": "main",
     "src": "static/js/pages/main.js",
     "isEntry": true,
     "imports": [
       "_api-client-3bmOLXBs.js",
-      "_change-password-9w2lYdsI.js"
+      "_change-password-DyEuQAVi.js"
     ]
   },
   "static/js/pages/permissions.js": {
@@ -39,13 +39,13 @@
     ]
   },
   "static/js/pages/settings.js": {
-    "file": "assets/settings-CSMmrzzV.js",
+    "file": "assets/settings-C27OM615.js",
     "name": "settings",
     "src": "static/js/pages/settings.js",
     "isEntry": true,
     "imports": [
       "_api-client-3bmOLXBs.js",
-      "_change-password-9w2lYdsI.js"
+      "_change-password-DyEuQAVi.js"
     ]
   }
 }

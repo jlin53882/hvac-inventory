@@ -9,6 +9,7 @@ import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
+import { getCurrentKitItems } from '../../core/shared-read-model.js';
 import { esc, hasPerm, jsStr, openModal, toast } from '../../core/utils.js';
 import { renderKitPhotoBox } from '../inventory/photo.js';
 import { loadKitCabinetOptions, renderKitLocationRows } from './kit-modal.js';
@@ -34,7 +35,7 @@ export async function renderKits() {
         return c.brand + ' ' + c.name + ' ' + (c.code || '');
       }).join(' ')].join(' ');
     });
-    const filteredKits = appState.currentKitItems;
+    const filteredKits = getCurrentKitItems();
     updateNotifications();
     const isM = isMobileView();
     let html = renderKitPageHeader(isViewer);

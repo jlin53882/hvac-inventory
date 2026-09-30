@@ -6,7 +6,7 @@ import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { loadData } from '../shell/data-refresh.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
-import { appState } from '../../core/state.js';
+import { getCurrentKitItems, getPreparedItems } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, esc, hasPerm, openModal, toast } from '../../core/utils.js';
@@ -162,7 +162,7 @@ export async function submitPrepare() {
 
 // 開啟「待領出轉已領出」Modal，帶入品項名稱與已準備數量
 export function openPreparedOutModal(id) {
-  const item = getAllItems().find(i => i.id === id) || appState.preparedItems.find(i => i.id === id);  // 非庫存品項不在 ALL_ITEMS（2026-09-07 Sarah）
+  const item = getAllItems().find(i => i.id === id) || getPreparedItems().find(i => i.id === id);  // 非庫存品項不在 ALL_ITEMS（2026-09-07 Sarah）
   if (!item) return;
   stockoutState.preparedOutItemId = id;
   document.getElementById('po-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
@@ -178,8 +178,8 @@ export function openPreparedOutModal(id) {
  */
 export async function submitPreparedOut() {
   const item = getAllItems().find(i => i.id === stockoutState.preparedOutItemId)
-    || (typeof appState.preparedItems !== 'undefined' && appState.preparedItems
-      ? appState.preparedItems.find(i => i.id === stockoutState.preparedOutItemId)
+    || (getPreparedItems()
+      ? getPreparedItems().find(i => i.id === stockoutState.preparedOutItemId)
       : null);
   const qty = qtyInputOrToast('po-qty', item && item.unit);
   const dest = document.getElementById('po-dest').value.trim();
@@ -455,8 +455,8 @@ function canEditPreparedMaster(item) {
 }
 
 export function openPreparedEditModal(id) {
-  const item = (typeof appState.preparedItems !== 'undefined' && appState.preparedItems)
-    ? appState.preparedItems.find(i => i.id === id)
+  const item = getPreparedItems()
+    ? getPreparedItems().find(i => i.id === id)
     : null;
   if (!item) return;
   _preparedEditContext = true;
@@ -478,8 +478,8 @@ export function openPreparedEditModal(id) {
 }
 
 export async function submitPreparedEdit() {
-  const item = (typeof appState.preparedItems !== 'undefined' && appState.preparedItems)
-    ? appState.preparedItems.find(i => i.id === stockoutState.editPreparedId)
+  const item = getPreparedItems()
+    ? getPreparedItems().find(i => i.id === stockoutState.editPreparedId)
     : null;
   if (!item) { toast('找不到待領出品項', 'error'); return; }
   const canEditMaster = canEditPreparedMaster(item);
@@ -516,8 +516,8 @@ export async function submitPreparedEdit() {
 
 // ========== 整組待領出 BOM Modal ==========
 export function openKitPrepareModal(kitId, kitName) {
-  const kit = (typeof appState.currentKitItems !== 'undefined' && appState.currentKitItems)
-    ? appState.currentKitItems.find(k => k.item_id === kitId || k.id === kitId)
+  const kit = getCurrentKitItems()
+    ? getCurrentKitItems().find(k => k.item_id === kitId || k.id === kitId)
     : null;
   if (!kit) return;
   const comps = kit.components || [];

@@ -35,12 +35,15 @@ function moduleScript(relative) {
   return leaves.concat(script).join('\n');
 }
 
-const READ_MODEL = 'core/inventory-read-model.js';  // 只含讀取 appState 的函式宣告；appState 由測試的 vm context 提供
+const READ_MODEL = 'core/inventory-read-model.js';  // read-model 只含讀寫 appState 的函式宣告；appState 由測試的 vm context 提供
 const LEAF_MODULES = {
   createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js',
   getAllItems: READ_MODEL, getInventoryMeta: READ_MODEL, getInventoryFacets: READ_MODEL,
   setInventoryPage: READ_MODEL, setInventoryStats: READ_MODEL,
 };
+for (const name of ['getPreparedItems', 'getCurrentKitItems', 'getGlobalCabinetList', 'getDestinations', 'getActiveUnitList',
+  'getInventoryLoadedSite', 'getFullItemsLoadedSite', 'getDestinationsLoadedSite', 'getCurrentBrands', 'getCurrentCategories',
+  'setCurrentBrands', 'setCurrentCategories']) LEAF_MODULES[name] = 'core/shared-read-model.js';
 
 function strip(source) {
   return source

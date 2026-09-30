@@ -15,16 +15,17 @@ import { setUnauthorizedHandler } from '../core/api-client.js';
 import * as m0 from '../core/api-client.js';
 import * as m1 from '../core/qty.js';
 import * as m2 from '../core/session.js';
-import * as m3 from '../core/state.js';
-import * as m4 from '../core/units.js';
-import * as m5 from '../core/utils.js';
-import * as m6 from '../features/account/change-password.js';
-import * as m7 from '../features/settings/cabinets.js';
-import * as m8 from '../features/settings/gcal-key-modal.js';
-import * as m9 from '../features/settings/gcal.js';
-import * as m10 from '../features/settings/page.js';
-import * as m11 from '../features/settings/petty-options.js';
-import * as m12 from '../features/settings/units.js';
+import * as m3 from '../core/shared-read-model.js';
+import * as m4 from '../core/state.js';
+import * as m5 from '../core/units.js';
+import * as m6 from '../core/utils.js';
+import * as m7 from '../features/account/change-password.js';
+import * as m8 from '../features/settings/cabinets.js';
+import * as m9 from '../features/settings/gcal-key-modal.js';
+import * as m10 from '../features/settings/gcal.js';
+import * as m11 from '../features/settings/page.js';
+import * as m12 from '../features/settings/petty-options.js';
+import * as m13 from '../features/settings/units.js';
 
 window.Account = { cpwCheckMatch, cpwCheckStrength };
 window.Auth = { logout };
@@ -34,16 +35,17 @@ window.__hvac = Object.freeze({
   'core/api-client.js': m0,
   'core/qty.js': m1,
   'core/session.js': m2,
-  'core/state.js': m3,
-  'core/units.js': m4,
-  'core/utils.js': m5,
-  'features/account/change-password.js': m6,
-  'features/settings/cabinets.js': m7,
-  'features/settings/gcal-key-modal.js': m8,
-  'features/settings/gcal.js': m9,
-  'features/settings/page.js': m10,
-  'features/settings/petty-options.js': m11,
-  'features/settings/units.js': m12,
+  'core/shared-read-model.js': m3,
+  'core/state.js': m4,
+  'core/units.js': m5,
+  'core/utils.js': m6,
+  'features/account/change-password.js': m7,
+  'features/settings/cabinets.js': m8,
+  'features/settings/gcal-key-modal.js': m9,
+  'features/settings/gcal.js': m10,
+  'features/settings/page.js': m11,
+  'features/settings/petty-options.js': m12,
+  'features/settings/units.js': m13,
 });
 
 setUnauthorizedHandler(handleUnauthorized);   // 401 一律跳登入（登入頁 / 權限頁不註冊）

@@ -6,6 +6,7 @@ import { setPageScope, syncViewUrl } from './page-scope.js';
 import { getStocktakeReminderState, updateNotifications } from '../notifications/center.js';
 import { canAccessPage, checkAuth, firstAccessiblePageTab, resolveAccessiblePageTab } from '../../core/session.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, INVENTORY_SITES, appState, pending } from '../../core/state.js';
+import { getFullItemsLoadedSite, getInventoryLoadedSite } from '../../core/shared-read-model.js';
 import { setInventoryPage, setInventoryStats } from '../../core/inventory-read-model.js';
 import { inventoryState } from '../inventory/state.js';
 import { shellState } from './state.js';
@@ -230,12 +231,12 @@ export function switchTab(tab) {
     if (sub) sub.value = '';
   }
   if (tab === 'inventory') {
-    if (appState.inventoryLoadedSite !== appState.currentSite) {
+    if (getInventoryLoadedSite() !== appState.currentSite) {
       loadInventoryPage(1);
       return;
     }
     renderInventory();
-  } else if (['prepared', 'stockout', 'stocktake', 'kit'].indexOf(tab) >= 0 && appState.fullItemsLoadedSite !== appState.currentSite) {
+  } else if (['prepared', 'stockout', 'stocktake', 'kit'].indexOf(tab) >= 0 && getFullItemsLoadedSite() !== appState.currentSite) {
     loadData({ full: true });
     return;
   } else if (tab === 'prepared') renderPrepared();

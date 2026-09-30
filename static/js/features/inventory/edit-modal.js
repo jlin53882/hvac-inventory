@@ -3,6 +3,7 @@
 import { apiFetch } from '../../core/api-client.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { appState, INVENTORY_ALERT_ITEMS } from '../../core/state.js';
+import { getGlobalCabinetList } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';
 import { fillUnitSelect } from '../../core/units.js';
@@ -91,7 +92,7 @@ function renderEditStockRows(stocks, unit) {
 }
 export function _cabinetOptions(selected) {
   // 若全局清單為空，用預設值（應不會發生，除非 loadCabinets 還未完成）
-  const cabs = [{ name: '', note: '' }, ...appState.globalCabinetList];
+  const cabs = [{ name: '', note: '' }, ...getGlobalCabinetList()];
   // 已存的櫃子若不在目前清單（清單尚未載入或櫃子已改名/刪除）→ 保留為選項，避免儲存時被靜默清空
   if (selected && !cabs.some(c => (c.name || '') === selected)) {
     cabs.push({ name: selected, note: '不在櫃子清單' });

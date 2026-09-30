@@ -45,8 +45,8 @@ ALLOWED_WRITERS = {
     "inventoryLoadedSite": {"features/shell"},
     "fullItemsLoadedSite": {"features/shell"},
     "preparedItems": {"features/prepared"},
-    "currentBrands": {"features/inventory"},
-    "currentCategories": {"features/inventory"},
+    "currentBrands": {"core"},        # 透過 core/shared-read-model.js 的 setCurrentBrands
+    "currentCategories": {"core"},    # 同上：setCurrentCategories
     "currentTab": {"features/shell"},
     "currentSite": {"features/shell"},
     "currentKitItems": {"features/kits"},
@@ -56,12 +56,10 @@ ALLOWED_WRITERS = {
     "globalCabinetList": {"features/inventory", "features/kits"},
 }
 
-# 原地修改（不是重新指派整個欄位）：目前只有這 3 個欄位有，寫入者也是現況；新增請先想能不能由 owner 提供函式
+# 原地修改（不是重新指派整個欄位）：目前只剩 INVENTORY_META（由 core 的 setter 修改）；新增請先想能不能由 owner 提供函式
 # （INVENTORY_META 已收進 core/inventory-read-model.js 的 setter，其他 feature 只能呼叫 setter）
 ALLOWED_MUTATORS = {
     "INVENTORY_META": {"core"},   # core/inventory-read-model.js 的 setInventoryPage / setInventoryStats（feature 不再直接改）
-    "currentBrands": {"features/inventory", "features/shell"},
-    "currentCategories": {"features/inventory", "features/shell"},
 }
 
 _WRITE_RE = re.compile(r"\bappState\.(\w+)\s*(?:[+\-*/]?=(?!=)|\+\+|--)")
@@ -170,18 +168,31 @@ def test_shell_state_is_private_to_shell():
 
 
 # ---- 讀取棘輪（direct reader ratchet）----
-# 已 accessor 化的欄位：consumer 一律經 core/inventory-read-model.js 的 getter 讀取，不得直接 `appState.X`。
-# 寫入（appState.X = …）仍由 ALLOWED_WRITERS 管；這裡只管「讀」。下一個 phase 再把其他欄位加進來。
+# 已 accessor 化的欄位：consumer 一律經 core/inventory-read-model.js 或 core/shared-read-model.js 的 getter 讀取，
+# 不得直接 `appState.X`。寫入（appState.X = …）仍由 ALLOWED_WRITERS 管；這裡只管「讀」。
 ACCESSOR_FIELDS = {
     "ALL_ITEMS": "getAllItems",
     "INVENTORY_META": "getInventoryMeta",
     "INVENTORY_FACETS": "getInventoryFacets",
+    "preparedItems": "getPreparedItems",
+    "currentKitItems": "getCurrentKitItems",
+    "globalCabinetList": "getGlobalCabinetList",
+    "DESTINATIONS": "getDestinations",
+    "unitListActive": "getActiveUnitList",
+    "inventoryLoadedSite": "getInventoryLoadedSite",
+    "fullItemsLoadedSite": "getFullItemsLoadedSite",
+    "destinationsLoadedSite": "getDestinationsLoadedSite",
+    "currentBrands": "getCurrentBrands",
+    "currentCategories": "getCurrentCategories",
 }
-READ_MODEL_JS = os.path.join(JS_ROOT, "core", "inventory-read-model.js")
-# 目前仍直接讀 appState.X 的模組數（只准減少）；已清零的欄位不得再出現
-DIRECT_READER_BASELINE = {"ALL_ITEMS": 0, "INVENTORY_META": 0, "INVENTORY_FACETS": 0}
+SETTERS = ("setInventoryPage", "setInventoryStats", "setCurrentBrands", "setCurrentCategories")
+READ_MODEL_FILES = tuple(os.path.join(JS_ROOT, "core", name) for name in ("inventory-read-model.js", "shared-read-model.js"))
+# 刻意保留 shared 的導覽層欄位：不 accessor 化，但「直接讀取的模組數」只准減少（2026-09-30 量測）
+NAVIGATION_READER_BASELINE = {"currentTab": 15, "currentSite": 16}
+# accessor 化欄位目前仍直接讀 appState.X 的模組數（只准減少）；全部已清零
+DIRECT_READER_BASELINE = {field: 0 for field in ACCESSOR_FIELDS}
 
-_DIRECT_READ_RE = re.compile(r"\bappState\.(" + "|".join(ACCESSOR_FIELDS) + r")\b(?!\s*[+\-*/]?=(?!=))")
+_DIRECT_READ_RE = re.compile(r"\bappState\.(" + "|".join((*ACCESSOR_FIELDS, *NAVIGATION_READER_BASELINE)) + r")\b(?!\s*[+\-*/]?=(?!=))")
 # 透過 accessor 拿到 reference 後原地修改（繞過 owner）
 _ACCESSOR_MUTATE_RE = re.compile(
     r"\b(?:" + "|".join(ACCESSOR_FIELDS.values()) + r")\(\)\s*(?:"
@@ -196,24 +207,30 @@ _ACCESSOR_MUTATE_RE = re.compile(
 
 def _js_sources():
     for path in glob.glob(os.path.join(JS_ROOT, "**", "*.js"), recursive=True):
-        if path in (STATE_JS, READ_MODEL_JS) or os.sep + "dist" + os.sep in path:
+        if path == STATE_JS or path in READ_MODEL_FILES or os.sep + "dist" + os.sep in path:
             continue
         yield path, open(path, encoding="utf-8").read()
 
 
-def test_inventory_read_model_is_read_through_accessors():
-    """ALL_ITEMS / INVENTORY_META / INVENTORY_FACETS 的讀取一律走 accessor，direct reader 只准減少。"""
-    readers = {field: set() for field in ACCESSOR_FIELDS}
+def _direct_readers():
+    readers = {}
     for path, source in _js_sources():
         for match in _DIRECT_READ_RE.finditer(source):
-            readers[match.group(1)].add(os.path.relpath(path, JS_ROOT).replace(os.sep, "/"))
-    grew = {f: sorted(files) for f, files in readers.items() if len(files) > DIRECT_READER_BASELINE[f]}
-    assert not grew, f"這些模組直接讀 appState 欄位，請改用 core/inventory-read-model.js 的 accessor：{grew}"
-    stale = {f: len(files) for f, files in readers.items() if len(files) < DIRECT_READER_BASELINE[f]}
-    assert not stale, f"direct reader 已減少，請調降 DIRECT_READER_BASELINE：{stale}"
+            readers.setdefault(match.group(1), set()).add(os.path.relpath(path, JS_ROOT).replace(os.sep, "/"))
+    return readers
 
 
-def test_inventory_read_model_accessors_are_not_mutated_by_consumers():
+def test_shared_state_is_read_through_accessors():
+    """accessor 化欄位的讀取一律走 getter，direct reader 只准減少；導覽欄位（currentTab/currentSite）的 reader 模組數也只准減少。"""
+    readers = _direct_readers()
+    baseline = {**DIRECT_READER_BASELINE, **NAVIGATION_READER_BASELINE}
+    grew = {f: sorted(readers.get(f, ())) for f in baseline if len(readers.get(f, ())) > baseline[f]}
+    assert not grew, f"這些模組直接讀 appState 欄位（accessor 化欄位請改用 core/*-read-model.js 的 getter）：{grew}"
+    stale = {f: len(readers.get(f, ())) for f in baseline if len(readers.get(f, ())) < baseline[f]}
+    assert not stale, f"direct reader 已減少，請調降基準：{stale}"
+
+
+def test_read_model_accessors_are_not_mutated_by_consumers():
     """accessor 回傳的是 live reference：不得 getAllItems().push(...) / getInventoryMeta().x = … 這類繞過 owner 的修改。"""
     offenders = {}
     for path, source in _js_sources():
@@ -223,18 +240,20 @@ def test_inventory_read_model_accessors_are_not_mutated_by_consumers():
     assert not offenders, f"透過 accessor 原地修改共用狀態（請改由 owner 提供 setter）：{offenders}"
 
 
-def test_inventory_read_model_exposes_the_agreed_contract():
-    """accessor 與 setter 的名稱是 consumer 的契約；backing storage 仍在 appState，換掉時 consumer 不用改。"""
-    source = open(READ_MODEL_JS, encoding="utf-8").read()
-    for name in (*ACCESSOR_FIELDS.values(), "setInventoryPage", "setInventoryStats"):
-        assert re.search(rf"export function {name}\(", source), f"inventory-read-model.js 缺少 {name}"
-    assert "import { appState } from './state.js';" in source
+def test_read_model_exposes_the_agreed_contract():
+    """getter / setter 的名稱是 consumer 的契約；backing storage 仍在 appState，換掉時 consumer 不用改。"""
+    source = "".join(open(path, encoding="utf-8").read() for path in READ_MODEL_FILES)
+    for name in (*ACCESSOR_FIELDS.values(), *SETTERS):
+        assert re.search(rf"export function {name}\(", source), f"read-model 缺少 {name}"
+    for path in READ_MODEL_FILES:
+        assert "import { appState } from './state.js';" in open(path, encoding="utf-8").read()
 
 
-def test_inventory_read_model_runtime():
+def test_read_model_runtime():
     """accessor / setter 的 runtime 行為：預設值、owner 重新指派後 reader 讀到最新值、setter 只改指定欄位。"""
-    result = subprocess.run(
-        ["node", os.path.join(ROOT, "tests", "inventory_read_model_runtime.test.js")],
-        capture_output=True, text=True, encoding="utf-8", timeout=120,
-    )
-    assert result.returncode == 0, f"inventory read model runtime 失敗：\n{result.stdout}\n{result.stderr}"
+    for name in ("inventory_read_model_runtime", "shared_read_model_runtime"):
+        result = subprocess.run(
+            ["node", os.path.join(ROOT, "tests", f"{name}.test.js")],
+            capture_output=True, text=True, encoding="utf-8", timeout=120,
+        )
+        assert result.returncode == 0, f"{name} 失敗：\n{result.stdout}\n{result.stderr}"

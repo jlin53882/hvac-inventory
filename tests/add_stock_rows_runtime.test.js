@@ -38,6 +38,7 @@ assert.match(build([{ cabinet: '', sub: '', qty: 0, note: '' }]).error, /位置�
 
 // ---- 2. _cabinetOptions：清單外（未載入/已改名）的既有櫃子不可被靜默清空 ----
 const editContext = vm.createContext({ esc: escapeHtml, appState: { globalCabinetList: [] } });
+vm.runInContext("function getGlobalCabinetList() { return appState.globalCabinetList; }", editContext);  // 正式環境由 core/shared-read-model.js 提供
 vm.runInContext(extractFunction(read('static/js/features/inventory/edit-modal.js'), '_cabinetOptions'), editContext);
 const unloaded = editContext._cabinetOptions('編號B');
 assert.match(unloaded, /<option value="編號B" selected>/, '櫃子清單未載入時仍需保留已存櫃子並選取');
@@ -105,6 +106,7 @@ const kitContext = vm.createContext({
   fetch: async () => mockResponse([{ name: '編號A' }, { name: '編號B' }]),
 });
 installApiClient(kitContext);
+vm.runInContext("function getGlobalCabinetList() { return appState.globalCabinetList; }", kitContext);
 vm.runInContext(extractFunction(read('static/js/features/inventory/edit-modal.js'), '_cabinetOptions'), kitContext);
 loadModules(kitContext, 'features/kits/state.js', 'features/kits/kit-modal.js');
 const render = () => { kitContext.renderKitLocationRows(); domRows = parseRows(container.html); };

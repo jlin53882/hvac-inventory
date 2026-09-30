@@ -2,7 +2,7 @@
 // 讓待領出頁不必 import 會回頭重繪本頁的 stockout/modals.js）
 
 import { openSheet } from '../../core/bottomsheet.js';
-import { appState } from '../../core/state.js';
+import { getPreparedItems } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { hasPerm } from '../../core/utils.js';
 import { openPreparedEditModal, openPreparedOutModal, returnPrepared } from '../stockout/modals.js';
@@ -12,7 +12,7 @@ import { clearPrepared } from './page.js';
 
 export function openPreparedSheet(itemId) {
 
-  const item = appState.preparedItems.find(i => i.id === itemId) || getAllItems().find(i => i.id === itemId);  // 非庫存品項不在 ALL_ITEMS（2026-08-16 家豪：點 ⋯ 無效 bug）
+  const item = getPreparedItems().find(i => i.id === itemId) || getAllItems().find(i => i.id === itemId);  // 非庫存品項不在 ALL_ITEMS（2026-08-16 家豪：點 ⋯ 無效 bug）
 
   if (!item) return;
 

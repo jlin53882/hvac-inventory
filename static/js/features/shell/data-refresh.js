@@ -6,6 +6,7 @@ import { apiFetch } from '../../core/api-client.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, ITEMLESS_TABS, appState } from '../../core/state.js';
+import { getCurrentBrands, getCurrentCategories, setCurrentBrands, setCurrentCategories } from '../../core/shared-read-model.js';
 import { getInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { shellState } from './state.js';
@@ -108,12 +109,10 @@ function reconcileInventoryFilters(facets) {
   let changed = false;
   const validBrands = new Set(Object.keys((facets && facets.brands) || {}));
   const validCategories = new Set(Object.keys((facets && facets.categories) || {}));
-  for (let i = appState.currentBrands.length - 1; i >= 0; i--) {
-    if (!validBrands.has(appState.currentBrands[i])) { appState.currentBrands.splice(i, 1); changed = true; }
-  }
-  for (let i = appState.currentCategories.length - 1; i >= 0; i--) {
-    if (!validCategories.has(appState.currentCategories[i])) { appState.currentCategories.splice(i, 1); changed = true; }
-  }
+  const brands = getCurrentBrands().filter(function(brand) { return validBrands.has(brand); });
+  const categories = getCurrentCategories().filter(function(category) { return validCategories.has(category); });
+  if (brands.length !== getCurrentBrands().length) { setCurrentBrands(brands); changed = true; }
+  if (categories.length !== getCurrentCategories().length) { setCurrentCategories(categories); changed = true; }
   return changed;
 }
 
@@ -136,8 +135,8 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     });
     const search = document.getElementById('search-input');
     if (search && search.value.trim()) params.set('search', search.value.trim());
-    if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
-    if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
+    if (getCurrentBrands().length) params.set('brands', getCurrentBrands().join(','));
+    if (getCurrentCategories().length) params.set('categories', getCurrentCategories().join(','));
     const shouldLoadFacets = Boolean(refreshFacets) || shellState.inventoryFacetsLoadedSite !== siteAtRequest;
     // facets 失敗（HTTP 錯誤）不擋列表，只是篩選選項沿用舊資料；網路錯誤 / 取消則照常中止
     const facetsRequest = shouldLoadFacets
@@ -151,9 +150,9 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     let body = pageBody;
     if (!inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;
     if (facets && reconcileInventoryFilters(facets)) {
-      if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
+      if (getCurrentBrands().length) params.set('brands', getCurrentBrands().join(','));
       else params.delete('brands');
-      if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
+      if (getCurrentCategories().length) params.set('categories', getCurrentCategories().join(','));
       else params.delete('categories');
       body = await apiFetch(`/api/items?${params}`, { signal: controller.signal });
       if (!inventoryGuard.isCurrent(requestId) || siteAtRequest !== appState.currentSite) return;

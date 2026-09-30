@@ -2,7 +2,7 @@
 
 import { buildThumb } from '../../components/card.js';
 import { openSharedStatusListModal, statusListFormatQuantity } from '../../components/status-list.js';
-import { appState } from '../../core/state.js';
+import { getCurrentKitItems } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { esc, hasPerm } from '../../core/utils.js';
 
@@ -53,7 +53,7 @@ function renderKitStatusItem(kit, type) {
 }
 export function showKitStatusList(type) {
   const validType = type === 'shortage' ? 'shortage' : 'insufficient';
-  const items = appState.currentKitItems.filter(function(k) { return getKitStatus(k).status === validType; });
+  const items = getCurrentKitItems().filter(function(k) { return getKitStatus(k).status === validType; });
   const isShortage = validType === 'shortage';
   openSharedStatusListModal({
     title: isShortage ? '⛔ 缺料的整組' : '⚠ 庫存不足的整組',

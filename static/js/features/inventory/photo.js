@@ -9,6 +9,7 @@ import { loadData, renderInventoryView } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { appState } from '../../core/state.js';
+import { getCurrentKitItems } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
 
@@ -249,8 +250,8 @@ export async function deleteKitPhoto(kitId, itemId) {
   try {
     await apiFetch(`/api/kits/${kitId}/photo`, { method: 'DELETE' });
 
-    const kit = Array.isArray(appState.currentKitItems)
-      ? appState.currentKitItems.find(entry => Number(entry.id) === Number(kitId))
+    const kit = Array.isArray(getCurrentKitItems())
+      ? getCurrentKitItems().find(entry => Number(entry.id) === Number(kitId))
       : null;
     if (kit) {
       kit.has_photo = false;

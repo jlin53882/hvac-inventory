@@ -3,6 +3,7 @@
 import { clearSharedStatusListModal, renderSharedProductStatusItem, setSharedStatusListContext, statusListLocations } from '../../components/status-list.js';
 import { apiFetch } from '../../core/api-client.js';
 import { INVENTORY_ALERT_ITEMS, INVENTORY_PENDING_ITEMS, appState, pending } from '../../core/state.js';
+import { getCurrentBrands, getCurrentCategories } from '../../core/shared-read-model.js';
 import { getInventoryMeta, setInventoryStats } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems, getInventoryFilterKeywords, inventoryItemMatchesCurrentFilters } from './filters.js';
@@ -119,8 +120,8 @@ function getInventoryStatusItems(type) {
 
 function getInventoryFilterStateKey() {
   const search = document.getElementById('search-input');
-  const brands = typeof appState.currentBrands !== 'undefined' ? appState.currentBrands : [];
-  const categories = typeof appState.currentCategories !== 'undefined' ? appState.currentCategories : [];
+  const brands = getCurrentBrands();
+  const categories = getCurrentCategories();
   return JSON.stringify([
     typeof appState.currentSite !== 'undefined' ? appState.currentSite : '',
     search ? search.value.trim() : '',
@@ -139,8 +140,8 @@ function buildInventoryAlertParams() {
   });
   const search = document.getElementById('search-input');
   if (search && search.value.trim()) params.set('search', search.value.trim());
-  if (appState.currentBrands.length) params.set('brands', appState.currentBrands.join(','));
-  if (appState.currentCategories.length) params.set('categories', appState.currentCategories.join(','));
+  if (getCurrentBrands().length) params.set('brands', getCurrentBrands().join(','));
+  if (getCurrentCategories().length) params.set('categories', getCurrentCategories().join(','));
   return params;
 }
 

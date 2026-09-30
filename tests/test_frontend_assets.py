@@ -1499,7 +1499,7 @@ def test_prepared_js_shows_model():
 def test_prepared_js_none_stock_sheet_actions():
     """非庫存品項 ⋯ 選單可開（preparedItems fallback）+ 無退回按鈕（2026-08-16 家豪）"""
     js = read(PREPARED_RENDER_JS)
-    assert "preparedItems.find" in js          # 非庫存品項不在 ALL_ITEMS → 用待領出清單 fallback（bug：點 ⋯ 無效）
+    assert "getPreparedItems().find" in js          # 非庫存品項不在 ALL_ITEMS → 用待領出清單 fallback（bug：點 ⋯ 無效）
     assert "!item.is_deleted" in js            # 退回按鈕條件（非庫存保留 已領出+刪除）
 
 
@@ -3065,7 +3065,7 @@ def test_brand_filter_normalizes_no_brand():
     bug 版：顯示層把空 brand 正規化成「無廠牌」，過濾層卻用原始 i.brand 比對，
     兩者對不上 → 點「無廠牌」(最大群 52.8%) 整頁 0 結果。此斷言鎖住正規化。"""
     js = read(INVENTORY_RENDER_JS)
-    assert "currentBrands.includes(i.brand || '無廠牌')" in js, \
+    assert "getCurrentBrands().includes(i.brand || '無廠牌')" in js, \
         "renderInventory/getFilteredItems 品牌過濾須正規化空品牌為『無廠牌』"
     # 不得退回原始空值比對（會讓無廠牌 chip 篩選失效）
     assert "appState.currentBrands.includes(i.brand);" not in js, \
@@ -3289,7 +3289,7 @@ def test_update_notifications_function():
 def test_update_notifications_refreshes_after_kit_data_load():
     """Kit notifications must refresh after currentKitItems is populated."""
     js = read(os.path.join(STATIC, "js", "features", "kits", "page.js"))
-    assignment = "const filteredKits = appState.currentKitItems;"
+    assignment = "const filteredKits = getCurrentKitItems();"
     start = js.index(assignment) + len(assignment)
     assert "updateNotifications();" in js[start:start + 80]
 

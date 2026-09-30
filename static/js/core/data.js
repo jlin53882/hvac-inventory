@@ -3,6 +3,7 @@
 
 import { apiFetch } from './api-client.js';
 import { appState } from './state.js';
+import { getDestinations } from './shared-read-model.js';
 import { esc } from './utils.js';
 
 // 載入最近 100 筆出庫紀錄的去向 → 建立 destination 下拉建議清單（DESTINATIONS）
@@ -14,7 +15,7 @@ export async function loadDestinations() {
     appState.DESTINATIONS = [...new Set(outs.map(o => o.destination).filter(Boolean))];
     appState.destinationsLoadedSite = siteAtRequest;
     document.getElementById('dest-list').innerHTML =
-      appState.DESTINATIONS.map(d => `<option value="${esc(d)}">`).join('');
+      getDestinations().map(d => `<option value="${esc(d)}">`).join('');
   } catch (e) { if (e.name !== 'AbortError') console.error('[loadDestinations] 去向清單載入失敗', e); }
 }
 

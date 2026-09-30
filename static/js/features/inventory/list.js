@@ -5,6 +5,7 @@ import { isMobileView } from '../../core/bottomsheet.js';
 import { loadDestinations } from '../../core/data.js';
 import { Qty } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
+import { getCurrentBrands, getCurrentCategories, getDestinationsLoadedSite, getInventoryLoadedSite } from '../../core/shared-read-model.js';
 import { getAllItems, getInventoryFacets, getInventoryMeta } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';
 import { esc, hasPerm, jsStr } from '../../core/utils.js';
@@ -24,7 +25,7 @@ import { closeInventoryStatusModal, getInventoryStatus, renderInventoryDashboard
 // 從 ALL_ITEMS 建立廠牌與位置的 datalist 建議清單，並載入去向建議
 
 export function buildDatalists(skipDestinationLoad) {
-  const facetReady = appState.inventoryLoadedSite === appState.currentSite && getInventoryFacets();
+  const facetReady = getInventoryLoadedSite() === appState.currentSite && getInventoryFacets();
   const brands = facetReady && Object.keys(getInventoryFacets().brands || {}).length
     ? Object.keys(getInventoryFacets().brands).sort()
     : [...new Set(getAllItems().map(i => i.brand))].sort();
@@ -33,7 +34,7 @@ export function buildDatalists(skipDestinationLoad) {
     : [...new Set(getAllItems().flatMap(i => (i.stocks || []).map(s => s.location)))].sort();
   document.getElementById('brand-list').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
   document.getElementById('location-list').innerHTML = locs.map(l => `<option value="${esc(l)}">`).join('');
-  if (!skipDestinationLoad && appState.destinationsLoadedSite !== appState.currentSite) loadDestinations();
+  if (!skipDestinationLoad && getDestinationsLoadedSite() !== appState.currentSite) loadDestinations();
 }
 
 
@@ -89,7 +90,7 @@ function renderInventoryPageHeading() {
 
 function renderInventoryEmptyState(isViewer) {
   const search = document.getElementById('search-input');
-  const hasFilter = appState.currentBrands.length > 0 || appState.currentCategories.length > 0 || (search && search.value.trim());
+  const hasFilter = getCurrentBrands().length > 0 || getCurrentCategories().length > 0 || (search && search.value.trim());
   const clearButton = hasFilter ? '<button class="btn btn--secondary btn--md" onclick="Inventory.clearFilterPanel()">清除篩選</button>' : '';
   const addButton = isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" onclick="Inventory.openAddModal()">＋ 新增品項</button>';
   return `<div class="inventory-empty-state">

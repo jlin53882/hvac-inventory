@@ -4,6 +4,7 @@
 
 import { canAccessPage, currentUser } from '../../core/session.js';
 import { appState } from '../../core/state.js';
+import { getCurrentKitItems, getFullItemsLoadedSite, getInventoryLoadedSite } from '../../core/shared-read-model.js';
 import { getAllItems, getInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems } from '../inventory/filters.js';
@@ -34,7 +35,7 @@ function getNotificationSingleCounts() {
   const stats = getInventoryMeta().stats;
   const hasStatsItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
   if (appState.currentTab === 'inventory') {
-    if (typeof appState.inventoryLoadedSite !== 'undefined' && appState.inventoryLoadedSite !== appState.currentSite && !hasStatsItems) {
+    if (getInventoryLoadedSite() !== appState.currentSite && !hasStatsItems) {
       return { loading: true, out: 0, low: 0 };
     }
     const items = getFilteredInventoryItems();
@@ -49,7 +50,7 @@ function getNotificationSingleCounts() {
     };
   }
   if (appState.currentTab === 'stocktake') {
-    if (typeof appState.fullItemsLoadedSite !== 'undefined' && appState.fullItemsLoadedSite !== appState.currentSite && !(getAllItems() || []).length) {
+    if (getFullItemsLoadedSite() !== appState.currentSite && !(getAllItems() || []).length) {
       return { loading: true, out: 0, low: 0 };
     }
     const items = Array.isArray(getAllItems()) ? getAllItems() : [];
@@ -74,8 +75,8 @@ function getNotificationSummary() {
       if (counts.low > 0) categories.push({ kind: 'low', tone: 'low', icon: '⚠', label: '低庫存商品', count: counts.low, unit: '項', description: '有 ' + counts.low + ' 個品項低於安全庫存' });
     }
   } else if (appState.currentTab === 'kit') {
-    const kits = Array.isArray(appState.currentKitItems) ? appState.currentKitItems : [];
-    if (typeof appState.fullItemsLoadedSite !== 'undefined' && appState.fullItemsLoadedSite !== appState.currentSite && !kits.length) {
+    const kits = Array.isArray(getCurrentKitItems()) ? getCurrentKitItems() : [];
+    if (getFullItemsLoadedSite() !== appState.currentSite && !kits.length) {
       loading = true;
     } else {
       const shortage = kits.filter(function(kit) { return getKitStatus(kit).status === 'shortage'; }).length;

@@ -3,6 +3,7 @@
 import { apiFetch } from '../../core/api-client.js';
 import { Qty } from '../../core/qty.js';
 import { appState } from '../../core/state.js';
+import { getActiveUnitList } from '../../core/shared-read-model.js';
 import { loadUnits, unitList } from '../../core/units.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
 import { loadCabinets } from './cabinets.js';
@@ -86,11 +87,11 @@ export function renderUnitsPanel() {
             '<td class="qty">×' + absNum(it.total_qty) + '</td>' +
             '<td>' + _sgHtml +
             '<div class="u-manual"><select class="u-ci-to" data-role="unit-consolidate-to" required><option value="">— 請選擇 —</option>';
-          appState.unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
+          getActiveUnitList().forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
           html += '</select><input class="u-ci-qty" data-role="unit-consolidate-qty" inputmode="decimal" placeholder="新總量（選填）" title="轉換後總量，例：0.75"> <button class="btn btn--primary btn--sm btn-primary" onclick="Settings.consolidateItem(' + it.item_id + ', this)">改為</button></div></td></tr>';
         });
         html += '</table><div class="grp-fast" data-role="unit-group-fast">整組快速套用：<select class="u-ci-fast" data-role="unit-consolidate-fast" required><option value="">— 請選擇 —</option>';
-        appState.unitListActive.forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
+        getActiveUnitList().forEach(u => { html += '<option>' + esc(u.name) + '</option>'; });
         html += '</select><button class="btn btn--primary btn--sm btn-primary" data-from="' + esc(g.unit) + '" onclick="Settings.consolidateGroup(this)">套用全部</button></div></div></div>';
       });
       html += '</div>';
