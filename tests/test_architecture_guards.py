@@ -5,12 +5,12 @@
 不必等到下一次大重構才發現。
 
 1. 模組層 ALL_CAPS 常數必須是不可變型別（frozenset / tuple / MappingProxyType）
-2. services 不得 import routes（依賴方向：routes → services → database）
-3. routes 之間不得 import 對方的私有名稱（底線開頭）
+2. 依賴方向 routes → services → database：services 不得 import routes（含函式內 lazy import）
+3. routes 之間不得互相 import（共用邏輯放 services）
 4. 上傳副檔名 / 大小上限只在 services/upload_policy.py 定義
 
-規則 2、3 目前有「已知違規」白名單：這是待清理的技術債，只准減少、不准新增。
-白名單項目一旦修掉，測試會要求同步從白名單移除（避免白名單腐爛）。
+若確實遇到「暫時無法修正」的違規，才加進下面的白名單，並註明原因；
+白名單項目修好後測試會要求同步移除（避免白名單腐爛）。
 """
 import ast
 import threading
@@ -19,14 +19,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / "app"
 
-# 已知違規（技術債）：修掉後必須從這裡刪除
-KNOWN_SERVICE_IMPORTS_ROUTE = {
-    "app/services/gcal_sync.py",
-}
-KNOWN_ROUTE_PRIVATE_IMPORTS = {
-    ("app/routes/items.py", "_photo_path"),
-    ("app/routes/kits.py", "_photo_path"),
-}
+# 已知違規（技術債）：目前全部清零，新增前請先想能不能把共用邏輯移到 services
+KNOWN_SERVICE_IMPORTS_ROUTE: set[str] = set()
+KNOWN_ROUTE_IMPORTS_ROUTE: set[str] = set()
 
 
 def _py_files(base: Path):
@@ -68,7 +63,7 @@ def test_module_level_constants_are_immutable():
     assert not offenders, "模組層常數不可為可變容器：\n" + "\n".join(offenders)
 
 
-# ---------- 2. 依賴方向 ----------
+# ---------- 2 / 3. 依賴方向 ----------
 
 def _imports_routes(tree: ast.AST) -> bool:
     for node in ast.walk(tree):
@@ -83,29 +78,22 @@ def _imports_routes(tree: ast.AST) -> bool:
     return False
 
 
+def _check_no_route_imports(base: Path, known: set[str], label: str):
+    violators = {_rel(p) for p in _py_files(base) if _imports_routes(_parse(p))}
+    new = violators - known
+    fixed = known - violators
+    assert not new, f"{label} 不得 import app.routes（共用邏輯請放 services）：{sorted(new)}"
+    assert not fixed, f"已修好，請從白名單移除：{sorted(fixed)}"
+
+
 def test_services_do_not_import_routes():
     """services 是被 routes 呼叫的下層；反向 import 會形成循環依賴（含函式內 lazy import）。"""
-    violators = {_rel(p) for p in _py_files(APP / "services") if _imports_routes(_parse(p))}
-    new = violators - KNOWN_SERVICE_IMPORTS_ROUTE
-    fixed = KNOWN_SERVICE_IMPORTS_ROUTE - violators
-    assert not new, f"services 不得 import app.routes：{sorted(new)}"
-    assert not fixed, f"已修好，請從 KNOWN_SERVICE_IMPORTS_ROUTE 移除：{sorted(fixed)}"
+    _check_no_route_imports(APP / "services", KNOWN_SERVICE_IMPORTS_ROUTE, "services")
 
 
-# ---------- 3. routes 之間不碰私有名稱 ----------
-
-def test_routes_do_not_import_private_names_from_other_routes():
-    violators = set()
-    for path in _py_files(APP / "routes"):
-        for node in ast.walk(_parse(path)):
-            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app.routes."):
-                for alias in node.names:
-                    if alias.name.startswith("_"):
-                        violators.add((_rel(path), alias.name))
-    new = violators - KNOWN_ROUTE_PRIVATE_IMPORTS
-    fixed = KNOWN_ROUTE_PRIVATE_IMPORTS - violators
-    assert not new, f"routes 不得 import 其他 route 的私有名稱：{sorted(new)}"
-    assert not fixed, f"已修好，請從 KNOWN_ROUTE_PRIVATE_IMPORTS 移除：{sorted(fixed)}"
+def test_routes_do_not_import_other_routes():
+    """routes 是平行的 HTTP 入口，彼此不該依賴（會讓拆檔/改名牽一髮動全身）。"""
+    _check_no_route_imports(APP / "routes", KNOWN_ROUTE_IMPORTS_ROUTE, "routes")
 
 
 # ---------- 4. 上傳政策單一來源 ----------

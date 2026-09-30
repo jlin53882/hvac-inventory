@@ -173,8 +173,7 @@ def _reconcile_user_calendar_assignments(user_id: int) -> int:
         conn.close()
     if queued:
         from app.services import sync_scheduler
-        sync_scheduler.start()
-        sync_scheduler.wake()
+        sync_scheduler.start_and_wake()
     return queued
 
 
@@ -201,11 +200,10 @@ def _reconcile_user_gcal_key(user_id: int) -> None:
         conn.close()
 
     # 只在讀取/計算完成後寫 queue，避免持 DB 連線跨任何外部工作。
-    from app.routes.appointments import mark_sync_pending
     for appt_id, orphan_rows in changes:
-        mark_sync_pending(appt_id, "U")
+        gcal_sync.mark_sync_pending(appt_id, "U")
         if orphan_rows:
-            mark_sync_pending(appt_id, "D", map_rows=orphan_rows)
+            gcal_sync.mark_sync_pending(appt_id, "D", map_rows=orphan_rows)
 
 
 def _reconcile_user_calendar_transition(
@@ -344,8 +342,7 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
             affected_conn.close()
         if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
             from app.services import sync_scheduler
-            sync_scheduler.start()
-            sync_scheduler.wake()
+            sync_scheduler.start_and_wake()
     return result
 
 

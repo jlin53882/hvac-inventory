@@ -26,56 +26,9 @@ from app.services.report import build_daily_report
 from app.services.work_progress import sync_work_progress_snapshot_for_appointment
 from app.services.safety import xlsx_download
 from app.services import gcal_sync
+from app.services.gcal_sync import mark_sync_pending
 
 router = APIRouter()
-
-
-def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
-    """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
-    獨立短連線，失敗不影響主操作。
-    A4：C/U op 每次都進 queue（hash-skip 已移除——queue 是暫態，不值得為省 row 引入 op_type 錯位風險）。"""
-    # C/U 需要 active key 才有目標；D 則依賴保留下來的 map/event id，
-    # 即使唯一 key 已停用也必須保留刪除任務，不能把本地刪除當成遠端成功。
-    if op in ("C", "U") and not gcal_sync.is_enabled():
-        return
-    if op == "D" and not map_rows:
-        return
-    try:
-        c = get_db()
-        try:
-            # Serialize the existence check and queue upsert with appointment writes.
-            # A delayed C/U after DELETE must not resurrect the deleted appointment.
-            c.execute("BEGIN IMMEDIATE")
-            if op in ("C", "U"):
-                if c.execute("SELECT 1 FROM appointments WHERE id=?", (appt_id,)).fetchone() is None:
-                    c.rollback()
-                    return
-                keys = gcal_sync.resolve_effective_target_keys(c, appt_id)
-            else:  # D
-                keys = [r[0] for r in map_rows] if map_rows else []
-            version = gcal_sync.sync_version_now()
-            for key_id in keys:
-                gid = next((g for (k, g) in map_rows if k == key_id), "") if map_rows else ""
-                c.execute(
-                    "INSERT INTO appointment_sync_queue(appointment_id, key_id, op_type,"
-                    " google_event_id, last_modified_at, attempts, last_error) "
-                    " VALUES(?,?,?,?,?,0,'') "
-                    " ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
-                    " op_type=excluded.op_type, google_event_id=excluded.google_event_id,"
-                    " last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
-                    (appt_id, key_id, op, gid, version))
-            c.commit()
-        finally:
-            c.close()
-        # queue 已提交後只喚醒既有 worker；normal run 仍遵守 debounce。
-        from app.services import sync_scheduler
-        sync_scheduler.start()
-        sync_scheduler.wake()
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(
-            "gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, gcal_sync.safe_sync_error(e)
-        )
 
 
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")

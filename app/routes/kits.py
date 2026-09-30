@@ -18,10 +18,10 @@ from fastapi import Depends, APIRouter, HTTPException
 
 from app.database import get_db
 from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
-from app.routes.photos import has_photo
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, chunked_ids, current_state, total_qty_map
+from app.services.photo_store import has_photo, invalidate_photo_ids_cache, legacy_photo_path
 from app.services.quantity import canonical_qty
 
 # 整組 API 路由
@@ -262,7 +262,6 @@ def delete_kit(kit_id: int):
     """Delete a Kit definition and its photo assets while retaining inventory audit history."""
     from pathlib import Path
     from app import config as app_config
-    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
     from app.services.file_storage import delete_asset_files, safe_upload_path
     import os
 
@@ -304,7 +303,7 @@ def delete_kit(kit_id: int):
                 if relative:
                     resolved = safe_upload_path(relative, app_config.UPLOAD_DIR).resolve()
                     own_paths_by_resolved.setdefault(resolved, set()).add(relative)
-        legacy_path = Path(_photo_path(item_id)).resolve()
+        legacy_path = Path(legacy_photo_path(item_id)).resolve()
         for reference in conn.execute(
             "SELECT asset_id, original_path, preview_path, thumbnail_path FROM file_assets"
         ).fetchall():
@@ -339,7 +338,7 @@ def delete_kit(kit_id: int):
         delete_asset_files(asset, exclude_paths=shared_asset_paths, upload_dir=app_config.UPLOAD_DIR)
     if not legacy_path_shared:
         try:
-            os.remove(_photo_path(item_id))
+            os.remove(legacy_photo_path(item_id))
         except FileNotFoundError:
             pass
         except OSError as exc:

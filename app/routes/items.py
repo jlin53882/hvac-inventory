@@ -33,11 +33,11 @@ from app.models import (
     StockAdjustRequest,
     StockUpdate,
 )
-from app.routes.photos import has_photo, list_photo_ids
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.file_storage import delete_asset_files
 from app.services.inventory_stock import assert_projected_inventory, normalize_stock_location
+from app.services.photo_store import has_photo, invalidate_photo_ids_cache, legacy_photo_path, list_photo_ids
 from app.services.quantity import canonical_qty
 
 # 品項 API 路由
@@ -565,9 +565,8 @@ def delete_item(item_id: int):
     for asset in photo_assets:
         delete_asset_files(asset)
     # 舊版本沒有 metadata，仍清理 legacy preview。
-    from app.routes.photos import _photo_path, invalidate_photo_ids_cache
     try:
-        p = _photo_path(item_id)
+        p = legacy_photo_path(item_id)
         if os.path.exists(p):
             os.remove(p)
     except OSError:

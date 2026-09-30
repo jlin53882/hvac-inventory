@@ -579,6 +579,108 @@ def calendar_migration_pending(key_row) -> bool:
     return bool((key_row or {}).get("pending_calendar_id"))
 
 
+def mark_sync_pending(appt_id: int, op: str, map_rows=()) -> None:
+    """把行程標記待同步到所有目標 key。map_rows：刪除時帶 [(key_id, google_event_id)]。
+    獨立短連線，失敗不影響主操作。
+    A4：C/U op 每次都進 queue（hash-skip 已移除——queue 是暫態，不值得為省 row 引入 op_type 錯位風險）。"""
+    # C/U 需要 active key 才有目標；D 則依賴保留下來的 map/event id，
+    # 即使唯一 key 已停用也必須保留刪除任務，不能把本地刪除當成遠端成功。
+    if op in ("C", "U") and not is_enabled():
+        return
+    if op == "D" and not map_rows:
+        return
+    try:
+        c = get_db()
+        try:
+            # Serialize the existence check and queue upsert with appointment writes.
+            # A delayed C/U after DELETE must not resurrect the deleted appointment.
+            c.execute("BEGIN IMMEDIATE")
+            if op in ("C", "U"):
+                if c.execute("SELECT 1 FROM appointments WHERE id=?", (appt_id,)).fetchone() is None:
+                    c.rollback()
+                    return
+                keys = resolve_effective_target_keys(c, appt_id)
+            else:  # D
+                keys = [r[0] for r in map_rows] if map_rows else []
+            version = sync_version_now()
+            for key_id in keys:
+                gid = next((g for (k, g) in map_rows if k == key_id), "") if map_rows else ""
+                c.execute(
+                    "INSERT INTO appointment_sync_queue(appointment_id, key_id, op_type,"
+                    " google_event_id, last_modified_at, attempts, last_error) "
+                    " VALUES(?,?,?,?,?,0,'') "
+                    " ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+                    " op_type=excluded.op_type, google_event_id=excluded.google_event_id,"
+                    " last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+                    (appt_id, key_id, op, gid, version))
+            c.commit()
+        finally:
+            c.close()
+        # queue 已提交後只喚醒既有 worker；normal run 仍遵守 debounce。
+        from app.services import sync_scheduler
+        sync_scheduler.start_and_wake()
+    except Exception as e:
+        logger.warning(
+            "gcal 同步標記失敗 appointment=%s (%s): %s", appt_id, op, safe_sync_error(e)
+        )
+
+
+def backfill_all_appointments_with_conn(conn, key_id: int):
+    """在 caller transaction 內依既有規則建立 backfill queue。"""
+    key_row = conn.execute("SELECT * FROM gcal_keys WHERE id=?", (key_id,)).fetchone()
+    if key_row is None:
+        return 0
+    key_data = dict(key_row)
+    if calendar_migration_pending(key_data):
+        # 舊 Calendar cleanup 未完成，不得建立任何 C/U 到舊 Calendar。
+        return 0
+    appt_ids = [r["id"] for r in conn.execute("SELECT id FROM appointments").fetchall()]
+    queued = 0
+    version = sync_version_now()
+    for appt_id in appt_ids:
+        queued_row = conn.execute(
+            "SELECT op_type FROM appointment_sync_queue WHERE appointment_id=? AND key_id=?",
+            (appt_id, key_id),
+        ).fetchone()
+        if queued_row and queued_row["op_type"] == "D":
+            # assignment loss already requested a remote DELETE; re-enable must not revive it.
+            continue
+        existing = conn.execute(
+            "SELECT google_event_id, data_hash FROM appointment_gcal_map "
+            "WHERE appointment_id=? AND key_id=?", (appt_id, key_id)
+        ).fetchone()
+        target_ids = set(resolve_target_keys(conn, appt_id))
+        if key_id not in target_ids:
+            if existing and existing["google_event_id"]:
+                conn.execute(
+                    "INSERT INTO appointment_sync_queue "
+                    "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
+                    "VALUES(?, ?, 'D', ?, ?, 0, '') "
+                    "ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+                    "op_type='D', google_event_id=excluded.google_event_id, "
+                    "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+                    (appt_id, key_id, existing["google_event_id"], version),
+                )
+                queued += 1
+            continue
+        _, payload_hash = load_event_payload(conn, appt_id, key_data)
+        if existing and existing["google_event_id"] and existing["data_hash"] == payload_hash:
+            continue
+        op_type = "U" if existing and existing["google_event_id"] else "C"
+        google_event_id = existing["google_event_id"] if existing else ""
+        conn.execute(
+            "INSERT INTO appointment_sync_queue "
+            "(appointment_id, key_id, op_type, google_event_id, last_modified_at, attempts, last_error) "
+            "VALUES(?, ?, ?, ?, ?, 0, '') "
+            "ON CONFLICT(appointment_id, key_id) DO UPDATE SET "
+            "op_type=excluded.op_type, google_event_id=excluded.google_event_id, "
+            "last_modified_at=excluded.last_modified_at, attempts=0, last_error=''",
+            (appt_id, key_id, op_type, google_event_id or "", version),
+        )
+        queued += 1
+    return queued
+
+
 def maybe_finalize_calendar_migration(key_id: int) -> bool:
     """D queue 全部完成後切換 Calendar，並只在新 Calendar 上 backfill。"""
     conn = get_db()
@@ -604,8 +706,7 @@ def maybe_finalize_calendar_migration(key_id: int) -> bool:
             (target, key_id),
         )
         # Backfill 使用同一 transaction；任何 queue 寫入失敗都 rollback Calendar 切換。
-        from app.routes import gcal_keys
-        gcal_keys._backfill_all_appointments_with_conn(conn, key_id)
+        backfill_all_appointments_with_conn(conn, key_id)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -613,9 +714,9 @@ def maybe_finalize_calendar_migration(key_id: int) -> bool:
     finally:
         conn.close()
 
-    # Import lazily to avoid the existing routes -> service import cycle.
-    from app.routes import gcal_keys
-    gcal_keys._wake_scheduler()
+    # sync_scheduler 本身 import gcal_sync，這裡延後 import 以避開 service 內部循環。
+    from app.services import sync_scheduler
+    sync_scheduler.start_and_wake()
     return True
 
 

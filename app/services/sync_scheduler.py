@@ -123,6 +123,12 @@ def wake(force: bool = False):
     _reset_event.set()
 
 
+def start_and_wake() -> None:
+    """queue/settings 變更後啟動並喚醒 worker；normal wake 仍遵守 debounce。"""
+    start()
+    wake()
+
+
 def reset_now():
     """立即觸發 force sync（不自動重設 attempts >= MAX_ATTEMPTS）。"""
     start()

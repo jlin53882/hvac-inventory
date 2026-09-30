@@ -24,10 +24,10 @@ from fastapi import Depends, APIRouter, HTTPException, Query
 from app.database import get_db
 from app.models import InventorySiteQuery
 from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
-from app.routes.photos import has_photo
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, chunked_ids
+from app.services.photo_store import has_photo
 from app.services.quantity import canonical_qty
 
 # 出庫/待領出 API 路由

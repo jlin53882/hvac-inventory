@@ -83,8 +83,7 @@ def update_service_type(svc_id: int, body: ServiceTypeIn):
     if old_name != name:
         if gcal_sync.enqueue_existing_mappings(appointment_ids=affected_ids):
             from app.services import sync_scheduler
-            sync_scheduler.start()
-            sync_scheduler.wake()
+            sync_scheduler.start_and_wake()
     return result
 
 
