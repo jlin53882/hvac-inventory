@@ -4,7 +4,7 @@ import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.database import get_db
+from app.database import db_session
 from app.services import movement_time
 from app.models import TransferRequest
 from app.services.auth import require_perm
@@ -173,39 +173,37 @@ def transfer_inventory(req: TransferRequest):
         raise HTTPException(400, "調撥數量格式錯誤")
     if qty <= 0:
         raise HTTPException(400, "調撥數量正規化後必須大於 0")
-    conn = get_db()
-    try:
-        # 必須在任何 correctness read 前鎖住 writer，避免 stale snapshot 調撥。
-        conn.execute("BEGIN IMMEDIATE")
-        movement_ts = movement_time.now_sql()
-        source = conn.execute(
-            "SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)
-        ).fetchone()
-        if source is None:
-            raise HTTPException(404, "來源品項不存在或已刪除")
-        if source["site"] == req.target_site:
-            raise HTTPException(400, "來源與目標必須是不同庫存區")
-        target_location = req.target_location or (
-            "車內" if req.target_site in ("van", "truck") else ""
-        )
-        _deduct_source(conn, source["id"], qty, req.source_location, movement_ts)
-        target_id = _create_target_item(conn, source, req.target_site)
-        _add_target(conn, target_id, qty, target_location, source["site"], movement_ts)
-        conn.commit()
-        return {
-            "ok": True,
-            "source_item_id": source["id"],
-            "target_item_id": target_id,
-            "source_site": source["site"],
-            "target_site": req.target_site,
-            "qty": qty,
-            "target_location": target_location,
-        }
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with db_session() as conn:
+        try:
+            # 必須在任何 correctness read 前鎖住 writer，避免 stale snapshot 調撥。
+            conn.execute("BEGIN IMMEDIATE")
+            movement_ts = movement_time.now_sql()
+            source = conn.execute(
+                "SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)
+            ).fetchone()
+            if source is None:
+                raise HTTPException(404, "來源品項不存在或已刪除")
+            if source["site"] == req.target_site:
+                raise HTTPException(400, "來源與目標必須是不同庫存區")
+            target_location = req.target_location or (
+                "車內" if req.target_site in ("van", "truck") else ""
+            )
+            _deduct_source(conn, source["id"], qty, req.source_location, movement_ts)
+            target_id = _create_target_item(conn, source, req.target_site)
+            _add_target(conn, target_id, qty, target_location, source["site"], movement_ts)
+            conn.commit()
+            return {
+                "ok": True,
+                "source_item_id": source["id"],
+                "target_item_id": target_id,
+                "source_site": source["site"],
+                "target_site": req.target_site,
+                "qty": qty,
+                "target_location": target_location,
+            }
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise

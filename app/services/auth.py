@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, Request
 
-from app.database import get_db
+from app.database import db_session
 from app.models import PAGE_KEYS, initial_visible_page_keys
 from app.services.app_log import get_logger
 
@@ -322,11 +322,8 @@ def authenticate(request: Request) -> dict:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="未登入")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         user = get_session_user(conn, token)
-    finally:
-        conn.close()
     if user is None:
         raise HTTPException(status_code=401, detail="登入已過期，請重新登入")
     return user
@@ -358,11 +355,8 @@ def require_db_perm(perm_key: str):
     users/roles/user_permissions 合成，不能由 session payload 或前端 flags 決定。
     """
     def dep(user: dict = Depends(require_login)):
-        conn = get_db()
-        try:
+        with db_session() as conn:
             allowed = bool(get_user_permissions(conn, user["id"]).get(perm_key))
-        finally:
-            conn.close()
         if not allowed:
             raise HTTPException(status_code=403, detail="無此權限")
         return user

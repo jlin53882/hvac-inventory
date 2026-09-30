@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
-from app.database import get_db
+from app.database import db_session
 from app.models import ChangePasswordRequest, LoginRequest
 from app.services.auth import (
     SESSION_DAYS,
@@ -77,8 +77,7 @@ def login(body: LoginRequest, request: Request, response: Response):
     if check_ip_rate_limit(ip):
         raise HTTPException(status_code=429, detail="嘗試次數過多，請稍後再試")
 
-    conn = get_db()
-    try:
+    with db_session() as conn:
         cleanup_expired(conn)
         row = get_user_by_username(conn, body.username.strip())
         if row is None:
@@ -104,11 +103,6 @@ def login(body: LoginRequest, request: Request, response: Response):
 
         clear_ip_fail(ip)
         token = create_session(conn, row["id"])
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
     # B5：外網 tunnel（X-Forwarded-Proto: https）或直連 https 才設 secure flag；
     #     本機/LAN HTTP 不設以免登入失效（_is_https 僅信任 proxy 白名單的 proto）
@@ -136,14 +130,8 @@ def logout(request: Request, response: Response):
     """登出：刪 session 記錄 + 清 cookie"""
     token = request.cookies.get(SESSION_COOKIE)
     if token:
-        conn = get_db()
-        try:
+        with db_session() as conn:
             delete_session(conn, token)
-        except Exception:
-            conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-            raise
-        finally:
-            conn.close()
     response.delete_cookie(SESSION_COOKIE)
     return {"ok": True}
 
@@ -154,8 +142,7 @@ def me(request: Request):
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="未登入")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         user = get_session_user(conn, token)
         if user is None:
             raise HTTPException(status_code=401, detail="登入已過期")
@@ -166,8 +153,6 @@ def me(request: Request):
             expired = str(pw["password_updated_at"]) < (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S")
         visible_pages = get_user_page_visibility(conn, user["id"])
         return {"user": {**user, "password_expired": expired, "is_admin_role": user["role"] == "admin", "visible_pages": visible_pages}}
-    finally:
-        conn.close()
 
 
 @router.put("/password")
@@ -183,8 +168,7 @@ def change_my_password(body: ChangePasswordRequest, request: Request, user: dict
     if body.new_password == body.old_password:
         raise HTTPException(status_code=400, detail="新密碼不能與原密碼相同")
     _check_pw(body.new_password)
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
         if row is None or not verify_password(body.old_password, row["password_hash"]):
             record_ip_fail(ip)  # 舊密碼錯誤計一次失敗（與登入共用 per-IP 窗）
@@ -201,11 +185,6 @@ def change_my_password(body: ChangePasswordRequest, request: Request, user: dict
         else:
             conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
         conn.commit()
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
     return {"ok": True}
 
 
@@ -214,13 +193,7 @@ def ack_password_expiry(request: Request, user: dict = Depends(require_perm("cha
     """按「繼續使用原密碼」→ 重置 180 天計時（帳號層級，跨裝置一致）
     RBAC（2026-08-13）：僅有 change-own-password 權限者可按（seed=admin）——
     與 R2「無此權限不顯示密碼過期提示」一致"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("UPDATE users SET password_updated_at = datetime('now') WHERE id = ?", (user["id"],))
         conn.commit()
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
     return {"ok": True, "password_expired": False}

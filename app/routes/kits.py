@@ -16,7 +16,7 @@ from typing import Optional
 
 from fastapi import Depends, APIRouter, HTTPException
 
-from app.database import get_db
+from app.database import db_session, get_db
 from app.models import InventorySite, InventorySiteQuery, KitAssemble, KitCreate
 from app.services import movement_time
 from app.services.auth import require_perm
@@ -37,8 +37,7 @@ def _total(conn, item_id) -> float:
 @router.get("/api/kits", dependencies=[Depends(require_perm("kit-view"))])
 def list_kits(site: Optional[InventorySiteQuery] = None):
     """套件清單（含組成材料）；零件與庫存總量批次查詢（2026-09 效能：原本每組/每零件各查一次）。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         where = ""
         params = ()
         if site and site != "all":
@@ -115,8 +114,6 @@ def list_kits(site: Optional[InventorySiteQuery] = None):
             d["components"] = comps
             result.append(d)
         return result
-    finally:
-        conn.close()
 
 
 @router.post("/api/kits", status_code=201, dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -124,52 +121,50 @@ def create_kit(kit: KitCreate):
     """新增套件定義：建立套件品項 + 組成材料"""
     if not kit.name or not kit.items:
         raise HTTPException(400, "套件名稱與材料都不能空白")
-    conn = get_db()
-    try:
-        site: InventorySite = kit.site or "office"
-        # 先驗證材料存在且與整組同一分片，避免留下跨區 BOM
-        for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i, site)
-        # 建立套件品項（v10：主檔 + 一筆空位置 stock）
-        cur = conn.execute(
-            "INSERT INTO items (brand, code, name, unit, is_kit, site) VALUES (?,?,?,?,1,?)",
-            (kit.brand.strip(), kit.code.strip(), kit.name, "組", site),
-        )
-        kit_item_id = cur.lastrowid
-        conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
-                     (kit_item_id, "", 0, kit.note))
-        # 建立套件定義
-        cur2 = conn.execute(
-            "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
-            (kit_item_id, kit.name, kit.note),
-        )
-        kit_id = cur2.lastrowid
-        seen_items: set = set()
-        for i, comp in enumerate(kit.items, 1):
-            _validate_kit_comp(conn, comp, i)
-            cid = comp["item_id"]
-            if cid in seen_items:
-                raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
-            seen_items.add(cid)
-            conn.execute(
-                "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
-                (kit_id, cid, canonical_qty(comp.get("qty", 1))),
+    with db_session() as conn:
+        try:
+            site: InventorySite = kit.site or "office"
+            # 先驗證材料存在且與整組同一分片，避免留下跨區 BOM
+            for i, comp in enumerate(kit.items, 1):
+                _validate_kit_comp(conn, comp, i, site)
+            # 建立套件品項（v10：主檔 + 一筆空位置 stock）
+            cur = conn.execute(
+                "INSERT INTO items (brand, code, name, unit, is_kit, site) VALUES (?,?,?,?,1,?)",
+                (kit.brand.strip(), kit.code.strip(), kit.name, "組", site),
             )
-        # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
-        _save_kit_locations(conn, kit_id, kit.locations)
-        conn.commit()
-        return {"id": kit_id, "item_id": kit_item_id, "name": kit.name,
-                "brand": kit.brand.strip(), "code": kit.code.strip()}
-    except sqlite3.IntegrityError as exc:
-        conn.rollback()
-        if "idx_items_unique" in str(exc):
-            raise HTTPException(400, "相同的整組已存在，請調整品牌、型號或名稱") from exc
-        raise
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
+            kit_item_id = cur.lastrowid
+            conn.execute("INSERT INTO item_stocks (item_id, location, qty, note) VALUES (?,?,?,?)",
+                         (kit_item_id, "", 0, kit.note))
+            # 建立套件定義
+            cur2 = conn.execute(
+                "INSERT INTO kits (item_id, name, note) VALUES (?,?,?)",
+                (kit_item_id, kit.name, kit.note),
+            )
+            kit_id = cur2.lastrowid
+            seen_items: set = set()
+            for i, comp in enumerate(kit.items, 1):
+                _validate_kit_comp(conn, comp, i)
+                cid = comp["item_id"]
+                if cid in seen_items:
+                    raise HTTPException(400, "同一材料不可重複加入整組，請合併數量")
+                seen_items.add(cid)
+                conn.execute(
+                    "INSERT INTO kit_items (kit_id, item_id, qty) VALUES (?,?,?)",
+                    (kit_id, cid, canonical_qty(comp.get("qty", 1))),
+                )
+            # 2026-09-28 多位置管理：無條件保存位置清單（[] 表示清空所有位置）
+            _save_kit_locations(conn, kit_id, kit.locations)
+            conn.commit()
+            return {"id": kit_id, "item_id": kit_item_id, "name": kit.name,
+                    "brand": kit.brand.strip(), "code": kit.code.strip()}
+        except sqlite3.IntegrityError as exc:
+            conn.rollback()
+            if "idx_items_unique" in str(exc):
+                raise HTTPException(400, "相同的整組已存在，請調整品牌、型號或名稱") from exc
+            raise
+        except Exception:
+            conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
+            raise
 
 
 def _validate_kit_comp(conn, comp, i, site: Optional[InventorySite] = None) -> None:
@@ -200,8 +195,7 @@ def update_kit(kit_id: int, kit: KitCreate):
     """更新整組定義（名稱/備註 + 全量替換材料；不影響已組裝的整組庫存）"""
     if not kit.name or not kit.items:
         raise HTTPException(400, "套件名稱與材料都不能空白")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
         if not row:
             raise HTTPException(404, "整組不存在")
@@ -250,11 +244,6 @@ def update_kit(kit_id: int, kit: KitCreate):
         """, (kit_id,)).fetchone()
         return {"ok": True, "id": saved["id"], "name": saved["name"],
                 "brand": saved["brand"] or "", "code": saved["code"] or ""}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.delete("/api/kits/{kit_id}", dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -410,8 +399,7 @@ def assemble_kit(kit_id: int, req: KitAssemble):
         raise HTTPException(400, "組裝數量格式錯誤")
     if qty <= 0:
         raise HTTPException(400, "組裝數量正規化後必須大於 0")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         movement_ts = movement_time.now_sql()
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
@@ -449,11 +437,6 @@ def assemble_kit(kit_id: int, req: KitAssemble):
         _add_total(conn, kit["item_id"], qty, f"組裝完成:{kit['name']}", movement_ts)
         conn.commit()
         return {"ok": True, "kit": kit["name"], "qty": qty}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.post("/api/kits/{kit_id}/disassemble", dependencies=[Depends(require_perm("kit-mgmt"))])
@@ -465,8 +448,7 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
         raise HTTPException(400, "拆解數量格式錯誤")
     if qty <= 0:
         raise HTTPException(400, "拆解數量正規化後必須大於 0")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         movement_ts = movement_time.now_sql()
         kit = conn.execute("SELECT * FROM kits WHERE id=?", (kit_id,)).fetchone()
@@ -487,11 +469,6 @@ def disassemble_kit(kit_id: int, req: KitAssemble):
             _add_total(conn, c["item_id"], add, f"拆解套件:{kit['name']}", movement_ts)
         conn.commit()
         return {"ok": True, "kit": kit["name"], "qty": qty}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 

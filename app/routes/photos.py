@@ -14,7 +14,7 @@ import os
 from fastapi import Depends, APIRouter, HTTPException, UploadFile
 
 import app.config as app_config
-from app.database import get_db
+from app.database import db_session, get_db
 from app.services.auth import require_perm
 from app.services.file_storage import (
     cleanup_asset_paths,
@@ -230,28 +230,26 @@ def upload_kit_photo(kit_id: int, file: UploadFile):
 @router.delete("/api/kits/{kit_id}/photo", dependencies=[Depends(require_perm("photo"))])
 def delete_kit_photo(kit_id: int):
     """刪除整組照片。"""
-    conn = get_db()
-    try:
-        row = conn.execute(
-            "SELECT item_id FROM kits WHERE id=?", (kit_id,)
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "整組不存在")
+    with db_session() as conn:
+        try:
+            row = conn.execute(
+                "SELECT item_id FROM kits WHERE id=?", (kit_id,)
+            ).fetchone()
+            if not row:
+                raise HTTPException(404, "整組不存在")
         
-        item_id = row["item_id"]
-        rows = conn.execute(
-            "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? RETURNING asset_id, original_path, preview_path, thumbnail_path",
-            ("item_photo", "item", str(item_id)),
-        ).fetchall()
-        conn.commit()
-    except HTTPException:
-        conn.rollback()
-        raise
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+            item_id = row["item_id"]
+            rows = conn.execute(
+                "DELETE FROM file_assets WHERE category=? AND owner_type=? AND owner_id=? RETURNING asset_id, original_path, preview_path, thumbnail_path",
+                ("item_photo", "item", str(item_id)),
+            ).fetchall()
+            conn.commit()
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
     for row in rows:
         delete_asset_files(row, upload_dir=app_config.UPLOAD_DIR)
     # 舊版本沒有 metadata，仍清理 legacy preview。

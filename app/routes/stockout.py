@@ -21,7 +21,7 @@ from typing import Optional
 
 from fastapi import Depends, APIRouter, HTTPException, Query
 
-from app.database import get_db
+from app.database import db_session
 from app.models import InventorySiteQuery
 from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.services import movement_time
@@ -175,8 +175,7 @@ def _deduct_from_stock(conn, item_id, qty, stock_id):
 def stock_out(req: StockOutRequest):
     """出庫：扣庫存 + 記錄去向（客戶/案場/工地）"""
     qty = _positive_qty(req.qty, "出庫數量")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)).fetchone()
         if not row:
@@ -201,11 +200,6 @@ def stock_out(req: StockOutRequest):
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
         return _item_payload(conn, updated)
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.post("/api/stockout/nonstock", dependencies=[Depends(require_perm("stockout"))])
@@ -221,8 +215,7 @@ def stock_out_nonstock(req: NonStockOutRequest):
         raise HTTPException(400, "品項名稱不能為空")
     if not dest:
         raise HTTPException(400, "去哪裡（客戶/案場/工地）不能為空")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         cur = conn.execute(
             "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
             "VALUES ('',?,?,0,?,0,0,'',1)",
@@ -236,11 +229,6 @@ def stock_out_nonstock(req: NonStockOutRequest):
         )
         conn.commit()
         return {"id": item_id, "name": name}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.get("/api/stockouts", dependencies=[Depends(require_perm("prepared"))])
@@ -262,11 +250,8 @@ def list_stock_outs(limit: int = Query(100, ge=1, le=500), search: str = "", sit
         params += [like, like, like]
     sql += " ORDER BY m.id DESC LIMIT ?"
     params.append(limit)
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute(sql, params).fetchall()
-    finally:
-        conn.close()
     outs = []
     for r in rows:
         d = dict(r)
@@ -289,8 +274,7 @@ def _add_back_to_first_stock(conn, item_id, qty):
 @router.post("/api/stockouts/{movement_id}/return", dependencies=[Depends(require_perm("stockout"))])
 def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
     """退回已領出：預設回原始來源位置，也允許使用者選擇其他有效位置。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not m:
@@ -353,18 +337,12 @@ def return_stockout(movement_id: int, req: StockoutReturnRequest = None):
         conn.commit()
         return {"ok": True, "movement_id": movement_id, "return_movement_id": return_movement_id, "returned_qty": return_qty,
                 "fully_returned": is_full_return, "return_stock_id": return_stock_id}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.patch("/api/stockouts/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
 def update_stockout(movement_id: int, upd: StockoutUpdate):
     """編輯已領出記錄：去向 / 數量（差額補/扣庫存並記錄流水）/ 日期"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         # 2026-08-14 P4-4：BEGIN IMMEDIATE 防兩視窗同時編輯同一筆（流水 delta 絕對值覆寫）
         conn.execute("BEGIN IMMEDIATE")
         m = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
@@ -414,18 +392,12 @@ def update_stockout(movement_id: int, upd: StockoutUpdate):
         conn.commit()
         row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         return dict(row)
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.patch("/api/stockout-returns/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
 def update_stockout_return(movement_id: int, upd: StockoutReturnUpdate):
     """編輯退回紀錄；數量/位置變更會同步調整兩筆庫存位置。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not row or row["reason"] != "退回已領出":
@@ -487,18 +459,12 @@ def update_stockout_return(movement_id: int, upd: StockoutReturnUpdate):
         )
         conn.commit()
         return dict(conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone())
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.post("/api/stockout-returns/{movement_id}/repair", dependencies=[Depends(require_perm("stockout"))])
 def repair_stockout_return(movement_id: int, repair: StockoutReturnRepair):
     """補齊舊退回流水的關聯，讓既有編輯/撤銷流程可安全使用。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not row or row["reason"] != "退回已領出":
@@ -545,18 +511,12 @@ def repair_stockout_return(movement_id: int, repair: StockoutReturnRepair):
         conn.execute("UPDATE movements SET reverted_at=? WHERE id=?", (parent_reverted_at, parent["id"]))
         conn.commit()
         return dict(conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone())
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 @router.delete("/api/stockout-returns/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
 def delete_stockout_return(movement_id: int):
     """刪除退回流水；活動退回先扣回庫存，已撤銷退回只移除流水。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not row or row["reason"] != "退回已領出":
@@ -588,11 +548,6 @@ def delete_stockout_return(movement_id: int):
             "deleted": movement_id,
             "restored_qty": restored_qty,
         }
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 # ---------- 領出準備（兩階段出庫） ----------
@@ -601,8 +556,7 @@ def delete_stockout_return(movement_id: int):
 @router.delete("/api/stockouts/{movement_id}", dependencies=[Depends(require_perm("stockout"))])
 def delete_stockout(movement_id: int):
     """刪除已領出紀錄（僅刪紀錄，不回補庫存；需回復庫存請用退回）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT delta, reason FROM movements WHERE id=?", (movement_id,)).fetchone()
         if not row:
             raise HTTPException(404, "紀錄不存在")
@@ -612,11 +566,6 @@ def delete_stockout(movement_id: int):
         conn.execute("DELETE FROM movements WHERE id=?", (movement_id,))
         conn.commit()
         return {"ok": True, "deleted": movement_id}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 
 
 @router.post("/api/prepare/nonstock", dependencies=[Depends(require_perm("stockout"))])
@@ -629,8 +578,7 @@ def prepare_nonstock(req: NonStockOutRequest):
     note = req.note.strip()
     if not name:
         raise HTTPException(400, "品項名稱不能為空")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         cur = conn.execute(
             "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
             "VALUES ('',?,?,?,?,0,0,'',1)",
@@ -643,17 +591,11 @@ def prepare_nonstock(req: NonStockOutRequest):
         )
         conn.commit()
         return {"id": item_id, "name": name}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.post("/api/items/{item_id}/prepare", dependencies=[Depends(require_perm("stockout"))])
 def prepare_item(item_id: int, req: PrepareRequest):
     """領出準備：把東西拿出來準備（庫存不扣，只標記 prepared_qty）"""
     qty = _positive_qty(req.qty, "數量")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
@@ -675,17 +617,11 @@ def prepare_item(item_id: int, req: PrepareRequest):
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         payload = _item_payload(conn, updated)
         return payload
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.post("/api/items/{item_id}/prepared-out", dependencies=[Depends(require_perm("stockout"))])
 def prepared_out(item_id: int, req: PrepareRequest):
     """確認出庫：從準備中的數量真正出庫（此時才扣庫存）+ 記錄去向"""
     qty = _positive_qty(req.qty, "數量")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
         if not row:
@@ -729,17 +665,11 @@ def prepared_out(item_id: int, req: PrepareRequest):
         payload = _item_payload(conn, updated)
         return payload
 
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.post("/api/items/{item_id}/prepared-return", dependencies=[Depends(require_perm("stockout"))])
 def prepared_return(item_id: int, req: PrepareRequest):
     """退回：把準備中的數量退回（取消領出）"""
     qty = _positive_qty(req.qty, "數量")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
         if not row:
             raise HTTPException(404, "品項不存在")
@@ -760,16 +690,10 @@ def prepared_return(item_id: int, req: PrepareRequest):
         payload = _item_payload(conn, updated)
         return payload
 
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()      # 2026-08-14 防止中途炸掉 close 被跳過（bare-conn 洩漏主因）
 @router.get("/api/prepared", dependencies=[Depends(require_perm("prepared"))])
 def list_prepared(site: Optional[InventorySiteQuery] = None):
     """準備中清單（已領出尚未出庫）；位置庫存與準備說明批次查詢（2026-09 效能：原本每筆各查一次）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         where = ""
         params = ()
         if site and site != "all":
@@ -799,8 +723,6 @@ def list_prepared(site: Optional[InventorySiteQuery] = None):
         for p in payloads:
             p["destination"] = destinations.get(p["id"]) or ""
         return payloads
-    finally:
-        conn.close()
 
 @router.patch("/api/prepared/{item_id}")
 def update_prepared_item(
@@ -809,8 +731,7 @@ def update_prepared_item(
     user: dict = Depends(require_perm("stockout")),
 ):
     """單一交易更新待領出數量、準備說明與 metadata。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             "SELECT * FROM items WHERE id=? AND prepared_qty > 0 AND (is_deleted=0 OR site='')",
@@ -896,8 +817,3 @@ def update_prepared_item(
         ).fetchone()
         payload["destination"] = latest["destination"] if latest else ""
         return payload
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()

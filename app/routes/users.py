@@ -19,7 +19,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.database import get_db
+from app.database import db_session, get_db
 from app.models import PageVisibilityUpdate, UserBatch, UserCreate, UserPermissionsUpdate, UserPassword, UserUpdate, initial_visible_page_keys
 from app.services.auth import (
     ALL_PAGE_KEYS,
@@ -179,8 +179,7 @@ def _reconcile_user_calendar_assignments(user_id: int) -> int:
 
 def _reconcile_user_gcal_key(user_id: int) -> None:
     """使用者換綁定 Key 後，為既有行程建立新 target 並刪除舊 target。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         appt_ids = [r["appointment_id"] for r in conn.execute(
             "SELECT DISTINCT appointment_id FROM appointment_assignees WHERE user_id=?", (user_id,)
         ).fetchall()]
@@ -196,8 +195,6 @@ def _reconcile_user_gcal_key(user_id: int) -> None:
                 for row in maps if row["key_id"] not in target_ids
             ]
             changes.append((appt_id, orphan_rows))
-    finally:
-        conn.close()
 
     # 只在讀取/計算完成後寫 queue，避免持 DB 連線跨任何外部工作。
     for appt_id, orphan_rows in changes:
@@ -222,25 +219,16 @@ def _reconcile_user_calendar_transition(
 @router.get("")
 def list_users(admin: dict = Depends(require_perm("user-mgmt"))):
     """列出所有帳號（含狀態）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute("SELECT * FROM users ORDER BY id").fetchall()
         return {"users": [_user_out(r) for r in rows]}
-    finally:
-        conn.close()
 
 
 @router.post("", status_code=201)
 def create_user(body: UserCreate, admin: dict = Depends(require_perm("user-mgmt"))):
     """新增帳號（帳號唯一；密碼 8 碼+大小寫+數字，_check_pw）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         return _create_user_single(conn, body, operator_id=admin["id"])
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
 
 @router.post("/batch", status_code=201)
@@ -250,8 +238,7 @@ def create_users_batch(body: UserBatch, admin: dict = Depends(require_perm("user
     不回滾——建成功的留著，失敗的列出具體原因（例如第 3 行帳號重複），
     讓前端表格可以逐列顯示 ✔/✘，方便修正後重送。
     """
-    conn = get_db()
-    try:
+    with db_session() as conn:
         results = []
         created = 0
         for u in body.users:
@@ -262,15 +249,12 @@ def create_users_batch(body: UserBatch, admin: dict = Depends(require_perm("user
             except HTTPException as e:
                 results.append({"username": u.username.strip(), "status": "error", "detail": e.detail})
         return {"results": results, "created": created, "failed": len(results) - created}
-    finally:
-        conn.close()
 
 
 @router.put("/{user_id}")
 def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_perm("user-mgmt"))):
     """改顯示名稱 / 角色 / 啟用停用（含保護規則）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         # 2026-08-14 併發修復：BEGIN IMMEDIATE 必須是第一個 transaction 語句（前面只有 SELECT）——
         # last-admin 保護的「讀 count → 判斷 → UPDATE」持鎖原子化（LU-7/TO-3 防兩 admin 同時降級對方）
         conn.execute("BEGIN IMMEDIATE")
@@ -320,11 +304,6 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
                    json.dumps({"is_active": is_active}, ensure_ascii=False))
         conn.commit()
         result = _user_out(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
     _reconcile_user_calendar_transition(
         user_id,
@@ -350,8 +329,7 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_pe
 def reset_password(user_id: int, body: UserPassword, admin: dict = Depends(require_perm("user-mgmt"))):
     """重設密碼（admin 免舊密碼）+ 解鎖 + 清舊 session（B3：改密碼後舊 session 立即失效）"""
     _check_pw(body.password)
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _get_user_or_404(conn, user_id)
         conn.execute(
             "UPDATE users SET password_hash = ?, failed_attempts = 0, locked_until = NULL, updated_at = datetime('now') WHERE id = ?",
@@ -361,11 +339,6 @@ def reset_password(user_id: int, body: UserPassword, admin: dict = Depends(requi
         _audit(conn, admin["id"], user_id, "reset_password")
         conn.commit()
         return {"ok": True}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
 
 @router.delete("/{user_id}")
@@ -373,8 +346,7 @@ def delete_user(user_id: int, admin: dict = Depends(require_perm("user-mgmt"))):
     """刪除帳號（不能刪自己 / 不能刪最後一名啟用 admin / 不能被行事曆引用——A1 防 FK 500）"""
     if admin["id"] == user_id:
         raise HTTPException(status_code=400, detail="不能刪除自己")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         # 2026-08-14 併發修復：BEGIN IMMEDIATE 第一個語句——last-admin 檢查 + DELETE 持鎖原子化（漏網 LU-7）
         conn.execute("BEGIN IMMEDIATE")
         row = _get_user_or_404(conn, user_id)
@@ -396,19 +368,13 @@ def delete_user(user_id: int, admin: dict = Depends(require_perm("user-mgmt"))):
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.commit()
         return {"ok": True}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 # ---------- RBAC 權限管理端點（2026-08-13，設計 §6.2） ----------
 @router.get("/permissions")
 def list_permissions(admin: dict = Depends(require_perm("user-mgmt"))):
     """權限點清單 + 四角色預設（保留 API：前端已改由 per-user 端點內聯載入，此端點供稽核/四角色預設查詢）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         perms = [dict(r) for r in conn.execute("SELECT key, label, module FROM permissions ORDER BY id").fetchall()]
         role_defaults = {}
         for r in conn.execute(
@@ -417,15 +383,12 @@ def list_permissions(admin: dict = Depends(require_perm("user-mgmt"))):
                JOIN permissions p ON p.id = rp.permission_id""").fetchall():
             role_defaults.setdefault(r["role"], []).append(r["perm"])
         return {"permissions": perms, "role_defaults": role_defaults}
-    finally:
-        conn.close()
 
 
 @router.get("/{user_id}/permissions")
 def get_user_permissions_detail(user_id: int, admin: dict = Depends(require_perm("user-mgmt"))):
     """該帳號合成權限詳細清單（權限頁 UI 用）：source = role（跟隨角色）/ override（個人覆蓋）/ locked（強制鎖定）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = _get_user_or_404(conn, user_id)
         target_role = row["role"]
         perms = get_user_permissions(conn, user_id)
@@ -463,8 +426,6 @@ def get_user_permissions_detail(user_id: int, admin: dict = Depends(require_perm
                 "visible_pages": get_user_page_visibility(conn, user_id),
             },
         }
-    finally:
-        conn.close()
 
 
 WORK_PROGRESS_VIEW_KEY = "work-progress-view"
@@ -510,8 +471,7 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
     """設定個人權限覆蓋（開關）——RBAC §6.2/§7 保護規則"""
     if admin["id"] == user_id:
         raise HTTPException(status_code=400, detail="不能修改自己的權限")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = _get_user_or_404(conn, user_id)
         target_role = row["role"]
         # §7.2：目標是唯一啟用 admin → 拒絕任何覆蓋（固定最大權限）
@@ -561,11 +521,6 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
                json.dumps(changes, ensure_ascii=False))
         conn.commit()
         return {"ok": True, "permissions": get_user_permissions(conn, user_id)}
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
 
 
@@ -574,16 +529,13 @@ def update_user_permissions(user_id: int, body: UserPermissionsUpdate, admin: di
 @router.get("/{user_id}/page-visibility")
 def get_page_visibility(user_id: int, admin: dict = Depends(require_perm("page-visibility-manage"))):
     """Get the target user's page visibility settings."""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = _get_user_or_404(conn, user_id)
         return {
             "user_id": row["id"],
             "visible_pages": get_user_page_visibility(conn, user_id),
             "all_pages": list(ALL_PAGE_KEYS),
         }
-    finally:
-        conn.close()
 
 
 @router.put("/{user_id}/page-visibility")
@@ -593,8 +545,7 @@ def update_page_visibility(
     admin: dict = Depends(require_perm("page-visibility-manage")),
 ):
     """Update individual page visibility settings, or reset to current-role defaults."""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         _get_user_or_404(conn, user_id)
         if body.reset_all:
             user = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -620,18 +571,12 @@ def update_page_visibility(
             "user_id": user_id,
             "visible_pages": get_user_page_visibility(conn, user_id),
         }
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 @router.get("/audit")
 def list_audit(target_id: Optional[int] = None, limit: int = Query(100, ge=1, le=500),
                admin: dict = Depends(require_perm("user-mgmt"))):
     """帳號操作稽核紀錄（RBAC §9）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         if target_id is not None:
             rows = conn.execute(
                 "SELECT * FROM user_audit_log WHERE target_id = ? ORDER BY id DESC LIMIT ?",
@@ -639,5 +584,3 @@ def list_audit(target_id: Optional[int] = None, limit: int = Query(100, ge=1, le
         else:
             rows = conn.execute("SELECT * FROM user_audit_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return {"logs": [dict(r) for r in rows]}
-    finally:
-        conn.close()

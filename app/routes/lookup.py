@@ -16,7 +16,7 @@ import re
 
 from fastapi import APIRouter, HTTPException
 
-from app.database import get_db
+from app.database import db_session, get_db
 from app.models import InventorySiteQuery
 
 # 查詢 API 路由
@@ -106,18 +106,14 @@ def find_similar(name: str = "", code: str = "", site: InventorySiteQuery = "all
         0 if code.strip() and (r["code"] or "").strip() == code.strip() else 1,
     ))
 
-    conn = get_db()
-    try:
+    with db_session() as conn:
         return [_item_summary(conn, r) for r in hits[:5]]
-    finally:
-        conn.close()
 
 
 @router.get("/api/locations")
 def list_locations(site: InventorySiteQuery = "all"):
     """回傳既有位置名稱清單（新增品項時位置欄自動補全用）"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         sql = ("SELECT DISTINCT s.location FROM item_stocks s"
                " JOIN items i ON i.id = s.item_id")
         params = []
@@ -127,5 +123,3 @@ def list_locations(site: InventorySiteQuery = "all"):
         sql += " ORDER BY s.location COLLATE NOCASE"
         rows = conn.execute(sql, params).fetchall()
         return [r["location"] for r in rows]
-    finally:
-        conn.close()

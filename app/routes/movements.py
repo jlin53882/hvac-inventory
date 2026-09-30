@@ -2,7 +2,7 @@
 """異動紀錄路由（跨領域流水：出庫/退回/盤點/調整皆寫入 movements）。"""
 from fastapi import APIRouter, Query
 
-from app.database import get_db
+from app.database import db_session
 from app.models import InventorySiteQuery
 
 router = APIRouter()
@@ -11,8 +11,7 @@ router = APIRouter()
 @router.get("/api/movements")
 def list_movements(limit: int = Query(50, ge=1, le=500), site: InventorySiteQuery = "all"):
     """異動紀錄（含名稱/品牌/site），依 id 倒序並可按庫存區過濾。"""
-    conn = get_db()
-    try:
+    with db_session() as conn:
         where = ""
         params = []
         if site != "all":
@@ -27,5 +26,3 @@ def list_movements(limit: int = Query(50, ge=1, le=500), site: InventorySiteQuer
             params,
         ).fetchall()
         return [dict(r) for r in rows]
-    finally:
-        conn.close()

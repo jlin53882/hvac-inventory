@@ -6,6 +6,7 @@
 - init_db()：建立資料表（items 主檔 + item_stocks 位置庫存）
 """
 import sqlite3
+from contextlib import contextmanager
 
 from app.services.app_log import get_logger
 
@@ -28,6 +29,26 @@ def get_db():
     conn.execute("PRAGMA busy_timeout = 10000")    # 等鎖 10 秒（與 connect timeout=10 對齊，不直接拋）
     conn.execute("PRAGMA synchronous = NORMAL")    # WAL 下 NORMAL 已安全，寫入更快
     return conn
+
+
+@contextmanager
+def db_session():
+    """連線生命週期 context manager：離開時一定 close，發生例外時先 rollback 再往外拋。
+
+    取代各 route 手寫的 ``conn = get_db(); try: ... except: conn.rollback(); raise; finally: conn.close()``
+    （2026-08-14 鎖洩漏根治靠「每處都記得寫」維持，漏一處就復發；集中後不可能漏）。
+
+    不會自動 commit：呼叫端仍須在適當時機明確 ``conn.commit()``，讓交易邊界維持可讀。
+    需要 ``BEGIN IMMEDIATE`` 的寫入流程照舊在 with 區塊內自行下。
+    """
+    conn = get_db()
+    try:
+        yield conn
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def _execute_script_in_transaction(conn: sqlite3.Connection, script: str) -> None:
@@ -71,16 +92,11 @@ def init_db():
     Raises:
         sqlite3.Error: If schema creation, migration, or seed initialization fails.
     """
-    conn = get_db()
-    try:
+    # 中途炸（雙開 server 搶 DB 等）由 db_session 負責 rollback 釋放 RESERVED 鎖並 close
+    with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         _exec_init(conn)
         conn.commit()
-    except Exception:
-        conn.rollback()   # 2026-08-14 鎖洩漏根治：init_db 中途炸（雙開 server 搶 DB 等）確保釋放 RESERVED 鎖
-        raise
-    finally:
-        conn.close()
 
 
 def _exec_init(conn):

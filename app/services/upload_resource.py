@@ -25,7 +25,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from app.config import STATIC_DIR
-from app.database import get_db
+from app.database import db_session, get_db
 from app.services.auth import require_login
 from app.services.file_storage import (
     asset_variant_path,
@@ -130,15 +130,12 @@ def _precheck_update(res: UploadResource, rid: int, user: dict) -> None:
 
     僅為效能上的提早拒絕；_apply_update 在 BEGIN IMMEDIATE 內仍會重新檢查（權威結果）。
     """
-    conn = get_db()
-    try:
+    with db_session() as conn:
         row = conn.execute(f"SELECT * FROM {res.table} WHERE id=?", (rid,)).fetchone()
         if row is None:
             raise HTTPException(404, "報表不存在")
         if not res.capabilities(conn, row, user)["can_edit"]:
             raise HTTPException(403, res.edit_denied_msg)
-    finally:
-        conn.close()
 
 
 def _apply_update(res: UploadResource, rid: int, user: dict, report_date, uploader_name, note, upload):
@@ -335,8 +332,7 @@ def build_upload_router(res: UploadResource) -> APIRouter:
             datetime.date.fromisoformat(month + "-01")
         except Exception:
             raise HTTPException(400, "月份格式需 YYYY-MM")
-        conn = get_db()
-        try:
+        with db_session() as conn:
             # 行事曆有派工的日期
             appt_rows = conn.execute(
                 "SELECT DISTINCT date FROM appointments WHERE date LIKE ?",
@@ -356,8 +352,6 @@ def build_upload_router(res: UploadResource) -> APIRouter:
             total = len(appointment_dates)
             rate = round(archived / total * 100) if total > 0 else 0
             return {"month": month, "archived": archived, "missing": missing, "rate": rate, "total": total}
-        finally:
-            conn.close()
 
     @router.get(prefix, name=f"list_{key}")
     def list_items(
@@ -390,8 +384,7 @@ def build_upload_router(res: UploadResource) -> APIRouter:
             like = f"%{q}%"
             params.extend([like, like, like, like])
         sql_where = ("WHERE " + " AND ".join(where)) if where else ""
-        conn = get_db()
-        try:
+        with db_session() as conn:
             total = conn.execute(f"SELECT COUNT(*) FROM {res.table} {sql_where}", params).fetchone()[0]
             rows = conn.execute(
                 f"SELECT * FROM {res.table} {sql_where} ORDER BY report_date DESC, id DESC LIMIT ? OFFSET ?",
@@ -401,8 +394,6 @@ def build_upload_router(res: UploadResource) -> APIRouter:
             for r in rows:
                 items.append(_row_to_out(r, res.capabilities(conn, r, user)))
             return {"items": items, "total": total, "page": page, "page_size": page_size}
-        finally:
-            conn.close()
 
     @router.patch(f"{prefix}/{{rid}}", name=f"update_{key}")
     async def update(
@@ -449,8 +440,7 @@ def build_upload_router(res: UploadResource) -> APIRouter:
         """線上預覽：圖片走壓縮 preview，PDF 保持原始檔。"""
         if user is None:
             raise HTTPException(401, "未登入")
-        conn = get_db()
-        try:
+        with db_session() as conn:
             row = conn.execute(
                 f"SELECT id, stored_path, file_name, mime_type FROM {res.table} WHERE id=?", (rid,)
             ).fetchone()
@@ -485,16 +475,13 @@ def build_upload_router(res: UploadResource) -> APIRouter:
                 filename=row["file_name"],
                 content_disposition_type=disp,
             )
-        finally:
-            conn.close()
 
     @router.get(f"{prefix}/{{rid}}/download", name=f"download_{key}")
     def download(rid: int, user: dict = Depends(require_login)):
         """下載原檔（attachment）。"""
         if user is None:
             raise HTTPException(401, "未登入")
-        conn = get_db()
-        try:
+        with db_session() as conn:
             row = conn.execute(f"SELECT stored_path, file_name FROM {res.table} WHERE id=?", (rid,)).fetchone()
             if row is None:
                 raise HTTPException(404, "報表不存在")
@@ -506,16 +493,13 @@ def build_upload_router(res: UploadResource) -> APIRouter:
                 raise HTTPException(404, "檔案遺失")
             # FileResponse handles non-ASCII filenames with RFC 5987 encoding.
             return FileResponse(path, filename=row["file_name"], content_disposition_type="attachment")
-        finally:
-            conn.close()
 
     @router.delete(f"{prefix}/{{rid}}", name=f"delete_{key}")
     def delete(rid: int, user: dict = Depends(require_login)):
         """刪除資料列、original 與所有媒體變體。"""
         if user is None:
             raise HTTPException(401, "未登入")
-        conn = get_db()
-        try:
+        with db_session() as conn:
             row = conn.execute(
                 f"SELECT uploader_user_id, stored_path FROM {res.table} WHERE id=?", (rid,)
             ).fetchone()
@@ -543,7 +527,5 @@ def build_upload_router(res: UploadResource) -> APIRouter:
                 except OSError:
                     pass
             return {"ok": True}
-        finally:
-            conn.close()
 
     return router

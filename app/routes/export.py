@@ -18,7 +18,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.utils import get_column_letter
 
-from app.database import get_db
+from app.database import db_session
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.safety import excel_safe, xlsx_download
@@ -754,8 +754,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     selected_sites = list(SITE_ORDER) if not sites else [s for s in sites.split(",") if s]
     if not selected_sites or any(s not in SITES for s in selected_sites):
         raise HTTPException(400, "sites 含有不合法的庫存區")
-    conn = get_db()
-    try:
+    with db_session() as conn:
         items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
         positions = conn.execute("SELECT i.id, i.site, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
         movement_site = "COALESCE(NULLIF(m.return_site,''), NULLIF(m.source_site,''), NULLIF(i.site,''), '')"
@@ -801,8 +800,6 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         movements = filtered_movements
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
         cabinet_notes = _load_cabinet_notes(conn)
-    finally:
-        conn.close()
     wb = Workbook(); wb.remove(wb.active); wb.calculation.fullCalcOnLoad = True; wb.calculation.forceFullCalc = True; wb.calculation.calcMode = "auto"
     period_text = _period_text(period, display_period)
     if "overview" in selected_sections:
@@ -877,8 +874,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     else:
         start, end, period, display_period = _parse_export_range(month, start_date, end_date)
     
-    conn = get_db()
-    try:
+    with db_session() as conn:
         # 查詢整組品項（is_kit=1）；kits 定義提供 kit_id / 備註，庫存區與品牌型號以 items 為準
         kit_items = conn.execute(
             "SELECT i.id, i.site, i.brand, i.name, i.code, i.unit, i.low_stock, i.prepared_qty, "
@@ -929,8 +925,6 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
         cabinet_notes = _load_cabinet_notes(conn)
-    finally:
-        conn.close()
     
     wb = Workbook()
     wb.remove(wb.active)
@@ -1035,8 +1029,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     else:
         start, end, period, display_period = _parse_export_range(month, start_date, end_date)
     
-    conn = get_db()
-    try:
+    with db_session() as conn:
         # 查詢已領出的異動：直接出庫（出庫%）+ 退回已領出
         # 對齊 /api/stockouts contract: m.delta < 0 AND m.reason LIKE '出庫%'
         movement_sql = (
@@ -1048,8 +1041,6 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
             "ORDER BY m.created_at DESC, m.id DESC"
         )
         movements = conn.execute(movement_sql, [movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)]).fetchall()
-    finally:
-        conn.close()
     
     wb = Workbook()
     wb.remove(wb.active)
