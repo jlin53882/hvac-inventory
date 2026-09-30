@@ -42,8 +42,15 @@ class _Watch:
         self.allowed_console = ("/favicon.ico", *allowed_console)
         page.on("pageerror", lambda e: self.errors.append(f"pageerror: {e}"))
         page.on("console", self._console)
-        page.on("requestfailed", lambda r: self.errors.append(f"requestfailed: {r.url} {r.failure}"))
+        page.on("requestfailed", self._request_failed)
         page.on("response", self._response)
+
+    def _request_failed(self, request):
+        # app 以 AbortController 取消被新請求取代的 API 呼叫（切頁後立即重新整理資料）是預期行為；
+        # 模組、樣式等其他資源失敗一律算錯
+        if "/api/" in request.url and "ERR_ABORTED" in str(request.failure):
+            return
+        self.errors.append(f"requestfailed: {request.url} {request.failure}")
 
     def _console(self, msg):
         if msg.type != "error":
@@ -107,6 +114,39 @@ def test_source_main_page_boots_and_mounts_every_tab(browser, source_server):
             page.wait_for_timeout(100)
             assert page.evaluate(f"{state}.currentTab") == tab
             assert page.evaluate("document.getElementById('content').children.length") > 0, f"{tab} 沒有掛載"
+
+        # 來回切頁：切頁 port 與組裝層在多次往返後仍掛載正確頁面與頁面範圍
+        for tab in ("inventory", "calendar", "prepared", "inventory"):
+            page.evaluate("t => App.switchTab(t)", tab)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(100)
+            assert page.evaluate(f"{state}.currentTab") == tab
+            assert page.evaluate("document.body.dataset.page") == tab
+            assert page.evaluate("document.getElementById('content').children.length") > 0, f"{tab} 往返後沒有掛載"
+
+        # feature 經 features/shell/navigation.js 的 port 切頁（通知中心、工作進度離開確認使用的路徑）
+        page.evaluate("() => hvac('features/shell/navigation.js').navigateToTab('stocktake')")
+        page.wait_for_load_state("networkidle")
+        assert page.evaluate(f"{state}.currentTab") == "stocktake"
+        assert page.evaluate("document.body.dataset.page") == "stocktake"
+
+        # 資料重新整理：loadData 經 data-refresh 注入的畫面 hook 重建並重新掛載目前頁籤
+        page.evaluate("t => App.switchTab(t)", "inventory")
+        page.wait_for_load_state("networkidle")
+        page.evaluate("() => hvac('features/shell/data-refresh.js').loadData()")
+        page.wait_for_load_state("networkidle")
+        assert page.evaluate(f"{state}.currentTab") == "inventory"
+        assert page.evaluate(f"{state}.ALL_ITEMS.length") > 0
+        assert page.evaluate("document.getElementById('content').children.length") > 0
+
+        # 保留掛載的頁籤（DATA_REFRESH_PRESERVE_MOUNT_TABS）重新整理資料時不可重新掛載
+        page.evaluate("t => App.switchTab(t)", "quotation")
+        page.wait_for_load_state("networkidle")
+        page.evaluate("() => { window.__mountedBefore = document.getElementById('content').firstElementChild; }")
+        page.evaluate("() => hvac('features/shell/data-refresh.js').loadData()")
+        page.wait_for_load_state("networkidle")
+        assert page.evaluate("() => document.getElementById('content').firstElementChild === window.__mountedBefore"), \
+            "報價單在資料重新整理後被重新掛載"
         watch.assert_clean("/")
     finally:
         page.context.close()
@@ -120,6 +160,14 @@ def test_source_settings_page_boots(browser, source_server):
             assert page.evaluate(f"typeof window.{ns}.{fn}") == "function", ns
         assert page.evaluate("typeof window.__hvac") == "object"
         assert page.evaluate("document.getElementById('settingsChipBar').children.length") > 0, "設定頁分類沒有掛載"
+        # 面板切換（settings/page.js 的啟動流程與各面板模組之間已無循環 import）
+        for panel in ("cabinets", "gcal", "petty-cash", "pw", "units"):
+            page.evaluate("p => Settings.settingsSwitch(p)", panel)
+            page.wait_for_load_state("networkidle")
+            shown = page.evaluate("""() => ['units', 'cabinets', 'gcal', 'petty-cash', 'pw']
+                .filter(p => document.getElementById('panel-' + p).style.display !== 'none')""")
+            assert shown == [panel], (panel, shown)
+        assert page.evaluate("document.getElementById('panel-gcal').textContent.trim().length") > 0, "行事曆同步面板沒有內容"
         watch.assert_clean("/settings.html")
     finally:
         page.context.close()
