@@ -777,6 +777,91 @@ def _build_alert_sheet(ws, items, positions, inventory_available: bool):
             _write_empty(ws, 6)
 
 
+def _filter_inventory_movements(movements):
+    """單一庫存匯出的異動過濾：排除整組自身異動、領出準備流程、盤點與非庫存品項（這些只在整組 / 已領出匯出出現）。
+    「退回已領出」是例外，同時出現在單一庫存與已領出匯出。"""
+    # 過濾規則：
+    # 1. 整組異動（組裝完成、組裝套件、拆解、拆解套件）— 只在整組匯出中顯示
+    # 2. 待領出流程前段（領出準備、領出結帳、退回準備）— 只在已領出匯出中顯示
+    # 3. 盤點異動（盤點調整等）
+    # 4. Nonstock 異動（is_deleted=1）— 只在已領出匯出中顯示
+    # P0 決策：退回已領出 同時顯示在單一庫存及已領出匯出（例外）
+    filtered_movements = []
+    # 整組自身 movement（is_kit=1）排除：組裝完成、拆解 等
+    # 但保留子材料 movement（is_kit=0）：組裝套件、拆解套件 等
+    kit_movement_prefixes = ("組裝完成", "拆解")
+
+    for row in movements:
+        reason = row["reason"] if "reason" in row.keys() else ""
+        is_deleted = row["is_deleted"] if "is_deleted" in row.keys() else 0
+        is_kit = row["is_kit"] if "is_kit" in row.keys() else 0
+
+        # 判定是否排除
+        is_kit_movement = is_kit and any(reason.startswith(p) for p in kit_movement_prefixes)
+        is_checkpoint = reason.startswith("盤點")
+        is_nonstock = is_deleted == 1
+        is_leadout_prep = reason in ("領出準備", "領出結帳", "退回準備")
+
+        # 排除：整組 movement、盤點、nonstock、領出準備流程
+        if not (is_kit_movement or is_checkpoint or is_nonstock or is_leadout_prep):
+            filtered_movements.append(row)
+    return filtered_movements
+
+
+def _query_inventory_export(selected_sites, start, end):
+    """單一庫存匯出所需資料 → (items, positions, movements, qty_types, cabinet_notes)。"""
+    with db_session() as conn:
+        items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
+        positions = conn.execute("SELECT i.id, i.site, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
+        movement_site = "COALESCE(NULLIF(m.return_site,''), NULLIF(m.source_site,''), NULLIF(i.site,''), '')"
+        site_placeholders = ",".join("?" * len(selected_sites))
+        movement_sql = (
+            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
+            "m.destination, m.reason, " + movement_site + " AS site, "
+            "i.brand, i.name, i.code, i.is_kit, i.is_deleted "
+            "FROM movements m JOIN items i ON i.id=m.item_id "
+            "WHERE (((" + movement_site + f" IN ({site_placeholders}) OR "
+            + movement_site + " = '') AND m.created_at >= ? AND m.created_at < ?)) "
+            "ORDER BY m.created_at DESC, m.id DESC"
+        )
+        movements = conn.execute(
+            movement_sql,
+            [*selected_sites, movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)],
+        ).fetchall()
+        movements = _filter_inventory_movements(movements)
+        qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
+        cabinet_notes = _load_cabinet_notes(conn)
+    return items, positions, movements, qty_types, cabinet_notes
+
+
+def _build_inventory_workbook(selected_sections, period_text, items, positions, movements, qty_types, cabinet_notes):
+    """依所選工作表建立單一庫存活頁簿（尚未套用全域樣式）。"""
+    wb = _new_workbook()
+    if "overview" in selected_sections:
+        overview = wb.create_sheet("01 總覽")
+        _build_overview(overview, "inventory" in selected_sections and bool(items), period_text)
+    if "inventory" in selected_sections:
+        inventory = wb.create_sheet("庫存總表(單一庫存)")
+        _style_title(inventory, "單一庫存總表", period_text, header_count=13)
+        _build_inventory_sheet(inventory, items, positions, "positions" in selected_sections and bool(positions), qty_types)
+    if "positions" in selected_sections:
+        position = wb.create_sheet("位置明細(單一庫存)")
+        _style_title(position, "單一庫存位置明細", period_text, header_count=10)
+        _build_position_sheet(position, positions, qty_types, cabinet_notes)
+    if "alerts" in selected_sections:
+        alerts = wb.create_sheet("庫存警示(單一庫存)")
+        _style_title(alerts, "單一庫存警示", period_text, header_count=11)
+        _build_alert_sheet(alerts, items, positions, "inventory" in selected_sections and bool(items))
+    if "movements" in selected_sections:
+        movement = wb.create_sheet("異動紀錄(單一庫存)")
+        _style_title(movement, "單一庫存異動紀錄", period_text, header_count=12)
+        _build_movement_sheet(movement, movements)
+    if "stats" in selected_sections:
+        stats = wb.create_sheet("06 統計")
+        _build_stats_sheet(stats, items, positions, "inventory" in selected_sections and bool(items), period_text)
+    return wb
+
+
 @router.get("/api/export", dependencies=[Depends(require_perm("export"))])
 def export_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sites: str | None = None, sections: str | None = None):
     """驗證請求參數，並回傳所選的庫存報表工作表。
@@ -800,101 +885,17 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
     selected_sites = list(SITE_ORDER) if not sites else [s for s in sites.split(",") if s]
     if not selected_sites or any(s not in SITES for s in selected_sites):
         raise HTTPException(400, "sites 含有不合法的庫存區")
-    with db_session() as conn:
-        items = conn.execute("SELECT id, site, category, brand, name, code, unit, low_stock, prepared_qty FROM items WHERE is_deleted=0 AND site IN (%s) ORDER BY brand COLLATE NOCASE, name, id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
-        positions = conn.execute("SELECT i.id, i.site, i.brand, i.name, i.code, i.unit, s.location, s.qty, s.note FROM items i JOIN item_stocks s ON s.item_id=i.id WHERE i.is_deleted=0 AND i.site IN (%s) ORDER BY i.id, s.id" % ",".join("?" * len(selected_sites)), selected_sites).fetchall()
-        movement_site = "COALESCE(NULLIF(m.return_site,''), NULLIF(m.source_site,''), NULLIF(i.site,''), '')"
-        site_placeholders = ",".join("?" * len(selected_sites))
-        movement_sql = (
-            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
-            "m.destination, m.reason, " + movement_site + " AS site, "
-            "i.brand, i.name, i.code, i.is_kit, i.is_deleted "
-            "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE (((" + movement_site + f" IN ({site_placeholders}) OR "
-            + movement_site + " = '') AND m.created_at >= ? AND m.created_at < ?)) "
-            "ORDER BY m.created_at DESC, m.id DESC"
-        )
-        movements = conn.execute(
-            movement_sql,
-            [*selected_sites, movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)],
-        ).fetchall()
-        # 單一庫存匯出：過濾掉：
-        # 1. 整組異動（組裝完成、組裝套件、拆解、拆解套件）— 只在整組匯出中顯示
-        # 2. 待領出流程前段（領出準備、領出結帳、退回準備）— 只在已領出匯出中顯示
-        # 3. 盤點異動（盤點調整等）
-        # 4. Nonstock 異動（is_deleted=1）— 只在已領出匯出中顯示
-        # P0 決策：退回已領出 同時顯示在單一庫存及已領出匯出（例外）
-        filtered_movements = []
-        # 整組自身 movement（is_kit=1）排除：組裝完成、拆解 等
-        # 但保留子材料 movement（is_kit=0）：組裝套件、拆解套件 等
-        kit_movement_prefixes = ("組裝完成", "拆解")
-        
-        for row in movements:
-            reason = row["reason"] if "reason" in row.keys() else ""
-            is_deleted = row["is_deleted"] if "is_deleted" in row.keys() else 0
-            is_kit = row["is_kit"] if "is_kit" in row.keys() else 0
-            
-            # 判定是否排除
-            is_kit_movement = is_kit and any(reason.startswith(p) for p in kit_movement_prefixes)
-            is_checkpoint = reason.startswith("盤點")
-            is_nonstock = is_deleted == 1
-            is_leadout_prep = reason in ("領出準備", "領出結帳", "退回準備")
-            
-            # 排除：整組 movement、盤點、nonstock、領出準備流程
-            if not (is_kit_movement or is_checkpoint or is_nonstock or is_leadout_prep):
-                filtered_movements.append(row)
-        movements = filtered_movements
-        qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
-        cabinet_notes = _load_cabinet_notes(conn)
-    wb = _new_workbook()
-    period_text = _period_text(period, display_period)
-    if "overview" in selected_sections:
-        overview = wb.create_sheet("01 總覽")
-        _build_overview(overview, "inventory" in selected_sections and bool(items), period_text)
-    if "inventory" in selected_sections:
-        inventory = wb.create_sheet("庫存總表(單一庫存)")
-        _style_title(inventory, "單一庫存總表", period_text, header_count=13)
-        _build_inventory_sheet(inventory, items, positions, "positions" in selected_sections and bool(positions), qty_types)
-    if "positions" in selected_sections:
-        position = wb.create_sheet("位置明細(單一庫存)")
-        _style_title(position, "單一庫存位置明細", period_text, header_count=10)
-        _build_position_sheet(position, positions, qty_types, cabinet_notes)
-    if "alerts" in selected_sections:
-        alerts = wb.create_sheet("庫存警示(單一庫存)")
-        _style_title(alerts, "單一庫存警示", period_text, header_count=11)
-        _build_alert_sheet(alerts, items, positions, "inventory" in selected_sections and bool(items))
-    if "movements" in selected_sections:
-        movement = wb.create_sheet("異動紀錄(單一庫存)")
-        _style_title(movement, "單一庫存異動紀錄", period_text, header_count=12)
-        _build_movement_sheet(movement, movements)
-    if "stats" in selected_sections:
-        stats = wb.create_sheet("06 統計")
-        _build_stats_sheet(stats, items, positions, "inventory" in selected_sections and bool(items), period_text)
+    items, positions, movements, qty_types, cabinet_notes = _query_inventory_export(selected_sites, start, end)
+    wb = _build_inventory_workbook(
+        selected_sections, _period_text(period, display_period),
+        items, positions, movements, qty_types, cabinet_notes,
+    )
     content = _finalize_workbook(wb, {"庫存總表(單一庫存)": 1, "位置明細(單一庫存)": 1, "庫存警示(單一庫存)": 2, "異動紀錄(單一庫存)": 3})
     return xlsx_download(content, _report_filename("庫存報表", month, start_date, end_date))
 
 
-@router.get("/api/kit-export", dependencies=[Depends(require_perm("export"))])
-def export_kit_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sections: str | None = None):
-    """
-    整組庫存專用匯出端點 (2026-09-27)
-    
-    類似單一庫存匯出，但只含整組品項、位置、組成材料與異動紀錄。
-    整組庫存區以 items.site 輸出為欄位（不提供庫存區篩選）。
-    
-    Args:
-        month: 可選的 YYYY-MM 期間。
-        start_date: YYYY-MM-DD 格式的自訂區間起日。
-        end_date: YYYY-MM-DD 格式的自訂區間迄日。
-        days: 可選的近幾日區間。
-        sections: 以逗號分隔的工作表識別碼。
-    
-    Returns:
-        包含所選工作表的 XLSX 下載回應。
-    """
-    selected_sections = _parse_export_sections(sections, DEFAULT_EXPORT_SECTIONS, KIT_EXPORT_SECTIONS)
-    start, end, period, display_period = _resolve_export_period(month, start_date, end_date, days)
-    
+def _query_kit_export(start, end):
+    """整組匯出所需資料 → (kit_items, kit_positions, suggested_by_kit, components_by_kit, movements, qty_types, cabinet_notes)。"""
     with db_session() as conn:
         # 查詢整組品項（is_kit=1）；kits 定義提供 kit_id / 備註，庫存區與品牌型號以 items 為準
         kit_items = conn.execute(
@@ -947,9 +948,14 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         qty_types = {row["name"]: row["qty_type"] for row in conn.execute("SELECT name, qty_type FROM units")}
         cabinet_notes = _load_cabinet_notes(conn)
     
+    return kit_items, kit_positions, suggested_by_kit, components_by_kit, movements, qty_types, cabinet_notes
+
+
+def _build_kit_workbook(selected_sections, period_text, kit_items, kit_positions, suggested_by_kit,
+                        components_by_kit, movements, qty_types, cabinet_notes):
+    """依所選工作表建立整組活頁簿（尚未套用全域樣式）。"""
     wb = _new_workbook()
     
-    period_text = _period_text(period, display_period)
     
     if "overview" in selected_sections:
         overview = wb.create_sheet("01 總覽")
@@ -992,8 +998,130 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
         _style_title(movement, "整組異動紀錄", period_text, header_count=12)
         _build_movement_sheet(movement, movements)
     
+    return wb
+
+
+@router.get("/api/kit-export", dependencies=[Depends(require_perm("export"))])
+def export_kit_excel(month: str | None = None, start_date: str | None = None, end_date: str | None = None, days: int | None = None, sections: str | None = None):
+    """
+    整組庫存專用匯出端點 (2026-09-27)
+    
+    類似單一庫存匯出，但只含整組品項、位置、組成材料與異動紀錄。
+    整組庫存區以 items.site 輸出為欄位（不提供庫存區篩選）。
+    
+    Args:
+        month: 可選的 YYYY-MM 期間。
+        start_date: YYYY-MM-DD 格式的自訂區間起日。
+        end_date: YYYY-MM-DD 格式的自訂區間迄日。
+        days: 可選的近幾日區間。
+        sections: 以逗號分隔的工作表識別碼。
+    
+    Returns:
+        包含所選工作表的 XLSX 下載回應。
+    """
+    selected_sections = _parse_export_sections(sections, DEFAULT_EXPORT_SECTIONS, KIT_EXPORT_SECTIONS)
+    start, end, period, display_period = _resolve_export_period(month, start_date, end_date, days)
+    
+    (kit_items, kit_positions, suggested_by_kit, components_by_kit,
+     movements, qty_types, cabinet_notes) = _query_kit_export(start, end)
+    wb = _build_kit_workbook(
+        selected_sections, _period_text(period, display_period),
+        kit_items, kit_positions, suggested_by_kit, components_by_kit, movements, qty_types, cabinet_notes,
+    )
     content = _finalize_workbook(wb, {"庫存總表(整組)": 1, "位置明細(整組)": 1, "組成材料(整組)": 1, "庫存警示(整組)": 1, "異動紀錄(整組)": 3})
     return xlsx_download(content, _report_filename("整組報表", month, start_date, end_date))
+
+
+def _query_stockout_movements(start, end):
+    """已領出匯出的異動：直接出庫（出庫%）+ 退回已領出。"""
+    with db_session() as conn:
+        # 查詢已領出的異動：直接出庫（出庫%）+ 退回已領出
+        # 對齊 /api/stockouts contract: m.delta < 0 AND m.reason LIKE '出庫%'
+        movement_sql = (
+            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
+            "m.destination, m.reason, i.site, i.brand, i.name, i.code, i.is_kit, i.is_deleted "
+            "FROM movements m JOIN items i ON i.id=m.item_id "
+            "WHERE ((m.delta < 0 AND m.reason LIKE '出庫%') OR m.reason = '退回已領出') "
+            "AND m.created_at >= ? AND m.created_at < ? "
+            "ORDER BY m.created_at DESC, m.id DESC"
+        )
+        movements = conn.execute(movement_sql, [movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)]).fetchall()
+    
+    return movements
+
+
+def _build_stockout_overview(overview, movements, period_text):
+    """已領出總覽：領出紀錄數與累計領出數量。"""
+    _style_title(overview, "已領出報表", period_text, header_count=2)
+    # 已領出 KPI
+    _write_headers(overview, ["指標", "數值"])
+    _style_header(overview, 5)
+
+    # 統計已領出的異動
+    movement_count = len(movements)
+    total_delta = sum(abs(m["delta"]) for m in movements)
+
+    kpis = [
+        ("領出紀錄數", movement_count),
+        ("累計領出數量", total_delta),
+    ]
+    for i, (label, value) in enumerate(kpis, 6):
+        overview[f"A{i}"] = label
+        overview[f"B{i}"] = value
+        overview[f"B{i}"].number_format = "@" if isinstance(value, str) else "0"
+
+    overview.column_dimensions["A"].width = 20
+    overview.column_dimensions["B"].width = 15
+
+
+def _build_stockout_movement_sheet(movement, movements, period_text):
+    """已領出異動紀錄工作表（含格式與凍結窗格）。"""
+    _style_title(movement, "已領出異動紀錄", period_text, header_count=12)
+    headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
+    _write_headers(movement, headers)
+    _style_header(movement, 5)
+
+    row = 6
+    for m in movements:
+        movement[f"A{row}"] = _safe(m["created_at"])
+        movement[f"B{row}"] = _safe(_movement_type(m["reason"] or "", m["delta"]))
+        movement[f"C{row}"] = m["item_id"]
+        movement[f"D{row}"] = _safe(m["brand"])
+        movement[f"E{row}"] = _safe(m["name"])
+        movement[f"F{row}"] = _safe(m["code"])
+        movement[f"G{row}"] = _safe(SITES.get(m["site"], m["site"]))
+        movement[f"H{row}"] = m["delta"]
+        movement[f"I{row}"] = m["before_qty"]
+        movement[f"J{row}"] = m["after_qty"]
+        movement[f"K{row}"] = _safe(m["destination"])
+        movement[f"L{row}"] = _safe(m["reason"])
+
+        # 格式化
+        for col in "ABCDEFGHIJKL":
+            cell = movement[f"{col}{row}"]
+            cell.font = Font(name="微軟正黑體")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            if col in "CHIJ":
+                cell.number_format = "0"
+            else:
+                cell.number_format = "@"
+
+        row += 1
+
+    # 凍結窗格
+    id_column = {'異動紀錄(已領出)': 3}.get(movement.title)
+    if id_column:
+        movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
+
+
+def _build_stockout_workbook(selected_sections, period_text, movements):
+    """依所選工作表建立已領出活頁簿（尚未套用全域樣式）。"""
+    wb = _new_workbook()
+    if "overview" in selected_sections:
+        _build_stockout_overview(wb.create_sheet("01 總覽"), movements, period_text)
+    if "movements" in selected_sections:
+        _build_stockout_movement_sheet(wb.create_sheet("異動紀錄(已領出)"), movements, period_text)
+    return wb
 
 
 @router.get("/api/stockout-export", dependencies=[Depends(require_perm("export"))])
@@ -1016,84 +1144,7 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     selected_sections = _parse_export_sections(sections, DEFAULT_STOCKOUT_SECTIONS, STOCKOUT_EXPORT_SECTIONS)
     start, end, period, display_period = _resolve_export_period(month, start_date, end_date, days)
     
-    with db_session() as conn:
-        # 查詢已領出的異動：直接出庫（出庫%）+ 退回已領出
-        # 對齊 /api/stockouts contract: m.delta < 0 AND m.reason LIKE '出庫%'
-        movement_sql = (
-            "SELECT m.created_at, m.item_id, m.delta, m.before_qty, m.after_qty, "
-            "m.destination, m.reason, i.site, i.brand, i.name, i.code, i.is_kit, i.is_deleted "
-            "FROM movements m JOIN items i ON i.id=m.item_id "
-            "WHERE ((m.delta < 0 AND m.reason LIKE '出庫%') OR m.reason = '退回已領出') "
-            "AND m.created_at >= ? AND m.created_at < ? "
-            "ORDER BY m.created_at DESC, m.id DESC"
-        )
-        movements = conn.execute(movement_sql, [movement_time.datetime_to_sql(start), movement_time.datetime_to_sql(end)]).fetchall()
-    
-    wb = _new_workbook()
-    
-    period_text = _period_text(period, display_period)
-    
-    if "overview" in selected_sections:
-        overview = wb.create_sheet("01 總覽")
-        _style_title(overview, "已領出報表", period_text, header_count=2)
-        # 已領出 KPI
-        _write_headers(overview, ["指標", "數值"])
-        _style_header(overview, 5)
-        
-        # 統計已領出的異動
-        movement_count = len(movements)
-        total_delta = sum(abs(m["delta"]) for m in movements)
-        
-        kpis = [
-            ("領出紀錄數", movement_count),
-            ("累計領出數量", total_delta),
-        ]
-        for i, (label, value) in enumerate(kpis, 6):
-            overview[f"A{i}"] = label
-            overview[f"B{i}"] = value
-            overview[f"B{i}"].number_format = "@" if isinstance(value, str) else "0"
-        
-        overview.column_dimensions["A"].width = 20
-        overview.column_dimensions["B"].width = 15
-    
-    if "movements" in selected_sections:
-        movement = wb.create_sheet("異動紀錄(已領出)")
-        _style_title(movement, "已領出異動紀錄", period_text, header_count=12)
-        headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
-        _write_headers(movement, headers)
-        _style_header(movement, 5)
-        
-        row = 6
-        for m in movements:
-            movement[f"A{row}"] = _safe(m["created_at"])
-            movement[f"B{row}"] = _safe(_movement_type(m["reason"] or "", m["delta"]))
-            movement[f"C{row}"] = m["item_id"]
-            movement[f"D{row}"] = _safe(m["brand"])
-            movement[f"E{row}"] = _safe(m["name"])
-            movement[f"F{row}"] = _safe(m["code"])
-            movement[f"G{row}"] = _safe(SITES.get(m["site"], m["site"]))
-            movement[f"H{row}"] = m["delta"]
-            movement[f"I{row}"] = m["before_qty"]
-            movement[f"J{row}"] = m["after_qty"]
-            movement[f"K{row}"] = _safe(m["destination"])
-            movement[f"L{row}"] = _safe(m["reason"])
-            
-            # 格式化
-            for col in "ABCDEFGHIJKL":
-                cell = movement[f"{col}{row}"]
-                cell.font = Font(name="微軟正黑體")
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                if col in "CHIJ":
-                    cell.number_format = "0"
-                else:
-                    cell.number_format = "@"
-            
-            row += 1
-        
-        # 凍結窗格
-        id_column = {'異動紀錄(已領出)': 3}.get(movement.title)
-        if id_column:
-            movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
-    
+    movements = _query_stockout_movements(start, end)
+    wb = _build_stockout_workbook(selected_sections, _period_text(period, display_period), movements)
     content = _finalize_workbook(wb, {'異動紀錄(已領出)': 3})
     return xlsx_download(content, _report_filename("已領出報表", month, start_date, end_date))
