@@ -1,9 +1,11 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
+const { moduleScript } = require('./support/frontend-runtime');
 
-const apiSource = fs.readFileSync('static/js/api.js', 'utf8');
-const appSource = fs.readFileSync('static/js/app.js', 'utf8');
+// 原 api.js：去向清單 primitive 在 core/data.js，loadData 流程在 features/shell/data-refresh.js（issue #39）
+const apiSource = moduleScript('core/data.js') + '\n' + moduleScript('features/shell/data-refresh.js');
+// shell 組裝層：頁面範圍 / 網址、切頁 port 與 app.js（issue #39）
+const appSource = ['features/shell/page-scope.js', 'features/shell/navigation.js', 'features/shell/app.js'].map(moduleScript).join('\n');
 
 /**
  * Create the minimum DOM element surface required by the production bootstrap.
@@ -73,18 +75,20 @@ function createContext(tab) {
     ITEMLESS_TABS: new Set(['calendar', 'work-progress', 'signed-reports', 'quotation', 'petty-cash']),
     DATA_REFRESH_PRESERVE_MOUNT_TABS: new Set(['work-progress', 'signed-reports', 'quotation', 'petty-cash']),
     INVENTORY_SITES: ['office', 'warehouse', 'van', 'truck'],
-    currentTab: 'inventory',
-    currentSite: 'office',
-    dataRequestSeq: 0,
-    dataAbortController: null,
-    statsRequestSeq: 0,
-    statsAbortController: null,
-    ALL_ITEMS: ['stale-item'],
-    fullItemsLoadedSite: 'office',
-    inventoryLoadedSite: '',
-    INVENTORY_META: { page: 1, stats: null },
-    INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
-    ALERTS_BY_SITE: {},
+    appState: {
+      currentTab: 'inventory',
+      currentSite: 'office',
+      dataRequestSeq: 0,
+      dataAbortController: null,
+      statsRequestSeq: 0,
+      statsAbortController: null,
+      ALL_ITEMS: ['stale-item'],
+      fullItemsLoadedSite: 'office',
+      inventoryLoadedSite: '',
+      INVENTORY_META: { page: 1, stats: null },
+      INVENTORY_FACETS: { brands: {}, categories: {}, locations: [] },
+      ALERTS_BY_SITE: {},
+    },
     pending: {},
     checkAuth: async () => {
       calls.checkAuth += 1;
@@ -92,6 +96,10 @@ function createContext(tab) {
     },
     loadUnits: async () => { calls.loadUnits += 1; },
     renderUserMenu() {},
+    // 頁面可用性由 core/session.js 判斷；本測試只驗頁籤生命週期，網址指定的頁一律可用
+    resolveAccessiblePageTab: tab => tab,
+    canAccessPage: () => false,
+    selectedStockIds: new Set(),  // 批次改位置的選取（features/inventory/batch-location.js）  // 盤點提醒不在本測試範圍：無盤點權限 → checkReminder 直接隱藏
     renderSidebarUser() {},
     applyRoleView() {},
     updateBreadcrumb() {},
@@ -103,6 +111,10 @@ function createContext(tab) {
     closeInventoryStatusModal() {},
     renderWorkProgress() { recordRender('work-progress'); },
     renderInventory() {},
+    // data-refresh 畫面更新 hook（configureShell 注入）其餘的替身：本測試的頁籤都不載入品項，不會被呼叫
+    buildDatalists() {},
+    buildFilterPanel() {},
+    updatePreparedBadge() {},
     renderPrepared() {},
     renderStockOuts() {},
     renderStocktake() {},
@@ -143,13 +155,19 @@ function createContext(tab) {
   for (const { tab, preserveMount } of cases) {
     const { context, calls } = createContext(tab);
 
-    // Execute the complete production app.js bootstrap IIFE, not the helper in isolation.
+    // Execute the complete production app.js bootstrap (initShellApp), not the helper in isolation.
     vm.runInContext(appSource, context);
+    // issue #39：使用者選單 / 角色畫面控制由 auth.js 搬到 app.js；本測試只驗頁籤生命週期，維持替身
+    context.renderUserMenu = () => {};
+    context.applyRoleView = () => {};
+    // 與 pages/main.js 相同：先組裝 port（data-refresh 的畫面更新、切頁）再啟動
+    context.configureShell();
+    context.initShellApp();
     await new Promise(resolve => setTimeout(resolve, 25));
 
     assert.strictEqual(calls.checkAuth, 1, `${tab}: production bootstrap must authenticate once`);
     assert.strictEqual(calls.loadUnits, 1, `${tab}: production bootstrap must load units once`);
-    assert.strictEqual(context.currentTab, tab, `${tab}: URL tab must reach production bootstrap`);
+    assert.strictEqual(context.appState.currentTab, tab, `${tab}: URL tab must reach production bootstrap`);
     assert.strictEqual(calls.inventoryFetch, 0, `${tab}: itemless page must skip inventory fetch`);
     assert.strictEqual(calls.renders[tab], 1, `${tab}: bootstrap must mount production renderer once`);
 

@@ -35,8 +35,8 @@
 | Page membership | `app/models.py` 的 `PAGE_KEYS` 與 role default sets | visibility storage、auth API、navigation、permissions UI | RBAC/page-visibility tests |
 | Page visibility | persisted `user_page_visibility` 與 backend visibility service/API | frontend `isPageVisible()`、sidebar、deep-link fallback | visibility API、seed/reset、runtime tests |
 | Capability | backend permission guards 與 route-level scope/owner checks | frontend UX guards、API callers | positive/negative API and security tests |
-| Frontend lifecycle | `static/js/globals.js`、`static/js/api.js`、`static/js/app.js` | page renderers and refresh paths | lifecycle runtime test |
-| Calendar | `app/routes/appointments.py`、calendar services、`static/js/render/calendar.js`、`static/js/modals/calendar.js` | Calendar UI、Work Progress snapshots、Google sync queue | API tests、Calendar runtime test、snapshot/atomicity tests |
+| Frontend lifecycle | `static/js/core/state.js`、`static/js/features/shell/data-refresh.js`、`static/js/features/shell/app.js` | page renderers and refresh paths | lifecycle runtime test |
+| Calendar | `app/routes/appointments.py`、calendar services、`static/js/features/calendar/`、`static/js/features/calendar/appt-modal.js` | Calendar UI、Work Progress snapshots、Google sync queue | API tests、Calendar runtime test、snapshot/atomicity tests |
 | Work Progress | `app/routes/work_progress.py`、`app/services/work_progress.py`、scoped file storage | Work Progress UI、appointment snapshot sync | owner/RBAC, media atomicity, snapshot regression |
 | File assets | `app/services/file_storage.py` and `file_assets` records | photos, Work Progress, signed reports, quotations | path/scope/rollback/media tests |
 
@@ -218,7 +218,7 @@ Static permission-consumer scans are architecture-fitness evidence only. They mu
 | `ITEMLESS_TABS` | The page does not need inventory `ALL_ITEMS` loading during the normal data refresh path. |
 | `DATA_REFRESH_PRESERVE_MOUNT_TABS` | A background data refresh must not remount the stateful page. |
 
-Current classification in `static/js/globals.js`:
+Current classification in `static/js/core/state.js`:
 
 | Page | Itemless | Preserve mount |
 |---|---:|---:|
@@ -228,7 +228,7 @@ Current classification in `static/js/globals.js`:
 | Quotation | Yes | Yes |
 | Petty Cash | Yes | Yes |
 
-`static/js/api.js` owns refresh orchestration and the distinction between skipping inventory data and remounting a page. `static/js/app.js::mountPreservedTabAfterBootstrap()` owns the bootstrap-time initial mount for preserved stateful tabs.
+`static/js/features/shell/data-refresh.js` owns refresh orchestration (`static/js/core/data.js` keeps only the destination-suggestion data primitive; the view updates it triggers — filter panel, notifications, reminder, prepared badge, remounting the current tab — are injected by `configureShell()` in `static/js/features/shell/app.js`) and the distinction between skipping inventory data and remounting a page. `static/js/features/shell/app.js::mountPreservedTabAfterBootstrap()` owns the bootstrap-time initial mount for preserved stateful tabs.
 
 Required behavior:
 
@@ -244,7 +244,7 @@ For any async renderer or loader that writes shared DOM or shared state after an
 
 ### 7.1 Page and data entry
 
-The page entry point is `renderCalendar()` in `static/js/render/calendar.js`. It builds the Calendar shell, mounts search dependencies, sets loading state, invokes `calLoadData()`, and then reaches either the ready render path or the error path.
+The page entry point is `renderCalendar()` in `static/js/features/calendar/`. It builds the Calendar shell, mounts search dependencies, sets loading state, invokes `calLoadData()`, and then reaches either the ready render path or the error path.
 
 `calLoadData()` loads the current Calendar data through:
 
@@ -473,12 +473,13 @@ The primary implementation owners for the contracts in this document are:
 - `app/routes/units.py`
 - `app/services/work_progress.py`
 - `app/services/file_storage.py`
-- `static/js/globals.js`
-- `static/js/api.js`
-- `static/js/app.js`
-- `static/js/auth.js`
-- `static/js/render/calendar.js`
-- `static/js/modals/calendar.js`
+- `static/js/core/state.js`
+- `static/js/core/data.js`
+- `static/js/features/shell/data-refresh.js`
+- `static/js/features/shell/app.js`
+- `static/js/core/session.js`
+- `static/js/features/calendar/`
+- `static/js/features/calendar/appt-modal.js`
 - `docs/庫存操作維護文件.md`
 - `docs/行事曆維護文件.md`
 - `docs/工作進度回報維護文件.md`

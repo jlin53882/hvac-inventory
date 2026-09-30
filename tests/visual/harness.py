@@ -97,8 +97,11 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def start_server(workdir: str, db_template: str | None = None) -> LiveServer:
-    """在 workdir 內建立隔離 DB 並啟動伺服器；db_template 存在時先複製它（重現同一份資料）。"""
+def start_server(workdir: str, db_template: str | None = None, extra_env: dict | None = None) -> LiveServer:
+    """在 workdir 內建立隔離 DB 並啟動伺服器；db_template 存在時先複製它（重現同一份資料）。
+
+    extra_env：額外環境變數（例：HVAC_FRONTEND_SOURCE=1 讓頁面直接載入原始 ES modules）。
+    """
     os.makedirs(workdir, exist_ok=True)
     db_path = os.path.join(workdir, "visual.db")
     uploads = os.path.join(workdir, "uploads")
@@ -109,7 +112,8 @@ def start_server(workdir: str, db_template: str | None = None) -> LiveServer:
     if db_template and os.path.exists(db_template):
         shutil.copyfile(db_template, db_path)
     port = _free_port()
-    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "HVAC_FRONTEND_SOURCE")}
+    env.update(extra_env or {})
     proc = subprocess.Popen(
         [sys.executable, SERVE_SCRIPT, "--db", db_path, "--uploads", uploads,
          "--port", str(port), "--token-file", token_file],
@@ -196,6 +200,13 @@ def launch_browser(playwright):
     return None
 
 
+# 測試情境用：hvac('<static/js 下的模組路徑>') 取得頁面上的模組（頁面進入點放在 window.__hvac；issue #39 ES modules 後已無全域函式）
+_HVAC_HELPER = (
+    "window.hvac = path => { const m = window.__hvac && window.__hvac[path];"
+    " if (!m) throw new Error('本頁沒有載入模組 ' + path); return m; };"
+)
+
+
 def new_page(browser, server: LiveServer, viewport: dict):
     """建立已登入（session cookie）、時間凍結、動畫關閉的頁面。"""
     context = browser.new_context(viewport=viewport, locale="zh-TW", timezone_id="Asia/Taipei",
@@ -207,6 +218,7 @@ def new_page(browser, server: LiveServer, viewport: dict):
         "document.addEventListener('DOMContentLoaded',()=>{const s=document.createElement('style');"
         f"s.textContent={json.dumps(_STABILIZE_CSS)};document.head.appendChild(s);}});"
     )
+    page.add_init_script(_HVAC_HELPER)
     return page
 
 
@@ -214,7 +226,7 @@ def open_tab(page, server: LiveServer, tab: str) -> None:
     """開主頁並切到指定頁籤，等資料載入完成。"""
     page.goto(f"{server.base_url}/?tab={tab}&site=office&month=2026-09")
     page.wait_for_load_state("networkidle")
-    page.evaluate("t => { if (window.currentTab !== t) switchTab(t); }", tab)
+    page.evaluate("t => { if (hvac('core/state.js').appState.currentTab !== t) App.switchTab(t); }", tab)
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(150)
 
@@ -258,7 +270,7 @@ def find_css_leaks(page, page_name: str) -> list[dict]:
 # (情境 id, 頁面歸屬, 頁籤, 開啟後執行的 JS)。頁面歸屬 = 這個畫面屬於哪一頁（決定哪些 CSS 檔可用）。
 LEAK_SCENARIOS = [
     ("inventory", "inventory", "inventory", None),
-    ("inventory-table", "inventory", "inventory", "setInventoryView('table')"),
+    ("inventory-table", "inventory", "inventory", "Inventory.setInventoryView('table')"),
     ("prepared", "prepared", "prepared", None),
     ("stockout", "stockout", "stockout", None),
     ("stocktake", "stocktake", "stocktake", None),
@@ -267,20 +279,20 @@ LEAK_SCENARIOS = [
     ("work-progress", "work-progress", "work-progress", None),
     ("signed-reports", "signed-reports", "signed-reports", None),
     ("quotation", "quotation", "quotation", None),
-    ("quotation-upload", "quotation-upload", "quotation", "quoteSwitchMode('upload')"),
+    ("quotation-upload", "quotation-upload", "quotation", "Quotation.quoteSwitchMode('upload')"),
     ("petty-cash", "petty-cash", "petty-cash", None),
-    ("modal-add-item", "inventory", "inventory", "openAddModal()"),
-    ("modal-edit-item", "inventory", "inventory", "openEditModal(1)"),
-    ("modal-out", "inventory", "inventory", "openOutModal(1)"),
-    ("modal-prepare", "inventory", "inventory", "openPrepareModal(1)"),
-    ("modal-transfer", "inventory", "inventory", "openTransferModal(1)"),
-    ("modal-kit", "kit", "kit", "openKitModal()"),
-    ("modal-kit-prepare", "kit", "kit", "openKitPrepareModal(1, '標準安裝包')"),
-    ("modal-petty-cash", "petty-cash", "petty-cash", "pcOpenReportModal()"),
-    ("modal-petty-cash-engineering", "petty-cash", "petty-cash", "pcOpenEngineeringModal()"),
-    ("modal-status-inventory", "inventory", "inventory", "showInventoryStatusList('low')"),
-    ("modal-status-stocktake", "stocktake", "stocktake", "showStocktakeList('low')"),
-    ("modal-status-kit", "kit", "kit", "showKitStatusList('insufficient')"),
+    ("modal-add-item", "inventory", "inventory", "Inventory.openAddModal()"),
+    ("modal-edit-item", "inventory", "inventory", "Inventory.openEditModal(1)"),
+    ("modal-out", "inventory", "inventory", "Stockout.openOutModal(1)"),
+    ("modal-prepare", "inventory", "inventory", "Stockout.openPrepareModal(1)"),
+    ("modal-transfer", "inventory", "inventory", "Inventory.openTransferModal(1)"),
+    ("modal-kit", "kit", "kit", "Kits.openKitModal()"),
+    ("modal-kit-prepare", "kit", "kit", "Stockout.openKitPrepareModal(1, '標準安裝包')"),
+    ("modal-petty-cash", "petty-cash", "petty-cash", "PettyCash.pcOpenReportModal()"),
+    ("modal-petty-cash-engineering", "petty-cash", "petty-cash", "PettyCash.pcOpenEngineeringModal()"),
+    ("modal-status-inventory", "inventory", "inventory", "Inventory.showInventoryStatusList('low')"),
+    ("modal-status-stocktake", "stocktake", "stocktake", "Stocktake.showStocktakeList('low')"),
+    ("modal-status-kit", "kit", "kit", "Kits.showKitStatusList('insufficient')"),
 ]
 KNOWN_LEAKS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "known_css_leaks.json")
 

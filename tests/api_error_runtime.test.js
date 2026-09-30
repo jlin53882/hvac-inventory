@@ -1,7 +1,7 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const source = fs.readFileSync('static/js/utils.js', 'utf8');
+const { moduleScript } = require('./support/frontend-runtime');
+const source = moduleScript('core/utils.js');
 const start = source.indexOf('function apiErrorMessage(');
 const end = source.indexOf('function toast(', start);
 assert(start >= 0 && end > start, 'production formatter must exist before toast');
@@ -10,7 +10,7 @@ const context = {
   document: { getElementById: () => toastNode },
   setTimeout: () => 1,
   clearTimeout: () => {},
-  toastTimer: null,
+  appState: { toastTimer: null },
 };
 vm.createContext(context);
 vm.runInContext(source.slice(start), context);
@@ -31,4 +31,7 @@ assert.strictEqual(
   '「分類」不可超過 50 個字');
 assert.strictEqual(context.apiErrorMessage([{ loc: ['body', 12], type: 'json_invalid' }]), '資料格式錯誤，請重新整理後再試');
 assert.strictEqual(context.apiErrorMessage([{ loc: ['body'], type: 'union_tag_invalid' }]), '類型不正確');
+// 上傳清單（簽名報表 / 報價單上傳）的表單欄位顯示中文標籤，不顯示 uploader_name / report_date
+assert.strictEqual(context.apiErrorMessage([{ loc: ['body', 'uploader_name'], type: 'missing' }]), '「上傳人姓名」為必填欄位');
+assert.strictEqual(context.apiErrorMessage([{ loc: ['body', 'report_date'], type: 'missing' }]), '「報表日期」為必填欄位');
 console.log('API error formatting runtime: PASS');

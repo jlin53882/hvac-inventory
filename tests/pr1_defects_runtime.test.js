@@ -1,14 +1,12 @@
 const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
 const vm = require('vm');
-
-const ROOT = path.resolve(__dirname, '..');
+const { installApiClient, installNamespaces, loadModules, mockResponse } = require('./support/frontend-runtime');
 
 function load(files, context) {
-  for (const file of files) {
-    vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), context, { filename: file });
-  }
+  installApiClient(context);
+  installNamespaces(context, 'Stockout');
+  context.unitList = [];
+  loadModules(context, 'core/qty.js', 'features/stockout/state.js', ...files);
 }
 
 /**
@@ -39,10 +37,10 @@ async function testDesktopInlineReturnDeleteExecutesHandler() {
     renderStockOuts: () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return { ok: true, json: async () => ({}) };
+      return mockResponse(({}));
     },
   });
-  load(['static/js/modals/stockout.js', 'static/js/render/stockout.js'], context);
+  load(['features/stockout/modals.js', 'features/stockout/page.js', 'features/stockout/sheet.js'], context);
   context.renderStockOuts = () => { refreshed += 1; };
 
   const html = context.renderStockoutActions({
@@ -81,11 +79,11 @@ async function testMobileReturnDeleteExecutesHandler() {
     openSheet: (_title, actions) => { sheetActions = actions; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return { ok: true, json: async () => ({}) };
+      return mockResponse(({}));
     },
-    stockoutRecords: [{ id: 7, brand: 'B', item_name: 'Returned', reason: '退回已領出', reverted_at: null }],
   });
-  load(['static/js/modals/stockout.js', 'static/js/render/stockout.js'], context);
+  load(['features/stockout/modals.js', 'features/stockout/page.js', 'features/stockout/sheet.js'], context);
+  context.stockoutState.stockoutRecords = [{ id: 7, brand: 'B', item_name: 'Returned', reason: '退回已領出', reverted_at: null }];
   context.renderStockOuts = () => { refreshed += 1; };
 
   context.openStockoutSheet(7);
@@ -116,13 +114,10 @@ async function testReturnDeleteFailureDoesNotRefresh() {
     renderStockOuts: () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return {
-        ok: false,
-        json: async () => ({ detail: '刪除失敗測試' }),
-      };
+      return mockResponse(({ detail: '刪除失敗測試' }), 400);
     },
   });
-  load(['static/js/modals/stockout.js'], context);
+  load(['features/stockout/modals.js'], context);
   context.renderStockOuts = () => { refreshed += 1; };
 
   await context.deleteStockoutReturn(7);
@@ -145,8 +140,7 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
   };
   const context = vm.createContext({
     console,
-    ALL_ITEMS: [],
-    preparedItems: [{ id: 42, name: 'Prepared only', brand: 'PB', prepared_qty: 5, unit: '箱' }],
+    appState: { ALL_ITEMS: [], preparedItems: [{ id: 42, name: 'Prepared only', brand: 'PB', prepared_qty: 5, unit: '箱' }] },
     document: { getElementById: id => elements[id] },
     qtyInputOrToast: () => 2,
     closeModalForce: () => {},
@@ -155,10 +149,10 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
     loadData: async () => { refreshed += 1; },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return { ok: true, json: async () => ({}) };
+      return mockResponse(({}));
     },
   });
-  load(['static/js/modals/stockout.js'], context);
+  load(['features/stockout/modals.js'], context);
 
   context.openPreparedOutModal(42);
   assert.strictEqual(elements['po-item-name'].value, 'Prepared only (PB)');

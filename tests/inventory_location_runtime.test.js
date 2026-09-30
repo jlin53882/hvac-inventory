@@ -1,9 +1,7 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const vm = require('node:vm');
+const { configureShellPorts, installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
-const root = path.join(__dirname, '..');
 const inventoryRequests = [];
 const openedModals = [];
 const elements = {
@@ -11,7 +9,7 @@ const elements = {
   'stock-location-options': { innerHTML: '' },
 };
 const sandbox = {
-  ALL_ITEMS: [
+  appState: { currentTab: 'inventory', currentSite: 'office', ALL_ITEMS: [
     { id: 1, name: '多位置品項', unit: '個', qty: 12, stocks: [
       { id: 101, location: '編號A | 1-1', qty: 10 },
       { id: 102, location: '編號B <img src=x onerror=alert(1)>', qty: 2 },
@@ -27,13 +25,11 @@ const sandbox = {
       { id: 401, location: '罐架A', qty: 0.5 },
       { id: 402, location: '罐架B', qty: 0.5 },
     ] },
-  ],
+  ] },
   pending: {},
   pendingByStock: {},
   INVENTORY_PENDING_ITEMS: {},
   failNextSave: false,
-  currentTab: 'inventory',
-  currentSite: 'office',
   prompt: () => '13',
   setTimeout: () => 0,
   esc: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'),
@@ -53,25 +49,28 @@ const sandbox = {
     inventoryRequests.push({ url, options, body: JSON.parse(options.body) });
     if (sandbox.failNextSave) {
       sandbox.failNextSave = false;
-      return { ok: false, json: async () => ({ detail: 'temporary failure' }) };
+      return mockResponse(({ detail: 'temporary failure' }), 400);
     }
-    return { ok: true, json: async () => ({}) };
+    return mockResponse(({}));
   },
   console,
 };
 vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(path.join(root, 'static/js/qty.js'), 'utf8'), sandbox, { filename: 'qty.js' });
+installApiClient(sandbox);
+loadModules(sandbox, 'core/qty.js');
 sandbox.unitList = [
   { name: '個', qty_type: 'integer' },
   { name: 'kg', qty_type: 'decimal' },
   { name: '罐', qty_type: 'fraction' },
 ];
-vm.runInContext(fs.readFileSync(path.join(root, 'static/js/render/inventory.js'), 'utf8'), sandbox, { filename: 'inventory.js' });
+// 原 render/inventory.js 已依職責拆成多個模組（issue #39）
+loadModules(sandbox, 'features/inventory/state.js', 'features/inventory/filters.js', 'core/search.js', 'features/inventory/list.js',
+  'features/inventory/status.js', 'features/inventory/actions.js', 'features/inventory/adjust.js', 'features/inventory/batch-location.js');
 sandbox.renderInventory = () => {};
-vm.runInContext(fs.readFileSync(path.join(root, 'static/js/location-adjustments.js'), 'utf8'), sandbox, { filename: 'location-adjustments.js' });
-vm.runInContext(fs.readFileSync(path.join(root, 'static/js/api.js'), 'utf8'), sandbox, { filename: 'api.js' });
+loadModules(sandbox, 'features/inventory/location-adjustments.js', 'core/data.js', 'features/shell/data-refresh.js');
+configureShellPorts(sandbox);
 sandbox.loadData = async () => {};
-vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf8'), sandbox, { filename: 'qty.js' });
+loadModules(sandbox, 'features/inventory/qty-dialog.js');
 
 (async () => {
   sandbox.changeQty(1, 1);
@@ -86,20 +85,20 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   assert.deepEqual(inventoryRequests.map(request => request.url), ['/api/stocks/102/adjust']);
   assert.equal(inventoryRequests[0].body.delta, 1);
 
-  vm.runInContext('savingAll = true; stockLocationPickerState = null;', sandbox);
+  vm.runInContext('inventoryState.savingAll = true; inventoryState.stockLocationPickerState = null;', sandbox);
   sandbox.changeQty(2, 1);
   assert.equal(sandbox.pending['2'], undefined, '儲存中不得立刻修改單位置品項的 pending');
   sandbox.changeQty(2, -1);
   assert.equal(sandbox.pending['2'], undefined, '儲存中不得建立負向 pending');
   sandbox.changeQty(1, 1);
-  assert.equal(sandbox.stockLocationPickerState, null, '儲存中不得打開位置選擇器');
+  assert.equal(sandbox.inventoryState.stockLocationPickerState, null, '儲存中不得打開位置選擇器');
   const openModalCount = openedModals.length;
   sandbox.changeQty(3, 1);
   assert.equal(openedModals.length, openModalCount, '儲存中不得打開小數數量輸入對話框');
-  sandbox.queueInventoryAdjustment(sandbox.ALL_ITEMS[1], 1);
+  sandbox.queueInventoryAdjustment(sandbox.appState.ALL_ITEMS[1], 1);
   assert.equal(sandbox.pending['2'], undefined, '共用 queue 必須攔截所有調整入口');
   assert.equal(sandbox.pendingByStock['101'], undefined);
-  vm.runInContext('savingAll = false; stockLocationPickerState = null;', sandbox);
+  vm.runInContext('inventoryState.savingAll = false; inventoryState.stockLocationPickerState = null;', sandbox);
 
   inventoryRequests.length = 0;
   sandbox.failNextSave = true;
@@ -145,7 +144,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   elements['qtyd-input'].value = '0.5';
   sandbox.submitQtyDialog();
   assert.equal(sandbox.pending['1'], undefined, '整數單位方向 Dialog 必須使用正式 Qty 驗證並拒絕小數');
-  assert.equal(sandbox.stockLocationPickerState, null, '非法數量不得進入儲位選擇');
+  assert.equal(sandbox.inventoryState.stockLocationPickerState, null, '非法數量不得進入儲位選擇');
   sandbox.setQtyDialogMode('sub');
   assert.equal(sandbox.__qtyMode, 'sub');
   assert.equal(elements['qtyd-title'].textContent, '➖ 減少庫存');
@@ -156,7 +155,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   elements['qtyd-input'].value = '2';
   sandbox.submitQtyDialog();
   assert.equal(sandbox.pending['1'], -2, '減少模式應排入 aggregate 負向 delta');
-  assert.equal(sandbox.stockLocationPickerState, null, '減少沿用既有 aggregate 扣減，不要求新增儲位選擇');
+  assert.equal(sandbox.inventoryState.stockLocationPickerState, null, '減少沿用既有 aggregate 扣減，不要求新增儲位選擇');
   await sandbox.saveAll();
   assert.deepEqual(inventoryRequests.map(request => request.url), ['/api/items/1/adjust']);
   assert.equal(inventoryRequests[0].body.delta, -2);
@@ -173,7 +172,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   elements['qtyd-input'].value = '1';
   sandbox.submitQtyDialog();
   assert.equal(openedModals.at(-1), 'stock-location-modal', '多位置 Dialog 加量後仍須選儲位');
-  assert.equal(sandbox.stockLocationPickerState.delta, 1);
+  assert.equal(sandbox.inventoryState.stockLocationPickerState.delta, 1);
   sandbox.queueStockLocationAdjustment(1, 102);
   await sandbox.saveAll();
   assert.deepEqual(inventoryRequests.map(request => request.url), ['/api/stocks/102/adjust']);
@@ -201,7 +200,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
   assert.equal(elements['qtyd-direction'].hidden, false, '分數單位多位置總數點擊也須顯示方向控制');
   elements['qtyd-input'].value = '1/2';
   sandbox.submitQtyDialog();
-  assert.equal(sandbox.stockLocationPickerState.delta, 0.5, '方向 Dialog 必須使用正式 parser 接受分數輸入');
+  assert.equal(sandbox.inventoryState.stockLocationPickerState.delta, 0.5, '方向 Dialog 必須使用正式 parser 接受分數輸入');
   sandbox.queueStockLocationAdjustment(4, 402);
   await sandbox.saveAll();
   assert.deepEqual(inventoryRequests.map(request => request.url), ['/api/stocks/402/adjust']);
@@ -212,9 +211,11 @@ vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/qty.js'), 'utf
     document: { getElementById: id => id === 'edit-stock-rows' ? editBox : null },
     esc: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'),
     toast: message => { editContext.lastToast = message; },
+    appState: { globalCabinetList: [] },
+    unitList: [],
   };
   vm.createContext(editContext);
-  vm.runInContext(fs.readFileSync(path.join(root, 'static/js/modals/edit.js'), 'utf8'), editContext, { filename: 'edit.js' });
+  loadModules(editContext, 'core/qty.js', 'features/inventory/edit-modal.js');
   editContext.renderEditStockRows([{ id: 101, location: '編號A | 1-1', qty: 0, note: '' }], '個');
   assert.match(editBox.innerHTML, /deleteEditStockRow\(this\)/, '既有位置列需出現移除按鈕');
   assert.match(editBox.innerHTML, /data-stock-qty="0"/, '既有列需保存原始庫存量供安全移除判斷');

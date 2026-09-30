@@ -34,13 +34,16 @@ logger = logging.getLogger(__name__)
 MAX_SIZE = 20 * 1024 * 1024  # 20MB
 ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"}  # 副檔名白名單防 XSS
 
+# 錯誤訊息顯示給使用者：表單欄位名稱轉成畫面上的中文標籤
+_FIELD_LABELS = {"report_date": "報表日期", "uploader_name": "上傳人姓名", "note": "備註"}
+
 def _form_text(form, field: str) -> str | None:
     """讀取表單文字欄位，拒絕以檔案物件冒充文字而造成 500。"""
     value = form.get(field)
     if value is None:
         return None
     if not isinstance(value, str):
-        raise HTTPException(400, f"{field} 欄位格式錯誤")
+        raise HTTPException(400, f"「{_FIELD_LABELS.get(field, field)}」欄位格式錯誤")
     return value
 
 def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:

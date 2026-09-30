@@ -8,6 +8,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 靜態資源目錄
 STATIC = os.path.join(BASE_DIR, "static")
 
+
+def js_modules(*rels: str) -> tuple:
+    """多個 ES module（static/js 之下的相對路徑）；read() 會依序串接。
+    issue #39：原本一個大檔拆成多個模組後，原檔的原始碼契約改讀這組模組。"""
+    return tuple(os.path.join(STATIC, "js", *rel.split("/")) for rel in rels)
+
+
 # 待測：index.html
 INDEX = os.path.join(STATIC, "index.html")
 # 待測：login.html
@@ -24,51 +31,55 @@ CSS_INVENTORY_LOCATIONS = os.path.join(STATIC, "css", "3-components", "location-
 CSS_PREPARED = os.path.join(STATIC, "css", "4-pages", "prepared.css")
 CSS_STATUS_LIST = os.path.join(STATIC, "css", "3-components", "status-list.css")
 CSS_PANEL = os.path.join(STATIC, "css", "3-components", "panel.css")
-# 待測：auth.js
-AUTH_JS = os.path.join(STATIC, "js", "auth.js")
-# 待測：render/kits.js
-KITS_RENDER_JS = os.path.join(STATIC, "js", "render", "kits.js")
-# 待測：modals/kit.js
-KIT_MODAL_JS = os.path.join(STATIC, "js", "modals", "kit.js")
-# 待測：render/inventory.js
-INVENTORY_RENDER_JS = os.path.join(STATIC, "js", "render", "inventory.js")
-# 待測：render/prepared.js
-PREPARED_RENDER_JS = os.path.join(STATIC, "js", "render", "prepared.js")
-# 待測：render/stockout.js
-STOCKOUT_RENDER_JS = os.path.join(STATIC, "js", "render", "stockout.js")
-# 待測：render/stocktake.js
-STOCKTAKE_JS = os.path.join(STATIC, "js", "render", "stocktake.js")
-# 待測：utils.js
-UTILS_JS = os.path.join(STATIC, "js", "utils.js")
-# 待測：api.js / app.js / bottomsheet.js / globals.js（2026-08-12 全專案 JS 完整性補強）
-API_JS = os.path.join(STATIC, "js", "api.js")
-APP_JS = os.path.join(STATIC, "js", "app.js")
-BOTTOMSHEET_JS = os.path.join(STATIC, "js", "bottomsheet.js")
-GLOBALS_JS = os.path.join(STATIC, "js", "globals.js")
-NOTIFICATIONS_JS = os.path.join(STATIC, "js", "notifications.js")
+# 待測：登入狀態 / 頁面可用性（原 auth.js → core/session.js；使用者選單與角色畫面控制在 features/shell/app.js）
+AUTH_JS = js_modules("core/session.js", "features/shell/app.js", "features/shell/page-scope.js")
+# 待測：整組頁（原 render/kits.js）
+KITS_RENDER_JS = js_modules("features/kits/page.js", "features/kits/status.js", "features/kits/component-rows.js")
+# 待測：整組 modal（原 modals/kit.js）
+KIT_MODAL_JS = js_modules("features/kits/kit-modal.js", "features/kits/component-rows.js", "features/kits/state.js")
+# 待測：庫存頁（原 render/inventory.js，issue #39 依職責拆成多個模組）
+INVENTORY_RENDER_JS = js_modules("features/inventory/filters.js", "core/search.js", "features/inventory/list.js", "features/inventory/status.js", "features/inventory/actions.js", "features/inventory/adjust.js", "features/inventory/batch-location.js", "core/state.js")
+# 待測：待領出頁（原 render/prepared.js）
+PREPARED_RENDER_JS = js_modules("features/prepared/page.js", "features/prepared/sheet.js")
+# 待測：已領出頁（原 render/stockout.js）
+STOCKOUT_RENDER_JS = js_modules("features/stockout/page.js", "features/stockout/sheet.js")
+# 待測：盤點頁（原 render/stocktake.js）
+STOCKTAKE_JS = os.path.join(STATIC, "js", "features", "stocktake", "page.js")
+# 待測：core/utils.js
+UTILS_JS = os.path.join(STATIC, "js", "core", "utils.js")
+# 待測：原 api.js / app.js / bottomsheet.js / globals.js（2026-08-12 全專案 JS 完整性補強；issue #39 後為下列模組）
+API_JS = js_modules("features/shell/data-refresh.js", "core/data.js", "features/inventory/adjust.js")
+APP_JS = js_modules("features/shell/app.js", "features/shell/page-scope.js", "features/shell/navigation.js")
+BOTTOMSHEET_JS = os.path.join(STATIC, "js", "core", "bottomsheet.js")
+GLOBALS_JS = js_modules("core/state.js", "features/inventory/state.js", "features/stockout/state.js", "features/stocktake/state.js", "features/kits/state.js", "features/calendar/state.js", "features/work-progress/state.js")
+NOTIFICATIONS_JS = os.path.join(STATIC, "js", "features", "notifications", "center.js")
 # 待測：modals/*（2026-08-12 全專案 JS 完整性補強）
-ADD_JS = os.path.join(STATIC, "js", "modals", "add.js")
-CHANGEPW_JS = os.path.join(STATIC, "js", "modals", "changepw.js")
-EDIT_JS = os.path.join(STATIC, "js", "modals", "edit.js")
-EXPIRY_JS = os.path.join(STATIC, "js", "modals", "expiry.js")
-PHOTO_JS = os.path.join(STATIC, "js", "modals", "photo.js")
-STOCKOUT_MODAL_JS = os.path.join(STATIC, "js", "modals", "stockout.js")
-# 待測：render/card.js
-CARD_JS = os.path.join(STATIC, "js", "render", "card.js")
-# 待測：render/calendar.js（2026-08-13）
-CALENDAR_RENDER_JS = os.path.join(STATIC, "js", "render", "calendar.js")
+ADD_JS = os.path.join(STATIC, "js", "features", "inventory", "add-modal.js")
+CHANGEPW_JS = os.path.join(STATIC, "js", "features", "account", "change-password.js")
+EDIT_JS = js_modules("features/inventory/edit-modal.js", "core/state.js")
+EXPIRY_JS = os.path.join(STATIC, "js", "features", "account", "password-expiry.js")
+PHOTO_JS = js_modules("features/inventory/photo.js", "features/inventory/edit-modal.js")
+STOCKOUT_MODAL_JS = os.path.join(STATIC, "js", "features", "stockout", "modals.js")
+# 待測：components/card.js
+CARD_JS = os.path.join(STATIC, "js", "components", "card.js")
+# 待測：行事曆畫面（原 render/calendar.js，2026-08-13）
+CALENDAR_RENDER_JS = js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/page.js", "features/calendar/view.js", "features/calendar/sync-status.js", "features/calendar/state.js")
 # 待測：每日簽名報表（2026-09-07；demo 版面責任分層防回歸）
-SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "render", "signed-reports.js")
+SIGNED_REPORTS_RENDER_JS = os.path.join(STATIC, "js", "features", "upload-list", "signed-reports.js")
 SIGNED_REPORTS_CSS = os.path.join(STATIC, "css", "4-pages", "signed-reports.css")
-QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation-upload.js")
+QUOTATION_UPLOAD_RENDER_JS = os.path.join(STATIC, "js", "features", "upload-list", "quotation-upload.js")
 QUOTATION_UPLOAD_CSS = os.path.join(STATIC, "css", "4-pages", "quotation-upload.css")
+# 待測：兩頁共用的檔案上傳清單元件（issue #39 第 2 項合併）
+UPLOAD_LIST_RENDER_JS = os.path.join(STATIC, "js", "features", "upload-list", "upload-list.js")
+UPLOAD_LIST_CSS = os.path.join(STATIC, "css", "3-components", "upload-list.css")
+UPLOAD_LIST_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "upload_list_runtime.test.js")
 # 待測：報價單歷史清單（2026-09-15；電腦版全展開不分頁防回歸）
-QUOTATION_RENDER_JS = os.path.join(STATIC, "js", "render", "quotation.js")
+QUOTATION_RENDER_JS = js_modules("features/quotation/page.js", "features/quotation/mode-tabs.js")
 QUOTATION_HISTORY_PAGINATION_JS = os.path.join(BASE_DIR, "tests", "quotation_history_pagination.test.js")
 QUOTATION_PERMISSION_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_permission_runtime.test.js")
 PDF_PREVIEW_BUTTON_JS = os.path.join(BASE_DIR, "tests", "pdf_preview_button.test.js")
 # 待測：零用金月報（2026-09-12）
-PETTY_CASH_RENDER_JS = os.path.join(STATIC, "js", "render", "petty-cash.js")
+PETTY_CASH_RENDER_JS = js_modules("features/petty-cash/page.js", "features/petty-cash/state.js")
 PETTY_CASH_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_capability_runtime.test.js")
 PETTY_CASH_UNPRICED_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "petty_cash_unpriced_runtime.test.js")
 SIGNED_REPORT_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "signed_report_capability_runtime.test.js")
@@ -77,16 +88,16 @@ TAB_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_lifecycle_runtim
 TAB_ASYNC_LIFECYCLE_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "tab_async_lifecycle.test.js")
 CALENDAR_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "calendar_runtime.test.js")
 QUOTATION_UPLOAD_CAPABILITY_RUNTIME_JS = os.path.join(BASE_DIR, "tests", "quotation_upload_capability_runtime.test.js")
-PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "modals", "petty-cash.js")
+PETTY_CASH_MODAL_JS = os.path.join(STATIC, "js", "features", "petty-cash", "report-modal.js")
 PETTY_CASH_CSS = os.path.join(STATIC, "css", "4-pages", "petty-cash.css")
 PETTY_CASH_REPORTS_CSS = os.path.join(STATIC, "css", "4-pages", "petty-cash-reports.css")
 PETTY_CASH_ENGINEERING_CSS = os.path.join(STATIC, "css", "4-pages", "petty-cash-engineering.css")
-PETTY_CASH_ENGINEERING_MODAL_JS = os.path.join(STATIC, "js", "modals", "engineering-petty-cash.js")
+PETTY_CASH_ENGINEERING_MODAL_JS = os.path.join(STATIC, "js", "features", "petty-cash", "engineering-modal.js")
 SETTINGS_HTML = os.path.join(STATIC, "settings.html")
-SETTINGS_JS = os.path.join(STATIC, "js", "settings.js")
-# 待測：modals/calendar.js + calendar-settings.js（2026-08-16 拆檔）
-CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "modals", "calendar.js")
-CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "modals", "calendar-settings.js")
+SETTINGS_JS = js_modules("features/settings/units.js", "features/settings/petty-options.js", "features/settings/gcal.js", "features/settings/page.js", "features/settings/cabinets.js")
+# 待測：行事曆派工 / 設定 modal（2026-08-16 拆檔）
+CALENDAR_MODAL_JS = os.path.join(STATIC, "js", "features", "calendar", "appt-modal.js")
+CALENDAR_SETTINGS_JS = os.path.join(STATIC, "js", "features", "calendar", "settings-modal.js")
 
 
 _PAGE_SCOPE_RE = re.compile(r'(body)?(?:\[data-page="[\w-]+"\]|:is\((?:\[data-page="[\w-]+"\],?)+\)) ?')
@@ -99,10 +110,32 @@ def unscope_css(css: str) -> str:
 
 
 def read(p) -> str:
-    """讀檔 helper（UTF-8）；CSS 會先去掉頁面範圍前綴（見 unscope_css）"""
+    """讀檔 helper（UTF-8）；CSS 會先去掉頁面範圍前綴（見 unscope_css）；js_modules() 的多個檔依序串接"""
+    if isinstance(p, tuple):
+        return "\n".join(read(part) for part in p)
     with open(p, encoding="utf-8") as fh:
         text = fh.read()
     return unscope_css(text) if str(p).endswith(".css") else text
+
+
+_IMPORT_RE = re.compile(r"^import .* from '([^']+)';$", re.M)
+_ENTRY_RE = re.compile(r'<script type="module" src="/static/js/([^"?]+)')
+
+
+def page_modules(html_path) -> set:
+    """HTML 的 <script type="module"> 進入點與它 import 到的所有模組（static/js 之下的相對路徑）。
+    issue #39：頁面改成單一 ES module 進入點後，「頁面有載入某支 JS」改由 import 關係判斷。"""
+    pending = _ENTRY_RE.findall(read(html_path))
+    seen = set()
+    while pending:
+        rel = pending.pop()
+        if rel in seen:
+            continue
+        seen.add(rel)
+        base = os.path.dirname(rel)
+        for spec in _IMPORT_RE.findall(read(os.path.join(STATIC, "js", *rel.split("/")))):
+            pending.append(os.path.normpath(os.path.join(base, spec)).replace(os.sep, "/"))
+    return seen
 
 
 def read_shared_css() -> str:

@@ -40,7 +40,7 @@
     <span class="vb-crumb"><a href="/">庫存</a><span class="sep">›</span><span class="vb-crumb-current">帳號與權限</span></span>
   </div>
   <div class="top-actions u-d-flex u-ai-center u-gap-8 u-pr-12">
-    <button class="btn btn--on-dark btn--sm btn-primary" onclick="openAddUserModal()">＋ 新增帳號</button>
+    <button class="btn btn--on-dark btn--sm btn-primary" onclick="Perms.openAddUserModal()">＋ 新增帳號</button>
     <button class="btn btn--on-dark btn--sm btn-ghost" onclick="location.href='/'">🏠 庫存</button>
   </div>
 </div>
@@ -58,8 +58,8 @@
     <div class="perm-panel">
       <div class="panel-head" id="panelHead"></div>
       <div class="tabs">
-        <button class="chip chip--seg tab is-active" data-tab="perms" onclick="switchTab('perms')">🔐 權限設定</button>
-        <button class="chip chip--seg tab" data-tab="account" onclick="switchTab('account')">🔑 帳號設定</button>
+        <button class="chip chip--seg tab is-active" data-role="perm-tab" data-tab="perms" onclick="Perms.permSwitchTab('perms')">🔐 權限設定</button>
+        <button class="chip chip--seg tab" data-role="perm-tab" data-tab="account" onclick="Perms.permSwitchTab('account')">🔑 帳號設定</button>
       </div>
       <div id="tab-perms"></div>
       <div id="tab-account" style="display:none"></div>
@@ -67,12 +67,12 @@
   </main>
 </div>
 
-<div class="modal-overlay" id="addUserOverlay">
+<div class="modal-overlay" data-role="modal" id="addUserOverlay">
   <div class="modal">
     <h3>＋ 新增帳號</h3>
     <div class="tabs u-m-0-0-12">
-      <button class="chip chip--seg tab is-active" onclick="addUserMode('single')">單一新增</button>
-      <button class="chip chip--seg tab" onclick="addUserMode('batch')">批次新增</button>
+      <button class="chip chip--seg tab is-active" data-role="add-user-mode" data-mode="single" onclick="Perms.addUserMode('single')">單一新增</button>
+      <button class="chip chip--seg tab" data-role="add-user-mode" data-mode="batch" onclick="Perms.addUserMode('batch')">批次新增</button>
     </div>
     <div id="addSingle">
       <div class="cr-field"><label>帳號</label><input class="cr-input" id="nu-username" placeholder="登入用帳號"></div>
@@ -94,13 +94,13 @@
       <div class="batch-result" id="nu-batch-result"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-ghost" onclick="closeAddUserModal()">取消</button>
-      <button class="btn btn--primary btn--md btn-primary" id="nu-submit" onclick="submitAddUser()">建立</button>
+      <button class="btn btn--secondary btn--md btn-ghost" onclick="Perms.closeAddUserModal()">取消</button>
+      <button class="btn btn--primary btn--md btn-primary" id="nu-submit" onclick="Perms.submitAddUser()">建立</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="accountEditOverlay">
+<div class="modal-overlay" data-role="modal" id="accountEditOverlay">
   <div class="modal">
     <h3>✏️ 編輯帳號</h3>
     <div class="account-edit-field">
@@ -117,42 +117,39 @@
       </select>
     </div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-ghost" onclick="closeAccountEditModal()">取消</button>
-      <button class="btn btn--primary btn--md btn-primary" onclick="submitAccountEdit()">儲存</button>
+      <button class="btn btn--secondary btn--md btn-ghost" onclick="Perms.closeAccountEditModal()">取消</button>
+      <button class="btn btn--primary btn--md btn-primary" onclick="Perms.submitAccountEdit()">儲存</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="resetPwOverlay">
+<div class="modal-overlay" data-role="modal" id="resetPwOverlay">
   <div class="modal">
     <h3>🔑 重設密碼</h3>
     <p class="u-fs-13 u-text-muted u-m-0-0-10" id="resetPwTarget"></p>
     <div class="cr-field"><label>新密碼（8 碼以上，含大小寫與數字）</label><input class="cr-input" type="password" id="rp-password"></div>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-ghost" onclick="closeResetPwModal()">取消</button>
-      <button class="btn btn--primary btn--md btn-primary" onclick="submitResetPw()">重設</button>
+      <button class="btn btn--secondary btn--md btn-ghost" onclick="Perms.closeResetPwModal()">取消</button>
+      <button class="btn btn--primary btn--md btn-primary" onclick="Perms.submitResetPw()">重設</button>
     </div>
   </div>
 </div>
 
 <!-- 2026-08-15 家豪選定：重設為角色預設 確認 modal（取代原生 confirm） -->
-<div class="modal-overlay" id="resetPermOverlay">
+<div class="modal-overlay" data-role="modal" id="resetPermOverlay">
   <div class="modal">
     <h3>⚠️ 重設為角色預設？</h3>
     <div class="warn-box">此操作會清除 <span id="resetPermTarget"></span> 的所有個人權限覆寫。</div>
     <p class="u-fs-13 u-text-muted u-m-10-0-0">重設後，此帳號的權限將完全跟隨角色預設（<span id="resetPermRole"></span>）。原本「✏️ 自訂」的開關會全部還原，此動作無法復原。</p>
     <div class="modal-actions">
-      <button class="btn btn--secondary btn--md btn-ghost" onclick="closeResetPermModal()">取消</button>
-      <button class="btn btn--danger btn--md" onclick="confirmResetPerm()">確定重設</button>
+      <button class="btn btn--secondary btn--md btn-ghost" onclick="Perms.closeResetPermModal()">取消</button>
+      <button class="btn btn--danger btn--md" onclick="Perms.confirmResetPerm()">確定重設</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script src="/static/js/globals.js" defer></script>
-<script src="/static/js/utils.js" defer></script>
-<script src="/static/js/api.js" defer></script>
-<script src="/static/js/perms.js" defer></script>
+<script type="module" src="/static/js/pages/permissions.js"></script>
 </body>
 </html>

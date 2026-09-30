@@ -1,0 +1,6 @@
+# ES modules 與 Vite 建置結果固定用 LF：Windows / Linux 建置出相同內容與 hash（CI 以 git diff 檢查 static/dist 是否與原始碼一致）
+static/js/** text eol=lf
+static/dist/** text eol=lf -diff linguist-generated
+package.json text eol=lf
+package-lock.json text eol=lf -diff
+vite.config.mjs text eol=lf

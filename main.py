@@ -15,6 +15,7 @@
 啟動：.venv/Scripts/python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000
 """
 import datetime
+import json
 import os
 import re
 from contextlib import asynccontextmanager
@@ -90,6 +91,98 @@ for _r in (items.router, movements.router, transfers.router, stockout.router, ki
 # static 資源 URL regex（_versioned_html 版本化用）
 _STATIC_RE = re.compile(r'(/static/[^"\'? >]+?)(\?v=[^"\' >]*)?(?=["\' >])')
 
+# 前端 JS 建置結果（Vite，issue #39）：各頁 HTML 只寫原始進入點 /static/js/pages/<page>.js，
+# 送出時依 static/dist/.vite/manifest.json 換成打包後的檔案；沒有建置結果或設定
+# HVAC_FRONTEND_SOURCE=1（開發時不想每次重建）時，直接載入原始 ES modules。
+_PAGE_ENTRY_RE = re.compile(r'<script type="module" src="/static/js/(pages/[\w-]+\.js)"></script>')
+_dist_manifest_cache: dict = {}
+_dist_warned: set = set()
+
+def _dist_warn_once(version, entry, reason: str) -> None:
+    """同一版 manifest（路徑 + mtime）的同一個問題只警告一次；部署新的建置結果（mtime 改變）後會重新警告"""
+    key = (*version, entry, reason)
+    if key in _dist_warned:
+        return
+    _dist_warned.add(key)
+    logger.warning("frontend dist unusable, serving source modules: manifest=%s entry=%s reason=%s", version[0], entry or "-", reason)
+
+def _dist_manifest() -> tuple[dict, tuple]:
+    """讀取 Vite manifest（依 mtime 快取），回傳 (manifest, 版本鍵)；不存在、損毀或指定使用原始碼時 manifest 為空 dict"""
+    if os.environ.get("HVAC_FRONTEND_SOURCE") == "1":
+        return {}, ()
+    path = os.path.join(STATIC_DIR, "dist", ".vite", "manifest.json")
+    try:
+        mtime = os.stat(path).st_mtime_ns
+    except OSError:
+        return {}, ()
+    version = (path, mtime)
+    if _dist_manifest_cache.get("key") != version:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                manifest = json.load(fh)
+            if not isinstance(manifest, dict):
+                raise ValueError("manifest 不是 JSON 物件")
+        except (OSError, ValueError) as exc:
+            # 首頁照常以原始 ES modules 回應，不因建置結果損毀而 500
+            _dist_warn_once(version, None, f"invalid-manifest: {exc}")
+            manifest = {}
+        _dist_manifest_cache.update(key=version, manifest=manifest)
+    return _dist_manifest_cache["manifest"], version
+
+def _dist_entry_files(manifest: dict, entry: str) -> tuple[list, str | None]:
+    """驗證進入點的完整 import closure（遞迴走 imports、循環與重複安全），回傳 (建置檔清單, 問題)。
+
+    清單第一個是進入點本身，其後依 DFS 前序、去重；任何節點不是物件、缺 file、file 不是字串、
+    建置檔不存在、imports 不是陣列或指向不存在的項目，都回傳 ([], 原因)。"""
+    files: list = []
+    seen: set = set()
+
+    def visit(name):
+        if not isinstance(name, str):
+            return f"bad-import-key:{name!r}"
+        if name in seen:
+            return None
+        seen.add(name)
+        item = manifest.get(name)
+        if not isinstance(item, dict):
+            return f"missing-entry:{name}"
+        file = item.get("file")
+        if not isinstance(file, str):
+            return f"missing-file-field:{name}"
+        if not os.path.isfile(os.path.join(STATIC_DIR, "dist", file)):
+            return f"missing-file:{file}"
+        imports = item.get("imports", [])
+        if not isinstance(imports, list):
+            return f"bad-imports:{name}"
+        if file not in files:
+            files.append(file)
+        for dep in imports:
+            problem = visit(dep)
+            if problem:
+                return problem
+        return None
+
+    problem = visit(entry)
+    return ([], problem) if problem else (files, None)
+
+def _use_dist_entries(html: str) -> str:
+    """把頁面進入點換成建置後的檔案，並預先載入它 import closure 內的共用 chunk"""
+    manifest, version = _dist_manifest()
+
+    def _swap_entry(m):
+        """re.sub 替換 callback：進入點的完整 import closure 都可用才替換，否則保留原始 ES module"""
+        name = f"static/js/{m.group(1)}"
+        if not manifest:
+            return m.group(0)
+        files, problem = _dist_entry_files(manifest, name)
+        if problem:
+            _dist_warn_once(version, name, problem)
+            return m.group(0)
+        preloads = "".join(f'<link rel="modulepreload" href="/static/dist/{file}">' for file in files[1:])
+        return f'{preloads}<script type="module" src="/static/dist/{files[0]}"></script>'
+
+    return _PAGE_ENTRY_RE.sub(_swap_entry, html)
+
 def _versioned_html(path: str) -> Response:
     """回傳 HTML，並把 static 資源的 ?v=N 版本參數動態換成「檔案 mtime」。
 
@@ -108,7 +201,7 @@ def _versioned_html(path: str) -> Response:
             return f"{url}?v={os.stat(fp).st_mtime_ns}"
         return m.group(0)                     # 檔案不存在（不該發生）→ 原樣保留
 
-    html = _STATIC_RE.sub(_swap, html)
+    html = _STATIC_RE.sub(_swap, _use_dist_entries(html))
     return Response(html, media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/")

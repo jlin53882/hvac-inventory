@@ -71,7 +71,7 @@ This project is indexed by GitNexus as **hvac-inventory** (2218 symbols, 5489 re
 
 > 背景：Phase 0-6 修復後，新功能（手機 UI f3c8880 / 整組編輯 36306ea / 行事曆）仍各帶進 stored XSS、負 qty 假流水、公式注入——**測試只守功能不守安全模式**。以下 5 條為新增功能的強制守則，違反會被 `tests/test_security_regression.py` 擋下。
 
-1. **新 JS / 新 render**：HTML 模板內的使用者可控資料內插**一律 `esc()` / `jsStr()`**（utils.js；`"`→`&quot;`、`'`→`&#39;`）。寫完跑 `pytest tests/test_security_regression.py::test_js_html_templates_interpolations_escaped`——若掃描器列你的內插為「未審核」，安全的話加入 `REVIEWED_SAFE_BODIES` 白名單（含註解），否則補 esc()。
+1. **新 JS / 新 render**：HTML 模板內的使用者可控資料內插**一律 `esc()` / `jsStr()`**（core/utils.js；`"`→`&quot;`、`'`→`&#39;`）。寫完跑 `pytest tests/test_security_regression.py::test_js_html_templates_interpolations_escaped`——若掃描器列你的內插為「未審核」，安全的話加入 `REVIEWED_SAFE_BODIES` 白名單（含註解），否則補 esc()。
 2. **新 write 端點**：Pydantic/迴圈驗證數量 ≥0（qty）、字串長度、日期/時間格式（HH:MM regex）；非 dict 元素 → 400 不 500；`item_id`/FK 存在性檢查。權限自動由 main.py 全域 `require_login` 擋 viewer——**不要繞過**（自我身份操作才用 `authenticate`）。
 3. **新匯出（xlsx）**：每個字串欄位過 `_safe()`（`= + - @` 開頭加撇號）——含時間欄、廠牌統計等所有 sheet 所有欄位。
 4. **新上傳**：副檔名白名單 + 檔案大小/像素上限（load 前檢查）+ 檔名固定不可控；照片只能放 `static/uploads/`（公開路徑自動 404，登入走 `/uploads/<int>.jpg`）。
@@ -80,7 +80,7 @@ This project is indexed by GitNexus as **hvac-inventory** (2218 symbols, 5489 re
 ## 新增內容與修改規範（2026-08-16 定案：一次寫好，避免日後重構）
 
 > 結構重整 6 phase（models 收攏 / movements / service_types / middleware / calendar.js 拆 3 檔 / style.css 拆 2 檔）完成後，**新增/修改任何 code 前必讀 `docs/新增內容與修改規範.md`**——包含：
-> - **結構地圖**：新 API 放哪個 routes 檔、新 model 放 models.py（勿內嵌 route）、新 middleware 放 middleware.py、新樣式放 core/calendar.css、新 JS 共享狀態用 globals.js var
+> - **結構地圖**：新 API 放哪個 routes 檔、新 model 放 models.py（勿內嵌 route）、新 middleware 放 middleware.py、新樣式放 core/calendar.css、新 JS 跨模組狀態放 core/state.js 的 appState 或 features/<功能>/state.js（ES modules，見 docs/新增內容與修改規範.md）
 > - **10 步檢查清單**：放對位置 → 同步掛載（main.py import+tuple 兩處！）→ 權限 → 安全 5 條 → dead code 4 步 → 測試同步（bug 版必紅驗證）→ 行尾對齊 → docs 同步 → 測試組別 → commit
 > - **重構徵兆**：函式 >400 行 / model 寫 route 檔 / CSS 撞名 / 「先這樣放之後再整理」→ 當下就整理
 >

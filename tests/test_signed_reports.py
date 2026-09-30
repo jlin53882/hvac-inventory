@@ -442,6 +442,24 @@ def test_edit_rejects_invalid_date_and_extension(signed_env):
     assert len(list(upload_dir.iterdir())) == 1
 
 
+def test_edit_rejects_file_in_text_field_with_chinese_label(signed_env):
+    """文字欄位被塞入檔案時回 400，錯誤訊息顯示畫面上的中文欄位名稱而非 report_date / uploader_name。"""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    for field, label in (("report_date", "報表日期"), ("uploader_name", "上傳人姓名"), ("note", "備註")):
+        data = {"report_date": "2026-09-07", "uploader_name": "王小明", "note": ""}
+        data.pop(field)
+        response = owner.patch(
+            f"/api/signed-reports/{report['id']}",
+            data=data,
+            files={field: ("x.txt", b"x", "text/plain")},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == f"「{label}」欄位格式錯誤"
+        assert field not in response.json()["detail"]
+
+
 def test_edit_without_file_keeps_existing_asset(signed_env):
     """編輯文字欄位時不選新檔案，既有實體檔案與 metadata 保持不變。"""
     make_client, static_dir = signed_env

@@ -37,7 +37,7 @@ def test_sidebar_link_follows_current_tab(page, live_server):
     """切頁後側欄只有目前頁籤呈現選取外觀。"""
     harness.open_tab(page, live_server, "inventory")
     _selected_differs(page, "#sb-nav-inventory", "#sb-nav-kit")
-    page.evaluate("switchTab('kit')")
+    page.evaluate("App.switchTab('kit')")
     page.wait_for_load_state("networkidle")
     _selected_differs(page, "#sb-nav-kit", "#sb-nav-inventory")
 
@@ -46,7 +46,7 @@ def test_site_switch_highlights_selected_site(page, live_server):
     """公司 / 倉庫分片切換後，選取中的按鈕外觀跟著移動。"""
     harness.open_tab(page, live_server, "inventory")
     _selected_differs(page, "#site-office", "#site-warehouse")
-    page.evaluate("switchSite('warehouse')")
+    page.evaluate("App.switchSite('warehouse')")
     page.wait_for_load_state("networkidle")
     _selected_differs(page, "#site-warehouse", "#site-office")
 
@@ -55,11 +55,11 @@ def test_modal_opens_and_closes(page, live_server):
     """共用 modal 開啟後可見、關閉後隱藏；Escape 也能關閉。"""
     harness.open_tab(page, live_server, "inventory")
     assert not _visible(page, "#add-modal")
-    harness.run_action(page, "openAddModal()")
+    harness.run_action(page, "Inventory.openAddModal()")
     assert _visible(page, "#add-modal")
-    page.evaluate("closeModalForce('add-modal')")
+    page.evaluate("hvac('core/utils.js').closeModalForce('add-modal')")
     assert not _visible(page, "#add-modal")
-    harness.run_action(page, "openAddModal()")
+    harness.run_action(page, "Inventory.openAddModal()")
     page.keyboard.press("Escape")
     page.wait_for_timeout(150)
     assert not _visible(page, "#add-modal")
@@ -69,15 +69,15 @@ def test_avatar_menu_and_notification_panel_toggle(page, live_server):
     """頭像選單、通知中心可開可關。"""
     harness.open_tab(page, live_server, "inventory")
     assert not _visible(page, "#avatarMenu")
-    page.evaluate("toggleAvatarMenu()")
+    page.evaluate("App.toggleAvatarMenu()")
     assert _visible(page, "#avatarMenu")
-    page.evaluate("toggleAvatarMenu()")
+    page.evaluate("App.toggleAvatarMenu()")
     assert not _visible(page, "#avatarMenu")
     assert not _visible(page, ".notif-panel")
-    page.evaluate("toggleNotif()")
+    page.evaluate("Notifications.toggleNotif()")
     page.wait_for_timeout(150)
     assert _visible(page, ".notif-panel")
-    page.evaluate("toggleNotif()")
+    page.evaluate("Notifications.toggleNotif()")
     page.wait_for_timeout(150)
     assert not _visible(page, ".notif-panel")
 
@@ -85,9 +85,9 @@ def test_avatar_menu_and_notification_panel_toggle(page, live_server):
 def test_inventory_view_toggle_and_filter_chip(page, live_server, viewport):
     """表格 / 卡片切換鈕與品牌篩選 chip 都呈現選取外觀。"""
     harness.open_tab(page, live_server, "inventory")
-    harness.run_action(page, "setInventoryView('table')")
+    harness.run_action(page, "Inventory.setInventoryView('table')")
     _selected_differs(page, ".view-toggle button:first-child", ".view-toggle button:last-child")
-    harness.run_action(page, "setInventoryView('card')")
+    harness.run_action(page, "Inventory.setInventoryView('card')")
     _selected_differs(page, ".view-toggle button:last-child", ".view-toggle button:first-child")
     if viewport[0] == "desktop":
         chips = "#fp-brand-chips .filter-chip"
@@ -127,14 +127,14 @@ def test_quotation_mode_tabs(page, live_server):
     harness.open_tab(page, live_server, "quotation")
     tabs = ".quote-mode-tabs .quote-mode-tab"
     _selected_differs(page, f"{tabs}:first-child", f"{tabs}:last-child")
-    harness.run_action(page, "quoteSwitchMode('upload')")
+    harness.run_action(page, "Quotation.quoteSwitchMode('upload')")
     _selected_differs(page, f"{tabs}:last-child", f"{tabs}:first-child")
 
 
 def test_toast_shows(page, live_server):
     """toast 出現時可見。"""
     harness.open_tab(page, live_server, "inventory")
-    page.evaluate("toast('測試訊息', 'success')")
+    page.evaluate("hvac('core/utils.js').toast('測試訊息', 'success')")
     page.wait_for_timeout(100)
     assert _visible(page, ".toast")
 
@@ -142,20 +142,20 @@ def test_toast_shows(page, live_server):
 def test_petty_cash_overlay_opens(page, live_server):
     """零用金一般 / 工程報表 overlay 開啟後可見。"""
     harness.open_tab(page, live_server, "petty-cash")
-    harness.run_action(page, "pcOpenReportModal()")
+    harness.run_action(page, "PettyCash.pcOpenReportModal()")
     assert _visible(page, "#pc-report-overlay")
-    page.evaluate("pcCloseReportModal()")
-    harness.run_action(page, "pcOpenEngineeringModal()")
+    page.evaluate("PettyCash.pcCloseReportModal()")
+    harness.run_action(page, "PettyCash.pcOpenEngineeringModal()")
     assert _visible(page, "#eng-report-overlay")
 
 
 def test_bottom_sheet_opens(page, live_server):
     """手機 ⋯ 動作選單開啟後可見、關閉後移除。"""
     harness.open_tab(page, live_server, "inventory")
-    page.evaluate("openSheet('動作', [{label: '測試', icon: '✏️', fn: function(){}}])")
+    page.evaluate("hvac('core/bottomsheet.js').openSheet('動作', [{label: '測試', icon: '✏️', fn: function(){}}])")
     page.wait_for_timeout(350)
     assert _visible(page, "#sheet-overlay .sheet")
-    page.evaluate("closeSheet()")
+    page.evaluate("hvac('core/bottomsheet.js').closeSheet()")
     page.wait_for_timeout(350)
     assert not _visible(page, "#sheet-overlay .sheet")
 
@@ -166,7 +166,7 @@ def test_mobile_sidebar_drawer(page, live_server, viewport):
         pytest.skip("桌機側欄固定顯示")
     harness.open_tab(page, live_server, "inventory")
     left_closed = page.evaluate("document.getElementById('sidebar').getBoundingClientRect().left")
-    page.evaluate("openSidebar()")
+    page.evaluate("hvac('features/shell/app.js').openSidebar()")
     page.wait_for_timeout(350)
     assert page.evaluate("document.getElementById('sidebar').getBoundingClientRect().left") > left_closed
     assert _visible(page, "#sbOverlay") and page.evaluate("getComputedStyle(document.getElementById('sbOverlay')).pointerEvents") == "auto"
@@ -179,11 +179,11 @@ def test_settings_and_permissions_tabs(page, live_server):
     side = "#settingsSideList .side-item"
     if _visible(page, f"{side}[data-panel='units']"):
         _selected_differs(page, f"{side}[data-panel='units']", f"{side}[data-panel='cabinets']")
-        page.evaluate("settingsSwitch('cabinets')")
+        page.evaluate("Settings.settingsSwitch('cabinets')")
         _selected_differs(page, f"{side}[data-panel='cabinets']", f"{side}[data-panel='units']")
     page.goto(live_server.base_url + "/permissions.html")
     page.wait_for_load_state("networkidle")
     tabs = ".tab[data-tab]"
     _selected_differs(page, f"{tabs}[data-tab='perms']", f"{tabs}[data-tab='account']")
-    page.evaluate("switchTab('account')")
+    page.evaluate("Perms.permSwitchTab('account')")
     _selected_differs(page, f"{tabs}[data-tab='account']", f"{tabs}[data-tab='perms']")

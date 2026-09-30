@@ -1,0 +1,153 @@
+/* 檔案上傳清單（每日簽名報表、報價單上傳共用；issue #39 第 2 項自 4-pages/signed-reports.css、quotation-upload.css 合併）
+   頁首、卡片、欄位、資訊框、空狀態、Modal 外框沿用 panel.css；頁面專屬（#content 寬度、編輯視窗微調）留在 4-pages。 */
+@layer components {
+/* 版心只負責全寬與內距；不可改成 Grid，否則標題與卡片會被拆到左右欄。 */
+.upl-wrap {
+  width: 100%;
+  margin: 0;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .upl-wrap { padding: 2px 16px 0; }
+}
+
+/* demo 的 .layout：只有這一層在桌面切成左右欄。 */
+.upl-layout { display: grid; gap: 16px; }
+@media (min-width: 960px) {
+  .upl-layout { grid-template-columns: 1.05fr .95fr; }
+  .upl-history { grid-column: 1 / -1; }
+}
+
+.upl-hint { margin-top: 6px; color: var(--c-border-control); font-size: var(--fs-11); }
+
+/* 拖曳區 */
+.upl-drop {
+  padding: 18px;
+  border: 2px dashed var(--c-border-strong);
+  border-radius: var(--r-lg);
+  background: var(--c-surface-2);
+  text-align: center;
+  cursor: pointer;
+  transition: .15s;
+}
+.upl-drop.drag { border-color: var(--c-primary); background: var(--c-primary-soft); }
+.upl-drop__icon { margin-bottom: 6px; font-size: var(--fs-28); }
+.upl-drop__title { color: var(--c-primary-strong); font-size: var(--fs-13); font-weight: var(--fw-bold); }
+.upl-drop__sub { margin-top: 4px; color: var(--c-muted); font-size: var(--fs-11); }
+.upl-drop__actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.upl-file-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-white);
+}
+.upl-file-preview__icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  place-items: center;
+  font-size: var(--fs-20);
+}
+.upl-file-preview__meta { flex: 1; min-width: 0; }
+.upl-file-preview__name { overflow: hidden; font-size: var(--fs-13); font-weight: var(--fw-bold); text-overflow: ellipsis; white-space: nowrap; }
+.upl-file-preview__sub { color: var(--c-muted); font-size: var(--fs-11); }
+.upl-progress { height: 6px; margin-top: 8px; overflow: hidden; border-radius: var(--r-pill); background: var(--c-border); }
+.upl-progress__bar { width: 0; height: 100%; background: linear-gradient(90deg, var(--c-primary-strong), var(--c-primary)); transition: width .3s; }
+.upl-upload-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.upl-upload-actions .upl-btn--primary { flex: 1; }
+.upl-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.upl-tag { padding: 3px 6px; border: 1px solid var(--c-border-strong); border-radius: var(--r-sm); background: var(--c-primary-soft); color: var(--c-primary-strong); font-size: var(--fs-11); font-weight: var(--fw-bold); }
+
+/* 右側資訊與 KPI：完全使用 demo 的深藍資訊卡與白色 KPI 卡。 */
+.upl-side { display: grid; gap: 16px; }
+.upl-kpi { grid-template-columns: repeat(3, 1fr); }
+
+/* 歷史查詢 */
+.upl-history .dsr-card__hd { flex-direction: column; align-items: stretch; gap: 12px; }
+.upl-history-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
+.upl-history-heading p { margin-left: auto; }
+.upl-filter-bar { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; width: 100%; }
+.upl-filter-bar .dsr-field { flex: 1; min-width: 140px; }
+.upl-filter-bar .dsr-field.upl-field--search { flex: 1.4; min-width: 180px; }
+.upl-filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
+.upl-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.upl-result-count { display: flex; align-items: center; gap: 6px; margin-left: auto; color: var(--c-border-control); font-size: var(--fs-11); }
+.upl-report-list { display: grid; gap: 10px; margin-top: 12px; }
+.upl-report-card { overflow: hidden; border: 1px solid var(--c-text); border-radius: var(--r-md); background: var(--c-white); }
+.upl-report-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.upl-report-summary::-webkit-details-marker { display: none; }
+.upl-report-summary::before { content: '▸'; color: var(--c-primary-strong); font-size: var(--fs-16); font-weight: var(--fw-bold); }
+.upl-report-card[open] .upl-report-summary::before { content: '▾'; }
+.upl-report-summary__date { color: var(--c-primary-strong); font-size: var(--fs-16); font-weight: var(--fw-bold); }
+.upl-report-summary__uploader { flex-shrink: 0; }
+.upl-report-summary__file { min-width: 0; overflow: hidden; color: var(--c-muted); font-size: var(--fs-12); text-overflow: ellipsis; white-space: nowrap; }
+.upl-report-detail { padding: 12px; border-top: 1px solid var(--c-text); background: var(--c-surface-2); }
+.upl-report-detail__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.upl-report-detail__label { display: block; margin-bottom: 4px; color: var(--c-muted); font-size: var(--fs-11); font-weight: var(--fw-bold); }
+.upl-report-detail__grid strong { color: var(--c-text); font-size: var(--fs-13); }
+.upl-report-detail__file { grid-column: span 2; }
+.upl-report-detail__note { grid-column: 1 / -1; }
+.upl-report-detail__note .upl-note-cell { min-height: 38px; padding: 8px; background: var(--c-warning-soft); white-space: pre-wrap; overflow-wrap: anywhere; }
+.upl-report-thumb {
+  display: block;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  object-fit: cover;
+  cursor: pointer;
+}
+.upl-report-thumb:hover { border-color: var(--c-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 15%, transparent); }
+.upl-note-empty { color: var(--c-border-strong); }
+
+.upl-file-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.upl-file-icon { display: grid; flex-shrink: 0; width: 28px; height: 28px; border-radius: var(--r-md); place-items: center; font-size: var(--fs-13); }
+.upl-ellipsis { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; white-space: nowrap; }
+.upl-actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.upl-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 2px 0; color: var(--c-muted); font-size: var(--fs-12); }
+
+@media (max-width: 639px) {
+  .upl-report-summary { flex-wrap: wrap; }
+  .upl-report-summary__date { font-size: var(--fs-16); }
+  .upl-report-summary__file { flex-basis: calc(100% - 28px); margin-left: 28px; }
+  .upl-report-detail__grid { grid-template-columns: 1fr 1fr; }
+  .upl-report-detail__file, .upl-report-detail__note { grid-column: 1 / -1; }
+  .upl-ellipsis { max-width: 100%; }
+}
+
+/* 預覽 / 編輯 Modal（外框沿用 panel.css 的 .dsr-modal） */
+.upl-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: none; padding: 14px; background: rgba(15,23,42,.55); place-items: center; }
+.upl-overlay.is-open { display: grid; }
+/* 編輯視窗使用白底表單，窄版 560px，不沿用預覽視窗的深色內容區。 */
+.dsr-modal.upl-edit-modal { max-width: 560px; }
+.upl-edit-modal .dsr-modal__hd { background: var(--c-primary-strong); border-bottom: none; }
+.upl-edit-modal .dsr-modal__hd h3 { color: var(--c-white); }
+.upl-edit-modal .dsr-modal__bd { padding: 16px; background: var(--c-white); }
+.upl-edit-modal .dsr-field label { color: var(--c-text-2); font-size: var(--fs-13); }
+
+/* 檔案類型色塊與預覽內容 */
+.upl-file-name { font-weight: var(--fw-bold); }
+.upl-file-meta { color: var(--c-muted); font-size: var(--fs-11); }
+.upl-file-tone--image { background: var(--c-primary-soft); }
+.upl-file-tone--pdf { background: var(--c-danger-soft); }
+.upl-file-tone--doc { background: var(--c-primary-soft-2); }
+.upl-file-tone--sheet { background: var(--c-success-soft); }
+.upl-file-tone--other { background: var(--c-surface-2); }
+.upl-preview-img { width: 100%; }
+.upl-preview-frame { width: 100%; height: 72vh; border: 0; }
+.upl-preview-fallback { padding: 32px; text-align: center; }
+.upl-preview-fallback--dark { color: var(--c-border); }
+.upl-preview-icon { font-size: var(--fs-28); }
+.upl-preview-title { margin: 12px 0 16px; font-weight: var(--fw-bold); }
+.upl-preview-name { margin-top: 8px; font-weight: var(--fw-bold); }
+.upl-preview-note { margin-top: 6px; color: var(--c-text-subtle); font-size: var(--fs-12); }
+}

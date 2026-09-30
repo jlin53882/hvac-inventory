@@ -203,7 +203,13 @@ Quality 至少涵蓋：
 uv lock --check
 python -m compileall -q app tests main.py
 git diff --check
+npm ci && npm run build          # Node 22（actions/setup-node）
+git diff --exit-code -- static/dist
 ```
+
+前端 JS 以 Vite 打包（issue #39），建置結果 `static/dist/` 提交進 repo，辦公室電腦不需安裝 Node。Quality 重新建置後若 `static/dist` 與提交內容不同（含新增檔案），代表有人改了 `static/js` 卻沒重建，job 失敗；修正方式是本機執行 `npm run build` 並提交結果。`.gitattributes` 把 `static/js/**`、`static/dist/**` 固定為 LF，Windows 與 Linux 建置出相同 hash。
+
+`main.py` 依 `static/dist/.vite/manifest.json` 把頁面進入點換成建置檔。使用 dist 前會驗證進入點的**完整遞迴 import closure**：manifest 不存在、JSON 損毀、不是物件，或 closure 內任何節點不是物件、缺 `file`、`imports` 不是陣列或指向不存在的項目、建置檔不存在時，該頁改載原始 ES modules（HTTP 200，不回 500；manifest 的 import 循環不會無限迴圈；共用 chunk 只 `modulepreload` 一次）。warning 以「manifest 路徑 + mtime + 進入點 + 原因」去重：同一版的同一問題只記一次，部署新的建置結果（mtime 改變）後仍壞掉會再記（`test_versioned_html_falls_back_to_source_when_manifest_unusable`、`test_versioned_html_validates_transitive_manifest_closure`、`test_versioned_html_manifest_cycle_and_shared_imports_preload_once`、`test_dist_fallback_warns_once_per_manifest_version`）。原始模組能否在瀏覽器實際執行由 `tests/visual/test_source_modules.py` 驗證。
 
 若 workflow 已採用 actionlint 或其他等價工具，修改 workflow 時也必須執行；新增 quality check 後要同步更新本文件。修改 workflow 後仍要人工 review GitHub expression 與 `needs` graph，即使 YAML parser 通過也不能省略。
 

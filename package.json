@@ -1,0 +1,11 @@
+{
+  "name": "hvac-inventory-frontend",
+  "private": true,
+  "description": "前端建置：Vite 把 static/js 的 ES modules 打包成 static/dist（建置結果進 repo，辦公室電腦不需安裝 Node）",
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "8.3.1"
+  }
+}

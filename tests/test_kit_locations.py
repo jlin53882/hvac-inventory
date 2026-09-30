@@ -332,7 +332,7 @@ def test_kit_location_editor_labels_metadata_without_inventory_quantity():
     """Kit location metadata is presented as suggested storage, never stock truth."""
     html = (Path(BASE_DIR) / 'static' / 'index.html').read_text(encoding='utf-8')
     kit_modal = html[html.index('id="kit-modal"'):]
-    start = kit_modal.index('<label>建議存放位置（管理備註）</label>')
+    start = kit_modal.index('<label>建議存放位置(選填，管理備註)</label>')
     end = kit_modal.index('id="kit-location-rows"', start)
     location_header = kit_modal[start:end]
     assert 'ch-qty' not in location_header

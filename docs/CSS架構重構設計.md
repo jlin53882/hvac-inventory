@@ -142,10 +142,10 @@ static/
 │   │   ├── stocktake.css             # [data-page="stocktake"]  前綴 stk-
 │   │   ├── kit.css                   # [data-page="kit"]        前綴 kit-
 │   │   ├── calendar.css              # [data-page="calendar"]   前綴 cal-
-│   │   ├── signed-reports.css        # [data-page="signed-reports"] 前綴 dsr-
+│   │   ├── signed-reports.css        # [data-page="signed-reports"] 只剩 #content 寬度；共用元件見 3-components/upload-list.css（upl-，issue #39）
 │   │   ├── work-progress.css         # [data-page="work-progress"]  前綴 wpr-（移除 #content 前綴）
 │   │   ├── quotation.css             # [data-page="quotation"]  前綴 quote-
-│   │   ├── quotation-upload.css      # [data-page="quotation-upload"] 前綴 qup-
+│   │   ├── quotation-upload.css      # [data-page="quotation-upload"] 只剩 #content 寬度；共用元件見 3-components/upload-list.css
 │   │   ├── petty-cash.css            # [data-page="petty-cash"] 前綴 pc-（一般）
 │   │   ├── petty-cash-engineering.css# 前綴 pce-（與一般零用金 modal 分離）
 │   │   ├── petty-cash-reports.css    # 前綴 pcr-
@@ -212,6 +212,8 @@ document.body.dataset.page = mode === 'upload' ? 'quotation-upload' : 'quotation
 | 頁面專屬 | `頁面前綴-` | `.kit-card`, `.stk-diff`, `.pce-modal` |
 | 狀態 | `is-` / `has-` | `.is-active`, `.is-open`（逐步取代 `.active`/`.open`/`.on`/`.show` 四種寫法） |
 | JS 掛鉤 | `js-` 或 `data-*`，**不得用來上樣式** | `data-action="delete"` |
+
+JS 找元素（`querySelector` / `querySelectorAll` / `closest` / `matches` / `getElementsByClassName`）只能用 `id`、`data-role`（元素群組，例：`data-role="pc-range"`）或 `data-action`（使用者動作），不得用任何 class；只有 JS 自己切換的狀態 class（`.is-*` / `.has-*`）可以組進 selector（例：`[data-role="modal"].is-open`）。由 `tests/test_css_architecture.py::test_js_does_not_find_elements_by_class` 守衛，字串串接的 selector 也會逐段檢查（issue #39）。
 
 ---
 

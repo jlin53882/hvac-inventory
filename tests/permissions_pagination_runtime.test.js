@@ -1,6 +1,6 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
+const { installApiClient, loadModules } = require('./support/frontend-runtime');
 
 class FakeClassList {
   constructor(owner) { this.owner = owner; }
@@ -42,7 +42,7 @@ class FakeElement {
   closest(selector) {
     let node = this;
     while (node) {
-      if (selector === '.perm-row' && node.className.split(/\s+/).includes('perm-row')) return node;
+      if (selector === '[data-role="perm-row"]' && node.dataset.role === 'perm-row') return node;
       node = node.parentElement;
     }
     return null;
@@ -91,17 +91,20 @@ class FakeDocument {
       const pageKey = (inputTag.match(/data-page-key="([^"]+)"/) || [])[1];
       const rowStart = html.lastIndexOf('<div class="perm-row', match.index);
       const row = this.make(parent, 'div');
-      row.className = html.slice(rowStart, match.index).match(/<div class="perm-row([^\"]*)">/)?.[1] ? `perm-row${html.slice(rowStart, match.index).match(/<div class="perm-row([^\"]*)">/)[1]}` : 'perm-row';
+      const rowClass = html.slice(rowStart, match.index).match(/<div class="perm-row([^"]*)"/);
+      row.className = rowClass ? `perm-row${rowClass[1]}` : 'perm-row';
+      row.dataset.role = 'perm-row';
       const input = this.make(row, 'input');
       if (key) input.dataset.key = key;
       if (pageKey) input.dataset.pageKey = pageKey;
       input.checked = /(?:^|\s)checked(?:=|\s|>)/.test(inputTag);
       input.disabled = /\sdisabled(?:\s|>)/.test(inputTag);
       const rowText = html.slice(rowStart, match.index);
-      const srcMatch = rowText.match(/<span class="perm-src ([^"]+)">([^<]*)<\/span>/);
+      const srcMatch = rowText.match(/<span class="perm-src ([^"]+)"[^>]*>([^<]*)<\/span>/);
       if (srcMatch) {
         const source = this.make(row, 'span');
         source.className = `perm-src ${srcMatch[1]}`;
+        source.dataset.role = 'perm-src';
         source.textContent = srcMatch[2];
       }
     }
@@ -126,7 +129,7 @@ class FakeDocument {
   find(root, selector) {
     const found = this.findAll(root, selector);
     if (found.length) return found[0];
-    if (selector === '.perm-src') return this.descendants(root).find(x => x.className.split(/\s+/).includes('perm-src')) || null;
+    if (selector === '[data-role="perm-src"]') return this.descendants(root).find(x => x.dataset.role === 'perm-src') || null;
     return null;
   }
   querySelector(selector) {
@@ -150,8 +153,10 @@ function decodeHtml(value) {
 }
 
 function response(payload, status = 200) {
-  return { status, ok: status >= 200 && status < 300, statusText: 'OK', json: async () => payload };
+  return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
 }
+
+// perms.js 透過 api-client.js 的 apiFetch 呼叫 API；載入正式實作，不另寫替身
 
 function buildPermissions() {
   const fixed = [
@@ -193,7 +198,10 @@ async function setup() {
     jsStr: value => String(value).replaceAll("'", "\\'"),
   };
   context.window = context;
-  vm.runInNewContext(fs.readFileSync('static/js/perms.js', 'utf8'), context, { filename: 'static/js/perms.js' });
+  vm.createContext(context);
+  installApiClient(context);
+  loadModules(context, 'features/permissions/page.js');
+  context.initPermissionsPage();
   await document.dispatchReady();
   await new Promise(resolve => setTimeout(resolve, 20));
   return { context, document };
@@ -202,7 +210,7 @@ async function setup() {
 function resultHtml(document) { return document.getElementById('permission-results').innerHTML; }
 function renderedKeys(document) { return [...resultHtml(document).matchAll(/data-key="([^"]+)"/g)].map(match => match[1]); }
 function pageText(document) { return resultHtml(document).match(/第 (\d+) \/ (\d+) 頁/); }
-function sourceFor(document, key) { return document.querySelector(`input[data-key="${key}"]`).closest('.perm-row').querySelector('.perm-src'); }
+function sourceFor(document, key) { return document.querySelector(`input[data-key="${key}"]`).closest('[data-role="perm-row"]').querySelector('[data-role="perm-src"]'); }
 function filterButton(document, module) { return document.querySelectorAll('#permission-toolbar .perm-filter').find(button => button.dataset.module === module); }
 
 async function testSearchFilteringAndFirstKeystrokeIdentity() {

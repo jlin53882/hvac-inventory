@@ -209,12 +209,14 @@ APPEARANCE_PROP = re.compile(
 with open(os.path.join(ROOT, "tests", "button_contract.json"), encoding="utf-8") as _fh:
     NON_STANDARD_BUTTON_CLASSES = set(json.load(_fh)["specialized_button_classes"])
 # 沒有 class 的 <button>：下拉選單項目、照片圖卡、燈箱上一張 / 下一張（各檔數量固定，新增按鈕必須套標準 class）
-UNCLASSED_BUTTONS = {"js/render/inventory.js": 2, "js/render/petty-cash.js": 1, "js/render/work-progress.js": 5}
+UNCLASSED_BUTTONS = {"js/features/inventory/list.js": 2, "js/features/petty-cash/page.js": 1,
+                     "js/features/work-progress/detail.js": 1, "js/features/work-progress/gallery.js": 4}
 
 
 def _markup_sources():
     base = os.path.join(ROOT, "static")
-    for dirpath, _dirs, files in os.walk(base):
+    for dirpath, dirs, files in os.walk(base):
+        dirs[:] = [d for d in dirs if d != "dist"]  # Vite 建置產物（issue #39）：只檢查原始碼
         for name in files:
             if name.endswith((".js", ".html")):
                 path = os.path.join(dirpath, name)
@@ -430,7 +432,7 @@ def test_every_utility_is_used():
 
 # ---------- JS 產生的畫面：外觀一律交給 CSS class + token ----------
 # 使用者自訂的行事曆人員顏色屬於資料（存在資料庫），不是設計色票
-JS_COLOR_DATA = {"js/globals.js": ("var CAL_PALETTE = [",)}
+JS_COLOR_DATA = {"js/core/state.js": ("export var CAL_PALETTE = [",)}
 JS_RUNTIME_STYLE_PROPS = {"display", "width", "position", "top", "left", "right", "zIndex"}  # 顯示切換、進度條、下拉定位
 # 只能用 setProperty 設定、且屬於「執行期版面狀態」的 CSS 變數；不可用 "--" 前綴整批放行，否則等於繞過 token
 JS_RUNTIME_CUSTOM_PROPERTIES = {"--cal-week-count"}  # 月曆每月 4 / 5 / 6 週的列數
@@ -522,3 +524,91 @@ def test_js_inline_styles_only_carry_runtime_state():
     字級、顏色、間距、圓角等外觀寫在 CSS，否則會蓋過分層樣式、讓手機版規則失效。"""
     for rel, text in _js_sources():
         assert not _js_style_violations(text), f"{rel}：" + "；".join(_js_style_violations(text))
+
+
+# ── JS 找元素不得依賴 class（issue #39）──
+# class 屬於 CSS：依 CSS 規範改名、合併或拆分時，JS 若用它找元素，功能會默默失效。
+# JS 找元素請用 id、data-role（元素群組）或 data-action（使用者動作），見 docs/CSS架構重構設計.md §4.3；
+# 只有 JS 自己切換的狀態 class（.is-* / .has-*）可以組進 selector（例：[data-role="modal"].is-open）。
+JS_LOOKUP_CALL = re.compile(r"\b(querySelectorAll|querySelector|closest|matches|getElementsByClassName)\(")
+STATE_CLASS_NAME = re.compile(r"^(?:is|has)-[\w-]+$")
+
+
+def _call_argument(text, open_paren):
+    """回傳 lookup 呼叫括號內的原始碼（處理巢狀括號與字串）。"""
+    depth, quote, i = 0, None, open_paren
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "'\"`":
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1:i]
+        i += 1
+    return text[open_paren + 1:]
+
+
+def _class_lookups(text):
+    """回傳 JS 用 class（狀態 class 除外）找元素的呼叫；selector 以字串串接組成時逐段檢查。"""
+    bad = []
+    for match in JS_LOOKUP_CALL.finditer(text):
+        api = match.group(1)
+        argument = _call_argument(text, match.end() - 1)
+        pieces = [m.group(2) for m in re.finditer(r"(['\"`])((?:\\.|(?!\1).)*)\1", argument, re.S)]
+        static = " ".join(re.sub(r"\$\{[^}]*\}", " ", piece) for piece in pieces)
+        static = re.sub(r"\[[^\]]*\]", " ", static)  # data-role="…" 等屬性值不是 class
+        if api == "getElementsByClassName":
+            names = static.split()
+        else:
+            names = re.findall(r"\.(-?[_a-zA-Z][\w-]*)", static)
+        bad += [f"{api}({argument.strip()[:80]}) 使用 class .{name}" for name in names if not STATE_CLASS_NAME.match(name)]
+    return bad
+
+
+@pytest.mark.parametrize("snippet", [
+    "document.querySelector('#kit-modal .btn-confirm')",
+    'document.querySelector("#expiry-modal .btn-save")',
+    "document.querySelectorAll('#settingsChipBar .chip')",
+    "document.querySelectorAll('.pc-chip')[3]",
+    "tr.querySelector('.u-ci-to')",
+    "btn.closest('.btn')",
+    "btn.closest('.stock-row')",
+    "el.matches('.chip--seg.is-active')",
+    "document.getElementsByClassName('btn btn--primary')",
+    "root.querySelector(`#${id} .btn--secondary`)",
+    "document.querySelectorAll('#gcal-reminders-' + keyId + ' .gcal-reminder-row')",
+    "document.querySelector('.modal-overlay.is-open')",
+])
+def test_class_lookup_guard_rejects_class_hooks(snippet):
+    """守衛本身要攔得到每一種找元素 API 搭配 class 的寫法（含字串串接）。"""
+    assert _class_lookups(snippet), snippet
+
+
+@pytest.mark.parametrize("snippet", [
+    "document.getElementById('kit-submit')",
+    "document.querySelectorAll('[data-role=\"pc-range\"]')",
+    "tr.querySelector('[data-role=\"unit-consolidate-to\"]')",
+    "document.querySelectorAll('#settingsChipBar [data-panel]')",
+    "document.querySelector('[data-role=\"modal\"].is-open')",
+    "document.querySelectorAll('#gcal-reminders-' + keyId + ' [data-reminder-index]')",
+    "document.querySelector('#kit-modal h3')",
+    "el.classList.contains('btn-confirm')",
+    "document.querySelector(`[data-action=\"${action}\"]`)",
+])
+def test_class_lookup_guard_allows_semantic_hooks(snippet):
+    assert not _class_lookups(snippet), snippet
+
+
+def test_js_does_not_find_elements_by_class():
+    """static/js 與 HTML 內嵌 script 不得用 class 找元素；改用 id / data-role / data-action（狀態 class 除外）。"""
+    bad = [f"{rel}：{item}" for rel, text in _markup_sources() for item in _class_lookups(text)]
+    assert not bad, "\n".join(bad)

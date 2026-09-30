@@ -68,7 +68,11 @@ def client(tmp_path, monkeypatch):
 # - 新檔案/新內插若不在清單 → 測試紅 → 人工審核（安全則加這裡，否則補 esc()）
 REVIEWED_SAFE_BODIES = {
     # 報價單內部分頁（2026-09-09）：active 只由固定模式傳入，輸出皆為固定 class/文字。
-    "active === 'quotation' ? 'is-active' : ''", "active === 'upload' ? 'is-active' : ''", "quoteModeTabs('quotation')", "quoteModeTabs('upload')",
+    "active === 'quotation' ? 'is-active' : ''", "active === 'upload' ? 'is-active' : ''", "quoteModeTabs('quotation')",
+    # 檔案上傳清單（issue #39）：headerHtml 只由頁面設定傳入固定 HTML（報價單上傳為 quoteModeTabs('upload')）。
+    "config.headerHtml ? config.headerHtml() : ''",
+    # 使用流程清單：步驟文字在組 stepsHtml 時已逐項 esc()，序號為陣列索引。
+    "stepsHtml",
     # inventory card note context: formatter returns escaped display HTML; label uses it plus fixed text.
     "formatLocationDisplay(s.location)", "buildStockNoteLabelHTML(s, showLocationContext)",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
@@ -172,7 +176,7 @@ REVIEWED_SAFE_BODIES = {
     "s.note ? ' · 📝 ' + esc(s.note) : ''",
     # stocktake.js 多行三元提示文字（isLow ? '常數提示' : '常數提示'）
     "isLow\n        ? '💡 庫存數量已低於（或等於）警示值，建議盡快補貨。點品項可直接編輯警示值。'\n        : '💡 庫存為 0 或以下的品項，需要補貨或盤點確認。'",
-    # 每日簽名報表（2026-09-07）：ic.* 只由 _dsrIconFor 固定映射產生；note 已在同一行以 esc(r.note) 處理，空值是固定 HTML。
+    # 檔案上傳清單（每日簽名報表 / 報價單上傳，2026-09-07）：ic.* 只由 _uplIconFor 固定映射產生；note 已在同一行以 esc(r.note) 處理，空值是固定 HTML。
     "ic.icon", "note", "fileVisual",
     # stocktake.js 整組盤點展開組成材料（2026-08-16）：c.item_id 為 DB 數字主鍵（同 k.item_id/o.item_id）、
     # c.has_photo 為布林控制縮圖/佔位三元、kitCompsHTML 為內部已 esc 的組裝 HTML（同 pPhoto/soPhoto 模式）
@@ -193,8 +197,9 @@ REVIEWED_SAFE_BODIES = {
     "rowClass", "item.is_kit ? 'assembly' : 'single'", "displayLoc",
     "stock.note ? ' · 📝 ' + esc(stock.note) : ''",
     "stocktakeInput(key, systemQty)",
-    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? 'pending' : 'zero'",
-    "stocktakeValues[key] === undefined || stocktakeValues[key] === '' ? '—' : '0'",
+    # issue #39：盤點輸入值由全域 stocktakeValues 收進 stocktakeState（同一運算式，只改狀態來源）
+    "stocktakeState.stocktakeValues[key] === undefined || stocktakeState.stocktakeValues[key] === '' ? 'pending' : 'zero'",
+    "stocktakeState.stocktakeValues[key] === undefined || stocktakeState.stocktakeValues[key] === '' ? '—' : '0'",
     "materials",
     # edit.js 兩段式位置（2026-09-06）：_cabinetOptions 從固定清單產生 select options，
     # c 為固定 cabs 陣列元素（編號A~F/鐵架/二樓），selected 為屬性三元，均非使用者輸入
@@ -234,9 +239,10 @@ REVIEWED_SAFE_BODIES = {
     "missingHTML", "statusListFormatQuantity(stock)", "statusListFormatQuantity(status.qty)",
     # 2026-09-12 數量系統：Qty.disp 輸出僅數字/分數字元（0-9 . / - 空格），無 HTML metachars；
     # stocktakeInput 內部對 key/value/sysqty/unit 全 esc()/jsStr()（stocktake.js）
-    "(typeof Qty !== 'undefined') ? Qty.disp(s.qty, item.unit) : s.qty",
-    "(typeof Qty !== 'undefined') ? Qty.disp(item.prepared_qty, item.unit) : absNum(item.prepared_qty)",
-    "(typeof Qty !== 'undefined') ? Qty.disp(item.qty, item.unit) : absNum(item.qty)",
+    # issue #39：ES module 後 Qty 一定已載入，原本 typeof Qty 的退路已移除
+    "Qty.disp(s.qty, item.unit)",
+    "Qty.disp(item.prepared_qty, item.unit)",
+    "Qty.disp(item.qty, item.unit)",
     "stocktakeInput(materialKey, materialSystemQty, c.unit)",
     "stocktakeInput(key, systemQty, item.unit)",
     # 零用金月報（2026-09-12）：以下皆為內部已 esc 的 HTML fragment、固定映射或常數三元——
@@ -258,7 +264,7 @@ REVIEWED_SAFE_BODIES = {
 
 def test_kit_photo_preview_uses_dom_property_for_file_reader_data():
     """Keep FileReader output out of HTML parsing sinks."""
-    photo_js = Path(BASE_DIR, "static", "js", "modals", "photo.js").read_text(encoding="utf-8")
+    photo_js = Path(BASE_DIR, "static", "js", "features", "inventory", "photo.js").read_text(encoding="utf-8")
     assert "image.src = e.target.result;" in photo_js
     assert "${e.target.result}" not in photo_js
 

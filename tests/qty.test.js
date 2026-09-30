@@ -1,15 +1,13 @@
 // tests/qty.test.js — Qty 共用數量 domain 純函式測試（node 直接執行）
-// 對應 static/js/qty.js；pytest 由 tests/test_quantity.py 包裝呼叫。
+// 對應 static/js/core/qty.js；pytest 由 tests/test_quantity.py 包裝呼叫。
 // 用法：node tests/qty.test.js
 'use strict';
-const fs = require('fs');
-const path = require('path');
 const vm = require('vm');
+const { loadModules } = require('./support/frontend-runtime');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'qty.js'), 'utf8');
 const sandbox = {};
 vm.createContext(sandbox);
-vm.runInContext(src, sandbox);
+loadModules(sandbox, 'core/qty.js');
 const Qty = sandbox.Qty;
 sandbox.unitList = [{ name: '個', qty_type: 'integer' }, { name: '罐', qty_type: 'fraction' }];
 

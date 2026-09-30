@@ -288,7 +288,7 @@ class TestPhotoAccessControl:
         # 但公開路徑讀不到 → 404
         assert client.get(f"/static/uploads/{item['id']}.jpg").status_code == 404
         # 靜態其他資源不受影響
-        assert client.get("/static/js/utils.js").status_code == 200
+        assert client.get("/static/js/core/utils.js").status_code == 200
         # 登入走 /uploads/ 可讀
         assert client.get(f"/uploads/{item['id']}.jpg").status_code == 200
 

@@ -38,3 +38,6 @@ backups/
 tests/visual/_baseline/
 tests/visual/_current/
 tests/visual/_diff/
+
+# 前端建置工具（npm ci 安裝；static/dist 建置結果要提交）
+node_modules/

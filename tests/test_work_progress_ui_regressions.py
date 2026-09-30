@@ -6,24 +6,28 @@ from pathlib import Path
 from openpyxl.styles import Alignment
 
 from app.services.report import build_daily_report
-from frontend_test_support import unscope_css
+from frontend_test_support import CALENDAR_RENDER_JS, js_modules, unscope_css
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORK_PROGRESS_JS = ROOT / "static/js/render/work-progress.js"
+# 原 render/work-progress.js 依職責拆成多個 ES module（issue #39）
+WORK_PROGRESS_JS = js_modules(*(f"features/work-progress/{name}.js" for name in
+                                ("state", "format", "upload", "draft", "history", "detail", "gallery", "page")))
 WORK_PROGRESS_CSS = ROOT / "static/css/4-pages/work-progress.css"
 GALLERY_LIFECYCLE_TEST = ROOT / "tests/work_progress_gallery_lifecycle.test.js"
 DETAIL_TARGET_LIFECYCLE_TEST = ROOT / "tests/work_progress_detail_target_lifecycle.test.js"
 UPLOAD_PROGRESS_TEST = ROOT / "tests/work_progress_upload_progress.test.js"
-CALENDAR_JS = ROOT / "static/js/render/calendar.js"
+CALENDAR_JS = CALENDAR_RENDER_JS
 CALENDAR_CSS = ROOT / "static/css/4-pages/calendar.css"
-APP_JS = ROOT / "static/js/app.js"
+APP_JS = ROOT / "static/js/features/shell/app.js"
 INVENTORY_CSS = ROOT / "static/css/4-pages/inventory.css"
 STOCKOUT_CSS = ROOT / "static/css/4-pages/stockout.css"
 
 
 def _read(path: Path) -> str:
     """Read one UTF-8 source asset for a contract assertion (CSS page-scope prefixes removed)."""
+    if isinstance(path, tuple):  # js_modules()：拆分後的多個模組依序串接
+        return "\n".join(_read(Path(part)) for part in path)
     text = path.read_text(encoding="utf-8")
     return unscope_css(text) if path.suffix == ".css" else text
 
@@ -94,7 +98,7 @@ def test_work_progress_photo_management_is_target_scoped_and_single_request():
     assert "/photos/batch-delete" in js
     assert "method:'POST'" in js
     assert "JSON.stringify({asset_ids:assetIds})" in js
-    assert "wprReloadAndReopenDetail(id, wprHistoryPage, targetId)" in js
+    assert "wprReloadAndReopenDetail(id, workProgressState.wprHistoryPage, targetId)" in js
 
 
 def test_work_progress_and_calendar_notes_preserve_multiline_text():
@@ -144,7 +148,7 @@ def test_daily_report_note_cells_enable_wrapping():
 
 
 def test_upload_progress_runtime_contract():
-    """2026-09：上傳改用 XHR 回報進度（上傳中 xx% → 伺服器處理中…），錯誤訊息與 wprFetch 一致。"""
+    """2026-09：上傳改用 XHR 回報進度（上傳中 xx% → 伺服器處理中…），錯誤訊息與 apiFetch 一致。"""
     result = subprocess.run(
         ["node", str(UPLOAD_PROGRESS_TEST)],
         capture_output=True,

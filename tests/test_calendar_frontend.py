@@ -5,6 +5,8 @@ import os
 import re
 import subprocess
 from frontend_test_support import (
+    page_modules,
+    js_modules,
     read_page_with_css,
     API_JS,
     APP_JS,
@@ -27,7 +29,7 @@ from frontend_test_support import (
 
 # ---------- Google 行事曆同步 panel ----------
 
-GCAL_KEY_JS = os.path.join(STATIC, "js", "modals", "gcal-key.js")
+GCAL_KEY_JS = os.path.join(STATIC, "js", "features", "settings", "gcal-key-modal.js")
 GCAL_KEYS_PY = os.path.join(BASE_DIR, "app", "routes", "gcal_keys.py")
 DATABASE_PY = os.path.join(BASE_DIR, "app", "database.py")
 
@@ -85,36 +87,39 @@ def test_index_has_calendar_nav():
     i_signed = html.index('id="sb-nav-signed-reports"')
     i_inv = html.index('id="sb-nav-inventory"')
     assert i_cal < i_signed < i_inv, "sidebar 順序應為 calendar < signed-reports < inventory"
-    assert 'class="sb-nav-link is-active" id="sb-nav-calendar"' in html
-    assert 'class="sb-nav-link" id="sb-nav-inventory"' in html
+    assert 'class="sb-nav-link is-active" data-role="sidebar-nav-link" id="sb-nav-calendar"' in html
+    assert 'class="sb-nav-link" data-role="sidebar-nav-link" id="sb-nav-inventory"' in html
 
 def test_default_tab_is_calendar():
-    """登入一進來顯示行事曆（2026-08-13 Sarah）：globals currentTab 初始 calendar + loadData 用 switchTab 分派"""
+    """登入一進來顯示行事曆（2026-08-13 Sarah）：共用狀態 currentTab 初始 calendar + loadData 用 switchTab 分派"""
     gl = read(GLOBALS_JS)
-    assert "var currentTab = 'calendar';" in gl
+    assert "  currentTab: 'calendar'," in gl
     ap = read(API_JS)
-    assert "switchTab(currentTab);" in ap
+    # issue #39：data-refresh 經注入的 remountTab 分派，組裝層把它接到 shell/app.js 的 switchTab
+    assert "view().remountTab(appState.currentTab);" in ap
+    assert "remountTab: switchTab," in read(APP_JS)
 
 def test_app_boot_clears_default_calendar_active_before_selected_tab():
     """Regression: F5 on ?tab=inventory must not leave default calendar active in sidebar."""
-    js = read(os.path.join(STATIC, "js", "app.js"))
+    js = read(os.path.join(STATIC, "js", "features", "shell", "app.js"))
     boot_start = js.index("var _p = new URLSearchParams(location.search);")
     boot_end = js.index("loadData();", boot_start) + len("loadData();")
     boot = js[boot_start:boot_end]
-    assert "querySelectorAll('.sb-nav-link').forEach" in boot
-    assert boot.index("querySelectorAll('.sb-nav-link').forEach") < boot.index("sbNav.classList.add('is-active')")
-    assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
-    assert boot.index("setPageScope(currentTab);") < boot.index("loadData();")
+    assert "querySelectorAll('[data-role=\"sidebar-nav-link\"]').forEach" in boot
+    assert boot.index("querySelectorAll('[data-role=\"sidebar-nav-link\"]').forEach") < boot.index("sbNav.classList.add('is-active')")
+    assert "if (!tabChangedDuringBoot) setPageScope(appState.currentTab);" in boot
+    assert boot.index("setPageScope(appState.currentTab);") < boot.index("loadData();")
 
 def test_index_loads_calendar_js():
-    """index.html 載入 render/calendar.js + modals/calendar.js + modals/calendar-settings.js（2026-08-16 拆檔）"""
-    assert '/static/js/render/calendar.js' in read(INDEX)
-    assert '/static/js/modals/calendar.js' in read(INDEX)
-    assert '/static/js/modals/calendar-settings.js' in read(INDEX)
+    """index.html 載入行事曆畫面 + 派工 modal + 設定 modal（2026-08-16 拆檔；issue #39 起由 pages/main.js import）"""
+    modules = page_modules(INDEX)
+    assert {"features/calendar/view.js", "features/calendar/search.js", "features/calendar/sync-status.js"} <= modules
+    assert "features/calendar/appt-modal.js" in modules
+    assert "features/calendar/settings-modal.js" in modules
 
 def test_app_js_switchtab_has_calendar():
     """switchTab 分派行事曆 → renderCalendar()"""
-    js = read(os.path.join(STATIC, "js", "app.js"))
+    js = read(os.path.join(STATIC, "js", "features", "shell", "app.js"))
     assert "else if (tab === 'calendar') renderCalendar();" in js
 
 def test_calendar_js_has_core_functions():
@@ -145,14 +150,14 @@ def test_calendar_js_uses_api_endpoints():
     assert "看今天行程</button>" not in js
     assert "calGoToday" not in js
     # 2026-08-13 Sarah：tech 角色——庫存 render 視為唯讀、calendar 可寫、auth.js 工程師 chip
-    inv = read(os.path.join(STATIC, "js", "render", "inventory.js"))
+    inv = read(js_modules("features/inventory/filters.js", "core/search.js", "features/inventory/list.js", "features/inventory/status.js", "features/inventory/actions.js", "features/inventory/adjust.js", "features/inventory/batch-location.js", "core/state.js"))
     assert "hasPerm('item-mgmt')" in inv  # RBAC：tech 無庫存寫入權限 → 庫存頁唯讀
     cal = read_calendar_js_all()
     assert "hasPerm('cal-mgmt')" in cal  # RBAC：tech 有 cal-mgmt → 行事曆可寫
     au = read(AUTH_JS)
     assert "🔧 工程師" not in au  # tech 不顯示 badge（2026-08-13 Sarah：不要列出工程師）
     # Shell v2: permissions links are static HTML in dropdown
-    pm = read(os.path.join(STATIC, "js", "perms.js"))
+    pm = read(os.path.join(STATIC, "js", "features", "permissions", "page.js"))
     assert "/api/users/${curUid}/permissions" in pm  # 權限清單由 per-user 端點內聯載入（含 cal-mgmt 等全部 key）
 
 def test_calendar_js_viewer_write_hidden():
@@ -217,7 +222,7 @@ def test_calendar_desktop_dispatch_layout():
     assert '<button class="cal-quick-filter"' not in js
     assert "cal-today-inline" in js
     assert "calLoadRequestToken" in js
-    assert "if (requestToken !== calLoadRequestToken) return null;" in js
+    assert "if (requestToken !== calendarState.calLoadRequestToken) return null;" in js
     assert "const weeks = Math.ceil((first + total) / 7);" in js
     assert "const trailing = weeks * 7 - first - total;" in js
     assert "setProperty('--cal-week-count', String(weeks))" in js
@@ -225,9 +230,9 @@ def test_calendar_desktop_dispatch_layout():
     assert "const applied = await calLoadData();" in modal
     assert "if (applied === null) return;" in modal
     assert modal.count("if (applied === null) return;") >= 2
-    assert modal.count("calSetLoadState('error', calLoadError)") >= 2
+    assert modal.count("calSetLoadState('error', calendarState.calLoadError)") >= 2
     assert js.count("if (applied === null) return;") >= 6
-    assert js.count("calSetLoadState('error', calLoadError)") >= 6
+    assert js.count("calSetLoadState('error', calendarState.calLoadError)") >= 6
     load_start = js.index("async function calLoadData()")
     load_end = js.index("function calRenderLoadingUi", load_start)
     load_fn = js[load_start:load_end]
@@ -264,8 +269,8 @@ def test_calendar_kpi_uses_existing_appointment_data():
     assert "calEvents.length" in js
     assert "calTodayEvents = todayEv.filter(e => e.date === todayStr)" in js
     assert "cal-kpi-meta" in js
-    assert "今日共 ${calTodayEvents.length} 筆派工" in js
-    assert "${calMonth.getFullYear()} 年 ${calMonth.getMonth() + 1} 月（共 ${calEvents.length} 筆）" in js
+    assert "今日共 ${calendarState.calTodayEvents.length} 筆派工" in js
+    assert "${appState.calMonth.getFullYear()} 年 ${appState.calMonth.getMonth() + 1} 月（共 ${calendarState.calEvents.length} 筆）" in js
 
     assert "已完成" not in js
     assert "進行中" not in js
@@ -296,7 +301,7 @@ def test_calendar_search_uses_right_panel_mode():
     assert "calMountSearchResults" in js
     assert "calSearchMode" in js
     assert "calSearchRequestToken" in js
-    assert "requestToken !== calSearchRequestToken" in js
+    assert "requestToken !== calendarState.calSearchRequestToken" in js
     assert "calSearchState" in js
     assert "calBindSearchViewportListener" in js
     assert "calHandleSearchViewportChange" in js
@@ -310,13 +315,13 @@ def test_calendar_search_uses_right_panel_mode():
     mobile_start = js.index("function calRenderMobileSearchResults")
     mobile_end = js.index("async function calSearch", mobile_start)
     mobile_renderer = js[mobile_start:mobile_end]
-    assert "calSearchMode = true;" in mobile_renderer
+    assert "calendarState.calSearchMode = true;" in mobile_renderer
     assert "calApplyRightPanelMode();" in mobile_renderer
     day_start = js.index("function calRenderDay")
-    day_end = js.index("// ========== 行事曆搜尋 ==========", day_start)
+    day_end = js.index("export function calChangeMonth", day_start)  # issue #39：搜尋區段已拆到 features/calendar/search.js
     day_renderer = js[day_start:day_end]
-    assert "if (calIsDesktopViewport()) calRenderSearchResults(calSearchItems);" in day_renderer
-    assert "else calRenderMobileSearchResults(calSearchItems);" in day_renderer
+    assert "if (calIsDesktopViewport()) calRenderSearchResults(calendarState.calSearchItems);" in day_renderer
+    assert "else calRenderMobileSearchResults(calendarState.calSearchItems);" in day_renderer
     assert "calJumpToDate" in js
     assert 'data-date="${esc(e.date || \'\')}"' in js
     assert ".cal-day-card.cal-search-mode" in css
@@ -499,9 +504,8 @@ def test_database_has_users_gcal_key():
     assert "gcal_key" in code, "database.py 缺 users.gcal_key migration"
 
 def test_settings_panel_script_includes_gcal_key_js():
-    """settings.html 引入 gcal-key.js"""
-    html = read(SETTINGS_HTML)
-    assert "gcal-key.js" in html, "settings.html 未引入 gcal-key.js"
+    """settings.html 引入 Google 行事曆金鑰 modal（原 gcal-key.js；issue #39 起由 pages/settings.js import）"""
+    assert "features/settings/gcal-key-modal.js" in page_modules(SETTINGS_HTML), "settings.html 未引入 gcal-key-modal.js"
 
 def test_calendar_search_api_exists():
     """搜尋 API 端點存在"""
@@ -511,14 +515,14 @@ def test_calendar_search_api_exists():
 
 def test_calendar_search_ui_functions():
     """calendar.js 搜尋函式存在"""
-    js = read(os.path.join(STATIC, "js/render/calendar.js"))
+    js = read(CALENDAR_RENDER_JS)
     assert "function calSearch" in js, "calSearch 缺失"
     assert "function calClearSearch" in js, "calClearSearch 缺失"
     assert "function calJumpToDate" in js, "calJumpToDate 缺失"
 
 def test_calendar_search_bar_in_render():
     """renderCalendar 包含搜尋列 DOM"""
-    js = read(os.path.join(STATIC, "js/render/calendar.js"))
+    js = read(CALENDAR_RENDER_JS)
     assert "cal-search-from" in js, "搜尋起始日期 input 缺失"
     assert "cal-search-to" in js, "搜尋結束日期 input 缺失"
     assert "cal-search-q" in js, "搜尋關鍵字 input 缺失"
@@ -526,7 +530,7 @@ def test_calendar_search_bar_in_render():
 
 def test_delete_gcal_key_has_toast():
     """deleteGcalKey 包含 toast 反饋"""
-    js = read(os.path.join(STATIC, "js/settings.js"))
+    js = read(SETTINGS_JS)
     assert "function deleteGcalKey" in js, "deleteGcalKey 缺失"
     assert "toast(msg," in js or "toast(" in js, "deleteGcalKey 缺少 toast"
     assert "data.google_deleted" in js, "deleteGcalKey 未回傳 Google 刪除結果"
@@ -582,7 +586,7 @@ def test_calendar_btn_edit_is_feature_owned():
             if not name.endswith(".js"):
                 continue
             js_path = os.path.join(directory, name)
-            if os.path.normcase(js_path) == os.path.normcase(CALENDAR_RENDER_JS):
+            if any(os.path.normcase(js_path) == os.path.normcase(part) for part in CALENDAR_RENDER_JS):
                 continue
             assert not token.search(read(js_path)), (
                 f"non-Calendar JS must not produce exact .btn-edit: {js_path}"
@@ -630,7 +634,7 @@ def test_calendar_sync_status_labels_distinguish_retry_and_exhausted():
 def test_calendar_sync_status_uses_personal_and_admin_team_contract():
     """卡片狀態使用登入者視角，Admin 團隊 Badge 使用人員統計。"""
     js = read_calendar_js_all()
-    modal = read(Path(STATIC) / "js" / "modals" / "calendar.js")
+    modal = read(Path(STATIC) / "js" / "features" / "calendar" / "appt-modal.js")
     assert "my_sync_status" in js
     assert "team_sync" in js
     assert "未指派給你" not in js  # 2026-09-17: 已移除「未指派給你」顯示
@@ -667,13 +671,13 @@ def test_gcal_sync_interval_explains_debounce_semantics():
 
 def test_gcal_key_modal_does_not_render_server_credentials_path():
     """前端編輯 key 不得把 server-side credential path 回填到 input。"""
-    source = (Path(STATIC) / "js" / "modals" / "gcal-key.js").read_text(encoding="utf-8")
+    source = (Path(STATIC) / "js" / "features" / "settings" / "gcal-key-modal.js").read_text(encoding="utf-8")
     assert "k.credentials_path" not in source
     assert "server path is intentionally not exposed" in source
 
 def test_gcal_sync_wording_describes_all_keys_and_trigger_semantics():
     """Settings 文案必須反映 force sync 是全部 Key 且為背景觸發。"""
-    source = Path(SETTINGS_JS).read_text(encoding="utf-8")
+    source = read(SETTINGS_JS)
     assert "立即同步全部 Key" in source
     assert "全部 Key 同步掃描間隔" in source
     assert "所有啟用中的 Google Calendar Key 共用此掃描間隔" in source
@@ -727,17 +731,19 @@ def test_settings_html_gcal_mobile_css():
 
 def test_render_calendar_stops_when_tab_left_during_load():
     """行事曆載入期間切到別頁：await 回來後不得再寫入已被取代的月曆 DOM（visual 測試快速切頁時曾拋 null.innerText）。"""
-    js = read(os.path.join(STATIC, "js", "render", "calendar.js"))
+    # issue #39：renderCalendar 在 features/calendar/page.js（放在 view.js 之前，第一個 calLoadData 就是 renderCalendar 的）
+    js = read(js_modules("features/calendar/format.js", "features/calendar/search.js", "features/calendar/page.js", "features/calendar/view.js", "features/calendar/sync-status.js", "features/calendar/state.js"))
     body = js[js.index("const applied = await calLoadData();"):js.index("calRenderMonth();", js.index("const applied = await calLoadData();"))]
-    assert "if (currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;" in body
+    assert "if (appState.currentTab !== 'calendar' || !document.getElementById('cal-grid')) return;" in body
 
 
 def test_bootstrap_does_not_remount_when_user_switched_tab_during_boot():
     """啟動等待 loadUnits 期間使用者已切頁：不可再以啟動流程重設頁面範圍 / 重新掛載（曾把報價單上傳重掛成報價單）。"""
-    js = read(os.path.join(STATIC, "js", "app.js"))
-    boot = js[js.index("var bootTab = currentTab;"):js.index("mountPreservedTabAfterBootstrap();", js.index("var bootTab = currentTab;")) + 40]
-    assert boot.index("var bootTab = currentTab;") < boot.index("await loadUnits();") < boot.index("var tabChangedDuringBoot = currentTab !== bootTab;")
-    assert "if (!tabChangedDuringBoot) setPageScope(currentTab);" in boot
+    js = read(os.path.join(STATIC, "js", "features", "shell", "app.js"))
+    boot = js[js.index("var bootTab = appState.currentTab;"):js.index("mountPreservedTabAfterBootstrap();", js.index("var bootTab = appState.currentTab;")) + 40]
+    assert boot.index("var bootTab = appState.currentTab;") < boot.index("await loadUnits();") < boot.index("var tabChangedDuringBoot = appState.currentTab !== bootTab;")
+    assert "if (!tabChangedDuringBoot) setPageScope(appState.currentTab);" in boot
     assert "if (!tabChangedDuringBoot) mountPreservedTabAfterBootstrap();" in boot
-    qup = read(os.path.join(STATIC, "js", "render", "quotation-upload.js"))
-    assert "document.body.dataset.page === 'quotation-upload'" in qup[qup.index("function qupRenderIsCurrent"):]
+    qup = read(os.path.join(STATIC, "js", "features", "upload-list", "quotation-upload.js"))
+    # issue #39：報價單上傳改由共用 upload-list.js 渲染，本頁以 isActive 設定判斷；runtime 見 upload_list_runtime.test.js
+    assert "isActive: () => appState.currentTab === 'quotation' && document.body.dataset.page === 'quotation-upload'," in qup

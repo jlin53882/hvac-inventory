@@ -13,6 +13,8 @@ from app.services.engineering_petty_cash import engineering_filename, engineerin
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
+from frontend_test_support import page_modules
+
 
 @pytest.fixture()
 def eng_client(tmp_path, monkeypatch):
@@ -152,8 +154,8 @@ def test_engineering_export_tax_values_merges_and_filename(eng_client, tmp_path)
 
 
 def test_engineering_frontend_contract():
-    render = Path(__file__).parents[1] / 'static/js/render/petty-cash.js'
-    modal = Path(__file__).parents[1] / 'static/js/modals/engineering-petty-cash.js'
+    render = Path(__file__).parents[1] / 'static/js/features/petty-cash/page.js'
+    modal = Path(__file__).parents[1] / 'static/js/features/petty-cash/engineering-modal.js'
     index = Path(__file__).parents[1] / 'static/index.html'
     render_text = render.read_text(encoding='utf-8')
     modal_text = modal.read_text(encoding='utf-8')
@@ -165,8 +167,9 @@ def test_engineering_frontend_contract():
     assert 'engToggleEditorReceipt' in modal_text
     assert 'eng-editor-receipt-toggle' in modal_text
     assert 'engEditorExpandedReceipts' in modal_text
-    assert 'id="eng-owner"' in modal_text and 'oninput="engFilenamePreview()"' in modal_text
-    assert "engineering-petty-cash.js" in index_text
+    assert 'id="eng-owner"' in modal_text and 'oninput="PettyCash.engFilenamePreview()"' in modal_text
+    assert 'src="/static/js/pages/main.js"' in index_text
+    assert "features/petty-cash/engineering-modal.js" in page_modules(index)
 
 
 

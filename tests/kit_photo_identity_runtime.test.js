@@ -1,9 +1,7 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const vm = require('node:vm');
+const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
-const root = path.join(__dirname, '..');
 const box = { innerHTML: '' };
 const elements = Object.fromEntries(
   ['k-name', 'k-note', 'k-brand', 'k-code', 'k-site'].map((id) => [id, { value: '' }]),
@@ -37,13 +35,13 @@ const overlay = { id: '', innerHTML: '', remove() {} };
 /** Supply only the DOM nodes consumed by the real Kit editor/photo renderers. */
 function getElementById(id) {
   if (id === 'k-photo-box') return box;
+  if (id === 'kit-submit') return formButton;
   return elements[id] || null;
 }
 
 /** Resolve modal selectors used by editKit without replacing its production logic. */
 function querySelector(selector) {
   if (selector === '#kit-modal h3') return title;
-  if (selector === '#kit-modal .btn-confirm') return formButton;
   return null;
 }
 
@@ -54,9 +52,7 @@ class TestFormData {
 
 const context = vm.createContext({
   console,
-  ALL_ITEMS: [unrelatedItem, { id: 42, has_photo: true }],
-  currentKitItems: [kit],
-  currentSite: 'office',
+  appState: { ALL_ITEMS: [unrelatedItem, { id: 42, has_photo: true }], currentKitItems: [kit], currentSite: 'office', globalCabinetList: [] },
   document: {
     addEventListener() {},
     getElementById,
@@ -73,15 +69,15 @@ const context = vm.createContext({
     if (Object.hasOwn(options, 'body')) request.body = options.body;
     calls.fetch.push(request);
     if ((options.method || 'GET') === 'GET') {
-      return { ok: true, json: async () => [kit] };
+      return mockResponse([kit]);
     }
     if (url === '/api/kits') {
-      return { ok: true, json: async () => ({ id: 7, item_id: 42, name: '新整組' }) };
+      return mockResponse(({ id: 7, item_id: 42, name: '新整組' }));
     }
     if (options.method === 'DELETE') {
-      return { ok: true, json: async () => ({ ok: true, deleted: 7 }) };
+      return mockResponse(({ ok: true, deleted: 7 }));
     }
-    return { ok: true, json: async () => ({ ok: true }) };
+    return mockResponse(({ ok: true }));
   },
   FormData: TestFormData,
   setTimeout: () => 0,
@@ -97,20 +93,10 @@ const context = vm.createContext({
   renderKitCompRows() {},
   renderKitLocationRows() {},
   _cabinetOptions: () => '',
-  globalCabinetList: [],
-  kitModalCompRows: [],
-  kitLocationRows: [],
 });
 
-for (const relative of [
-  'static/js/modals/photo.js',
-  'static/js/modals/kit.js',
-  'static/js/render/kits.js',
-]) {
-  vm.runInContext(fs.readFileSync(path.join(root, relative), 'utf8'), context, {
-    filename: relative,
-  });
-}
+installApiClient(context);
+loadModules(context, 'features/inventory/photo.js', 'features/kits/state.js', 'features/kits/kit-modal.js', 'features/kits/page.js');
 context.renderKitCompRows = () => {};
 context.renderKitLocationRows = () => {};
 
@@ -150,7 +136,7 @@ async function verifyCreatePreviewContract() {
   elements['k-name'].value = '新整組';
   elements['k-brand'].value = '品牌';
   elements['k-code'].value = 'K-7';
-  context.kitModalCompRows = [{ item_id: 1, qty: 1 }];
+  context.kitsState.kitModalCompRows = [{ item_id: 1, qty: 1 }];
   await context.submitKit();
   await new Promise((resolve) => setImmediate(resolve));
 

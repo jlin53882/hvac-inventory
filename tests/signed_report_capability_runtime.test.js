@@ -1,26 +1,24 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-const path = require('path');
+const { loadModules } = require('./support/frontend-runtime');
 
+// 每日簽名報表 列表的編輯 / 刪除按鈕只跟隨後端 capability（共用 features/upload-list/upload-list.js + 本頁設定 signed-reports.js）
 const elements = new Map([
-  ['dsr-tbody', { innerHTML: '' }],
-  ['dsr-empty', { style: { display: '' } }],
-  ['dsr-page-info', { textContent: '' }],
+  ['upl-tbody', { innerHTML: '' }],
+  ['upl-empty', { style: { display: '' } }],
+  ['upl-page-info', { textContent: '' }],
 ]);
 const context = {
   console,
   document: { getElementById: (id) => elements.get(id) },
   esc: (value) => String(value ?? ''),
 };
-const source = fs.readFileSync(
-  path.join(__dirname, '..', 'static', 'js', 'render', 'signed-reports.js'),
-  'utf8',
-);
-vm.runInNewContext(source, context, { filename: 'signed-reports.js' });
+vm.createContext(context);
+loadModules(context, 'features/upload-list/upload-list.js', 'features/upload-list/signed-reports.js');
+const page = context.SignedReports;
 
 function render(capabilities) {
-  context.dsrFiltered = [{
+  page.state.reports = [{
     id: 100,
     report_date: '2026-09-20',
     uploader_name: '測試上傳人',
@@ -30,26 +28,26 @@ function render(capabilities) {
     note: '測試報表',
     ...capabilities,
   }];
-  context.dsrTotal = 1;
-  context.dsrRenderTable();
-  return elements.get('dsr-tbody').innerHTML;
+  page.state.total = 1;
+  page.renderTable();
+  return elements.get('upl-tbody').innerHTML;
 }
 
 let html = render({ can_edit: true, can_delete: false });
 assert.ok(html.includes('Q001.pdf'));
-assert.ok(html.includes('dsrEdit(100)'));
-assert.ok(!html.includes('dsrDelete(100)'));
+assert.ok(html.includes('SignedReports.edit(100)'));
+assert.ok(!html.includes('SignedReports.remove(100)'));
 
 html = render({ can_edit: false, can_delete: true });
-assert.ok(!html.includes('dsrEdit(100)'));
-assert.ok(html.includes('dsrDelete(100)'));
+assert.ok(!html.includes('SignedReports.edit(100)'));
+assert.ok(html.includes('SignedReports.remove(100)'));
 
 html = render({ can_edit: false, can_delete: false });
-assert.ok(!html.includes('dsrEdit(100)'));
-assert.ok(!html.includes('dsrDelete(100)'));
+assert.ok(!html.includes('SignedReports.edit(100)'));
+assert.ok(!html.includes('SignedReports.remove(100)'));
 
 html = render({ can_edit: true, can_delete: true });
-assert.ok(html.includes('dsrEdit(100)'));
-assert.ok(html.includes('dsrDelete(100)'));
+assert.ok(html.includes('SignedReports.edit(100)'));
+assert.ok(html.includes('SignedReports.remove(100)'));
 
 console.log('signed report capability runtime: PASS');

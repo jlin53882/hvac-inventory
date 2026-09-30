@@ -330,6 +330,24 @@ def test_edit_note_rejects_overlong_value(signed_env):
     assert response.status_code in (400, 422)
 
 
+def test_edit_rejects_file_in_text_field_with_chinese_label(signed_env):
+    """文字欄位被塞入檔案時回 400，錯誤訊息顯示畫面上的中文欄位名稱而非 report_date / uploader_name。"""
+    make_client, _ = signed_env
+    owner = make_client("owner", "user")
+    report = _upload(owner).json()
+    for field, label in (("report_date", "報表日期"), ("uploader_name", "上傳人姓名"), ("note", "備註")):
+        data = {"report_date": "2026-09-07", "uploader_name": "王小明", "note": ""}
+        data.pop(field)
+        response = owner.patch(
+            f"/api/quotation-uploads/{report['id']}",
+            data=data,
+            files={field: ("x.txt", b"x", "text/plain")},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == f"「{label}」欄位格式錯誤"
+        assert field not in response.json()["detail"]
+
+
 def test_owner_can_edit_all_fields_and_replace_file(signed_env):
     """日期/檔案/上傳人/備註可在同一 PATCH 換檔；舊檔刪、新檔留、單檔殘留。"""
     make_client, static_dir = signed_env

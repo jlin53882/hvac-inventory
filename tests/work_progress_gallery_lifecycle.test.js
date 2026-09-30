@@ -1,12 +1,9 @@
 'use strict';
 
 const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
 const vm = require('vm');
+const { loadWorkProgress } = require('./support/frontend-runtime');
 
-const sourcePath = path.join(__dirname, '..', 'static', 'js', 'render', 'work-progress.js');
-const source = fs.readFileSync(sourcePath, 'utf8');
 
 /**
  * Build a minimal DOM/async harness around the production gallery code.
@@ -48,18 +45,10 @@ function createHarness() {
   };
   const sandbox = {
     document,
-    currentTab: 'work-progress',
-    wprDetailRequestTokens: {},
+    appState: { currentTab: 'work-progress' },
     toast(message) { errors.push(message); },
     esc(value) { return String(value); },
     jsStr(value) { return String(value); },
-    wprFetch() {
-      let resolve;
-      let reject;
-      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
-      requests.push({ resolve, reject });
-      return promise;
-    },
     console,
     Promise,
     setTimeout,
@@ -84,8 +73,8 @@ function createHarness() {
       images.push(this);
     },
   };
-  vm.runInNewContext(source, sandbox, { filename: sourcePath });
-  sandbox.wprFetch = function() {
+  loadWorkProgress(sandbox);
+  sandbox.apiFetch = function() {
     let resolve;
     let reject;
     const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
@@ -130,7 +119,7 @@ async function flush() {
 async function testStaleResponseAfterTabLeave() {
   const h = createHarness();
   h.sandbox.wprOpenGallery(1, 0);
-  h.sandbox.currentTab = 'calendar';
+  h.sandbox.appState.currentTab = 'calendar';
   h.sandbox.wprCloseGallery();
   h.requests[0].resolve(report('stale'));
   await flush();

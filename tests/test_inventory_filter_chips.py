@@ -13,14 +13,22 @@ import os
 import subprocess
 
 
+from frontend_test_support import INVENTORY_RENDER_JS as INVENTORY_JS
+
+
 def read(path):
     with open(path, 'rb') as f:
         return f.read().decode('utf-8', errors='ignore')
 
 
+def read_inventory_js():
+    """庫存頁原本的 render/inventory.js 已依職責拆成多個 ES module（issue #39）；依序串接。"""
+    return "\n".join(read(p) for p in INVENTORY_JS)
+
+
 def test_inventory_filter_panel_displayed_on_render():
     """renderInventory() 開始時要顯示 #filter-panel"""
-    js = read(os.path.join('static', 'js', 'render', 'inventory.js'))
+    js = read_inventory_js()
     
     # 查找 renderInventory 函式
     render_fn = js.split('function renderInventory()', 1)[1].split('\nfunction ', 1)[0]
@@ -35,7 +43,7 @@ def test_inventory_filter_panel_displayed_on_render():
 
 def test_calculate_visible_chips_count_function_exists():
     """calculateVisibleChipsCount() 函式存在且邏輯正確"""
-    js = read(os.path.join('static', 'js', 'render', 'inventory.js'))
+    js = read_inventory_js()
     
     # 查找函式定義
     assert 'function calculateVisibleChipsCount(containerId)' in js, \
@@ -53,7 +61,7 @@ def test_calculate_visible_chips_count_function_exists():
 
 def test_build_filter_panel_container_check():
     """buildFilterPanel() 要檢查容器存在，否則直接返回"""
-    js = read(os.path.join('static', 'js', 'render', 'inventory.js'))
+    js = read_inventory_js()
     
     fn = js.split('function buildFilterPanel()', 1)[1].split('\nfunction ', 1)[0]
     
@@ -68,7 +76,7 @@ def test_build_filter_panel_container_check():
 
 def test_render_filter_chips_width_truncation_logic():
     """renderFilterChips() 根據容器寬度動態決定截斷"""
-    js = read(os.path.join('static', 'js', 'render', 'inventory.js'))
+    js = read_inventory_js()
     
     fn = js.split('function renderFilterChips(containerId, counts, selectedArr, type, toggleBtnId)', 1)[1].split('\nfunction ', 1)[0]
     
@@ -84,7 +92,7 @@ def test_render_filter_chips_width_truncation_logic():
 
 def test_toggle_filter_collapse_rebuilds_panel():
     """toggleFilterCollapse() 應該呼叫 buildFilterPanel() 重新渲染"""
-    js = read(os.path.join('static', 'js', 'render', 'inventory.js'))
+    js = read_inventory_js()
     
     fn = js.split('function toggleFilterCollapse(containerId, toggleBtnId)', 1)[1].split('\nfunction ', 1)[0]
     
@@ -95,7 +103,7 @@ def test_toggle_filter_collapse_rebuilds_panel():
 
 def test_window_resize_listener_recalculates():
     """視窗 resize 時應該重新計算並渲染篩選 chips（300ms 防抖）"""
-    js = read(os.path.join('static', 'js', 'render', 'inventory.js'))
+    js = read_inventory_js()
     
     # 驗證：resize listener 存在
     assert "window.addEventListener('resize'" in js or "addEventListener('resize'" in js, \
@@ -138,7 +146,7 @@ def test_filter_panel_html_not_in_content_div():
 def test_inventory_js_syntax_check():
     """inventory.js 語法必須通過"""
     result = subprocess.run(
-        ['node', '--check', os.path.join('static', 'js', 'render', 'inventory.js')],
+        ['node', '--check', *INVENTORY_JS],
         capture_output=True,
         text=True,
         timeout=30,
@@ -155,7 +163,7 @@ def test_filter_chips_responsive_contract():
     - F5 重整 → renderInventory 被呼叫 → #filter-panel 被顯示 → buildFilterPanel 重新計算
     - 視窗 resize → 300ms 防抖後重新計算
     """
-    js = read(os.path.join('static', 'js', 'render', 'inventory.js'))
+    js = read_inventory_js()
     
     # 查驗三大件：顯示、寬度計算、渲染邏輯
     assert 'function renderInventory()' in js

@@ -1,10 +1,6 @@
 const assert = require('assert');
-const fs = require('fs');
 const vm = require('vm');
-
-const globalsSource = fs.readFileSync('static/js/globals.js', 'utf8');
-const calendarRenderSource = fs.readFileSync('static/js/render/calendar.js', 'utf8');
-const calendarModalSource = fs.readFileSync('static/js/modals/calendar.js', 'utf8');
+const { installApiClient, loadModules, mockResponse } = require('./support/frontend-runtime');
 
 /**
  * Provide the minimum DOM surface required by the production Calendar handlers.
@@ -120,40 +116,42 @@ function createContext() {
 
       if (url.startsWith('/api/appointments?year=')) {
         calls.refreshes += 1;
-        return { ok: true, async json() { return state.events; } };
+        return mockResponse(state.events);
       }
       if (url.startsWith('/api/appointments?date=')) {
-        return { ok: true, async json() { return state.events; } };
+        return mockResponse(state.events);
       }
       if (url === '/api/service-types') {
-        return { ok: true, async json() { return state.services; } };
+        return mockResponse(state.services);
       }
       if (url === '/api/assignable-users') {
-        return { ok: true, async json() { return state.assignable; } };
+        return mockResponse(state.assignable);
       }
       if (method === 'POST' && url === '/api/appointments') {
         const body = JSON.parse(options.body);
         state.events.push({ ...body, id: 2, user_ids: body.user_ids || [], updated_at: 'new' });
-        return { ok: true, async json() { return { id: 2 }; } };
+        return mockResponse({ id: 2 });
       }
       if (method === 'PUT' && url === '/api/appointments/1') {
         const body = JSON.parse(options.body);
         state.events = state.events.map(event => event.id === 1 ? { ...event, ...body } : event);
-        return { ok: true, async json() { return { id: 1 }; } };
+        return mockResponse({ id: 1 });
       }
       if (method === 'DELETE' && url === '/api/appointments/2') {
         state.events = state.events.filter(event => event.id !== 2);
-        return { ok: true, async json() { return {}; } };
+        return mockResponse({});
       }
       throw new Error(`Unexpected request: ${method} ${url}`);
     },
   };
   vm.createContext(context);
-  vm.runInContext(globalsSource, context);
-  context.calMonth = month;
-  context.calSelected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  vm.runInContext(calendarRenderSource, context);
-  vm.runInContext(calendarModalSource, context);
+  installApiClient(context);
+  loadModules(context, 'core/state.js', 'features/calendar/state.js');
+  context.appState.calMonth = month;
+  context.calendarState.calSelected = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  // issue #39：頁面外殼 renderCalendar 在 features/calendar/page.js
+  loadModules(context, 'features/calendar/format.js', 'features/calendar/sync-status.js', 'features/calendar/search.js',
+    'features/calendar/view.js', 'features/calendar/appt-modal.js', 'features/calendar/page.js');
 
   // Page-entry dependencies outside this finding are kept minimal: the actual
   // renderCalendar/calLoadData/page-shell path remains production code.
@@ -178,9 +176,11 @@ function createContext() {
 async function assertCalendarLoad(context, state) {
   const applied = await context.calLoadData();
   assert.strictEqual(applied, true, 'Calendar load should apply the API response');
-  assert.deepStrictEqual(Array.from(context.calEvents), state.events);
-  assert.deepStrictEqual(Array.from(context.calSvc), state.services);
-  assert.deepStrictEqual(Array.from(context.calAssignable), state.assignable);
+  // 回應經 JSON 解析（與瀏覽器相同，是新物件），以值比較
+  const plain = value => JSON.parse(JSON.stringify(value));
+  assert.deepStrictEqual(plain(context.calendarState.calEvents), state.events);
+  assert.deepStrictEqual(plain(context.calendarState.calSvc), state.services);
+  assert.deepStrictEqual(plain(context.calendarState.calAssignable), state.assignable);
 }
 
 (async () => {
@@ -188,10 +188,10 @@ async function assertCalendarLoad(context, state) {
   const get = id => dom.elements.get(id) || dom.document.getElementById(id);
 
   // Execute the actual month renderer across every supported week-count shape.
-  context.calEvents = [];
-  context.calLoadError = null;
+  context.calendarState.calEvents = [];
+  context.calendarState.calLoadError = null;
   for (const [month, weeks, cellCount] of [[1, 4, 35], [8, 5, 42], [7, 6, 49]]) {
-    context.calMonth = new Date(2026, month, 1);
+    context.appState.calMonth = new Date(2026, month, 1);
     context.calRenderMonthProduction();
     assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
     assert.strictEqual(get('cal-grid').children.length, cellCount);
@@ -202,14 +202,14 @@ async function assertCalendarLoad(context, state) {
   }
   // Loading skeleton must follow the month being loaded, not the previous month's row count.
   for (const [month, weeks] of [[1, 4], [7, 6]]) {
-    context.calMonth = new Date(2026, month, 1);
+    context.appState.calMonth = new Date(2026, month, 1);
     context.calRenderLoadingUi();
     const html = get('cal-grid').innerHTML;
     assert.strictEqual(get('cal-grid').style['--cal-week-count'], String(weeks));
     assert.strictEqual((html.match(/cal-skeleton-cell/g) || []).length, weeks * 7);
     assert.strictEqual((html.match(/class="cal-weekday/g) || []).length, 7);
   }
-  context.calMonth = new Date();
+  context.appState.calMonth = new Date();
 
 
   // F1: execute the production page entry instead of jumping directly to calLoadData.
