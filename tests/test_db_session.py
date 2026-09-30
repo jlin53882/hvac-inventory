@@ -15,7 +15,6 @@ ROOT = Path(__file__).resolve().parent.parent
 # 換成 db_session 後 patch 會失效，需連同測試一起改；改完請從這裡移除。
 NOT_MIGRATED = {
     "app/services/gcal_sync.py",
-    "app/services/sync_scheduler.py",
 }
 
 

@@ -20,7 +20,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import app.config as _cfg
-from app.database import get_db
+from app.database import db_session
 from app.services import gcal_sync
 from app.services.gcal_log import get_logger
 
@@ -163,45 +163,38 @@ def get_health() -> dict:
         "exhausted_count": 0,
         "paused_count": 0,
     })
-    conn = None
     try:
-        conn = get_db()
-        health["active_keys"] = conn.execute(
-            "SELECT COUNT(*) AS c FROM gcal_keys WHERE is_active=1"
-        ).fetchone()["c"]
-        health["pending_count"] = conn.execute(
-            "SELECT COUNT(*) AS c FROM appointment_sync_queue "
-            "WHERE attempts < ? AND COALESCE(last_error,'')=''", (_MAX_ATTEMPTS,)
-        ).fetchone()["c"]
-        health["retrying_count"] = conn.execute(
-            "SELECT COUNT(*) AS c FROM appointment_sync_queue "
-            "WHERE attempts < ? AND COALESCE(last_error,'')<>''", (_MAX_ATTEMPTS,)
-        ).fetchone()["c"]
-        health["exhausted_count"] = conn.execute(
-            "SELECT COUNT(*) AS c FROM appointment_sync_queue WHERE attempts >= ?",
-            (_MAX_ATTEMPTS,),
-        ).fetchone()["c"]
-        health["paused_count"] = conn.execute(
-            "SELECT COUNT(*) AS c FROM appointment_sync_queue q "
-            "LEFT JOIN gcal_keys k ON k.id=q.key_id WHERE COALESCE(k.is_active,0)=0"
-        ).fetchone()["c"]
+        with db_session() as conn:
+            health["active_keys"] = conn.execute(
+                "SELECT COUNT(*) AS c FROM gcal_keys WHERE is_active=1"
+            ).fetchone()["c"]
+            health["pending_count"] = conn.execute(
+                "SELECT COUNT(*) AS c FROM appointment_sync_queue "
+                "WHERE attempts < ? AND COALESCE(last_error,'')=''", (_MAX_ATTEMPTS,)
+            ).fetchone()["c"]
+            health["retrying_count"] = conn.execute(
+                "SELECT COUNT(*) AS c FROM appointment_sync_queue "
+                "WHERE attempts < ? AND COALESCE(last_error,'')<>''", (_MAX_ATTEMPTS,)
+            ).fetchone()["c"]
+            health["exhausted_count"] = conn.execute(
+                "SELECT COUNT(*) AS c FROM appointment_sync_queue WHERE attempts >= ?",
+                (_MAX_ATTEMPTS,),
+            ).fetchone()["c"]
+            health["paused_count"] = conn.execute(
+                "SELECT COUNT(*) AS c FROM appointment_sync_queue q "
+                "LEFT JOIN gcal_keys k ON k.id=q.key_id WHERE COALESCE(k.is_active,0)=0"
+            ).fetchone()["c"]
     except Exception as error:
         health["last_error"] = _health_error(error)
-    finally:
-        if conn is not None:
-            conn.close()
     return health
 
 def _get_sync_interval() -> int:
     """從 gcal_sync_settings 讀取同步間隔（分鐘），回傳秒數。"""
     try:
-        conn = get_db()
-        try:
+        with db_session() as conn:
             row = conn.execute("SELECT value FROM gcal_sync_settings WHERE key='gcal_sync_interval_min'").fetchone()
-            minutes = int(row["value"]) if row else 5
-            return max(1, min(30, minutes)) * 60  # 限制 1~30 分鐘
-        finally:
-            conn.close()
+        minutes = int(row["value"]) if row else 5
+        return max(1, min(30, minutes)) * 60  # 限制 1~30 分鐘
     except Exception:
         return _INTERVAL  # fallback 5 分鐘
 
@@ -251,18 +244,16 @@ def _format_sync_error_line(key_id: int, info: dict) -> str:
 
 def _finalize_pending_migrations():
     """Recovery 後讓已無 map/D queue 的 pending Key 走既有 finalize gate。"""
-    conn = get_db()
     try:
-        rows = conn.execute(
-            "SELECT id FROM gcal_keys WHERE pending_calendar_id IS NOT NULL"
-        ).fetchall()
+        with db_session() as conn:
+            rows = conn.execute(
+                "SELECT id FROM gcal_keys WHERE pending_calendar_id IS NOT NULL"
+            ).fetchall()
     except sqlite3.OperationalError as error:
         # Fake scheduler connections in unit tests may not expose the schema.
         if "no such table" not in str(error):
             raise
         return
-    finally:
-        conn.close()
     for row in rows:
         try:
             key_id = row["id"]
@@ -276,16 +267,13 @@ def _load_eligible_queue_rows() -> list:
 
     Python 端再守一次 attempts 上限：即使呼叫端 / 測試傳入過期的列，force 語意也不會失效。
     """
-    conn = get_db()
-    try:
+    with db_session() as conn:
         rows = conn.execute(
             "SELECT q.appointment_id, q.key_id, q.op_type, q.google_event_id, "
             "q.last_modified_at, q.attempts "
             "FROM appointment_sync_queue q JOIN gcal_keys k ON k.id=q.key_id "
             "WHERE q.attempts < ? AND k.is_active=1", (_MAX_ATTEMPTS,)
         ).fetchall()
-    finally:
-        conn.close()
 
     # Python-side guard protects force semantics even when a caller/test supplies a stale row.
     eligible = []

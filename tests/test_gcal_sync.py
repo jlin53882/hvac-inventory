@@ -1231,7 +1231,7 @@ class TestDiscordNotification:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
@@ -1248,7 +1248,7 @@ class TestDiscordNotification:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
@@ -1273,7 +1273,7 @@ class TestDiscordNotification:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
@@ -1493,7 +1493,7 @@ class TestDiscordNotificationFormat:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
@@ -1518,7 +1518,7 @@ class TestDiscordNotificationFormat:
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
         monkeypatch.setattr(sync_scheduler, "_due_ids", lambda rows, now, **kw: {(1, 1)})
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=[
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=[
             {"appointment_id": 1, "key_id": 1, "op_type": "C",
              "google_event_id": "", "last_modified_at": "2026-01-01 00:00:00"}
         ]))
@@ -1671,7 +1671,7 @@ class TestSchedulerReliability:
         def broken_db():
             raise RuntimeError(r"C:\secrets\service-account.json: private_key")
 
-        monkeypatch.setattr(sync_scheduler, "get_db", broken_db)
+        _patch_scheduler_db(monkeypatch, broken_db)
         health = sync_scheduler.get_health()
         assert health["last_error"] == "RuntimeError: scheduler round failed"
         assert "service-account.json" not in str(health)
@@ -1684,7 +1684,7 @@ class TestSchedulerReliability:
         recent = (datetime.utcnow() - timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=False)
         assert called == []
@@ -1697,7 +1697,7 @@ class TestSchedulerReliability:
         recent = (datetime.utcnow() - timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=self._run_rows(last_modified_at=recent)))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=True)
         assert len(called) == 1
@@ -1709,7 +1709,7 @@ class TestSchedulerReliability:
         called = []
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows(attempts=5)))
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=self._run_rows(attempts=5)))
         monkeypatch.setattr(sync_scheduler.gcal_sync, "sync_pending", lambda due, wake=None: called.append(due) or (1, 0, {}))
         sync_scheduler._run_once(force=True)
         assert called == []
@@ -1727,7 +1727,7 @@ class TestSchedulerReliability:
         state_lock = threading.Lock()
         monkeypatch.setattr(sync_scheduler.gcal_sync, "is_enabled", lambda: True)
         monkeypatch.setattr(sync_scheduler.gcal_sync, "recover_pending_calendar_migrations", lambda: 0)
-        monkeypatch.setattr(sync_scheduler, "get_db", lambda: _FakeConn(rows=self._run_rows()))
+        _patch_scheduler_db(monkeypatch, lambda: _FakeConn(rows=self._run_rows()))
 
         def fake_sync(due, wake=None):
             nonlocal active, max_active, calls
@@ -2209,6 +2209,22 @@ def test_insert_body_contains_stable_id_not_keyword_arg(client, monkeypatch):
     insert_body = insert_kwargs["body"]
     expected_id = gcal_sync.stable_event_id(appt_id, key_id)
     assert insert_body["id"] == expected_id, f"body.id 應為 stable_id，實際為 {insert_body.get('id')}"
+
+
+def _patch_scheduler_db(monkeypatch, connection_factory):
+    """讓 sync_scheduler 的 db_session() 產生假連線（factory 拋例外 = 模擬取得連線失敗）。"""
+    from contextlib import contextmanager
+    from app.services import sync_scheduler
+
+    @contextmanager
+    def fake_db_session():
+        conn = connection_factory()
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    monkeypatch.setattr(sync_scheduler, "db_session", fake_db_session)
 
 
 class _FakeConn:
