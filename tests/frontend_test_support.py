@@ -138,6 +138,15 @@ def page_modules(html_path) -> set:
     return seen
 
 
+_INCLUDE_RE = re.compile(r"<!-- include: ([\w-]+) -->")
+
+
+def read_page_served(html_path: str) -> str:
+    """HTML 原文並展開 <!-- include: name --> 為 static/partials/name.html（與 main._expand_includes 相同）；
+    檢查「頁面實際載入了哪些 CSS」時用這個，不要直接讀磁碟上的頁面檔（共用 <link> 在 partial 裡）。"""
+    return _INCLUDE_RE.sub(lambda m: read(os.path.join(STATIC, "partials", m.group(1) + ".html")).rstrip("\n"), read(html_path))
+
+
 def read_shared_css() -> str:
     """全部共用樣式（base / layout / components）依檔名順序串接。"""
     parts = []

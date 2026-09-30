@@ -11,7 +11,7 @@ middleware 抽取 / calendar.js 拆 3 檔 / style.css 拆 2 檔）——現有�
 """
 import os
 
-from frontend_test_support import js_modules, read as read_js
+from frontend_test_support import js_modules, read as read_js, read_page_served
 
 STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app")
@@ -121,6 +121,6 @@ def test_style_css_split_two_files():
     assert idx.index('/static/css/2-layout/shell.css') < idx.index('/static/css/4-pages/calendar.css')
     assert '/static/css/style.css"' not in idx
     for page in ("permissions.html", "settings.html"):
-        html = read(os.path.join(STATIC, page))
+        html = read_page_served(os.path.join(STATIC, page))
         for rel in ("1-base/base.css", "2-layout/shell.css", "2-layout/topbar.css", "3-components/button.css"):
             assert f'/static/css/{rel}' in html, f"{page} 缺少共用樣式 {rel}"

@@ -89,6 +89,17 @@ for _r in (items.router, movements.router, transfers.router, stockout.router, ki
 # static 資源 URL regex（_versioned_html 版本化用）
 _STATIC_RE = re.compile(r'(/static/[^"\'? >]+?)(\?v=[^"\' >]*)?(?=["\' >])')
 
+# HTML partial：頁面寫 <!-- include: <name> --> ，送出時換成 static/partials/<name>.html 的內容（單層、不巢狀）。
+# 目前只用來共用 settings / permissions 的共用 CSS <link>；partial 內的 /static/ 資源之後照常帶 ?v=mtime。
+_INCLUDE_RE = re.compile(r'<!-- include: ([\w-]+) -->')
+
+def _expand_includes(html: str) -> str:
+    """把 <!-- include: name --> 換成 static/partials/name.html（檔案不存在 = 部署不完整，直接丟錯而不是送出缺樣式的頁面）"""
+    def _swap(m):
+        with open(os.path.join(STATIC_DIR, "partials", m.group(1) + ".html"), encoding="utf-8") as fh:
+            return fh.read().rstrip("\n")
+    return _INCLUDE_RE.sub(_swap, html)
+
 # 前端 JS 建置結果（Vite，issue #39）：各頁 HTML 只寫原始進入點 /static/js/pages/<page>.js，
 # 送出時依 static/dist/.vite/manifest.json 換成打包後的檔案；沒有建置結果或設定
 # HVAC_FRONTEND_SOURCE=1（開發時不想每次重建）時，直接載入原始 ES modules。
@@ -199,7 +210,7 @@ def _versioned_html(path: str) -> Response:
             return f"{url}?v={os.stat(fp).st_mtime_ns}"
         return m.group(0)                     # 檔案不存在（不該發生）→ 原樣保留
 
-    html = _STATIC_RE.sub(_swap, _use_dist_entries(html))
+    html = _STATIC_RE.sub(_swap, _use_dist_entries(_expand_includes(html)))
     return Response(html, media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/")

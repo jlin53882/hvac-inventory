@@ -25,6 +25,7 @@ import pytest
 from frontend_test_support import (
     page_modules,
     js_modules,
+    read_page_served,
     read_page_with_css,
     ADD_JS,
     API_JS,
@@ -111,6 +112,30 @@ def test_index_has_no_manual_version_params():
     assert refs, "找不到資源引用"
     bad = [x for x in refs if "?v=" in x]
     assert not bad, f"資源引用有手動版本號: {bad}"
+
+
+def test_settings_and_permissions_share_css_partial():
+    """settings / permissions 的共用 CSS（0-tokens ~ 3-components）只寫在 static/partials/shared-css.html，
+    兩頁用 <!-- include: shared-css --> 引入，不得各自複製 <link>（新增共用 CSS 只改一處）。
+    送出的 HTML 兩頁展開後的共用清單必須一致；頁面專屬 CSS（4-pages）與 utilities 仍寫在各頁。"""
+    import main as app_main
+    shared_link = re.compile(r'<link rel="stylesheet" href="/static/css/[0-3]-[^"]+">')
+    partial = read(os.path.join(STATIC, "partials", "shared-css.html"))
+    shared = shared_link.findall(partial)
+    assert len(shared) >= 20 and partial.count("<link") == len(shared), "partial 只放 0~3 層的共用 <link>"
+    for name, page_css in (("settings.html", "4-pages/settings.css"), ("permissions.html", "4-pages/permissions.css")):
+        html = read(os.path.join(STATIC, name))
+        assert html.count("<!-- include: shared-css -->") == 1, f"{name} 沒有引入 shared-css"
+        assert not shared_link.search(html), f"{name} 不應再自己寫共用 CSS <link>（放進 partials/shared-css.html）"
+        assert f'href="/static/css/{page_css}"' in html and 'href="/static/css/5-utilities/utilities.css"' in html
+        assert shared_link.findall(app_main._expand_includes(html)) == shared, f"{name} 展開後共用 CSS 與 partial 不一致"
+
+
+def test_every_html_include_has_a_partial():
+    """每個 <!-- include: name --> 都要有對應的 static/partials/name.html（缺檔時頁面會 500，測試先擋）。"""
+    for page in Path(STATIC).glob("*.html"):
+        for name in re.findall(r"<!-- include: ([\w-]+) -->", read(str(page))):
+            assert (Path(STATIC) / "partials" / f"{name}.html").is_file(), f"{page.name} include 的 {name} 沒有 partial 檔"
 
 
 def test_index_html_div_balanced():
@@ -5229,7 +5254,7 @@ def test_page_scope_contract():
     tokens = read(os.path.join(STATIC, "css", "0-tokens", "tokens.css"))
     assert "@layer tokens, base, layout, components, pages, utilities;" in tokens
     for page in ("index.html", "settings.html", "permissions.html", "login.html"):
-        html = read(os.path.join(STATIC, page))
+        html = read_page_served(os.path.join(STATIC, page))
         first_css = html.index('<link rel="stylesheet"')
         assert html.index("/static/css/0-tokens/tokens.css") == html.index("/static/css/", first_css), f"{page} 必須最先載入 tokens.css"
     for page, scope in (("settings.html", "settings"), ("permissions.html", "permissions"), ("login.html", "login")):
