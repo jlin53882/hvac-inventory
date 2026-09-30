@@ -6,6 +6,7 @@ import { apiFetch } from '../../core/api-client.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, ITEMLESS_TABS, appState } from '../../core/state.js';
+import { getInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { shellState } from './state.js';
 
@@ -43,7 +44,7 @@ export async function loadData(options) {
   // P1-D：mutation 後的 loadData 預設刷新 global summary；搜尋/換頁/filter 走 wrapper（不刷）。
   const refreshSummary = !options || options.refreshSummary !== false;
   if (!full && appState.currentTab === 'inventory') {
-    await loadInventoryPageImpl(appState.INVENTORY_META.page || 1, refreshSummary, true, refreshDestinations);
+    await loadInventoryPageImpl(getInventoryMeta().page || 1, refreshSummary, true, refreshDestinations);
     return;
   }
   const controller = new AbortController();
@@ -130,7 +131,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     const params = new URLSearchParams({
       site: siteAtRequest,
       page: String(pageAtRequest),
-      page_size: String(appState.INVENTORY_META.page_size || 50),
+      page_size: String(getInventoryMeta().page_size || 50),
       sort: 'brand',
     });
     const search = document.getElementById('search-input');
@@ -194,7 +195,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
 }
 
 export function changeInventoryPage(page) {
-  if (page < 1 || page > Math.ceil(appState.INVENTORY_META.total / appState.INVENTORY_META.page_size)) return;
+  if (page < 1 || page > Math.ceil(getInventoryMeta().total / getInventoryMeta().page_size)) return;
   loadInventoryPage(page);
 }
 

@@ -3,6 +3,7 @@
 import { buildThumb } from '../../components/card.js';
 import { openSharedStatusListModal, statusListFormatQuantity } from '../../components/status-list.js';
 import { appState } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { esc, hasPerm } from '../../core/utils.js';
 
 export function getKitStatus(kit) {
@@ -22,7 +23,7 @@ export function getKitStatus(kit) {
 
 function renderKitStatusItem(kit, type) {
   const stock = Number(kit.stock_qty || 0);
-  const source = Array.isArray(appState.ALL_ITEMS) ? appState.ALL_ITEMS.find(function(item) { return Number(item.id) === Number(kit.item_id); }) || {} : {};
+  const source = Array.isArray(getAllItems()) ? getAllItems().find(function(item) { return Number(item.id) === Number(kit.item_id); }) || {} : {};
   const location = kit.location || source.location || (source.stocks && source.stocks[0] && source.stocks[0].location) || '未標示';
   const isShortage = type === 'shortage';
   const statusLabel = isShortage ? '缺料' : '庫存不足';

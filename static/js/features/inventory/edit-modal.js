@@ -3,6 +3,7 @@
 import { apiFetch } from '../../core/api-client.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { appState, INVENTORY_ALERT_ITEMS } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { inventoryState } from './state.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, esc, hasPerm, openModal, toast } from '../../core/utils.js';
@@ -13,7 +14,7 @@ var editUpdatedAt = null;  // 2026-08-14 樂觀鎖：開啟編輯 modal 時的 u
 // ========== 編輯品項 ==========
 function getInventoryEditableItem(id) {
   const numericId = Number(id);
-  const current = Array.isArray(appState.ALL_ITEMS) ? appState.ALL_ITEMS.find(i => Number(i.id) === numericId) : null;
+  const current = Array.isArray(getAllItems()) ? getAllItems().find(i => Number(i.id) === numericId) : null;
   if (current) return current;
   return INVENTORY_ALERT_ITEMS[String(numericId)] || null;
 }

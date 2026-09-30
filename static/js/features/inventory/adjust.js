@@ -4,6 +4,7 @@ import { apiFetch } from '../../core/api-client.js';
 import { loadData } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { INVENTORY_PENDING_ITEMS, appState, pending, pendingByStock } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { toast } from '../../core/utils.js';
 import { queueInventoryAdjustment } from './location-adjustments.js';
 import { openQtyDialog } from './qty-dialog.js';
@@ -95,7 +96,7 @@ export function changeQty(id, delta) {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }
-  const item = appState.ALL_ITEMS.find(function(candidate) { return Number(candidate.id) === Number(id); });
+  const item = getAllItems().find(function(candidate) { return Number(candidate.id) === Number(id); });
   if (!item) return;
   if (Qty.inputTypeOf(item.unit) !== 'integer') {
     openQtyDialog(id, delta > 0 ? 'add' : 'sub'); return;
@@ -113,7 +114,7 @@ export function quickSet(id) {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }
-  const item = appState.ALL_ITEMS.find(function(candidate) { return Number(candidate.id) === Number(id); });
+  const item = getAllItems().find(function(candidate) { return Number(candidate.id) === Number(id); });
   if (!item) return;
   if (Array.isArray(item.stocks) && item.stocks.length > 1) {
     openQtyDialog(id, 'choose');

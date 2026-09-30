@@ -10,6 +10,7 @@ import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { currentUser } from '../../core/session.js';
 import { appState } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { esc, jsStr, toast, todayStr } from '../../core/utils.js';
 import { getInventoryStatus, rememberInventoryAlertItem } from '../inventory/status.js';
 import { stocktakeState } from './state.js';
@@ -53,11 +54,11 @@ export async function renderStocktake() {
   if (!isCurrent()) return;
 
   const statusOf = getInventoryStatus;
-  const zeroItems = appState.ALL_ITEMS.filter(i => statusOf(i).isOutOfStock);
-  const lowItems = appState.ALL_ITEMS.filter(i => statusOf(i).isLowStock);
+  const zeroItems = getAllItems().filter(i => statusOf(i).isOutOfStock);
+  const lowItems = getAllItems().filter(i => statusOf(i).isLowStock);
   const zero = zeroItems.length;
   const low = lowItems.length;
-  const totalQty = appState.ALL_ITEMS.reduce((s, i) => s + i.qty, 0);
+  const totalQty = getAllItems().reduce((s, i) => s + i.qty, 0);
   const totalQtyStr = (Math.round(totalQty * 1000) / 1000).toLocaleString('en-US');
 
   let html = `<section class="stocktake-page-header">
@@ -68,7 +69,7 @@ export async function renderStocktake() {
     html += `<div class="stocktake-error-state"><h2>載入盤點資料失敗</h2><p>部分盤點資料無法載入，請重新載入。</p><button type="button" class="btn btn--secondary btn--md btn-cancel" onclick="Stocktake.renderStocktake()">重新載入</button></div>`;
   }
   html += `<section class="stocktake-kpi-grid ui-kpi-grid">
-    <div class="stocktake-kpi-card ui-kpi-card ui-kpi-card--blue"><div class="stocktake-kpi-icon ui-kpi-icon">📦</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">品項總數</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(appState.ALL_ITEMS.length))}</div><span class="ui-kpi-meta">目前庫存品項</span></div></div>
+    <div class="stocktake-kpi-card ui-kpi-card ui-kpi-card--blue"><div class="stocktake-kpi-icon ui-kpi-icon">📦</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">品項總數</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(getAllItems().length))}</div><span class="ui-kpi-meta">目前庫存品項</span></div></div>
     <div class="stocktake-kpi-card ui-kpi-card ui-kpi-card--purple"><div class="stocktake-kpi-icon ui-kpi-icon">🗄️</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">庫存總數(件)</div><div class="stocktake-kpi-number ui-kpi-value">${totalQtyStr}</div><span class="ui-kpi-meta">全部品項合計</span></div></div>
     <button type="button" class="stocktake-kpi-card ui-kpi-card ui-kpi-card--amber clickable warn" onclick="Stocktake.showStocktakeList('low')" aria-label="查看低庫存品項"><div class="stocktake-kpi-icon ui-kpi-icon">⚠</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">低庫存</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(low))}</div><span class="ui-kpi-meta">低於警示值 · 查看清單</span></div></button>
     <button type="button" class="stocktake-kpi-card ui-kpi-card ui-kpi-card--red clickable danger" onclick="Stocktake.showStocktakeList('zero')" aria-label="查看缺貨品項"><div class="stocktake-kpi-icon ui-kpi-icon">⛔</div><div class="ui-kpi-body"><div class="stocktake-kpi-label ui-kpi-label">缺貨</div><div class="stocktake-kpi-number ui-kpi-value">${esc(String(zero))}</div><span class="ui-kpi-meta">數量為 0 · 查看清單</span></div></button>
@@ -86,7 +87,7 @@ export async function renderStocktake() {
     html += '</tbody></table></section>';
   }
 
-  html += `<section class="stocktake-current-header"><div class="stocktake-current-heading"><span>✏️ 本次盤點</span><span class="stocktake-current-date">${esc(todayStr())}</span></div><span class="stocktake-current-date">共 ${esc(String(appState.ALL_ITEMS.length))} 項</span></section>`;
+  html += `<section class="stocktake-current-header"><div class="stocktake-current-heading"><span>✏️ 本次盤點</span><span class="stocktake-current-date">${esc(todayStr())}</span></div><span class="stocktake-current-date">共 ${esc(String(getAllItems().length))} 項</span></section>`;
   if (!canStocktake) {
     html += `<div class="stocktake-readonly-panel">🔒 盤點作業僅限管理員 / 一般使用者操作<br><small>檢視者與工程師為唯讀，可瀏覽上方盤點歷史與統計</small></div>`;
     if (!isCurrent()) return;
@@ -96,7 +97,7 @@ export async function renderStocktake() {
   html += `<section class="stocktake-info-panel"><div class="stocktake-info-title">ℹ️ 盤點操作說明</div>輸入實際清點數量後，系統會自動計算盤盈 / 盤虧。<br>未填寫的品項維持原數量不變；輸入 0 才代表實際庫存為 0。<br>「整組」盤點完整設備組數；「單一材料」盤點個別庫存品項。</section>`;
 
   const rows = [];
-  appState.ALL_ITEMS.forEach(i => {
+  getAllItems().forEach(i => {
     const stocks = i.stocks && i.stocks.length ? i.stocks : [{ location: i.location || '', qty: i.qty }];
     stocks.forEach(s => rows.push({ item: i, stock: s }));
   });
@@ -129,7 +130,7 @@ function stocktakeRow(item, stock, kitDef) {
   const key = `${item.id}:${stock.location}`;
   const systemQty = Qty.format(stock.qty, Qty.unitTypeOf(item.unit));
   const materials = kitDef && kitDef.components && kitDef.components.length ? kitDef.components.map(function(c) {
-    const material = appState.ALL_ITEMS.find(x => x.id === c.item_id);
+    const material = getAllItems().find(x => x.id === c.item_id);
     const materialStock = material && material.stocks && material.stocks.length ? (material.stocks.find(s => s.location === stock.location) || material.stocks[0]) : null;
     const materialLocation = materialStock ? materialStock.location : '';
     const materialKey = `${c.item_id}:${materialLocation}`;
@@ -187,7 +188,7 @@ function renderStocktakeStatusItem(item, isLow) {
 
 export function showStocktakeList(type) {
   const isLow = type === 'low';
-  const items = appState.ALL_ITEMS.filter(function(item) {
+  const items = getAllItems().filter(function(item) {
     const status = getInventoryStatus(item);
     return isLow ? status.isLowStock : status.isOutOfStock;
   }).sort(function(a, b) { return getInventoryStatus(a).qty - getInventoryStatus(b).qty; });
@@ -209,7 +210,7 @@ export function showStocktakeList(type) {
 export function markChanged(input, key) {
   // key = "itemId:location"
   const parts = key.split(':');
-  const item = appState.ALL_ITEMS.find(i => i.id === parseInt(parts[0]));
+  const item = getAllItems().find(i => i.id === parseInt(parts[0]));
   const stock = (item && item.stocks || []).find(s => s.location === parts[1]);
   if (stock) {
     let _chg = true;
@@ -227,7 +228,7 @@ export async function submitStocktake() {
     const parts = key.split(':');
     const itemId = parseInt(parts[0]);
     const location = parts[1];
-    const item = appState.ALL_ITEMS.find(i => i.id === itemId);
+    const item = getAllItems().find(i => i.id === itemId);
     const stock = (item && item.stocks || []).find(s => s.location === location);
 
     // 2026-09-12：分數可輸；空白維持舊語意（=系統數量）；非法整包擋下

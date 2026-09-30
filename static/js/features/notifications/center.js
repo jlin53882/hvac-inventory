@@ -4,6 +4,7 @@
 
 import { canAccessPage, currentUser } from '../../core/session.js';
 import { appState } from '../../core/state.js';
+import { getAllItems, getInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems } from '../inventory/filters.js';
 import { getInventoryDashboardStats, getInventoryStatus, showInventoryStatusList } from '../inventory/status.js';
@@ -30,7 +31,7 @@ export function getStocktakeReminderState() {
 }
 
 function getNotificationSingleCounts() {
-  const stats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
+  const stats = getInventoryMeta().stats;
   const hasStatsItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
   if (appState.currentTab === 'inventory') {
     if (typeof appState.inventoryLoadedSite !== 'undefined' && appState.inventoryLoadedSite !== appState.currentSite && !hasStatsItems) {
@@ -48,10 +49,10 @@ function getNotificationSingleCounts() {
     };
   }
   if (appState.currentTab === 'stocktake') {
-    if (typeof appState.fullItemsLoadedSite !== 'undefined' && appState.fullItemsLoadedSite !== appState.currentSite && !(appState.ALL_ITEMS || []).length) {
+    if (typeof appState.fullItemsLoadedSite !== 'undefined' && appState.fullItemsLoadedSite !== appState.currentSite && !(getAllItems() || []).length) {
       return { loading: true, out: 0, low: 0 };
     }
-    const items = Array.isArray(appState.ALL_ITEMS) ? appState.ALL_ITEMS : [];
+    const items = Array.isArray(getAllItems()) ? getAllItems() : [];
     const statusOf = getInventoryStatus;
     return {
       loading: false,

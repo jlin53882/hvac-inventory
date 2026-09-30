@@ -80,7 +80,7 @@ def test_photo_lightbox_uses_preview_variant():
 
 def test_photo_replace_updates_item_state_before_modal_render():
     source = (ROOT / "static/js/features/inventory/photo.js").read_text(encoding="utf-8")
-    state_update = source.index("const item = appState.ALL_ITEMS.find(i => i.id === itemId);")
+    state_update = source.index("const item = getAllItems().find(i => i.id === itemId);")
     modal_render = source.index("renderPhotoBox(itemId, true);")
     assert state_update < modal_render
     assert source.index("item.thumbnail_url = body.thumbnail_url", state_update) < modal_render

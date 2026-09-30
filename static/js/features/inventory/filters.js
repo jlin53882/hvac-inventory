@@ -2,6 +2,7 @@
 
 import { loadInventoryPage } from '../shell/data-refresh.js';
 import { appState } from '../../core/state.js';
+import { getAllItems, getInventoryFacets, getInventoryMeta } from '../../core/inventory-read-model.js';
 import { esc, jsStr } from '../../core/utils.js';
 
 export function getInventoryFilterKeywords() {
@@ -27,15 +28,15 @@ export function inventoryItemMatchesCurrentFilters(item, keywords) {
 // 回傳符合當前搜尋 + 品牌 + 分類篩選的非整組品項（供全選 / render 共用）
 export function getFilteredInventoryItems() {
   const keywords = getInventoryFilterKeywords();
-  return appState.ALL_ITEMS.filter(function(item) {
+  return getAllItems().filter(function(item) {
     return inventoryItemMatchesCurrentFilters(item, keywords);
   });
 }
 
 
 function renderInventoryChips() {
-  const brands = [...new Set(appState.ALL_ITEMS.filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
-  const cats = [...new Set(appState.ALL_ITEMS.filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
+  const brands = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.brand || '無廠牌'))].sort();
+  const cats = [...new Set(getAllItems().filter(i => !i.is_kit).map(i => i.category || '').filter(Boolean))].sort();
   let h = '<div class="chip-bar">';
   h += '<span class="chip' + (appState.currentBrands.length === 0 ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryBrand(\'\')">全部廠牌</span>';
   brands.forEach(b => { h += '<span class="chip' + (appState.currentBrands.includes(b) ? ' is-active' : '') + '" onclick="Inventory.toggleInventoryBrand(\'' + esc(jsStr(b)) + '\')">' + esc(b) + '</span>'; });
@@ -84,11 +85,11 @@ export function buildFilterPanel() {
   }
 
   try {
-    var brandCounts = appState.INVENTORY_FACETS && appState.INVENTORY_FACETS.brands && Object.keys(appState.INVENTORY_FACETS.brands).length
-      ? appState.INVENTORY_FACETS.brands
+    var brandCounts = getInventoryFacets() && getInventoryFacets().brands && Object.keys(getInventoryFacets().brands).length
+      ? getInventoryFacets().brands
       : {};
     if (!Object.keys(brandCounts).length) {
-      appState.ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+      getAllItems().filter(function(i) { return !i.is_kit; }).forEach(function(i) {
         var b = i.brand || '無廠牌';
         brandCounts[b] = (brandCounts[b] || 0) + 1;
       });
@@ -97,11 +98,11 @@ export function buildFilterPanel() {
     document.getElementById('fp-brand-count').textContent = '(' + brands.length + ' 個品牌)';
     renderFilterChips('fp-brand-chips', brands, appState.currentBrands, 'brand', 'fp-brand-toggle');
 
-    var catCounts = appState.INVENTORY_FACETS && appState.INVENTORY_FACETS.categories && Object.keys(appState.INVENTORY_FACETS.categories).length
-      ? appState.INVENTORY_FACETS.categories
+    var catCounts = getInventoryFacets() && getInventoryFacets().categories && Object.keys(getInventoryFacets().categories).length
+      ? getInventoryFacets().categories
       : {};
     if (!Object.keys(catCounts).length) {
-      appState.ALL_ITEMS.filter(function(i) { return !i.is_kit; }).forEach(function(i) {
+      getAllItems().filter(function(i) { return !i.is_kit; }).forEach(function(i) {
         var c = i.category || '';
         if (c) catCounts[c] = (catCounts[c] || 0) + 1;
       });
@@ -110,7 +111,7 @@ export function buildFilterPanel() {
     document.getElementById('fp-cat-count').textContent = '(' + cats.length + ' 類)';
     renderFilterChips('fp-cat-chips', cats, appState.currentCategories, 'category', 'fp-cat-toggle');
     var list = getFilteredItems();
-    document.getElementById('fp-summary').textContent = '共 ' + (appState.INVENTORY_META.total || list.length) + ' 項';
+    document.getElementById('fp-summary').textContent = '共 ' + (getInventoryMeta().total || list.length) + ' 項';
   } catch (e) {
     console.warn('buildFilterPanel error:', e.message);
   }
@@ -216,7 +217,7 @@ function getFilteredItems() {
 
   var kws = raw ? raw.split(/\s+/).filter(function(w) { return w.length > 0; }) : [];
 
-  var list = appState.ALL_ITEMS.filter(function(i) { return !i.is_kit; });
+  var list = getAllItems().filter(function(i) { return !i.is_kit; });
 
   if (appState.currentBrands.length > 0) list = list.filter(function(i) { return appState.currentBrands.includes(i.brand || '無廠牌'); });
 

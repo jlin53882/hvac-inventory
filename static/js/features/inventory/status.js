@@ -3,6 +3,7 @@
 import { clearSharedStatusListModal, renderSharedProductStatusItem, setSharedStatusListContext, statusListLocations } from '../../components/status-list.js';
 import { apiFetch } from '../../core/api-client.js';
 import { INVENTORY_ALERT_ITEMS, INVENTORY_PENDING_ITEMS, appState, pending } from '../../core/state.js';
+import { getInventoryMeta, setInventoryStats } from '../../core/inventory-read-model.js';
 import { esc } from '../../core/utils.js';
 import { getFilteredInventoryItems, getInventoryFilterKeywords, inventoryItemMatchesCurrentFilters } from './filters.js';
 import { inventoryState } from './state.js';
@@ -109,7 +110,7 @@ export function renderInventoryDashboard(list, aggregateStats) {
 function getInventoryStatusItems(type) {
   const isLow = type === 'low';
   const pageItems = getFilteredInventoryItems();
-  const aggregateStats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
+  const aggregateStats = getInventoryMeta().stats;
   const dashboard = getInventoryDashboardStats(pageItems, aggregateStats);
   return (isLow ? dashboard.lowItems : dashboard.zeroItems)
     .slice()
@@ -158,12 +159,10 @@ async function loadInventoryAlertItems(type, requestId) {
     low_items: stats.low_items,
   });
   const adjustedStats = getInventoryDashboardStats(getFilteredInventoryItems(), mergedStats);
-  if (typeof appState.INVENTORY_META !== 'undefined') {
-    appState.INVENTORY_META.stats = Object.assign({}, mergedStats, {
-      zero_items: adjustedStats.zeroItems,
-      low_items: adjustedStats.lowItems,
-    });
-  }
+  setInventoryStats(Object.assign({}, mergedStats, {
+    zero_items: adjustedStats.zeroItems,
+    low_items: adjustedStats.lowItems,
+  }));
   return (type === 'low' ? adjustedStats.lowItems : adjustedStats.zeroItems).slice();
 }
 
@@ -210,7 +209,7 @@ export async function showInventoryStatusList(type) {
   const requestId = inventoryState.inventoryStatusGuard.next();
   inventoryState.inventoryStatusModalType = type;
   let items = getInventoryStatusItems(type);
-  const stats = typeof appState.INVENTORY_META !== 'undefined' ? appState.INVENTORY_META.stats : null;
+  const stats = getInventoryMeta().stats;
   const hasAlertItems = stats && Array.isArray(stats.zero_items) && Array.isArray(stats.low_items);
   modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');

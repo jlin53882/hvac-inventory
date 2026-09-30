@@ -3,6 +3,7 @@
 
 import { Qty } from '../../core/qty.js';
 import { appState, pending } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { closeModalForce, openModal, toast } from '../../core/utils.js';
 import { queueInventoryAdjustment } from './location-adjustments.js';
 import { inventoryState } from './state.js';
@@ -17,7 +18,7 @@ var __qtyMode = 'add';
  * @returns {void}
  */
 export function openQtyDialog(itemId, mode) {
-  const item = (typeof appState.ALL_ITEMS !== 'undefined' ? appState.ALL_ITEMS : []).find(i => i.id === itemId);
+  const item = getAllItems().find(i => i.id === itemId);
   if (!item) return;
   __qtyTargetId = itemId;
   __qtyMode = mode === 'sub' ? 'sub' : 'add';
@@ -64,7 +65,7 @@ export function submitQtyDialog() {
     toast('儲存中，請稍後再調整。', 'info');
     return;
   }
-  const item = (typeof appState.ALL_ITEMS !== 'undefined' ? appState.ALL_ITEMS : []).find(i => Number(i.id) === Number(__qtyTargetId));
+  const item = getAllItems().find(i => Number(i.id) === Number(__qtyTargetId));
   if (!item) { closeModalForce('qty-dialog'); return; }
   const raw = document.getElementById('qtyd-input').value;
   const parsed = Qty.validFor(raw, Qty.inputTypeOf(item.unit));

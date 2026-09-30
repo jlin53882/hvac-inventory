@@ -35,7 +35,12 @@ function moduleScript(relative) {
   return leaves.concat(script).join('\n');
 }
 
-const LEAF_MODULES = { createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js' };
+const READ_MODEL = 'core/inventory-read-model.js';  // 只含讀取 appState 的函式宣告；appState 由測試的 vm context 提供
+const LEAF_MODULES = {
+  createRequestGuard: 'core/request-guard.js', createKeyedRequestGuard: 'core/request-guard.js',
+  getAllItems: READ_MODEL, getInventoryMeta: READ_MODEL, getInventoryFacets: READ_MODEL,
+  setInventoryPage: READ_MODEL, setInventoryStats: READ_MODEL,
+};
 
 function strip(source) {
   return source

@@ -7,6 +7,7 @@ import { loadData } from '../shell/data-refresh.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { appState } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, esc, hasPerm, openModal, toast } from '../../core/utils.js';
 import { renderPrepared } from '../prepared/page.js';
@@ -16,7 +17,7 @@ import { stockoutState } from './state.js';
 // ========== 出庫 ==========
 export function openOutModal(id, ev) {
   if (ev) ev.stopPropagation();
-  const item = appState.ALL_ITEMS.find(i => i.id === id);
+  const item = getAllItems().find(i => i.id === id);
   if (!item) return;
   stockoutState.outItemId = id;
   document.getElementById('o-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
@@ -34,7 +35,7 @@ export function openOutModal(id, ev) {
 
 // 送出「已領出」表單（POST /api/stockout）：驗證數量與去向、扣庫存並記錄
 export async function submitStockOut() {
-  const item = appState.ALL_ITEMS.find(i => i.id === stockoutState.outItemId);
+  const item = getAllItems().find(i => i.id === stockoutState.outItemId);
   const qty = qtyInputOrToast('o-qty', item && item.unit);
   const dest = document.getElementById('o-dest').value.trim();
   const note = document.getElementById('o-note').value.trim();
@@ -133,7 +134,7 @@ export async function submitNonStockPrepare() {
 // ========== 領出準備（兩階段出庫） ==========
 export function openPrepareModal(id, ev) {
   if (ev) ev.stopPropagation();
-  const item = appState.ALL_ITEMS.find(i => i.id === id);
+  const item = getAllItems().find(i => i.id === id);
   if (!item) return;
   stockoutState.prepareItemId = id;
   document.getElementById('p-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
@@ -145,7 +146,7 @@ export function openPrepareModal(id, ev) {
 
 // 送出「待領出」表單（POST /api/items/{id}/prepare）：只標記待領出，不扣庫存
 export async function submitPrepare() {
-  const item = appState.ALL_ITEMS.find(i => i.id === stockoutState.prepareItemId);
+  const item = getAllItems().find(i => i.id === stockoutState.prepareItemId);
   const qty = qtyInputOrToast('p-qty', item && item.unit);
   const note = document.getElementById('p-note').value.trim();
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
@@ -161,7 +162,7 @@ export async function submitPrepare() {
 
 // 開啟「待領出轉已領出」Modal，帶入品項名稱與已準備數量
 export function openPreparedOutModal(id) {
-  const item = appState.ALL_ITEMS.find(i => i.id === id) || appState.preparedItems.find(i => i.id === id);  // 非庫存品項不在 ALL_ITEMS（2026-09-07 Sarah）
+  const item = getAllItems().find(i => i.id === id) || appState.preparedItems.find(i => i.id === id);  // 非庫存品項不在 ALL_ITEMS（2026-09-07 Sarah）
   if (!item) return;
   stockoutState.preparedOutItemId = id;
   document.getElementById('po-item-name').value = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
@@ -176,7 +177,7 @@ export function openPreparedOutModal(id) {
  * @returns {Promise<void>} Resolves after the mutation and data refresh finish.
  */
 export async function submitPreparedOut() {
-  const item = appState.ALL_ITEMS.find(i => i.id === stockoutState.preparedOutItemId)
+  const item = getAllItems().find(i => i.id === stockoutState.preparedOutItemId)
     || (typeof appState.preparedItems !== 'undefined' && appState.preparedItems
       ? appState.preparedItems.find(i => i.id === stockoutState.preparedOutItemId)
       : null);
@@ -196,7 +197,7 @@ export async function submitPreparedOut() {
 
 // 退回指定品項的全部待領出數量（POST /api/items/{id}/prepared-return），先 confirm 確認
 export async function returnPrepared(id) {
-  const item = appState.ALL_ITEMS.find(i => i.id === id);
+  const item = getAllItems().find(i => i.id === id);
   if (!item) return;
   const confirmed = confirm(`退回「${item.name}」全部 ${item.prepared_qty} ${item.unit}？`);
   if (!confirmed) return;
@@ -246,7 +247,7 @@ function openReturnStockoutModal(movementId) {
     ? `${sourceSite}${sourceSite && rec.source_location ? '／' : ''}${rec.source_location || ''}`
     : '原始位置未記錄';
   document.getElementById('rs-source-location').value = sourceLabel;
-  const item = (typeof appState.ALL_ITEMS !== 'undefined' ? appState.ALL_ITEMS : []).find(i => i.id === rec.item_id);
+  const item = getAllItems().find(i => i.id === rec.item_id);
   const sel = document.getElementById('rs-location');
   sel.innerHTML = '<option value="">— 請選擇 —</option>';
   (item && item.stocks || []).forEach(s => {
@@ -389,7 +390,7 @@ function openRepairStockoutReturnModal(movementId) {
   }
   const sel = document.getElementById('rs-location');
   sel.innerHTML = '<option value="">— 請選擇當時回補位置 —</option>';
-  const item = (typeof appState.ALL_ITEMS !== 'undefined' ? appState.ALL_ITEMS : []).find(i => i.id === rec.item_id);
+  const item = getAllItems().find(i => i.id === rec.item_id);
   (item && item.stocks || []).forEach(st => {
     const label = `${inventorySiteLabel(item.site || '')}${item.site && st.location ? '／' : ''}${st.location || '未標示'}`;
     sel.insertAdjacentHTML('beforeend', `<option value="${esc(Number(st.id))}">${esc(label)}</option>`);
@@ -418,7 +419,7 @@ export function openEditStockoutReturnModal(movementId) {
   editStockoutReturnId = movementId;
   document.getElementById('rs-item-name').value = `${rec.brand} ${rec.item_name}${rec.code ? ' (' + rec.code + ')' : ''}`;
   document.getElementById('rs-source-location').value = rec.source_location || '原始位置未記錄';
-  const item = (typeof appState.ALL_ITEMS !== 'undefined' ? appState.ALL_ITEMS : []).find(i => i.id === rec.item_id);
+  const item = getAllItems().find(i => i.id === rec.item_id);
   const sel = document.getElementById('rs-location');
   sel.innerHTML = '<option value="">— 請選擇 —</option>';
   (item && item.stocks || []).forEach(st => {
@@ -547,7 +548,7 @@ export function openKitPrepareModal(kitId, kitName) {
 }
 
 async function submitKitPrepare(kitItemId) {
-  const item = appState.ALL_ITEMS.find(i => i.id === kitItemId);
+  const item = getAllItems().find(i => i.id === kitItemId);
   if (!item) { toast('品項不存在', 'error'); return; }
   const note = document.getElementById('kit-prepare-note').value.trim();
   try {

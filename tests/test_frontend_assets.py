@@ -2188,7 +2188,7 @@ def test_index_has_no_topbar_export():
 def test_stocktake_totalqty_used():
     """totalQty 不得淪為 dead code：計算保留且 totalQtyStr 有進模板渲染（防退回「算了沒顯示」）"""
     js = read(STOCKTAKE_JS)
-    assert "const totalQty = appState.ALL_ITEMS.reduce((s, i) => s + i.qty, 0);" in js  # 計算行保留
+    assert "const totalQty = getAllItems().reduce((s, i) => s + i.qty, 0);" in js  # 計算行保留
     assert "${totalQtyStr}" in js                                               # 千分位結果有進模板
     assert js.count("totalQty") >= 3  # 定義 + totalQtyStr 定義/使用（若只剩定義 1 次 = dead code 回歸）
 

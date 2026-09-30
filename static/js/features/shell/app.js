@@ -6,6 +6,7 @@ import { setPageScope, syncViewUrl } from './page-scope.js';
 import { getStocktakeReminderState, updateNotifications } from '../notifications/center.js';
 import { canAccessPage, checkAuth, firstAccessiblePageTab, resolveAccessiblePageTab } from '../../core/session.js';
 import { DATA_REFRESH_PRESERVE_MOUNT_TABS, INVENTORY_SITES, appState, pending } from '../../core/state.js';
+import { setInventoryPage, setInventoryStats } from '../../core/inventory-read-model.js';
 import { inventoryState } from '../inventory/state.js';
 import { shellState } from './state.js';
 import { loadUnits } from '../../core/units.js';
@@ -85,8 +86,8 @@ export function switchSite(site) {
   appState.currentSite = site;
   appState.inventoryLoadedSite = '';
   appState.fullItemsLoadedSite = '';
-  appState.INVENTORY_META.page = 1;
-  appState.INVENTORY_META.stats = null;
+  setInventoryPage(1);
+  setInventoryStats(null);
   appState.INVENTORY_FACETS = { brands: {}, categories: {}, locations: [] };
   shellState.inventoryFacetsLoadedSite = '';
   appState.ALL_ITEMS = [];

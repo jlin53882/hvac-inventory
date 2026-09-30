@@ -9,6 +9,7 @@ import { loadData, renderInventoryView } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { appState } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
 
 let similarTimer = null;          // 相似查詢 debounce timer
@@ -76,7 +77,7 @@ export async function uploadItemPhoto(itemId, input) {
     }
     toast('✅ 照片已更新', 'success');
     // 先更新列表狀態，再重繪編輯 modal，避免 modal 暫留舊縮圖
-    const item = appState.ALL_ITEMS.find(i => i.id === itemId);
+    const item = getAllItems().find(i => i.id === itemId);
     if (item) { item.has_photo = true; item.photo_asset_id = body.asset_id || null; item.thumbnail_url = body.thumbnail_url || null; item.preview_url = body.preview_url || null; renderInventoryView(); }
     renderPhotoBox(itemId, true);
   } catch { toast('上傳失敗', 'error'); }
@@ -89,7 +90,7 @@ export async function deleteItemPhoto(itemId) {
     await apiFetch(`/api/items/${itemId}/photo`, { method: 'DELETE' });
     toast('🗑 照片已刪除', 'success');
     renderPhotoBox(itemId, false);
-    const item = appState.ALL_ITEMS.find(i => i.id === itemId);
+    const item = getAllItems().find(i => i.id === itemId);
     if (item) { item.has_photo = false; renderInventoryView(); }
   } catch { toast('刪除失敗', 'error'); }
 }
@@ -256,8 +257,8 @@ export async function deleteKitPhoto(kitId, itemId) {
       kit.thumbnail_url = null;
       kit.preview_url = null;
     }
-    const item = Array.isArray(appState.ALL_ITEMS)
-      ? appState.ALL_ITEMS.find(entry => Number(entry.id) === Number(itemId))
+    const item = Array.isArray(getAllItems())
+      ? getAllItems().find(entry => Number(entry.id) === Number(itemId))
       : null;
     if (item) {
       item.has_photo = false;

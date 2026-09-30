@@ -2,7 +2,7 @@
 // 讓 kit-modal.js 不必 import 整組頁）
 
 import { Qty } from '../../core/qty.js';
-import { appState } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { esc, toast } from '../../core/utils.js';
 import { kitsState } from './state.js';
 
@@ -14,7 +14,7 @@ import { kitsState } from './state.js';
 export function kitCompQtyChanged(idx, rawVal) {
   const row = kitsState.kitModalCompRows[idx];
   if (!row) return;
-  const sel = row.item_id ? appState.ALL_ITEMS.find(i => i.id == row.item_id) : null;
+  const sel = row.item_id ? getAllItems().find(i => i.id == row.item_id) : null;
   const v = Qty.validFor(rawVal, sel ? Qty.inputTypeOf(sel.unit) : 'fraction');
   if (!v.ok || v.value <= 0) { toast(v.error || '材料數量必須大於 0', 'error'); renderKitCompRows(); return; }
   row.qty = v.value;
@@ -35,7 +35,7 @@ export function renderKitCompRows() {
 
     html = kitsState.kitModalCompRows.map((row, idx) => {
 
-      const sel = row.item_id ? appState.ALL_ITEMS.find(i => i.id == row.item_id) : null;
+      const sel = row.item_id ? getAllItems().find(i => i.id == row.item_id) : null;
 
       return `<div class="selected-row">
 
@@ -97,7 +97,7 @@ export function filterKitSearch(kw) {
 
   const q = (kw || '').trim().toLowerCase();
 
-  let list = appState.ALL_ITEMS.filter(i => !i.is_kit);
+  let list = getAllItems().filter(i => !i.is_kit);
 
   if (q) list = list.filter(i => (i.brand + ' ' + i.name + ' ' + (i.code || '')).toLowerCase().includes(q));
 
@@ -130,7 +130,7 @@ export function filterKitSearch(kw) {
 
 export function pickKitItem(itemId) {
 
-  const it = appState.ALL_ITEMS.find(i => i.id === itemId);
+  const it = getAllItems().find(i => i.id === itemId);
 
   if (!it) return;
 

@@ -4,12 +4,12 @@
 // 整組(kits)卡片結構特殊（kit-head/kit-comps，無照片/數量列），不套本外框。
 
 import { Qty } from '../core/qty.js';
-import { appState } from '../core/state.js';
+import { getAllItems } from '../core/inventory-read-model.js';
 import { esc } from '../core/utils.js';
 
 // 圖片 URL：列表優先 thumbnail，lightbox 優先 preview；舊資料 fallback 到 legacy URL。
 export function photoSrc(id, variant) {
-  const items = typeof appState.ALL_ITEMS !== 'undefined' ? appState.ALL_ITEMS : [];
+  const items = getAllItems();
   const item = items.find(i => i.id === id);
   if (item) {
     if (variant === 'thumbnail' && item.thumbnail_url) return item.thumbnail_url;

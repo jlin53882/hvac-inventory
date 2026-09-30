@@ -2,6 +2,7 @@
 
 import { Qty } from '../../core/qty.js';
 import { INVENTORY_PENDING_ITEMS, appState, pending, pendingByStock } from '../../core/state.js';
+import { getAllItems } from '../../core/inventory-read-model.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
 import { inventoryState } from './state.js';
 import { renderInventoryView } from '../shell/data-refresh.js';
@@ -125,7 +126,7 @@ export function queueStockLocationAdjustment(itemId, stockId) {
     return;
   }
   const state = inventoryState.stockLocationPickerState;
-  const item = appState.ALL_ITEMS.find(function(candidate) { return Number(candidate.id) === Number(itemId); });
+  const item = getAllItems().find(function(candidate) { return Number(candidate.id) === Number(itemId); });
   const stock = item && Array.isArray(item.stocks)
     ? item.stocks.find(function(candidate) { return Number(candidate.id) === Number(stockId); }) : null;
   if (!state || Number(state.itemId) !== Number(itemId) || !stock) {

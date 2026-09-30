@@ -5,6 +5,7 @@ import { loadData, loadInventoryPage } from '../shell/data-refresh.js';
 import { Qty } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { INVENTORY_SITES, appState } from '../../core/state.js';
+import { getAllItems, getInventoryMeta } from '../../core/inventory-read-model.js';
 import { toast } from '../../core/utils.js';
 
 var transferItemId = null;
@@ -18,7 +19,7 @@ var transferSubmitting = false;
  */
 export function openTransferModal(itemId) {
   if (transferSubmitting) return;
-  const item = (appState.ALL_ITEMS || []).find(i => Number(i.id) === Number(itemId));
+  const item = (getAllItems() || []).find(i => Number(i.id) === Number(itemId));
   if (!item) { toast('找不到要調撥的品項', 'error'); return; }
   transferItemId = item.id;
   transferItemSnapshot = item;
@@ -102,7 +103,7 @@ export async function submitTransfer() {
     await apiFetch('/api/inventory/transfers', { method: 'POST', json: payload, fallback: '調撥失敗' });
     closeTransferModal(true);
     toast('庫存調撥完成', 'success');
-    if (appState.currentTab === 'inventory') await loadInventoryPage(appState.INVENTORY_META.page || 1);
+    if (appState.currentTab === 'inventory') await loadInventoryPage(getInventoryMeta().page || 1);
     else await loadData({ full: true });
   } catch (e) {
     error.textContent = e.message || '調撥失敗，請稍後再試';
