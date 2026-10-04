@@ -372,6 +372,12 @@ def test_upload_list_pages_only_pass_configuration():
     for path in (SIGNED_REPORTS_RENDER_JS, QUOTATION_UPLOAD_RENDER_JS):
         assert "import { createUploadListPage } from './upload-list.js';" in read(path)
     assert '<link rel="stylesheet" href="/static/css/3-components/upload-list.css">' in html
+    upload_list_js = read(os.path.join(STATIC, "js", "features", "upload-list", "upload-list.js"))
+    upload_list_css = read(os.path.join(STATIC, "css", "3-components", "upload-list.css"))
+    assert 'id="upl-pagination" hidden' in upload_list_js
+    assert "const pagination = $('upl-pagination');" in upload_list_js
+    assert "if (pagination) pagination.hidden = state.total <= state.pageSize;" in upload_list_js
+    assert ".upl-pagination[hidden] { display: none; }" in upload_list_css
     for path, ctl in ((SIGNED_REPORTS_RENDER_JS, "SignedReports"), (QUOTATION_UPLOAD_RENDER_JS, "QuotationUploads")):
         js = read(path)
         assert f"var {ctl} = createUploadListPage({{" in js
@@ -527,6 +533,8 @@ def test_petty_cash_frontend_contract():
     assert 'function pcReportActionEntries' in js
     assert 'if (r.can_edit)' in js and 'if (r.can_delete)' in js
     assert 'function pcReportCardHtml' in js
+    assert 'id="pc-pagination" hidden' in js
+    assert 'pagination.hidden = pcTotal <= pcPageSize;' in js
     assert 'pc-report-type--general' in js
     assert '本期餘額' in js
     assert 'pc-row-actions--mobile' in js
@@ -545,6 +553,8 @@ def test_petty_cash_frontend_contract():
     css = read_petty_cash_css()
     assert '#content.pc-content' in css
     assert '.pc-table-wrap' in css and '.pc-cards' in css
+    petty_cash_page_css = read(os.path.join(STATIC, "css", "4-pages", "petty-cash.css"))
+    assert '.pc-pagination[hidden] { display: none; }' in petty_cash_page_css
     assert '@media (max-width: 767px)' in css
 
 
@@ -1269,6 +1279,7 @@ def test_permissions_ui_has_inventory_pagination_and_separate_page_tab():
     assert 'permSearch' in js and 'permFilter' in js and 'permPage' in js
     assert 'permSubTab' in js and 'page-visibility-group' in js
     assert 'perm-pagination' in js and 'perm-page-btn' in js
+    assert 'if (pageCount > 1)' in js
 
 
 def test_permissions_ui_keeps_search_toolbar_and_pending_source_contract():

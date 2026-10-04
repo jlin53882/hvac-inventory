@@ -36,7 +36,7 @@ function element(id, value = '') {
 
 [
   'content', 'pc-f-from', 'pc-f-to', 'pc-f-person', 'pc-f-status', 'pc-f-type', 'pc-f-q',
-  'pc-result-count', 'pc-tbody', 'pc-cards', 'pc-empty', 'pc-page-info',
+  'pc-result-count', 'pc-tbody', 'pc-cards', 'pc-empty', 'pc-page-info', 'pc-pagination',
   'pc-kpi-total', 'pc-kpi-done', 'pc-kpi-draft',
   'pc-m-start', 'pc-m-end', 'pc-m-filetext', 'pc-m-uploader', 'pc-m-prepared',
   'pc-m-opening', 'pc-report-overlay', 'eng-start', 'eng-end', 'eng-owner',
@@ -302,7 +302,21 @@ function testPaginationRendersPageOffsets() {
     const first = page === 1 ? '<td>1</td>' : page === 2 ? '<td>21</td>' : '<td>41</td>';
     const second = page === 1 ? '<td>2</td>' : page === 2 ? '<td>22</td>' : '<td>42</td>';
     assert(html.includes(first) && html.includes(second), `page ${page} mixed report sequence is incorrect`);
+    assert.strictEqual(elements['pc-pagination'].hidden, false, `page ${page} keeps pagination visible above one page`);
   }
+}
+
+function testPaginationVisibility() {
+  for (const [total, hidden] of [[0, true], [20, true], [21, false]]) {
+    context.pcReports = total === 0 ? [] : [report(1, 'general')];
+    context.pcTotal = total;
+    context.pcRenderTable();
+    assert.strictEqual(elements['pc-pagination'].hidden, hidden, `pagination visibility for ${total} rows`);
+  }
+  context.pcReports = [report(1, 'general'), report(2, 'general')];
+  context.pcTotal = 60;
+  context.pcPage = 1;
+  context.pcRenderTable();
 }
 
 async function testMutationRefreshesKeepLatestResponse() {
@@ -540,6 +554,7 @@ async function main() {
   await testDetailLatestResponseWins();
   await testModalLatestResponseWins();
   testPaginationRendersPageOffsets();
+  testPaginationVisibility();
   await testGeneralSaveIsSingleFlightAndRecovers();
   await testEngineeringSaveIsSingleFlight();
   await testResetFilterClearsReportTypeAndReloadsAll();

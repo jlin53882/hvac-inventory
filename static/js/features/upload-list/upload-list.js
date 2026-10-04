@@ -201,7 +201,7 @@ export function createUploadListPage(config) {
                 <div class="upl-hint">試試放寬日期或關鍵字，或切換「全部」</div>
               </div>
             </div>
-            <div class="upl-pagination">
+            <div class="upl-pagination" id="upl-pagination" hidden>
               <span id="upl-page-info"></span>
               <span class="u-d-flex u-gap-6">
                 <button class="btn btn--secondary btn--sm" data-action="upl-page" data-delta="-1" data-ctl="${esc(ctl)}">‹ 上一頁</button>
@@ -391,6 +391,8 @@ export function createUploadListPage(config) {
     }
     const max = Math.max(1, Math.ceil(state.total / state.pageSize));
     $('upl-page-info').textContent = `第 ${state.page} / ${max} 頁 · 共 ${state.total} 筆`;
+    const pagination = $('upl-pagination');
+    if (pagination) pagination.hidden = state.total <= state.pageSize;
   }
 
   // 從伺服器載入月級 KPI 統計；只採用本頁、最新一次請求的回應

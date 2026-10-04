@@ -158,7 +158,7 @@ function response(payload, status = 200) {
 
 // perms.js 透過 api-client.js 的 apiFetch 呼叫 API；載入正式實作，不另寫替身
 
-function buildPermissions() {
+function buildPermissions(count = 22) {
   const fixed = [
     ['view', '庫存瀏覽/搜尋/看照片', 'view', true, 'locked'],
     ['signed-report-upload', '每日簽名日報表 上傳', 'reports', true, 'role'],
@@ -169,16 +169,16 @@ function buildPermissions() {
     ['stock-mgmt', '庫存位置/數量調整', 'stock', true, 'role'],
   ];
   const permissions = fixed.map(([key, label, module, allowed, source]) => ({ key, label, module, allowed, source }));
-  for (let i = permissions.length; i < 22; i += 1) {
+  for (let i = permissions.length; i < count; i += 1) {
     permissions.push({ key: `permission-${i}`, label: `測試權限 ${i}`, module: i % 2 ? 'stock' : 'reports', allowed: true, source: 'role' });
   }
-  return permissions;
+  return permissions.slice(0, count);
 }
 
-async function setup() {
+async function setup(permissionCount = 22) {
   const document = new FakeDocument();
   const detail = {
-    permissions: buildPermissions(),
+    permissions: buildPermissions(permissionCount),
     page_visibility: { all_pages: ['inventory', 'calendar'], visible_pages: ['calendar'] },
   };
   const fetchQueue = [
@@ -232,7 +232,7 @@ async function testSearchAndFilterResetPageAndActiveState() {
   const { context, document } = await setup();
   context.permPage(1);
   assert.strictEqual(pageText(document)[1], '2');
-  context.permSearch('signed-report');
+  context.permSearch('測試權限');
   assert.strictEqual(pageText(document)[1], '1', 'search must reset page to 1');
   context.permSearch('');
   context.permFilter('reports');
@@ -304,9 +304,17 @@ async function testNoResultToolbarStability() {
   context.permSearch('完全不存在的權限xyz');
   assert.strictEqual(before, document.getElementById('permission-search'));
   assert.ok(resultHtml(document).includes('沒有符合條件的權限'));
+  assert.ok(!resultHtml(document).includes('class="perm-pagination"'), 'empty filtered results must hide pagination');
   assert.ok(document.getElementById('permission-toolbar'));
   context.permSearch('');
   assert.ok(renderedKeys(document).length > 0, 'clearing search must restore results');
+}
+
+async function testPaginationVisibility() {
+  for (const [permissionCount, visible] of [[0, false], [10, false], [11, true], [22, true]]) {
+    const { document } = await setup(permissionCount);
+    assert.strictEqual(resultHtml(document).includes('class="perm-pagination"'), visible, `pagination visibility for ${permissionCount} permissions`);
+  }
 }
 
 (async () => {
@@ -316,6 +324,7 @@ async function testNoResultToolbarStability() {
   await testPendingAcrossTabs();
   await testToggleDirectionsAndLockedPermission();
   await testNoResultToolbarStability();
+  await testPaginationVisibility();
   console.log('permissions pagination runtime: PASS');
 })().catch(error => {
   console.error(error.stack || error);

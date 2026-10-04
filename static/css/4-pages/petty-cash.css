@@ -172,6 +172,7 @@
   font-size: var(--fs-13);
   color: var(--c-muted);
 }
+[data-page="petty-cash"] .pc-pagination[hidden] { display: none; }
 
 /* 明細 modal */
 [data-page="petty-cash"] .pc-overlay {

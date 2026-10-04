@@ -177,7 +177,7 @@ export async function renderPettyCash() {
             <div class="pc-hint">試試放寬期間或關鍵字，或切換「全部」</div>
           </div>
         </div>
-        <div class="pc-pagination">
+        <div class="pc-pagination" id="pc-pagination" hidden>
           <span id="pc-page-info"></span>
           <span class="u-d-flex u-gap-6">
             <button class="btn btn--secondary btn--sm" data-action="pc-page" data-delta="-1">‹ 上一頁</button>
@@ -250,6 +250,8 @@ function pcRenderTable() {
   }
   const max = Math.max(1, Math.ceil(pcTotal / pcPageSize));
   document.getElementById('pc-page-info').textContent = `第 ${esc(pcPage)} / ${esc(max)} 頁 · 共 ${esc(pcTotal)} 筆`;
+  const pagination = document.getElementById('pc-pagination');
+  if (pagination) pagination.hidden = pcTotal <= pcPageSize;
 }
 
 // desktop 列（金額欄皆為格式化數字字串，使用者文字皆 esc）

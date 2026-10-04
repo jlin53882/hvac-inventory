@@ -114,6 +114,7 @@
 .upl-actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .upl-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 2px 0; color: var(--c-muted); font-size: var(--fs-12); }
+.upl-pagination[hidden] { display: none; }
 
 @media (max-width: 639px) {
   .upl-report-summary { flex-wrap: wrap; }

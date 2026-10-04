@@ -264,16 +264,18 @@ function renderPermissionView() {
     }
     html += '</div>';
   }
-  const from = filtered.length ? start + 1 : 0;
-  const to = Math.min(start + PERMISSIONS_PAGE_SIZE, filtered.length);
-  html += `<div class="perm-pagination">
-    <span>顯示 ${esc(from)}–${esc(to)} / 共 ${esc(filtered.length)} 項</span>
-    <div class="perm-page-buttons">
-      <button class="btn btn--secondary btn--sm perm-page-btn" data-action="perms-page" data-delta="-1" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
-      <span>第 ${esc(permissionPage)} / ${esc(pageCount)} 頁</span>
-      <button class="btn btn--secondary btn--sm perm-page-btn" data-action="perms-page" data-delta="1" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
-    </div>
-  </div>`;
+  if (pageCount > 1) {
+    const from = start + 1;
+    const to = Math.min(start + PERMISSIONS_PAGE_SIZE, filtered.length);
+    html += `<div class="perm-pagination">
+      <span>顯示 ${esc(from)}–${esc(to)} / 共 ${esc(filtered.length)} 項</span>
+      <div class="perm-page-buttons">
+        <button class="btn btn--secondary btn--sm perm-page-btn" data-action="perms-page" data-delta="-1" ${permissionPage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
+        <span>第 ${esc(permissionPage)} / ${esc(pageCount)} 頁</span>
+        <button class="btn btn--secondary btn--sm perm-page-btn" data-action="perms-page" data-delta="1" ${permissionPage >= pageCount ? 'disabled' : ''}>下一頁 ›</button>
+      </div>
+    </div>`;
+  }
   host.innerHTML = html;
   updatePermissionFilterState();
 }

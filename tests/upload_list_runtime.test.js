@@ -168,6 +168,7 @@ const REPORT = {
     t.ctl.state.reports = [{ ...REPORT }, { ...REPORT, id: 8, file_name: 'a.png', mime_type: 'image/png', can_edit: false, can_delete: false }];
     t.ctl.state.total = 2;
     t.ctl.renderTable();
+    assert.strictEqual(t.context.document.getElementById('upl-pagination').hidden, true, `${key}: hide pagination below page size`);
     const list = t.context.document.getElementById('upl-tbody').innerHTML;
     assert(list.includes(`data-action="upl-edit" data-id="7" data-ctl="${t.page.ctl}"`) && list.includes(`data-action="upl-remove" data-id="7" data-ctl="${t.page.ctl}"`));
     assert(!list.includes('data-action="upl-edit" data-id="8"') && !list.includes('data-action="upl-remove" data-id="8"'));
@@ -176,6 +177,16 @@ const REPORT = {
     assert(list.includes('<strong>2026-09-15</strong>'), `${key}: upload time shows date only`);
     assert(list.includes('<div class="upl-note-cell">已簽名</div>'));
     assert.strictEqual(t.context.document.getElementById('upl-page-info').textContent, '第 1 / 1 頁 · 共 2 筆');
+
+    for (const [total, hidden] of [[20, true], [21, false], [0, true]]) {
+      t.ctl.state.total = total;
+      if (total === 0) t.ctl.state.reports = [];
+      t.ctl.renderTable();
+      assert.strictEqual(t.context.document.getElementById('upl-pagination').hidden, hidden, `${key}: pagination visibility for ${total} rows`);
+    }
+    t.ctl.state.reports = [{ ...REPORT }, { ...REPORT, id: 8 }];
+    t.ctl.state.total = 2;
+    t.ctl.renderTable();
 
     // 編輯：同窗 modal，PATCH FormData；成功後關閉並重新載入歷史
     const inputs = {
