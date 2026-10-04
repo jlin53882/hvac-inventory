@@ -4,7 +4,7 @@
 ================================
 - 以使用者提供的 0811.xlsx（app/assets/工程日誌範本.xlsx）為範本：
   openpyxl 載入 → 填當天行程 → 另存 xlsx（BytesIO 回傳，不寫磁碟）
-- 版面（框線/合併格/欄寬/字型）100% 來自範本，程式不重刻格式
+- 版面框線/合併格/字型來自範本；欄寬依輸出內容自動估算
 - 填值規則見 docs/行事曆派工-設計文件.md §10.3
 """
 import datetime
@@ -16,6 +16,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import column_index_from_string
 
+from app.services.excel_layout import auto_fit_columns
 from app.services.safety import excel_safe
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
@@ -51,7 +52,6 @@ def build_daily_report(date_str: str, day_events: list, engineers: list = None):
     wb = load_workbook(TEMPLATE_PATH)
     ws = wb.active
     ws.title = mmdd
-    ws.column_dimensions["B"].width = 20  # B 欄寬固定 20（家豪指定：10.75 放不下時間）
 
     # 2026-08-13 Sarah：工程師固定寫 藍政達 蘇昱豪（取代 2026-08-12 留空手寫）
     ws["A2"] = "工程師：藍政達 蘇昱豪"
@@ -91,6 +91,7 @@ def build_daily_report(date_str: str, day_events: list, engineers: list = None):
             note_cell.value = excel_safe(e["note"])
             ws.row_dimensions[note_row + 1].height = max(ws.row_dimensions[note_row + 1].height or 0, 15 * (str(note_cell.value).count("\n") + 1))
 
+    auto_fit_columns(ws)
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

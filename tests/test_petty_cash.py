@@ -452,7 +452,9 @@ def test_invalid_inputs_rejected(pc_env):
 
 def test_export_filename_title_merges(pc_env, tmp_path):
     c = pc_env()
-    d = _create(c, _scenario_a())
+    report = _scenario_a()
+    report["entries"].append(_entry("2026-09-11", "expense", "車資", 50, "交通費", sort=9))
+    d = _create(c, report)
     r = c.get(f"/api/petty-cash-reports/{d['id']}/export.xlsx")
     assert r.status_code == 200
     cd = r.headers["content-disposition"]
@@ -466,15 +468,20 @@ def test_export_filename_title_merges(pc_env, tmp_path):
     assert ws["A1"].value == "08/26~09/25零用金收支明細表"  # Excel 內標題維持斜線
     assert ws["B2"].value == "115年"
     assert ws["E2"].value == 224
-    assert ws["E16"].value == "=E2+SUM(D4:D15)-SUM(E4:E15)"
+    assert ws["E17"].value == "=E2+SUM(D4:D16)-SUM(E4:E16)"
     assert ws["E16"].number_format == "#,##0"
     merges = [str(m) for m in ws.merged_cells.ranges]
     assert "A1:F1" in merges
     # 員工福利 4 明細佔 12~15 列（前 8 筆單列佔 4~11 列），日期/支出/科目跨列合併
     assert "B12:B15" in merges and "E12:E15" in merges and "F12:F15" in merges
+    assert "A12:A15" in merges
     assert "D12:D15" in merges
+    assert ws["A12"].value == 9  # 多細項共用原始收支紀錄的項次
+    assert ws["A16"].value == 10  # 後續紀錄不因細項展開而跳號
+    assert ws["C16"].value == "車資"
     assert ws["C12"].value == "竹炭水 24瓶 $200"
     assert ws["C15"].value == "四季春無糖 24瓶 $439"
+    assert ws.column_dimensions["C"].width >= 22  # 摘要欄依細項文字寬度調整
 
 
 def test_export_prepared_by_without_uploader(pc_env, tmp_path):

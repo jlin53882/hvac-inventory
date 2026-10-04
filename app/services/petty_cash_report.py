@@ -4,7 +4,7 @@
 =====================================
 - 以 app/assets/零用金月報範本.xlsx（由真實主管報表清理而來）為範本：
   openpyxl 載入 → 填月報資料 → 另存 xlsx（BytesIO 回傳，不寫磁碟）
-- 版面（框線/合併格/欄寬/字型/列印設定）100% 來自範本，程式不重刻格式
+- 版面框線/合併格/字型/列印設定來自範本；欄寬依輸出內容自動估算
 - 資料庫不用 merged-cell 思維：多項目支出在匯出時才展開成多列，
   屬於同一 Entry 的日期/收入/支出/科目欄做跨列合併並垂直置中
 """
@@ -15,6 +15,7 @@ from typing import NamedTuple
 
 from openpyxl import load_workbook
 
+from app.services.excel_layout import auto_fit_columns
 from app.services.petty_cash_excel import (
     INTEGER_MONEY_FORMAT,
     configure_print_layout,
@@ -107,7 +108,8 @@ def _write_entry_row(ws, styles, row_number, seq, body_row: _BodyRow):
     else:
         role = "general_multi_middle"
     copy_role_style(styles, role, ws, row_number)
-    ws.cell(row_number, 1).value = seq
+    if item_index == 0:
+        ws.cell(row_number, 1).value = seq
     entry_date = datetime.date.fromisoformat(entry["entry_date"])
     if item is not None:
         ws.cell(row_number, 3).value = _item_text(item)
@@ -117,7 +119,7 @@ def _write_entry_row(ws, styles, row_number, seq, body_row: _BodyRow):
             ws.cell(row_number, 5).number_format = INTEGER_MONEY_FORMAT
             ws.cell(row_number, 6).value = excel_safe((entry.get("category") or "").strip())
         if item_count > 1 and item_index == 0:
-            for col in (2, 4, 5, 6):
+            for col in (1, 2, 4, 5, 6):
                 ws.merge_cells(
                     start_row=row_number,
                     start_column=col,
@@ -170,12 +172,16 @@ def build_petty_cash_report(report: dict) -> io.BytesIO:
     label_row = closing_row + 2
     ws.insert_rows(4, body_count + 3)
 
+    entry_sequence = 0
     for index, body_row in enumerate(expanded):
-        _write_entry_row(ws, styles, 4 + index, index + 1, body_row)
+        if body_row.item_index == 0:
+            entry_sequence += 1
+        _write_entry_row(ws, styles, 4 + index, entry_sequence, body_row)
 
     _write_footer(ws, styles, report, closing_row, label_row, body_count)
 
     ws.title = period_token(start, end)
+    auto_fit_columns(ws)
     ensure_page_defaults(ws)
     configure_print_layout(ws, label_row, title_rows="$1:$3")
     wb.calculation.fullCalcOnLoad = True

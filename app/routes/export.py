@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime as dt
 import io
 import re
-import unicodedata
 from copy import copy
 from types import MappingProxyType
 from typing import Iterable, NamedTuple
@@ -21,6 +20,7 @@ from openpyxl.utils import get_column_letter
 from app.database import db_session
 from app.services import movement_time
 from app.services.auth import require_perm
+from app.services.excel_layout import auto_fit_columns
 from app.services.safety import excel_safe, xlsx_download
 
 router = APIRouter()
@@ -99,17 +99,11 @@ def _new_workbook() -> Workbook:
     return wb
 
 
-def _finalize_workbook(wb: Workbook, id_columns: dict) -> bytes:
-    """套用全活頁簿字型與格式、自動分配欄寬（id_columns：工作表名稱 → 編號欄位，僅以內容計欄寬），回傳 xlsx bytes。"""
+def _finalize_workbook(wb: Workbook) -> bytes:
+    """套用全活頁簿字型與格式，依每欄標題與資料自動分配欄寬。"""
     for sheet in wb.worksheets:
         _apply_workbook_styles(sheet)
-        id_column = id_columns.get(sheet.title)
-        _autofit_columns(sheet, body_only_columns=(id_column,) if id_column else ())
-    # 確保所有 2 欄標題工作表的欄寬足夠
-    for sheet in wb.worksheets:
-        if 'A1' in sheet.merged_cells and str([m for m in sheet.merged_cells.ranges if 'A1' in str(m)][0]) == 'A1:B1':
-            sheet.column_dimensions['A'].width = 25
-            sheet.column_dimensions['B'].width = 25
+        auto_fit_columns(sheet)
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -150,8 +144,6 @@ def _style_title(ws, title: str, period: str, header_count: int = 4):
         period: 期間文本
         header_count: 標題要合併到的欄數（預設 4 = A:D）
     """
-    from openpyxl.utils import get_column_letter
-    
     # 動態計算合併範圍
     end_col = get_column_letter(header_count)
     ws.merge_cells(f"A1:{end_col}1")
@@ -170,27 +162,6 @@ def _style_title(ws, title: str, period: str, header_count: int = 4):
     cell_a2.font = Font(name="Microsoft JhengHei", color="475569", italic=True, size=10)
     cell_a2.alignment = Alignment(horizontal="left", vertical="center")
     
-    # 自動調整欄寬：計算標題文本寬度
-    title_width = sum(2 if ord(c) > 255 else 1 for c in title)
-    period_width = sum(2 if ord(c) > 255 else 1 for c in period)
-    max_width = max(title_width, period_width)
-    
-    # 當欄數少時（如只有 2 欄），用更寬的固定欄寬
-    if header_count <= 2:
-        # 小欄數：每欄寬度足以容納標題（加邊距）
-        # 「庫存管理報表」(6字) = 12 寬度單位，加邊距需要 25+
-        col_width = max(max_width + 5, 25)  # 最小 25，足以容納中文 6 字標題
-    else:
-        # 多欄數：平均分配，但保證最小寬度
-        col_width = (max_width // header_count) + 2
-        col_width = max(col_width, 10)  # 最小寬度 10
-    
-    # 設定所有涉及的欄寬
-    for i in range(1, header_count + 1):
-        col_letter = get_column_letter(i)
-        ws.column_dimensions[col_letter].width = col_width
-
-
 def _style_header(ws, row: int):
     """設定表頭凍結窗格（樣式已在 _write_headers 套用）。"""
     ws.freeze_panes = f"A{row + 1}"
@@ -203,27 +174,6 @@ def _style_data(ws, header_row: int, qty_columns: Iterable[int] = (), note_colum
             cell.alignment = Alignment(horizontal="right" if cell.column in qty_columns else "left", vertical="top", wrap_text=cell.column in note_columns)
         for col in qty_columns:
             row[col - 1].number_format = "#,##0.###"
-
-
-def _display_width(value) -> int:
-    """估算 Excel 欄寬，將全形東亞字元計為兩個寬度單位。"""
-    lines = str(value).splitlines() or [""]
-    return max(sum(2 if unicodedata.east_asian_width(char) in ("F", "W") else 1 for char in line) for line in lines)
-
-
-def _autofit_columns(ws, body_only_columns: Iterable[int] = ()):
-    """依表頭與資料值估算欄寬，排除較長的識別碼表頭。"""
-    body_only = set(body_only_columns)
-    for column in range(1, ws.max_column + 1):
-        values = []
-        for row in range(5, ws.max_row + 1):
-            if column in body_only and row == 5:
-                continue
-            value = ws.cell(row, column).value
-            if value is None or (isinstance(value, str) and value.startswith("=")):
-                continue
-            values.append(_display_width(value))
-        ws.column_dimensions[get_column_letter(column)].width = min(max(max(values, default=0) + 2, 8), 255)
 
 
 def _apply_workbook_styles(ws: Worksheet) -> None:
@@ -247,20 +197,6 @@ def _apply_workbook_styles(ws: Worksheet) -> None:
                 if cell.number_format == "General":
                     cell.number_format = "@"
     
-    # 如果標題只跨 A 與 B 兩欄（A1:B1），調整欄寬以確保標題完整顯示
-    # 檢查 A1 是否被合併
-    if ws['A1'].coordinate in ws.merged_cells:
-        # 找出 A1 所屬的合併範圍
-        for merged_range in ws.merged_cells.ranges:
-            if 'A1' in str(merged_range):
-                range_str = str(merged_range)
-                # 檢查是否恰好是 A1:B1（2 欄）
-                if range_str == 'A1:B1':
-                    ws.column_dimensions['A'].width = 25
-                    ws.column_dimensions['B'].width = 25
-                break
-
-
 def _parse_export_sections(sections: str | None, default_sections: tuple = DEFAULT_EXPORT_SECTIONS, allowed_sections: tuple = SINGLE_EXPORT_SECTIONS) -> set[str]:
     """驗證要求匯出的工作表；未指定時採用指定的預設工作表。"""
     if sections is None:
@@ -590,7 +526,7 @@ def _build_overview(ws: Worksheet, inventory_available: bool, period: str) -> No
         inventory_available: 是否有匯出含資料的庫存總表。
         period: 與其他報表工作表共用的顯示期間。
     """
-    _style_title(ws, "庫存管理報表", period, header_count=2)
+    _style_title(ws, "單一庫存－總覽", period, header_count=2)
     _write_headers(ws, ["指標", "數值"])
     _style_header(ws, 5)
     kpis = [
@@ -636,7 +572,7 @@ def _build_stats_sheet(ws: Worksheet, items: Iterable, positions: Iterable, inve
         inventory_available: 是否可使用公式彙總庫存總表。
         period: 與其他報表工作表共用的顯示期間。
     """
-    _style_title(ws, "庫存統計", period, header_count=7)
+    _style_title(ws, "單一庫存－統計", period, header_count=7)
     _write_stats_headers(ws)
     quantity_by_item = _quantity_by_item(positions)
     for site in SITE_ORDER:
@@ -875,26 +811,26 @@ def _build_inventory_workbook(selected_sections, period_text, data: _InventoryEx
     items, positions, movements, qty_types, cabinet_notes = data
     wb = _new_workbook()
     if "overview" in selected_sections:
-        overview = wb.create_sheet("01 總覽")
+        overview = wb.create_sheet("01 單一庫存－總覽")
         _build_overview(overview, "inventory" in selected_sections and bool(items), period_text)
     if "inventory" in selected_sections:
-        inventory = wb.create_sheet("庫存總表(單一庫存)")
-        _style_title(inventory, "單一庫存總表", period_text, header_count=13)
+        inventory = wb.create_sheet("單一庫存－庫存總表")
+        _style_title(inventory, "單一庫存－庫存總表", period_text, header_count=13)
         _build_inventory_sheet(inventory, items, positions, "positions" in selected_sections and bool(positions), qty_types)
     if "positions" in selected_sections:
-        position = wb.create_sheet("位置明細(單一庫存)")
-        _style_title(position, "單一庫存位置明細", period_text, header_count=10)
+        position = wb.create_sheet("單一庫存－位置明細")
+        _style_title(position, "單一庫存－位置明細", period_text, header_count=10)
         _build_position_sheet(position, positions, qty_types, cabinet_notes)
     if "alerts" in selected_sections:
-        alerts = wb.create_sheet("庫存警示(單一庫存)")
-        _style_title(alerts, "單一庫存警示", period_text, header_count=11)
+        alerts = wb.create_sheet("單一庫存－庫存警示")
+        _style_title(alerts, "單一庫存－庫存警示", period_text, header_count=11)
         _build_alert_sheet(alerts, items, positions, "inventory" in selected_sections and bool(items))
     if "movements" in selected_sections:
-        movement = wb.create_sheet("異動紀錄(單一庫存)")
-        _style_title(movement, "單一庫存異動紀錄", period_text, header_count=12)
+        movement = wb.create_sheet("單一庫存－異動紀錄")
+        _style_title(movement, "單一庫存－異動紀錄", period_text, header_count=12)
         _build_movement_sheet(movement, movements)
     if "stats" in selected_sections:
-        stats = wb.create_sheet("06 統計")
+        stats = wb.create_sheet("06 單一庫存－統計")
         _build_stats_sheet(stats, items, positions, "inventory" in selected_sections and bool(items), period_text)
     return wb
 
@@ -924,7 +860,7 @@ def export_excel(month: str | None = None, start_date: str | None = None, end_da
         raise HTTPException(400, "sites 含有不合法的庫存區")
     data = _query_inventory_export(selected_sites, start, end)
     wb = _build_inventory_workbook(selected_sections, _period_text(period, display_period), data)
-    content = _finalize_workbook(wb, {"庫存總表(單一庫存)": 1, "位置明細(單一庫存)": 1, "庫存警示(單一庫存)": 2, "異動紀錄(單一庫存)": 3})
+    content = _finalize_workbook(wb)
     return xlsx_download(content, _report_filename("庫存報表", month, start_date, end_date))
 
 
@@ -993,8 +929,8 @@ def _build_kit_workbook(selected_sections, period_text, data: _KitExportData):
     
     
     if "overview" in selected_sections:
-        overview = wb.create_sheet("01 總覽")
-        _style_title(overview, "整組庫存報表", period_text, header_count=2)
+        overview = wb.create_sheet("01 整組－總覽")
+        _style_title(overview, "整組－總覽", period_text, header_count=2)
         # 簡化的整組 KPI（無庫存區概念）
         _write_headers(overview, ["指標", "數值"])
         _style_header(overview, 5)
@@ -1008,29 +944,29 @@ def _build_kit_workbook(selected_sections, period_text, data: _KitExportData):
             overview.append([label, value])
     
     if "inventory" in selected_sections:
-        inventory = wb.create_sheet("庫存總表(整組)")
-        _style_title(inventory, "整組庫存總表", period_text, header_count=15)
+        inventory = wb.create_sheet("整組－庫存總表")
+        _style_title(inventory, "整組－庫存總表", period_text, header_count=15)
         _build_kit_inventory_sheet(inventory, kit_items, kit_positions, suggested_by_kit, components_by_kit, qty_types)
     
     if "positions" in selected_sections:
-        position = wb.create_sheet("位置明細(整組)")
-        _style_title(position, "整組位置明細", period_text, header_count=11)
+        position = wb.create_sheet("整組－位置明細")
+        _style_title(position, "整組－位置明細", period_text, header_count=11)
         _build_kit_position_sheet(position, kit_items, kit_positions, suggested_by_kit, qty_types, cabinet_notes)
 
     if "components" in selected_sections:
-        component = wb.create_sheet("組成材料(整組)")
-        _style_title(component, "整組組成材料", period_text, header_count=11)
+        component = wb.create_sheet("整組－組成材料")
+        _style_title(component, "整組－組成材料", period_text, header_count=11)
         _build_kit_component_sheet(component, kit_items, components_by_kit, qty_types)
     
     if "alerts" in selected_sections:
-        alerts = wb.create_sheet("庫存警示(整組)")
-        _style_title(alerts, "整組庫存警示", period_text, header_count=11)
+        alerts = wb.create_sheet("整組－庫存警示")
+        _style_title(alerts, "整組－庫存警示", period_text, header_count=11)
         # 顯示低庫存/缺貨/缺料的整組
         _build_kit_alert_sheet(alerts, kit_items, kit_positions, components_by_kit)
     
     if "movements" in selected_sections:
-        movement = wb.create_sheet("異動紀錄(整組)")
-        _style_title(movement, "整組異動紀錄", period_text, header_count=12)
+        movement = wb.create_sheet("整組－異動紀錄")
+        _style_title(movement, "整組－異動紀錄", period_text, header_count=12)
         _build_movement_sheet(movement, movements)
     
     return wb
@@ -1059,7 +995,7 @@ def export_kit_excel(month: str | None = None, start_date: str | None = None, en
     
     data = _query_kit_export(start, end)
     wb = _build_kit_workbook(selected_sections, _period_text(period, display_period), data)
-    content = _finalize_workbook(wb, {"庫存總表(整組)": 1, "位置明細(整組)": 1, "組成材料(整組)": 1, "庫存警示(整組)": 1, "異動紀錄(整組)": 3})
+    content = _finalize_workbook(wb)
     return xlsx_download(content, _report_filename("整組報表", month, start_date, end_date))
 
 
@@ -1083,7 +1019,7 @@ def _query_stockout_movements(start, end):
 
 def _build_stockout_overview(overview, movements, period_text):
     """已領出總覽：領出紀錄數與累計領出數量。"""
-    _style_title(overview, "已領出報表", period_text, header_count=2)
+    _style_title(overview, "已領出－總覽", period_text, header_count=2)
     # 已領出 KPI
     _write_headers(overview, ["指標", "數值"])
     _style_header(overview, 5)
@@ -1101,13 +1037,11 @@ def _build_stockout_overview(overview, movements, period_text):
         overview[f"B{i}"] = value
         overview[f"B{i}"].number_format = "@" if isinstance(value, str) else "0"
 
-    overview.column_dimensions["A"].width = 20
-    overview.column_dimensions["B"].width = 15
 
 
 def _build_stockout_movement_sheet(movement, movements, period_text):
     """已領出異動紀錄工作表（含格式與凍結窗格）。"""
-    _style_title(movement, "已領出異動紀錄", period_text, header_count=12)
+    _style_title(movement, "已領出－異動紀錄", period_text, header_count=12)
     headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
     _write_headers(movement, headers)
     _style_header(movement, 5)
@@ -1140,7 +1074,7 @@ def _build_stockout_movement_sheet(movement, movements, period_text):
         row += 1
 
     # 凍結窗格
-    id_column = {'異動紀錄(已領出)': 3}.get(movement.title)
+    id_column = {'已領出－異動紀錄': 3}.get(movement.title)
     if id_column:
         movement.freeze_panes = f"{chr(64 + id_column + 1)}6"
 
@@ -1149,9 +1083,9 @@ def _build_stockout_workbook(selected_sections, period_text, movements):
     """依所選工作表建立已領出活頁簿（尚未套用全域樣式）。"""
     wb = _new_workbook()
     if "overview" in selected_sections:
-        _build_stockout_overview(wb.create_sheet("01 總覽"), movements, period_text)
+        _build_stockout_overview(wb.create_sheet("01 已領出－總覽"), movements, period_text)
     if "movements" in selected_sections:
-        _build_stockout_movement_sheet(wb.create_sheet("異動紀錄(已領出)"), movements, period_text)
+        _build_stockout_movement_sheet(wb.create_sheet("已領出－異動紀錄"), movements, period_text)
     return wb
 
 
@@ -1177,5 +1111,5 @@ def export_stockout_excel(month: str | None = None, start_date: str | None = Non
     
     movements = _query_stockout_movements(start, end)
     wb = _build_stockout_workbook(selected_sections, _period_text(period, display_period), movements)
-    content = _finalize_workbook(wb, {'異動紀錄(已領出)': 3})
+    content = _finalize_workbook(wb)
     return xlsx_download(content, _report_filename("已領出報表", month, start_date, end_date))

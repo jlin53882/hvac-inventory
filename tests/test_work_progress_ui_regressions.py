@@ -131,7 +131,7 @@ def test_daily_report_note_cells_enable_wrapping():
     buf, _ = build_daily_report(
         "2026-09-21",
         [{
-            "client_name": "王先生",
+            "client_name": "王先生王先生王先生",
             "address": "板橋區",
             "service_type_id": 1,
             "service_name": "保養",
@@ -145,6 +145,7 @@ def test_daily_report_note_cells_enable_wrapping():
     ws = load_workbook(buf).active
     assert ws["B6"].value == "第一行\n第二行"
     assert ws["B6"].alignment == Alignment(wrap_text=True, vertical="top")
+    assert ws.column_dimensions["C"].width >= 20
 
 
 def test_upload_progress_runtime_contract():

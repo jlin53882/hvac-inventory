@@ -146,6 +146,7 @@ def test_engineering_export_tax_values_merges_and_filename(eng_client, tmp_path)
     path = tmp_path / 'out.xlsx'; path.write_bytes(response.content)
     ws = load_workbook(path).active
     assert ws.title == '0901-0904'
+    assert [ws.cell(2, col).value for col in range(1, 7)] == ['類別', '項目', '統編', '發票／收據號碼', '細項', '金額']
     assert ws['C3'].value == 'V'; assert ws['C4'].value == '12345678'
     assert ws['C3'].number_format == '@'; assert ws['C4'].font.name == ws['C3'].font.name
     assert 'C6:C11' in [str(x) for x in ws.merged_cells.ranges]
@@ -166,6 +167,7 @@ def test_engineering_frontend_contract():
     assert "JSON.parse(JSON.stringify(d))" in modal_text
     assert 'engToggleEditorReceipt' in modal_text
     assert 'eng-editor-receipt-toggle' in modal_text
+    assert '發票／收據號碼(選填)' in modal_text
     assert 'engEditorExpandedReceipts' in modal_text
     assert 'id="eng-owner"' in modal_text and 'data-action="eng-filename-preview"' in modal_text
     assert 'src="/static/js/pages/main.js"' in index_text

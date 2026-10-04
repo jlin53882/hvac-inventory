@@ -578,6 +578,7 @@ def test_petty_cash_modal_step_contracts():
         assert 'pcSwitchModalStep' in js
     assert 'validate: () => pcValidateBasic(false)' in general
     assert 'validate:engValidateBasic' in engineering
+    assert '發票／收據號碼(選填)' in engineering
 
 
 def test_petty_cash_detail_renderers_keep_separate_business_bodies():

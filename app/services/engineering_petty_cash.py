@@ -11,6 +11,7 @@ from typing import NamedTuple
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
+from app.services.excel_layout import auto_fit_columns
 from app.services.petty_cash_excel import (
     clear_visible_body,
     INTEGER_MONEY_FORMAT,
@@ -192,11 +193,7 @@ def _detail_row_height(detail):
 
 
 def _write_engineering_header(ws, styles, report):
-    """欄寬、標題列與欄位表頭。"""
-    widths = {"A": 16, "B": 16, "C": 14, "D": 18, "E": 60, "F": 14}
-    for column, width in widths.items():
-        ws.column_dimensions[column].width = width
-
+    """寫入標題列與欄位表頭。"""
     ws.merge_cells("A1:F1")
     copy_role_style(styles, "engineering_title", ws, 1)
     ws["A1"] = f"{period_display(report['start_date'], report['end_date']).replace('~', '～')} 工程零用金明細表"
@@ -206,7 +203,7 @@ def _write_engineering_header(ws, styles, report):
     ws.row_dimensions[1].height = 30
 
     copy_role_style(styles, "engineering_header", ws, 2)
-    for col, value in enumerate(["類別", "項目", "統編", "單據號碼", "細項", "金額"], 1):
+    for col, value in enumerate(["類別", "項目", "統編", "發票／收據號碼", "細項", "金額"], 1):
         ws.cell(2, col).value = value
     _apply_engineering_presentation(ws, 2, "header")
 
@@ -344,6 +341,7 @@ def build_engineering_report(report):
 
     ws.title = engineering_sheet_title(report["start_date"], report["end_date"])
     ws.sheet_view.showGridLines = False
+    auto_fit_columns(ws)
     ensure_page_defaults(ws)
     configure_print_layout(ws, total_row, title_rows="$1:$2")
     wb.calculation.fullCalcOnLoad = True

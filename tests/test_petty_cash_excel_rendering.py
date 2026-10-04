@@ -63,7 +63,7 @@ def test_engineering_excel_has_period_title_and_dynamic_body(tmp_path):
 
     assert ws.title == "0901-0904"
     assert ws["A1"].value == "09/01～09/04 工程零用金明細表"
-    assert [ws.cell(2, col).value for col in range(1, 7)] == ["類別", "項目", "統編", "單據號碼", "細項", "金額"]
+    assert [ws.cell(2, col).value for col in range(1, 7)] == ["類別", "項目", "統編", "發票／收據號碼", "細項", "金額"]
     assert ws["A3"].value == "交通費"
     assert ws["B3"].value == "油資"
     assert ws["C3"].value == "V"
@@ -229,9 +229,15 @@ def test_engineering_excel_presentation_contract(tmp_path):
         },
     ]
     ws = _load_bytes(build_engineering_report, _engineering_report(categories), tmp_path, "engineering-presentation.xlsx")
+    long_detail = "九二無鉛 ABS(25)塑鋼管自來水用水管3/4 *2"
+    import unicodedata
+    expected_detail_width = sum(
+        2 if unicodedata.east_asian_width(char) in ("F", "W") else 1
+        for char in long_detail
+    ) + 2
     assert ws["A1"].value == "09/01～09/04 工程零用金明細表"
-    assert [ws.cell(2, c).value for c in range(1, 7)] == ["類別", "項目", "統編", "單據號碼", "細項", "金額"]
-    assert ws.column_dimensions["E"].width > ws.column_dimensions["F"].width
+    assert [ws.cell(2, c).value for c in range(1, 7)] == ["類別", "項目", "統編", "發票／收據號碼", "細項", "金額"]
+    assert ws.column_dimensions["E"].width == expected_detail_width
     assert ws["E3"].alignment.horizontal == "left"
     assert ws["E3"].alignment.wrap_text is True
     assert ws["F3"].alignment.horizontal == "right"

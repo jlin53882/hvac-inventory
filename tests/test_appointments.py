@@ -365,7 +365,7 @@ def test_export_daily_report(client):
 
     ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
     assert ws.title == "0812"                      # sheet 名 = mmdd
-    assert ws["A1"].value == "振佳空調  工程日誌"
+    assert ws["A1"].value == "振佳空調 工程日報表"
     assert ws["A2"].value == "工程師：藍政達 蘇昱豪"  # 固定兩位工程師（2026-08-13 Sarah 指定）
     assert "星期三" in ws["D2"].value               # 日期含星期
     assert ws["A4"].value == 1                     # 項次
@@ -383,7 +383,7 @@ def test_export_daily_report(client):
     assert ws["B6"].value == "閃紅燈維護"            # 備註無前綴
     assert ws["B12"].value is None                 # 未使用區塊備註清空
     assert ws["B18"].value is None
-    assert ws.column_dimensions["B"].width == 20   # B 欄寬固定 20
+    assert ws.column_dimensions["B"].width == 8    # 時間欄依內容估算，並套用最小欄寬
     assert len(ws.merged_cells.ranges) >= 42       # 範本合併格保留
 
 

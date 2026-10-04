@@ -17,6 +17,7 @@ from fastapi.responses import Response
 from app.database import db_session
 from app.models import QuotationIn
 from app.services.auth import require_perm
+from app.services.excel_layout import auto_fit_columns
 from app.services.safety import excel_safe, parse_ymd, xlsx_download
 
 router = APIRouter()
@@ -277,6 +278,13 @@ def export_quotation_xlsx(quote_id: int):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "報價單"
+    ws.merge_cells("A1:F1")
+    title_cell = ws["A1"]
+    title_cell.value = "報價單"
+    title_cell.font = Font(name="Microsoft JhengHei", bold=True, size=18, color="FFFFFF")
+    title_cell.fill = PatternFill("solid", fgColor="1E3A5F")
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 30
     ws.append(["報價單號", excel_safe(quote_data["quote_number"])])
     ws.append(["報價日期", excel_safe(quote_data["quote_date"])])
     ws.append(["客戶名稱", excel_safe(quote_data["customer_name"])])
@@ -299,8 +307,7 @@ def export_quotation_xlsx(quote_id: int):
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="1E3A5F")
         cell.alignment = Alignment(horizontal="center")
-    for col, width in zip("ABCDEF", [28, 38, 10, 10, 16, 16]):
-        ws.column_dimensions[col].width = width
+    auto_fit_columns(ws)
     ws.freeze_panes = f"A{header_row + 1}"
     buf = io.BytesIO()
     wb.save(buf)
