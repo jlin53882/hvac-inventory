@@ -62,6 +62,17 @@ def test_inventory_page_load_and_startup_skip_full_items():
     assert "closeInventoryStatusModal();" in app[switch_start:current_tab_assignment]
 
 
+def test_inventory_initial_page_size_caps_card_dom_work():
+    """首屏限制在 20 筆；後端仍可由其他呼叫端使用自己的 page_size。"""
+    model = (ROOT / "static/js/core/inventory-read-model.js").read_text(encoding="utf-8")
+    api = read(API_JS)
+    inventory = read(INVENTORY_RENDER_JS)
+    assert "meta: { page: 1, page_size: 20" in model
+    assert "page_size: String(getInventoryMeta().page_size || 20)" in api
+    assert "page_size: body.page_size || 20" in api
+    assert "getInventoryMeta().page_size || 20" in inventory
+
+
 def test_performance_stylesheet_is_mounted():
     index = (ROOT / "static/index.html").read_text(encoding="utf-8")
     css = (ROOT / "static/css/3-components/performance.css").read_text(encoding="utf-8")

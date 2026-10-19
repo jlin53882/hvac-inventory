@@ -130,7 +130,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     const params = new URLSearchParams({
       site: siteAtRequest,
       page: String(pageAtRequest),
-      page_size: String(getInventoryMeta().page_size || 50),
+      page_size: String(getInventoryMeta().page_size || 20),
       sort: 'brand',
     });
     const search = document.getElementById('search-input');
@@ -160,7 +160,7 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     setAllItems(body.items || []);
     setInventoryMeta({
       page: body.page || pageAtRequest,
-      page_size: body.page_size || 50,
+      page_size: body.page_size || 20,
       total: body.total || 0,
       stats: body.stats || null,
     });
@@ -177,11 +177,12 @@ async function loadInventoryPageImpl(page, refreshSummary, refreshFacets, refres
     view().checkReminder();
     view().updateNotifications();
     if (refreshSummary || !hasSummaryCache()) {
-      await updateSubInfo();
+      // 摘要只更新 header / 通知，不應阻塞庫存列表首屏繪製；updateSubInfo 自帶 site/request guard。
+      void updateSubInfo();
     } else {
       renderSubInfo();
     }
-    // await updateSubInfo 期間可能已切頁或有新請求：不可把庫存頁畫進別頁的 #content
+    // 背景摘要請求啟動後仍可能已切頁或有新請求：不可把庫存頁畫進別頁的 #content
     if (!inventoryGuard.isCurrent(requestId) || appState.currentTab !== 'inventory') return;
     view().renderInventory();
   } catch (e) {

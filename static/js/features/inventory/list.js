@@ -250,7 +250,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
 }
 
 function renderInventoryPagination() {
-  const totalPages = Math.ceil((getInventoryMeta().total || 0) / (getInventoryMeta().page_size || 50));
+  const totalPages = Math.ceil((getInventoryMeta().total || 0) / (getInventoryMeta().page_size || 20));
   if (totalPages <= 1) return '';
   const current = getInventoryMeta().page || 1;
   let h = '<div class="inventory-pagination">';

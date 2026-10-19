@@ -10,7 +10,7 @@ loadModules(context, 'core/inventory-read-model.js');   // 重複載入（葉節
 
 // 預設值
 assert.deepStrictEqual(plain(context.getAllItems()), []);
-assert.deepStrictEqual(JSON.parse(JSON.stringify(context.getInventoryMeta())), { page: 1, page_size: 50, total: 0, stats: null });
+assert.deepStrictEqual(JSON.parse(JSON.stringify(context.getInventoryMeta())), { page: 1, page_size: 20, total: 0, stats: null });
 assert.deepStrictEqual(JSON.parse(JSON.stringify(context.getInventoryFacets())), { brands: {}, categories: {}, locations: [] });
 
 // owner 重新指派後（inventory reload / 切換分片），reader 立刻讀到新值，不會拿到舊 reference

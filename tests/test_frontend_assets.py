@@ -5351,11 +5351,11 @@ def test_full_load_completion_does_not_remount_preserved_tabs():
 
 
 def test_inventory_page_load_does_not_render_after_tab_left():
-    """庫存列表載入在 await updateSubInfo 後，若已切頁或被新請求取代，不可 renderInventory 蓋掉別頁
+    """庫存列表載入在背景摘要請求啟動後，若已切頁或被新請求取代，不可 renderInventory 蓋掉別頁
     （visual 快速切頁測試：簽名報表頁被晚到的庫存渲染整個覆蓋）。"""
     api = read(API_JS)
     body = api[api.index("async function loadInventoryPageImpl"):]
-    body = body[body.index("await updateSubInfo();"):body.index("renderInventory();")]
+    body = body[body.index("void updateSubInfo();"):body.index("renderInventory();")]
     assert "if (!inventoryGuard.isCurrent(requestId) || appState.currentTab !== 'inventory') return;" in body
 
 

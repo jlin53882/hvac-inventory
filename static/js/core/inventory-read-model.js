@@ -10,7 +10,8 @@
 
 var inventoryData = {
   items: [],
-  meta: { page: 1, page_size: 50, total: 0, stats: null },
+  // 首屏只載入 20 筆，避免一次建立過大的卡片 DOM；後端仍接受呼叫端指定的 page_size。
+  meta: { page: 1, page_size: 20, total: 0, stats: null },
   facets: { brands: {}, categories: {}, locations: [] },
 };
 
