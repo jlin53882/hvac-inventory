@@ -8,7 +8,7 @@ import { Qty } from '../../core/qty.js';
 import { createRequestGuard } from '../../core/request-guard.js';
 import { filterBySearch } from '../../core/search.js';
 import { appState } from '../../core/state.js';
-import { setPreparedItems } from '../../core/shared-read-model.js';
+import { getPreparedItems, setPreparedItems } from '../../core/shared-read-model.js';
 import { absNum, esc, hasPerm, toast } from '../../core/utils.js';
 
 // ========== 待領出頁籤 ==========
@@ -118,6 +118,69 @@ function renderPreparedDesktopRow(item, isViewer) {
   </tr>${renderKitSubItems(item)}`;
 }
 
+// 依已取得的待領出清單畫整頁（renderPrepared 抓完資料後、以及編輯 modal 內照片變更後共用）
+function paintPrepared(allItems) {
+  const content = document.getElementById('content');
+  const isViewer = !hasPerm('stockout');
+  const items = filterBySearch(allItems, function(i) {
+    return [i.name, i.code, i.brand, i.note, i.destination].join(' ');
+  });
+
+  const totalPrepared = items.reduce((s, i) => s + (Number(i.prepared_qty) || 0), 0);
+  let html = renderPreparedPageHeader(items.length, totalPrepared, isViewer);
+
+  if (!items.length) {
+    html += `<section class="prepared-panel"><div class="prepared-empty-state">
+      <div class="prepared-empty-icon" aria-hidden="true">📦</div>
+      <h2>目前沒有待領出的品項</h2>
+      <p>拿出商品後，可以在這裡管理尚未正式出庫的項目。</p>
+      ${isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" data-action="stockout-prepare-nonstock">＋ 新增待領出</button>'}
+    </div></section>`;
+    content.innerHTML = html;
+    updatePreparedBadge(0);
+    return;
+  }
+
+  const isM = isMobileView();
+  html += `<section class="prepared-panel">
+    <div class="prepared-toolbar"><div><strong>待領出清單</strong><span>共 ${items.length} 筆</span></div></div>`;
+
+  if (isM) {
+    html += '<div class="prepared-mobile-list">';
+    items.forEach(function(item) {
+      const qtyText = String(Qty.disp(item.prepared_qty, item.unit));
+      const stockText = String(Qty.disp(item.qty, item.unit));
+      html += mobileCardShell({
+        reverted: false,
+        cardClass: 'prepared-mobile-card',
+        moreBtnHTML: '',
+        thumb: buildThumb(item.id, item.has_photo, item.name, '📷'),
+        nameHTML: `<span class="prepared-mobile-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}</span>${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
+        subHTML: `<span class="prepared-mobile-model">${kitModelHTML(item)}</span>`,
+        extraHTML: `<div class="prepared-mobile-location">📍 ${esc(item.location || '未標示')}</div>${item.destination ? '<div class="prepared-card-dest">📋 ' + esc(item.destination) + '</div>' : ''}`,
+        qtyHTML: `<div class="prepared-mobile-qty"><b>${esc(qtyText)}</b><small>待領出 ${esc(item.unit)}</small></div>`,
+        actionsHTML: renderKitSubItemsMobile(item) + `<div class="prepared-mobile-meta"><span class="prepared-mobile-stock">庫存 ${esc(stockText)} ${esc(item.unit)}</span>${isViewer ? '' : `<button class="btn btn--out btn--sm" data-action="stockout-prepared-out" data-id="${item.id}">🚚 已領出</button><button class="btn btn--secondary btn--sm" data-action="prepared-sheet" data-id="${item.id}" aria-label="更多操作">⋯</button>`}</div>`
+      });
+    });
+    html += '</div>';
+  } else {
+    html += `<div class="prepared-table-wrap"><table class="prepared-table"><thead><tr>
+      <th class="prepared-col-photo">照片</th><th>品項資訊</th><th class="prepared-col-qty">待領出</th><th class="prepared-col-stock">庫存</th>${isViewer ? '' : '<th class="prepared-col-actions">操作</th>'}
+    </tr></thead><tbody>`;
+    items.forEach(function(item) { html += renderPreparedDesktopRow(item, isViewer); });
+    html += '</tbody></table></div>';
+  }
+  html += '</section>';
+  content.innerHTML = html;
+  updatePreparedBadge(items.length);
+}
+
+// 只用本地清單重畫（不重抓、不顯示 loading）；不在待領出頁時不動
+export function repaintPrepared() {
+  if (appState.currentTab !== 'prepared') return;
+  paintPrepared(getPreparedItems() || []);
+}
+
 // ========== 待領出頁籤 ==========
 const preparedRenderGuard = createRequestGuard();
 
@@ -125,65 +188,14 @@ export async function renderPrepared() {
   const renderRequestId = preparedRenderGuard.next();
   const siteAtRequest = appState.currentSite;
   const content = document.getElementById('content');
-  const isViewer = !hasPerm('stockout');
   content.innerHTML = '<div class="loading"><div class="spin"></div><div>載入待領出清單…</div></div>';
 
   try {
-    let items = await apiFetch(`/api/prepared?site=${siteAtRequest}`);
+    const items = await apiFetch(`/api/prepared?site=${siteAtRequest}`);
     if (!preparedRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
     setPreparedItems(items);  // 含非庫存品項（openPreparedSheet 資料源，2026-08-16 家豪）
 
-    items = filterBySearch(items, function(i) {
-      return [i.name, i.code, i.brand, i.note, i.destination].join(' ');
-    });
-
-    const totalPrepared = items.reduce((s, i) => s + (Number(i.prepared_qty) || 0), 0);
-    let html = renderPreparedPageHeader(items.length, totalPrepared, isViewer);
-
-    if (!items.length) {
-      html += `<section class="prepared-panel"><div class="prepared-empty-state">
-        <div class="prepared-empty-icon" aria-hidden="true">📦</div>
-        <h2>目前沒有待領出的品項</h2>
-        <p>拿出商品後，可以在這裡管理尚未正式出庫的項目。</p>
-        ${isViewer ? '' : '<button class="btn btn--primary btn--md btn-add-inv" data-action="stockout-prepare-nonstock">＋ 新增待領出</button>'}
-      </div></section>`;
-      content.innerHTML = html;
-      updatePreparedBadge(0);
-      return;
-    }
-
-    const isM = isMobileView();
-    html += `<section class="prepared-panel">
-      <div class="prepared-toolbar"><div><strong>待領出清單</strong><span>共 ${items.length} 筆</span></div></div>`;
-
-    if (isM) {
-      html += '<div class="prepared-mobile-list">';
-      items.forEach(function(item) {
-        const qtyText = String(Qty.disp(item.prepared_qty, item.unit));
-        const stockText = String(Qty.disp(item.qty, item.unit));
-        html += mobileCardShell({
-          reverted: false,
-          cardClass: 'prepared-mobile-card',
-          moreBtnHTML: '',
-          thumb: buildThumb(item.id, item.has_photo, item.name, '📷'),
-          nameHTML: `<span class="prepared-mobile-name">${esc(item.brand || '無廠牌')} ${esc(item.name || '未命名')}</span>${item.is_deleted ? '<span class="tag-nonstock">非庫存</span>' : ''}`,
-          subHTML: `<span class="prepared-mobile-model">${kitModelHTML(item)}</span>`,
-          extraHTML: `<div class="prepared-mobile-location">📍 ${esc(item.location || '未標示')}</div>${item.destination ? '<div class="prepared-card-dest">📋 ' + esc(item.destination) + '</div>' : ''}`,
-          qtyHTML: `<div class="prepared-mobile-qty"><b>${esc(qtyText)}</b><small>待領出 ${esc(item.unit)}</small></div>`,
-          actionsHTML: renderKitSubItemsMobile(item) + `<div class="prepared-mobile-meta"><span class="prepared-mobile-stock">庫存 ${esc(stockText)} ${esc(item.unit)}</span>${isViewer ? '' : `<button class="btn btn--out btn--sm" data-action="stockout-prepared-out" data-id="${item.id}">🚚 已領出</button><button class="btn btn--secondary btn--sm" data-action="prepared-sheet" data-id="${item.id}" aria-label="更多操作">⋯</button>`}</div>`
-        });
-      });
-      html += '</div>';
-    } else {
-      html += `<div class="prepared-table-wrap"><table class="prepared-table"><thead><tr>
-        <th class="prepared-col-photo">照片</th><th>品項資訊</th><th class="prepared-col-qty">待領出</th><th class="prepared-col-stock">庫存</th>${isViewer ? '' : '<th class="prepared-col-actions">操作</th>'}
-      </tr></thead><tbody>`;
-      items.forEach(function(item) { html += renderPreparedDesktopRow(item, isViewer); });
-      html += '</tbody></table></div>';
-    }
-    html += '</section>';
-    content.innerHTML = html;
-    updatePreparedBadge(items.length);
+    paintPrepared(items);
   } catch (e) {
     if (!preparedRenderGuard.isCurrent(renderRequestId) || appState.currentTab !== 'prepared' || siteAtRequest !== appState.currentSite) return;
     content.innerHTML = `<div class="prepared-error-state"><div class="prepared-error-icon">⚠️</div><h2>載入待領出資料失敗</h2><p>${esc(e.message || '請稍後再試')}</p><button class="btn btn--secondary btn--md btn-cancel" data-action="prepared-reload">重新載入</button></div>`;

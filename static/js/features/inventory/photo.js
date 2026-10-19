@@ -18,8 +18,29 @@ let similarTimer = null;          // 相似查詢 debounce timer
 const similarGuard = createRequestGuard();   // 防舊回應覆蓋新輸入（競態防護）
 
 // ========== 照片（編輯 modal） ==========
-export function renderPhotoBox(itemId, hasPhoto) {
-  const box = document.getElementById('e-photo-box');
+const ITEM_PHOTO_BOX_ID = 'e-photo-box';
+// 照片變更後通知所屬頁面（boxId → handler(itemId, patch)）；由各 modal 開啟時註冊，載入時不產生副作用
+const photoChangeListeners = new Map();
+
+export function onItemPhotoChange(boxId, handler) {
+  photoChangeListeners.set(boxId, handler);
+}
+
+// 拍照 / 從相簿選 兩個選檔按鈕；屬性值一律 esc() 後以字串串接（不用內插，XSS 掃描不需放寬白名單）。
+// inputIds 有給 = 預覽模式（兩個 input 依序用這兩個 id，選檔後只預覽）；否則為既有品項，選檔即上傳。
+function photoPickButtons(boxId, itemId, inputIds) {
+  const pickInput = (camera, n) => '<input type="file" accept="image/*"' + (camera ? ' capture="environment"' : '') +
+    (inputIds
+      ? ' id="' + esc(inputIds[n]) + '" data-action="inventory-pending-photo-preview"'
+      : ' data-action="inventory-photo-upload" data-id="' + esc(itemId) + '"') +
+    ' data-box="' + esc(boxId) + '" style="display:none">';
+  return '<label class="btn btn--secondary btn--md btn-prepare">📷 拍照\n' + pickInput(true, 0) + '\n</label>\n' +
+    '<label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選\n' + pickInput(false, 1) + '\n</label>';
+}
+
+// boxId：照片區容器 id（預設單一庫存編輯 modal；待領出編輯 modal 傳 pe-photo-box）
+export function renderPhotoBox(itemId, hasPhoto, boxId = ITEM_PHOTO_BOX_ID) {
+  const box = document.getElementById(boxId);
   if (!box) return;
   const canPhoto = hasPerm('photo');
   if (hasPhoto) {
@@ -27,46 +48,35 @@ export function renderPhotoBox(itemId, hasPhoto) {
       <img src="${photoSrc(itemId, 'thumbnail')}" alt="品項照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}"
            class="photo-box-thumb" title="點擊看大圖" data-fallback="hide">
       ${canPhoto ? `<div class="photo-actions">
-        <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-          <input type="file" accept="image/*" capture="environment" style="display:none"
-                 data-action="inventory-photo-upload" data-id="${itemId}">
-        </label>
-        <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-          <input type="file" accept="image/*" style="display:none"
-                 data-action="inventory-photo-upload" data-id="${itemId}">
-        </label>
-        <button class="btn btn--danger btn--md btn-prepare" data-action="inventory-photo-delete" data-id="${itemId}">🗑 刪除</button>
+        ${photoPickButtons(boxId, itemId)}
+        <button class="btn btn--danger btn--md btn-prepare" data-action="inventory-photo-delete" data-id="${itemId}" data-box="${esc(boxId)}">🗑 刪除</button>
       </div>` : ''}`;
   } else {
     box.innerHTML = canPhoto
       ? `<div class="photo-box-hint">尚無照片</div>
       <div class="photo-actions">
-        <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-          <input type="file" accept="image/*" capture="environment" style="display:none"
-                 data-action="inventory-photo-upload" data-id="${itemId}">
-        </label>
-        <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-          <input type="file" accept="image/*" style="display:none"
-                 data-action="inventory-photo-upload" data-id="${itemId}">
-        </label>
+        ${photoPickButtons(boxId, itemId)}
       </div>`
       : '<div class="photo-box-hint">尚無照片</div>';
   }
+}
+
+// 前端驗證：副檔名白名單 + 大小上限 10MB；回傳錯誤訊息，通過回 null
+function photoFileError(file) {
+  const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp'];
+  const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+  if (ALLOWED.indexOf(ext) === -1) return '不支援的圖片格式（限 jpg/png/webp）';
+  if (file.size > 10 * 1024 * 1024) return '圖片超過 10MB 上限';
+  return null;
 }
 
 // 上傳照片（手機：無 capture 屬性 → 系統彈「拍照/相簿」選擇器，兩者皆可）
 export async function uploadItemPhoto(itemId, input) {
   const file = input.files && input.files[0];
   if (!file) return;
-  // 前端驗證：副檔名白名單 + 大小上限 10MB
-  const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp'];
-  const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-  if (ALLOWED.indexOf(ext) === -1) {
-    toast('不支援的圖片格式（限 jpg/png/webp）', 'error'); return;
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    toast('圖片超過 10MB 上限', 'error'); return;
-  }
+  const fileError = photoFileError(file);
+  if (fileError) { toast(fileError, 'error'); return; }
+  const boxId = input.dataset.box || ITEM_PHOTO_BOX_ID;
   const fd = new FormData();
   fd.append('file', file);
   try {
@@ -78,22 +88,112 @@ export async function uploadItemPhoto(itemId, input) {
       return;
     }
     toast('✅ 照片已更新', 'success');
-    // 先更新列表狀態，再重繪編輯 modal，避免 modal 暫留舊縮圖
-    const patched = patchItem(itemId, { has_photo: true, photo_asset_id: body.asset_id || null, thumbnail_url: body.thumbnail_url || null, preview_url: body.preview_url || null });
-    if (patched) renderInventoryView();
-    renderPhotoBox(itemId, true);
+    // 先更新列表狀態，再重繪照片區，避免 modal 暫留舊縮圖
+    const patch = { has_photo: true, photo_asset_id: body.asset_id || null, thumbnail_url: body.thumbnail_url || null, preview_url: body.preview_url || null };
+    if (patchItem(itemId, patch)) renderInventoryView();
+    const listener = photoChangeListeners.get(boxId);
+    if (listener) listener(itemId, patch);
+    renderPhotoBox(itemId, true, boxId);
   } catch { toast('上傳失敗', 'error'); }
   input.value = '';  // 允許重選同一檔案
 }
 
 // 刪除照片（冪等）
-export async function deleteItemPhoto(itemId) {
+export async function deleteItemPhoto(itemId, boxId = ITEM_PHOTO_BOX_ID) {
   try {
     await apiFetch(`/api/items/${itemId}/photo`, { method: 'DELETE' });
     toast('🗑 照片已刪除', 'success');
-    renderPhotoBox(itemId, false);
+    const listener = photoChangeListeners.get(boxId);
+    if (listener) listener(itemId, { has_photo: false, photo_asset_id: null, thumbnail_url: null, preview_url: null });
+    renderPhotoBox(itemId, false, boxId);
     if (patchItem(itemId, { has_photo: false })) renderInventoryView();
   } catch { toast('刪除失敗', 'error'); }
+}
+
+// ========== 預覽式照片區（整組新增/編輯、待領出新增：先選檔預覽，由呼叫端在儲存後上傳） ==========
+// prefix 決定元素 id：${prefix}-box（容器）、-input / -album（選檔）、-preview、-message
+// headHtml：預覽之前的內容（既有照片縮圖）；extraButtons：選檔按鈕之後的按鈕（刪除）；兩者由呼叫端負責 esc。
+export function renderPendingPhotoBox(prefix, { message = '建立後自動上傳照片', headHtml = '', extraButtons = '' } = {}) {
+  const box = document.getElementById(prefix + '-box');
+  if (!box) return;
+  if (!hasPerm('photo')) {
+    box.innerHTML = '<div class="photo-box-hint">無照片上傳權限</div>';
+    return;
+  }
+  box.innerHTML = headHtml +
+    (message ? '<div id="' + esc(prefix) + '-message" class="photo-box-hint">' + esc(message) + '</div>' : '') +
+    '<div id="' + esc(prefix) + '-preview" class="photo-box-preview"></div>' +
+    '<div class="photo-actions">' + photoPickButtons(prefix, null, [prefix + '-input', prefix + '-album']) + extraButtons + '</div>';
+}
+
+// 回傳使用者選的照片（拍照或相簿擇一）；沒選回 null
+export function getPendingPhotoFile(prefix) {
+  const cam = document.getElementById(prefix + '-input');
+  const album = document.getElementById(prefix + '-album');
+  return (cam && cam.files && cam.files[0]) || (album && album.files && album.files[0]) || null;
+}
+
+// 清除預覽並重置兩個輸入
+function clearPendingPhoto(prefix) {
+  const preview = document.getElementById(prefix + '-preview');
+  const message = document.getElementById(prefix + '-message');
+  if (preview) preview.innerHTML = '';
+  if (message) message.style.display = '';
+  const cam = document.getElementById(prefix + '-input');
+  const album = document.getElementById(prefix + '-album');
+  if (cam) cam.value = '';
+  if (album) album.value = '';
+}
+
+// 選檔後預覽（兩個 input 互斥）；格式/大小不符 → 提示並只清掉這次的選擇，另一個 input 已選好的合規照片保留
+export function previewPendingPhoto(input) {
+  const prefix = input.dataset.box;
+  const preview = document.getElementById(prefix + '-preview');
+  const message = document.getElementById(prefix + '-message');
+  if (!preview) return;
+  const other = document.getElementById(input.id === prefix + '-input' ? prefix + '-album' : prefix + '-input');
+  const file = input.files && input.files[0];
+  if (!file) { clearPendingPhoto(prefix); return; }
+  const fileError = photoFileError(file);
+  if (fileError) {
+    toast(fileError, 'error');
+    input.value = '';
+    if (!(other && other.files && other.files[0])) clearPendingPhoto(prefix);
+    return;
+  }
+  if (other) other.value = '';
+  if (message) message.style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'photo-preview';
+    const image = document.createElement('img');
+    image.src = e.target.result;
+    image.alt = '預覽';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.textContent = '✕ 清除';
+    clear.className = 'btn btn--danger btn--sm photo-preview-clear';
+    clear.addEventListener('click', () => clearPendingPhoto(prefix));
+    wrapper.append(image, clear);
+    preview.replaceChildren(wrapper);
+  };
+  reader.readAsDataURL(file);
+}
+
+// 上傳已選的預覽照片；失敗只提示不中斷（品項已建立）。沒選檔回 false
+export async function uploadPendingPhoto(itemId, prefix) {
+  const file = getPendingPhotoFile(prefix);
+  if (!file) return false;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    await apiFetch(`/api/items/${itemId}/photo`, { method: 'POST', body: fd, fallback: '照片上傳失敗' });
+    return true;
+  } catch (e) {
+    toast('⚠️ 品項已建立，但照片上傳失敗：' + e.message, 'error');
+    return false;
+  }
 }
 
 // ========== 大圖檢視（lightbox） ==========
@@ -179,6 +279,8 @@ function renderSimilarWarn(warnId, hits) {
 
 // ========== 整組照片（新增/編輯 modal） ==========
 // 整組照片：新增時建立後自動上傳（背景），編輯時可修改；選檔後立即預覽
+// 元素 id 前綴（k-photo-box / -input / -album / -preview / -message）；kit-modal.js 以 getPendingPhotoFile('k-photo') 取已選檔案
+const KIT_PHOTO_PREFIX = 'k-photo';
 /**
  * 依 Kit 定義與其庫存品項的不同識別碼渲染整組照片控制。
  * @param {number|null} kitId - kits.id；用於整組專屬上傳與刪除端點。
@@ -187,57 +289,17 @@ function renderSimilarWarn(warnId, hits) {
  * @returns {void} 更新整組編輯 modal 的照片區塊。
  */
 export function renderKitPhotoBox(kitId, itemId, hasPhoto) {
-  const box = document.getElementById('k-photo-box');
-  if (!box) return;
-  const canPhoto = hasPerm('photo');
-  if (!canPhoto) {
-    box.innerHTML = '<div class="photo-box-hint">無照片上傳權限</div>';
-    return;
-  }
   // 新增模式沒有 Kit/item 識別碼；編輯模式分開使用 Kit ID 與 backing item ID。
   if (kitId === null || kitId === undefined) {
-    // 新增模式：選檔後立即預覽
-    box.innerHTML = `<div id="k-photo-message" class="photo-box-hint">建立後可立即上傳照片</div>
-      <div id="k-photo-preview" class="photo-box-preview"></div>
-      <div class="photo-actions">
-        <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-          <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" data-action="inventory-kit-photo-preview">
-        </label>
-        <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-          <input type="file" accept="image/*" id="k-photo-album" style="display:none" data-action="inventory-kit-photo-preview">
-        </label>
-      </div>`;
-    // 兩個 input 互斥（選一個就清另一個）
-    const cam = document.getElementById('k-photo-input');
-    const album = document.getElementById('k-photo-album');
-    cam?.addEventListener('change', () => { if (cam.files[0]) album.value = ''; });
-    album?.addEventListener('change', () => { if (album.files[0]) cam.value = ''; });
+    renderPendingPhotoBox(KIT_PHOTO_PREFIX, { message: '建立後可立即上傳照片' });
+  } else if (hasPhoto) {
+    renderPendingPhotoBox(KIT_PHOTO_PREFIX, {
+      message: '',
+      headHtml: `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}" class="photo-box-thumb" title="點擊看大圖" data-fallback="hide">`,
+      extraButtons: `<button class="btn btn--danger btn--md btn-prepare" data-action="inventory-kit-photo-delete" data-kit-id="${kitId}" data-id="${itemId}">🗑 刪除</button>`,
+    });
   } else {
-    // 編輯模式：顯示既有照片 + 修改選項
-    if (hasPhoto) {
-      box.innerHTML = `<img src="${photoSrc(itemId, 'thumbnail')}" alt="整組照片" loading="lazy" decoding="async" width="320" height="240" data-action="photo-lightbox" data-id="${itemId}" class="photo-box-thumb" title="點擊看大圖" data-fallback="hide">
-        <div id="k-photo-preview" class="photo-box-preview"></div>
-        <div class="photo-actions">
-          <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" data-action="inventory-kit-photo-preview">
-          </label>
-          <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-            <input type="file" accept="image/*" id="k-photo-album" style="display:none" data-action="inventory-kit-photo-preview">
-          </label>
-          <button class="btn btn--danger btn--md btn-prepare" data-action="inventory-kit-photo-delete" data-kit-id="${kitId}" data-id="${itemId}">🗑 刪除</button>
-        </div>`;
-    } else {
-      box.innerHTML = `<div id="k-photo-message" class="photo-box-hint">尚無照片</div>
-        <div id="k-photo-preview" class="photo-box-preview"></div>
-        <div class="photo-actions">
-          <label class="btn btn--secondary btn--md btn-prepare">📷 拍照
-            <input type="file" accept="image/*" capture="environment" id="k-photo-input" style="display:none" data-action="inventory-kit-photo-preview">
-          </label>
-          <label class="btn btn--secondary btn--md btn-prepare">🖼 從相簿選
-            <input type="file" accept="image/*" id="k-photo-album" style="display:none" data-action="inventory-kit-photo-preview">
-          </label>
-        </div>`;
-    }
+    renderPendingPhotoBox(KIT_PHOTO_PREFIX, { message: '尚無照片' });
   }
 }
 
@@ -260,52 +322,6 @@ export async function deleteKitPhoto(kitId, itemId) {
   } catch {
     toast('刪除失敗', 'error');
   }
-}
-
-/**
- * Preview the selected Kit image using DOM properties, not HTML interpolation.
- * @param {HTMLInputElement} input File input that contains the selected image.
- * @returns {void} Replaces the preview content after FileReader finishes.
- */
-export function _previewKitPhoto(input) {
-  const preview = document.getElementById('k-photo-preview');
-  const message = document.getElementById('k-photo-message');
-  if (!preview) return;
-  const file = input.files && input.files[0];
-  if (!file) {
-    preview.innerHTML = '';
-    if (message) message.style.display = '';  // 顯示「尚無照片」
-    return;
-  }
-  if (message) message.style.display = 'none';  // 隱藏「尚無照片」
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'photo-preview';
-    const image = document.createElement('img');
-    image.src = e.target.result;
-    image.alt = '預覽';
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    clear.textContent = '✕ 清除';
-    clear.className = 'btn btn--danger btn--sm photo-preview-clear';
-    clear.addEventListener('click', _clearKitPhotoPreview);
-    wrapper.append(image, clear);
-    preview.replaceChildren(wrapper);
-  };
-  reader.readAsDataURL(file);
-}
-
-// 清除預覽並重置輸入
-function _clearKitPhotoPreview() {
-  const preview = document.getElementById('k-photo-preview');
-  const message = document.getElementById('k-photo-message');
-  if (preview) preview.innerHTML = '';
-  if (message) message.style.display = '';  // 重新顯示「尚無照片」
-  const cam = document.getElementById('k-photo-input');
-  const album = document.getElementById('k-photo-album');
-  if (cam) cam.value = '';
-  if (album) album.value = '';
 }
 
 // 模組載入時要執行的副作用：由頁面 entry 依原本的載入順序呼叫（issue #39）

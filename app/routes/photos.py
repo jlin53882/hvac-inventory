@@ -40,8 +40,10 @@ def upload_photo(item_id: int, file: UploadFile):
     with db_session() as conn:
         asset = None
         try:
+            # 非庫存品項（待領出臨時品項：is_deleted=1 且 site=''）僅在仍有待領出時可上傳；已刪除的庫存品項、
+            # 已領出完成的臨時品項都拒絕，避免產生沒有 UI 可管理的孤兒照片
             row = conn.execute(
-                "SELECT id FROM items WHERE id=? AND is_deleted=0", (item_id,)
+                "SELECT id FROM items WHERE id=? AND (is_deleted=0 OR (site='' AND prepared_qty>0))", (item_id,)
             ).fetchone()
             if not row:
                 raise HTTPException(404, "品項不存在")

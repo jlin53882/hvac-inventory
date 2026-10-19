@@ -704,6 +704,7 @@ def list_prepared(site: Optional[InventorySiteQuery] = None):
         """, params).fetchall()
         stocks_map: dict = {}
         destinations: dict = {}
+        photos: dict = {}
         for chunk in chunked_ids(r["id"] for r in rows):
             placeholders = ",".join("?" * len(chunk))
             for stock in conn.execute(
@@ -719,9 +720,20 @@ def list_prepared(site: Optional[InventorySiteQuery] = None):
                 chunk,
             ):
                 destinations[mv["item_id"]] = mv["destination"]
+            # 照片 asset 網址：非庫存品項不在庫存快取內，前端要靠這裡的 thumbnail/preview 顯示（含換照片後的新網址）
+            for photo in conn.execute(
+                "SELECT owner_id, asset_id, thumbnail_path, preview_path FROM file_assets "
+                f"WHERE category='item_photo' AND owner_type='item' AND owner_id IN ({placeholders})",
+                [str(i) for i in chunk],
+            ):
+                photos[int(photo["owner_id"])] = photo
         payloads = [_item_payload(conn, r, stocks_map.get(r["id"], [])) for r in rows]  # 補 total_qty/location/stocks 相容欄位
         for p in payloads:
             p["destination"] = destinations.get(p["id"]) or ""
+            photo = photos.get(p["id"])
+            p["photo_asset_id"] = photo["asset_id"] if photo else None
+            p["thumbnail_url"] = f"/media/{photo['asset_id']}/thumbnail" if photo and photo["thumbnail_path"] else None
+            p["preview_url"] = f"/media/{photo['asset_id']}/preview" if photo and photo["preview_path"] else None
         return payloads
 
 def _metadata_updates(upd) -> dict:

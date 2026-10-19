@@ -83,6 +83,7 @@ const context = vm.createContext({
   FormData: TestFormData,
   setTimeout: () => 0,
   hasPerm: () => true,
+  esc: (value) => String(value ?? ''),
   photoSrc: (itemId, size) => {
     calls.media.push({ itemId, size });
     return `/media/item-${itemId}/${size}`;

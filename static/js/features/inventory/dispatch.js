@@ -13,7 +13,7 @@ import { closeInventoryExportDialog, openInventoryExportDialog, submitInventoryE
 import { clearFilterPanel, toggleFilterCollapse, toggleInventoryBrand, toggleInventoryCategory } from './filters.js';
 import { setInventoryView, toggleLoc } from './list.js';
 import { cancelStockLocationPicker, queueStockLocationAdjustment } from './location-adjustments.js';
-import { _previewKitPhoto, deleteItemPhoto, deleteKitPhoto, uploadItemPhoto } from './photo.js';
+import { deleteItemPhoto, deleteKitPhoto, previewPendingPhoto, uploadItemPhoto } from './photo.js';
 import { qtydQuick, setQtyDialogMode, submitQtyDialog } from './qty-dialog.js';
 import { closeInventoryStatusModal, showInventoryStatusList } from './status.js';
 import { closeTransferModal, openTransferModal, submitTransfer } from './transfer-modal.js';
@@ -75,8 +75,8 @@ const INVENTORY_ACTIONS = {
   'inventory-status-close': { click: function() { closeInventoryStatusModal(); } },
   'inventory-status-edit': { click: function(el) { closeInventoryStatusModal(); openEditModal(itemId(el)); } },
   'inventory-photo-upload': { change: function(el) { uploadItemPhoto(itemId(el), el); } },
-  'inventory-photo-delete': { click: function(el) { deleteItemPhoto(itemId(el)); } },
-  'inventory-kit-photo-preview': { change: function(el) { _previewKitPhoto(el); } },
+  'inventory-photo-delete': { click: function(el) { deleteItemPhoto(itemId(el), el.dataset.box || undefined); } },
+  'inventory-pending-photo-preview': { change: function(el) { previewPendingPhoto(el); } },
   'inventory-kit-photo-delete': { click: function(el) { deleteKitPhoto(Number(el.dataset.kitId), itemId(el)); } },
   'inventory-similar-edit': { click: function(el, event) { event.preventDefault(); goEditSimilar(itemId(el)); } },
   'inventory-location-adjust': { click: function(el) { queueStockLocationAdjustment(Number(el.dataset.itemId), Number(el.dataset.stockId)); } },

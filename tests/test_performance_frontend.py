@@ -81,11 +81,15 @@ def test_photo_lightbox_uses_preview_variant():
 def test_photo_replace_updates_item_state_before_modal_render():
     """照片上傳成功後，先透過 read-model 的 patchItem 更新品項縮圖狀態，再重繪編輯 modal（避免暫留舊縮圖）。"""
     source = (ROOT / "static/js/features/inventory/photo.js").read_text(encoding="utf-8")
-    state_update = source.index("patchItem(itemId, { has_photo: true")
-    modal_render = source.index("renderPhotoBox(itemId, true);")
-    assert state_update < modal_render
-    assert source.index("thumbnail_url: body.thumbnail_url", state_update) < modal_render
-    assert source.index("preview_url: body.preview_url", state_update) < modal_render
+    # patch 物件（含新縮圖/大圖網址）先組好，並在重繪照片區（modal）之前套用到 read-model 與待領出清單
+    patch_def = source.index("const patch = { has_photo: true")
+    state_update = source.index("patchItem(itemId, patch)")
+    listener_update = source.index("listener(itemId, patch)")
+    modal_render = source.index("renderPhotoBox(itemId, true, boxId);")
+    assert patch_def < state_update < modal_render
+    assert state_update < listener_update < modal_render
+    assert source.index("thumbnail_url: body.thumbnail_url", patch_def) < state_update
+    assert source.index("preview_url: body.preview_url", patch_def) < state_update
 
 
 def test_inventory_async_requests_are_site_safe_and_notifications_are_unpaged():

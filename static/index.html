@@ -443,6 +443,10 @@
       <label id="pe-name-label">品項名稱*</label>
       <input type="text" id="pe-name">
     </div>
+    <div class="form-row" id="pe-photo-row" hidden>
+      <label>品項照片(選填，手機可直接拍照)</label>
+      <div class="photo-box" id="pe-photo-box"></div>
+    </div>
     <div class="form-2col">
       <div class="form-row">
         <label>廠牌(選填)</label>
@@ -563,6 +567,10 @@
       <input type="text" id="nsp-code" placeholder="例如：3/8&quot;">
     </div>
     <div class="form-row">
+      <label>品項照片(選填，手機可直接拍照)</label>
+      <div class="photo-box" id="nsp-photo-box"></div>
+    </div>
+    <div class="form-row">
       <label>單位(選填)</label>
       <input type="search" id="nsp-unit-search" class="unit-search" placeholder="🔍 搜尋單位…" data-action="core-unit-filter" data-target="nsp-unit">
       <select id="nsp-unit"></select>
@@ -578,7 +586,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn--secondary btn--md btn-cancel" data-action="ui-close-modal" data-modal="nonstock-prepare-modal">取消</button>
-      <button class="btn btn--prepare btn--solid btn--md btn-confirm" data-action="stockout-submit-nonstock-prepare">📤 確認待領出</button>
+      <button class="btn btn--prepare btn--solid btn--md btn-confirm" id="nsp-submit" data-action="stockout-submit-nonstock-prepare">📤 確認待領出</button>
     </div>
   </div>
 </div>

@@ -4,13 +4,14 @@ import { photoSrc } from '../../components/card.js';
 import { apiFetch } from '../../core/api-client.js';
 import { refreshDestinationsAfterMutation } from '../../core/data.js';
 import { loadData } from '../shell/data-refresh.js';
+import { onItemPhotoChange, renderPendingPhotoBox, renderPhotoBox, uploadPendingPhoto } from '../inventory/photo.js';
 import { Qty, qtyInputOrToast } from '../../core/qty.js';
 import { inventorySiteLabel } from '../../core/site-label.js';
 import { getCurrentKitItems, getPreparedItems } from '../../core/shared-read-model.js';
 import { getAllItems } from '../../core/inventory-read-model.js';
 import { fillUnitSelect } from '../../core/units.js';
 import { closeModalForce, esc, hasPerm, openModal, toast } from '../../core/utils.js';
-import { renderPrepared } from '../prepared/page.js';
+import { renderPrepared, repaintPrepared } from '../prepared/page.js';
 import { renderStockOuts } from './page.js';
 import { stockoutState } from './state.js';
 
@@ -97,6 +98,8 @@ export async function submitNonStockOut() {
 }
 
 // ========== 非庫存品項待領出（2026-08-13 家豪：比照已領出，待領出頁直接新增不在庫存的東西） ==========
+const NSP_PHOTO_PREFIX = 'nsp-photo';  // 元素 id 前綴：nsp-photo-box / -input / -album / -preview
+
 export function openNonStockPrepareModal() {
   document.getElementById('nsp-name').value = '';
   document.getElementById('nsp-code').value = '';
@@ -108,6 +111,7 @@ export function openNonStockPrepareModal() {
   if (nspUnitSearch) nspUnitSearch.value = '';  // 重開 modal 清空搜尋
   document.getElementById('nsp-qty').value = '';
   document.getElementById('nsp-note').value = '';
+  renderPendingPhotoBox(NSP_PHOTO_PREFIX);
   openModal('nonstock-prepare-modal');
 }
 
@@ -121,13 +125,20 @@ export async function submitNonStockPrepare() {
   if (!name) { toast('請輸入品項名稱', 'error'); return; }
   if (!qty || qty <= 0) { toast('請輸入待領出數量', 'error'); return; }
 
+  // 建立 + 照片上傳期間鎖住按鈕，避免慢網路重複點擊建立多筆臨時品項
+  const btn = document.getElementById('nsp-submit');
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   try {
-    await apiFetch('/api/prepare/nonstock', { method: 'POST', json: { name: name, code: code, unit: unit, qty: qty, destination: '', note: note }, fallback: '新增失敗' });
+    const created = await apiFetch('/api/prepare/nonstock', { method: 'POST', json: { name: name, code: code, unit: unit, qty: qty, destination: '', note: note }, fallback: '新增失敗' });
+    await uploadPendingPhoto(created.id, NSP_PHOTO_PREFIX);  // 有選照片才上傳；失敗只提示，品項已建立
     closeModalForce('nonstock-prepare-modal');
     toast(`✅ 已新增待領出 ${qty} ${unit}`, 'success');
     await loadData();
   } catch (e) {
     toast('⚠️ ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.setAttribute('aria-busy', 'false'); }
   }
 }
 
@@ -449,8 +460,15 @@ export async function deleteStockoutReturn(movementId) {
 
 
 // ========== 待領出編輯（pre-built modal） ==========
+const PE_PHOTO_BOX = 'pe-photo-box';
+
+// 非庫存品項 = 待領出臨時品項（後端以 is_deleted=1 標記）
+function isPreparedNonStock(item) {
+  return !item.is_kit && Boolean(item.is_deleted);
+}
+
 function canEditPreparedMaster(item) {
-  return !item.is_kit && (Boolean(item.is_deleted) || hasPerm('item-mgmt'));
+  return isPreparedNonStock(item) || (!item.is_kit && hasPerm('item-mgmt'));
 }
 
 export function openPreparedEditModal(id) {
@@ -472,7 +490,21 @@ export function openPreparedEditModal(id) {
   fillUnitSelect(document.getElementById('pe-unit'), item.unit || '個');
   document.getElementById('pe-qty').value = item.prepared_qty || 0;
   document.getElementById('pe-dest').value = item.destination || '';
+  // 照片只開放非庫存品項（庫存品項的照片在單一庫存頁維護）
+  const photoRow = document.getElementById('pe-photo-row');
+  if (photoRow) photoRow.hidden = !isPreparedNonStock(item);
+  if (isPreparedNonStock(item)) {
+    onItemPhotoChange(PE_PHOTO_BOX, syncPreparedPhoto);
+    renderPhotoBox(item.id, Boolean(item.has_photo), PE_PHOTO_BOX);
+  }
   openModal('prepared-edit-modal');
+}
+
+// 照片變更後只更新本地該筆並重畫清單（不重抓、不閃 loading；使用者仍在編輯 modal 內）
+function syncPreparedPhoto(itemId, patch) {
+  const item = (getPreparedItems() || []).find(i => i.id === itemId);
+  if (item) Object.assign(item, patch);
+  repaintPrepared();
 }
 
 export async function submitPreparedEdit() {

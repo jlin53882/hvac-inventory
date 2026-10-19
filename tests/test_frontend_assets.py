@@ -2724,8 +2724,9 @@ def test_photo_box_permission_check():
 def test_photo_box_dual_buttons():
     """編輯 modal 照片区有「拍照」（capture）和「從相簿選」兩個獨立按鈕"""
     js = read(PHOTO_JS)
-    assert js.count('capture="environment"') >= 2, \
-        "photo.js renderPhotoBox 缺 capture=environment（拍照 input，有照片+無照片各一）"
+    # 拍照 input 現在由共用的 photoPickButtons 產生（有照片/無照片/整組/待領出新增共用同一個），只需出現一次
+    assert 'capture="environment"' in js and "function photoPickButtons(" in js, \
+        "photo.js 缺共用的 photoPickButtons 或 capture=environment（拍照 input）"
     assert "從相簿選" in js, "photo.js renderPhotoBox 缺「從相簿選」按鈕"
 
 
@@ -5400,3 +5401,40 @@ def test_form_requiredness_labels_are_consistent_across_create_and_edit_pages():
     assert '<label>上期餘額(選填)</label>' in petty_cash
     assert '<label>檔名備註(選填)</label>' in engineering_cash
     assert '<label>統編(選填)</label>' in engineering_cash
+
+
+def test_prepared_nonstock_photo_ui():
+    """待領出新增/編輯：僅非庫存品項有照片區；沿用單一庫存的 PhotoBox（同一套選檔/上傳/刪除）"""
+    html = read(INDEX)
+    assert 'id="nsp-photo-box"' in html, "新增待領出 modal 缺照片區"
+    assert 'id="pe-photo-box"' in html and 'id="pe-photo-row" hidden' in html, "編輯待領出 modal 照片區須預設隱藏"
+
+    modals = read(STOCKOUT_MODAL_JS)
+    assert "renderPendingPhotoBox(NSP_PHOTO_PREFIX)" in modals, "新增待領出 modal 沒初始化照片區"
+    assert "uploadPendingPhoto(created.id, NSP_PHOTO_PREFIX)" in modals, "建立非庫存品項後沒上傳照片"
+    assert "photoRow.hidden = !isPreparedNonStock(item)" in modals, "庫存品項的編輯 modal 不得顯示照片區"
+    assert "renderPhotoBox(item.id, Boolean(item.has_photo), PE_PHOTO_BOX)" in modals, "編輯 modal 沒沿用 renderPhotoBox"
+    # 建立 + 照片上傳期間按鈕要鎖住（慢網路重複點擊會建出多筆臨時品項）
+    assert 'id="nsp-submit"' in html
+    submit = modals[modals.index("export async function submitNonStockPrepare()"):modals.index("// ========== 領出準備（兩階段出庫）")]
+    assert "btn.disabled = true" in submit and "finally" in submit and "btn.disabled = false" in submit
+    # 照片變更只用本地清單重畫，不重抓
+    assert "repaintPrepared();" in modals and "renderPrepared();" not in modals[modals.index("function syncPreparedPhoto"):modals.index("export async function submitPreparedEdit")]
+
+    photo = read(js_modules("features/inventory/photo.js"))
+    assert "export function renderPhotoBox(itemId, hasPhoto, boxId = ITEM_PHOTO_BOX_ID)" in photo
+    assert "photoPickButtons(boxId, itemId)" in photo, "編輯照片區應走共用選檔按鈕"
+    dispatch = read(js_modules("features/inventory/dispatch.js"))
+    assert "'inventory-pending-photo-preview'" in dispatch
+    # 整組與待領出共用同一套預覽式照片區：舊的整組專用預覽函式已刪除
+    assert "renderPendingPhotoBox(KIT_PHOTO_PREFIX" in photo
+    assert "_previewKitPhoto" not in photo and "_clearKitPhotoPreview" not in photo and "inventory-kit-photo-preview" not in dispatch
+    assert "deleteItemPhoto(itemId(el), el.dataset.box || undefined)" in dispatch
+
+
+def test_photo_box_runtime_contract():
+    """執行真實的 photo.js：boxId 傳遞、listener 在重繪前呼叫、預覽式照片區上傳失敗與不合規檔案路徑。"""
+    script = Path(BASE_DIR) / "tests" / "photo_box_runtime.test.js"
+    result = subprocess.run(["node", str(script)], capture_output=True, text=True, check=False, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "photo box runtime contract passed" in result.stdout

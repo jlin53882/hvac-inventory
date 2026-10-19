@@ -3052,6 +3052,46 @@ class TestNonStockOut:
         items = client.get("/api/items").json()
         assert all(i["id"] != pid for i in items)
 
+    @staticmethod
+    def _jpeg_bytes():
+        from PIL import Image
+        import io
+        buf = io.BytesIO()
+        Image.new("RGB", (400, 300), "green").save(buf, "JPEG")
+        return buf.getvalue()
+
+    def test_nonstock_prepared_photo_upload_and_list_urls(self, client):
+        """非庫存待領出品項可上傳照片：200、has_photo 與 asset 網址出現在 /api/prepared；刪除後清空"""
+        pid = client.post("/api/prepare/nonstock", json={"name": "臨時照片件", "qty": 1}).json()["id"]
+        r = client.post(f"/api/items/{pid}/photo", files={"file": ("a.jpg", self._jpeg_bytes(), "image/jpeg")})
+        assert r.status_code == 200, r.text
+        asset_id = r.json()["asset_id"]
+
+        row = [i for i in client.get("/api/prepared").json() if i["id"] == pid][0]
+        assert row["has_photo"] is True
+        assert row["photo_asset_id"] == asset_id
+        assert row["thumbnail_url"] == f"/media/{asset_id}/thumbnail"
+        assert row["preview_url"] == f"/media/{asset_id}/preview"
+
+        assert client.delete(f"/api/items/{pid}/photo").status_code == 200
+        row = [i for i in client.get("/api/prepared").json() if i["id"] == pid][0]
+        assert row["has_photo"] is False
+        assert row["thumbnail_url"] is None
+
+    def test_nonstock_photo_upload_rejected_after_prepared_out(self, client):
+        """非庫存品項已領出完成（prepared_qty=0）後不可再上傳照片，避免沒有 UI 可管理的孤兒檔案"""
+        pid = client.post("/api/prepare/nonstock", json={"name": "已領出臨時件", "qty": 2}).json()["id"]
+        assert client.post(f"/api/items/{pid}/prepared-out", json={"qty": 2, "note": "", "location": ""}).status_code == 200
+        r = client.post(f"/api/items/{pid}/photo", files={"file": ("a.jpg", self._jpeg_bytes(), "image/jpeg")})
+        assert r.status_code == 404
+
+    def test_deleted_stock_item_photo_upload_still_404(self, client):
+        """已刪除的庫存品項（is_deleted=1 且有 site）仍不可上傳照片，只放寬非庫存品項"""
+        item = _add_item(client, name="將刪除庫存品", qty=1, location="A倉")
+        assert client.delete(f"/api/items/{item['id']}").status_code == 200
+        r = client.post(f"/api/items/{item['id']}/photo", files={"file": ("a.jpg", self._jpeg_bytes(), "image/jpeg")})
+        assert r.status_code == 404
+
     def test_nonstock_prepare_out_becomes_stockout(self, client):
         """非庫存品項待領出 → 確認出庫：不扣庫存、直接寫出庫流水、清 prepared_qty"""
         r = client.post("/api/prepare/nonstock", json={

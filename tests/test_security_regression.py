@@ -77,6 +77,8 @@ REVIEWED_SAFE_BODIES = {
     "formatLocationDisplay(s.location)", "buildStockNoteLabelHTML(s, showLocationContext)",
     # bottomsheet.js（動作選單：icon/label 為開發者傳入常數；items 為內部 map HTML）
     "a.icon", "icon", "a.label", "items",
+    # photo.js 照片選檔按鈕：photoPickButtons 內所有屬性值皆以 esc() 字串串接，回傳值是已跳脫的 HTML。
+    "photoPickButtons(boxId, itemId)",
     # 數字欄位（qty/id/統計）
     "s.qty ?? 0", "s.qty", "itemId", "i.qty", "row.qty || 1", "it.qty",
     "c.need_qty", "c.stock", "k.stock_qty", "kits.length", "items.length",

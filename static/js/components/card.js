@@ -5,12 +5,13 @@
 
 import { Qty } from '../core/qty.js';
 import { getAllItems } from '../core/inventory-read-model.js';
+import { getPreparedItems } from '../core/shared-read-model.js';
 import { esc } from '../core/utils.js';
 
 // 圖片 URL：列表優先 thumbnail，lightbox 優先 preview；舊資料 fallback 到 legacy URL。
 export function photoSrc(id, variant) {
-  const items = getAllItems();
-  const item = items.find(i => i.id === id);
+  // 非庫存的待領出品項不在庫存快取內，改查待領出清單（含換照片後的新網址）
+  const item = getAllItems().find(i => i.id === id) || (getPreparedItems() || []).find(i => i.id === id);
   if (item) {
     if (variant === 'thumbnail' && item.thumbnail_url) return item.thumbnail_url;
     if (variant === 'preview' && item.preview_url) return item.preview_url;

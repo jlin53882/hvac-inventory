@@ -6,7 +6,7 @@ import { appState } from '../../core/state.js';
 import { setGlobalCabinetList } from '../../core/shared-read-model.js';
 import { closeModalForce, esc, openModal, toast } from '../../core/utils.js';
 import { _cabinetOptions } from '../inventory/edit-modal.js';
-import { renderKitPhotoBox } from '../inventory/photo.js';
+import { getPendingPhotoFile, renderKitPhotoBox } from '../inventory/photo.js';
 import { renderKitCompRows } from './component-rows.js';
 import { kitsState } from './state.js';
 
@@ -92,10 +92,7 @@ export async function submitKit() {
 
 // 背景上傳整組照片（非同步，不 await，避免阻擋多人併發操作）
 function _uploadKitPhotoAsync(kitId) {
-  const photoInput = document.getElementById('k-photo-input');
-  const albumInput = document.getElementById('k-photo-album');
-  const chosenFile = (photoInput && photoInput.files && photoInput.files[0])
-    || (albumInput && albumInput.files && albumInput.files[0]);
+  const chosenFile = getPendingPhotoFile('k-photo');
   if (!chosenFile) return;  // 沒選檔，不上傳
 
   const fd = new FormData();
