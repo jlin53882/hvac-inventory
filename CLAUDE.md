@@ -58,3 +58,12 @@ This project is indexed by GitNexus as **hvac-inventory** (2218 symbols, 5489 re
 - 前端行為改動 → 同步補 `tests/test_frontend_assets.py` 斷言（計算邏輯抽純函式後測，totalQtyStr 模式）。
 - 純視覺改動（樣式/對齊）→ 收尾紀錄標記「不需測試」，不得默默 0 測試 commit。
 - commit 前 `node --check` 全量已由 `test_js_syntax` 自動覆蓋（22 檔），不需手動。
+
+## 家豪規則：測試執行（2026-10-20 定案，任何 code 修改適用）
+
+> 此區塊為家豪/agent 維護內容，GitNexus analyze 重跑時**勿覆寫 gitnexus:end 之後的內容**。
+
+- **一律走 `./scripts/run-tests.sh <組別>`**，不要直接 `pytest tests`：直接跑是單進程串行（本專案約 2,500 個測試 ≈ 9 分鐘）。
+- **要跑全量就用 `./scripts/run-tests.sh all`**：腳本已自動加 `-n auto`（pytest-xdist，已裝；16 核實測 **2504 passed、約 82 秒**，2026-10-20）。需要批量／全量時一律平行，不要串行等。
+- **開發中先跑相關局部組別**（`frontend`／`inventory`／`storage`／`core`…，見腳本表頭的觸發條件），綠了再決定是否全量；使用者明確說「局部就好」時不跑全量。分組組別小，腳本不並行（避免 overhead）。
+- 長測試輸出寫檔並帶 `exit=$?`，用 Monitor 等結果；被中止的 run 不採信其 exit code。測試用專案 `.venv`（全域 python 的 pydantic-core 版本不符）。
