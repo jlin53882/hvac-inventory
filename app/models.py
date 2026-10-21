@@ -143,6 +143,7 @@ class StockOutRequest(BaseModel):
     destination: str = ""
     note: str = ""
     location: str = ""  # v10：可指定從哪個位置出（空白=依庫存順序扣）
+    created_at: Optional[str] = Field(None, max_length=64)
 
 
 class NonStockOutRequest(BaseModel):
@@ -154,6 +155,11 @@ class NonStockOutRequest(BaseModel):
     qty: float = Field(..., gt=0)
     destination: str = ""
     note: str = ""
+
+
+class NonStockDirectOutRequest(NonStockOutRequest):
+    """新增非庫存品項的直接已領出，可選擇出庫日期。"""
+    created_at: Optional[str] = Field(None, max_length=64)
 
 
 class StockoutUpdate(BaseModel):

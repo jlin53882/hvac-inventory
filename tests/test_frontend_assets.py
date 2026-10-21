@@ -2878,6 +2878,26 @@ def test_stockout_nonstock_add_ui():
     assert ".tag-nonstock" in css and ".hint-nonstock" in css, "非庫存標籤/提示樣式缺失"
 
 
+def test_direct_stockout_date_optional_ui_contract():
+    """一般與非庫存直接出庫都要有選填日期，且只在有值時送 created_at。"""
+    html = read(INDEX)
+    for fid in ("o-datetime", "ns-datetime"):
+        assert f'id="{fid}"' in html, f"直接出庫 modal 缺 {fid} 日期欄位"
+    assert html.count('type="date"') >= 2, "直接出庫日期欄位應使用 type=date"
+
+    js = read(STOCKOUT_MODAL_JS)
+    out_start = js.index("export async function submitStockOut")
+    out_end = js.index("export function openNonStockOutModal", out_start)
+    out_fn = js[out_start:out_end]
+    nonstock_start = js.index("export async function submitNonStockOut")
+    nonstock_end = js.index("const NSP_PHOTO_PREFIX", nonstock_start)
+    nonstock_fn = js[nonstock_start:nonstock_end]
+    for fn, field in ((out_fn, "o-datetime"), (nonstock_fn, "ns-datetime")):
+        assert field in fn, f"{field} 未被直接出庫函式讀取"
+        assert "created_at" in fn and "00:00:00" in fn, "日期未正規化後送到 API"
+        assert "if (dt)" in fn, "空白日期應維持相容的現在時間行為"
+
+
 def test_card_js_core_functions():
     """render/card.js：手機卡片建構 helpers"""
     js = read(CARD_JS)

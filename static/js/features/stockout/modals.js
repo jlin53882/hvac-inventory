@@ -30,6 +30,8 @@ export function openOutModal(id, ev) {
     stocks.map(s => `<option value="${esc(s.location || '')}">${esc(s.location || '未標示')}（剩 ${Qty.disp(s.qty, item.unit)}）</option>`).join('');
   document.getElementById('o-qty').value = '';
   document.getElementById('o-dest').value = '';
+  const oDatetime = document.getElementById('o-datetime');
+  if (oDatetime) oDatetime.value = '';
   document.getElementById('o-note').value = '';
   openModal('out-modal');
 }
@@ -41,6 +43,8 @@ export async function submitStockOut() {
   const dest = document.getElementById('o-dest').value.trim();
   const note = document.getElementById('o-note').value.trim();
   const location = document.getElementById('o-location').value;
+  const oDatetime = document.getElementById('o-datetime');
+  const dt = oDatetime ? oDatetime.value : '';
 
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
@@ -50,7 +54,9 @@ export async function submitStockOut() {
   } else if (qty > item.qty) { toast(`庫存不足！只剩 ${Qty.disp(item.qty, item.unit)} ${item.unit}`, 'error'); return; }
 
   try {
-    await apiFetch('/api/stockout', { method: 'POST', json: { item_id: stockoutState.outItemId, qty: qty, destination: dest, note: note, location: location }, fallback: '領出失敗' });
+    const body = { item_id: stockoutState.outItemId, qty: qty, destination: dest, note: note, location: location };
+    if (dt) body.created_at = dt + ' 00:00:00';
+    await apiFetch('/api/stockout', { method: 'POST', json: body, fallback: '領出失敗' });
     closeModalForce('out-modal');
     toast(`✅ 已領出 ${Qty.disp(qty, item.unit)} ${item.unit} → ${dest}`, 'success');
     await loadData({ refreshDestinations: true });
@@ -71,6 +77,8 @@ export function openNonStockOutModal() {
   if (nsUnitSearch) nsUnitSearch.value = '';  // 重開 modal 清空搜尋
   document.getElementById('ns-qty').value = '';
   document.getElementById('ns-dest').value = '';
+  const nsDatetime = document.getElementById('ns-datetime');
+  if (nsDatetime) nsDatetime.value = '';
   document.getElementById('ns-note').value = '';
   openModal('nonstock-out-modal');
 }
@@ -82,13 +90,17 @@ export async function submitNonStockOut() {
   const qty = qtyInputOrToast('ns-qty', unit);
   const dest = document.getElementById('ns-dest').value.trim();
   const note = document.getElementById('ns-note').value.trim();
+  const nsDatetime = document.getElementById('ns-datetime');
+  const dt = nsDatetime ? nsDatetime.value : '';
 
   if (!name) { toast('請輸入品項名稱', 'error'); return; }
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
 
   try {
-    await apiFetch('/api/stockout/nonstock', { method: 'POST', json: { name: name, code: code, unit: unit, qty: qty, destination: dest, note: note }, fallback: '領出失敗' });
+    const body = { name: name, code: code, unit: unit, qty: qty, destination: dest, note: note };
+    if (dt) body.created_at = dt + ' 00:00:00';
+    await apiFetch('/api/stockout/nonstock', { method: 'POST', json: body, fallback: '領出失敗' });
     closeModalForce('nonstock-out-modal');
     toast(`✅ 已領出 ${qty} ${unit} → ${dest}`, 'success');
     await loadData({ refreshDestinations: true });

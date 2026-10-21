@@ -23,7 +23,7 @@ from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import db_session
 from app.models import InventorySiteQuery
-from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, PreparedOutRequest, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
+from app.models import NonStockDirectOutRequest, NonStockOutRequest, PrepareRequest, PreparedItemUpdate, PreparedOutRequest, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, chunked_ids
@@ -175,6 +175,10 @@ def _deduct_from_stock(conn, item_id, qty, stock_id):
 def stock_out(req: StockOutRequest):
     """出庫：扣庫存 + 記錄去向（客戶/案場/工地）"""
     qty = _positive_qty(req.qty, "出庫數量")
+    try:
+        created_at = (movement_time.normalize_user_datetime(req.created_at) if req.created_at else None) or movement_time.now_sql()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM items WHERE id=? AND is_deleted=0", (req.item_id,)).fetchone()
@@ -195,7 +199,7 @@ def stock_out(req: StockOutRequest):
         conn.execute(
             "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (req.item_id, -qty, before, after, reason, req.destination, source_stock_id,
-             source["site"] if source else row["site"], source["location"] if source else req.location, movement_time.now_sql()),
+             source["site"] if source else row["site"], source["location"] if source else req.location, created_at),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (req.item_id,)).fetchone()
@@ -203,9 +207,13 @@ def stock_out(req: StockOutRequest):
 
 
 @router.post("/api/stockout/nonstock", dependencies=[Depends(require_perm("stockout"))])
-def stock_out_nonstock(req: NonStockOutRequest):
+def stock_out_nonstock(req: NonStockDirectOutRequest):
     """新增「非庫存品項」的已領出（2026-08-13 Sarah）：建臨時品項（is_deleted=1 不出現在庫存頁）+ 只記出庫流水、不扣庫存"""
     qty = _positive_qty(req.qty, "出庫數量")
+    try:
+        created_at = (movement_time.normalize_user_datetime(req.created_at) if req.created_at else None) or movement_time.now_sql()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     name = req.name.strip()
     brand = req.brand.strip()
     dest = req.destination.strip()
@@ -226,7 +234,7 @@ def stock_out_nonstock(req: NonStockOutRequest):
         reason = "出庫" if not note else f"出庫 - {note}"
         conn.execute(
             "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,0,0,?,?,?)",
-            (item_id, -qty, reason, dest, movement_time.now_sql()),
+            (item_id, -qty, reason, dest, created_at),
         )
         conn.commit()
         return {"id": item_id, "name": name}

@@ -1420,6 +1420,26 @@ class TestStockOutLocation:
         assert b["qty"] == 2      # 剩下 1 從 B 扣 3-1=2
         assert updated["total_qty"] == 2
 
+    def test_stockout_optional_date_is_normalized_and_validated(self, client):
+        """直接出庫日期可選；非法日期不得扣庫存，指定日期寫入流水。"""
+        item = _add_item(client, name="日期出庫測試", qty=5)
+
+        invalid = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 2, "destination": "日期案場",
+            "created_at": "2026-02-30",
+        })
+        assert invalid.status_code == 400
+        assert _get_item(client, item["id"])["total_qty"] == 5
+
+        r = client.post("/api/stockout", json={
+            "item_id": item["id"], "qty": 2, "destination": "日期案場",
+            "created_at": "2026-10-21",
+        })
+        assert r.status_code == 200, r.text
+        outs = [o for o in client.get("/api/stockouts").json() if o["item_id"] == item["id"]]
+        assert len(outs) == 1
+        assert outs[0]["created_at"] == "2026-10-21 00:00:00"
+
     def test_stockout_insufficient(self, client):
         """驗證庫存不足時出庫回傳 400"""
         item = _add_item(client, name="冷媒", qty=2)
@@ -2995,7 +3015,8 @@ class TestNonStockOut:
         """非庫存品項領出：建臨時品項（is_deleted=1）+ 出庫流水；庫存頁看不到、已領出看得到"""
         r = client.post("/api/stockout/nonstock", json={
             "name": "冷媒銅管 3分", "brand": "大金", "code": '3/8"', "unit": "捲",
-            "qty": 2, "destination": "張小姐-大樓保養", "note": "維修"})
+            "qty": 2, "destination": "張小姐-大樓保養", "note": "維修",
+            "created_at": "2026-10-21"})
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["name"] == "冷媒銅管 3分"
@@ -3011,11 +3032,22 @@ class TestNonStockOut:
         assert match[0]["item_deleted"] == 1
         assert match[0]["delta"] == -2
         assert match[0]["destination"] == "張小姐-大樓保養"
+        assert match[0]["created_at"] == "2026-10-21 00:00:00"
         assert "出庫 - 維修" in match[0]["reason"]
 
         # 庫存頁看不到（is_deleted=1 被過濾）
         items = client.get("/api/items").json()
         assert all(i["id"] != body["id"] for i in items), "非庫存臨時品項不應出現在庫存頁"
+
+    def test_nonstock_stockout_invalid_date_does_not_create_item(self, client):
+        """非庫存直接出庫的非法日期要在建立臨時品項前回 400。"""
+        r = client.post("/api/stockout/nonstock", json={
+            "name": "非法日期非庫存件", "qty": 1, "destination": "日期案場",
+            "created_at": "2026-02-30",
+        })
+        assert r.status_code == 400
+        outs = client.get("/api/stockouts").json()
+        assert all(o["item_name"] != "非法日期非庫存件" for o in outs)
 
     def test_nonstock_stockout_requires_name(self, client):
         """品項名稱空白 → 400"""
