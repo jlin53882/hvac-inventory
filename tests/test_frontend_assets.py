@@ -2849,8 +2849,11 @@ def test_prepared_nonstock_add_ui():
 
     html = read(INDEX)
     assert 'id="nonstock-prepare-modal"' in html
-    for fid in ("nsp-name", "nsp-qty", "nsp-note"):
+    for fid in ("nsp-name", "nsp-brand", "nsp-qty", "nsp-note"):
         assert f'id="{fid}"' in html, f"nonstock prepare modal 缺 {fid} 欄位"
+    assert "brand: brand" in js, "非庫存待領出送出時應帶廠牌"
+    assert 'id="po-datetime"' in html, "確認已領出 modal 缺日期欄位"
+    assert "po-datetime" in js and "created_at" in js, "確認已領出日期沒有送到 API"
 
 
 def test_stockout_nonstock_add_ui():

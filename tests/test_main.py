@@ -710,8 +710,12 @@ class TestTwoStageStockOut:
         item = _add_item(client, name="銅管", qty=10)
         client.post(f"/api/items/{item['id']}/prepare", json={"qty": 4})
 
+        invalid = client.post(f"/api/items/{item['id']}/prepared-out",
+                              json={"qty": 4, "note": "中和工地", "created_at": "2026-02-30"})
+        assert invalid.status_code == 400
+
         r = client.post(f"/api/items/{item['id']}/prepared-out",
-                        json={"qty": 4, "note": "中和工地"})
+                        json={"qty": 4, "note": "中和工地", "created_at": "2026-10-20"})
         assert r.status_code == 200
         p = r.json()
         assert p["qty"] == 6          # 庫存被扣
@@ -724,6 +728,7 @@ class TestTwoStageStockOut:
         assert outs[0]["destination"] == "中和工地"
         assert outs[0]["before_qty"] == 10
         assert outs[0]["after_qty"] == 6
+        assert outs[0]["created_at"] == "2026-10-20 00:00:00"
 
     def test_confirm_out_exceeds_prepared(self, client):
         """驗證確認出庫數量超過待領出數量時回傳 400"""
@@ -2989,7 +2994,7 @@ class TestNonStockOut:
     def test_nonstock_stockout_creates_movement(self, client):
         """非庫存品項領出：建臨時品項（is_deleted=1）+ 出庫流水；庫存頁看不到、已領出看得到"""
         r = client.post("/api/stockout/nonstock", json={
-            "name": "冷媒銅管 3分", "code": '3/8"', "unit": "捲",
+            "name": "冷媒銅管 3分", "brand": "大金", "code": '3/8"', "unit": "捲",
             "qty": 2, "destination": "張小姐-大樓保養", "note": "維修"})
         assert r.status_code == 200, r.text
         body = r.json()
@@ -3000,6 +3005,7 @@ class TestNonStockOut:
         match = [o for o in outs if o["item_id"] == body["id"]]
         assert len(match) == 1
         assert match[0]["item_name"] == "冷媒銅管 3分"
+        assert match[0]["brand"] == "大金"
         assert match[0]["code"] == '3/8"'
         assert match[0]["unit"] == "捲"
         assert match[0]["item_deleted"] == 1
@@ -3032,7 +3038,7 @@ class TestNonStockOut:
     def test_nonstock_prepare_shows_in_list(self, client):
         """非庫存品項待領出：/api/prepare/nonstock 建臨時品項 + prepared_qty，出現在待領出清單（含 is_deleted 標記）"""
         r = client.post("/api/prepare/nonstock", json={
-            "name": "臨時耗材", "code": "T-1", "unit": "捲", "qty": 3, "note": "工地備料"})
+            "name": "臨時耗材", "brand": "大金", "code": "T-1", "unit": "捲", "qty": 3, "note": "工地備料"})
         assert r.status_code == 200, r.text
         pid = r.json()["id"]
 
@@ -3040,6 +3046,7 @@ class TestNonStockOut:
         match = [i for i in prepared if i["id"] == pid]
         assert len(match) == 1, "非庫存待領出應出現在待領出清單"
         assert match[0]["prepared_qty"] == 3
+        assert match[0]["brand"] == "大金"
 
         # 2026-08-16 防回歸：帶 site 參數（前端 currentSite 預設 office）也要看得到非庫存待領出
         prepared_office = client.get("/api/prepared?site=office").json()
@@ -3100,7 +3107,7 @@ class TestNonStockOut:
         pid = r.json()["id"]
 
         out = client.post(f"/api/items/{pid}/prepared-out",
-                          json={"qty": 2, "note": "某案場", "location": ""})
+                          json={"qty": 2, "note": "某案場", "location": "", "created_at": "2026-10-19"})
         assert out.status_code == 200, out.text
         assert out.json()["prepared_qty"] == 0
 
@@ -3111,6 +3118,7 @@ class TestNonStockOut:
         assert match[0]["delta"] == -2
         assert match[0]["item_deleted"] == 1
         assert match[0]["destination"] == "某案場"
+        assert match[0]["created_at"] == "2026-10-19 00:00:00"
 
     def test_nonstock_prepared_return_clears(self, client):
         """非庫存品項待領出 → 退回：清 prepared_qty、無出庫流水（不加庫存）"""

@@ -23,7 +23,7 @@ from fastapi import Depends, APIRouter, HTTPException, Query
 
 from app.database import db_session
 from app.models import InventorySiteQuery
-from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
+from app.models import NonStockOutRequest, PrepareRequest, PreparedItemUpdate, PreparedOutRequest, StockOutRequest, StockoutReturnRepair, StockoutReturnRequest, StockoutReturnUpdate, StockoutUpdate
 from app.services import movement_time
 from app.services.auth import require_perm
 from app.services.inventory_stock import assert_projected_inventory, chunked_ids
@@ -207,6 +207,7 @@ def stock_out_nonstock(req: NonStockOutRequest):
     """新增「非庫存品項」的已領出（2026-08-13 Sarah）：建臨時品項（is_deleted=1 不出現在庫存頁）+ 只記出庫流水、不扣庫存"""
     qty = _positive_qty(req.qty, "出庫數量")
     name = req.name.strip()
+    brand = req.brand.strip()
     dest = req.destination.strip()
     unit = req.unit.strip() or "個"
     code = req.code.strip()
@@ -218,8 +219,8 @@ def stock_out_nonstock(req: NonStockOutRequest):
     with db_session() as conn:
         cur = conn.execute(
             "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
-            "VALUES ('',?,?,0,?,0,0,'',1)",
-            (code, name, unit),
+            "VALUES (?,?,?,0,?,0,0,'',1)",
+            (brand, code, name, unit),
         )
         item_id = cur.lastrowid
         reason = "出庫" if not note else f"出庫 - {note}"
@@ -573,6 +574,7 @@ def prepare_nonstock(req: NonStockOutRequest):
     """新增「非庫存品項」的待領出（2026-08-13 家豪，比照 /api/stockout/nonstock）：建臨時品項（is_deleted=1）+ 標記 prepared_qty，不扣庫存"""
     qty = _positive_qty(req.qty, "數量")
     name = req.name.strip()
+    brand = req.brand.strip()
     unit = req.unit.strip() or "個"
     code = req.code.strip()
     note = req.note.strip()
@@ -581,8 +583,8 @@ def prepare_nonstock(req: NonStockOutRequest):
     with db_session() as conn:
         cur = conn.execute(
             "INSERT INTO items (brand, code, name, prepared_qty, unit, low_stock, is_kit, site, is_deleted) "
-            "VALUES ('',?,?,?,?,0,0,'',1)",
-            (code, name, qty, unit),
+            "VALUES (?,?,?,?,?,0,0,'',1)",
+            (brand, code, name, qty, unit),
         )
         item_id = cur.lastrowid
         conn.execute(
@@ -618,9 +620,13 @@ def prepare_item(item_id: int, req: PrepareRequest):
         payload = _item_payload(conn, updated)
         return payload
 @router.post("/api/items/{item_id}/prepared-out", dependencies=[Depends(require_perm("stockout"))])
-def prepared_out(item_id: int, req: PrepareRequest):
+def prepared_out(item_id: int, req: PreparedOutRequest):
     """確認出庫：從準備中的數量真正出庫（此時才扣庫存）+ 記錄去向"""
     qty = _positive_qty(req.qty, "數量")
+    try:
+        created_at = (movement_time.normalize_user_datetime(req.created_at) if req.created_at else None) or movement_time.now_sql()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     with db_session() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM items WHERE id=? AND (is_deleted=0 OR site='')", (item_id,)).fetchone()
@@ -638,7 +644,7 @@ def prepared_out(item_id: int, req: PrepareRequest):
                 raise HTTPException(400, f"準備中的數量只有 {row['prepared_qty']} {row['unit']}")
             conn.execute(
                 "INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, created_at) VALUES (?,?,0,0,'出庫',?,?)",
-                (item_id, -qty, dest, movement_time.now_sql()),
+                (item_id, -qty, dest, created_at),
             )
             conn.commit()
             updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
@@ -658,7 +664,7 @@ def prepared_out(item_id: int, req: PrepareRequest):
         conn.execute(
             'INSERT INTO movements (item_id, delta, before_qty, after_qty, reason, destination, source_stock_id, source_site, source_location, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
             (item_id, -qty, before, after, "出庫", dest, source_stock_id,
-             source["site"] if source else row["site"], source["location"] if source else req.location, movement_time.now_sql()),
+             source["site"] if source else row["site"], source["location"] if source else req.location, created_at),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()

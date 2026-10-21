@@ -148,6 +148,7 @@ class StockOutRequest(BaseModel):
 class NonStockOutRequest(BaseModel):
     """新增非庫存品項的已領出/待領出（不在單一庫存/整組庫存，只記流水不扣庫存；destination 端點內驗證）"""
     name: str
+    brand: str = Field("", max_length=100)
     code: str = ""
     unit: str = "個"
     qty: float = Field(..., gt=0)
@@ -188,6 +189,11 @@ class PrepareRequest(BaseModel):
     qty: float
     note: str = ""
     location: str = ""  # v10：可指定位置（空白=不限）
+
+
+class PreparedOutRequest(PrepareRequest):
+    """確認待領出時可選擇實際出庫日期；空白沿用目前時間。"""
+    created_at: Optional[str] = Field(None, max_length=64)
 
 
 class PreparedItemUpdate(BaseModel):

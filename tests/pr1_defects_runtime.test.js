@@ -138,6 +138,7 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
     'po-item-prepared': { value: '' },
     'po-qty': { value: '2' },
     'po-dest': { value: 'Customer' },
+    'po-datetime': { value: '' },
   };
   const context = vm.createContext({
     console,
@@ -159,11 +160,12 @@ async function testPreparedOnlyItemCanSubmitPreparedOut() {
   assert.strictEqual(elements['po-item-name'].value, 'Prepared only (PB)');
   elements['po-qty'].value = '2';
   elements['po-dest'].value = 'Customer';
+  elements['po-datetime'].value = '2026-10-20';
   await (context.submitPreparedOut());
 
   assert.strictEqual(calls.length, 1, `prepared-only submit should issue one request; calls=${JSON.stringify(calls)}; fields=${JSON.stringify(elements)}`);
   assert.strictEqual(calls[0].url, '/api/items/42/prepared-out');
-  assert.strictEqual(JSON.stringify(JSON.parse(calls[0].options.body)), JSON.stringify({ qty: 2, note: 'Customer' }));
+  assert.strictEqual(JSON.stringify(JSON.parse(calls[0].options.body)), JSON.stringify({ qty: 2, note: 'Customer', created_at: '2026-10-20 00:00:00' }));
   assert.strictEqual(refreshed, 1, 'successful prepared-only submit should refresh data');
 }
 

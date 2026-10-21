@@ -102,6 +102,8 @@ const NSP_PHOTO_PREFIX = 'nsp-photo';  // 元素 id 前綴：nsp-photo-box / -in
 
 export function openNonStockPrepareModal() {
   document.getElementById('nsp-name').value = '';
+  const nspBrand = document.getElementById('nsp-brand');
+  if (nspBrand) nspBrand.value = '';
   document.getElementById('nsp-code').value = '';
   fillUnitSelect(document.getElementById('nsp-unit'), '個');  // 2026-08-16 動態清單
   // 2026-08-16：快速新增單位按鈕（item-mgmt 才顯示）
@@ -117,6 +119,8 @@ export function openNonStockPrepareModal() {
 
 export async function submitNonStockPrepare() {
   const name = document.getElementById('nsp-name').value.trim();
+  const nspBrand = document.getElementById('nsp-brand');
+  const brand = nspBrand ? nspBrand.value.trim() : '';
   const code = document.getElementById('nsp-code').value.trim();
   const unit = document.getElementById('nsp-unit').value.trim() || '個';
   const qty = qtyInputOrToast('nsp-qty', unit);
@@ -130,7 +134,7 @@ export async function submitNonStockPrepare() {
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   try {
-    const created = await apiFetch('/api/prepare/nonstock', { method: 'POST', json: { name: name, code: code, unit: unit, qty: qty, destination: '', note: note }, fallback: '新增失敗' });
+    const created = await apiFetch('/api/prepare/nonstock', { method: 'POST', json: { name: name, brand: brand, code: code, unit: unit, qty: qty, destination: '', note: note }, fallback: '新增失敗' });
     await uploadPendingPhoto(created.id, NSP_PHOTO_PREFIX);  // 有選照片才上傳；失敗只提示，品項已建立
     closeModalForce('nonstock-prepare-modal');
     toast(`✅ 已新增待領出 ${qty} ${unit}`, 'success');
@@ -180,6 +184,8 @@ export function openPreparedOutModal(id) {
   document.getElementById('po-item-prepared').value = `${Qty.disp(item.prepared_qty, item.unit)} ${item.unit}`;
   document.getElementById('po-qty').value = '';
   document.getElementById('po-dest').value = '';
+  const poDatetime = document.getElementById('po-datetime');
+  if (poDatetime) poDatetime.value = '';
   openModal('prepared-out-modal');
 }
 
@@ -194,10 +200,14 @@ export async function submitPreparedOut() {
       : null);
   const qty = qtyInputOrToast('po-qty', item && item.unit);
   const dest = document.getElementById('po-dest').value.trim();
+  const poDatetime = document.getElementById('po-datetime');
+  const dt = poDatetime ? poDatetime.value : '';
   if (!qty || qty <= 0) { toast('請輸入領出數量', 'error'); return; }
   if (!dest) { toast('請填寫去哪裡（客戶/案場/工地）', 'error'); return; }
   try {
-    await apiFetch(`/api/items/${stockoutState.preparedOutItemId}/prepared-out`, { method: 'POST', json: { qty: qty, note: dest }, fallback: '領出失敗' });
+    const body = { qty: qty, note: dest };
+    if (dt) body.created_at = dt + ' 00:00:00';
+    await apiFetch(`/api/items/${stockoutState.preparedOutItemId}/prepared-out`, { method: 'POST', json: body, fallback: '領出失敗' });
     closeModalForce('prepared-out-modal');
     toast(`✅ 已領出 ${Qty.disp(qty, item.unit)} ${item.unit} → ${dest}（庫存已扣）`, 'success');
     await loadData({ refreshDestinations: true });
