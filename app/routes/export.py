@@ -34,6 +34,11 @@ DEFAULT_STOCKOUT_SECTIONS = ("movements",)
 SINGLE_EXPORT_SECTIONS = ("overview", "inventory", "positions", "alerts", "movements", "stats")
 KIT_EXPORT_SECTIONS = ("overview", "inventory", "positions", "components", "alerts", "movements")
 STOCKOUT_EXPORT_SECTIONS = ("overview", "movements")
+# 單一庫存、整組、已領出共用，避免三種異動匯出欄名漂移。
+MOVEMENT_HEADERS = (
+    "時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區",
+    "變動數量", "異動前", "異動後", "去向", "原因",
+)
 HEADER_FILL = "2E5C8A"
 TITLE_FILL = "163B63"
 STATUS_FILLS = MappingProxyType({"資料異常": "FCA5A5", "缺貨": "FECACA", "低庫存": "FED7AA"})
@@ -123,6 +128,11 @@ def _report_filename(prefix: str, month, start_date, end_date) -> str:
 def _safe(value):
     """將資料庫文字交給既有 Excel 公式注入防護 helper。"""
     return excel_safe("" if value is None else value)
+
+
+def _date_only_text(value) -> str:
+    """已領出 Excel 的日期欄只顯示日期，不改資料庫的完整時間值。"""
+    return str(value or "")[:10]
 
 
 def _site_label(site: str) -> str:
@@ -375,9 +385,9 @@ def _kit_stock_status(available: float, low_stock: float) -> str:
 
 
 def _build_kit_inventory_sheet(ws, kit_items, kit_positions, suggested_by_kit, components_by_kit, qty_types):
-    """整組庫存總表；總庫存以 item_stocks 列加總，建議存放位置另列文字欄。"""
+    """整組庫存總表；總庫存以 item_stocks 列加總，存放位置欄輸出建議位置文字。"""
     headers = ["整組編號(系統編號)", "庫存區", "廠牌", "整組名稱", "型號", "單位", "低庫存門檻", "待領出", "總庫存",
-               "可用庫存", "庫存狀態", "組成材料數", "材料狀態", "建議存放位置", "備註"]
+               "可用庫存", "庫存狀態", "組成材料數", "材料狀態", "存放位置", "備註"]
     _write_headers(ws, headers)
     _style_header(ws, 5)
     qty_by_id = _kit_totals(kit_positions)
@@ -499,8 +509,7 @@ def _build_kit_alert_sheet(ws, kit_items, kit_positions, components_by_kit):
 
 def _build_movement_sheet(ws, movements):
     """建立期間異動紀錄，保留原始數量並依值套用顯示格式。"""
-    headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
-    _write_headers(ws, headers)
+    _write_headers(ws, MOVEMENT_HEADERS)
     _style_header(ws, 5)
     for row in movements:
         reason = row["reason"] or ""
@@ -1042,13 +1051,12 @@ def _build_stockout_overview(overview, movements, period_text):
 def _build_stockout_movement_sheet(movement, movements, period_text):
     """已領出異動紀錄工作表（含格式與凍結窗格）。"""
     _style_title(movement, "已領出－異動紀錄", period_text, header_count=12)
-    headers = ["時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"]
-    _write_headers(movement, headers)
+    _write_headers(movement, MOVEMENT_HEADERS)
     _style_header(movement, 5)
 
     row = 6
     for m in movements:
-        movement[f"A{row}"] = _safe(m["created_at"])
+        movement[f"A{row}"] = _safe(_date_only_text(m["created_at"]))
         movement[f"B{row}"] = _safe(_movement_type(m["reason"] or "", m["delta"]))
         movement[f"C{row}"] = m["item_id"]
         movement[f"D{row}"] = _safe(m["brand"])

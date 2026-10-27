@@ -630,6 +630,7 @@ def test_export_single_inventory_headers_styles_and_columns(client):
     assert position_headers[0] == "品項編號(系統編號)"
     assert alert_headers[1] == "品項編號(系統編號)"
     assert movement_headers[2] == "品項編號(系統編號)"
+    assert movement_headers[7] == "變動數量"
     assert "tblPosition[品項編號(系統編號)]" in inventory.cell(6, 9).value
     assert inventory.cell(6, 13).value.startswith("=IF(")
 
@@ -673,7 +674,7 @@ def test_stockout_export_headers_and_site_labels(client):
     # 驗證 row 5 header（未被覆蓋）
     expected_headers = [
         "時間", "異動類型", "品項編號(系統編號)", "廠牌", "品項名稱", 
-        "型號", "庫存區", "變動量", "異動前", "異動後", "去向", "原因"
+        "型號", "庫存區", "變動數量", "異動前", "異動後", "去向", "原因"
     ]
     actual_headers = [ws[f"{chr(65+i)}5"].value for i in range(12)]
     assert actual_headers == expected_headers, f"Header mismatch: {actual_headers}"
@@ -741,7 +742,7 @@ def test_stockout_export_formula_injection_safe(client):
     )
 
     expected_text = {
-        "A": stored["created_at"],
+        "A": stored["created_at"][:10],
         "B": "出庫",
         "D": "'=1+1",
         "E": "'+CMD",
@@ -869,6 +870,8 @@ def test_kit_export_includes_suggested_locations_site_prepared_and_components(cl
     assert book["整組－組成材料"]["A1"].value == "整組－組成材料"
     assert book["整組－庫存警示"]["A1"].value == "整組－庫存警示"
     assert book["整組－異動紀錄"]["A1"].value == "整組－異動紀錄"
+    movement_headers = [cell.value for cell in book["整組－異動紀錄"][5] if cell.value is not None]
+    assert movement_headers[7] == "變動數量"
 
     headers, rows = _kit_sheet_rows(book["整組－庫存總表"], kit["item_id"])
     assert len(rows) == 1
@@ -877,7 +880,7 @@ def test_kit_export_includes_suggested_locations_site_prepared_and_components(cl
     assert row["待領出"] == 0 and row["總庫存"] == 0 and row["可用庫存"] == 0
     assert row["庫存狀態"] == "缺貨"
     assert row["組成材料數"] == 2 and row["材料狀態"] == "缺料"
-    assert row["建議存放位置"].startswith("編號B | 1-1、")
+    assert row["存放位置"].startswith("編號B | 1-1、")
     assert row["備註"] == "整組備註"
 
     headers, rows = _kit_sheet_rows(book["整組－位置明細"], kit["item_id"])
@@ -972,7 +975,7 @@ def test_kit_export_quantity_uses_item_stocks_only(client):
     headers, rows = _kit_sheet_rows(book["整組－庫存總表"], kit["item_id"])
     row = dict(zip(headers, rows[0]))
     assert (row["總庫存"], row["待領出"], row["可用庫存"], row["庫存狀態"]) == (5, 2, 3, "正常")
-    assert row["建議存放位置"] == "編號C | 1-1、編號D | 2-1"  # 建議位置只以文字出現
+    assert row["存放位置"] == "編號C | 1-1、編號D | 2-1"  # 建議位置只以文字出現
 
     headers, rows = _kit_sheet_rows(book["整組－位置明細"], kit["item_id"])
     by_type = {}

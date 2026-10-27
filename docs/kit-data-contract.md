@@ -26,7 +26,7 @@ Fresh `kits` 表只保存 Kit 定義所需的 `item_id`、`name`、`note` 與時
 
 Kit 匯出（`/api/kit-export`，sections：overview／inventory／positions／components／alerts／movements）：
 
-- 庫存總表：庫存區（`items.site`）、待領出（`items.prepared_qty`）、總庫存（`item_stocks` 加總）、可用庫存（總庫存－待領出，庫存狀態以此判定）、組成材料數、材料狀態（缺料／庫存不足／正常，規則同整組頁）、建議存放位置文字、Kit 備註（`kits.note`）。
+- 庫存總表：庫存區（`items.site`）、待領出（`items.prepared_qty`）、總庫存（`item_stocks` 加總）、可用庫存（總庫存－待領出，庫存狀態以此判定）、組成材料數、材料狀態（缺料／庫存不足／正常，規則同整組頁）、存放位置欄文字（來源仍為 `kit_locations` 的建議存放位置）、Kit 備註（`kits.note`）。
 - 位置明細：先列 `item_stocks` 實際位置（位置類型「庫存位置」，含數量），再列 `kit_locations`（位置類型「建議存放位置」，位置數量留空）。對每個 Kit：庫存總表的總量必須等於「庫存位置」列的數量加總；不要回退到 `kits.location`。
 - 組成材料：每個 Kit 的每項材料一列（每組需求、目前庫存、可組數、材料狀態）。
 - 庫存警示：可用庫存缺貨／低庫存，或材料缺料／不足的 Kit。
