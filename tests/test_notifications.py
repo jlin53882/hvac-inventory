@@ -44,6 +44,8 @@ def test_notification_summary_runtime_has_no_item_rows_and_caps_badge():
     script = r"""
 const vm = require('vm');
 const { moduleScript, seedReadModels } = require('./tests/support/frontend-runtime');
+const now = new Date();
+const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
 function classes() {
   const set = new Set();
   return { add(v) { set.add(v); }, remove(v) { set.delete(v); }, contains(v) { return set.has(v); }, _set: set };
@@ -73,7 +75,7 @@ const context = {
     },
     addEventListener() {},
   },
-  localStorage: { getItem() { return '2026-09'; } },
+  localStorage: { getItem() { return currentMonth; } },
   currentUser: { permissions: { stocktake: true } },
   appState: { currentTab: 'inventory', currentSite: 'office' },
   getFilteredInventoryItems() { return []; },
@@ -273,11 +275,13 @@ def test_get_notification_summary_scope_gating():
     script = r"""
 const vm = require('vm');
 const { moduleScript } = require('./tests/support/frontend-runtime');
+const now = new Date();
+const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
 const el = { classList: { add(){}, remove(){}, contains(){ return false; } }, style: {}, setAttribute(){}, getAttribute(){ return ''; }, addEventListener(){} };
 const context = {
   appState: { currentTab: 'calendar' },
   currentUser: { permissions: { stocktake: true } },
-  localStorage: { getItem() { return '2026-09'; } },
+  localStorage: { getItem() { return currentMonth; } },
   document: { getElementById(){ return el; }, querySelector(){ return null; }, addEventListener(){}, body: { classList: { add(){}, remove(){} } } },
   window: { innerWidth: 1024, addEventListener(){} },
 };
