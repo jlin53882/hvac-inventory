@@ -272,13 +272,18 @@ loadModules(sandbox, 'features/inventory/qty-dialog.js');
   editContext.editUpdatedAt = '2026-09-29T00:00:00';
   let patchRequests = 0;
   editContext.fetch = async () => { patchRequests += 1; return { ok: true }; };
-  for (const [field, label] of [['e-brand', '廠牌'], ['e-code', '型號'], ['e-name', '品項名稱']]) {
+  for (const [field, label] of [['e-name', '品項名稱']]) {
     editFields[field].value = '   ';
     await editContext.submitEdit();
     assert.match(editContext.lastToast, new RegExp(`${label}必填`), `${label}空白需顯示必填錯誤`);
     assert.equal(patchRequests, 0, `${label}空白時不得送出 PATCH`);
     editFields[field].value = field === 'e-brand' ? '測試廠牌' : field === 'e-code' ? 'TEST-01' : '測試品項';
   }
+  editFields['e-brand'].value = '   ';
+  editFields['e-code'].value = '   ';
+  await editContext.submitEdit();
+  assert.match(editContext.lastToast, /位置必填/, '廠牌與型號空白時不應阻擋到位置驗證');
+  assert.equal(patchRequests, 0, '廠牌與型號空白時不得因欄位驗證送出 PATCH');
   await editContext.submitEdit();
   assert.match(editContext.lastToast, /位置必填/, '缺少庫存位置需顯示必填錯誤');
   assert.equal(patchRequests, 0, '缺少庫存位置時不得送出 PATCH');

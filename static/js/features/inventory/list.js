@@ -235,7 +235,7 @@ function renderInventoryCard(list, isViewer, canStockout, isM) {
         if (prepared > 0) h += '<div class="prepared-tag">📤 待領出 ' + (Qty.format(prepared, Qty.unitTypeOf(i.unit))) + ' ' + esc(i.unit) + '</div>';
         h += '</div>';
         h += buildInventoryStockoutActions(i, canStockout, false);
-        if (!isViewer) h += '<div class="item-card-admin-actions"><button class="btn btn--secondary btn--sm edit-btn" data-action="inventory-edit" data-id="' + i.id + '" title="\u7de8\u8f2f\u54c1\u9805">\u7de8\u8f2f</button><button class="btn btn--danger btn--sm del-btn" data-action="inventory-delete" data-id="' + i.id + '" title="\u522a\u9664\u6750\u6599">\u522a\u9664</button></div>';
+        if (!isViewer) h += '<div class="item-card-admin-actions">' + buildInventoryItemActionMenu(i.id, isViewer) + '</div>';
         if (isViewer) {
           h += '<div class="qty-control"><div class="qty-value is-readonly" title="唯讀">' + displayStr + '<span class="unit"> ' + esc(i.unit) + '</span></div></div>';
         } else {

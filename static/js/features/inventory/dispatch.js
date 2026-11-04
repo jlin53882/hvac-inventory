@@ -38,7 +38,6 @@ const INVENTORY_ACTIONS = {
   'inventory-loc-toggle': { click: function(el) { toggleLoc(el, el.dataset.loc); } },
   'inventory-item-sheet': { click: function(el) { openItemSheet(itemId(el)); } },
   'inventory-edit': { click: function(el) { openEditModal(itemId(el)); } },
-  'inventory-delete': { click: function(el) { deleteItem(itemId(el)); } },
   'inventory-transfer': { click: function(el) { openTransferModal(itemId(el)); } },
   'inventory-qty-change': { click: function(el) { changeQty(itemId(el), Number(el.dataset.delta)); } },
   'inventory-qty-quickset': { click: function(el) { quickSet(itemId(el)); } },

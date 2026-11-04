@@ -25,7 +25,7 @@ export function buildInventoryItemActionMenu(itemId, isViewer) {
   const buttons = actions.map(a => {
     return '<button class="inventory-action-item' + (a.cls ? ' ' + a.cls : '') + '" data-action="inventory-menu-' + a.key + '" data-id="' + itemId + '">' + a.icon + ' ' + a.label + '</button>';
   }).join('');
-  return '<div class="inventory-action-menu" data-role="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" data-action="inventory-menu-open">⋮</button><div class="inventory-action-dropdown" data-role="inventory-action-dropdown">' + buttons + '</div></div>';
+  return '<div class="inventory-action-menu" data-role="inventory-action-menu"><button type="button" class="inventory-action-trigger" aria-label="更多操作" data-action="inventory-menu-open"><span class="inventory-action-trigger-icon" aria-hidden="true">⋮</span><span class="inventory-action-trigger-label">更多操作</span></button><div class="inventory-action-dropdown" data-role="inventory-action-dropdown">' + buttons + '</div></div>';
 }
 
 

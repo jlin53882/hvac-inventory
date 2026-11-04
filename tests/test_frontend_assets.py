@@ -1452,13 +1452,13 @@ def test_auth_js_has_apply_role_view():
 def test_inventory_js_viewer_mode():
     """inventory.js 有 viewer 模式：隱藏編輯/操作按鈕、數量唯讀"""
     js = read(INVENTORY_RENDER_JS)
+    actions = read("static/js/features/inventory/actions.js")
     assert "isViewer" in js
     assert 'class="qty-value is-readonly"' in js  # 數量唯讀樣式（外觀在 inventory.css 的 .qty-value.is-readonly）
     assert "title=\"唯讀\"" in js
-    assert "deleteItem" in js  # 卡片 刪除整筆材料（Sarah 需求）
-    # Renderer uses JS Unicode escapes; browser output is still Chinese text.
-    decoded_js = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), js)
-    assert 'title="刪除材料">刪除</button>' in decoded_js
+    assert "buildInventoryItemActionMenu(i.id, isViewer)" in js
+    assert "if (isViewer) return [];" in actions
+    assert "key: 'delete'" in actions and "label: '刪除品項'" in actions
 
 
 def test_kits_js_viewer_mode():
@@ -1829,10 +1829,9 @@ def test_inventory_note_empty_location_falls_back_and_escapes():
 
 def test_inventory_del_btn_is_text():
     """刪除按鈕用文字「刪除」而非 ✕ 圖案（Sarah 修正）"""
-    js = read(INVENTORY_RENDER_JS)
-    # Renderer uses JS Unicode escapes; browser output is still Chinese text.
-    decoded_js = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), js)
-    assert 'title="刪除材料">刪除</button>' in decoded_js
+    actions = read("static/js/features/inventory/actions.js")
+    assert "key: 'delete'" in actions
+    assert "label: '刪除品項'" in actions
 
 def test_kit_materials_show_model():
     """整組材料列顯示型號（Sarah 需求）"""
@@ -2967,14 +2966,14 @@ def test_api_js_saveall_keeps_failed_pending():
 # ---------- 2026-08-25：輸入驗證補強（A1-A3/B1-B5） ----------
 
 def test_add_modal_required_fields_validation():
-    """B4：新增品項 brand/code/location 必填驗證"""
+    """新增品項名稱/位置必填，廠牌與型號選填。"""
     js = read(ADD_JS)
     html = read(INDEX)
     add_modal = html.split('id="add-modal"', 1)[1].split("<!-- 編輯品項 Modal -->", 1)[0]
-    assert "!brand" in js and "廠牌必填" in js, "add.js 缺 brand 必填檢查"
+    assert "!brand" not in js and "廠牌必填" not in js, "add.js 不應再要求廠牌必填"
     assert "qtyInput.value.trim() === '' ? 0 : qtyInputOrToast(qtyInput, unit)" in js, "新增品項選填數量留白時需採 0"
-    assert "!code" in js and "型號必填" in js, "add.js 缺 code 必填檢查"
-    assert all(f"<label>{label}</label>" in add_modal for label in ("廠牌*", "型號*", "品項名稱*")), "新增品項主檔必填欄位標示不完整"
+    assert "!code" not in js and "型號必填" not in js, "add.js 不應再要求型號必填"
+    assert all(f"<label>{label}</label>" in add_modal for label in ("廠牌(選填)", "型號(選填)", "品項名稱*")), "新增品項主檔欄位標示不完整"
     assert "位置清單*（至少新增一個位置，可新增多個）" in add_modal, "新增品項位置清單缺至少一個位置的必填提示"
     assert all(label in add_modal for label in (
         '<span class="ch-cabinet">櫃子*</span>',
@@ -3008,10 +3007,10 @@ def test_edit_modal_stock_qty_clamping():
 
 
 def test_edit_modal_name_empty_toast():
-    """編輯品項必填驗證與新增表單一致"""
+    """編輯品項名稱/位置必填，廠牌與型號選填。"""
     js = read(EDIT_JS)
-    assert "if (!brandVal)" in js and "廠牌必填" in js
-    assert "if (!codeVal)" in js and "型號必填" in js
+    assert "if (!brandVal)" not in js and "廠牌必填" not in js
+    assert "if (!codeVal)" not in js and "型號必填" not in js
     assert "if (!nameVal)" in js and "品項名稱必填" in js
     assert "請選擇櫃子" in js and "位置必填（至少選櫃子）" in js
 
@@ -3228,7 +3227,7 @@ def test_edit_modal_has_cabinet_and_sub_per_row():
     html = read(INDEX)
     edit_modal = html.split('id="edit-modal"', 1)[1].split('id="prepared-edit-modal"', 1)[0]
     assert all(label in edit_modal for label in (
-        "廠牌*", "型號*", "品項名稱*", "品項照片(選填",
+        "廠牌(選填)", "型號(選填)", "品項名稱*", "品項照片(選填",
         "單位(選填)", "低庫存警示值(選填)", "分類(選填)", "分類位置(唯讀)",
         '<span class="ch-cabinet">櫃子*</span>',
         '<span class="ch-pos">位置(選填)</span>',
@@ -3800,12 +3799,37 @@ def test_inventory_item_actions_use_shared_registry_for_table_and_card():
     # 品項管理 actions 必須由共用 registry 提供，避免 table/card 分叉。
     js = read(INVENTORY_RENDER_JS)
     assert 'function getInventoryItemActions(itemId, isViewer, includePhoto)' in js
-    assert 'buildInventoryItemActionMenu(i.id, isViewer)' in js
+    assert js.count('buildInventoryItemActionMenu(i.id, isViewer)') == 2
     assert 'getInventoryItemActions(itemId, isViewer, false)' in js
     assert 'const actions = getInventoryItemActions(itemId, isViewer);' in js
     assert "label: '編輯品項'" in js
     assert "label: '更換照片'" in js
     assert "label: '刪除品項'" in js
+
+
+def test_inventory_desktop_more_action_control_preserves_mobile_markup():
+    """A 方案只強化桌面更多操作；手機仍使用原本的圖示與 bottom sheet。"""
+    actions = read("static/js/features/inventory/actions.js")
+    css = read(CSS_INVENTORY)
+    assert 'class="inventory-action-trigger-icon"' in actions
+    assert 'class="inventory-action-trigger-label">更多操作</span>' in actions
+    assert '.inventory-content .inventory-action-trigger-label {display:none}' in css
+    trigger_pos = css.index('.inventory-content .inventory-action-menu button.inventory-action-trigger {')
+    assert css.rfind('@media (min-width: 768px) {', 0, trigger_pos) >= 0
+    assert '.inventory-content .inventory-action-trigger-label {\n    display: inline;' in css
+    assert 'border: 1px solid var(--c-border-control);' in css
+    assert 'border-radius: var(--r-md);' in css
+    assert 'min-height: var(--h-sm);' in css
+    assert 'font-size: var(--fs-12);' in css
+    assert 'font-weight: var(--fw-bold);' in css
+    assert 'font-size: var(--fs-14);' in css
+    assert 'display: inline;' in css
+    assert re.search(r'@media \(min-width: 768px\)\s*\{\s*\.inventory-content \.tbl-wrap \.col-actions \{\s*min-width: 300px;', css)
+    render = read(INVENTORY_RENDER_JS)
+    card_render = render[render.index('function renderInventoryCard'):render.index('function renderInventoryPagination')]
+    mobile_branch = card_render[card_render.index('if (isM) {'):card_render.index('} else {', card_render.index('if (isM) {'))]
+    assert 'inventory-item-sheet' in mobile_branch
+    assert 'buildInventoryItemActionMenu' not in mobile_branch
 
 
 def test_inventory_table_puts_item_actions_after_stockout_actions_in_menu():
@@ -3833,8 +3857,8 @@ const context = {
   document: { addEventListener() {}, querySelectorAll() { return []; } },
   localStorage: { getItem() { return 'table'; } },
   pending: {}, selectedStockIds: new Set(), unitList: [], appState: { batchMode: false, currentSite: 'office' },
-  hasPerm(key) { return key === 'stockout' || key === 'item-mgmt'; },
-  currentUser: null,  // core/utils.js 載入後以正式 hasPerm 取代上面的替身（與原本相同）；未登入 → 無權限
+  hasPerm(key) { return key === 'stockout' || key === 'item-mgmt' || key === 'stock-mgmt'; },
+  currentUser: { permissions: { stockout: true, 'item-mgmt': true, 'stock-mgmt': true } },
 };
 vm.createContext(context);
 for (const file of ['static/js/core/qty.js', 'static/js/core/utils.js', 'static/js/components/card.js', 'static/js/features/inventory/state.js', 'static/js/features/inventory/filters.js', 'static/js/core/search.js', 'static/js/features/inventory/list.js', 'static/js/features/inventory/status.js', 'static/js/features/inventory/actions.js', 'static/js/features/inventory/adjust.js', 'static/js/features/inventory/batch-location.js']) {
@@ -3847,9 +3871,13 @@ const item = {
 };
 const table = context.renderInventoryTable([item], false, true);
 if (!table.includes('📤 待領出') || !table.includes('🚚 已領出')) throw new Error('stockout actions missing');
-if (!table.includes('inventory-action-menu') || !table.includes('編輯品項') || !table.includes('刪除品項')) throw new Error('item action menu missing');
+if (!table.includes('inventory-action-menu') || !table.includes('編輯品項') || !table.includes('調撥庫存') || !table.includes('刪除品項')) throw new Error('table item action menu missing');
 const viewer = context.renderInventoryTable([item], true, true);
 if (viewer.includes('編輯品項') || viewer.includes('刪除品項')) throw new Error('viewer saw item actions');
+const card = context.renderInventoryCard([item], false, true, false);
+if (!card.includes('inventory-action-menu') || !card.includes('編輯品項') || !card.includes('調撥庫存') || !card.includes('刪除品項')) throw new Error('card item action menu missing');
+const viewerCard = context.renderInventoryCard([item], true, true, false);
+if (viewerCard.includes('inventory-action-menu') || viewerCard.includes('調撥庫存')) throw new Error('viewer card saw item actions');
 '''
     import subprocess
     result = subprocess.run(['node', '-e', script], cwd=os.path.dirname(STATIC), capture_output=True, text=True, encoding="utf-8")
@@ -4434,7 +4462,7 @@ def test_inventory_table_stockout_actions_do_not_wrap_on_mobile():
     css = read(CSS_INVENTORY)
     assert '.inventory-content .tbl-wrap .col-actions { white-space: nowrap;' in css
     assert '.inventory-content .tbl-wrap .inventory-stockout-actions { display: inline-flex;' in css
-    assert '.inventory-content .tbl-wrap .inventory-action-menu { display: inline-flex;' in css
+    assert '.inventory-content .inventory-action-menu { display: inline-flex;' in css
 
 def test_prepared_desktop_item_info_matches_mobile_hierarchy():
     """待領出桌面資訊與手機一致：品牌品名第一行、型號第二行。

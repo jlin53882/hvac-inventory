@@ -180,8 +180,6 @@ export async function submitAdd() {
   if (!name) { toast('品項名稱必填', 'error'); return; }
   const brand = document.getElementById('f-brand').value.trim();
   const code = document.getElementById('f-code').value.trim();
-  if (!brand) { toast('廠牌必填', 'error'); return; }
-  if (!code) { toast('型號必填', 'error'); return; }
   const unit = document.getElementById('f-unit').value;
   // 多位置：逐列解析（分數/小數單位可輸 1/4；非法數量 qtyInputOrToast 已 toast → 整包擋下）
   const parsedRows = [];

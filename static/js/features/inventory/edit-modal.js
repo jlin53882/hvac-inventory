@@ -162,8 +162,6 @@ export async function submitEdit() {
   const nameVal = document.getElementById('e-name').value.trim();
   const brandVal = document.getElementById('e-brand').value.trim();
   const codeVal = document.getElementById('e-code').value.trim();
-  if (!brandVal) { toast('廠牌必填', 'error'); return; }
-  if (!codeVal) { toast('型號必填', 'error'); return; }
   if (!nameVal) { toast('品項名稱必填', 'error'); return; }
   // 2026-09-12：門檻支援分數（Qty.parse）
   const _lsRaw = document.getElementById('e-lowstock').value;
