@@ -1,6 +1,6 @@
 // 每日工作進度回報（獨立頁面；資料/權限/照片不與簽名報表共用）
 
-import { apiFetch } from '../../core/api-client.js';
+import { apiDownload, apiFetch } from '../../core/api-client.js';
 import { esc, hasPerm, toast } from '../../core/utils.js';
 import { wprOpenHistoryDetail } from './detail.js';
 import { wprClearPhotoManageStates, workProgressState } from './state.js';
@@ -27,7 +27,13 @@ export async function renderWorkProgress() {
     <div class="wpr-wrap">
       <section class="wpr-page-header">
         <div><div class="wpr-eyebrow">📸 現場紀錄</div><h1>每日工作進度回報</h1><p>記錄每日工作進度、備註及施工現場照片。</p></div>
-        <button class="btn btn--secondary btn--md wpr-history-jump" type="button" data-action="wpr-scroll-history">查看歷史 ↓</button>
+        <div class="wpr-header-actions">
+          <button class="btn btn--secondary btn--md wpr-history-jump" type="button" data-action="wpr-scroll-history">查看歷史 ↓</button>
+          <div class="wpr-export-row">
+            <input type="date" id="wpr-export-date" value="${esc(wprIsoDate())}" aria-label="匯出日期">
+            <button class="btn btn--secondary btn--md" type="button" data-action="wpr-export">匯出 Excel</button>
+          </div>
+        </div>
       </section>
       <div class="wpr-layout">
         <section class="wpr-card wpr-create-card" id="wpr-create"></section>
@@ -199,6 +205,21 @@ export async function wprSelectJob(id) {
  */
 // <details> 展開時開啟詳情；程式主動展開（wprSuppressHistoryToggle 標記）時略過一次
 export function wprHistoryToggled(el, id) { if (el.open && !workProgressState.wprSuppressHistoryToggle[id]) wprOpenHistoryDetail(id); workProgressState.wprSuppressHistoryToggle[id] = false; }
+
+/**
+ * Export the selected day's work progress reports (one sheet per job) as xlsx.
+ * @returns {Promise<void>} Starts the download, or shows a toast on failure.
+ */
+export async function wprExport() {
+  var input = document.getElementById('wpr-export-date');
+  var date = input && input.value ? input.value : wprIsoDate();
+  try {
+    await apiDownload('/api/work-progress/export?date=' + encodeURIComponent(date), { filename: '工程進度回報' + date + '.xlsx', fallback: '匯出失敗' });
+    toast('📤 已匯出 工程進度回報' + date + '.xlsx');
+  } catch (e) {
+    toast(e.status ? '❌ ' + e.message : '⚠️ 匯出失敗：' + e.message);
+  }
+}
 
 /**
  * Handle date changes without silently moving an unsaved draft.

@@ -6,6 +6,9 @@
   [data-page="work-progress"] #content.wpr-content .wpr-wrap { padding: 2px 16px 0; }
 }
 [data-page="work-progress"] #content.wpr-content .wpr-page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+[data-page="work-progress"] #content.wpr-content .wpr-header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: none; }
+[data-page="work-progress"] #content.wpr-content .wpr-export-row { display: flex; align-items: center; gap: 8px; }
+[data-page="work-progress"] #content.wpr-content .wpr-export-row input[type="date"] { height: 36px; padding: 0 8px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); background: var(--c-white); color: var(--c-text); font: inherit; }
 [data-page="work-progress"] #content.wpr-content .wpr-eyebrow { color: var(--c-primary); font-size: var(--fs-12); font-weight: var(--fw-bold); letter-spacing: .08em; margin-bottom: 5px; }
 [data-page="work-progress"] #content.wpr-content .wpr-page-header h1 { margin: 0; font-size: var(--fs-28); letter-spacing: -.02em; }
 [data-page="work-progress"] #content.wpr-content .wpr-page-header p, [data-page="work-progress"] #content.wpr-content .wpr-section-heading p { color: var(--c-muted); margin: 6px 0 0; font-size: var(--fs-13); }
@@ -177,7 +180,7 @@
   [data-page="work-progress"] #content.wpr-content .wpr-wrap { padding: 18px 12px 80px; }
   [data-page="work-progress"] #content.wpr-content .wpr-page-header { display: block; }
   [data-page="work-progress"] #content.wpr-content .wpr-page-header h1 { font-size: var(--fs-20); }
-  [data-page="work-progress"] #content.wpr-content .wpr-history-jump { margin-top: 12px; }
+  [data-page="work-progress"] #content.wpr-content .wpr-header-actions { align-items: stretch; margin-top: 12px; }
   [data-page="work-progress"] #content.wpr-content .wpr-layout { display: block; }
   [data-page="work-progress"] #content.wpr-content .wpr-side { margin-top: 14px; }
   [data-page="work-progress"] #content.wpr-content .wpr-history-card { margin-top: 14px; }

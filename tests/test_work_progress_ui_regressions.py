@@ -159,3 +159,13 @@ def test_upload_progress_runtime_contract():
     )
     assert result.returncode == 0, f"upload progress runtime failed:\n{result.stdout}\n{result.stderr}"
     assert "work progress upload progress runtime ok" in result.stdout
+
+
+def test_work_progress_export_button_sits_under_history_button_and_defaults_to_today():
+    """匯出 Excel 按鈕在「查看歷史」下方，日期預設今天，呼叫 /api/work-progress/export。"""
+    page = _read(WORK_PROGRESS_JS)
+    actions = (ROOT / "static/js/features/work-progress/actions.js").read_text(encoding="utf-8")
+    assert page.index('data-action="wpr-scroll-history"') < page.index('data-action="wpr-export"')
+    assert 'id="wpr-export-date" value="${esc(wprIsoDate())}"' in page
+    assert "/api/work-progress/export?date=" in page
+    assert "'wpr-export'" in actions and "wprExport" in actions

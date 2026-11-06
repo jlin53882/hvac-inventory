@@ -9,7 +9,7 @@ import {
 import { wprCloseLeaveConfirmation, wprDiscardAndLeave, wprUpdateNoteCount } from './draft.js';
 import { wprCloseGallery, wprClosePendingGallery, wprGalleryMove, wprOpenGallery, wprOpenPendingGallery, wprPendingGalleryMove } from './gallery.js';
 import { wprLoadHistory, wprQuickRange, wprResetFilter } from './history.js';
-import { wprHandleDateChange, wprHistoryToggled, wprSelectJob } from './page.js';
+import { wprExport, wprHandleDateChange, wprHistoryToggled, wprSelectJob } from './page.js';
 import { wprAddPendingFiles, wprRemovePending } from './pending-photos.js';
 import { wprSubmit } from './upload.js';
 
@@ -19,6 +19,7 @@ const clickInput = function(inputId) { const input = document.getElementById(inp
 
 const WPR_ACTIONS = {
   'wpr-scroll-history': { click: function() { document.getElementById('wpr-history').scrollIntoView({ behavior: 'smooth' }); } },
+  'wpr-export': { click: function() { wprExport(); } },
   'wpr-query': { keydown: function(el, event) { if (event.key === 'Enter') wprLoadHistory(1); } },
   'wpr-search': { click: function() { wprLoadHistory(1); } },
   'wpr-reset-filter': { click: function() { wprResetFilter(); } },

@@ -31,7 +31,8 @@ from app.services.file_storage import (
     prepare_media_batch,
     store_asset,
 )
-from app.services.safety import safe_download_name
+from app.services.safety import safe_download_name, xlsx_download
+from app.services.work_progress_export import build_work_progress_workbook
 from app.services.upload_policy import IMAGE_UPLOAD_EXTS
 
 router = APIRouter(prefix="/api/work-progress", tags=["work-progress"])
@@ -393,6 +394,50 @@ def work_progress_kpi(
             "rate": round(reported / total * 100) if total else None,
             "photo_count": photos,
         }
+
+
+@router.get("/export")
+def export_work_progress(
+    date: str = Query(...),
+    user: dict = Depends(require_db_perm("work-progress-view")),
+):
+    """匯出指定日期的工作進度回報 xlsx（每個行程一個工作表，含施工照片）。"""
+    date = _validate_date(date, "日期")
+    with db_session() as conn:
+        rows = conn.execute(
+            """SELECT * FROM daily_work_progress_reports
+               WHERE report_date=? ORDER BY start_time_snapshot, id""",
+            (date,),
+        ).fetchall()
+        if not rows:
+            raise HTTPException(404, "該日期沒有工作進度回報")
+        reports = []
+        for row in rows:
+            assets = conn.execute(
+                """SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?
+                   ORDER BY created_at, asset_id""",
+                (CATEGORY, OWNER_TYPE, str(row["id"])),
+            ).fetchall()
+            paths = []
+            for asset in assets:
+                try:
+                    path = asset_variant_path(asset, "preview", upload_dir=_upload_dir())
+                except (FileNotFoundError, ValueError):
+                    continue
+                if path.exists():
+                    paths.append(path)
+            reports.append({
+                "report_date": row["report_date"],
+                "client_name": row["client_name_snapshot"],
+                "address": row["address_snapshot"],
+                "service_name": row["service_name_snapshot"],
+                "start_time": row["start_time_snapshot"],
+                "appointment_note": row["appointment_note_snapshot"],
+                "note": row["note"],
+                "photo_paths": paths,
+            })
+    buf = build_work_progress_workbook(reports)
+    return xlsx_download(buf.getvalue(), f"工程進度回報{date}.xlsx")
 
 
 @router.get("/{report_id}")

@@ -1035,3 +1035,103 @@ def test_work_progress_photo_variants_are_private_cached(wpr_env):
         )
         assert response.status_code == 200
         assert response.headers["cache-control"] == "private, max-age=86400"
+
+
+def test_export_work_progress_one_sheet_per_report_with_photos_and_multiline_notes(wpr_env):
+    """匯出：每筆回報一個工作表、標楷體、備註換行留在同一格、照片依張數嵌入。"""
+    from openpyxl import load_workbook
+
+    make_client, _users, _static, _uploads = wpr_env
+    client = make_client("owner")
+    first = _appointment(client, date="2026-11-03", note="裝出風口_蘇\n下午 冰水主機_藍")
+    second = _appointment(client, date="2026-11-03")
+    r1 = client.post(
+        "/api/work-progress",
+        data={"appointment_id": str(first["id"]), "note": "測試A\r\n測試B"},
+        files=[("files", (f"p{i}.png", _png(600, 800) if i % 2 else _png(), "image/png")) for i in range(5)],
+    )
+    assert r1.status_code == 201, r1.text
+    r2 = client.post("/api/work-progress", data={"appointment_id": str(second["id"]), "note": "無照片"})
+    assert r2.status_code == 201, r2.text
+
+    response = client.get("/api/work-progress/export", params={"date": "2026-11-03"})
+    assert response.status_code == 200, response.text
+    assert "spreadsheetml" in response.headers["content-type"]
+    wb = load_workbook(io.BytesIO(response.content))
+    assert len(wb.sheetnames) == 2
+    assert len(set(wb.sheetnames)) == 2  # 同客戶名稱也不會重名
+    ws = wb[wb.sheetnames[0]]
+    assert ws["A1"].value.startswith("2026/11/3 保養．王先生")
+    assert ws["A9"].value == "裝出風口_蘇\n下午 冰水主機_藍"
+    assert ws["C9"].value == "測試A\n測試B"
+    assert ws["C5"].value == "09:00"
+    assert ws["A9"].alignment.wrap_text and ws["C9"].alignment.wrap_text
+    assert "A9:A10" in {str(r) for r in ws.merged_cells.ranges}
+    assert len(ws._images) == 5
+    assert len({(i.width, i.height) for i in ws._images}) == 1  # 橫、直式照片都裁成相同大小
+    assert all(i.width == i.height for i in ws._images)
+    assert ws["A1"].font.name == "標楷體" and ws["C9"].font.name == "標楷體"
+    assert ws.oddHeader.center.text == "工程進度回報"
+    assert len(wb[wb.sheetnames[1]]._images) == 0
+
+
+def test_export_work_progress_requires_login_valid_date_and_data(wpr_env):
+    make_client, *_ = wpr_env
+    assert TestClient(app_main.app, raise_server_exceptions=False).get(
+        "/api/work-progress/export", params={"date": "2026-11-03"}).status_code == 401
+    client = make_client("viewer")
+    assert client.get("/api/work-progress/export", params={"date": "bad"}).status_code == 400
+    assert client.get("/api/work-progress/export", params={"date": "2026-11-03"}).status_code == 404
+
+
+def test_export_sheet_title_sanitizes_truncates_and_dedupes():
+    from app.services.work_progress_export import estimate_lines, sheet_title
+
+    used: set[str] = set()
+    name = "美麗線醫美診所 捷寶新世紀店鋪七 吳小姐/PJ1151001"
+    first = sheet_title(name, used)
+    assert "/" not in first and len(first) <= 31
+    second = sheet_title(name, used)
+    assert second != first and second.endswith("(2)") and len(second) <= 31
+    assert sheet_title("a" * 80, set()) == "a" * 31
+    assert estimate_lines("A\nB\r\nC", 360) == 3
+
+
+def test_export_sheet_title_uses_only_ascii_replacement_for_invalid_chars():
+    """全形 ／ 會讓 Excel 要求修復活頁簿；非法字元一律換成半形 -。"""
+    from app.services.work_progress_export import sheet_title
+
+    title = sheet_title("A/B:C?D*E[F]G\H", set())
+    assert title == "A-B-C-D-E-F-G-H"
+    assert "／" not in sheet_title("中和 蔡小姐/PJ1150610", set())
+
+
+def test_export_builder_layout_long_note_row_height_photo_rows_and_page_breaks(tmp_path):
+    """純服務層：長備註加高列、照片每排 5 張、15 張分頁、遺漏的照片檔不會讓匯出失敗。"""
+    from openpyxl import load_workbook
+
+    from app.services.work_progress_export import PHOTO_SLOT_PT, PHOTOS_PER_ROW, build_work_progress_workbook
+
+    photo = tmp_path / "p.jpg"
+    Image.new("RGB", (1477, 1108), (10, 90, 160)).save(photo, "JPEG")
+    base = {"report_date": "2026-11-03", "client_name": "中和 蔡小姐 馨誠/PJ1150610", "service_name": "施工",
+            "start_time": "", "address": "新北市中和區板南路661號4樓", "appointment_note": "", "note": ""}
+    long_note = "\n".join(f"{i}*8.3下吹*{i}" for i in range(1, 9))
+    buf = build_work_progress_workbook([
+        {**base, "note": long_note, "photo_paths": [photo] * 15},
+        {**base, "photo_paths": []},
+    ])
+    wb = load_workbook(buf)
+    full, empty = wb[wb.sheetnames[0]], wb[wb.sheetnames[1]]
+
+    assert full["C9"].value == long_note and full["C5"].value == "未指定時間"
+    assert full.row_dimensions[9].height + full.row_dimensions[10].height >= 8 * 22   # 8 行都放得下
+    assert PHOTOS_PER_ROW == 5 and len(full._images) == 15
+    assert [full.row_dimensions[r].height for r in (12, 13, 14)] == [PHOTO_SLOT_PT] * 3  # 15 張 = 3 排
+    assert full.print_area.endswith("$C$14")
+    assert {(i.width, i.height) for i in full._images} == {(i.width, i.width) for i in full._images[:1]}
+    assert empty.print_area.endswith("$C$11") and not empty._images and not empty.row_breaks.brk
+
+    many = build_work_progress_workbook([{**base, "photo_paths": [photo] * 40}])
+    ws = load_workbook(many).active
+    assert len(ws.row_breaks.brk) >= 1   # 8 排放不下一頁，必須有分頁線
