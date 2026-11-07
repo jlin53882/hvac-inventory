@@ -28,10 +28,10 @@ export async function renderWorkProgress() {
       <section class="wpr-page-header">
         <div><div class="wpr-eyebrow">📸 現場紀錄</div><h1>每日工作進度回報</h1><p>記錄每日工作進度、備註及施工現場照片。</p></div>
         <div class="wpr-header-actions">
-          <button class="btn btn--secondary btn--md wpr-history-jump" type="button" data-action="wpr-scroll-history">查看歷史 ↓</button>
           <div class="wpr-export-row">
             <input type="date" id="wpr-export-date" value="${esc(wprIsoDate())}" aria-label="匯出日期">
             <button class="btn btn--secondary btn--md" type="button" data-action="wpr-export">匯出 Excel</button>
+            <button class="btn btn--secondary btn--md wpr-history-jump" type="button" data-action="wpr-scroll-history">查看歷史 ↓</button>
           </div>
         </div>
       </section>

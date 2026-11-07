@@ -114,25 +114,36 @@ def _fill_header(ws, rpt: dict) -> float:
     ws["A5"] = excel_safe(client)
     ws["C5"] = excel_safe(start)
     ws["A7"] = excel_safe(rpt.get("address") or "")
-    ws["A9"] = excel_safe(appt_note) or None
-    ws["C9"] = excel_safe(note) or None
+    # 版面：左欄「工作進度回報」(A8 標題、A9:A10 內容)；右欄「行事曆備註」(C6 標題、C7:C8 內容)
+    ws["A8"] = "工作進度回報"
+    ws["A9"] = excel_safe(note) or None
     ws["A10"] = None
+    ws["C6"]._style = copy(ws["C8"]._style)
+    ws["C6"] = "行事曆備註"
+    ws["C7"]._style = copy(ws["C9"]._style)
+    ws["C7"] = excel_safe(appt_note) or None
+    ws["C8"] = None
+    ws["C9"] = None
     ws["C10"] = None
     ws.merge_cells("A9:A10")
-    ws.merge_cells("C9:C10")
+    ws.merge_cells("C7:C8")
 
     for ref in ("A1", "A5", "A7", "C3", "C5"):
         _wrap(ws[ref])
     _wrap(ws["A9"], horizontal="left", vertical="top")
-    _wrap(ws["C9"], horizontal="left", vertical="top")
+    _wrap(ws["C7"], horizontal="left", vertical="top")
 
     heights = {
         1: _height_pt(title, PX_FULL),
         5: max(_height_pt(client, PX_COL_A), _height_pt(start, PX_COL_A)),
         7: _height_pt(rpt.get("address") or "", PX_COL_A),
     }
-    body_pt = max(60.0, _height_pt(appt_note, PX_COL_A), _height_pt(note, PX_COL_A))
+    body_pt = max(60.0, _height_pt(note, PX_COL_A))
     heights[9] = heights[10] = body_pt / 2
+    # 右欄備註佔 7、8 兩列：不足時加高第 7 列
+    appt_pt = _height_pt(appt_note, PX_COL_A)
+    heights[8] = 30.0
+    heights[7] = max(heights[7], 30.0, appt_pt - heights[8])
     for r in range(1, 12):
         ws.row_dimensions[r].height = heights.get(r, 30.0)
     return sum(ws.row_dimensions[r].height for r in range(1, 12))
