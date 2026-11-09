@@ -85,10 +85,9 @@ export function mobileCardShell(p) {
       <div class="thumb">${p.thumb}</div>
       <div class="info">
         <div class="nm">${p.nameHTML}</div>
-        ${p.subHTML ? `<div class="sub">${p.subHTML}</div>` : ''}
-        ${p.extraHTML || ''}
       </div>
       <div class="qty-col">${p.qtyHTML}</div>
+      ${p.subHTML || p.extraHTML ? `<div class="info-more">${p.subHTML ? `<div class="sub">${p.subHTML}</div>` : ''}${p.extraHTML || ''}</div>` : ''}
       <div class="note-slot">${p.noteHTML || ''}</div>
     </div>
     ${p.actionsHTML || ''}

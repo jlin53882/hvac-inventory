@@ -1662,7 +1662,10 @@ def test_mobile_note_slot_is_second_row_of_card_main():
     card_js = read(CARD_JS)
     css = read_css_all()
     assert card_js.index("<div class=\"qty-col\">") < card_js.index("<div class=\"note-slot\">")
-    assert ".m-card .note-slot { grid-column: 2 / -1; grid-row: 2;" in css
+    assert ".m-card .note-slot { grid-column: 2 / -1; grid-row: 3;" in css
+    # 型號/位置列橫跨至數量欄右緣（保留 ⋯ 的 34px），並可自動換行
+    assert card_js.index("<div class=\"qty-col\">") < card_js.index("<div class=\"info-more\">") < card_js.index("<div class=\"note-slot\">")
+    assert ".m-card .info-more { grid-column: 2 / -1; grid-row: 2; min-width: 0; padding-right: 34px; white-space: normal;" in css
 
 
 def test_desktop_card_actions_and_quantity_use_distinct_rows():
