@@ -1104,7 +1104,7 @@ def test_export_sheet_title_uses_only_ascii_replacement_for_invalid_chars():
 
     title = sheet_title("A/B:C?D*E[F]G\H", set())
     assert title == "A-B-C-D-E-F-G-H"
-    assert "／" not in sheet_title("中和 蔡小姐/PJ1150610", set())
+    assert "／" not in sheet_title("範例客戶 王小姐/PJ0000000", set())
 
 
 def test_export_builder_layout_long_note_row_height_photo_rows_and_page_breaks(tmp_path):
@@ -1115,8 +1115,8 @@ def test_export_builder_layout_long_note_row_height_photo_rows_and_page_breaks(t
 
     photo = tmp_path / "p.jpg"
     Image.new("RGB", (1477, 1108), (10, 90, 160)).save(photo, "JPEG")
-    base = {"report_date": "2026-11-03", "client_name": "中和 蔡小姐 馨誠/PJ1150610", "service_name": "施工",
-            "start_time": "", "address": "新北市中和區板南路661號4樓", "appointment_note": "", "note": ""}
+    base = {"report_date": "2026-11-03", "client_name": "範例客戶 王小姐 某某公司/PJ0000000", "service_name": "施工",
+            "start_time": "", "address": "範例市範例區範例路1號4樓", "appointment_note": "", "note": ""}
     long_note = "\n".join(f"{i}*8.3下吹*{i}" for i in range(1, 9))
     buf = build_work_progress_workbook([
         {**base, "note": long_note, "photo_paths": [photo] * 15},
