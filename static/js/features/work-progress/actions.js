@@ -9,6 +9,7 @@ import {
 import { wprCloseLeaveConfirmation, wprDiscardAndLeave, wprUpdateNoteCount } from './draft.js';
 import { wprCloseGallery, wprClosePendingGallery, wprGalleryMove, wprOpenGallery, wprOpenPendingGallery, wprPendingGalleryMove } from './gallery.js';
 import { wprLoadHistory, wprQuickRange, wprResetFilter } from './history.js';
+import { wprCloseConditionExport, wprConfirmConditionExport, wprExportPreviewPage, wprExportSingle, wprOpenConditionExport } from './export.js';
 import { wprExport, wprHandleDateChange, wprHistoryToggled, wprSelectJob } from './page.js';
 import { wprAddPendingFiles, wprRemovePending } from './pending-photos.js';
 import { wprSubmit } from './upload.js';
@@ -23,6 +24,11 @@ const WPR_ACTIONS = {
   'wpr-query': { keydown: function(el, event) { if (event.key === 'Enter') wprLoadHistory(1); } },
   'wpr-search': { click: function() { wprLoadHistory(1); } },
   'wpr-reset-filter': { click: function() { wprResetFilter(); } },
+  // 搜尋條件匯出（確認清單 → 進度條 → 下載）
+  'wpr-export-condition': { click: function() { wprOpenConditionExport(); } },
+  'wpr-export-page': { click: function(el) { wprExportPreviewPage(Number(el.dataset.page)); } },
+  'wpr-export-confirm': { click: function() { wprConfirmConditionExport(); } },
+  'wpr-export-close': { click: function() { wprCloseConditionExport(); } },
   'wpr-range': { click: function(el) { wprQuickRange(el.dataset.range, el); } },
   'wpr-history-page': { click: function(el) { wprLoadHistory(Number(el.dataset.page)); } },
   // <details> 的 toggle 事件不冒泡，delegate 以 capture 接
@@ -49,6 +55,7 @@ const WPR_ACTIONS = {
   // 回報詳情
   'wpr-report-edit': { click: function(el) { wprEditReport(id(el), el.dataset.target); } },
   'wpr-report-delete': { click: function(el) { wprDeleteReport(id(el)); } },
+  'wpr-report-export': { click: function(el) { wprExportSingle(id(el), el); } },
   'wpr-photo-add-existing': { click: function(el) { wprAddExistingPhotos(id(el), el.dataset.target); } },
   'wpr-photo-manage-toggle': { click: function(el) { wprTogglePhotoManage(id(el), el.dataset.target); } },
   'wpr-photo-toggle-selection': { click: function(el) { wprTogglePhotoSelection(id(el), index(el), el.dataset.target); } },

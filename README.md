@@ -148,6 +148,10 @@ hvac-inventory/
 | PATCH/DELETE | `/api/work-progress/{id}` | 修改備註／刪除整筆 |
 | POST/DELETE | `/api/work-progress/{id}/photos*` | 新增／刪除單張施工照片 |
 | GET | `/api/work-progress/kpi?month=` | 依目前 appointments 計算回報 KPI |
+| GET | `/api/work-progress/export?date=` | 匯出指定日期工作進度 Excel（完整版） |
+| GET | `/api/work-progress/{id}/export` | 匯出單筆工作進度 Excel（完整版） |
+| GET | `/api/work-progress/export/preview` | 搜尋條件匯出的確認清單（日期區間／關鍵字、分頁） |
+| POST/GET/DELETE | `/api/work-progress/export/jobs*` | 搜尋條件匯出背景工作（精簡版）：開始／查進度／下載／取消 |
 
 | GET | `/api/gcal-keys` | Google 行事曆同步 Key 列表（admin） |
 | POST | `/api/gcal-keys` | 新增 Key（admin） |

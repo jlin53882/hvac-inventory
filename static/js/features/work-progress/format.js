@@ -4,7 +4,7 @@ import { currentUser } from '../../core/session.js';
 import { esc } from '../../core/utils.js';
 
 // Gallery dynamically creates id="wpr-gallery-overlay" before lookup.
-// Work Progress dialogs dynamically create id="wpr-confirm-overlay", id="wpr-unsaved-overlay", and id="wpr-pending-gallery-overlay".
+// Work Progress dialogs dynamically create id="wpr-confirm-overlay", id="wpr-unsaved-overlay", id="wpr-pending-gallery-overlay", and id="wpr-export-overlay".
 
 /**
  * Format a local Date as the date value used by the Work Progress API.

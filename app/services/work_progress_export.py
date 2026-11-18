@@ -2,7 +2,9 @@
 """每日工作進度回報 Excel 匯出（範本填值法）。
 
 - 範本：app/assets/工程進度回報範本.xlsx（單一工作表，A/C 兩欄內容、B 為間隔）
-- 同一天的每個行程各輸出一個工作表，照片依張數往下排（每排 5 張、置中裁成相同正方形）
+- 兩種版面：完整版（日期/項目/客戶/時間/地址/行事曆備註/工作進度/照片，用於整天與單筆匯出）、
+  精簡版（日期/項目/工作進度/行事曆備註/照片，用於歷史搜尋條件匯出）；標題不含日期
+- 每筆工作進度各輸出一個工作表，照片依張數往下排（每排 5 張、置中裁成相同正方形）
 - 全部字型標楷體；使用者輸入的換行在儲存格內換行，不拆成多列
 """
 from __future__ import annotations
@@ -13,7 +15,7 @@ import math
 import re
 from copy import copy
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from PIL import Image as PILImage, ImageOps
 from openpyxl import load_workbook
@@ -38,11 +40,14 @@ PHOTO_SLOT_PX = PX_FULL // PHOTOS_PER_ROW   # 每格 153 px（正方形）
 PHOTO_SLOT_PT = PHOTO_SLOT_PX * 72 / 96
 PHOTO_PAD_PX = 6
 PHOTO_RENDER_SCALE = 2  # 裁切後以 2 倍解析度嵌入，列印較清晰
-FIRST_PHOTO_ROW = 12    # 範本「施工照片」標題在第 11 列
+FIRST_PHOTO_ROW = 12    # 完整版「施工照片」標題在第 11 列
+COMPACT_FIRST_PHOTO_ROW = 8  # 精簡版「施工照片」標題在第 7 列
 PAGE_BUDGET_PT = 740    # A4 縮放後每頁可用列高（約）
 EMU_PER_PX = 9525
 
 _BAD_SHEET_CHARS = re.compile(r"[\\/*?:\[\]]")
+_BAD_FILE_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+EXPORT_FILE_PREFIX = "工程進度回報"
 
 
 def _norm_text(text: str) -> str:
@@ -83,6 +88,19 @@ def sheet_title(name: str, used: set[str]) -> str:
     return title
 
 
+def export_filename(*parts: str) -> str:
+    """匯出檔名：工程進度回報 + 以 _ 串接的非空段落；Windows 不允許的字元換成 _，總長限 120 字。"""
+    body = "_".join(p.strip() for p in parts if p and p.strip())
+    body = _BAD_FILE_CHARS.sub("_", body)
+    return (EXPORT_FILE_PREFIX + body)[:115] + ".xlsx"
+
+
+def report_title(rpt: dict) -> str:
+    """工作表標題（不含日期）：「服務．客戶」，無服務時只有客戶。"""
+    service = rpt.get("service_name") or ""
+    return (f"{service}．" if service else "") + (rpt.get("client_name") or "")
+
+
 def _set_font(ws, max_row: int) -> None:
     for row in ws.iter_rows(min_row=1, max_row=max_row, min_col=1, max_col=3):
         for c in row:
@@ -103,7 +121,7 @@ def _fill_header(ws, rpt: dict) -> float:
     d = datetime.date.fromisoformat(rpt["report_date"])
     service = rpt.get("service_name") or ""
     client = rpt.get("client_name") or ""
-    title = f"{d.year}/{d.month}/{d.day} " + (f"{service}．" if service else "") + client
+    title = report_title(rpt)
     start = rpt.get("start_time") or "未指定時間"
     appt_note = _norm_text(rpt.get("appointment_note"))
     note = _norm_text(rpt.get("note"))
@@ -149,6 +167,49 @@ def _fill_header(ws, rpt: dict) -> float:
     return sum(ws.row_dimensions[r].height for r in range(1, 12))
 
 
+def _fill_compact_header(ws, rpt: dict) -> float:
+    """精簡版表頭：沿用完整版範本樣式重排成 1~7 列（左工作進度回報、右行事曆備註），回傳第 1~7 列總高度（pt）。"""
+    d = datetime.date.fromisoformat(rpt["report_date"])
+    service = rpt.get("service_name") or ""
+    title = report_title(rpt)
+    appt_note = _norm_text(rpt.get("appointment_note"))
+    note = _norm_text(rpt.get("note"))
+    label_style = copy(ws["A8"]._style)        # 「工作進度回報」標題樣式
+    body_style = copy(ws["A9"]._style)         # 內容樣式（靠左靠上）
+    blank_style = copy(ws["A10"]._style)
+    photo_label_style = copy(ws["A11"]._style)
+    empty_style = copy(ws["A12"]._style)
+    for r in range(4, 12):
+        for c in ("A", "B", "C"):
+            ws[f"{c}{r}"] = None
+            ws[f"{c}{r}"]._style = copy(empty_style)
+    ws["A1"] = excel_safe(title)
+    ws["A3"] = d
+    ws["A3"].number_format = "yyyy/m/d"
+    ws["C3"] = excel_safe(service)
+    for ref, text in (("A4", "工作進度回報"), ("C4", "行事曆備註")):
+        ws[ref]._style = copy(label_style)
+        ws[ref] = text
+    for ref, text in (("A5", note), ("C5", appt_note)):
+        ws[ref]._style = copy(body_style)
+        ws[ref] = excel_safe(text) or None
+    for ref in ("A6", "C6"):
+        ws[ref]._style = copy(blank_style)
+    ws["A7"]._style = photo_label_style
+    ws["A7"] = "施工照片"
+    ws.merge_cells("A5:A6")
+    ws.merge_cells("C5:C6")
+    _wrap(ws["A1"])
+    _wrap(ws["C3"])
+    _wrap(ws["A5"], horizontal="left", vertical="top")
+    _wrap(ws["C5"], horizontal="left", vertical="top")
+    body_pt = max(60.0, _height_pt(note, PX_COL_A), _height_pt(appt_note, PX_COL_A))
+    heights = {1: _height_pt(title, PX_FULL), 5: body_pt / 2, 6: body_pt / 2}
+    for r in range(1, 8):
+        ws.row_dimensions[r].height = heights.get(r, 30.0)
+    return sum(ws.row_dimensions[r].height for r in range(1, 8))
+
+
 def _square_crop(path: Path, side_px: int) -> io.BytesIO:
     """置中裁成正方形（同前端縮圖 cover 行為），回傳 JPEG bytes。"""
     with PILImage.open(path) as im:
@@ -173,34 +234,41 @@ def _anchor_at(x_px: int, row0: int, y_px: int, size_px: int) -> OneCellAnchor:
     )
 
 
-def _add_photos(ws, photo_paths: Sequence[Path], header_pt: float) -> int:
-    """照片每排 5 張、置中裁成相同正方形，回傳最後一列列號（無照片時為第 11 列）。"""
-    for r in range(FIRST_PHOTO_ROW, 40):
+def _add_photos(ws, photo_paths: Sequence[Path], header_pt: float, first_row: int = FIRST_PHOTO_ROW,
+                on_photo: Callable[[], None] | None = None) -> int:
+    """照片每排 5 張、置中裁成相同正方形，回傳最後一列列號（無照片時為「施工照片」標題列）。
+    on_photo：每嵌入一張照片後呼叫（背景匯出回報進度、檢查取消用）。"""
+    for r in range(first_row, 40):
         ws.row_dimensions[r].height = None
     slot_rows = math.ceil(len(photo_paths) / PHOTOS_PER_ROW)
-    last_row = FIRST_PHOTO_ROW - 1 + slot_rows
+    last_row = first_row - 1 + slot_rows
     for i in range(slot_rows):
-        ws.row_dimensions[FIRST_PHOTO_ROW + i].height = PHOTO_SLOT_PT
+        ws.row_dimensions[first_row + i].height = PHOTO_SLOT_PT
     side = PHOTO_SLOT_PX - 2 * PHOTO_PAD_PX
     for idx, path in enumerate(photo_paths):
-        row0 = FIRST_PHOTO_ROW - 1 + idx // PHOTOS_PER_ROW
+        row0 = first_row - 1 + idx // PHOTOS_PER_ROW
         x = (idx % PHOTOS_PER_ROW) * PHOTO_SLOT_PX + PHOTO_PAD_PX
         img = XlImage(_square_crop(path, side * PHOTO_RENDER_SCALE))
         img.anchor = _anchor_at(x, row0, PHOTO_PAD_PX, side)
         ws.add_image(img)
+        if on_photo:
+            on_photo()
     # 分頁：第一頁扣掉表頭後能放幾排；之後每頁整頁的排數
     first_rows = max(1, int((PAGE_BUDGET_PT - header_pt) // PHOTO_SLOT_PT))
     page_rows = max(1, int(PAGE_BUDGET_PT // PHOTO_SLOT_PT))
-    brk = FIRST_PHOTO_ROW - 1 + first_rows
+    brk = first_row - 1 + first_rows
     while brk < last_row:
         ws.row_breaks.append(Break(id=brk))
         brk += page_rows
     return last_row
 
 
-def build_work_progress_workbook(reports: Sequence[dict]) -> io.BytesIO:
+def build_work_progress_workbook(reports: Sequence[dict], *, compact: bool = False,
+                                 on_report: Callable[[], None] | None = None,
+                                 on_photo: Callable[[], None] | None = None) -> io.BytesIO:
     """reports：每筆含 report_date/service_name/client_name/start_time/address/
-    appointment_note/note 與 photo_paths（照片檔路徑清單）。一筆一個工作表。"""
+    appointment_note/note 與 photo_paths（照片檔路徑清單）。一筆一個工作表。
+    compact=True 用精簡版；on_report/on_photo 每完成一筆／一張照片呼叫一次（可丟例外中止）。"""
     wb = load_workbook(TEMPLATE_PATH)
     tpl = wb.active
     tpl._images = []
@@ -208,8 +276,13 @@ def build_work_progress_workbook(reports: Sequence[dict]) -> io.BytesIO:
     for rpt in reports:
         ws = wb.copy_worksheet(tpl)
         ws.title = sheet_title(rpt.get("client_name") or "", used)
-        header_pt = _fill_header(ws, rpt)
-        last_row = _add_photos(ws, rpt.get("photo_paths") or [], header_pt)
+        if compact:
+            header_pt = _fill_compact_header(ws, rpt)
+            first_row = COMPACT_FIRST_PHOTO_ROW
+        else:
+            header_pt = _fill_header(ws, rpt)
+            first_row = FIRST_PHOTO_ROW
+        last_row = _add_photos(ws, rpt.get("photo_paths") or [], header_pt, first_row, on_photo)
         _set_font(ws, last_row)
         ws.print_area = f"A1:C{last_row}"
         ws.page_setup.orientation = "portrait"
@@ -224,6 +297,8 @@ def build_work_progress_workbook(reports: Sequence[dict]) -> io.BytesIO:
         ws.oddHeader.center.size = 16
         ws.oddFooter.center.text = "&P"
         ws.oddFooter.center.font = f"{FONT_NAME},標準"
+        if on_report:
+            on_report()
     wb.remove(tpl)
     buf = io.BytesIO()
     wb.save(buf)

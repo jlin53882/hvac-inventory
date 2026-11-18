@@ -5492,3 +5492,53 @@ def test_photo_box_runtime_contract():
     result = subprocess.run(["node", str(script)], capture_output=True, text=True, check=False, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "photo box runtime contract passed" in result.stdout
+
+
+def test_work_progress_export_buttons_dialog_and_progress_contract():
+    """工作進度匯出：每筆詳情有單筆匯出、搜尋列有條件匯出；確認清單分頁沿用歷史每頁筆數，確認後背景產生並顯示進度條。"""
+    js = read(js_modules("features/work-progress/export.js"))
+    page = read(js_modules("features/work-progress/page.js"))
+    detail = read(js_modules("features/work-progress/detail.js"))
+    actions = read(js_modules("features/work-progress/actions.js"))
+    css = read(os.path.join(STATIC, "css", "4-pages", "work-progress.css"))
+    # 按鈕：搜尋列「匯出 Excel」、每筆詳情「匯出 Excel」（不受 can_edit 限制）
+    assert 'data-action="wpr-export-condition">匯出 Excel</button>' in page
+    assert 'data-action="wpr-report-export"' in detail
+    export_btn = detail.index('wpr-detail-action-export')
+    assert detail.rfind("(report.can_edit ?", 0, export_btn) < detail.rfind("' : '')", 0, export_btn)
+    for action in ("wpr-export-condition", "wpr-export-page", "wpr-export-confirm", "wpr-export-close", "wpr-report-export"):
+        assert f"'{action}'" in actions
+    # 單筆 → 直接下載；條件 → 預覽分頁 → 背景工作 → 輪詢 → 下載；關閉時取消進行中的工作
+    assert "'/api/work-progress/' + encodeURIComponent(id) + '/export'" in js
+    assert "/api/work-progress/export/preview?" in js and "wprHistoryPageSize" in js
+    assert "/api/work-progress/export/jobs?" in js and "method: 'POST'" in js
+    assert "/download'" in js and "method: 'DELETE'" in js
+    assert 'role="progressbar"' in js and "wprExportPercent(job)" in js
+    assert "WPR_EXPORT_LARGE_PHOTOS = 500" in js and "檔案較大" in js
+    assert ".wpr-export-progress-bar" in css and ".wpr-detail-action-export" in css
+
+
+def test_work_progress_export_pure_functions_runtime():
+    """條件驗證與進度百分比（node 實際執行 export.js 匯出的純函式）。"""
+    script = (
+        "const m = await import(process.argv[1]);"
+        "const out = ["
+        "m.wprExportConditionError('2026-11-01', '', ''),"
+        "m.wprExportConditionError('', '2026-11-01', 'x'),"
+        "m.wprExportConditionError('', '', ''),"
+        "m.wprExportConditionError('', '', '美麗線'),"
+        "m.wprExportConditionError('2026-11-01', '2026-11-30', ''),"
+        "m.wprExportConditionError('2026-11-30', '2026-11-01', ''),"
+        "m.wprExportPercent({total_reports: 2, done_reports: 1, total_photos: 8, done_photos: 4}),"
+        "m.wprExportPercent({total_reports: 0, done_reports: 0, total_photos: 0, done_photos: 0}),"
+        "m.wprExportPercent({total_reports: 1, done_reports: 1, total_photos: 0, done_photos: 0})];"
+        "console.log(JSON.stringify(out));"
+    )
+    module = Path(STATIC, "js", "features", "work-progress", "export.js").resolve().as_uri()
+    r = subprocess.run(["node", "--input-type=module", "-e", script, module],
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [
+        "起始日與迄止日需同時填寫", "起始日與迄止日需同時填寫", "請輸入關鍵字或日期區間", "", "",
+        "起始日期不可晚於迄止日期", 50, 0, 100,
+    ]

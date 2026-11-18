@@ -17,6 +17,7 @@ from typing import Iterable
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from app.config import STATIC_DIR
 from app.database import db_session
@@ -31,8 +32,9 @@ from app.services.file_storage import (
     prepare_media_batch,
     store_asset,
 )
-from app.services.safety import safe_download_name, xlsx_download
-from app.services.work_progress_export import build_work_progress_workbook
+from app.services import work_progress_export_jobs as export_jobs
+from app.services.safety import XLSX_MIME, safe_download_name, xlsx_download
+from app.services.work_progress_export import build_work_progress_workbook, export_filename, report_title
 from app.services.upload_policy import IMAGE_UPLOAD_EXTS
 
 router = APIRouter(prefix="/api/work-progress", tags=["work-progress"])
@@ -303,16 +305,8 @@ def _finalize(assets: Iterable) -> None:
         finalize_asset_paths(asset, upload_dir=_upload_dir())
 
 
-@router.get("")
-def list_work_progress(
-    from_date: str = Query(""),
-    to_date: str = Query(""),
-    q: str = Query("", max_length=200),
-    page: int = Query(1, ge=1, le=10000),
-    page_size: int = Query(20, ge=1, le=100),
-    user: dict = Depends(require_db_perm("work-progress-view")),
-):
-    """List historical Work Progress reports with date, keyword, and pagination filters."""
+def _history_filter(from_date: str, to_date: str, q: str) -> tuple[str, list]:
+    """歷史清單與條件匯出共用的篩選：回傳 (WHERE 子句, 參數)；日期格式錯或起日晚於迄日 → 400。"""
     if from_date:
         from_date = _validate_date(from_date, "起始日期")
     if to_date:
@@ -335,6 +329,59 @@ def list_work_progress(
                      "r.report_date LIKE ?)")
         params.extend([like] * 6)
     clause = " WHERE " + " AND ".join(where) if where else ""
+    return clause, params
+
+
+def _export_condition(from_date: str, to_date: str, q: str) -> tuple[str, list, str]:
+    """條件匯出的驗證與檔名：起迄日需同時填寫，且日期區間與關鍵字至少一項；回傳 (WHERE, 參數, 檔名)。"""
+    q = (q or "").strip()
+    if bool(from_date) != bool(to_date):
+        raise HTTPException(400, "起始日與迄止日需同時填寫")
+    if not q and not from_date:
+        raise HTTPException(400, "請輸入關鍵字或日期區間")
+    clause, params = _history_filter(from_date, to_date, q)
+    date_part = f"{from_date}~{to_date}" if from_date else ""
+    return clause, params, export_filename(date_part, q)
+
+
+def _export_report(conn, row) -> dict:
+    """把一筆回報轉成匯出用 dict（含存在的施工照片 preview 檔路徑）。"""
+    assets = conn.execute(
+        """SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?
+           ORDER BY created_at, asset_id""",
+        (CATEGORY, OWNER_TYPE, str(row["id"])),
+    ).fetchall()
+    paths = []
+    for asset in assets:
+        try:
+            path = asset_variant_path(asset, "preview", upload_dir=_upload_dir())
+        except (FileNotFoundError, ValueError):
+            continue
+        if path.exists():
+            paths.append(path)
+    return {
+        "report_date": row["report_date"],
+        "client_name": row["client_name_snapshot"],
+        "address": row["address_snapshot"],
+        "service_name": row["service_name_snapshot"],
+        "start_time": row["start_time_snapshot"],
+        "appointment_note": row["appointment_note_snapshot"],
+        "note": row["note"],
+        "photo_paths": paths,
+    }
+
+
+@router.get("")
+def list_work_progress(
+    from_date: str = Query(""),
+    to_date: str = Query(""),
+    q: str = Query("", max_length=200),
+    page: int = Query(1, ge=1, le=10000),
+    page_size: int = Query(20, ge=1, le=100),
+    user: dict = Depends(require_db_perm("work-progress-view")),
+):
+    """List historical Work Progress reports with date, keyword, and pagination filters."""
+    clause, params = _history_filter(from_date, to_date, q)
     with db_session() as conn:
         count = conn.execute(
             f"SELECT COUNT(*) FROM daily_work_progress_reports r{clause}", params
@@ -411,33 +458,121 @@ def export_work_progress(
         ).fetchall()
         if not rows:
             raise HTTPException(404, "該日期沒有工作進度回報")
-        reports = []
-        for row in rows:
-            assets = conn.execute(
-                """SELECT * FROM file_assets WHERE category=? AND owner_type=? AND owner_id=?
-                   ORDER BY created_at, asset_id""",
-                (CATEGORY, OWNER_TYPE, str(row["id"])),
-            ).fetchall()
-            paths = []
-            for asset in assets:
-                try:
-                    path = asset_variant_path(asset, "preview", upload_dir=_upload_dir())
-                except (FileNotFoundError, ValueError):
-                    continue
-                if path.exists():
-                    paths.append(path)
-            reports.append({
-                "report_date": row["report_date"],
-                "client_name": row["client_name_snapshot"],
-                "address": row["address_snapshot"],
-                "service_name": row["service_name_snapshot"],
-                "start_time": row["start_time_snapshot"],
-                "appointment_note": row["appointment_note_snapshot"],
-                "note": row["note"],
-                "photo_paths": paths,
-            })
+        reports = [_export_report(conn, row) for row in rows]
     buf = build_work_progress_workbook(reports)
-    return xlsx_download(buf.getvalue(), f"工程進度回報{date}.xlsx")
+    return xlsx_download(buf.getvalue(), export_filename(date))
+
+
+_EXPORT_ORDER = "ORDER BY r.report_date, r.start_time_snapshot, r.id"
+
+
+@router.get("/export/preview")
+def preview_work_progress_export(
+    from_date: str = Query(""),
+    to_date: str = Query(""),
+    q: str = Query("", max_length=200),
+    page: int = Query(1, ge=1, le=10000),
+    page_size: int = Query(20, ge=1, le=100),
+    user: dict = Depends(require_db_perm("work-progress-view")),
+):
+    """條件匯出前的確認清單：總筆數、照片總數、檔名與分頁的每筆摘要（日期由舊到新）。"""
+    clause, params, filename = _export_condition(from_date, to_date, q)
+    with db_session() as conn:
+        total, photo_total = conn.execute(
+            f"""SELECT COUNT(DISTINCT r.id), COUNT(f.asset_id)
+                FROM daily_work_progress_reports r
+                LEFT JOIN file_assets f ON f.category=? AND f.owner_type=? AND f.owner_id=CAST(r.id AS TEXT)
+                {clause}""",
+            [CATEGORY, OWNER_TYPE, *params],
+        ).fetchone()
+        rows = conn.execute(
+            f"""SELECT r.id, r.report_date, r.service_name_snapshot, r.client_name_snapshot,
+                       COUNT(f.asset_id) AS photo_count
+                FROM daily_work_progress_reports r
+                LEFT JOIN file_assets f ON f.category=? AND f.owner_type=? AND f.owner_id=CAST(r.id AS TEXT)
+                {clause}
+                GROUP BY r.id
+                {_EXPORT_ORDER}
+                LIMIT ? OFFSET ?""",
+            [CATEGORY, OWNER_TYPE, *params, page_size, (page - 1) * page_size],
+        ).fetchall()
+    return {
+        "total": total,
+        "photo_total": photo_total,
+        "filename": filename,
+        "page": page,
+        "page_size": page_size,
+        "items": [{
+            "id": row["id"],
+            "report_date": row["report_date"],
+            "title": report_title({"service_name": row["service_name_snapshot"],
+                                   "client_name": row["client_name_snapshot"]}),
+            "photo_count": row["photo_count"],
+        } for row in rows],
+    }
+
+
+@router.post("/export/jobs", status_code=202)
+def start_work_progress_export_job(
+    from_date: str = Query(""),
+    to_date: str = Query(""),
+    q: str = Query("", max_length=200),
+    user: dict = Depends(require_db_perm("work-progress-view")),
+):
+    """開始條件匯出（精簡版）背景工作，回傳工作編號與進度。"""
+    clause, params, filename = _export_condition(from_date, to_date, q)
+    with db_session() as conn:
+        rows = conn.execute(
+            f"SELECT r.* FROM daily_work_progress_reports r{clause} {_EXPORT_ORDER}", params
+        ).fetchall()
+        if not rows:
+            raise HTTPException(404, "沒有符合條件的工作進度回報")
+        reports = [_export_report(conn, row) for row in rows]
+    try:
+        job = export_jobs.start_job(user["id"], filename, reports, build_work_progress_workbook)
+    except export_jobs.ExportJobBusy:
+        raise HTTPException(409, "已有匯出正在進行，請等待完成或取消後再試")
+    return job.to_dict()
+
+
+def _own_job(job_id: str, user: dict) -> export_jobs.ExportJob:
+    job = export_jobs.get_job(job_id, user["id"])
+    if job is None:
+        raise HTTPException(404, "匯出工作不存在或已過期")
+    return job
+
+
+@router.get("/export/jobs/{job_id}")
+def get_work_progress_export_job(job_id: str, user: dict = Depends(require_db_perm("work-progress-view"))):
+    """查詢條件匯出進度。"""
+    return _own_job(job_id, user).to_dict()
+
+
+@router.get("/export/jobs/{job_id}/download")
+def download_work_progress_export_job(job_id: str, user: dict = Depends(require_db_perm("work-progress-view"))):
+    """下載完成的條件匯出檔；送出後刪除暫存檔。"""
+    job = _own_job(job_id, user)
+    if job.status != "done" or job.path is None:
+        raise HTTPException(409, "匯出尚未完成")
+    return FileResponse(job.path, media_type=XLSX_MIME, filename=job.filename,
+                        background=BackgroundTask(export_jobs.finish_download, job))
+
+
+@router.delete("/export/jobs/{job_id}")
+def cancel_work_progress_export_job(job_id: str, user: dict = Depends(require_db_perm("work-progress-view"))):
+    """取消條件匯出並刪除暫存檔。"""
+    export_jobs.cancel_job(_own_job(job_id, user))
+    return {"ok": True}
+
+
+@router.get("/{report_id}/export")
+def export_single_work_progress(report_id: int, user: dict = Depends(require_db_perm("work-progress-view"))):
+    """匯出單筆工作進度回報 xlsx（完整版）。"""
+    with db_session() as conn:
+        row = _get_report(conn, report_id)
+        report = _export_report(conn, row)
+    buf = build_work_progress_workbook([report])
+    return xlsx_download(buf.getvalue(), export_filename(row["report_date"], row["client_name_snapshot"] or ""))
 
 
 @router.get("/{report_id}")

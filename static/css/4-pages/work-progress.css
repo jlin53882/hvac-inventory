@@ -134,6 +134,18 @@
 [data-page="work-progress"] .wpr-confirm-body dd { min-width: 0; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 [data-page="work-progress"] .wpr-confirm-footer, [data-page="work-progress"] .wpr-unsaved-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--c-border); }
 [data-page="work-progress"] .wpr-unsaved-dialog { width: min(460px, 100%); }
+/* 搜尋條件匯出：確認清單、分頁、進度條 */
+[data-page="work-progress"] .wpr-export-dialog { width: min(620px, 100%); }
+[data-page="work-progress"] .wpr-export-list { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--c-border); font-size: var(--fs-13); }
+[data-page="work-progress"] .wpr-export-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 2px; border-bottom: 1px solid var(--c-border); }
+[data-page="work-progress"] .wpr-export-date { color: var(--c-primary); font-weight: var(--fw-bold); white-space: nowrap; }
+[data-page="work-progress"] .wpr-export-title { min-width: 0; overflow-wrap: anywhere; }
+[data-page="work-progress"] .wpr-export-photos { color: var(--c-muted); white-space: nowrap; }
+[data-page="work-progress"] .wpr-export-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; font-size: var(--fs-13); }
+[data-page="work-progress"] .wpr-confirm-body .wpr-export-warn { margin: 12px 0 0; color: var(--c-warning-strong); font-weight: var(--fw-bold); }
+[data-page="work-progress"] .wpr-export-progress { height: 14px; border-radius: var(--r-pill); background: var(--c-border); overflow: hidden; }
+[data-page="work-progress"] .wpr-export-progress-bar { height: 100%; background: var(--c-primary); transition: width .3s ease; }
+[data-page="work-progress"] .wpr-confirm-body .wpr-export-progress-text { margin: 10px 0 4px; color: var(--c-text); font-weight: var(--fw-bold); }
 [data-page="work-progress"] .wpr-unsaved-dialog h3 { color: var(--c-primary-strong); }
 [data-page="work-progress"] .wpr-pending-gallery-dialog { position: relative; display: flex; flex-direction: column; width: min(900px, 100%); max-height: calc(100dvh - 28px); color: var(--c-white); text-align: center; }
 [data-page="work-progress"] .wpr-pending-gallery-close { position: absolute; top: -4px; right: 0; z-index: 1; border: 0; background: rgba(15,23,42,.65); color: var(--c-white); border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: var(--fs-20); }
@@ -190,7 +202,7 @@
   [data-page="work-progress"] #content.wpr-content .wpr-detail-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: stretch; }
   [data-page="work-progress"] #content.wpr-content .wpr-detail-actions button { width: 100%; min-width: 0; }
   [data-page="work-progress"] #content.wpr-content .wpr-detail-actions .wpr-photo-limit { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
-  [data-page="work-progress"] #content.wpr-content .wpr-detail-actions .wpr-detail-action-add, [data-page="work-progress"] #content.wpr-content .wpr-detail-actions .wpr-detail-action-delete { grid-column: 1 / -1; }
+  [data-page="work-progress"] #content.wpr-content .wpr-detail-actions .wpr-detail-action-add, [data-page="work-progress"] #content.wpr-content .wpr-detail-actions .wpr-detail-action-export, [data-page="work-progress"] #content.wpr-content .wpr-detail-actions .wpr-detail-action-delete { grid-column: 1 / -1; }
   [data-page="work-progress"] #content.wpr-content .wpr-job-card { min-height: 66px; }
   [data-page="work-progress"] #content.wpr-content .wpr-job-status { font-size: var(--fs-11); }
   [data-page="work-progress"] #content.wpr-content .wpr-history-item summary { grid-template-columns: auto minmax(0, 1fr); }

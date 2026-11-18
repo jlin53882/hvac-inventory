@@ -66,7 +66,7 @@ export async function renderWorkProgress() {
             <div class="wpr-filter-field"><label for="wpr-from">起始日</label><input type="date" id="wpr-from" aria-label="起始日期"></div>
             <div class="wpr-filter-field"><label for="wpr-to">迄止日</label><input type="date" id="wpr-to" aria-label="迄止日期"></div>
             <div class="wpr-filter-field wpr-filter-field--search"><label for="wpr-query">關鍵字（客戶／服務／地址／備註／回報人）</label><input type="search" id="wpr-query" placeholder="例：王先生、安裝、配管" aria-label="搜尋工作進度" data-action="wpr-query"></div>
-            <div class="wpr-filter-actions"><button type="button" class="btn btn--primary btn--md" data-action="wpr-search">搜尋</button><button type="button" class="btn btn--secondary btn--md" data-action="wpr-reset-filter">清除</button></div>
+            <div class="wpr-filter-actions"><button type="button" class="btn btn--primary btn--md" data-action="wpr-search">搜尋</button><button type="button" class="btn btn--secondary btn--md" data-action="wpr-reset-filter">清除</button><button type="button" class="btn btn--secondary btn--md wpr-export-condition" data-action="wpr-export-condition">匯出 Excel</button></div>
           </div>
           <div class="wpr-quick-filters">
             <button type="button" class="chip wpr-chip" data-role="wpr-range" data-range="today" data-action="wpr-range">今天</button>

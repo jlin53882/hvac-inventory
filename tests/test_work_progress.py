@@ -1061,7 +1061,7 @@ def test_export_work_progress_one_sheet_per_report_with_photos_and_multiline_not
     assert len(wb.sheetnames) == 2
     assert len(set(wb.sheetnames)) == 2  # 同客戶名稱也不會重名
     ws = wb[wb.sheetnames[0]]
-    assert ws["A1"].value.startswith("2026/11/3 保養．王先生")
+    assert ws["A1"].value == "保養．王先生"  # 標題不含日期
     assert ws["A8"].value == "工作進度回報" and ws["C6"].value == "行事曆備註"
     assert ws["A9"].value == "測試A\n測試B"
     assert ws["C7"].value == "裝出風口_蘇\n下午 冰水主機_藍"
@@ -1074,6 +1074,160 @@ def test_export_work_progress_one_sheet_per_report_with_photos_and_multiline_not
     assert ws["A1"].font.name == "標楷體" and ws["C7"].font.name == "標楷體" and ws["C6"].font.name == "標楷體"
     assert ws.oddHeader.center.text == "工程進度回報"
     assert len(wb[wb.sheetnames[1]]._images) == 0
+
+
+def _wait_job(client, job_id, timeout=20):
+    import time
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        job = client.get(f"/api/work-progress/export/jobs/{job_id}").json()
+        if job["status"] != "running":
+            return job
+        time.sleep(0.05)
+    raise AssertionError("export job did not finish")
+
+
+def test_export_single_report_full_layout_and_filename(wpr_env):
+    """單筆匯出：完整版、只含該筆、檔名 工程進度回報{日期}_{客戶}。"""
+    from urllib.parse import unquote
+
+    from openpyxl import load_workbook
+
+    make_client, *_ = wpr_env
+    owner = make_client("owner")
+    appt = _appointment(owner, date="2026-11-16", note="行事曆備註")
+    other = _appointment(owner, date="2026-11-16")
+    report = _create(owner, appt["id"], note="拉風管").json()
+    assert _create(owner, other["id"]).status_code == 201
+
+    response = make_client("viewer").get(f"/api/work-progress/{report['id']}/export")
+    assert response.status_code == 200, response.text
+    assert unquote(response.headers["content-disposition"]).endswith("工程進度回報2026-11-16_王先生.xlsx")
+    wb = load_workbook(io.BytesIO(response.content))
+    assert len(wb.sheetnames) == 1
+    ws = wb[wb.sheetnames[0]]
+    assert ws["A1"].value == "保養．王先生"
+    assert ws["A4"].value == "客戶案場" and ws["A6"].value == "地址" and ws["A9"].value == "拉風管"
+    assert ws["C7"].value == "行事曆備註" and len(ws._images) == 1
+    assert make_client("viewer").get("/api/work-progress/999999/export").status_code == 404
+
+
+def test_export_condition_validation_and_preview_paging(wpr_env):
+    """條件匯出：起迄日需同時填寫、至少一項條件；預覽依日期由舊到新分頁並回傳檔名與照片總數。"""
+    make_client, *_ = wpr_env
+    owner = make_client("owner")
+    for day in ("2026-11-03", "2026-11-01", "2026-11-02"):
+        assert _create(owner, _appointment(owner, date=day)["id"], note=f"美麗線 {day}").status_code == 201
+    preview = "/api/work-progress/export/preview"
+    assert owner.get(preview, params={"from_date": "2026-11-01"}).json()["detail"] == "起始日與迄止日需同時填寫"
+    assert owner.get(preview, params={"to_date": "2026-11-01", "q": "x"}).status_code == 400
+    assert owner.get(preview).json()["detail"] == "請輸入關鍵字或日期區間"
+    assert owner.get(preview, params={"from_date": "2026-11-05", "to_date": "2026-11-01"}).status_code == 400
+
+    cond = {"from_date": "2026-11-01", "to_date": "2026-11-30", "q": "美麗線"}
+    data = owner.get(preview, params={**cond, "page_size": 2}).json()
+    assert data["total"] == 3 and data["photo_total"] == 3
+    assert data["filename"] == "工程進度回報2026-11-01~2026-11-30_美麗線.xlsx"
+    assert [i["report_date"] for i in data["items"]] == ["2026-11-01", "2026-11-02"]
+    assert data["items"][0]["title"] == "保養．王先生" and data["items"][0]["photo_count"] == 1
+    page2 = owner.get(preview, params={**cond, "page": 2, "page_size": 2}).json()
+    assert [i["report_date"] for i in page2["items"]] == ["2026-11-03"]
+    assert owner.get(preview, params={"q": "王先生"}).json()["filename"] == "工程進度回報王先生.xlsx"
+    only_dates = owner.get(preview, params={"from_date": "2026-11-01", "to_date": "2026-11-02"}).json()
+    assert only_dates["filename"] == "工程進度回報2026-11-01~2026-11-02.xlsx" and only_dates["total"] == 2
+
+
+def test_export_condition_job_compact_layout_progress_download_and_cleanup(wpr_env):
+    """條件匯出背景工作：精簡版、進度計數、只有本人可查詢下載、下載後暫存檔刪除。"""
+    from openpyxl import load_workbook
+
+    from app.services import work_progress_export_jobs as jobs
+
+    make_client, *_ = wpr_env
+    owner = make_client("owner")
+    for day in ("2026-11-02", "2026-11-01"):
+        assert _create(owner, _appointment(owner, date=day, note="備註" + day)["id"], note="拉風管").status_code == 201
+    params = {"from_date": "2026-11-01", "to_date": "2026-11-30"}
+    started = owner.post("/api/work-progress/export/jobs", params=params)
+    assert started.status_code == 202, started.text
+    job_id = started.json()["job_id"]
+    assert make_client("other").get(f"/api/work-progress/export/jobs/{job_id}").status_code == 404
+    job = _wait_job(owner, job_id)
+    assert job["status"] == "done", job
+    assert (job["done_reports"], job["total_reports"], job["done_photos"], job["total_photos"]) == (2, 2, 2, 2)
+    path = jobs._jobs[job_id].path
+    assert path.exists()
+
+    response = owner.get(f"/api/work-progress/export/jobs/{job_id}/download")
+    assert response.status_code == 200, response.text
+    wb = load_workbook(io.BytesIO(response.content))
+    ws = wb[wb.sheetnames[0]]
+    assert ws["A3"].value.date().isoformat() == "2026-11-01"  # 日期由舊到新
+    assert ws["A1"].value == "保養．王先生"
+    cells = (ws["A4"].value, ws["C4"].value, ws["A5"].value, ws["C5"].value, ws["A7"].value)
+    assert cells == ("工作進度回報", "行事曆備註", "拉風管", "備註2026-11-01", "施工照片")
+    assert {"A5:A6", "C5:C6"} <= {str(r) for r in ws.merged_cells.ranges}
+    assert ws["A8"].value is None and ws["A9"].value is None and ws["A11"].value is None
+    assert len(ws._images) == 1 and ws._images[0].anchor._from.row == 7  # 照片從第 8 列開始
+    assert not path.exists() and job_id not in jobs._jobs
+    assert owner.get(f"/api/work-progress/export/jobs/{job_id}").status_code == 404
+    assert owner.post("/api/work-progress/export/jobs", params={"q": "不存在的客戶"}).status_code == 404
+
+
+def test_export_condition_job_cancel_and_single_running_job_per_user(wpr_env, monkeypatch):
+    """取消：進行中的工作被取消後狀態為 cancelled；同一使用者同時只能有一個進行中的匯出。"""
+    import threading
+    import time
+
+    from app.services import work_progress_export_jobs as jobs
+
+    make_client, *_ = wpr_env
+    owner = make_client("owner")
+    assert _create(owner, _appointment(owner, date="2026-11-01")["id"]).status_code == 201
+    gate = threading.Event()
+    real_build = work_progress.build_work_progress_workbook
+
+    def slow_build(reports, **kwargs):
+        gate.wait(5)
+        return real_build(reports, **kwargs)
+
+    monkeypatch.setattr(work_progress, "build_work_progress_workbook", slow_build)
+    params = {"from_date": "2026-11-01", "to_date": "2026-11-01"}
+    job_id = owner.post("/api/work-progress/export/jobs", params=params).json()["job_id"]
+    assert owner.post("/api/work-progress/export/jobs", params=params).status_code == 409
+    job = jobs._jobs[job_id]
+    assert owner.delete(f"/api/work-progress/export/jobs/{job_id}").status_code == 200
+    gate.set()
+    deadline = time.monotonic() + 10
+    while job.status == "running" and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert job.status == "cancelled" and job.path is None
+    assert owner.get(f"/api/work-progress/export/jobs/{job_id}").status_code == 404
+    assert owner.get(f"/api/work-progress/export/jobs/{job_id}/download").status_code == 404
+
+
+def test_export_jobs_purge_expired_removes_files(tmp_path):
+    from app.services import work_progress_export_jobs as jobs
+
+    out = tmp_path / "d" / "export.xlsx"
+    out.parent.mkdir()
+    out.write_bytes(b"x")
+    job = jobs.ExportJob(id="old", user_id=1, filename="f.xlsx", total_reports=0, total_photos=0,
+                         status="done", path=out, created=0.0)
+    jobs._jobs["old"] = job
+    jobs.purge_expired(now=jobs.JOB_TTL_SECONDS + 1)
+    assert "old" not in jobs._jobs and not out.exists()
+
+
+def test_export_filename_and_title_helpers():
+    from app.services.work_progress_export import export_filename, report_title
+
+    assert export_filename("2026-11-01~2026-11-16", "美麗線") == "工程進度回報2026-11-01~2026-11-16_美麗線.xlsx"
+    assert export_filename("", "a/b:c*?") == "工程進度回報a_b_c__.xlsx"
+    assert export_filename("2026-11-16") == "工程進度回報2026-11-16.xlsx"
+    assert len(export_filename("x" * 300)) <= 120
+    assert report_title({"service_name": "施工", "client_name": "王先生"}) == "施工．王先生"
+    assert report_title({"service_name": "", "client_name": "王先生"}) == "王先生"
 
 
 def test_export_work_progress_requires_login_valid_date_and_data(wpr_env):

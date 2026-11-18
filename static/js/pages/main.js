@@ -124,6 +124,7 @@ import * as m85 from '../features/work-progress/pending-photos.js';
 import * as m86 from '../features/work-progress/photo-upload.js';
 import * as m87 from '../features/work-progress/state.js';
 import * as m88 from '../features/work-progress/upload.js';
+import * as m89 from '../features/work-progress/export.js';
 
 window.__hvac = Object.freeze({
   'components/card.js': m0,
@@ -215,6 +216,7 @@ window.__hvac = Object.freeze({
   'features/work-progress/photo-upload.js': m86,
   'features/work-progress/state.js': m87,
   'features/work-progress/upload.js': m88,
+  'features/work-progress/export.js': m89,
 });
 
 // 先組裝 shell 的 port（切頁、資料重新整理後的畫面更新），之後各模組的 init 與使用者操作才可能用到
