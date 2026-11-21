@@ -42,6 +42,7 @@ PHOTO_PAD_PX = 6
 PHOTO_RENDER_SCALE = 2  # 裁切後以 2 倍解析度嵌入，列印較清晰
 FIRST_PHOTO_ROW = 12    # 完整版「施工照片」標題在第 11 列
 COMPACT_FIRST_PHOTO_ROW = 8  # 精簡版「施工照片」標題在第 7 列
+SEPARATOR_PT = 16       # 同頁兩個區塊之間的分隔列（底部畫分隔線）
 PAGE_BUDGET_PT = 740    # A4 縮放後每頁可用列高（約）
 EMU_PER_PX = 9525
 
@@ -287,9 +288,9 @@ def _rows_height(ws, first: int, last: int) -> float:
 
 
 def _append_block(dst, src, last_row: int, dst_last: int, break_before: bool) -> int:
-    """把暫存工作表 src 第 2~last_row 列（不含標題列）接在 dst 第 dst_last 列之後，回傳新的最後一列。
+    """把暫存工作表 src 第 2~last_row 列（不含標題列）接在 dst 第 dst_last 列之後，回傳新的最後一列（同頁接續時中間多一列分隔列）。
     break_before=True 時在接上之前插入分頁（此區塊放不進目前這頁，換到下一頁）。"""
-    offset = dst_last - 1
+    offset = dst_last - 1 if break_before else dst_last  # 同頁接續時多留一列放分隔線
     for r in range(2, last_row + 1):
         h = src.row_dimensions[r].height
         if h:
@@ -307,11 +308,12 @@ def _append_block(dst, src, last_row: int, dst_last: int, break_before: bool) ->
         dst.add_image(img)
     if break_before:
         dst.row_breaks.append(Break(id=dst_last))
-    else:  # 同一頁已有前一個區塊：在「工作日期」列上方加分隔線
+    else:  # 同一頁已有前一個區塊：先空一列，列底畫分隔線，與上方照片、下方「工作日期」都留間距
+        dst.row_dimensions[dst_last + 1].height = SEPARATOR_PT
         for c in "ABC":
-            cell = dst[f"{c}{2 + offset}"]
+            cell = dst[f"{c}{dst_last + 1}"]
             border = copy(cell.border)
-            border.top = Side(style="medium", color="FF808080")
+            border.bottom = Side(style="medium", color="FF808080")
             cell.border = border
     for brk in src.row_breaks.brk:
         dst.row_breaks.append(Break(id=brk.id + offset))
@@ -352,9 +354,9 @@ def _build_compact_sheet(wb, tpl, group: list[dict], name: str,
         tmp_last = _add_photos(tmp, rpt.get("photo_paths") or [], header_pt, COMPACT_FIRST_PHOTO_ROW, on_photo)
         _hide_empty_photo_title(tmp, rpt.get("photo_paths") or [], COMPACT_FIRST_PHOTO_ROW)
         block_pt = _rows_height(tmp, 2, tmp_last)
-        break_before = page_used + block_pt > PAGE_BUDGET_PT  # 放不進這頁就整塊移到下一頁，不把區塊切開
+        break_before = page_used + block_pt + SEPARATOR_PT > PAGE_BUDGET_PT  # 放不進這頁就整塊移到下一頁，不把區塊切開
         last_row = _append_block(ws, tmp, tmp_last, last_row, break_before)
-        page_used = min(block_pt, PAGE_BUDGET_PT) if break_before else page_used + block_pt
+        page_used = min(block_pt, PAGE_BUDGET_PT) if break_before else page_used + block_pt + SEPARATOR_PT
         wb.remove(tmp)
         if on_report:
             on_report()

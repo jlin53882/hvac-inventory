@@ -1172,6 +1172,7 @@ def test_export_condition_job_compact_layout_progress_download_and_cleanup(wpr_e
     assert (ws["A15"].value, ws["C15"].value, ws["A16"].value, ws["C16"].value, ws["A18"].value) == (
         "工作進度回報", "行事曆備註", "拉風管", "備註2026-11-02", "施工照片")
     assert {"A16:A17", "C16:C17"} <= {str(r) for r in ws.merged_cells.ranges}
+    assert 12 in {b.id for b in ws.row_breaks.brk}  # 兩區塊放不進同一頁（含分隔列）→ 換頁，不加分隔列
     assert sorted(img.anchor._from.row for img in ws._images) == [11, 18]  # 兩個區塊的照片
     assert not path.exists() and job_id not in jobs._jobs
     assert owner.get(f"/api/work-progress/export/jobs/{job_id}").status_code == 404
@@ -1379,13 +1380,14 @@ def test_compact_separator_line_only_for_blocks_sharing_a_page_and_full_version_
 
     ws = load_workbook(build_work_progress_workbook([rpt("2026-11-01", 0), rpt("2026-11-02", 0)], compact=True)).worksheets[0]
     starts = [r for r in range(1, ws.max_row + 1) if ws[f"A{r}"].value == "工作日期"]
-    assert ws[f"A{starts[0]}"].border.top.style is None and ws[f"C{starts[1]}"].border.top.style == "medium"
-    assert ws[f"A{starts[1]}"].border.top.style == "medium"
+    # 同頁第二個區塊：「工作日期」上一列是分隔列（底線），其上方為前一區塊，不貼著照片
+    assert ws[f"A{starts[1] - 1}"].border.bottom.style == "medium" and ws[f"C{starts[1] - 1}"].border.bottom.style == "medium"
+    assert ws[f"A{starts[1]}"].border.top.style is None and ws.row_dimensions[starts[1] - 1].height == 16
     big = [rpt(f"2026-11-{i + 1:02d}", 10) for i in range(4)]
     ws = load_workbook(build_work_progress_workbook(big, compact=True)).worksheets[0]
     brks = {b.id for b in ws.row_breaks.brk}
     starts = [r for r in range(1, ws.max_row + 1) if ws[f"A{r}"].value == "工作日期"]
     for st in starts[1:]:
-        assert (ws[f"A{st}"].border.top.style == "medium") == ((st - 1) not in brks)
+        assert (ws[f"A{st - 1}"].border.bottom.style == "medium") == ((st - 1) not in brks)
     full = load_workbook(build_work_progress_workbook([rpt("2026-11-01", 0)])).worksheets[0]
     assert all(full[f"A{r}"].value != "施工照片" for r in range(1, full.max_row + 1))
