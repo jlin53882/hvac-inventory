@@ -529,7 +529,8 @@ def start_work_progress_export_job(
             raise HTTPException(404, "沒有符合條件的工作進度回報")
         reports = [_export_report(conn, row) for row in rows]
     try:
-        job = export_jobs.start_job(user["id"], filename, reports, build_work_progress_workbook)
+        job = export_jobs.start_job(user["id"], filename, reports, build_work_progress_workbook,
+                                 keyword=q.strip())
     except export_jobs.ExportJobBusy:
         raise HTTPException(409, "已有匯出正在進行，請等待完成或取消後再試")
     return job.to_dict()

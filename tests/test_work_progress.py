@@ -1117,17 +1117,17 @@ def test_export_condition_validation_and_preview_paging(wpr_env):
     make_client, *_ = wpr_env
     owner = make_client("owner")
     for day in ("2026-11-03", "2026-11-01", "2026-11-02"):
-        assert _create(owner, _appointment(owner, date=day)["id"], note=f"美麗線 {day}").status_code == 201
+        assert _create(owner, _appointment(owner, date=day)["id"], note=f"範例客戶 {day}").status_code == 201
     preview = "/api/work-progress/export/preview"
     assert owner.get(preview, params={"from_date": "2026-11-01"}).json()["detail"] == "起始日與迄止日需同時填寫"
     assert owner.get(preview, params={"to_date": "2026-11-01", "q": "x"}).status_code == 400
     assert owner.get(preview).json()["detail"] == "請輸入關鍵字或日期區間"
     assert owner.get(preview, params={"from_date": "2026-11-05", "to_date": "2026-11-01"}).status_code == 400
 
-    cond = {"from_date": "2026-11-01", "to_date": "2026-11-30", "q": "美麗線"}
+    cond = {"from_date": "2026-11-01", "to_date": "2026-11-30", "q": "範例客戶"}
     data = owner.get(preview, params={**cond, "page_size": 2}).json()
     assert data["total"] == 3 and data["photo_total"] == 3
-    assert data["filename"] == "工程進度回報2026-11-01~2026-11-30_美麗線.xlsx"
+    assert data["filename"] == "工程進度回報2026-11-01~2026-11-30_範例客戶.xlsx"
     assert [i["report_date"] for i in data["items"]] == ["2026-11-01", "2026-11-02"]
     assert data["items"][0]["title"] == "保養．王先生" and data["items"][0]["photo_count"] == 1
     page2 = owner.get(preview, params={**cond, "page": 2, "page_size": 2}).json()
@@ -1161,14 +1161,18 @@ def test_export_condition_job_compact_layout_progress_download_and_cleanup(wpr_e
     response = owner.get(f"/api/work-progress/export/jobs/{job_id}/download")
     assert response.status_code == 200, response.text
     wb = load_workbook(io.BytesIO(response.content))
-    ws = wb[wb.sheetnames[0]]
+    assert wb.sheetnames == ["王先生"]  # 同客戶合併成一個工作表，無關鍵字時用客戶名稱
+    ws = wb["王先生"]
+    assert ws["A1"].value == "王先生"  # 標題只放客戶，不含服務
     assert ws["A3"].value.date().isoformat() == "2026-11-01"  # 日期由舊到新
-    assert ws["A1"].value == "保養．王先生"
-    cells = (ws["A4"].value, ws["C4"].value, ws["A5"].value, ws["C5"].value, ws["A7"].value)
-    assert cells == ("工作進度回報", "行事曆備註", "拉風管", "備註2026-11-01", "施工照片")
-    assert {"A5:A6", "C5:C6"} <= {str(r) for r in ws.merged_cells.ranges}
-    assert ws["A8"].value is None and ws["A9"].value is None and ws["A11"].value is None
-    assert len(ws._images) == 1 and ws._images[0].anchor._from.row == 7  # 照片從第 8 列開始
+    assert ws["A4"].value == "客戶案場" and ws["A8"].value == "工作進度回報" and ws["A11"].value == "施工照片"  # 第一區塊：完整版
+    assert ws["A9"].value == "拉風管" and ws["C7"].value == "備註2026-11-01"
+    # 第二個日期區塊：精簡版，接在第一區塊（含 1 排照片，第 12 列）之後
+    assert ws["A13"].value == "工作日期" and ws["A14"].value.date().isoformat() == "2026-11-02"
+    assert (ws["A15"].value, ws["C15"].value, ws["A16"].value, ws["C16"].value, ws["A18"].value) == (
+        "工作進度回報", "行事曆備註", "拉風管", "備註2026-11-02", "施工照片")
+    assert {"A16:A17", "C16:C17"} <= {str(r) for r in ws.merged_cells.ranges}
+    assert sorted(img.anchor._from.row for img in ws._images) == [11, 18]  # 兩個區塊的照片
     assert not path.exists() and job_id not in jobs._jobs
     assert owner.get(f"/api/work-progress/export/jobs/{job_id}").status_code == 404
     assert owner.post("/api/work-progress/export/jobs", params={"q": "不存在的客戶"}).status_code == 404
@@ -1222,7 +1226,7 @@ def test_export_jobs_purge_expired_removes_files(tmp_path):
 def test_export_filename_and_title_helpers():
     from app.services.work_progress_export import export_filename, report_title
 
-    assert export_filename("2026-11-01~2026-11-16", "美麗線") == "工程進度回報2026-11-01~2026-11-16_美麗線.xlsx"
+    assert export_filename("2026-11-01~2026-11-16", "範例客戶") == "工程進度回報2026-11-01~2026-11-16_範例客戶.xlsx"
     assert export_filename("", "a/b:c*?") == "工程進度回報a_b_c__.xlsx"
     assert export_filename("2026-11-16") == "工程進度回報2026-11-16.xlsx"
     assert len(export_filename("x" * 300)) <= 120
@@ -1243,7 +1247,7 @@ def test_export_sheet_title_sanitizes_truncates_and_dedupes():
     from app.services.work_progress_export import estimate_lines, sheet_title
 
     used: set[str] = set()
-    name = "美麗線醫美診所 捷寶新世紀店鋪七 吳小姐/PJ1151001"
+    name = "範例客戶 甲店 王小姐/PJ0000000"
     first = sheet_title(name, used)
     assert "/" not in first and len(first) <= 31
     second = sheet_title(name, used)
@@ -1290,3 +1294,98 @@ def test_export_builder_layout_long_note_row_height_photo_rows_and_page_breaks(t
     many = build_work_progress_workbook([{**base, "photo_paths": [photo] * 40}])
     ws = load_workbook(many).active
     assert len(ws.row_breaks.brk) >= 1   # 8 排放不下一頁，必須有分頁線
+
+
+def test_compact_workbook_sheet_name_follows_keyword_and_groups_by_client():
+    """精簡版工作表名稱依匯出關鍵字（不含日期）；單一客戶用關鍵字，多位客戶為「關鍵字-客戶」；無關鍵字用客戶名稱。"""
+    from openpyxl import load_workbook
+
+    from app.services.work_progress_export import build_work_progress_workbook
+
+    def rpt(day, client):
+        return {"report_date": day, "service_name": "施工", "client_name": client, "note": "n", "photo_paths": []}
+
+    def names(reports, keyword):
+        return load_workbook(build_work_progress_workbook(reports, compact=True, keyword=keyword)).sheetnames
+
+    one = [rpt("2026-11-02", "範例客戶A"), rpt("2026-11-01", "範例客戶A")]
+    assert names(one, "範例客戶") == ["範例客戶"]
+    assert names(one, "") == ["範例客戶A"]
+    assert names(one + [rpt("2026-11-01", "範例客戶B")], "範例客戶") == ["範例客戶-範例客戶A", "範例客戶-範例客戶B"]
+
+
+def test_compact_workbook_packs_blocks_into_a4_pages_without_splitting(tmp_path):
+    """A4 分頁：一頁盡量放滿多個日期區塊，放不下的整塊換頁（分頁線落在區塊之間）。"""
+    from openpyxl import load_workbook
+
+    from app.services.work_progress_export import PAGE_BUDGET_PT, build_work_progress_workbook
+
+    photo = tmp_path / "p.jpg"
+    Image.new("RGB", (40, 40), (10, 20, 30)).save(photo)
+
+    def rpt(day, n):
+        return {"report_date": day, "service_name": "施工", "client_name": "王先生", "note": "n",
+                "photo_paths": [photo] * n}
+
+    def breaks(counts):
+        reports = [rpt(f"2026-11-{i + 1:02d}", n) for i, n in enumerate(counts)]
+        ws = load_workbook(build_work_progress_workbook(reports, compact=True)).worksheets[0]
+        starts = [r for r in range(1, ws.max_row + 1) if ws[f"A{r}"].value == "工作日期"]
+        return sorted(b.id for b in ws.row_breaks.brk), starts, ws
+    # 區塊很小：全部同一頁，不分頁
+    brks, starts, ws = breaks([0, 0, 0])
+    assert brks == [] and len(starts) == 3
+    # 區塊大（每塊 2 排照片）：放不下就換頁，且分頁線一定緊接在某個區塊開始列之前
+    brks, starts, ws = breaks([10, 10, 10, 10])
+    assert brks and all(b + 1 in starts for b in brks)
+    # 每頁高度不超過預算（相鄰分頁線之間）
+    edges = [0] + brks + [ws.max_row]
+    for lo, hi in zip(edges, edges[1:]):
+        assert sum(ws.row_dimensions[r].height or 15 for r in range(lo + 1, hi + 1)) <= PAGE_BUDGET_PT + 1
+
+
+def test_compact_workbook_hides_photo_title_when_no_photos(tmp_path):
+    """精簡版：沒有照片的日期區塊不顯示「施工照片」標題；有照片的照常顯示。"""
+    from openpyxl import load_workbook
+
+    from app.services.work_progress_export import build_work_progress_workbook
+
+    photo = tmp_path / "p.jpg"
+    Image.new("RGB", (40, 40), (10, 20, 30)).save(photo)
+
+    def rpt(day, n):
+        return {"report_date": day, "service_name": "施工", "client_name": "王先生", "note": "n",
+                "photo_paths": [photo] * n}
+
+    ws = load_workbook(build_work_progress_workbook(
+        [rpt("2026-11-01", 0), rpt("2026-11-02", 0), rpt("2026-11-03", 1)], compact=True)).worksheets[0]
+    titles = [r for r in range(1, ws.max_row + 1) if ws[f"A{r}"].value == "施工照片"]
+    starts = [r for r in range(1, ws.max_row + 1) if ws[f"A{r}"].value == "工作日期"]
+    assert len(starts) == 3 and len(titles) == 1 and titles[0] > starts[2]  # 只有第三個區塊（有照片）有標題
+
+
+def test_compact_separator_line_only_for_blocks_sharing_a_page_and_full_version_hides_empty_photo_title(tmp_path):
+    """精簡版：同頁第二個起的區塊「工作日期」上方有分隔線，換頁後的第一個區塊沒有；完整版無照片也隱藏「施工照片」。"""
+    from openpyxl import load_workbook
+
+    from app.services.work_progress_export import build_work_progress_workbook
+
+    photo = tmp_path / "p.jpg"
+    Image.new("RGB", (40, 40), (10, 20, 30)).save(photo)
+
+    def rpt(day, n):
+        return {"report_date": day, "service_name": "施工", "client_name": "王先生", "note": "n",
+                "photo_paths": [photo] * n}
+
+    ws = load_workbook(build_work_progress_workbook([rpt("2026-11-01", 0), rpt("2026-11-02", 0)], compact=True)).worksheets[0]
+    starts = [r for r in range(1, ws.max_row + 1) if ws[f"A{r}"].value == "工作日期"]
+    assert ws[f"A{starts[0]}"].border.top.style is None and ws[f"C{starts[1]}"].border.top.style == "medium"
+    assert ws[f"A{starts[1]}"].border.top.style == "medium"
+    big = [rpt(f"2026-11-{i + 1:02d}", 10) for i in range(4)]
+    ws = load_workbook(build_work_progress_workbook(big, compact=True)).worksheets[0]
+    brks = {b.id for b in ws.row_breaks.brk}
+    starts = [r for r in range(1, ws.max_row + 1) if ws[f"A{r}"].value == "工作日期"]
+    for st in starts[1:]:
+        assert (ws[f"A{st}"].border.top.style == "medium") == ((st - 1) not in brks)
+    full = load_workbook(build_work_progress_workbook([rpt("2026-11-01", 0)])).worksheets[0]
+    assert all(full[f"A{r}"].value != "施工照片" for r in range(1, full.max_row + 1))

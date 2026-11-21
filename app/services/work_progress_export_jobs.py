@@ -79,7 +79,7 @@ def purge_expired(now: float | None = None) -> None:
 
 
 def start_job(user_id: int, filename: str, reports: Sequence[dict],
-              build: Callable[..., object]) -> ExportJob:
+              build: Callable[..., object], keyword: str = "") -> ExportJob:
     """建立並在背景執行匯出。build 與 build_work_progress_workbook 同介面（compact/on_report/on_photo）。"""
     purge_expired()
     total_photos = sum(len(r.get("photo_paths") or []) for r in reports)
@@ -102,7 +102,7 @@ def start_job(user_id: int, filename: str, reports: Sequence[dict],
 
     def run() -> None:
         try:
-            buf = build(reports, compact=True, on_report=on_report, on_photo=on_photo)
+            buf = build(reports, compact=True, keyword=keyword, on_report=on_report, on_photo=on_photo)
             if job.cancel_event.is_set():
                 raise ExportCancelled()
             out = Path(tempfile.mkdtemp(prefix="wpr-export-")) / "export.xlsx"

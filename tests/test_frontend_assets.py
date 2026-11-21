@@ -5526,7 +5526,7 @@ def test_work_progress_export_pure_functions_runtime():
         "m.wprExportConditionError('2026-11-01', '', ''),"
         "m.wprExportConditionError('', '2026-11-01', 'x'),"
         "m.wprExportConditionError('', '', ''),"
-        "m.wprExportConditionError('', '', '美麗線'),"
+        "m.wprExportConditionError('', '', '範例客戶'),"
         "m.wprExportConditionError('2026-11-01', '2026-11-30', ''),"
         "m.wprExportConditionError('2026-11-30', '2026-11-01', ''),"
         "m.wprExportPercent({total_reports: 2, done_reports: 1, total_photos: 8, done_photos: 4}),"

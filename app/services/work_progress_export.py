@@ -4,7 +4,7 @@
 - 範本：app/assets/工程進度回報範本.xlsx（單一工作表，A/C 兩欄內容、B 為間隔）
 - 兩種版面：完整版（日期/項目/客戶/時間/地址/行事曆備註/工作進度/照片，用於整天與單筆匯出）、
   精簡版（日期/項目/工作進度/行事曆備註/照片，用於歷史搜尋條件匯出）；標題不含日期
-- 每筆工作進度各輸出一個工作表，照片依張數往下排（每排 5 張、置中裁成相同正方形）
+- 完整版每筆一個工作表；精簡版同客戶合併成一個工作表（標題只放客戶、日期區塊往下接、A4 依高度自動分頁不切開區塊）。照片依張數往下排（每排 5 張、置中裁成相同正方形）
 - 全部字型標楷體；使用者輸入的換行在儲存格內換行，不拆成多列
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from openpyxl import load_workbook
 from openpyxl.drawing.image import Image as XlImage
 from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
 from openpyxl.drawing.xdr import XDRPositiveSize2D
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Side
 from openpyxl.worksheet.pagebreak import Break
 
 from app.services.safety import excel_safe
@@ -116,12 +116,12 @@ def _wrap(cell, *, horizontal=None, vertical="center") -> None:
         vertical=vertical, wrap_text=True)
 
 
-def _fill_header(ws, rpt: dict) -> float:
+def _fill_header(ws, rpt: dict, title: str | None = None) -> float:
     """填範本表頭，回傳第 1~11 列總高度（pt）。"""
     d = datetime.date.fromisoformat(rpt["report_date"])
     service = rpt.get("service_name") or ""
     client = rpt.get("client_name") or ""
-    title = report_title(rpt)
+    title = report_title(rpt) if title is None else title
     start = rpt.get("start_time") or "未指定時間"
     appt_note = _norm_text(rpt.get("appointment_note"))
     note = _norm_text(rpt.get("note"))
@@ -263,40 +263,136 @@ def _add_photos(ws, photo_paths: Sequence[Path], header_pt: float, first_row: in
     return last_row
 
 
-def build_work_progress_workbook(reports: Sequence[dict], *, compact: bool = False,
+def _setup_sheet(ws, tpl, last_row: int) -> None:
+    """字型、列印範圍與頁首頁尾（單一工作表共用）。"""
+    _set_font(ws, last_row)
+    ws.print_area = f"A1:C{last_row}"
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.paperSize = 9
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr = copy(tpl.sheet_properties.pageSetUpPr)
+    ws.page_margins = copy(tpl.page_margins)
+    ws.print_options.horizontalCentered = True
+    ws.oddHeader.center.text = "工程進度回報"
+    ws.oddHeader.center.font = f"{FONT_NAME},標準"
+    ws.oddHeader.center.size = 16
+    ws.oddFooter.center.text = "&P"
+    ws.oddFooter.center.font = f"{FONT_NAME},標準"
+
+
+def _rows_height(ws, first: int, last: int) -> float:
+    """第 first~last 列的列高總和（pt；未設定者以 15 計）。"""
+    return sum(ws.row_dimensions[r].height or 15.0 for r in range(first, last + 1))
+
+
+def _append_block(dst, src, last_row: int, dst_last: int, break_before: bool) -> int:
+    """把暫存工作表 src 第 2~last_row 列（不含標題列）接在 dst 第 dst_last 列之後，回傳新的最後一列。
+    break_before=True 時在接上之前插入分頁（此區塊放不進目前這頁，換到下一頁）。"""
+    offset = dst_last - 1
+    for r in range(2, last_row + 1):
+        h = src.row_dimensions[r].height
+        if h:
+            dst.row_dimensions[r + offset].height = h
+        for c in "ABC":
+            cell, target = src[f"{c}{r}"], dst[f"{c}{r + offset}"]
+            target.value = cell.value
+            target._style = copy(cell._style)
+    for rng in src.merged_cells.ranges:
+        if rng.min_row >= 2:
+            dst.merge_cells(start_row=rng.min_row + offset, end_row=rng.max_row + offset,
+                            start_column=rng.min_col, end_column=rng.max_col)
+    for img in src._images:
+        img.anchor._from.row += offset
+        dst.add_image(img)
+    if break_before:
+        dst.row_breaks.append(Break(id=dst_last))
+    else:  # 同一頁已有前一個區塊：在「工作日期」列上方加分隔線
+        for c in "ABC":
+            cell = dst[f"{c}{2 + offset}"]
+            border = copy(cell.border)
+            border.top = Side(style="medium", color="FF808080")
+            cell.border = border
+    for brk in src.row_breaks.brk:
+        dst.row_breaks.append(Break(id=brk.id + offset))
+    return last_row + offset
+
+
+def _hide_empty_photo_title(ws, photo_paths: Sequence[Path], first_row: int) -> None:
+    """沒有照片時不顯示「施工照片」標題（該列縮成小間距，區塊之間仍留一點空白）。"""
+    if not photo_paths:
+        ws[f"A{first_row - 1}"].value = None
+        ws.row_dimensions[first_row - 1].height = 12
+
+
+def _group_by_client(reports: Sequence[dict]) -> list[list[dict]]:
+    """依客戶分組（依首次出現順序），組內依日期由舊到新。"""
+    groups: dict[str, list[dict]] = {}
+    for rpt in reports:
+        groups.setdefault(rpt.get("client_name") or "", []).append(rpt)
+    return [sorted(g, key=lambda r: r["report_date"]) for g in groups.values()]
+
+
+def _build_compact_sheet(wb, tpl, group: list[dict], name: str,
+                         on_report, on_photo) -> None:
+    """精簡版：同一客戶一個工作表；標題只放客戶，第一個日期區塊用完整版（含客戶／時間／地址），
+    之後的日期區塊用精簡版往下接；A4 一頁盡量放滿多個日期區塊，放不下的整塊移到下一頁（不切開區塊）。"""
+    client = group[0].get("client_name") or "工作進度"
+    ws = wb.copy_worksheet(tpl)
+    ws.title = name
+    header_pt = _fill_header(ws, group[0], title=client)
+    last_row = _add_photos(ws, group[0].get("photo_paths") or [], header_pt, FIRST_PHOTO_ROW, on_photo)
+    _hide_empty_photo_title(ws, group[0].get("photo_paths") or [], FIRST_PHOTO_ROW)
+    page_used = min(_rows_height(ws, 1, last_row), PAGE_BUDGET_PT)  # 超過一頁（照片多）者，之後換新頁
+    if on_report:
+        on_report()
+    for rpt in group[1:]:
+        tmp = wb.copy_worksheet(tpl)
+        header_pt = _fill_compact_header(tmp, rpt)
+        tmp_last = _add_photos(tmp, rpt.get("photo_paths") or [], header_pt, COMPACT_FIRST_PHOTO_ROW, on_photo)
+        _hide_empty_photo_title(tmp, rpt.get("photo_paths") or [], COMPACT_FIRST_PHOTO_ROW)
+        block_pt = _rows_height(tmp, 2, tmp_last)
+        break_before = page_used + block_pt > PAGE_BUDGET_PT  # 放不進這頁就整塊移到下一頁，不把區塊切開
+        last_row = _append_block(ws, tmp, tmp_last, last_row, break_before)
+        page_used = min(block_pt, PAGE_BUDGET_PT) if break_before else page_used + block_pt
+        wb.remove(tmp)
+        if on_report:
+            on_report()
+    _setup_sheet(ws, tpl, last_row)
+
+
+def build_work_progress_workbook(reports: Sequence[dict], *, compact: bool = False, keyword: str = "",
                                  on_report: Callable[[], None] | None = None,
                                  on_photo: Callable[[], None] | None = None) -> io.BytesIO:
     """reports：每筆含 report_date/service_name/client_name/start_time/address/
-    appointment_note/note 與 photo_paths（照片檔路徑清單）。一筆一個工作表。
-    compact=True 用精簡版；on_report/on_photo 每完成一筆／一張照片呼叫一次（可丟例外中止）。"""
+    appointment_note/note 與 photo_paths（照片檔路徑清單）。
+    完整版一筆一個工作表；compact=True（精簡版）同客戶合併成一個工作表，工作表名稱用匯出關鍵字
+    （同時有多位客戶時為「關鍵字-客戶」；沒有關鍵字則用客戶名稱）。
+    on_report/on_photo 每完成一筆／一張照片呼叫一次（可丟例外中止）。"""
     wb = load_workbook(TEMPLATE_PATH)
     tpl = wb.active
     tpl._images = []
     used: set[str] = set()
+    if compact:
+        groups = _group_by_client(reports)
+        keyword = (keyword or "").strip()
+        for group in groups:
+            client = group[0].get("client_name") or ""
+            if not keyword:
+                name = client
+            elif len(groups) == 1:
+                name = keyword
+            else:
+                name = f"{keyword}-{client}"
+            _build_compact_sheet(wb, tpl, group, sheet_title(name, used), on_report, on_photo)
+        reports = []
     for rpt in reports:
         ws = wb.copy_worksheet(tpl)
         ws.title = sheet_title(rpt.get("client_name") or "", used)
-        if compact:
-            header_pt = _fill_compact_header(ws, rpt)
-            first_row = COMPACT_FIRST_PHOTO_ROW
-        else:
-            header_pt = _fill_header(ws, rpt)
-            first_row = FIRST_PHOTO_ROW
-        last_row = _add_photos(ws, rpt.get("photo_paths") or [], header_pt, first_row, on_photo)
-        _set_font(ws, last_row)
-        ws.print_area = f"A1:C{last_row}"
-        ws.page_setup.orientation = "portrait"
-        ws.page_setup.paperSize = 9
-        ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
-        ws.sheet_properties.pageSetUpPr = copy(tpl.sheet_properties.pageSetUpPr)
-        ws.page_margins = copy(tpl.page_margins)
-        ws.print_options.horizontalCentered = True
-        ws.oddHeader.center.text = "工程進度回報"
-        ws.oddHeader.center.font = f"{FONT_NAME},標準"
-        ws.oddHeader.center.size = 16
-        ws.oddFooter.center.text = "&P"
-        ws.oddFooter.center.font = f"{FONT_NAME},標準"
+        header_pt = _fill_header(ws, rpt)
+        last_row = _add_photos(ws, rpt.get("photo_paths") or [], header_pt, FIRST_PHOTO_ROW, on_photo)
+        _hide_empty_photo_title(ws, rpt.get("photo_paths") or [], FIRST_PHOTO_ROW)
+        _setup_sheet(ws, tpl, last_row)
         if on_report:
             on_report()
     wb.remove(tpl)
